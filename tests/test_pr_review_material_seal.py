@@ -3716,6 +3716,7 @@ def _prepare_final_security_fixture(
             repo="owner/repo",
             pr_number=42,
             review_ref="https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            review_source_unavailable_ref=None,
             operator_approval_ref=None,
         ),
         clock,
@@ -3832,9 +3833,12 @@ def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_
             "pr_number": 42,
             "prepared_at": "2026-07-15T12:00:00Z",
             "repository": "owner/repo",
-            "review_commit_sha": HEAD_SHA,
-            "review_reference": args.review_ref,
-            "review_submitted_at": "2026-07-15T11:59:00Z",
+            "review_evidence": {
+                "kind": "completed_review",
+                "review_commit_sha": HEAD_SHA,
+                "review_reference": args.review_ref,
+                "review_submitted_at": "2026-07-15T11:59:00Z",
+            },
         }
     ]
 
@@ -3842,6 +3846,80 @@ def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_
     with pytest.raises(closeout_module.CloseoutError, match="already prepared"):
         closeout_module._cmd_prepare_final_security(args)
     assert closeout_module._final_security_state_path(42).read_bytes() == state_before_duplicate
+
+
+def test_prepare_final_security_accepts_terminal_review_source_unavailability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    source_evidence = CodexReviewSourceUnavailabilityEvidence(
+        reference="https://github.com/owner/repo/pull/42#issuecomment-456",
+        created_at="2020-01-01T00:00:00Z",
+        source_status="usage_limit_reached",
+        body_sha256="sha256:" + "c" * 64,
+    )
+    args.review_ref = None
+    args.review_source_unavailable_ref = source_evidence.reference
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_source_unavailability_reference",
+        lambda *_args, **_kwargs: source_evidence,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: pytest.fail(
+            "terminal source evidence must not claim a completed review"
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    receipt = state["preparations"][0]["review_evidence"]
+    assert receipt == build_review_source_unavailability_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        quota_reference=source_evidence.reference,
+        quota_created_at=source_evidence.created_at,
+        quota_body_sha256=source_evidence.body_sha256,
+        source_status=source_evidence.source_status,
+    )
+    assert receipt["review_claim"] == "none"
+    assert "review_commit_sha" not in receipt
+
+
+@pytest.mark.parametrize(
+    ("review_ref", "source_ref"),
+    [
+        (None, None),
+        (
+            "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ),
+    ],
+    ids=["missing", "ambiguous"],
+)
+def test_prepare_final_security_rejects_nonexclusive_review_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    review_ref: str | None,
+    source_ref: str | None,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    args.review_ref = review_ref
+    args.review_source_unavailable_ref = source_ref
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="provide exactly one of --review-ref or --review-source-unavailable-ref",
+    ):
+        closeout_module._cmd_prepare_final_security(args)
 
 
 def test_prepare_final_security_rejects_unfrozen_material(
@@ -4139,12 +4217,51 @@ def test_prepare_final_security_parser_keeps_seal_contract_separate() -> None:
 
     assert args.handler is closeout_module._cmd_prepare_final_security
     assert args.review_ref.endswith("pullrequestreview-789")
+    assert args.review_source_unavailable_ref is None
     assert args.operator_approval_ref.endswith("issuecomment-456")
     assert not hasattr(args, "review_credit_outage_ref")
     assert not hasattr(args, "review_credit_quota_ref")
     assert not hasattr(args, "prior_codex_review_ref")
     assert not hasattr(args, "scan_manifest")
     assert not hasattr(args, "security_outage_override_ref")
+
+    source_args = parser.parse_args(
+        [
+            "prepare-final-security",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--review-source-unavailable-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ]
+    )
+    assert source_args.review_ref is None
+    assert source_args.review_source_unavailable_ref.endswith("issuecomment-456")
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "prepare-final-security",
+                "--repo",
+                "owner/repo",
+                "--pr-number",
+                "42",
+            ]
+        )
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "prepare-final-security",
+                "--repo",
+                "owner/repo",
+                "--pr-number",
+                "42",
+                "--review-ref",
+                "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+                "--review-source-unavailable-ref",
+                "https://github.com/owner/repo/pull/42#issuecomment-456",
+            ]
+        )
 
     outcome_args = parser.parse_args(
         [

@@ -20,7 +20,7 @@ import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Mapping, cast
 
 
 def _load_posix_locking_backend() -> Any | None:
@@ -257,6 +257,64 @@ def _validated_final_security_approval(value: object) -> dict[str, Any] | None:
     return dict(value)
 
 
+def _validated_final_security_review_evidence(
+    value: object,
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise CloseoutError("final-security review evidence is malformed")
+    reference_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
+    if is_review_source_unavailability_receipt(value):
+        try:
+            expected = build_review_source_unavailability_receipt(
+                material_digest=value["material_digest"],
+                material_head_sha=value["material_head_sha"],
+                quota_reference=value["quota_reference"],
+                quota_created_at=value["quota_created_at"],
+                quota_body_sha256=value["quota_body_sha256"],
+                source_status=value["source_status"],
+            )
+        except (KeyError, TypeError, ReviewEvidenceError) as exc:
+            raise CloseoutError("final-security source-unavailable evidence is malformed") from exc
+        if (
+            value != expected
+            or value["material_head_sha"] != material_head_sha
+            or value["material_digest"] != material_digest
+            or not str(value["quota_reference"]).startswith(reference_prefix + "issuecomment-")
+        ):
+            raise CloseoutError(
+                "final-security source-unavailable evidence is not bound to the material"
+            )
+        return dict(value)
+
+    expected_fields = {
+        "kind",
+        "review_commit_sha",
+        "review_reference",
+        "review_submitted_at",
+    }
+    if set(value) != expected_fields:
+        raise CloseoutError("final-security completed-review evidence has unknown fields")
+    if (
+        value["kind"] != "completed_review"
+        or not isinstance(value["review_commit_sha"], str)
+        or _SHA_RE.fullmatch(value["review_commit_sha"]) is None
+        or value["review_commit_sha"] != material_head_sha
+        or not isinstance(value["review_reference"], str)
+        or not value["review_reference"].startswith(reference_prefix)
+    ):
+        raise CloseoutError("final-security completed-review evidence is malformed")
+    _parse_utc_timestamp(
+        value["review_submitted_at"],
+        field="preparation review_submitted_at",
+    )
+    return dict(value)
+
+
 def _load_final_security_state(*, repository: str, pr_number: int) -> dict[str, Any] | None:
     path = _final_security_state_path(pr_number)
     try:
@@ -289,9 +347,7 @@ def _load_final_security_state(*, repository: str, pr_number: int) -> dict[str, 
         "pr_number",
         "prepared_at",
         "repository",
-        "review_commit_sha",
-        "review_reference",
-        "review_submitted_at",
+        "review_evidence",
     }
     for index, record in enumerate(state["preparations"]):
         if not isinstance(record, dict) or set(record) != expected_record_fields:
@@ -304,17 +360,15 @@ def _load_final_security_state(*, repository: str, pr_number: int) -> dict[str, 
             or not isinstance(record["material_digest"], str)
             or _MATERIAL_DIGEST_RE.fullmatch(record["material_digest"]) is None
             or record["attempt_status"] not in {"reserved", "completed"}
-            or not isinstance(record["review_commit_sha"], str)
-            or _SHA_RE.fullmatch(record["review_commit_sha"]) is None
-            or record["review_commit_sha"] != record["material_head_sha"]
-            or not isinstance(record["review_reference"], str)
-            or not record["review_reference"]
         ):
             raise CloseoutError("final-security preparation record identity is malformed")
         _parse_utc_timestamp(record["prepared_at"], field="preparation prepared_at")
-        _parse_utc_timestamp(
-            record["review_submitted_at"],
-            field="preparation review_submitted_at",
+        _validated_final_security_review_evidence(
+            record["review_evidence"],
+            repository=repository,
+            pr_number=pr_number,
+            material_head_sha=record["material_head_sha"],
+            material_digest=record["material_digest"],
         )
         if record["attempt_status"] == "reserved":
             if any(
@@ -596,10 +650,41 @@ def _verify_final_material_review(
         )
     )
     return {
+        "kind": "completed_review",
         "review_commit_sha": commit.sha,
         "review_reference": reference,
         "review_submitted_at": submitted_at,
     }
+
+
+def _verify_final_material_review_source_unavailability(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+    token: str,
+) -> dict[str, Any]:
+    """Bind preparation to terminal source evidence without claiming a review."""
+
+    source_evidence = verify_codex_review_source_unavailability_reference(
+        reference,
+        repository=repository,
+        pr_number=pr_number,
+        token=token,
+    )
+    return cast(
+        dict[str, Any],
+        build_review_source_unavailability_receipt(
+            material_digest=material_digest,
+            material_head_sha=material_head_sha,
+            quota_reference=source_evidence.reference,
+            quota_created_at=source_evidence.created_at,
+            quota_body_sha256=source_evidence.body_sha256,
+            source_status=source_evidence.source_status,
+        ),
+    )
 
 
 def _verify_final_security_approval(
@@ -726,15 +811,33 @@ def _cmd_prepare_final_security(args: argparse.Namespace) -> None:
         raise CloseoutError(
             "material state changed after freeze; freeze and exact-head review again"
         )
-    review_reference = _required_line(args.review_ref, label="review-ref")
-    review_record = _verify_final_material_review(
-        review_reference,
-        repository=repository,
-        pr_number=args.pr_number,
-        material_head_sha=snapshot.head_sha,
-        snapshot=snapshot,
-        token=token,
-    )
+    if (args.review_ref is None) == (args.review_source_unavailable_ref is None):
+        raise CloseoutError(
+            "provide exactly one of --review-ref or --review-source-unavailable-ref"
+        )
+    if args.review_source_unavailable_ref is not None:
+        source_reference = _required_line(
+            args.review_source_unavailable_ref,
+            label="review-source-unavailable-ref",
+        )
+        review_evidence = _verify_final_material_review_source_unavailability(
+            source_reference,
+            repository=repository,
+            pr_number=args.pr_number,
+            material_head_sha=snapshot.head_sha,
+            material_digest=manifest.digest,
+            token=token,
+        )
+    else:
+        review_reference = _required_line(args.review_ref, label="review-ref")
+        review_evidence = _verify_final_material_review(
+            review_reference,
+            repository=repository,
+            pr_number=args.pr_number,
+            material_head_sha=snapshot.head_sha,
+            snapshot=snapshot,
+            token=token,
+        )
     assert_snapshot_unchanged(snapshot, token=token)
 
     approval_reference = _single_line(
@@ -796,7 +899,7 @@ def _cmd_prepare_final_security(args: argparse.Namespace) -> None:
             "pr_number": args.pr_number,
             "prepared_at": _format_utc_timestamp(now),
             "repository": repository,
-            **review_record,
+            "review_evidence": review_evidence,
         }
         if preparation_state is None:
             preparation_state = {
@@ -1440,7 +1543,9 @@ def _parser() -> argparse.ArgumentParser:
     prepare_final_security = subparsers.add_parser("prepare-final-security")
     prepare_final_security.add_argument("--repo", required=True)
     prepare_final_security.add_argument("--pr-number", required=True, type=int)
-    prepare_final_security.add_argument("--review-ref", required=True)
+    final_review_evidence = prepare_final_security.add_mutually_exclusive_group(required=True)
+    final_review_evidence.add_argument("--review-ref")
+    final_review_evidence.add_argument("--review-source-unavailable-ref")
     prepare_final_security.add_argument("--operator-approval-ref")
     prepare_final_security.set_defaults(handler=_cmd_prepare_final_security)
 

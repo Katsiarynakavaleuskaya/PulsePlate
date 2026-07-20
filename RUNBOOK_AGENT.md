@@ -536,12 +536,15 @@ Use this as the canonical operating loop from branch creation to merge window:
      manually.
    - Fix every finding, run the required local gates and current-head CI, then
      freeze the material digest with `pr_review_closeout.py freeze`
-   - Run exact-head `pulseplate-pr-review` for that frozen digest; any material
-     fix invalidates the freeze and returns to fixes, gates, CI, freeze, and review
+   - Satisfy the final review-evidence slot with exactly one of a completed
+     exact-head `pulseplate-pr-review` or an unedited trusted terminal GitHub
+     Codex Connector rate/usage-limit receipt with `review_claim=none`; do not
+     retry or obtain a substitute review for the terminal unavailable path
    - Run `pr_review_closeout.py prepare-final-security --repo <owner/name>
-     --pr-number <N> --review-ref <exact-head-review-URL>`, then have the
-     operator make the one final manual Codex Security request; the command
-     itself never invokes the plugin
+     --pr-number <N>` with the matching `--review-ref <exact-head-review-URL>`
+     or `--review-source-unavailable-ref <trusted-terminal-comment-URL>`, then
+     have the operator make the one final manual Codex Security request; the
+     command itself never invokes the plugin
    - Record its terminal state with `record-final-security-outcome --outcome
      <completed|timeout|safety_block|incomplete> --evidence-ref <ref>`. A later
      approval comment must be newer than this terminal record.
@@ -671,10 +674,14 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    not retrigger the review.
 3. Apply actionable fixes. Any material change returns to step 2; governance
    draft/body activity does not.
-4. After the final role pass, current-head gates, material freeze, and exact-head
-   `pulseplate-pr-review`, run
-   `prepare-final-security --review-ref <exact-head-review-URL>` and have the
-   operator make the one final manual
+4. After the final role pass, current-head gates, and material freeze, satisfy
+   the final review-evidence slot with exactly one of a completed exact-head
+   `pulseplate-pr-review` or an unedited trusted terminal GitHub Codex Connector
+   rate/usage-limit receipt with `review_claim=none`; the unavailable path
+   requires no retry or substitute review. Run `prepare-final-security` with
+   the matching `--review-ref <exact-head-review-URL>` or
+   `--review-source-unavailable-ref <trusted-terminal-comment-URL>`, then have
+   the operator make the one final manual
    Codex Security request. Any timeout, safety block, or incomplete result
    is recorded with `record-final-security-outcome` and consumes that request;
    do not retry without a fresh, later exact-material

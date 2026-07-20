@@ -125,11 +125,14 @@ Root `AGENTS.md` owns the global final-material scan budget. This matrix owns
 the field-level projection: `scope=per_pr`, `automatic_budget=1`,
 `automatic_retries=0`, `requires_frozen_material=true`,
 `additional_invocation=trusted_operator_approval`, and
-`repository_invokes_plugin=false`. The final gates are exact-head
-`pulseplate-pr-review` followed by one operator-issued scan; the local
-preparation state is advisory and cannot prove global consumption.
+`repository_invokes_plugin=false`. After final material freeze, satisfy the
+final review-evidence slot with exactly one of a completed exact-head
+`pulseplate-pr-review` or an unedited trusted terminal GitHub Codex Connector
+rate/usage-limit receipt with `review_claim=none`; the terminal unavailable
+path requires no retry or substitute review. One operator-issued scan follows;
+the local preparation state is advisory and cannot prove global consumption.
 
-GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final review-evidence validation, with no automatic retry.
 
 ### Material review seal v1
 
@@ -213,10 +216,10 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
   `docs/review/PR_<N>_FIXED_MAPPING.md`
 - `post_open_review` is the packet-level phase where the canonical role-only
   `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized.
-  Final-material gates remain outside role dispatch: exact-head
-  `pulseplate-pr-review` precedes the one operator-issued Codex Security scan;
-  `merge_ready` keeps the current-head merge-wrapper contract explicit without
-  widening either lane.
+  Final-material gates remain outside role dispatch: a completed exact-head
+  `pulseplate-pr-review` or trusted terminal source-unavailable receipt
+  precedes the one operator-issued Codex Security scan; `merge_ready` keeps the
+  current-head merge-wrapper contract explicit without widening either lane.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -306,7 +309,7 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
 | Post-open role review | `qa-engineer-agent -> bug-hunter -> security-auditor` | Hard gate | Run once after PR open; every actionable must be fixed or dispositioned before final material freeze |
-| Final-material review | exact-head `pulseplate-pr-review` then one operator-issued manual Codex Security request | Hard gate | Both bind to the frozen final digest; repository code makes no plugin call or automatic retry, and every additional request requires fresh exact-material `OWNER`/`MEMBER` approval |
+| Final-material review | completed exact-head `pulseplate-pr-review` or trusted terminal source-unavailable receipt, then one operator-issued manual Codex Security request | Hard gate | Review evidence and scan bind to the frozen final digest; source unavailability claims no review and requires no retry/substitute, repository code makes no plugin call or automatic retry, and every additional request requires fresh exact-material `OWNER`/`MEMBER` approval |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |

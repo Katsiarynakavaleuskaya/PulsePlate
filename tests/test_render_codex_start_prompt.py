@@ -176,13 +176,16 @@ def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> 
     role_index = prompt.index("run the role-only post-open pass in order")
     fixes_index = prompt.index("Fix or disposition every finding")
     freeze_index = prompt.index("freeze the exact material")
-    review_index = prompt.index("Run exact-head `pulseplate-pr-review`")
+    review_index = prompt.index("Satisfy the final review-evidence slot")
+    prepare_index = prompt.index("prepare-final-security")
     security_index = prompt.index("one manual Codex Security request")
-    assert role_index < fixes_index < freeze_index < review_index < security_index
+    assert role_index < fixes_index < freeze_index < review_index < prepare_index < security_index
     assert "performs no automatic retry" in prompt
     assert "repository makes no plugin call" in prompt
     assert "cannot prove global cross-machine request consumption" in prompt
     assert "--review-ref <exact-head-review-URL>" in prompt
+    assert "--review-source-unavailable-ref <trusted-terminal-comment-URL>" in prompt
+    assert "`review_claim=none`" in prompt
     assert "`record-final-security-outcome`" in prompt
     assert "created after that terminal outcome" in prompt
 

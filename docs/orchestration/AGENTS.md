@@ -13,10 +13,10 @@ Scope: `docs/orchestration/**`
 
 The repo-global final-material scan budget is owned by root `AGENTS.md`; do not
 duplicate or weaken it in scoped orchestration docs. Local packets and schemas
-must project the role-only post-open pass separately from exact-head
-`pulseplate-pr-review` and the single operator-issued final security request.
+must project the role-only post-open pass separately from the final
+review-evidence slot and the single operator-issued final security request.
 
-GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+After final material freeze, satisfy the final review-evidence slot with exactly one of a completed exact-head `pulseplate-pr-review` or an unedited trusted terminal GitHub Codex Connector rate/usage-limit receipt with `review_claim=none`; the terminal unavailable path requires no retry or substitute review. GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final review-evidence validation, with no automatic retry.
 
 - For the design-agent runtime realignment bridge:
   - primary: `agent-coordinator`
