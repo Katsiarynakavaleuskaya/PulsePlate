@@ -395,10 +395,18 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "scripts/ci/emergency_python_wheels.json",
         "scripts/ci/install_locked_python_requirements.py",
         "tests/test_pgvector_compat.py",
+        "tests/test_pgvector_embedding_migration.py",
         "tests/test_vector_rag.py",
         "tests/test_db_rls.py",
     )
     assert all(f"'{path}'" in filter_contract for path in direct_proof_inputs)
+    executable_proof_inputs = (
+        "tests/test_pgvector_compat.py",
+        "tests/test_pgvector_embedding_migration.py",
+        "tests/test_vector_rag.py",
+        "tests/test_db_rls.py",
+    )
+    assert all(path in compat_job for path in executable_proof_inputs)
 
     merge_gate_needs = merge_gate.split("needs:", maxsplit=1)[1].splitlines()[0]
     security_needs = security_job.split("needs:", maxsplit=1)[1].splitlines()[0]
