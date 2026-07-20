@@ -60,6 +60,15 @@ Evidence: .github/workflows/ci.yml:679-689; tests/test_trivy_ignore_policy_expir
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2162#pullrequestreview-4737269432 -> bec83538accb4ff48bbb451afe7084b4399c14ea
 
 Disposition: NOT-A-BUG
+Evidence: The live PR head descends from bec83538accb4ff48bbb451afe7084b4399c14ea, and scripts/orchestration/pr_review_closeout.py:734-756 plus scripts/ci/check_pr_merge_readiness.py:615-633 recompute and accept the sealed live material digest.
+Reason: The reviewed 720f0f71dff25becf9eac2e69b19362f6b7dd85b ref is an unavailable synthetic squash, not the live PR head; the canonical seal remains valid for the unchanged material digest.
+Fingerprint: sha256:8e6435d916bc32e4089cefdf99be6bd17b6f7ba2f5f9cad4aa705c3d343b2e26
+Cause: unavailable_review_ref_ancestry
+Material-Digest: sha256:ff45a81a9fb4c25de5214f089f9ac6b8ee46fcac0e49644e6d60a2df69d038d4
+Verified-Fix: bec83538accb4ff48bbb451afe7084b4399c14ea
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2162#discussion_r3617296300
+
+Disposition: NOT-A-BUG
 Evidence: scripts/orchestration/pr_review_closeout.py:734-756 and scripts/ci/check_pr_merge_readiness.py:615-633 recompute and reject stale live-material seals; docs/review/PR_2162_FIXED_MAPPING.md contains the regenerated Review Material Seal.
 Reason: The comment references the superseded squashed head f2c25ed; the repaired live PR graph now retains the material commits, while canonical closeout and merge-readiness validation fail closed on any current stale seal. This closeout regenerates the seal for the live material digest.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2162#discussion_r3616962234
