@@ -510,19 +510,20 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Read `AGENTS.md`, `RUNBOOK_AGENT.md`, and the nearest scoped `AGENTS.md`
    - Decide scope, risk, and which sub-agents or helpers are needed before edits
 2. **Open non-draft by default**
-   - For lanes using the material review seal, first disable automatic
-     synchronize-triggered Codex review in the external GitHub integration.
-     Repository code cannot enforce that external setting.
    - Open the PR ready-for-review once scope, artifact strategy, and initial local gates are coherent so bots and current-head checks run
+   - Let the configured review bots react automatically to the opened or
+     synchronized diff. Do not post manual bot-review commands or disable their
+     automatic review setting.
    - Use draft only with an explicit operator exception when review/check suppression is intentional
    - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
 3. **Post-open review entry**
    - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
    - When the lane declares `qa-engineer-agent -> bug-hunter -> security-auditor`, that pass happens after PR open, not as a substitute for pre-PR local gates
-   - Finish all implementation/docs/tests, then freeze the material digest with
-     `pr_review_closeout.py freeze`. The coordinator posts one manual
-     `@codex review` for that digest. A material fix invalidates the freeze and
-     returns here.
+   - Finish all implementation/docs/tests, publish the coherent diff, then
+     freeze the material digest with `pr_review_closeout.py freeze`. Observe the
+     automatic Codex response for that published digest; do not trigger or
+     retrigger it manually. A material fix invalidates the freeze and returns
+     here.
    - After the final freeze, run the declared
      `qa-engineer-agent -> bug-hunter -> security-auditor` pass, one Codex
      Security diff scan / finding discovery, and `pulseplate-pr-review`.
@@ -644,18 +645,27 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 **Material-seal closeout cycle:**
 
 1. `pr_review_closeout.py init` creates/resumes the gitignored local draft.
-2. `freeze` proves local HEAD equals the live PR head and records the material
-   digest. Request one manual Codex review for that digest. If the trusted
-   connector instead returns its exact review-credit exhaustion response, keep
-   that immutable comment URL and use the bounded credit-outage path below.
+2. Publish the coherent material diff, then `freeze` proves local HEAD equals
+   the live PR head and records its digest. Observe the configured automatic
+   Codex response; do not post a manual bot-review command. If the trusted
+   connector returns its exact review-credit exhaustion response, keep that
+   immutable same-PR comment URL as terminal source-unavailability evidence. Do
+   not retrigger the review.
 3. Apply actionable fixes. Any material change returns to step 2; governance
    draft/body activity does not.
 4. After the final material freeze, complete the required role pass and one
    final Codex Security diff scan. If the plugin is systemically unavailable
    with MCP `-32001 Request timed out`, use the bounded operator-outage path only
    after an explicit operator decision; it is not scan or no-findings evidence.
-5. Record dispositions with `add-disposition`, then run `seal --review-ref ...`
-   with exactly one of `--scan-manifest ...` or
+5. Record dispositions with `add-disposition`, then run `seal` with exactly one
+   review-evidence mode: `--review-ref ...` for a completed trusted review, or
+   `--review-source-unavailable-ref ...` for an exact trusted Codex rate-limit /
+   usage-limit comment. The source-unavailable path requires no retry,
+   substitute review, prior review, operator override, or TTL; it proves only
+   source unavailability (`review_claim=none`), never review/PASS/no-findings.
+   The comment is re-fetched and its exact UTF-8 body hash recomputed. A later
+   material change requires resealing, while the same immutable quota reference
+   may be reused. Also provide exactly one of `--scan-manifest ...` or
    `--security-outage-override-ref <exact GitHub comment URL>`. The override
    comment must be unedited, from an `OWNER`/`MEMBER`, bind the immutable GitHub
    user id and exact material head/digest, remain within its TTL, and pass the
@@ -664,19 +674,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    merge gate, current-head check identity parser, CI/security workflows, local
    GitHub Actions, or implementations/policy inputs of the substitute security checks cannot use
    the override. This writes the sole canonical mapping/seal artifact.
-   When code-review credits are exhausted, `--review-ref` must name a subsequent
-   exact-head `OWNER`/`MEMBER` review and `seal` must also receive
-   `--review-credit-outage-ref <canonical owner override comment URL>`,
-   `--review-credit-quota-ref <trusted connector quota comment URL>`, plus
-   `--prior-codex-review-ref <trusted ancestor review URL>`. The quota response
-   must be current, the exact-head review must follow it, and the unedited owner
-   override comment must bind the frozen material head/digest and all three
-   evidence URLs. All evidence must remain within its TTL, use the same
-   `OWNER`/`MEMBER` identity where required, and no unresolved/actionable review
-   item may remain. This is an unavailable-provider receipt, not a Codex
-   no-findings claim. PR `#2142` is the only self-bootstrap; later
-   review/seal/merge verification, current-head check authority, or GitHub
-   workflow/action authority changes cannot use the override.
+   Historical PR `#2142` review-credit override receipts remain readable and
+   revalidated for existing artifacts only; their old multi-reference authoring
+   flags are not active CLI options.
 6. Commit that artifact once, update the PR body link without a Git commit, and
    run the authenticated strict wrapper.
 7. A later validated duplicate uses the exact structured reply contract and an

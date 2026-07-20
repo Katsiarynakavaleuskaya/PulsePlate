@@ -16,6 +16,7 @@ from scripts.ci import check_pr_merge_readiness as merge_gate
 from scripts.ci.check_pr_merge_readiness import _is_actionable, _mapped_urls
 from scripts.orchestration.pr_commit_identity import (
     CodexReviewEvidence,
+    CodexReviewSourceUnavailabilityEvidence,
     CommitRefKind,
     PrCommitEvidence,
     PrSnapshot,
@@ -28,6 +29,7 @@ from scripts.orchestration.pr_review_evidence import (
     RECEIPT_AUTHORITY,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     render_embedded_review_seal,
@@ -1203,6 +1205,143 @@ def test_ci_gate_revalidates_review_credit_outage_against_material_head(
 
     assert validated["code_review"]["status"] == "tooling_unavailable"
     assert verified_heads == [material_head]
+
+
+def test_ci_gate_reauthenticates_terminal_review_source_unavailability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    frozen = compute_material_manifest(
+        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
+    )
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    quota_body_sha256 = "sha256:" + "c" * 64
+    code_review = build_review_source_unavailability_receipt(
+        material_digest=frozen.digest,
+        material_head_sha=material_head,
+        quota_reference=quota_reference,
+        quota_created_at="2020-01-01T00:00:00Z",
+        quota_body_sha256=quota_body_sha256,
+        source_status="usage_limit_reached",
+    )
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": _receipt(base_sha, material_head),
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": frozen.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": frozen.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+    }
+    artifact = _artifact_with_seal(seal)
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(artifact, encoding="utf-8")
+    governance_head = _commit(repo, "governance closeout")
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=governance_head,
+        commits=(
+            PrCommitEvidence(material_head, None),
+            PrCommitEvidence(governance_head, None),
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == governance_head else CommitRefKind.PR_COMMIT,
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    verified_refs: list[str] = []
+
+    def verify_source(
+        reference: str, *_args: Any, **_kwargs: Any
+    ) -> CodexReviewSourceUnavailabilityEvidence:
+        verified_refs.append(reference)
+        return CodexReviewSourceUnavailabilityEvidence(
+            reference=quota_reference,
+            created_at="2020-01-01T00:00:00Z",
+            source_status="usage_limit_reached",
+            body_sha256=quota_body_sha256,
+        )
+
+    monkeypatch.setattr(
+        merge_gate,
+        "verify_codex_review_source_unavailability_reference",
+        verify_source,
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: pytest.fail("normal Codex review path must not run"),
+    )
+
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=artifact,
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+    )
+    assert validated["code_review"] == code_review
+    assert verified_refs == [quota_reference]
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_pr_context",
+        lambda *_a, **_k: (
+            42,
+            "owner/repo",
+            False,
+            "Canonical artifact: docs/review/PR_42_FIXED_MAPPING.md",
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: governance_head)
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    assert merge_gate.main() == 0
+    output = capsys.readouterr().out
+    assert "REVIEW_SOURCE_UNAVAILABLE_VALID usage_limit_reached" in output
+    assert "MACHINE_BOUND_REVIEW_COMMIT" not in output
+    assert "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID" not in output
 
 
 def test_merge_readiness_main_blocks_missing_mapping(

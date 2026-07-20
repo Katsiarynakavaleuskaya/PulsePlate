@@ -8,7 +8,15 @@ from pathlib import Path
 from scripts.orchestration.review_source_status import (
     REVIEW_SOURCE_STATUSES,
     build_review_source_status,
+    classify_codex_review_source_unavailability_body,
+    review_source_policy_projection,
     summarize_degraded_sources,
+)
+
+CODEX_USAGE_LIMIT_BODY = (
+    "You have reached your Codex usage limits for code reviews. "
+    "You can see your limits in the "
+    "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
 )
 
 
@@ -24,7 +32,7 @@ def test_review_source_degraded_is_warning_only_by_default() -> None:
         "source": "coderabbit",
         "status": "rate_limited",
         "source_degraded": True,
-        "fallback_required": True,
+        "fallback_required": False,
         "blocking": False,
         "reason": "usage limit reached",
         "evidence": "fallback dry run",
@@ -32,6 +40,51 @@ def test_review_source_degraded_is_warning_only_by_default() -> None:
     assert summarize_degraded_sources([status]) == [
         "coderabbit: rate_limited (usage limit reached)"
     ]
+
+
+def test_terminal_quota_policy_requires_no_retry_or_substitute_authority() -> None:
+    assert review_source_policy_projection() == {
+        "blocking_statuses": [
+            "actionable_bot_comments",
+            "failed_required_check",
+            "fallback_finding",
+            "unresolved_threads",
+        ],
+        "policy_version": "pulseplate.review-source-policy/v1",
+        "terminal_nonblocking_statuses": [
+            "rate_limited",
+            "usage_limit_reached",
+        ],
+        "terminal_unavailability": {
+            "blocking": False,
+            "fallback_required": False,
+            "operator_override_required": False,
+            "prior_review_required": False,
+            "retry_required": False,
+            "review_claim": "none",
+            "source_degraded": True,
+            "substitute_review_required": False,
+            "ttl_required": False,
+        },
+    }
+
+
+def test_codex_quota_body_classification_is_exact_and_fail_closed() -> None:
+    assert (
+        classify_codex_review_source_unavailability_body(CODEX_USAGE_LIMIT_BODY)
+        == "usage_limit_reached"
+    )
+    for body in (
+        CODEX_USAGE_LIMIT_BODY + " ",
+        CODEX_USAGE_LIMIT_BODY.replace("usage limits", "rate limits"),
+        "Codex review unavailable",
+    ):
+        try:
+            classify_codex_review_source_unavailability_body(body)
+        except ValueError as exc:
+            assert "exact known quota response" in str(exc)
+        else:  # pragma: no cover - assertion branch
+            raise AssertionError("changed quota text must fail closed")
 
 
 def test_review_source_blocking_requires_explicit_blocking_status() -> None:

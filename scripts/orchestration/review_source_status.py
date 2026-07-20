@@ -10,6 +10,8 @@ import argparse
 from dataclasses import asdict, dataclass
 import json
 import re
+from types import MappingProxyType
+from typing import Mapping
 
 DEGRADED_STATUSES = frozenset(
     {"degraded", "unavailable", "rate_limited", "usage_limit_reached", "auth_missing", "partial"}
@@ -18,6 +20,26 @@ BLOCKING_STATUSES = frozenset(
     {"fallback_finding", "failed_required_check", "unresolved_threads", "actionable_bot_comments"}
 )
 REVIEW_SOURCE_STATUSES = frozenset({"available"}) | DEGRADED_STATUSES | BLOCKING_STATUSES
+REVIEW_SOURCE_POLICY_VERSION = "pulseplate.review-source-policy/v1"
+TERMINAL_NONBLOCKING_STATUSES = frozenset({"rate_limited", "usage_limit_reached"})
+_CODEX_REVIEW_SOURCE_UNAVAILABILITY_BODY_STATUSES: Mapping[str, str] = MappingProxyType(
+    {
+        (
+            "Codex usage limits have been reached for code reviews. "
+            "Please check with the admins of this repo to increase the limits by adding credits."
+        ): "usage_limit_reached",
+        (
+            "Codex usage limits have been reached for code reviews. "
+            "Please check with the admins of this repo to increase the limits by adding credits.\n"
+            "Credits must be used to enable repository wide code reviews."
+        ): "usage_limit_reached",
+        (
+            "You have reached your Codex usage limits for code reviews. "
+            "You can see your limits in the "
+            "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
+        ): "usage_limit_reached",
+    }
+)
 _SECRETISH_RE = re.compile(
     r"(?i)(github_pat_[a-z0-9_]+|gh[opsru]_[a-z0-9_]+|ghp_[a-z0-9_]+|"
     r"ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
@@ -41,6 +63,40 @@ class ReviewSourceStatus:
     blocking: bool
     reason: str
     evidence: str
+
+
+def review_source_policy_projection() -> dict[str, object]:
+    """Return the versioned, machine-checkable review-source policy."""
+
+    return {
+        "blocking_statuses": sorted(BLOCKING_STATUSES),
+        "policy_version": REVIEW_SOURCE_POLICY_VERSION,
+        "terminal_nonblocking_statuses": sorted(TERMINAL_NONBLOCKING_STATUSES),
+        "terminal_unavailability": {
+            "blocking": False,
+            "fallback_required": False,
+            "operator_override_required": False,
+            "prior_review_required": False,
+            "retry_required": False,
+            "review_claim": "none",
+            "source_degraded": True,
+            "substitute_review_required": False,
+            "ttl_required": False,
+        },
+    }
+
+
+def classify_codex_review_source_unavailability_body(body: str) -> str:
+    """Map an exact trusted Codex quota body to its closed source status."""
+
+    if not isinstance(body, str):
+        raise ValueError("Codex review-source response body must be a string")
+    try:
+        return _CODEX_REVIEW_SOURCE_UNAVAILABILITY_BODY_STATUSES[body]
+    except KeyError as exc:
+        raise ValueError(
+            "Codex review-source response is not an exact known quota response"
+        ) from exc
 
 
 def redact_review_source_text(value: str) -> str:
@@ -83,7 +139,8 @@ def build_review_source_status(
             source=source,
             status=normalized_status,
             source_degraded=source_degraded,
-            fallback_required=source_degraded or source_blocking,
+            fallback_required=source_blocking
+            or (source_degraded and normalized_status not in TERMINAL_NONBLOCKING_STATUSES),
             blocking=source_blocking,
             reason=redacted_reason,
             evidence=redacted_evidence,

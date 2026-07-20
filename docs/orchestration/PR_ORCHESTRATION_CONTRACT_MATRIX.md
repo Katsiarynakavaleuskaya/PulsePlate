@@ -136,10 +136,10 @@ governance PR number + 1; the governance PR may opt in with
   the frozen material head. An official unedited no-findings issue comment is
   accepted only when the trusted Codex GitHub App identity and its short
   reviewed-commit marker resolve through the Commit API to that same full head;
-  reviewer-execution/synthetic refs never satisfy this proof. Code review and
-  one completed final Codex Security diff scan bind to the same digest. A
-  systemic MCP `-32001 Request timed out` outage may use a distinct
-  `operator_outage_override` evidence variant only when an unedited GitHub
+  reviewer-execution/synthetic refs never satisfy this proof. The selected
+  review-evidence variant and one completed final Codex Security diff scan bind
+  to the same digest. A systemic MCP `-32001 Request timed out` outage may use a
+  distinct `operator_outage_override` evidence variant only when an unedited GitHub
   comment from an `OWNER` or `MEMBER` binds the immutable GitHub user id, exact
   PR, material head, and material digest, declares `scan_id: none`, remains
   within its TTL, and the current-head `security`, `CodeQL`, `security-scan`,
@@ -152,17 +152,20 @@ governance PR number + 1; the governance PR may opt in with
   The embedded scan record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
   and content binding but does not claim signed/plugin attestation.
-- If the trusted connector returns its exact review-credit exhaustion response
-  for the final review cycle, the seal may use the closed
-  `operator_review_credit_exhaustion_override` variant. It requires a prior
-  trusted Codex review on an ancestor PR commit and a later exact-head
-  `OWNER`/`MEMBER` review. That same operator must publish one unedited canonical
-  override comment binding the trusted quota response, both review references,
-  the exact head, and the material digest. The receipt is time-limited and
-  records provider unavailability, not Codex review/no-findings. PR `#2142` is
-  the one-time trust-boundary bootstrap; subsequent changes to review/seal/merge
-  verification, current-head check authority, or GitHub workflow/action
-  authority cannot authorize themselves with it.
+- If the trusted connector returns an exact known rate-limit or usage-limit
+  response, the seal uses the tagged
+  `pulseplate.codex-review-source-unavailability/v1` variant. The canonical
+  same-PR, unedited trusted Codex GitHub App comment is terminal unavailable
+  evidence: no retry, substitute review, prior review, operator override, or
+  TTL is required. It binds the current material head/digest with
+  `binding_kind=seal_context_only` and `review_claim=none`; it is not review,
+  approval, PASS, or no-findings evidence. Unknown/changed bodies and identity,
+  URL, timestamp, body-hash, PR/repository, or material-binding drift fail
+  closed. The same immutable quota reference may be reverified after a later
+  material change, but the material seal itself must be regenerated.
+- Historical PR `#2142` `operator_review_credit_exhaustion_override` receipts
+  remain parseable and revalidated only for artifact compatibility. The legacy
+  multi-reference override is not an active authoring mode.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
   gitignored. `seal` is the only tracked authoring step; mapping and seal publish
   in one batched governance-closeout commit. Resealing after a base sync is

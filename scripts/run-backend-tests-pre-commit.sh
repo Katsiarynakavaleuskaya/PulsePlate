@@ -165,6 +165,19 @@ declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(
     "tests/test_httpx_testclient_compat_guard.py"
     "tests/test_python_supply_chain_controls.py"
 )
+declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(
+    "AGENTS.md"
+    "RUNBOOK_AGENT.md"
+    "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md"
+    "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md"
+    "scripts/ci/check_pr_merge_readiness.py"
+    "scripts/orchestration/pr_commit_identity.py"
+    "scripts/orchestration/pr_review_closeout.py"
+    "scripts/orchestration/pr_review_evidence.py"
+    "scripts/orchestration/review_source_status.py"
+    "scripts/run-backend-tests-pre-commit.sh"
+    "tests/guards/test_review_source_quota_policy_guard.py"
+)
 
 add_python_dependency_testclient_tests() {
     # CI lint runs the pre-commit hook from the ci-lite dependency profile,
@@ -191,6 +204,12 @@ add_extra_tests_for_changed_files() {
         for dependency_file in "${PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES[@]}"; do
             if [ "$file" = "$dependency_file" ]; then
                 add_python_dependency_testclient_tests
+                break
+            fi
+        done
+        for policy_file in "${REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES[@]}"; do
+            if [ "$file" = "$policy_file" ]; then
+                EXTRA_TEST_FILES+=("tests/guards/test_review_source_quota_policy_guard.py")
                 break
             fi
         done
