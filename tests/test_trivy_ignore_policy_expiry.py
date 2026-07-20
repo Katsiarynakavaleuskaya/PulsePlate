@@ -22,6 +22,18 @@ SECURITY_DOC_GPGV_24883_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24883
 SECURITY_DOC_GZIP_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-41992-gzip.md"
 SECURITY_DOC_FARADAY_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-54297-faraday-fastlane.md"
 BACKLOG_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+LOCAL_ONLY_SCAN_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "artifacts",
+    "build",
+    "dist",
+    "node_modules",
+    "worktrees",
+}
 
 REMOVED_PERL_RUNTIME_CVES = (
     "CVE-2023-31484",
@@ -99,6 +111,17 @@ def _ledger_faraday_entry() -> str:
     next_anchor = backlog_text.find("<a id=", ledger_start + 1)
     ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
     return backlog_text[ledger_start:ledger_end]
+
+
+def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
+    """Return repository lockfiles without descending into local-only trees."""
+
+    lockfiles: list[Path] = []
+    for root, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in LOCAL_ONLY_SCAN_DIRS)
+        if "Gemfile.lock" in filenames:
+            lockfiles.append(Path(root) / "Gemfile.lock")
+    return sorted(lockfiles)
 
 
 def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: Path) -> None:
@@ -394,17 +417,12 @@ def test_faraday_fastlane_doc_records_scanner_lag_removal() -> None:
 
 
 def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:
-    ignored_dirs = {".git", ".venv", "node_modules", "worktrees"}
     matching_lockfiles: list[str] = []
 
     # Prune volatile dependency trees before descent. Python 3.11's ``Path.rglob``
     # can raise FileNotFoundError when a parallel OpenAPI test replaces
     # ``frontend/node_modules`` with ``npm ci``.
-    for root, dirnames, filenames in os.walk(REPO_ROOT):
-        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in ignored_dirs)
-        if "Gemfile.lock" not in filenames:
-            continue
-        lockfile = Path(root) / "Gemfile.lock"
+    for lockfile in _repository_gemfile_locks(REPO_ROOT):
         relative = lockfile.relative_to(REPO_ROOT)
         lockfile_text = lockfile.read_text(encoding="utf-8")
         assert "    faraday (1.10.5)" not in lockfile_text
@@ -412,6 +430,21 @@ def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:
             matching_lockfiles.append(relative.as_posix())
 
     assert sorted(matching_lockfiles) == ["ios/Gemfile.lock"]
+
+
+def test_gemfile_scan_preserves_retained_local_artifacts(tmp_path: Path) -> None:
+    ios_lock = tmp_path / "ios" / "Gemfile.lock"
+    ios_lock.parent.mkdir()
+    ios_lock.write_text("    faraday (1.10.6)\n", encoding="utf-8")
+    retained_lock = (
+        tmp_path / "artifacts" / "orchestration" / "experiments" / "retained" / "Gemfile.lock"
+    )
+    retained_lock.parent.mkdir(parents=True)
+    retained_lock.write_text("creative evidence\n", encoding="utf-8")
+
+    lockfiles = _repository_gemfile_locks(tmp_path)
+
+    assert [path.relative_to(tmp_path).as_posix() for path in lockfiles] == ["ios/Gemfile.lock"]
 
 
 def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
