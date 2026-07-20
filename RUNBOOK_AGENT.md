@@ -667,7 +667,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    is recorded with `record-final-security-outcome` and consumes that request;
    do not retry without a fresh, later exact-material
    `OWNER`/`MEMBER` approval. A self-modifying security-governance PR must not
-   use the bounded operator-outage path to authorize itself.
+   use the bounded operator-outage path to authorize itself. When the governed
+   review-credit outage variant is eligible, pass its
+   `--review-credit-outage-ref`, `--review-credit-quota-ref`, and
+   `--prior-codex-review-ref` inputs to `prepare-final-security` as well as to
+   `seal`; preparation reuses the same scope guard and trusted evidence bundle.
 5. Record dispositions with `add-disposition`, then run `seal --review-ref ...`
    with exactly one of `--scan-manifest ...` or
    `--security-outage-override-ref <exact GitHub comment URL>`. The override

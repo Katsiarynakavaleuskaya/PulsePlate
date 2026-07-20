@@ -567,9 +567,64 @@ def _verify_final_material_review(
     repository: str,
     pr_number: int,
     material_head_sha: str,
+    material_digest: str,
+    material_paths: tuple[str, ...],
+    snapshot: Any,
+    review_credit_outage_ref: str | None,
+    review_credit_quota_ref: str | None,
+    prior_codex_review_ref: str | None,
     token: str,
 ) -> dict[str, str]:
-    """Bind the preparation gate to one trusted exact-head Codex review."""
+    """Bind preparation to exact-head review evidence or its bounded outage variant."""
+
+    if review_credit_outage_ref is not None:
+        quota_reference = _required_line(
+            review_credit_quota_ref,
+            label="review-credit-quota-ref",
+        )
+        prior_review_reference = _required_line(
+            prior_codex_review_ref,
+            label="prior-codex-review-ref",
+        )
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=material_paths,
+        )
+        outage = verify_review_credit_outage_references(
+            override_reference=review_credit_outage_ref,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=reference,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            snapshot=snapshot,
+            expected_material_head_sha=material_head_sha,
+            expected_material_digest=material_digest,
+        )
+        if (
+            outage.material_head_sha != material_head_sha
+            or outage.material_digest != material_digest
+            or outage.operator_review_reference != reference
+        ):
+            raise CloseoutError("review-credit outage evidence is not bound to the frozen material")
+        submitted_at = _format_utc_timestamp(
+            _parse_utc_timestamp(
+                outage.operator_review_submitted_at,
+                field="final-material operator review submitted_at",
+            )
+        )
+        return {
+            "review_commit_sha": material_head_sha,
+            "review_reference": reference,
+            "review_submitted_at": submitted_at,
+        }
+    if review_credit_quota_ref is not None or prior_codex_review_ref is not None:
+        raise CloseoutError(
+            "--review-credit-quota-ref and --prior-codex-review-ref require "
+            "--review-credit-outage-ref"
+        )
 
     review = verify_codex_review_reference(
         reference,
@@ -578,7 +633,6 @@ def _verify_final_material_review(
         token=token,
         expected_commit_ref=material_head_sha,
     )
-    snapshot = fetch_pr_snapshot(repository, pr_number, token=token)
     commit = classify_commit_ref(review.commit_ref, snapshot, token=token)
     if (
         not isinstance(commit, RepositoryCommitRef)
@@ -724,11 +778,32 @@ def _cmd_prepare_final_security(args: argparse.Namespace) -> None:
             "material state changed after freeze; freeze and exact-head review again"
         )
     review_reference = _required_line(args.review_ref, label="review-ref")
+    review_credit_outage_ref = _single_line(
+        getattr(args, "review_credit_outage_ref", None),
+        label="review-credit-outage-ref",
+        required=False,
+    )
+    review_credit_quota_ref = _single_line(
+        getattr(args, "review_credit_quota_ref", None),
+        label="review-credit-quota-ref",
+        required=False,
+    )
+    prior_codex_review_ref = _single_line(
+        getattr(args, "prior_codex_review_ref", None),
+        label="prior-codex-review-ref",
+        required=False,
+    )
     review_record = _verify_final_material_review(
         review_reference,
         repository=repository,
         pr_number=args.pr_number,
         material_head_sha=snapshot.head_sha,
+        material_digest=manifest.digest,
+        material_paths=tuple(entry.path for entry in manifest.entries),
+        snapshot=snapshot,
+        review_credit_outage_ref=review_credit_outage_ref,
+        review_credit_quota_ref=review_credit_quota_ref,
+        prior_codex_review_ref=prior_codex_review_ref,
         token=token,
     )
     assert_snapshot_unchanged(snapshot, token=token)
@@ -1437,6 +1512,9 @@ def _parser() -> argparse.ArgumentParser:
     prepare_final_security.add_argument("--repo", required=True)
     prepare_final_security.add_argument("--pr-number", required=True, type=int)
     prepare_final_security.add_argument("--review-ref", required=True)
+    prepare_final_security.add_argument("--review-credit-outage-ref")
+    prepare_final_security.add_argument("--review-credit-quota-ref")
+    prepare_final_security.add_argument("--prior-codex-review-ref")
     prepare_final_security.add_argument("--operator-approval-ref")
     prepare_final_security.set_defaults(handler=_cmd_prepare_final_security)
 

@@ -4254,6 +4254,48 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
 
 
 @pytest.mark.parametrize(
+    "mutation",
+    [
+        "__builtins__.object = lambda: app",
+        '__builtins__["object"] = lambda: app',
+        '__import__("builtins").object = lambda: app',
+    ],
+    ids=["dunder-builtins-attribute", "dunder-builtins-mapping", "builtin-importer"],
+)
+def test_legacy_growth_guard_tracks_implicit_builtins_namespace_poisoning(
+    mutation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        app = resolve_app()
+        {mutation}
+        app = object()
+        app.get("/api/v1/implicit-builtins-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/implicit-builtins-object-rebind"
+    ]
+
+
+def test_legacy_growth_guard_does_not_trust_shadowed_builtin_importer() -> None:
+    source = textwrap.dedent("""
+        class Box:
+            pass
+
+        def __import__(_name):
+            return Box()
+
+        app = resolve_app()
+        __import__("builtins").object = lambda: app
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "foreign_target",
     [
         'vars(some_obj)["object"]',
@@ -6424,6 +6466,63 @@ def test_legacy_growth_guard_preserves_items_key_value_shape() -> None:
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: " "registration:dynamic:/api/v1/items-value"
     ]
+
+
+@pytest.mark.parametrize(
+    "dispatch",
+    [
+        (
+            "route = next(iter(registrars.values()))\n"
+            '    route("/api/v1/wrapped-mapping-value")(handler)'
+        ),
+        (
+            "for route in list(registrars.values()):\n"
+            '        route("/api/v1/wrapped-mapping-value")(handler)'
+        ),
+    ],
+    ids=["next-iter-values", "list-values"],
+)
+def test_legacy_growth_guard_preserves_mapping_values_through_builtin_wrappers(
+    dispatch: str,
+) -> None:
+    source = "def inspect(**registrars):\n" f"    {dispatch}\n\n" "inspect(route=app.get)\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/wrapped-mapping-value"
+    ]
+
+
+def test_legacy_growth_guard_preserves_variadic_shape_through_tuple_unpacking() -> None:
+    source = textwrap.dedent("""
+        def install(*routes):
+            (route,) = routes
+            route("/api/v1/unpacked-variadic-route")(handler)
+
+        install(*[app.get])
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unpacked-variadic-route"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_wrapped_and_unpacked_values_non_sensitive() -> None:
+    source = textwrap.dedent("""
+        def safe(*args, **kwargs):
+            return None
+
+        def inspect(*routes, **registrars):
+            (route,) = routes
+            route("/api/v1/not-a-route")(handler)
+            for wrapped in list(registrars.values()):
+                wrapped("/api/v1/not-a-route")(handler)
+
+        inspect(*[safe], route=safe)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 @pytest.mark.parametrize(

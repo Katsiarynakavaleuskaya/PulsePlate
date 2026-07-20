@@ -1477,7 +1477,7 @@ def _normalize_codex_security_review(raw_review: Any) -> dict[str, Any]:
         "policy": policy,
         "repository_invokes_plugin": invocation_policy["repository_invokes_plugin"],
         "requires_frozen_material": invocation_policy["requires_frozen_material"],
-        "sealed_scan_ref": _normalize_optional_artifact_ref(
+        "sealed_scan_ref": _normalize_optional_orchestration_artifact_ref(
             raw_review["sealed_scan_ref"],
             label="codex_security_review.sealed_scan_ref",
         ),
@@ -1544,6 +1544,30 @@ def _normalize_optional_artifact_ref(value: Any, *, label: str) -> str | None:
     if value is None:
         return None
     return _normalize_repo_relative_path(value, label=label, allow_artifact_ref=True)
+
+
+def _normalize_optional_orchestration_artifact_ref(
+    value: Any,
+    *,
+    label: str,
+) -> str | None:
+    if value is None:
+        return None
+    normalized = _normalize_repo_relative_path(
+        value,
+        label=label,
+        allow_artifact_ref=True,
+    )
+    if not normalized.startswith(
+        (
+            "artifacts/orchestration/experiments/",
+            "artifacts/orchestration/creative_code/",
+        )
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label} must reference an approved local orchestration artifact."
+        )
+    return normalized
 
 
 def build_experiment_runner_pr_oracle_attachment(

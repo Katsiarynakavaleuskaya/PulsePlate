@@ -2523,6 +2523,24 @@ _MAPPING_MUTATOR_METHODS = frozenset(
         "update",
     }
 )
+_ITERABLE_PRESERVING_BUILTIN_REFERENCES = frozenset(
+    {
+        "builtins.frozenset",
+        "builtins.iter",
+        "builtins.list",
+        "builtins.reversed",
+        "builtins.set",
+        "builtins.sorted",
+        "builtins.tuple",
+    }
+)
+_ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
+    {
+        "builtins.max",
+        "builtins.min",
+        "builtins.next",
+    }
+)
 
 
 class LegacyGrowthAnalysisError(RuntimeError):
@@ -2608,12 +2626,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._postponed_annotations = False
         self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
+        self.scope.bind("__builtins__", reference="builtins", string=None)
+        self.scope.bind("__import__", reference="builtins.__import__", string=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
         self.scope.bind("globals", reference="builtins.globals", string=None)
         self.scope.bind("object", reference="builtins.object", string=None)
         self.scope.bind("setattr", reference="builtins.setattr", string=None)
         self.scope.bind("delattr", reference="builtins.delattr", string=None)
         self.scope.bind("vars", reference="builtins.vars", string=None)
+        for builtin_name in sorted(
+            {
+                reference.removeprefix("builtins.")
+                for reference in (
+                    _ITERABLE_PRESERVING_BUILTIN_REFERENCES | _ITERABLE_ELEMENT_BUILTIN_REFERENCES
+                )
+            }
+        ):
+            self.scope.bind(
+                builtin_name,
+                reference=f"builtins.{builtin_name}",
+                string=None,
+            )
         self.scope.bind(
             _BUILTINS_OBJECT_STATE_NAME,
             reference=_SAFE_BUILTINS_OBJECT_REFERENCE,
@@ -3077,6 +3110,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     else _POSSIBLE_APP_CALL_REFERENCE
                 )
         if isinstance(node, ast.Call):
+            importer_reference = self._resolve_reference(node.func)
+            positional_module = (
+                node.args[0] if node.args and not isinstance(node.args[0], ast.Starred) else None
+            )
+            keyword_modules = [keyword.value for keyword in node.keywords if keyword.arg == "name"]
+            if (
+                importer_reference == "builtins.__import__"
+                and not (positional_module is not None and keyword_modules)
+                and len(keyword_modules) <= 1
+            ):
+                module_expr = (
+                    positional_module
+                    if positional_module is not None
+                    else (keyword_modules[0] if keyword_modules else None)
+                )
+                if module_expr is not None and self._resolve_string(module_expr) == "builtins":
+                    return "builtins"
             class_references = self._resolve_class_references(node.func)
             if len(class_references) == 1:
                 return next(iter(class_references)).replace(
@@ -3612,7 +3662,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _object_namespace_mapping_kind(self, node: ast.AST) -> str | None:
         reference = self._resolve_reference(node)
-        if reference == _BUILTINS_NAMESPACE_REFERENCE:
+        if reference in {"builtins", _BUILTINS_NAMESPACE_REFERENCE}:
             return "builtins"
         if reference == _MODULE_NAMESPACE_REFERENCE:
             return "module"
@@ -3862,6 +3912,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     dynamic_unknown_string=dynamic_unknown_string,
                 )
             return
+        if isinstance(target, (ast.Tuple, ast.List)):
+            iterable_element = self._resolve_iterable_element_binding(value)
+            if iterable_element is not None:
+                self._bind_targets(
+                    [target],
+                    reference=iterable_element.reference,
+                    string=iterable_element.string,
+                    callables=iterable_element.callables,
+                    deferred_calls=iterable_element.deferred_calls,
+                    mapping=iterable_element.mapping,
+                    class_references=iterable_element.class_references,
+                    descriptors=iterable_element.descriptors,
+                    iterable_element=iterable_element.iterable_element,
+                )
+                return
         resolved_string = self._resolve_string(value)
         resolved_reference = self._resolve_reference(value)
         callables = self._resolve_callables(value)
@@ -6294,6 +6359,39 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
+        projected_result: _ResolvedBinding | None = None
+        if node.args and wrapper_reference in _ITERABLE_PRESERVING_BUILTIN_REFERENCES:
+            element = self._resolve_iterable_element_binding(node.args[0])
+            if element is not None:
+                projected_result = self._variadic_iterable_binding([element])
+        elif node.args and wrapper_reference in _ITERABLE_ELEMENT_BUILTIN_REFERENCES:
+            if wrapper_reference in {"builtins.max", "builtins.min"} and len(node.args) != 1:
+                projected_result = self._join_resolved_bindings(
+                    [self._capture_argument_binding(argument) for argument in node.args]
+                )
+            else:
+                projected_result = self._resolve_iterable_element_binding(node.args[0])
+                if wrapper_reference == "builtins.next" and len(node.args) >= 2:
+                    default_binding = self._capture_argument_binding(node.args[1])
+                    projected_result = (
+                        default_binding
+                        if projected_result is None
+                        else self._join_resolved_bindings([projected_result, default_binding])
+                    )
+        if projected_result is not None:
+            existing_result = self._call_result_bindings.get(id(node))
+            self._call_result_bindings[id(node)] = (
+                projected_result
+                if existing_result is None
+                else self._join_resolved_bindings([existing_result, projected_result])
+            )
+            if self.call_result_snapshots is not None:
+                existing_snapshot = self.call_result_snapshots.get(id(node))
+                self.call_result_snapshots[id(node)] = (
+                    projected_result
+                    if existing_snapshot is None
+                    else self._join_resolved_bindings([existing_snapshot, projected_result])
+                )
         replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
         for target in sorted(
             prepared_targets,

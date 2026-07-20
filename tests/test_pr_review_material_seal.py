@@ -3211,6 +3211,9 @@ def _prepare_final_security_fixture(
             repo="owner/repo",
             pr_number=42,
             review_ref="https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            review_credit_outage_ref=None,
+            review_credit_quota_ref=None,
+            prior_codex_review_ref=None,
             operator_approval_ref=None,
         ),
         clock,
@@ -3337,6 +3340,81 @@ def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_
     with pytest.raises(closeout_module.CloseoutError, match="already prepared"):
         closeout_module._cmd_prepare_final_security(args)
     assert closeout_module._final_security_state_path(42).read_bytes() == state_before_duplicate
+
+
+def test_prepare_final_security_preserves_bounded_review_credit_outage_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    args.review_credit_outage_ref = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    args.review_credit_quota_ref = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    args.prior_codex_review_ref = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    scope_calls: list[tuple[str, int, tuple[str, ...]]] = []
+    verifier_calls: list[tuple[str, str]] = []
+
+    def validate_scope(
+        *,
+        repository: str,
+        pr_number: int,
+        material_paths: tuple[str, ...],
+    ) -> None:
+        scope_calls.append((repository, pr_number, tuple(material_paths)))
+
+    def verify_outage(*_args: Any, **kwargs: Any) -> ReviewCreditOutageEvidence:
+        verifier_calls.append(
+            (
+                kwargs["expected_material_head_sha"],
+                kwargs["expected_material_digest"],
+            )
+        )
+        return ReviewCreditOutageEvidence(
+            override_reference=args.review_credit_outage_ref,
+            override_created_at="2026-07-15T11:58:00Z",
+            quota_reference=args.review_credit_quota_ref,
+            quota_created_at="2026-07-15T11:30:00Z",
+            prior_review_reference=args.prior_codex_review_ref,
+            prior_review_submitted_at="2026-07-15T11:00:00Z",
+            prior_review_commit_ref=FIX_SHA,
+            operator_review_reference=args.review_ref,
+            operator_review_submitted_at="2026-07-15T11:59:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+    monkeypatch.setattr(
+        closeout_module,
+        "validate_review_credit_outage_scope",
+        validate_scope,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_review_credit_outage_references",
+        verify_outage,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: pytest.fail(
+            "credit-outage preparation must not require a new Codex review"
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    assert state["preparations"][0]["review_commit_sha"] == HEAD_SHA
+    assert state["preparations"][0]["review_reference"] == args.review_ref
+    assert state["preparations"][0]["review_submitted_at"] == "2026-07-15T11:59:00Z"
+    assert scope_calls == [("owner/repo", 42, ())]
+    assert verifier_calls == [(HEAD_SHA, DIGEST)]
 
 
 def test_prepare_final_security_rejects_unfrozen_material(
@@ -3627,6 +3705,12 @@ def test_prepare_final_security_parser_keeps_seal_contract_separate() -> None:
             "42",
             "--review-ref",
             "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            "--review-credit-outage-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-654",
+            "--review-credit-quota-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-455",
+            "--prior-codex-review-ref",
+            "https://github.com/owner/repo/pull/42#pullrequestreview-123",
             "--operator-approval-ref",
             "https://github.com/owner/repo/pull/42#issuecomment-456",
         ]
@@ -3634,6 +3718,9 @@ def test_prepare_final_security_parser_keeps_seal_contract_separate() -> None:
 
     assert args.handler is closeout_module._cmd_prepare_final_security
     assert args.review_ref.endswith("pullrequestreview-789")
+    assert args.review_credit_outage_ref.endswith("issuecomment-654")
+    assert args.review_credit_quota_ref.endswith("issuecomment-455")
+    assert args.prior_codex_review_ref.endswith("pullrequestreview-123")
     assert args.operator_approval_ref.endswith("issuecomment-456")
     assert not hasattr(args, "scan_manifest")
     assert not hasattr(args, "security_outage_override_ref")

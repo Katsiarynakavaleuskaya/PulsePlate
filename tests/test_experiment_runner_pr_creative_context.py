@@ -106,6 +106,9 @@ def _context(
     label_enabled: bool = False,
     marker_enabled: bool = False,
     manual_enabled: bool = False,
+    sealed_scan_ref: str | None = (
+        "artifacts/orchestration/experiments/creative_context/codex-security.json"
+    ),
 ) -> dict[str, object]:
     return build_creative_protocol_context_map(
         changed_paths=changed_paths
@@ -139,9 +142,7 @@ def _context(
         label_enabled=label_enabled,
         marker_enabled=marker_enabled,
         manual_enabled=manual_enabled,
-        sealed_codex_security_scan_ref=(
-            "artifacts/orchestration/experiments/creative_context/codex-security.json"
-        ),
+        sealed_codex_security_scan_ref=sealed_scan_ref,
         sealed_codex_security_scan_fingerprint=SHA256,
         security_relevant_diff_changed=False,
     )
@@ -353,6 +354,14 @@ def test_context_map_schema_matches_final_material_security_policy() -> None:
     for key, property_schema in review_schema["properties"].items():
         if "const" in property_schema:
             assert review[key] == property_schema["const"]
+
+
+def test_context_map_runtime_matches_v3_sealed_scan_artifact_schema() -> None:
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="must reference an approved local orchestration artifact",
+    ):
+        _context(sealed_scan_ref="docs/security/scan.md")
 
 
 def test_historical_context_map_v1_remains_replayable() -> None:
