@@ -2277,6 +2277,70 @@ def test_authenticated_closeout_recomputes_quota_body_sha(
         )
 
 
+def test_authenticated_closeout_rejects_unavailable_receipt_with_ancestor_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live_digest = DIGEST
+    ancestor_digest = "sha256:" + "d" * 64
+    code_review = _review_source_unavailability_receipt(
+        material_digest=live_digest,
+        material_head_sha=FIX_SHA,
+    )
+    security_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=FIX_SHA,
+        material_digest=live_digest,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    seal = _seal(security_receipt)
+    seal["code_review"] = code_review
+    seal["material"]["digest"] = live_digest
+    seal["material"]["material_head_sha"] = FIX_SHA
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+
+    def manifest_for_head(
+        _root: Path,
+        *,
+        base_ref_oid: str,
+        head_ref_oid: str,
+        pr_number: int,
+    ) -> MaterialManifest:
+        assert base_ref_oid == BASE_SHA
+        assert pr_number == 42
+        if head_ref_oid == HEAD_SHA:
+            return _material_manifest(HEAD_SHA, digest=live_digest)
+        assert head_ref_oid == FIX_SHA
+        return _material_manifest(FIX_SHA, digest=ancestor_digest)
+
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(closeout_module, "compute_material_manifest", manifest_for_head)
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == HEAD_SHA else CommitRefKind.PR_COMMIT,
+        ),
+    )
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="unavailable material head has a different material digest",
+    ):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+
 def test_authenticated_closeout_revalidates_review_credit_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

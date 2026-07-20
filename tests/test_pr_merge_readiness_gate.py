@@ -1345,6 +1345,46 @@ def test_ci_gate_reauthenticates_terminal_review_source_unavailability(
     assert "MACHINE_BOUND_REVIEW_COMMIT" not in output
     assert "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID" not in output
 
+    source.write_text("ENFORCED = False\n", encoding="utf-8")
+    changed_head = _commit(repo, "post-scan material change")
+    changed_manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=changed_head,
+        pr_number=42,
+    )
+    tampered_seal = json.loads(json.dumps(seal))
+    tampered_seal["material"]["digest"] = changed_manifest.digest
+    tampered_seal["code_review"] = build_review_source_unavailability_receipt(
+        material_digest=changed_manifest.digest,
+        material_head_sha=material_head,
+        quota_reference=quota_reference,
+        quota_created_at="2020-01-01T00:00:00Z",
+        quota_body_sha256=quota_body_sha256,
+        source_status="usage_limit_reached",
+    )
+    changed_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=changed_head,
+        commits=(
+            *snapshot.commits,
+            PrCommitEvidence(changed_head, None),
+        ),
+    )
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="unavailable material head has a different material digest",
+    ):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(tampered_seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=changed_snapshot,
+            token="opaque",
+        )
+
 
 def test_merge_readiness_main_blocks_missing_mapping(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

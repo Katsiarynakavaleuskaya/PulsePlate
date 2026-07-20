@@ -633,6 +633,16 @@ def _validate_v1_seal(
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
     if is_review_source_unavailability_receipt(code_review):
+        unavailable_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if unavailable_manifest.digest != material["digest"]:
+            raise ReviewEvidenceError(
+                "review-source unavailable material head has a different material digest"
+            )
         source_evidence = verify_codex_review_source_unavailability_reference(
             code_review["quota_reference"],
             repository=repository,
