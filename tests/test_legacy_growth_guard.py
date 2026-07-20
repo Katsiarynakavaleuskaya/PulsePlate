@@ -6614,6 +6614,46 @@ def test_legacy_growth_guard_invalidates_mapping_during_default_replay() -> None
 
 
 @pytest.mark.parametrize(
+    ("initial_route", "replacement_route", "expected"),
+    [
+        (
+            "app.get",
+            "safe",
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:get:/api/v1/owner-rebind-route"
+            ],
+        ),
+        ("safe", "app.get", []),
+    ],
+    ids=["sensitive-owner-rebound-safe", "safe-owner-rebound-sensitive"],
+)
+@pytest.mark.parametrize("method", ["get", "pop", "setdefault"])
+def test_legacy_growth_guard_binds_mapping_owner_before_default_replay(
+    method: str,
+    initial_route: str,
+    replacement_route: str,
+    expected: list[str],
+) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        routes = {{"route": {initial_route}}}
+
+        def replace():
+            global routes
+            routes = {{"route": {replacement_route}}}
+            return safe
+
+        route = routes.{method}("route", replace())
+        route("/api/v1/owner-rebind-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
     "dispatch",
     [
         (

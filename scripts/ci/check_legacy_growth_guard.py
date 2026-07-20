@@ -2024,6 +2024,13 @@ class _StaticMapping:
     entries: tuple[_StaticMappingEntry, ...]
 
 
+@dataclass(frozen=True)
+class _MappingLookupReceiver:
+    mapping: _StaticMapping | None
+    possible_value: _ResolvedBinding | None
+    invalidation_count: int
+
+
 def _static_mapping_binding(
     mapping: _StaticMapping,
     key: object,
@@ -2615,6 +2622,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._class_mro_complete: dict[str, bool] = {}
         self._mapping_literal_snapshots: dict[int, _StaticMapping] = {}
         self._mapping_snapshot_intern: dict[_StaticMapping, _StaticMapping] = {}
+        self._mapping_invalidation_counts: dict[_StaticMapping, int] = {}
         self._active_function_replays: set[_FunctionNode] = set()
         self._active_async_replay_depth = 0
         self._active_task_group_depth = 0
@@ -3019,6 +3027,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return None
 
     def _invalidate_mapping(self, mapping: _StaticMapping) -> None:
+        self._mapping_invalidation_counts[mapping] = (
+            self._mapping_invalidation_counts.get(mapping, 0) + 1
+        )
         scope: _LexicalBindings | None = self.scope
         while scope is not None:
             for name, candidate in tuple(scope.mappings.items()):
@@ -5463,6 +5474,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def _resolve_mapping_lookup_call_binding(
         self,
         node: ast.Call,
+        *,
+        receiver: _MappingLookupReceiver | None = None,
     ) -> _ResolvedBinding | None:
         if (
             not isinstance(node.func, ast.Attribute)
@@ -5472,7 +5485,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         ):
             return None
         owner = node.func.value
-        possible_value = self._resolve_mapping_value_binding(owner)
+        if receiver is not None:
+            if (
+                receiver.mapping is not None
+                and self._mapping_invalidation_counts.get(receiver.mapping, 0)
+                != receiver.invalidation_count
+            ):
+                return self._conservative_argument_binding()
+            mapping = receiver.mapping
+            possible_value = receiver.possible_value
+        else:
+            mapping = self._resolve_mapping(owner)
+            possible_value = self._resolve_mapping_value_binding(owner)
         if possible_value is None:
             return None
         default_binding = (
@@ -5480,7 +5504,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if len(node.args) >= 2 and not isinstance(node.args[1], ast.Starred)
             else None
         )
-        mapping = self._resolve_mapping(owner)
         key = _literal_value(node.args[0])
         if mapping is not None and key is not _UNRESOLVED_LITERAL_VALUE:
             selected, unresolved = _static_mapping_binding(mapping, key)
@@ -5495,6 +5518,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if default_binding is not None:
             candidates.append(default_binding)
         return self._join_resolved_bindings(candidates)
+
+    def _capture_mapping_lookup_receiver(
+        self,
+        node: ast.Call,
+    ) -> _MappingLookupReceiver | None:
+        if (
+            not isinstance(node.func, ast.Attribute)
+            or node.func.attr not in {"__getitem__", "get", "pop", "setdefault"}
+            or not node.args
+            or isinstance(node.args[0], ast.Starred)
+        ):
+            return None
+        mapping = self._resolve_mapping(node.func.value)
+        return _MappingLookupReceiver(
+            mapping=mapping,
+            possible_value=self._resolve_mapping_value_binding(node.func.value),
+            invalidation_count=(
+                self._mapping_invalidation_counts.get(mapping, 0) if mapping is not None else 0
+            ),
+        )
 
     def _resolve_iterable_element_binding(
         self,
@@ -6382,6 +6425,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         defer_mapping_mutation = (
             isinstance(node.func, ast.Attribute) and mutated_mapping is not None
         )
+        mapping_lookup_receiver = self._capture_mapping_lookup_receiver(node)
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr in {"get", "__getitem__"}
@@ -6513,7 +6557,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
-        projected_result = self._resolve_mapping_lookup_call_binding(node)
+        projected_result = self._resolve_mapping_lookup_call_binding(
+            node,
+            receiver=mapping_lookup_receiver,
+        )
         if (
             projected_result is None
             and node.args
