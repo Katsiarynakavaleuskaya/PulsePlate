@@ -1679,11 +1679,11 @@ def _sanitize_result(
 ) -> dict[str, Any]:
     trusted_backend = _execution_backend_payload(probe, passed=True)
     result_with_trusted_backend = {**result, "execution_backend": trusted_backend}
-    if candidate_checkout_proof:
-        budget_observations = dict(result_with_trusted_backend.get("budget_observations", {}))
-        budget_observations.update(candidate_checkout_proof)
-        result_with_trusted_backend["budget_observations"] = budget_observations
     try:
+        if candidate_checkout_proof:
+            budget_observations = dict(result_with_trusted_backend.get("budget_observations", {}))
+            budget_observations.update(candidate_checkout_proof)
+            result_with_trusted_backend["budget_observations"] = budget_observations
         validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
         raise DispatchError("result_validation_failed") from exc

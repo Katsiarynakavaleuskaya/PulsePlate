@@ -2066,6 +2066,21 @@ def test_post_preflight_capability_result_preserves_candidate_checkout_proof() -
     assert result["budget_observations"]["source_checkout_clean"] is True
 
 
+def test_sanitize_result_rejects_malformed_observations_with_checkout_proof() -> None:
+    result = _accepted_oracle_result()
+    result["budget_observations"] = None
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(
+            result,
+            _probe("apple-container", strict=True),
+            candidate_checkout_proof={
+                "source_checkout_head_sha": "a" * 40,
+                "source_checkout_clean": True,
+            },
+        )
+
+
 def test_sanitize_result_injects_trusted_backend_before_capability_validation() -> None:
     trusted_probe = _probe("apple-container", strict=True)
     result = _legacy_result()
