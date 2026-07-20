@@ -6493,6 +6493,21 @@ def test_legacy_growth_guard_preserves_mapping_values_through_builtin_wrappers(
     ]
 
 
+@pytest.mark.parametrize("selector", ["max", "min"])
+def test_legacy_growth_guard_preserves_builtin_selector_default(
+    selector: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        route = {selector}([], default=app.get)
+        route("/api/v1/selector-default-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/selector-default-route"
+    ]
+
+
 def test_legacy_growth_guard_preserves_variadic_shape_through_tuple_unpacking() -> None:
     source = textwrap.dedent("""
         def install(*routes):
@@ -6508,6 +6523,22 @@ def test_legacy_growth_guard_preserves_variadic_shape_through_tuple_unpacking() 
     ]
 
 
+def test_legacy_growth_guard_preserves_variadic_shape_through_starred_unpacking() -> None:
+    source = textwrap.dedent("""
+        def install(*routes):
+            first, *rest = routes
+            for route in rest:
+                route("/api/v1/starred-unpacked-variadic-route")(handler)
+
+        install(*[safe, app.get])
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/starred-unpacked-variadic-route"
+    ]
+
+
 def test_legacy_growth_guard_keeps_safe_wrapped_and_unpacked_values_non_sensitive() -> None:
     source = textwrap.dedent("""
         def safe(*args, **kwargs):
@@ -6518,6 +6549,8 @@ def test_legacy_growth_guard_keeps_safe_wrapped_and_unpacked_values_non_sensitiv
             route("/api/v1/not-a-route")(handler)
             for wrapped in list(registrars.values()):
                 wrapped("/api/v1/not-a-route")(handler)
+            selected = max([], default=safe)
+            selected("/api/v1/not-a-route")(handler)
 
         inspect(*[safe], route=safe)
         """)

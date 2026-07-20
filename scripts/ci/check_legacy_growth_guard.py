@@ -3598,6 +3598,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     runtime_binding=runtime_binding,
                 )
 
+    def _bind_targets_from_resolved_binding(
+        self,
+        targets: Sequence[ast.expr],
+        binding: _ResolvedBinding,
+    ) -> None:
+        self._bind_targets(
+            targets,
+            reference=binding.reference,
+            string=binding.string,
+            callables=binding.callables,
+            deferred_calls=binding.deferred_calls,
+            mapping=binding.mapping,
+            class_references=binding.class_references,
+            descriptors=binding.descriptors,
+            iterable_element=binding.iterable_element,
+        )
+
     def _is_definitely_non_app_value(self, node: ast.AST) -> bool:
         if isinstance(node, (ast.Constant, ast.JoinedStr, ast.Lambda)):
             return True
@@ -3915,17 +3932,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if isinstance(target, (ast.Tuple, ast.List)):
             iterable_element = self._resolve_iterable_element_binding(value)
             if iterable_element is not None:
-                self._bind_targets(
-                    [target],
-                    reference=iterable_element.reference,
-                    string=iterable_element.string,
-                    callables=iterable_element.callables,
-                    deferred_calls=iterable_element.deferred_calls,
-                    mapping=iterable_element.mapping,
-                    class_references=iterable_element.class_references,
-                    descriptors=iterable_element.descriptors,
-                    iterable_element=iterable_element.iterable_element,
-                )
+                for child_target in target.elts:
+                    child_binding = (
+                        self._variadic_iterable_binding([iterable_element])
+                        if isinstance(child_target, ast.Starred)
+                        else iterable_element
+                    )
+                    self._bind_targets_from_resolved_binding(
+                        [child_target],
+                        child_binding,
+                    )
                 return
         resolved_string = self._resolve_string(value)
         resolved_reference = self._resolve_reference(value)
@@ -6373,6 +6389,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 projected_result = self._resolve_iterable_element_binding(node.args[0])
                 if wrapper_reference == "builtins.next" and len(node.args) >= 2:
                     default_binding = self._capture_argument_binding(node.args[1])
+                    projected_result = (
+                        default_binding
+                        if projected_result is None
+                        else self._join_resolved_bindings([projected_result, default_binding])
+                    )
+            if wrapper_reference in {"builtins.max", "builtins.min"}:
+                default_values = [
+                    keyword.value for keyword in node.keywords if keyword.arg == "default"
+                ]
+                if default_values:
+                    default_binding = self._join_resolved_bindings(
+                        [
+                            self._capture_argument_binding(default_value)
+                            for default_value in default_values
+                        ]
+                    )
                     projected_result = (
                         default_binding
                         if projected_result is None
