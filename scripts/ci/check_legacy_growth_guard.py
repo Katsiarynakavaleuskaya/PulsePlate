@@ -3197,6 +3197,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     if owner_reference == "pulseplate.app.router"
                     else _POSSIBLE_APP_CALL_REFERENCE
                 )
+            if node.attr in _MAPPING_MUTATOR_METHODS:
+                namespace_kind = self._object_namespace_mapping_kind(node.value)
+                if namespace_kind == "builtins":
+                    return f"{_BUILTINS_NAMESPACE_REFERENCE}.{node.attr}"
+                if namespace_kind == "module":
+                    return f"{_MODULE_NAMESPACE_REFERENCE}.{node.attr}"
         if isinstance(node, ast.Call):
             importer_reference = self._resolve_reference(node.func)
             module_strings: list[str | None] = []
@@ -4014,24 +4020,36 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             return
 
-        if not isinstance(node.func, ast.Attribute):
-            return
-        namespace_kind = self._object_namespace_mapping_kind(node.func.value)
-        if namespace_kind is None:
-            return
-        method = node.func.attr
+        mapping_namespace_kind: str | None = None
+        method = ""
+        for candidate_kind, namespace_reference in (
+            ("builtins", _BUILTINS_NAMESPACE_REFERENCE),
+            ("module", _MODULE_NAMESPACE_REFERENCE),
+        ):
+            prefix = f"{namespace_reference}."
+            if function_reference is not None and function_reference.startswith(prefix):
+                mapping_namespace_kind = candidate_kind
+                method = function_reference.removeprefix(prefix)
+                break
+        if mapping_namespace_kind is None:
+            if not isinstance(node.func, ast.Attribute):
+                return
+            mapping_namespace_kind = self._object_namespace_mapping_kind(node.func.value)
+            if mapping_namespace_kind is None:
+                return
+            method = node.func.attr
         if method in {"clear", "popitem"}:
-            self._record_object_namespace_kind(namespace_kind)
+            self._record_object_namespace_kind(mapping_namespace_kind)
             return
         if method in {"__delitem__", "__setitem__", "pop", "setdefault"}:
             if not node.args:
-                self._record_object_namespace_kind(namespace_kind)
+                self._record_object_namespace_kind(mapping_namespace_kind)
                 return
             member_name = self._resolve_string(node.args[0])
             if member_name not in {"object", None, _DYNAMIC_STRING_BINDING}:
                 return
             self._record_object_namespace_kind(
-                namespace_kind,
+                mapping_namespace_kind,
                 deletion=method in {"__delitem__", "pop"},
             )
             return
@@ -4044,7 +4062,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             keys.update(None if key is None else self._resolve_string(key) for key in argument.keys)
         if keys & {"object", None, _DYNAMIC_STRING_BINDING}:
-            self._record_object_namespace_kind(namespace_kind)
+            self._record_object_namespace_kind(mapping_namespace_kind)
 
     def _preserve_sensitive_reference(
         self,

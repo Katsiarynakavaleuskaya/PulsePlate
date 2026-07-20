@@ -4510,6 +4510,56 @@ def test_legacy_growth_guard_does_not_poison_helper_returned_foreign_namespace(
 
 
 @pytest.mark.parametrize(
+    "mutation",
+    [
+        ("mutate = builtins.__dict__.__setitem__\n" 'mutate("object", lambda: app)'),
+        (
+            "def mutate():\n"
+            "    assign = builtins.__dict__.__setitem__\n"
+            '    assign("object", lambda: app)\n'
+            "mutate()"
+        ),
+        ("mutate = sys.modules[__name__].__dict__.__setitem__\n" 'mutate("object", lambda: app)'),
+    ],
+    ids=["builtins-alias", "called-helper", "module-alias"],
+)
+def test_legacy_growth_guard_tracks_aliased_namespace_mutators(
+    mutation: str,
+) -> None:
+    source = (
+        "import builtins\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        f"{mutation}\n"
+        "app = object()\n"
+        'app.get("/api/v1/aliased-namespace-mutator")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/aliased-namespace-mutator"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_foreign_aliased_mutator_clean() -> None:
+    source = textwrap.dedent("""
+        class Box:
+            pass
+
+        box = Box()
+        mutate = box.__dict__.__setitem__
+        app = resolve_app()
+        mutate("object", lambda: app)
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "target",
     [
         'globals()["object"], other',
