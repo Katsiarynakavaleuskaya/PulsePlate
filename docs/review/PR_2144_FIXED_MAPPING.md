@@ -434,6 +434,16 @@ Commit: 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 Evidence: The review finding set was addressed by the trusted-dispatch hardening sequence; commit 67a047d4 closes final evidence gaps and tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#pullrequestreview-4728830558 -> 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 
+Disposition: FIXED
+Commit: f7fe1e2e312d7fb457080f68ca9d5245518f4b16
+Evidence: The closeout commit replaced the historical seal with the exact material head f7a4edf9d9ece6224df83a2aa584ee39b32b19d8, digest sha256:8df2a1c4ed74670d63e12b9becea084bb330d774071ad5a633f7a2163588d2a2, and final scan d0d6ae58-daee-47aa-8de3-56ab79c808cf.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3617867005 -> f7fe1e2e312d7fb457080f68ca9d5245518f4b16
+
+Disposition: FIXED
+Commit: 5bcd20e09dfe44e0c90487ea6856b2ddb94b17db
+Evidence: The four original NOT-A-BUG records now cite exact validator ranges and focused regression locations; tests/test_review_mapping_artifact.py and strict live closeout validation pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3617867008 -> 5bcd20e09dfe44e0c90487ea6856b2ddb94b17db
+
 Disposition: NOT-A-BUG
 Evidence: scripts/orchestration/creative_code_patch_generation.py:2511-2563 validates complete oracle-derived rejection evidence; tests/test_creative_code_patch_generation.py exercises the timeout, OOM, and first-failing-oracle controls.
 Reason: The proposed gap is already enforced by the canonical rejection-evidence validation path.
@@ -478,6 +488,11 @@ Disposition: NOT-A-BUG
 Evidence: The canonical closeout draft is frozen to material head f7a4edf9d9ece6224df83a2aa584ee39b32b19d8 and digest sha256:8df2a1c4ed74670d63e12b9becea084bb330d774071ad5a633f7a2163588d2a2; readiness remains fail-closed until the generated mapping/seal replaces the historical receipt.
 Reason: The comment identifies the intentionally historical pre-closeout seal, not a remaining product defect; the one-closeout workflow replaces it atomically after final evidence is valid.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3610050999
+
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/pr_commit_identity.py:classify_commit_ref,is_ancestor and tests/test_pr_review_material_seal.py:3064-3102 validate only GitHub-addressable PR commits; every mapped FIXED SHA is reachable from live material head f7a4edf9d9ece6224df83a2aa584ee39b32b19d8.
+Reason: The finding evaluated synthetic reviewer revision f522bac0c8084ebe702f865124c1a5392d40edd1 rather than the live GitHub PR commit graph.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3617867004
 
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
