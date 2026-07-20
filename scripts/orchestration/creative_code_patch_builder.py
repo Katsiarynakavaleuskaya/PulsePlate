@@ -576,10 +576,11 @@ def build_pr2_experiment_packet(
             changed_paths=changed_paths,
         ),
         creative_research_origin=_creative_research_origin(source_bundle),
+        candidate_patch_fingerprint=patch_fingerprint,
+        base_commit_sha=request["base_commit_sha"],
     )
     if not _is_string_keyed_dict(packet):
         raise CreativeCodePatchBuilderError("experiment packet must be a string-keyed object.")
-    packet["candidate_patch_fingerprint"] = patch_fingerprint
     return packet
 
 
@@ -621,6 +622,11 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
 
     run_dir, state, request, bundle = _load_run_state(run_id)
+    if state.get("candidate_patch_evaluated") is True:
+        raise CreativeCodePatchBuilderError("candidate patch is already evaluated.")
+    result_file = resolve_run_file(run_dir, RESULT_FILE, for_write=True)
+    if result_file.exists():
+        raise CreativeCodePatchBuilderError("candidate patch result already exists.")
     normalized_request = validate_creative_code_patch_build_request(request, source_bundle=bundle)
     metadata = read_json(resolve_run_file(run_dir, PATCH_METADATA_FILE))
     if not isinstance(metadata, dict):
@@ -684,7 +690,7 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     if not _is_string_keyed_dict(result):
         raise CreativeCodePatchBuilderError("patch result must be a string-keyed object.")
     state["candidate_patch_evaluated"] = True
-    write_json_atomic(resolve_run_file(run_dir, RESULT_FILE, for_write=True), result)
+    write_json_atomic(result_file, result)
     write_json_atomic(resolve_run_file(run_dir, STATE_FILE, for_write=True), state)
     return result
 

@@ -18,6 +18,7 @@ from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_r
 
 SCHEMA_VERSION = "1.0"
 CANDIDATE_PATCH_FINGERPRINT_RE = re.compile(r"sha256:[0-9a-f]{64}")
+GIT_COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 PRIMARY_AGENT = "agent-coordinator"
 REVIEWER = "architecture-specialist"
@@ -804,6 +805,16 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Oracle-only experiment packets must not bind a candidate patch fingerprint."
             )
+    base_commit_sha_raw = packet.get("base_commit_sha")
+    base_commit_sha: str | None = None
+    if base_commit_sha_raw is not None:
+        base_commit_sha = str(base_commit_sha_raw).strip()
+        if not GIT_COMMIT_SHA_RE.fullmatch(base_commit_sha):
+            raise ValueError("Experiment packet base_commit_sha must be a 40-char git SHA.")
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only experiment packets must not bind a candidate base commit."
+            )
 
     normalized = dict(packet)
     normalized["schema_version"] = schema_version
@@ -830,6 +841,10 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         normalized["candidate_patch_fingerprint"] = candidate_patch_fingerprint
     else:
         normalized.pop("candidate_patch_fingerprint", None)
+    if base_commit_sha is not None:
+        normalized["base_commit_sha"] = base_commit_sha
+    else:
+        normalized.pop("base_commit_sha", None)
     return normalized
 
 

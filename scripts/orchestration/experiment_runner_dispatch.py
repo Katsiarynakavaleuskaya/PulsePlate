@@ -1445,6 +1445,20 @@ def _create_snapshot(root: Path, destination: Path) -> str:
     return tracked_diff
 
 
+def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
+    """Bind candidate dispatch to the packet's clean base checkout."""
+
+    if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        return
+    expected_base = packet.get("base_commit_sha")
+    if not isinstance(expected_base, str):
+        raise DispatchError("result_validation_failed")
+    head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
+    tracked_status = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
+    if head != expected_base or tracked_status:
+        raise DispatchError("result_validation_failed")
+
+
 def _execution_backend_payload(probe: BackendProbe, *, passed: bool) -> dict[str, str]:
     if probe.image_digest is None:
         raise ValueError("Execution backend provenance requires an image digest.")
@@ -1758,6 +1772,7 @@ def _invoke_container_runner(
     packet = validate_experiment_packet(_read_packet(packet_path))
     if expected_packet is not None and packet != expected_packet:
         raise DispatchError("result_validation_failed")
+    _require_candidate_checkout(packet, root=REPO_ROOT)
     candidate_patch_text: str | None = None
     if candidate_patch is not None:
         candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
@@ -1771,7 +1786,10 @@ def _invoke_container_runner(
         snapshot = temp_root / "repo"
         input_dir = temp_root / "input"
         input_dir.mkdir()
-        _create_snapshot(REPO_ROOT, snapshot)
+        tracked_diff = _create_snapshot(REPO_ROOT, snapshot)
+        _require_candidate_checkout(packet, root=REPO_ROOT)
+        if packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE and tracked_diff:
+            raise DispatchError("result_validation_failed")
         (snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
         (snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
             parents=True, exist_ok=True

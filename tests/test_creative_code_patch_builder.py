@@ -299,10 +299,31 @@ def test_pr2_experiment_packet_binds_builder_owned_semantics() -> None:
     assert packet["negative_controls"] == selected_variant["negative_controls"]
     assert packet["promotion_target"] == "audit_artifact"
     assert packet["candidate_patch_fingerprint"] == "sha256:" + ("a" * 64)
+    assert packet["base_commit_sha"] == request["base_commit_sha"]
     assert packet["creative_research_origin"] == {
         key: bundle["source_creative_research"][key]
         for key in ("bundle_id", "candidate_id", "promotion_decision")
     }
+
+
+def test_pr2_experiment_packet_id_changes_with_candidate_patch() -> None:
+    request = _reference_request()
+    bundle = _reference_bundle()
+
+    first = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("a" * 64),
+    )
+    second = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("b" * 64),
+    )
+
+    assert first["experiment_id"] != second["experiment_id"]
 
 
 def test_generation_prompt_uses_single_file_wording_for_single_file_budget() -> None:
@@ -1608,6 +1629,56 @@ def test_evaluate_fallback_stores_error_class_not_raw_exception(
     assert result["runner_summary"]["runner_error_present"] is True
     assert "/Users/example" not in encoded
     assert "ghp_secret" not in encoded
+
+
+def test_evaluate_rejects_rerun_without_replacing_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-rerun"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+
+    def fake_evaluate_candidate(
+        packet: dict[str, Any], candidate_patch_path: Path
+    ) -> dict[str, Any]:
+        return {
+            "experiment_id": packet["experiment_id"],
+            "runner_mode": "candidate_patch",
+            "candidate_patch": str(candidate_patch_path),
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/orchestration.py"],
+            "oracle_results": [{"returncode": 0, "timed_out": False, "truncated": False}],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "shared_tree_untouched": True,
+        }
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
+
+    creative_code_patch_builder.evaluate(run_id=run_id)
+    result_file = run_dir / creative_code_patch_builder.RESULT_FILE
+    original_result = result_file.read_bytes()
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="already evaluated"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert result_file.read_bytes() == original_result
+
+    state_file = run_dir / creative_code_patch_builder.STATE_FILE
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state["candidate_patch_evaluated"] = False
+    creative_code_patch_workspace.write_json_atomic(state_file, state)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="result already exists"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert result_file.read_bytes() == original_result
 
 
 def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(

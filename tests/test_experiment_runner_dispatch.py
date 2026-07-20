@@ -593,6 +593,70 @@ def test_snapshot_preserves_staged_new_file_as_tracked(tmp_path: Path) -> None:
     assert after_status == before_status
 
 
+def test_candidate_checkout_requires_clean_matching_base(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("base\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+    base_sha = _run_isolated_git(
+        git, "rev-parse", "HEAD", cwd=source, capture_output=True
+    ).stdout.strip()
+    packet = {"runner_mode": "candidate_patch", "base_commit_sha": base_sha}
+
+    dispatch._require_candidate_checkout(packet, root=source)
+
+    tracked.write_text("dirty\n", encoding="utf-8")
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._require_candidate_checkout(packet, root=source)
+
+
+def test_candidate_checkout_rejects_non_base_head(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    (source / "tracked.txt").write_text("base\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    packet = {"runner_mode": "candidate_patch", "base_commit_sha": "0" * 40}
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._require_candidate_checkout(packet, root=source)
+
+
+def test_candidate_checkout_requires_base_binding(tmp_path: Path) -> None:
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._require_candidate_checkout(
+            {"runner_mode": "candidate_patch"},
+            root=tmp_path,
+        )
+
+
+def test_experiment_packet_rejects_invalid_or_oracle_base_binding() -> None:
+    invalid = _packet()
+    invalid["base_commit_sha"] = "not-a-sha"
+    with pytest.raises(ValueError, match="base_commit_sha"):
+        experiment_contract.validate_experiment_packet(invalid)
+
+    oracle = _packet()
+    oracle["runner_mode"] = "oracle_only_governance_reviewer"
+    oracle["mutable_candidate_surface"] = ["scripts/orchestration/experiment_runner_dispatch.py"]
+    oracle["base_commit_sha"] = "a" * 40
+    with pytest.raises(ValueError, match="must not bind a candidate base"):
+        experiment_contract.validate_experiment_packet(oracle)
+
+
 def test_repo_local_input_rejects_absolute_and_traversal(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="repository-relative"):
         dispatch._require_repo_local_file(str(tmp_path / "packet.json"), suffix=".json")
@@ -2118,6 +2182,11 @@ def test_container_runner_pins_packet_and_patch_before_execution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_require_candidate_checkout",
+        lambda _packet, *, root: None,
+    )
     candidate_patch_text = "original candidate patch\n"
     packet = _packet()
     packet["runner_mode"] = "candidate_patch"
@@ -2431,6 +2500,11 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     tmp_path: Path,
     backend: str,
 ) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_require_candidate_checkout",
+        lambda _packet, *, root: None,
+    )
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
     captured_commands: list[list[str]] = []
