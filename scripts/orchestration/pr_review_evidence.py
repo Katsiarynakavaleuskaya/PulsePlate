@@ -1086,7 +1086,7 @@ def is_review_credit_outage_receipt(receipt: Any) -> bool:
 def validate_review_credit_outage_scope(
     *, repository: str, pr_number: int, material_paths: Iterable[str]
 ) -> None:
-    """Prevent later review-governance changes from authorizing themselves."""
+    """Keep the historical credit-outage receipt live-valid only for PR #2142."""
 
     touched = sorted(
         {
@@ -1096,17 +1096,19 @@ def validate_review_credit_outage_scope(
             or path.startswith(REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES)
         }
     )
-    if not touched:
-        return
     is_bootstrap = (
         repository.casefold() == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY.casefold()
         and pr_number == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR
     )
-    if not is_bootstrap:
-        raise ReviewEvidenceError(
-            "Codex review credit-outage override cannot authorize trust-boundary changes: "
-            + ", ".join(touched)
-        )
+    if is_bootstrap:
+        return
+    touched_suffix = " Material paths: " + ", ".join(touched) + "." if touched else ""
+    raise ReviewEvidenceError(
+        "Historical Codex review credit-outage receipts are live-valid only for "
+        f"{REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY} PR "
+        f"#{REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR}; later PRs cannot authenticate "
+        f"the legacy receipt.{touched_suffix}"
+    )
 
 
 def is_security_outage_override_receipt(receipt: Any) -> bool:

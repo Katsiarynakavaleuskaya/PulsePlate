@@ -164,8 +164,9 @@ governance PR number + 1; the governance PR may opt in with
   closed. The same immutable quota reference may be reverified after a later
   material change, but the material seal itself must be regenerated.
 - Historical PR `#2142` `operator_review_credit_exhaustion_override` receipts
-  remain parseable and revalidated only for artifact compatibility. The legacy
-  multi-reference override is not an active authoring mode.
+  remain parseable everywhere but are live-authenticated only for PR `#2142`.
+  The legacy multi-reference override is not an active authoring mode for later
+  PRs.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
   gitignored. `seal` is the only tracked authoring step; mapping and seal publish
   in one batched governance-closeout commit. Resealing after a base sync is

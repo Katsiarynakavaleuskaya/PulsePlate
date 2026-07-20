@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.orchestration import pr_review_closeout
 from scripts.orchestration.pr_review_evidence import (
     REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY,
     REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION,
+    ReviewEvidenceError,
     build_review_source_unavailability_receipt,
+    validate_review_credit_outage_scope,
 )
 from scripts.orchestration.review_source_status import (
+    build_review_source_status,
     classify_codex_review_source_unavailability_body,
     review_source_policy_projection,
 )
@@ -70,6 +75,41 @@ def test_terminal_quota_policy_projection_is_exact() -> None:
             "ttl_required": False,
         },
     }
+
+
+@pytest.mark.parametrize("status", ["rate_limited", "usage_limit_reached"])
+def test_terminal_quota_policy_cannot_be_overridden_to_blocking(status: str) -> None:
+    with pytest.raises(
+        ValueError,
+        match="terminal review-source unavailability cannot be marked blocking",
+    ):
+        build_review_source_status(
+            source="codex_review",
+            status=status,
+            blocking=True,
+        )
+
+
+def test_legacy_credit_override_is_live_valid_only_for_bootstrap_pr() -> None:
+    validate_review_credit_outage_scope(
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        pr_number=2142,
+        material_paths=("scripts/ci/check_pr_merge_readiness.py",),
+    )
+    for repository, pr_number, paths in (
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("requirements-test.txt",),
+        ),
+        ("owner/repo", 42, ()),
+    ):
+        with pytest.raises(ReviewEvidenceError, match="live-valid only.*PR #2142"):
+            validate_review_credit_outage_scope(
+                repository=repository,
+                pr_number=pr_number,
+                material_paths=paths,
+            )
 
 
 def test_known_codex_quota_bodies_remain_exact_terminal_evidence() -> None:

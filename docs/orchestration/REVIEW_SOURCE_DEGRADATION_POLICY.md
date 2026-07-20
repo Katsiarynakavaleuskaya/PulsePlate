@@ -32,5 +32,6 @@ but the same immutable comment may be reverified and reused.
 
 Historical compatibility: the PR `#2142`
 `operator_review_credit_exhaustion_override` receipt remains parseable and
-revalidated for existing artifacts. Its multi-reference authoring flags are no
-longer active CLI options and do not define current quota handling.
+is live-authenticated only for PR `#2142`. Its multi-reference authoring flags
+are no longer active CLI options for later PRs and do not define current quota
+handling.

@@ -1091,6 +1091,8 @@ def test_ci_gate_revalidates_live_operator_outage_override(
 def test_ci_gate_revalidates_review_credit_outage_against_material_head(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    repository = "Katsiarynakavaleuskaya/PulsePlate"
+    pr_number = 2142
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -1101,12 +1103,12 @@ def test_ci_gate_revalidates_review_credit_outage_against_material_head(
     source.write_text("ENFORCED = True\n", encoding="utf-8")
     material_head = _commit(repo, "material")
     frozen = compute_material_manifest(
-        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
+        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=pr_number
     )
-    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
-    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
-    prior_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
-    operator_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    quota_reference = f"https://github.com/{repository}/pull/{pr_number}#issuecomment-456"
+    override_reference = f"https://github.com/{repository}/pull/{pr_number}#issuecomment-654"
+    prior_reference = f"https://github.com/{repository}/pull/{pr_number}#pullrequestreview-123"
+    operator_reference = f"https://github.com/{repository}/pull/{pr_number}#pullrequestreview-789"
     code_review = build_review_credit_outage_receipt(
         material_digest=frozen.digest,
         material_head_sha=material_head,
@@ -1134,18 +1136,18 @@ def test_ci_gate_revalidates_review_credit_outage_against_material_head(
             "merge_base_sha": frozen.merge_base_sha,
             "policy_version": MATERIAL_POLICY_VERSION,
         },
-        "pr_number": 42,
-        "repository": "owner/repo",
+        "pr_number": pr_number,
+        "repository": repository,
         "schema_version": "pulseplate.pr-review-seal/v1",
     }
     artifact = _artifact_with_seal(seal)
-    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping = repo / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
     mapping.parent.mkdir(parents=True)
     mapping.write_text(artifact, encoding="utf-8")
     governance_head = _commit(repo, "governance closeout")
     snapshot = PrSnapshot(
-        repository="owner/repo",
-        pr_number=42,
+        repository=repository,
+        pr_number=pr_number,
         base_sha=base_sha,
         head_sha=governance_head,
         commits=(
@@ -1197,8 +1199,8 @@ def test_ci_gate_revalidates_review_credit_outage_against_material_head(
 
     validated = merge_gate._validate_v1_seal(
         artifact_text=artifact,
-        repository="owner/repo",
-        pr_number=42,
+        repository=repository,
+        pr_number=pr_number,
         snapshot=snapshot,
         token="opaque",
     )

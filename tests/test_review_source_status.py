@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.orchestration.review_source_status import (
     REVIEW_SOURCE_STATUSES,
     build_review_source_status,
@@ -67,6 +69,19 @@ def test_terminal_quota_policy_requires_no_retry_or_substitute_authority() -> No
             "ttl_required": False,
         },
     }
+
+
+@pytest.mark.parametrize("status", ["rate_limited", "usage_limit_reached"])
+def test_terminal_quota_status_rejects_blocking_override(status: str) -> None:
+    with pytest.raises(
+        ValueError,
+        match="terminal review-source unavailability cannot be marked blocking",
+    ):
+        build_review_source_status(
+            source="codex_review",
+            status=status,
+            blocking=True,
+        )
 
 
 def test_codex_quota_body_classification_is_exact_and_fail_closed() -> None:

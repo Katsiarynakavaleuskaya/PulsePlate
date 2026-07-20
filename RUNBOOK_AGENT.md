@@ -674,9 +674,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    merge gate, current-head check identity parser, CI/security workflows, local
    GitHub Actions, or implementations/policy inputs of the substitute security checks cannot use
    the override. This writes the sole canonical mapping/seal artifact.
-   Historical PR `#2142` review-credit override receipts remain readable and
-   revalidated for existing artifacts only; their old multi-reference authoring
-   flags are not active CLI options.
+   Historical PR `#2142` review-credit override receipts remain readable
+   everywhere but are live-authenticated only for PR `#2142`; their old
+   multi-reference authoring flags are not active CLI options for later PRs.
 6. Commit that artifact once, update the PR body link without a Git commit, and
    run the authenticated strict wrapper.
 7. A later validated duplicate uses the exact structured reply contract and an

@@ -227,8 +227,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    Codex review, approval, or no-findings result. A later material change
    requires a new seal, but the same immutable quota comment may be reverified
    and reused. Historical PR `#2142` review-credit override receipts remain
-   readable and revalidated for compatibility only; the legacy override path
-   is not an active authoring contract.
+   readable everywhere but are live-authenticated only for PR `#2142`; the
+   legacy override path is not an active authoring contract for later PRs.
    The trusted submitted review object's
    real GitHub `commit_id` must equal the frozen material head. When the official
    Codex connector emits an unedited no-findings issue comment instead, its

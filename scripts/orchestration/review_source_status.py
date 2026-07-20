@@ -129,6 +129,8 @@ def build_review_source_status(
     if normalized_status not in REVIEW_SOURCE_STATUSES:
         allowed = ", ".join(sorted(REVIEW_SOURCE_STATUSES))
         raise ValueError(f"status must be one of: {allowed}.")
+    if normalized_status in TERMINAL_NONBLOCKING_STATUSES and blocking:
+        raise ValueError("terminal review-source unavailability cannot be marked blocking")
     source_degraded = degraded or normalized_status in DEGRADED_STATUSES
     source_blocking = blocking or normalized_status in BLOCKING_STATUSES
     redacted_reason = redact_review_source_text(reason)

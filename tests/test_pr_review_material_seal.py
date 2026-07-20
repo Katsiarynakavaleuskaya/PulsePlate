@@ -1260,10 +1260,16 @@ def test_review_credit_outage_receipt_is_distinct_and_material_bound() -> None:
             ("scripts/ci/ci_risk_profile.py",),
             False,
         ),
-        ("owner/repo", 42, ("requirements-test.txt",), True),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("requirements-test.txt",),
+            False,
+        ),
+        ("owner/repo", 42, ("requirements-test.txt",), False),
     ],
 )
-def test_review_credit_outage_scope_blocks_future_self_authorization(
+def test_review_credit_outage_scope_is_live_only_for_bootstrap_pr(
     repository: str,
     pr_number: int,
     paths: tuple[str, ...],
@@ -1276,7 +1282,7 @@ def test_review_credit_outage_scope_blocks_future_self_authorization(
             material_paths=paths,
         )
         return
-    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+    with pytest.raises(ReviewEvidenceError, match="live-valid only.*PR #2142"):
         validate_review_credit_outage_scope(
             repository=repository,
             pr_number=pr_number,
@@ -2274,10 +2280,12 @@ def test_authenticated_closeout_recomputes_quota_body_sha(
 def test_authenticated_closeout_revalidates_review_credit_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
-    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
-    prior_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
-    operator_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    repository = "Katsiarynakavaleuskaya/PulsePlate"
+    pr_number = 2142
+    quota_reference = f"https://github.com/{repository}/pull/{pr_number}#issuecomment-456"
+    override_reference = f"https://github.com/{repository}/pull/{pr_number}#issuecomment-654"
+    prior_reference = f"https://github.com/{repository}/pull/{pr_number}#pullrequestreview-123"
+    operator_reference = f"https://github.com/{repository}/pull/{pr_number}#pullrequestreview-789"
     code_review = build_review_credit_outage_receipt(
         material_digest=DIGEST,
         material_head_sha=HEAD_SHA,
@@ -2298,26 +2306,38 @@ def test_authenticated_closeout_revalidates_review_credit_override(
         base_revision=BASE_SHA,
         head_revision=HEAD_SHA,
         material_digest=DIGEST,
-        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        override_reference=(f"https://github.com/{repository}/pull/{pr_number}#issuecomment-789"),
         created_at="2026-07-15T11:00:00Z",
         operator_user_id=123,
         operator_login="owner",
         operator_association="OWNER",
     )
     seal = _seal(security_receipt)
+    seal["repository"] = repository
+    seal["pr_number"] = pr_number
     seal["code_review"] = code_review
-    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping = tmp_path / f"PR_{pr_number}_FIXED_MAPPING.md"
     mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
     manifest = MaterialManifest(
         base_ref_oid=BASE_SHA,
         head_ref_oid=HEAD_SHA,
         merge_base_sha=BASE_SHA,
-        pr_number=42,
+        pr_number=pr_number,
         entries=(),
         digest=DIGEST,
     )
+    snapshot = PrSnapshot(
+        repository=repository,
+        pr_number=pr_number,
+        base_sha=BASE_SHA,
+        head_sha=HEAD_SHA,
+        commits=(
+            PrCommitEvidence(FIX_SHA, "2026-07-15T10:00:00Z"),
+            PrCommitEvidence(HEAD_SHA, "2026-07-15T11:00:00Z"),
+        ),
+    )
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
-    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
     monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
     monkeypatch.setattr(
         closeout_module,
@@ -2377,8 +2397,8 @@ def test_authenticated_closeout_revalidates_review_credit_override(
     monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
 
     validated = closeout_module.validate_live_mapping(
-        repository="owner/repo",
-        pr_number=42,
+        repository=repository,
+        pr_number=pr_number,
         token="opaque",
     )
 
