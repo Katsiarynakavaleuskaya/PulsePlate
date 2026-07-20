@@ -8,6 +8,7 @@ real commits in the live pull-request snapshot.
 
 from __future__ import annotations
 
+import hashlib
 import http.client
 import json
 import re
@@ -16,6 +17,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Callable, Mapping
+
+from scripts.orchestration.review_source_status import (
+    classify_codex_review_source_unavailability_body,
+)
 
 _API_HOST = "api.github.com"
 _API_ROOT = f"https://{_API_HOST}"
@@ -55,24 +60,6 @@ _CODEX_SECURITY_OUTAGE_MESSAGE = "Request timed out"
 _CODEX_SECURITY_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
 _CODEX_SECURITY_OUTAGE_TTL = timedelta(hours=24)
 _CODEX_SECURITY_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
-_CODEX_REVIEW_CREDIT_OUTAGE_BODIES = frozenset(
-    {
-        (
-            "Codex usage limits have been reached for code reviews. "
-            "Please check with the admins of this repo to increase the limits by adding credits."
-        ),
-        (
-            "Codex usage limits have been reached for code reviews. "
-            "Please check with the admins of this repo to increase the limits by adding credits.\n"
-            "Credits must be used to enable repository wide code reviews."
-        ),
-        (
-            "You have reached your Codex usage limits for code reviews. "
-            "You can see your limits in the "
-            "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
-        ),
-    }
-)
 _CODEX_REVIEW_CREDIT_OUTAGE_TTL = timedelta(hours=24)
 _CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
 _OPERATOR_EXACT_HEAD_REVIEW_PREFIX = "Exact-head bounded review completed for"
@@ -172,6 +159,16 @@ class CodexReviewEvidence:
     reference: str
     submitted_at: str
     commit_ref: str
+
+
+@dataclass(frozen=True)
+class CodexReviewSourceUnavailabilityEvidence:
+    """Immutable trusted Codex evidence that the review source was unavailable."""
+
+    reference: str
+    created_at: str
+    source_status: str
+    body_sha256: str
 
 
 @dataclass(frozen=True)
@@ -537,6 +534,58 @@ def _trusted_codex_app_comment(
     return body, created_at, updated_at
 
 
+def verify_codex_review_source_unavailability_reference(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    request_json: ApiRequest = github_api_request,
+) -> CodexReviewSourceUnavailabilityEvidence:
+    """Prove one immutable same-PR trusted Codex quota response.
+
+    The evidence proves only that the configured review source was unavailable
+    at the recorded attempt. It does not claim a review or no-findings result.
+    """
+
+    owner, name = _require_repository(repository)
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    match = pattern.fullmatch(reference)
+    if not match:
+        raise CommitIdentityError(
+            "review-source unavailability evidence must be a GitHub issue comment "
+            "on the exact PR"
+        )
+    response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{match.group(1)}",
+        token=token,
+    )
+    if not isinstance(response, dict) or response.get("id") != int(match.group(1)):
+        raise CommitIdentityError(
+            "review-source unavailability comment id does not match its canonical URL"
+        )
+    body, created_at, _updated_at = _trusted_codex_app_comment(
+        response,
+        reference=reference,
+        expected_issue_url=f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}",
+    )
+    try:
+        source_status = classify_codex_review_source_unavailability_body(body)
+    except ValueError as exc:
+        raise CommitIdentityError(str(exc)) from exc
+    return CodexReviewSourceUnavailabilityEvidence(
+        reference=reference,
+        created_at=created_at,
+        source_status=source_status,
+        body_sha256="sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest(),
+    )
+
+
 def verify_review_credit_outage_references(
     *,
     override_reference: str,
@@ -588,8 +637,12 @@ def verify_review_credit_outage_references(
         reference=quota_reference,
         expected_issue_url=f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}",
     )
-    if quota_body not in _CODEX_REVIEW_CREDIT_OUTAGE_BODIES:
-        raise CommitIdentityError("Codex comment is not an exact review-credit outage response")
+    try:
+        classify_codex_review_source_unavailability_body(quota_body)
+    except ValueError as exc:
+        raise CommitIdentityError(
+            "Codex comment is not an exact review-credit outage response"
+        ) from exc
 
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:

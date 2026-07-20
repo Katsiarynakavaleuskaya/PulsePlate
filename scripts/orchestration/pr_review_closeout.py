@@ -32,6 +32,7 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_pr_snapshot,
     is_ancestor,
     verify_codex_review_reference,
+    verify_codex_review_source_unavailability_reference,
     verify_review_credit_outage_references,
     verify_security_outage_override_reference,
 )
@@ -42,10 +43,12 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
+    is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
     render_embedded_review_seal,
@@ -581,60 +584,29 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     }
     if freeze != expected_freeze:
         raise CloseoutError("material state changed after freeze; freeze and review again")
-    review_ref = _required_line(args.review_ref, label="review-ref")
-    review_prefix = f"https://github.com/{args.repo}/pull/{args.pr_number}#"
-    if not review_ref.startswith(review_prefix):
-        raise CloseoutError("review-ref must identify the requested GitHub PR")
-    if args.review_credit_outage_ref:
-        quota_ref = _required_line(
-            args.review_credit_quota_ref,
-            label="review-credit-quota-ref",
-        )
-        validate_review_credit_outage_scope(
-            repository=args.repo,
-            pr_number=args.pr_number,
-            material_paths=(entry.path for entry in manifest.entries),
-        )
-        credit_evidence = verify_review_credit_outage_references(
-            override_reference=_required_line(
-                args.review_credit_outage_ref,
-                label="review-credit-outage-ref",
+    if args.review_source_unavailable_ref:
+        source_evidence = verify_codex_review_source_unavailability_reference(
+            _required_line(
+                args.review_source_unavailable_ref,
+                label="review-source-unavailable-ref",
             ),
-            quota_reference=quota_ref,
-            prior_review_reference=_required_line(
-                args.prior_codex_review_ref,
-                label="prior-codex-review-ref",
-            ),
-            operator_review_reference=review_ref,
             repository=args.repo,
             pr_number=args.pr_number,
             token=token,
-            snapshot=snapshot,
-            expected_material_head_sha=snapshot.head_sha,
-            expected_material_digest=manifest.digest,
         )
-        code_review_receipt = build_review_credit_outage_receipt(
+        code_review_receipt = build_review_source_unavailability_receipt(
             material_digest=manifest.digest,
             material_head_sha=snapshot.head_sha,
-            override_reference=credit_evidence.override_reference,
-            override_created_at=credit_evidence.override_created_at,
-            quota_reference=credit_evidence.quota_reference,
-            quota_created_at=credit_evidence.quota_created_at,
-            prior_review_reference=credit_evidence.prior_review_reference,
-            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
-            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
-            operator_review_reference=credit_evidence.operator_review_reference,
-            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
-            operator_user_id=credit_evidence.operator_user_id,
-            operator_login=credit_evidence.operator_login,
-            operator_association=credit_evidence.operator_association,
+            quota_reference=source_evidence.reference,
+            quota_created_at=source_evidence.created_at,
+            quota_body_sha256=source_evidence.body_sha256,
+            source_status=source_evidence.source_status,
         )
     else:
-        if args.review_credit_quota_ref or args.prior_codex_review_ref:
-            raise CloseoutError(
-                "--review-credit-quota-ref and --prior-codex-review-ref require "
-                "--review-credit-outage-ref"
-            )
+        review_ref = _required_line(args.review_ref, label="review-ref")
+        review_prefix = f"https://github.com/{args.repo}/pull/{args.pr_number}#"
+        if not review_ref.startswith(review_prefix):
+            raise CloseoutError("review-ref must identify the requested GitHub PR")
         review_evidence = verify_codex_review_reference(
             review_ref,
             repository=args.repo,
@@ -783,11 +755,38 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     }:
         raise CloseoutError("sealed material head is not a real live PR commit")
     code_review = seal["code_review"]
-    review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
-    review_reference = code_review["review_reference"]
-    if not review_reference.startswith(review_prefix):
-        raise CloseoutError("code-review reference belongs to another PR")
-    if is_review_credit_outage_receipt(code_review):
+    if is_review_source_unavailability_receipt(code_review):
+        unavailable_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if unavailable_manifest.digest != material["digest"]:
+            raise CloseoutError(
+                "review-source unavailable material head has a different material digest"
+            )
+        source_evidence = verify_codex_review_source_unavailability_reference(
+            code_review["quota_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+        )
+        expected_code_review = build_review_source_unavailability_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            quota_reference=source_evidence.reference,
+            quota_created_at=source_evidence.created_at,
+            quota_body_sha256=source_evidence.body_sha256,
+            source_status=source_evidence.source_status,
+        )
+        if code_review != expected_code_review:
+            raise CloseoutError("Codex review-source unavailability receipt is stale")
+    elif is_review_credit_outage_receipt(code_review):
+        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
+        review_reference = code_review["review_reference"]
+        if not review_reference.startswith(review_prefix):
+            raise CloseoutError("code-review reference belongs to another PR")
         validate_review_credit_outage_scope(
             repository=repository,
             pr_number=pr_number,
@@ -824,6 +823,10 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         if code_review != expected_code_review:
             raise CloseoutError("Codex review credit-outage receipt is stale")
     else:
+        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
+        review_reference = code_review["review_reference"]
+        if not review_reference.startswith(review_prefix):
+            raise CloseoutError("code-review reference belongs to another PR")
         review_evidence = verify_codex_review_reference(
             review_reference,
             repository=repository,
@@ -931,10 +934,9 @@ def _parser() -> argparse.ArgumentParser:
     seal = subparsers.add_parser("seal")
     seal.add_argument("--repo", required=True)
     seal.add_argument("--pr-number", required=True, type=int)
-    seal.add_argument("--review-ref", required=True)
-    seal.add_argument("--review-credit-outage-ref")
-    seal.add_argument("--review-credit-quota-ref")
-    seal.add_argument("--prior-codex-review-ref")
+    review_evidence = seal.add_mutually_exclusive_group(required=True)
+    review_evidence.add_argument("--review-ref")
+    review_evidence.add_argument("--review-source-unavailable-ref")
     security_evidence = seal.add_mutually_exclusive_group(required=True)
     security_evidence.add_argument("--scan-manifest")
     security_evidence.add_argument("--security-outage-override-ref")

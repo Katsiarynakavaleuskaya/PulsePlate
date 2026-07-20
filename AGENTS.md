@@ -204,8 +204,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    PR head. Reviewer execution SHAs are opaque until the Commit API proves
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
-9. **Material identity:** one Codex review and one completed final Codex Security
-   diff scan bind to one material digest. When Codex Security is systemically
+9. **Material identity:** one completed Codex review or one trusted terminal
+   review-source unavailability receipt, plus one completed final Codex Security
+   diff scan, bind to one material digest. When Codex Security is systemically
    unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
    operator-outage override may replace only the plugin receipt: it must be an
    unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
@@ -217,18 +218,20 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    implementation/policy input of the substitute security checks cannot authorize themselves with
    this override. It is tooling-unavailability evidence, never
    a security scan or no-findings claim. When the official Codex connector
-   reports exhausted code-review credits for the final review cycle, a
-   short-lived review-credit override may replace only the unavailable exact-head
-   connector receipt. It requires the unedited trusted quota response, a prior
-   real Codex review on an ancestor PR commit, and a subsequent exact-head
-   `OWNER`/`MEMBER` review with no remaining actionables. The same operator must
-   then publish one unedited canonical override comment binding the final
-   material head/digest and all three evidence URLs. The receipt binds that
-   operator comment plus the quota and review references. PR `#2142` is the
-   one-time trust-boundary bootstrap; later PRs that change review/seal/merge
-   verification, current-head check authority, or GitHub workflow/action
-   authority cannot authorize themselves with this override. It records
-   review-provider unavailability, never a Codex review or no-findings result.
+   reports an exact known rate-limit or usage-limit response, its unedited
+   same-PR GitHub App comment is terminal review-source unavailability evidence:
+   `source_degraded=true`, `fallback_required=false`, and `blocking=false`.
+   Do not retry, request a substitute/prior review, require an operator
+   override, or impose a TTL. The receipt binds the unavailable source attempt
+   to the current material seal context with `review_claim=none`; it is never a
+   Codex review, approval, or no-findings result. A later material change
+   requires a new seal, but the same immutable quota comment may be reverified
+   and reused. The canonical negative projection is `retry_required=false`,
+   `substitute_review_required=false`, `prior_review_required=false`,
+   `operator_override_required=false`, and `ttl_required=false`. Historical PR
+   `#2142` review-credit override receipts remain
+   readable everywhere but are live-authenticated only for PR `#2142`; the
+   legacy override path is not an active authoring contract for later PRs.
    The trusted submitted review object's
    real GitHub `commit_id` must equal the frozen material head. When the official
    Codex connector emits an unedited no-findings issue comment instead, its
