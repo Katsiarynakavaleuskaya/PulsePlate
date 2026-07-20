@@ -444,6 +444,11 @@ Commit: 5bcd20e09dfe44e0c90487ea6856b2ddb94b17db
 Evidence: The four original NOT-A-BUG records now cite exact validator ranges and focused regression locations; tests/test_review_mapping_artifact.py and strict live closeout validation pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3617867008 -> 5bcd20e09dfe44e0c90487ea6856b2ddb94b17db
 
+Disposition: FIXED
+Commit: 3d15196646065c67ffb0db4f8d72ee707004cc63
+Evidence: scripts/orchestration/experiment_runner.py:526-536,777-783 rejects a fingerprint-bound direct evaluation when packet base_commit_sha differs from repository HEAD; tests/test_experiment_runner.py:2579-2618 proves rejection occurs before any attempt or oracle execution.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3618167363 -> 3d15196646065c67ffb0db4f8d72ee707004cc63
+
 Disposition: NOT-A-BUG
 Evidence: scripts/orchestration/creative_code_patch_generation.py:2511-2563 validates complete oracle-derived rejection evidence; tests/test_creative_code_patch_generation.py exercises the timeout, OOM, and first-failing-oracle controls.
 Reason: The proposed gap is already enforced by the canonical rejection-evidence validation path.
