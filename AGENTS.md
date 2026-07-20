@@ -226,7 +226,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    to the current material seal context with `review_claim=none`; it is never a
    Codex review, approval, or no-findings result. A later material change
    requires a new seal, but the same immutable quota comment may be reverified
-   and reused. Historical PR `#2142` review-credit override receipts remain
+   and reused. The canonical negative projection is `retry_required=false`,
+   `substitute_review_required=false`, `prior_review_required=false`,
+   `operator_override_required=false`, and `ttl_required=false`. Historical PR
+   `#2142` review-credit override receipts remain
    readable everywhere but are live-authenticated only for PR `#2142`; the
    legacy override path is not an active authoring contract for later PRs.
    The trusted submitted review object's

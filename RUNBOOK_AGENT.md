@@ -662,7 +662,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    `--review-source-unavailable-ref ...` for an exact trusted Codex rate-limit /
    usage-limit comment. The source-unavailable path requires no retry,
    substitute review, prior review, operator override, or TTL; it proves only
-   source unavailability (`review_claim=none`), never review/PASS/no-findings.
+   source unavailability (`source_degraded=true`, `fallback_required=false`,
+   `blocking=false`, and `review_claim=none`), never review/PASS/no-findings.
+   The exact negative projection is `retry_required=false`,
+   `substitute_review_required=false`, `prior_review_required=false`,
+   `operator_override_required=false`, and `ttl_required=false`.
    The comment is re-fetched and its exact UTF-8 body hash recomputed. A later
    material change requires resealing, while the same immutable quota reference
    may be reused. Also provide exactly one of `--scan-manifest ...` or

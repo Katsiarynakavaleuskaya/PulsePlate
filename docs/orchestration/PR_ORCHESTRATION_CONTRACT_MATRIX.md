@@ -157,12 +157,17 @@ governance PR number + 1; the governance PR may opt in with
   `pulseplate.codex-review-source-unavailability/v1` variant. The canonical
   same-PR, unedited trusted Codex GitHub App comment is terminal unavailable
   evidence: no retry, substitute review, prior review, operator override, or
-  TTL is required. It binds the current material head/digest with
-  `binding_kind=seal_context_only` and `review_claim=none`; it is not review,
-  approval, PASS, or no-findings evidence. Unknown/changed bodies and identity,
-  URL, timestamp, body-hash, PR/repository, or material-binding drift fail
-  closed. The same immutable quota reference may be reverified after a later
-  material change, but the material seal itself must be regenerated.
+  TTL is required. It is recorded as `source_degraded=true`,
+  `fallback_required=false`, and `blocking=false`, and binds the current
+  material head/digest with `binding_kind=seal_context_only` and
+  `review_claim=none`; it is not review, approval, PASS, or no-findings
+  evidence. Its exact negative projection is `retry_required=false`,
+  `substitute_review_required=false`, `prior_review_required=false`,
+  `operator_override_required=false`, and `ttl_required=false`.
+  Unknown/changed bodies and identity, URL, timestamp, body-hash, PR/repository,
+  or material-binding drift fail closed. The same immutable quota reference may
+  be reverified after a later material change, but the material seal itself must
+  be regenerated.
 - Historical PR `#2142` `operator_review_credit_exhaustion_override` receipts
   remain parseable everywhere but are live-authenticated only for PR `#2142`.
   The legacy multi-reference override is not an active authoring mode for later

@@ -38,6 +38,14 @@ _CODEX_REVIEW_SOURCE_UNAVAILABILITY_BODY_STATUSES: Mapping[str, str] = MappingPr
             "You can see your limits in the "
             "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
         ): "usage_limit_reached",
+        (
+            "You have reached your Codex usage limits for code reviews. "
+            "You can see your limits in the "
+            "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage).\n"
+            "To continue using code reviews, add credits to your account and enable them "
+            "for code reviews in your "
+            "[settings](https://chatgpt.com/codex/cloud/settings/code-review)."
+        ): "usage_limit_reached",
     }
 )
 _SECRETISH_RE = re.compile(

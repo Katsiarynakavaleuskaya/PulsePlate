@@ -170,6 +170,7 @@ declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(
     "RUNBOOK_AGENT.md"
     "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md"
     "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md"
+    "docs/orchestration/contracts/review_source_status.v1.json"
     "scripts/ci/check_pr_merge_readiness.py"
     "scripts/orchestration/pr_commit_identity.py"
     "scripts/orchestration/pr_review_closeout.py"
@@ -210,6 +211,9 @@ add_extra_tests_for_changed_files() {
         for policy_file in "${REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES[@]}"; do
             if [ "$file" = "$policy_file" ]; then
                 EXTRA_TEST_FILES+=("tests/guards/test_review_source_quota_policy_guard.py")
+                EXTRA_TEST_FILES+=("tests/test_review_source_status.py")
+                EXTRA_TEST_FILES+=("tests/test_pr_review_material_seal.py")
+                EXTRA_TEST_FILES+=("tests/test_pr_merge_readiness_gate.py")
                 break
             fi
         done

@@ -31,6 +31,7 @@ POLICY_SURFACE_FILES = {
     "RUNBOOK_AGENT.md",
     "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
     "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    "docs/orchestration/contracts/review_source_status.v1.json",
     "scripts/ci/check_pr_merge_readiness.py",
     "scripts/orchestration/pr_commit_identity.py",
     "scripts/orchestration/pr_review_closeout.py",
@@ -38,6 +39,12 @@ POLICY_SURFACE_FILES = {
     "scripts/orchestration/review_source_status.py",
     "scripts/run-backend-tests-pre-commit.sh",
     "tests/guards/test_review_source_quota_policy_guard.py",
+}
+POLICY_SUITE_TEST_FILES = {
+    "tests/guards/test_review_source_quota_policy_guard.py",
+    "tests/test_pr_merge_readiness_gate.py",
+    "tests/test_pr_review_material_seal.py",
+    "tests/test_review_source_status.py",
 }
 
 
@@ -130,6 +137,14 @@ def test_known_codex_quota_bodies_remain_exact_terminal_evidence() -> None:
             "You can see your limits in the "
             "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
         ),
+        (
+            "You have reached your Codex usage limits for code reviews. "
+            "You can see your limits in the "
+            "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage).\n"
+            "To continue using code reviews, add credits to your account and enable them "
+            "for code reviews in your "
+            "[settings](https://chatgpt.com/codex/cloud/settings/code-review)."
+        ),
     )
     assert {classify_codex_review_source_unavailability_body(body) for body in bodies} == {
         "usage_limit_reached"
@@ -174,22 +189,37 @@ def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
         "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
     )
     documents = {path: (REPO_ROOT / path).read_text(encoding="utf-8") for path in paths}
-    joined = "\n".join(documents.values())
-    normalized = " ".join(joined.split())
-    assert all(option not in joined for option in LEGACY_AUTHORING_OPTIONS)
-    assert all(
-        phrase not in normalized
-        for phrase in (
-            "requires a prior trusted Codex review",
-            "must name a subsequent exact-head",
-            "quota response must be current",
-            "All evidence must remain within its TTL",
-        )
+    contradictory_phrases = (
+        "requires a prior trusted Codex review",
+        "must name a subsequent exact-head",
+        "quota response must be current",
+        "All evidence must remain within its TTL",
     )
-    assert "No retry, substitute review, prior review, operator override, or TTL" in normalized
-    assert "`review_claim=none`" in joined
-    assert "Historical PR `#2142`" in joined
-    assert "not an active authoring" in joined
+    for path, document in documents.items():
+        normalized = " ".join(document.split())
+        normalized_casefold = normalized.casefold()
+        assert all(option not in document for option in LEGACY_AUTHORING_OPTIONS), path
+        assert all(phrase not in normalized for phrase in contradictory_phrases), path
+        for anchor in (
+            "source_degraded=true",
+            "fallback_required=false",
+            "blocking=false",
+            "review_claim=none",
+            "retry_required=false",
+            "substitute_review_required=false",
+            "prior_review_required=false",
+            "operator_override_required=false",
+            "ttl_required=false",
+        ):
+            assert anchor in document, f"{path}: missing {anchor}"
+        assert any(
+            marker in normalized_casefold
+            for marker in (
+                "no retry",
+                "do not retry",
+                "requires no retry",
+            )
+        ), f"{path}: missing terminal no-retry contract"
     runbook = documents["RUNBOOK_AGENT.md"]
     normalized_runbook = " ".join(runbook.split())
     assert "do not trigger or retrigger it manually" in normalized_runbook
@@ -201,10 +231,11 @@ def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
 def test_every_policy_surface_selects_this_guard_in_diff_validation() -> None:
     runner = (REPO_ROOT / "scripts/run-backend-tests-pre-commit.sh").read_text(encoding="utf-8")
     assert "declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(" in runner
-    assert 'EXTRA_TEST_FILES+=("tests/guards/test_review_source_quota_policy_guard.py")' in runner
     assert 'done <<< "$CHANGED_FILES"' not in runner
     assert 'done <<< "$PYTHON_CHANGES"' not in runner
     assert "done < <(printf '%s\\n' \"$CHANGED_FILES\")" in runner
     assert "done < <(printf '%s\\n' \"$PYTHON_CHANGES\")" in runner
     for path in POLICY_SURFACE_FILES:
         assert f'"{path}"' in runner
+    for test_file in POLICY_SUITE_TEST_FILES:
+        assert f'EXTRA_TEST_FILES+=("{test_file}")' in runner

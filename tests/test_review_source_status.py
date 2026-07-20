@@ -20,6 +20,12 @@ CODEX_USAGE_LIMIT_BODY = (
     "You can see your limits in the "
     "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
 )
+CODEX_USAGE_LIMIT_BODY_WITH_SETTINGS = (
+    CODEX_USAGE_LIMIT_BODY
+    + "\nTo continue using code reviews, add credits to your account and enable them "
+    "for code reviews in your "
+    "[settings](https://chatgpt.com/codex/cloud/settings/code-review)."
+)
 
 
 def test_review_source_degraded_is_warning_only_by_default() -> None:
@@ -84,14 +90,19 @@ def test_terminal_quota_status_rejects_blocking_override(status: str) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "body",
+    [CODEX_USAGE_LIMIT_BODY, CODEX_USAGE_LIMIT_BODY_WITH_SETTINGS],
+)
+def test_codex_quota_body_classification_accepts_exact_known_bodies(body: str) -> None:
+    assert classify_codex_review_source_unavailability_body(body) == "usage_limit_reached"
+
+
 def test_codex_quota_body_classification_is_exact_and_fail_closed() -> None:
-    assert (
-        classify_codex_review_source_unavailability_body(CODEX_USAGE_LIMIT_BODY)
-        == "usage_limit_reached"
-    )
     for body in (
-        CODEX_USAGE_LIMIT_BODY + " ",
-        CODEX_USAGE_LIMIT_BODY.replace("usage limits", "rate limits"),
+        CODEX_USAGE_LIMIT_BODY_WITH_SETTINGS + " ",
+        CODEX_USAGE_LIMIT_BODY_WITH_SETTINGS.replace("usage limits", "rate limits"),
+        CODEX_USAGE_LIMIT_BODY_WITH_SETTINGS.replace("settings/code-review", "settings/review"),
         "Codex review unavailable",
     ):
         try:
@@ -128,6 +139,28 @@ def test_review_source_status_schema_matches_helper_shape() -> None:
     assert set(schema["required"]) == set(status)
     assert schema["additionalProperties"] is False
     assert schema["properties"]["status"]["enum"] == sorted(REVIEW_SOURCE_STATUSES)
+    assert schema["allOf"] == [
+        {
+            "if": {
+                "properties": {
+                    "status": {
+                        "enum": [
+                            "rate_limited",
+                            "usage_limit_reached",
+                        ]
+                    }
+                },
+                "required": ["status"],
+            },
+            "then": {
+                "properties": {
+                    "source_degraded": {"const": True},
+                    "fallback_required": {"const": False},
+                    "blocking": {"const": False},
+                }
+            },
+        }
+    ]
 
 
 def test_review_source_status_rejects_unknown_status() -> None:

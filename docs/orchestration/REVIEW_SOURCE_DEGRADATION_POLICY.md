@@ -15,7 +15,10 @@ review-source unavailability: `source_degraded=true`,
 `fallback_required=false`, and `blocking=false`. No retry, substitute review,
 prior review, operator override, or TTL is required. The trusted evidence has
 `review_claim=none`; it proves only that the configured source was unavailable
-at the recorded attempt.
+at the recorded attempt. The exact negative projection is
+`retry_required=false`, `substitute_review_required=false`,
+`prior_review_required=false`, `operator_override_required=false`, and
+`ttl_required=false`.
 
 This policy cannot replace GitHub review-thread truth, CodeRabbit/Sourcery/Cubic
 dispositions, `docs/review/PR_<N>_FIXED_MAPPING.md`, PR body mirror governance,
