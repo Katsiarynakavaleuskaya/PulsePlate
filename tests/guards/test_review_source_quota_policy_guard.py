@@ -202,5 +202,9 @@ def test_every_policy_surface_selects_this_guard_in_diff_validation() -> None:
     runner = (REPO_ROOT / "scripts/run-backend-tests-pre-commit.sh").read_text(encoding="utf-8")
     assert "declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(" in runner
     assert 'EXTRA_TEST_FILES+=("tests/guards/test_review_source_quota_policy_guard.py")' in runner
+    assert 'done <<< "$CHANGED_FILES"' not in runner
+    assert 'done <<< "$PYTHON_CHANGES"' not in runner
+    assert "done < <(printf '%s\\n' \"$CHANGED_FILES\")" in runner
+    assert "done < <(printf '%s\\n' \"$PYTHON_CHANGES\")" in runner
     for path in POLICY_SURFACE_FILES:
         assert f'"{path}"' in runner

@@ -213,7 +213,7 @@ add_extra_tests_for_changed_files() {
                 break
             fi
         done
-    done <<< "$CHANGED_FILES"
+    done < <(printf '%s\n' "$CHANGED_FILES")
 }
 
 add_extra_tests_for_changed_files
@@ -332,7 +332,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
         if [ ${#FOUND_FOR_FILE[@]} -gt 0 ]; then
             TEST_FILES+=("${FOUND_FOR_FILE[@]}")
         fi
-    done <<< "$PYTHON_CHANGES"
+    done < <(printf '%s\n' "$PYTHON_CHANGES")
 fi
 
 if [ ${#EXTRA_TEST_FILES[@]} -gt 0 ]; then
