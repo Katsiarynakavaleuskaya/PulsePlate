@@ -1451,11 +1451,13 @@ def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
     if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
         return
     expected_base = packet.get("base_commit_sha")
-    if not isinstance(expected_base, str):
-        raise DispatchError("result_validation_failed")
-    head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
     tracked_status = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
-    if head != expected_base or tracked_status:
+    if tracked_status:
+        raise DispatchError("result_validation_failed")
+    if expected_base is None:
+        return
+    head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
+    if not isinstance(expected_base, str) or head != expected_base:
         raise DispatchError("result_validation_failed")
 
 

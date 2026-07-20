@@ -611,10 +611,16 @@ def test_candidate_checkout_requires_clean_matching_base(tmp_path: Path) -> None
     packet = {"runner_mode": "candidate_patch", "base_commit_sha": base_sha}
 
     dispatch._require_candidate_checkout(packet, root=source)
+    dispatch._require_candidate_checkout({"runner_mode": "candidate_patch"}, root=source)
 
     tracked.write_text("dirty\n", encoding="utf-8")
     with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
         dispatch._require_candidate_checkout(packet, root=source)
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._require_candidate_checkout(
+            {"runner_mode": "candidate_patch"},
+            root=source,
+        )
 
 
 def test_candidate_checkout_rejects_non_base_head(tmp_path: Path) -> None:
@@ -633,14 +639,6 @@ def test_candidate_checkout_rejects_non_base_head(tmp_path: Path) -> None:
 
     with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
         dispatch._require_candidate_checkout(packet, root=source)
-
-
-def test_candidate_checkout_requires_base_binding(tmp_path: Path) -> None:
-    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
-        dispatch._require_candidate_checkout(
-            {"runner_mode": "candidate_patch"},
-            root=tmp_path,
-        )
 
 
 def test_experiment_packet_rejects_invalid_or_oracle_base_binding() -> None:
