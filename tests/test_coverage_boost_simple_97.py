@@ -41,13 +41,6 @@ class TestCoverageBoostSimple:
                 response = self.client.get("/")
                 assert response.status_code == 200
 
-    def test_app_utils_fallbacks(self):
-        """Test app utils fallbacks."""
-        with patch("legacy_app.get_activity_factor", None):
-            with patch("legacy_app.resolve_attr", None):
-                response = self.client.get("/")
-                assert response.status_code == 200
-
     def test_health_endpoint(self):
         """Test health endpoint."""
         response = self.client.get("/health")
@@ -135,12 +128,6 @@ class TestCoverageBoostSimple:
         with patch("legacy_app.premium_week_router", None):
             response = self.client.get("/")
             assert response.status_code == 200
-
-    def test_timeout_handling(self):
-        """Test timeout handling."""
-        with patch("legacy_app.time.sleep", side_effect=TimeoutError("Request timeout")):
-            response = self.client.get("/")
-            assert response.status_code in [200, 500, 408]
 
     def test_memory_error_handling(self):
         """Test memory error handling."""

@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
+from app.services import pro_nutrition_plate as plate_service
+
 
 def test_plate_alignment_with_targets(monkeypatch):
     """Plate API aligns macros to targets when deviation is large."""
@@ -23,16 +25,25 @@ def test_plate_alignment_with_targets(monkeypatch):
             )
             # minimal attributes used by other routes (not relevant here)
             self.kcal_daily = 2200
+            self.water_ml_daily = 2500
             self.activity = SimpleNamespace(
                 moderate_aerobic_min=150, strength_sessions=2, steps_daily=8000
             )
             self.micros = SimpleNamespace(get_priority_nutrients=lambda: {})
             self.calculation_date = "2025-01-01"
 
+        @staticmethod
+        def validate_consistency() -> bool:
+            return True
+
     def fake_build_targets(_profile):
         return FakeTargets()
 
-    monkeypatch.setattr(app_mod, "build_nutrition_targets", fake_build_targets, raising=False)
+    monkeypatch.setattr(
+        plate_service.nutrition_recommendations,
+        "build_nutrition_targets",
+        fake_build_targets,
+    )
 
     with TestClient(app_mod.app) as client:
         payload = {

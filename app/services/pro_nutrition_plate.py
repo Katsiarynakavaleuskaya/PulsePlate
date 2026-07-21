@@ -61,6 +61,42 @@ class _NonFinitePlateDependencyOutputError(_InvalidPlateMicronutrientOutputError
     """A Plate dependency returned a numeric value unsafe for JSON output."""
 
 
+class _InvalidPlateCalculationOutputError(RuntimeError):
+    """A BMR/TDEE dependency returned malformed calculation output."""
+
+
+def _validate_calculation_mapping(value: Any, *, required_key: str | None = None) -> None:
+    """Require a non-empty finite numeric calculation mapping."""
+
+    if not isinstance(value, dict) or not value:
+        raise _InvalidPlateCalculationOutputError(
+            "Plate calculation dependency returned malformed output"
+        )
+    if required_key is not None and required_key not in value:
+        raise _InvalidPlateCalculationOutputError(
+            "Plate calculation dependency omitted required output"
+        )
+    for key, raw_value in value.items():
+        if (
+            not isinstance(key, str)
+            or isinstance(raw_value, (bool, str))
+            or not isinstance(raw_value, Number)
+        ):
+            raise _InvalidPlateCalculationOutputError(
+                "Plate calculation dependency returned malformed output"
+            )
+        try:
+            numeric_value = float(cast(Any, raw_value))
+        except (TypeError, ValueError, OverflowError):
+            raise _InvalidPlateCalculationOutputError(
+                "Plate calculation dependency returned malformed output"
+            ) from None
+        if not math.isfinite(numeric_value):
+            raise _InvalidPlateCalculationOutputError(
+                "Plate calculation dependency returned non-finite output"
+            )
+
+
 def _ensure_finite_dependency_output(value: Any) -> None:
     """Reject non-finite numeric objects without interpreting arbitrary text."""
 
@@ -838,8 +874,10 @@ async def generate_plate_response(
             req.sex,
             req.bodyfat,
         )
+        _validate_calculation_mapping(bmr_results)
         tdee_results = deps.calculate_all_tdee(bmr_results, req.activity)
-        tdee_value = tdee_results["mifflin"]
+        _validate_calculation_mapping(tdee_results, required_key="mifflin")
+        tdee_value = float(tdee_results["mifflin"])
         diet_flags = {str(flag) for flag in req.diet_flags} if req.diet_flags else None
         try:
             plate_data_raw = deps.make_plate(
@@ -926,6 +964,12 @@ async def generate_plate_response(
             day_micros=day_micros,
             meals_per_day=plate_data.get("meals_per_day", 3),
         )
+    except _InvalidPlateCalculationOutputError:
+        logger.exception("Rejected invalid Plate calculation dependency output")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
+        ) from None
     except _InvalidPlateMicronutrientOutputError:
         logger.exception("Rejected invalid Plate micronutrient output")
         raise HTTPException(

@@ -376,6 +376,57 @@ def test_generate_plate_response_unexpected_error_is_safe_500(
 
 
 @pytest.mark.parametrize(
+    ("dependency", "calculation_output"),
+    [
+        pytest.param("bmr", {"mifflin": float("nan")}, id="bmr-non-finite"),
+        pytest.param("bmr", [], id="bmr-malformed-shape"),
+        pytest.param("tdee", {"mifflin": float("inf")}, id="tdee-non-finite"),
+        pytest.param("tdee", {"mifflin": "2200"}, id="tdee-malformed-value"),
+        pytest.param("tdee", {"harris": 2200.0}, id="tdee-missing-selected-formula"),
+    ],
+)
+def test_generate_plate_response_rejects_invalid_calculation_dependency_output(
+    monkeypatch: pytest.MonkeyPatch,
+    dependency: str,
+    calculation_output: object,
+) -> None:
+    """Malformed BMR/TDEE output fails closed before Plate generation."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    make_plate_calls: list[dict[str, object]] = []
+
+    def _calculate_bmr(*_args: object, **_kwargs: object) -> Any:
+        if dependency == "bmr":
+            return calculation_output
+        return {"mifflin": 1600.0}
+
+    def _calculate_tdee(*_args: object, **_kwargs: object) -> Any:
+        if dependency == "tdee":
+            return calculation_output
+        return {"mifflin": 2200.0}
+
+    def _make_plate(**kwargs: object) -> dict[str, Any]:
+        make_plate_calls.append(kwargs)
+        return _valid_generated_plate()
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_make_plate,
+        calculate_all_bmr=_calculate_bmr,
+        calculate_all_tdee=_calculate_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert make_plate_calls == []
+    assert "mifflin" not in str(exc_info.value.detail).casefold()
+
+
+@pytest.mark.parametrize(
     "non_finite_value",
     [
         float("nan"),
