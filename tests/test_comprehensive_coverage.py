@@ -5,7 +5,7 @@ Comprehensive tests to improve coverage to 97%+.
 import asyncio
 import os
 from types import SimpleNamespace
-from typing import Any, Dict, cast
+from typing import Any, Dict, Iterator, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,22 +25,20 @@ from tests.helpers.fast_update_stubs import (
 class TestComprehensiveCoverage:
     """Comprehensive tests to improve coverage."""
 
-    def setup_method(self) -> None:
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _configure_test_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> Iterator[None]:
+        """Provide per-test environment state without leaking caller values."""
+
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
         self.client = TestClient(cast(ASGIApp, app))
-
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        # Explicitly close TestClient to clean up resources
-        if hasattr(self, "client"):
+        try:
+            yield
+        finally:
             self.client.close()
-
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
-        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-            del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_debug_env_endpoint(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test debug_env endpoint with deterministic response."""
