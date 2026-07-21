@@ -549,12 +549,19 @@ def build_fallback_plate(
                 logger.warning("Invalid fallback target fiber; using canonical minimum")
                 resolved_fiber_g = int(round(FIBER_MIN_G))
 
-            target_kcal = resolved_target_kcal
-            protein_g = resolved_protein_g
-            fat_g = resolved_fat_g
-            carbs_g = resolved_carbs_g
-            fiber_g = resolved_fiber_g
-            targets_used = True
+            if _SAFE_DEFAULT_KCAL <= resolved_target_kcal <= _FALLBACK_KCAL_MAX:
+                target_kcal = resolved_target_kcal
+                protein_g = resolved_protein_g
+                fat_g = resolved_fat_g
+                carbs_g = resolved_carbs_g
+                fiber_g = resolved_fiber_g
+                targets_used = True
+            else:
+                logger.warning(
+                    "Canonical target kcal %s is outside Plate fallback bounds; "
+                    "using the bounded heuristic",
+                    resolved_target_kcal,
+                )
         except (ValueError, ImportError):
             logger.warning(
                 "Plate target alignment unavailable during fallback",

@@ -518,6 +518,119 @@ class TestEnhancedPlateAPI:
         assert '"kcal":0' not in response.text
 
     @pytest.mark.parametrize(
+        ("target_kcal", "payload", "expected_kcal", "expected_macros"),
+        [
+            pytest.param(
+                1000,
+                {
+                    "sex": "female",
+                    "age": 35,
+                    "height_cm": 160,
+                    "weight_kg": 45,
+                    "activity": "sedentary",
+                    "goal": "loss",
+                    "deficit_pct": 25,
+                },
+                1200,
+                {
+                    "protein_g": 72,
+                    "fat_g": 40,
+                    "carbs_g": 138,
+                    "fiber_g": 25,
+                },
+                id="lower-clamp",
+            ),
+            pytest.param(
+                3000,
+                {
+                    "sex": "male",
+                    "age": 35,
+                    "height_cm": 180,
+                    "weight_kg": 80,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                },
+                2400,
+                {
+                    "protein_g": 128,
+                    "fat_g": 72,
+                    "carbs_g": 310,
+                    "fiber_g": 25,
+                },
+                id="upper-clamp",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("route", "headers"),
+        [
+            pytest.param(
+                "/api/v1/pro/nutrition/plate",
+                {"X-API-Key": TEST_KEY_PRO},
+                id="canonical",
+            ),
+            pytest.param(
+                "/api/v1/premium/plate",
+                {"X-API-Key": "test_key"},
+                id="legacy",
+            ),
+        ],
+    )
+    def test_plate_fallback_clamp_keeps_kcal_and_macros_coherent(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        target_kcal: int,
+        payload: dict[str, object],
+        expected_kcal: int,
+        expected_macros: dict[str, int],
+        route: str,
+        headers: dict[str, str],
+    ) -> None:
+        """Both route families discard target overrides outside fallback bounds."""
+
+        class _TargetMacros:
+            protein_g = 150 if target_kcal > 2400 else 50
+            fat_g = 80 if target_kcal > 2400 else 30
+            carbs_g = 420 if target_kcal > 2400 else 132
+            fiber_g = 42 if target_kcal > 2400 else 14
+
+        class _Targets:
+            macros = _TargetMacros()
+            water_ml_daily = 2500
+
+            @staticmethod
+            def validate_consistency() -> bool:
+                return True
+
+        target = _Targets()
+        target.kcal_daily = target_kcal
+        fallback_dependencies = pro_nutrition_plate.PlateServiceDependencies(
+            make_plate=None,
+            calculate_all_bmr=None,
+            calculate_all_tdee=None,
+            build_nutrition_targets=lambda _profile: target,
+            aggregate_day_micronutrients=lambda _meals: {},
+        )
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "_default_dependencies",
+            lambda: fallback_dependencies,
+        )
+
+        response = client.post(route, json=payload, headers=headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["kcal"] == expected_kcal
+        assert data["macros"] == expected_macros
+        macro_kcal = (
+            data["macros"]["protein_g"] * 4
+            + data["macros"]["fat_g"] * 9
+            + data["macros"]["carbs_g"] * 4
+        )
+        assert macro_kcal == data["kcal"]
+
+    @pytest.mark.parametrize(
         ("response_field", "non_finite_value"),
         [
             pytest.param("portions", float("nan"), id="portions-nan"),
