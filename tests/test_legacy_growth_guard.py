@@ -4368,6 +4368,119 @@ def test_legacy_growth_guard_rejects_poisoned_object_capture_as_decorator_factor
     ]
 
 
+@pytest.mark.parametrize(
+    ("setup", "factory_expression"),
+    [
+        ("holder = (captured,)\n", "holder[0]"),
+        ('factories = {"factory": captured}\n', 'factories["factory"]'),
+        ("", "partial(captured)"),
+        (
+            "def identity(factory):\n" "    return factory\n",
+            "identity(captured)",
+        ),
+        ("", "(lambda factory: factory)(captured)"),
+        (
+            "class Holder:\n" "    factory = captured\n",
+            "Holder.factory",
+        ),
+        (
+            "class Holder:\n" "    factory = captured\n",
+            'getattr(Holder, "factory")',
+        ),
+    ],
+    ids=[
+        "tuple-index",
+        "mapping-index",
+        "partial",
+        "helper-wrapper",
+        "lambda-wrapper",
+        "class-attribute",
+        "getattr-alias",
+    ],
+)
+def test_legacy_growth_guard_rejects_wrapped_poisoned_object_decorator_factories(
+    setup: str,
+    factory_expression: str,
+) -> None:
+    source = (
+        textwrap.dedent("""
+        import builtins
+        from functools import partial
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/poisoned-wrapped-decorator")
+        captured = builtins.object
+        builtins.object = original_object
+        """)
+        + setup
+        + textwrap.dedent(f"""
+        @{factory_expression}()
+        def poisoned_wrapped_decorator_factory():
+            return None
+        """)
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> poisoned_wrapped_decorator_factory"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("setup", "factory_expression"),
+    [
+        ("holder = (captured,)\n", "holder[0]"),
+        ('factories = {"factory": captured}\n', 'factories["factory"]'),
+        ("", "partial(captured)"),
+        (
+            "def identity(factory):\n" "    return factory\n",
+            "identity(captured)",
+        ),
+        ("", "(lambda factory: factory)(captured)"),
+        (
+            "class Holder:\n" "    factory = captured\n",
+            "Holder.factory",
+        ),
+        (
+            "class Holder:\n" "    factory = captured\n",
+            'getattr(Holder, "factory")',
+        ),
+    ],
+    ids=[
+        "tuple-index",
+        "mapping-index",
+        "partial",
+        "helper-wrapper",
+        "lambda-wrapper",
+        "class-attribute",
+        "getattr-alias",
+    ],
+)
+def test_legacy_growth_guard_keeps_wrapped_safe_object_decorator_factories(
+    setup: str,
+    factory_expression: str,
+) -> None:
+    source = (
+        textwrap.dedent("""
+        import builtins
+        from functools import partial
+
+        app = resolve_app()
+        captured = builtins.object
+        builtins.object = lambda: app.get("/api/v1/not-a-poisoned-decorator")
+        """)
+        + setup
+        + textwrap.dedent(f"""
+        @{factory_expression}()
+        def safe_wrapped_decorator_factory():
+            return None
+        """)
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_keeps_safe_object_capture_after_namespace_poisoning() -> None:
     source = textwrap.dedent("""
         import builtins

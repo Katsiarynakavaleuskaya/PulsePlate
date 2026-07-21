@@ -338,6 +338,80 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         preserve_route_method_conflicts=True,
     )
 
+    static_class_member_references: dict[tuple[str, str], str | None] = {}
+    for class_node in ast.walk(tree):
+        if not isinstance(class_node, ast.ClassDef):
+            continue
+        class_reference = f"{_CLASS_REFERENCE_PREFIX}{class_node.name}:{id(class_node)}>"
+        for statement in class_node.body:
+            member_targets: tuple[ast.expr, ...]
+            if isinstance(statement, ast.Assign):
+                value = statement.value
+                member_targets = tuple(statement.targets)
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                value = statement.value
+                member_targets = (statement.target,)
+            else:
+                continue
+            references = route_reference_snapshots.get(id(value), {})
+            strings = route_string_snapshots.get(id(value), static_string_bindings)
+            reference = _static_module_reference(
+                value,
+                module_aliases=references,
+                import_module_aliases=frozenset(),
+                static_string_bindings=strings,
+            )
+            for member_target in member_targets:
+                if isinstance(member_target, ast.Name):
+                    static_class_member_references[(class_reference, member_target.id)] = reference
+
+    def captured_factory_reference(node: ast.AST) -> str | None:
+        call_result = route_call_result_snapshots.get(id(node))
+        if call_result is not None and (
+            call_result.reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+        ):
+            return call_result.reference
+        references = route_reference_snapshots.get(id(node), {})
+        strings = route_string_snapshots.get(id(node), static_string_bindings)
+        reference = _static_module_reference(
+            node,
+            module_aliases=references,
+            import_module_aliases=frozenset(),
+            static_string_bindings=strings,
+        )
+        if reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
+            return reference
+        if isinstance(node, ast.Attribute):
+            owner_reference = _static_module_reference(
+                node.value,
+                module_aliases=references,
+                import_module_aliases=frozenset(),
+                static_string_bindings=strings,
+            )
+            return static_class_member_references.get((owner_reference or "", node.attr))
+        if not (
+            isinstance(node, ast.Call)
+            and len(node.args) >= 2
+            and _static_module_reference(
+                node.func,
+                module_aliases=references,
+                import_module_aliases=frozenset(),
+                static_string_bindings=strings,
+            )
+            == "builtins.getattr"
+        ):
+            return reference
+        member_name = _literal_value(node.args[1])
+        if not isinstance(member_name, str):
+            return reference
+        owner_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=references,
+            import_module_aliases=frozenset(),
+            static_string_bindings=strings,
+        )
+        return static_class_member_references.get((owner_reference or "", member_name), reference)
+
     def scoped_route_bindings(
         node: ast.AST,
     ) -> tuple[frozenset[str], frozenset[str], Mapping[str, str]]:
@@ -490,12 +564,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     APP_ROUTE_METHODS,
                 )
                 if action is None:
-                    reference = _static_module_reference(
-                        decorator.func,
-                        module_aliases=route_reference_snapshots[id(decorator)],
-                        import_module_aliases=frozenset(),
-                        static_string_bindings=route_string_snapshots[id(decorator)],
-                    )
+                    reference = captured_factory_reference(decorator.func)
                     if reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
                         action = "dynamic"
                 if action is not None:
@@ -661,6 +730,12 @@ def _collection_reference(
     *,
     mapping: bool,
 ) -> str | None:
+    if _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE in references:
+        return (
+            _MAPPING_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+            if mapping
+            else _ITERABLE_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+        )
     if any(
         reference
         in {
@@ -804,6 +879,11 @@ def _static_module_reference(
                 return _KNOWN_NON_APP_REFERENCE
             return _POSSIBLE_APP_CALL_REFERENCE
         if parent in {
+            _ITERABLE_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE,
+            _MAPPING_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE,
+        }:
+            return _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+        if parent in {
             _POSSIBLE_APP_CALL_REFERENCE,
             _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
             _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
@@ -836,6 +916,8 @@ def _static_module_reference(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
+        if wrapped_reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
+            return wrapped_reference
         if _is_registration_callable_reference(wrapped_reference):
             return wrapped_reference
 
@@ -2596,6 +2678,8 @@ _ITERABLE_SENSITIVE_ELEMENT_REFERENCE = "<iterable:possible-app-call>"
 _ITERABLE_APP_ELEMENT_REFERENCE = "<iterable:possible-app>"
 _MAPPING_SENSITIVE_VALUE_REFERENCE = "<mapping:possible-app-call>"
 _MAPPING_APP_VALUE_REFERENCE = "<mapping:possible-app>"
+_ITERABLE_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE = "<iterable:captured-possible-app-factory>"
+_MAPPING_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE = "<mapping:captured-possible-app-factory>"
 _INDEXED_PAIR_ELEMENT_REFERENCE = "<iterable:indexed-pair>"
 _REVERSED_INDEXED_PAIR_ELEMENT_REFERENCE = "<iterable:reversed-indexed-pair>"
 _INDEXED_TUPLE_ELEMENT_REFERENCE_PREFIX = "<iterable:indexed-tuple:"
