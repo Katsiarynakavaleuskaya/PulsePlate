@@ -204,10 +204,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    PR head. Reviewer execution SHAs are opaque until the Commit API proves
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
-9. **Material identity:** one completed Codex review, one verified positive
-   official Codex Connector reaction, or one trusted terminal review-source
-   unavailability receipt, plus one completed final Codex Security diff scan,
-   bind to one material digest. When Codex Security is systemically
+9. **Material identity:** one completed Codex review or one trusted terminal
+   review-source unavailability receipt, plus one completed final Codex
+   Security diff scan, bind to one material digest. A verified official Codex
+   Connector reaction may be recorded as advisory context only; it never binds
+   a material digest or substitutes review evidence. When Codex Security is systemically
    unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
    operator-outage override may replace only the plugin receipt: it must be an
    unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
@@ -235,13 +236,14 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    legacy override path is not an active authoring contract for later PRs.
    The trusted submitted review object's real GitHub `commit_id` must equal the
    frozen material head. A direct PR-root reaction from the official Connector
-   is accepted only for `+1`, `heart`, `hooray`, or `rocket`, with its immutable
-   GitHub account id and exact login revalidated live; it must postdate the
-   current material head's GitHub push timestamp. It is bounded no-findings
-   evidence, not a GitHub approval, Codex Security result, or thread-resolution
-   authority. GitHub event visibility is polled for at most 30 seconds; a
-   pending event requires a later closeout retry, never a substitute or manual
-   retrigger. When the official Codex connector emits an unedited no-findings
+   may be recorded with `seal --connector-advisory-reaction <canonical-reaction-url>`
+   only for `+1`, `heart`, `hooray`, or `rocket`, after live verification of its
+   immutable GitHub account id and exact login. GitHub reactions carry no
+   reviewed SHA or run id, so they are advisory only: never a `--review-ref`,
+   exact-head proof, GitHub approval, Codex Security result, or thread-resolution
+   authority. A missing, malformed, or unavailable advisory reaction is omitted
+   with a warning; it neither blocks closeout nor clears another review gate. When
+   the official Codex connector emits an unedited no-findings
    issue comment instead, its trusted GitHub App identity and reviewed-commit
    prefix must resolve through the Commit API to that same full frozen head. A
    synthetic execution ref is never review proof. Every path is material except the exact

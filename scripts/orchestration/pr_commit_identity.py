@@ -12,7 +12,6 @@ import hashlib
 import http.client
 import json
 import re
-import time
 import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -30,10 +29,6 @@ _MAX_PR_COMMIT_PAGES = 100
 _MAX_PR_COMMITS = 10_000
 _MAX_PR_REACTION_PAGES = 100
 _MAX_PR_REACTIONS = 10_000
-_MAX_PR_PUSH_EVENT_PAGES = 3
-_MAX_PR_PUSH_EVENTS = 300
-_MAX_PR_PUSH_EVENT_VISIBILITY_ATTEMPTS = 4
-_PR_PUSH_EVENT_VISIBILITY_RETRY_SECONDS = 10
 _MAX_REVIEW_THREAD_PAGES = 100
 _MAX_REVIEW_COMMENT_PAGES = 100
 _MAX_REVIEW_THREADS = 10_000
@@ -168,6 +163,15 @@ class CodexReviewEvidence:
     reference: str
     submitted_at: str
     commit_ref: str
+
+
+@dataclass(frozen=True)
+class CodexConnectorAdvisoryReactionEvidence:
+    """Verified Connector reaction that intentionally carries no review claim."""
+
+    reference: str
+    created_at: str
+    content: str
 
 
 @dataclass(frozen=True)
@@ -881,18 +885,6 @@ def _require_iso8601(value: Any, *, field: str) -> str:
     return value
 
 
-def _parse_iso8601_datetime(value: Any, *, field: str) -> datetime:
-    """Return one validated timezone-aware GitHub timestamp."""
-
-    timestamp = _require_iso8601(value, field=field)
-    try:
-        return datetime.fromisoformat(
-            timestamp[:-1] + "+00:00" if timestamp.endswith("Z") else timestamp
-        )
-    except ValueError as exc:
-        raise CommitIdentityError(f"{field} is not a valid ISO-8601 timestamp") from exc
-
-
 def _normalize_codex_comment_details(value: str) -> str:
     """Ignore connector-only whitespace while preserving exact nonblank content."""
 
@@ -1172,16 +1164,20 @@ def is_ancestor(
     return True
 
 
-def _verify_codex_positive_reaction_reference(
+def verify_codex_connector_advisory_reaction_reference(
     reference: str,
     *,
     repository: str,
     pr_number: int,
-    expected_commit_ref: str,
     token: str,
-    request_json: ApiRequest,
-) -> CodexReviewEvidence:
-    """Prove one positive official-connector reaction on the exact PR root."""
+    request_json: ApiRequest = github_api_request,
+) -> CodexConnectorAdvisoryReactionEvidence:
+    """Verify one official positive PR-root reaction as advisory evidence only.
+
+    GitHub reactions do not name a reviewed commit or execution run.  This
+    verifier therefore intentionally cannot bind a reaction to material and
+    must never be used as a code-review or review-seal proof.
+    """
 
     owner, name = _require_repository(repository)
     pattern = re.compile(
@@ -1197,75 +1193,6 @@ def _verify_codex_positive_reaction_reference(
     reaction_id = int(reaction_id_text)
     if str(reaction_id) != reaction_id_text:
         raise CommitIdentityError("Codex positive reaction reference is not canonical")
-    material_head = _require_sha(expected_commit_ref, field="expected Codex reaction commit")
-
-    pull_response = request_json(
-        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}",
-        token=token,
-    )
-    head = pull_response.get("head") if isinstance(pull_response, dict) else None
-    head_sha = head.get("sha") if isinstance(head, dict) else None
-    head_ref = head.get("ref") if isinstance(head, dict) else None
-    head_repository = head.get("repo") if isinstance(head, dict) else None
-    head_repository_full_name = (
-        head_repository.get("full_name") if isinstance(head_repository, dict) else None
-    )
-    if (
-        not isinstance(head_ref, str)
-        or not head_ref
-        or any(ord(character) < 32 for character in head_ref)
-        or not isinstance(head_sha, str)
-        or not isinstance(head_repository_full_name, str)
-    ):
-        raise CommitIdentityError("GitHub PR reaction does not bind the expected material head")
-    _require_sha(head_sha, field="GitHub PR reaction current head")
-    head_owner, head_name = _require_repository(head_repository_full_name)
-    expected_ref = f"refs/heads/{head_ref}"
-    push_events: list[tuple[datetime, str]] = []
-    for visibility_attempt in range(_MAX_PR_PUSH_EVENT_VISIBILITY_ATTEMPTS):
-        event_count = 0
-        for page in range(1, _MAX_PR_PUSH_EVENT_PAGES + 1):
-            events = request_json(
-                f"{_API_ROOT}/repos/{head_owner}/{head_name}/events?per_page=100&page={page}",
-                token=token,
-            )
-            if not isinstance(events, list) or len(events) > 100:
-                raise CommitIdentityError("GitHub PR push-events response is malformed")
-            event_count += len(events)
-            if event_count > _MAX_PR_PUSH_EVENTS:
-                raise CommitIdentityError("GitHub PR push-events exceed safety limit")
-            for event in events:
-                if not isinstance(event, dict) or event.get("type") != "PushEvent":
-                    continue
-                payload = event.get("payload")
-                if not isinstance(payload, dict):
-                    continue
-                if payload.get("ref") != expected_ref or payload.get("head") != material_head:
-                    continue
-                created_at = _require_iso8601(
-                    event.get("created_at"),
-                    field="GitHub PR material push created_at",
-                )
-                push_events.append(
-                    (
-                        _parse_iso8601_datetime(
-                            created_at,
-                            field="GitHub PR material push created_at",
-                        ),
-                        created_at,
-                    )
-                )
-            if len(events) < 100 or page == _MAX_PR_PUSH_EVENT_PAGES:
-                break
-        if push_events:
-            break
-        if visibility_attempt < _MAX_PR_PUSH_EVENT_VISIBILITY_ATTEMPTS - 1:
-            time.sleep(_PR_PUSH_EVENT_VISIBILITY_RETRY_SECONDS)
-    if not push_events:
-        raise CommitIdentityError(
-            "GitHub PR material push event is pending visibility; retry closeout shortly"
-        )
-    material_pushed_at = max(push_events)[0]
 
     matches: list[dict[str, Any]] = []
     reaction_count = 0
@@ -1321,15 +1248,10 @@ def _verify_codex_positive_reaction_reference(
         or content not in _CODEX_POSITIVE_REACTION_CONTENTS
     ):
         raise CommitIdentityError("reaction is not a trusted positive Codex connector reaction")
-    if (
-        _parse_iso8601_datetime(created_at, field="Codex positive reaction created_at")
-        <= material_pushed_at
-    ):
-        raise CommitIdentityError("Codex positive reaction does not postdate the material head")
-    return CodexReviewEvidence(
+    return CodexConnectorAdvisoryReactionEvidence(
         reference=reference,
-        submitted_at=created_at,
-        commit_ref=material_head,
+        created_at=created_at,
+        content=content,
     )
 
 
@@ -1392,17 +1314,9 @@ def verify_codex_review_reference(
         rf"{pr_number}#reaction-[1-9]\d*$"
     )
     if reaction_pattern.fullmatch(reference):
-        if expected_commit is None:
-            raise CommitIdentityError(
-                "Codex positive reaction requires an expected full material commit"
-            )
-        return _verify_codex_positive_reaction_reference(
-            reference,
-            repository=repository,
-            pr_number=pr_number,
-            expected_commit_ref=expected_commit,
-            token=token,
-            request_json=request_json,
+        raise CommitIdentityError(
+            "positive Codex connector reactions are advisory only and cannot satisfy "
+            "exact-head code-review evidence"
         )
 
     comment_pattern = re.compile(
@@ -1412,8 +1326,7 @@ def verify_codex_review_reference(
     comment_match = comment_pattern.fullmatch(reference)
     if not comment_match:
         raise CommitIdentityError(
-            "code-review reference must be a GitHub PR review, Codex no-findings comment, "
-            "or positive connector reaction URL"
+            "code-review reference must be a GitHub PR review or Codex no-findings comment URL"
         )
     if expected_commit is None:
         raise CommitIdentityError(

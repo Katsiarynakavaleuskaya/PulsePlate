@@ -9,6 +9,7 @@ and the content-bound security receipt can be published in one closeout commit.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -26,11 +27,13 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     CommitIdentityError,
     CommitRefKind,
+    CodexConnectorAdvisoryReactionEvidence,
     RepositoryCommitRef,
     assert_snapshot_unchanged,
     classify_commit_ref,
     fetch_pr_snapshot,
     is_ancestor,
+    verify_codex_connector_advisory_reaction_reference,
     verify_codex_review_reference,
     verify_codex_review_source_unavailability_reference,
     verify_review_credit_outage_references,
@@ -214,6 +217,71 @@ def _required_line(value: str | None, *, label: str) -> str:
     if result is None:
         raise CloseoutError(f"{label} is required")
     return result
+
+
+def _verify_connector_advisory_reactions(
+    raw_references: Any,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+) -> tuple[CodexConnectorAdvisoryReactionEvidence, ...]:
+    """Return bounded, unique Connector reaction signals with no seal authority."""
+
+    if raw_references is None:
+        return ()
+    if not isinstance(raw_references, list):
+        raise CloseoutError("connector-advisory-reaction values are malformed")
+    if len(raw_references) > 8:
+        raise CloseoutError("at most eight connector-advisory-reaction values are allowed")
+
+    references: list[str] = []
+    for raw_reference in raw_references:
+        if not isinstance(raw_reference, str):
+            raise CloseoutError("connector-advisory-reaction must be a string")
+        reference = _required_line(
+            raw_reference,
+            label="connector-advisory-reaction",
+        )
+        if reference in references:
+            raise CloseoutError("connector-advisory-reaction values must be unique")
+        references.append(reference)
+
+    return tuple(
+        sorted(
+            (
+                verify_codex_connector_advisory_reaction_reference(
+                    reference,
+                    repository=repository,
+                    pr_number=pr_number,
+                    token=token,
+                )
+                for reference in references
+            ),
+            key=lambda evidence: evidence.reference,
+        )
+    )
+
+
+def _optional_connector_advisory_reactions(
+    raw_references: Any,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+) -> tuple[CodexConnectorAdvisoryReactionEvidence, ...]:
+    """Omit unavailable advisory signals without changing closeout authority."""
+
+    try:
+        return _verify_connector_advisory_reactions(
+            raw_references,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+        )
+    except (CloseoutError, CommitIdentityError, OSError, http.client.HTTPException) as exc:
+        print(f"WARNING: Connector advisory reaction omitted: {exc}", file=sys.stderr)
+        return ()
 
 
 def _validated_backlog_reference(value: str | None) -> str:
@@ -444,7 +512,12 @@ def _cmd_add_disposition(args: argparse.Namespace) -> None:
     print(f"closeout-disposition: recorded {disposition} for {url}")
 
 
-def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
+def _render_mapping(
+    state: Mapping[str, Any],
+    seal: Mapping[str, Any],
+    *,
+    connector_advisory_reactions: tuple[CodexConnectorAdvisoryReactionEvidence, ...] = (),
+) -> str:
     pr_number = int(state["pr_number"])
     packet = state.get("packet")
     experiment = state.get("experiment_result")
@@ -494,6 +567,26 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
             lines.append(f"- {item['url']} -> {item['commit']}")
         else:
             lines.append(f"- {item['url']}")
+    if connector_advisory_reactions:
+        lines.extend(
+            [
+                "",
+                "## Connector Advisory Signals",
+                (
+                    "Accepted Connector reactions are advisory only. They are not a "
+                    "review, exact-head proof, GitHub approval, security receipt, or "
+                    "thread-resolution authority."
+                ),
+            ]
+        )
+        for evidence in connector_advisory_reactions:
+            lines.extend(
+                [
+                    f"- {evidence.reference}",
+                    f"  - Received: {evidence.created_at}",
+                    f"  - Content: {evidence.content}",
+                ]
+            )
     lines.extend(["", "## Review Material Seal", render_embedded_review_seal(seal), ""])
     return "\n".join(lines)
 
@@ -584,6 +677,12 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     }
     if freeze != expected_freeze:
         raise CloseoutError("material state changed after freeze; freeze and review again")
+    connector_advisory_reactions = _optional_connector_advisory_reactions(
+        getattr(args, "connector_advisory_reaction", None),
+        repository=args.repo,
+        pr_number=args.pr_number,
+        token=token,
+    )
     if args.review_source_unavailable_ref:
         source_evidence = verify_codex_review_source_unavailability_reference(
             _required_line(
@@ -672,7 +771,15 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         "repository": args.repo,
         "schema_version": SEAL_SCHEMA_VERSION,
     }
-    markdown = _render_mapping(state, seal)
+    markdown = (
+        _render_mapping(
+            state,
+            seal,
+            connector_advisory_reactions=connector_advisory_reactions,
+        )
+        if connector_advisory_reactions
+        else _render_mapping(state, seal)
+    )
     errors = validate_mapping_artifact_text(markdown)
     if errors:
         raise CloseoutError("generated mapping is invalid: " + "; ".join(errors))
@@ -937,6 +1044,7 @@ def _parser() -> argparse.ArgumentParser:
     review_evidence = seal.add_mutually_exclusive_group(required=True)
     review_evidence.add_argument("--review-ref")
     review_evidence.add_argument("--review-source-unavailable-ref")
+    seal.add_argument("--connector-advisory-reaction", action="append", default=[])
     security_evidence = seal.add_mutually_exclusive_group(required=True)
     security_evidence.add_argument("--scan-manifest")
     security_evidence.add_argument("--security-outage-override-ref")
