@@ -2617,3 +2617,88 @@ def test_evaluate_candidate_rejects_fingerprinted_packet_at_wrong_base(
         result["budget_observations"]["runner_error"]
         == "Experiment packet base_commit_sha does not match current repository HEAD."
     )
+
+
+def test_evaluate_candidate_bounds_fingerprinted_patch_before_evaluation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fingerprint-bound direct packets must not read an unbounded patch into memory."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_text = "x" * 9
+    patch_path = tmp_path / "oversized.patch"
+    patch_path.write_text(patch_text, encoding="utf-8")
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "raise SystemExit(0)"',
+    )
+    packet["candidate_patch_fingerprint"] = experiment_runner.fingerprint_payload(
+        {"candidate_patch": patch_text}
+    )
+    packet["base_commit_sha"] = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    validated_packet = _validate_packet(packet)
+    monkeypatch.setattr(experiment_runner, "MAX_CANDIDATE_PATCH_BYTES", 8)
+    monkeypatch.setattr(
+        experiment_runner,
+        "_evaluate_attempt",
+        lambda **_kwargs: pytest.fail("oversized patches must fail before evaluation"),
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+    assert result["mutated_paths"] == []
+    assert result["oracle_results"] == []
+    assert result["budget_observations"]["attempts"] == 0
+    assert result["budget_observations"]["runner_error"] == (
+        "Candidate patch exceeds the host fingerprint limit."
+    )
+
+
+def test_evaluate_candidate_rejects_fingerprinted_packet_in_dirty_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fingerprint-bound direct run requires a clean tracked source checkout."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "candidate.patch",
+    )
+    patch_text = patch_path.read_text(encoding="utf-8")
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "raise SystemExit(0)"',
+    )
+    packet["candidate_patch_fingerprint"] = experiment_runner.fingerprint_payload(
+        {"candidate_patch": patch_text}
+    )
+    packet["base_commit_sha"] = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    validated_packet = _validate_packet(packet)
+    (repo / "docs" / "orchestration" / "workflow.md").write_text(
+        "# Dirty workflow\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        experiment_runner,
+        "_evaluate_attempt",
+        lambda **_kwargs: pytest.fail("dirty source checkouts must fail before evaluation"),
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+    assert result["mutated_paths"] == []
+    assert result["oracle_results"] == []
+    assert result["budget_observations"]["attempts"] == 0
+    assert result["budget_observations"]["runner_error"] == (
+        "Fingerprinted candidate packets require a clean tracked repository checkout."
+    )

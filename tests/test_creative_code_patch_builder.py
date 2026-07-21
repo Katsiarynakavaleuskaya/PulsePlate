@@ -388,6 +388,11 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
         creative_code_patch_contract.FAILURE_CLASSES
     )
     assert result_schema["properties"]["failure_class"]["$ref"].endswith("failure_class")
+    pre_oracle_execution_rule = result_schema["$defs"]["runner_summary"]["allOf"][4]
+    assert pre_oracle_execution_rule["if"]["anyOf"] == [
+        {"properties": {"failure_class": {"const": "capability_mismatch"}}},
+        {"properties": {"failure_class": {"const": "policy_violation"}}},
+    ]
     assert result_schema["$defs"]["runner_summary"]["properties"]["failure_class"]["$ref"].endswith(
         "failure_class"
     )
@@ -464,7 +469,6 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
         {
             "properties": {
                 "failure_class": {"const": "capability_mismatch"},
-                "attempts": {"const": 0},
             }
         },
         {"properties": {"failure_class": {"const": "policy_violation"}}},
@@ -777,6 +781,7 @@ def test_patch_result_requires_policy_violation_runner_error_proof() -> None:
         validate_creative_code_patch_result(tampered)
 
 
+@pytest.mark.parametrize("attempts", [0, 1])
 @pytest.mark.parametrize(
     ("failure_class", "field"),
     [
@@ -786,7 +791,8 @@ def test_patch_result_requires_policy_violation_runner_error_proof() -> None:
         ("policy_violation", "oracle_commands_executed"),
     ],
 )
-def test_patch_result_rejects_zero_attempt_pre_oracle_execution_evidence(
+def test_patch_result_rejects_pre_oracle_execution_evidence(
+    attempts: int,
     failure_class: str,
     field: str,
 ) -> None:
@@ -799,7 +805,7 @@ def test_patch_result_rejects_zero_attempt_pre_oracle_execution_evidence(
             "failure_class": failure_class,
             "mutated_path_count": 0,
             "oracle_commands_executed": 0,
-            "attempts": 0,
+            "attempts": attempts,
             "retries_consumed": 0,
         }
     )
@@ -819,14 +825,14 @@ def test_patch_result_rejects_zero_attempt_pre_oracle_execution_evidence(
 
     with pytest.raises(
         CreativeCodePatchContractError,
-        match=f"{failure_class} with attempts 0 must use {field} 0",
+        match=f"{failure_class} with attempts {attempts} must use {field} 0",
     ):
         validate_creative_code_patch_result(tampered)
 
 
 @pytest.mark.parametrize(
     ("attempts", "mutated_path_count", "oracle_commands_executed"),
-    [(0, 0, 0), (1, 1, 1)],
+    [(0, 0, 0), (1, 0, 0)],
 )
 def test_patch_result_accepts_coherent_capability_execution_evidence(
     attempts: int,

@@ -41,6 +41,7 @@ from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     DEFAULT_STOP_CONDITION,
     DEFAULT_RUNNER_MODE,
+    MAX_CANDIDATE_PATCH_BYTES,
     ORACLE_BINARY_ALLOWLIST,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
@@ -163,10 +164,21 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _read_patch_text(path: Path) -> str:
+def _read_patch_text(path: Path, *, max_bytes: int | None = None) -> str:
+    """Read a candidate patch, bounding fingerprinted inputs before hashing."""
+
     try:
-        return path.read_text(encoding="utf-8")
+        if max_bytes is None:
+            return path.read_text(encoding="utf-8")
+        with path.open("rb") as handle:
+            raw_patch = handle.read(max_bytes + 1)
     except (OSError, UnicodeDecodeError) as exc:
+        raise InfraFlakeError(f"Unable to read candidate patch: {exc}") from exc
+    if len(raw_patch) > max_bytes:
+        raise PolicyViolationError("Candidate patch exceeds the host fingerprint limit.")
+    try:
+        return raw_patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
         raise InfraFlakeError(f"Unable to read candidate patch: {exc}") from exc
 
 
@@ -534,6 +546,11 @@ def _require_candidate_base_commit(packet: dict[str, Any]) -> None:
         raise PolicyViolationError(
             "Experiment packet base_commit_sha does not match current repository HEAD."
         )
+    tracked_status = _run_git(["status", "--short", "--untracked-files=no"], cwd=REPO_ROOT).stdout
+    if tracked_status:
+        raise PolicyViolationError(
+            "Fingerprinted candidate packets require a clean tracked repository checkout."
+        )
 
 
 def _apply_candidate_patch(checkout_root: Path, patch_text: str) -> None:
@@ -771,9 +788,15 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             raise PolicyViolationError(
                 "oracle_only_governance_reviewer mode must not evaluate candidate patches"
             )
-        patch_text = _read_patch_text(candidate_patch_path)
-        actual_patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
         expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+        if expected_patch_fingerprint is None:
+            patch_text = _read_patch_text(candidate_patch_path)
+        else:
+            patch_text = _read_patch_text(
+                candidate_patch_path,
+                max_bytes=MAX_CANDIDATE_PATCH_BYTES,
+            )
+        actual_patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
         if expected_patch_fingerprint is not None:
             if expected_patch_fingerprint != actual_patch_fingerprint:
                 raise PolicyViolationError(

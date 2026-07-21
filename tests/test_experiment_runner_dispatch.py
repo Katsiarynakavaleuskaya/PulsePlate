@@ -969,35 +969,54 @@ def test_capability_mismatch_attempts_match_backend_preflight(
         experiment_contract.validate_experiment_result(result)
 
 
+@pytest.mark.parametrize("attempts", [0, 1])
 @pytest.mark.parametrize(
-    ("mutated_paths", "oracle_results", "message"),
+    ("mutated_paths", "oracle_results", "field"),
     [
         (
             ["core/rag/orchestration.py"],
             [],
-            "capability_mismatch with attempts 0 must use mutated_path_count 0",
+            "mutated_path_count",
         ),
         (
             [],
             [{"command": "pytest -q", "returncode": 0, "timed_out": False}],
-            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
+            "oracle_commands_executed",
         ),
     ],
 )
-def test_capability_mismatch_zero_attempts_reject_execution_evidence(
+def test_capability_mismatch_rejects_pre_oracle_execution_evidence(
+    attempts: int,
     mutated_paths: list[str],
     oracle_results: list[dict[str, object]],
-    message: str,
+    field: str,
 ) -> None:
-    result = dispatch._capability_mismatch_result(
-        _packet(network_budget=0),
-        _image(),
-        _probe("apple-container", strict=False),
-    )
+    if attempts == 0:
+        result = dispatch._capability_mismatch_result(
+            _packet(network_budget=0),
+            _image(),
+            _probe("apple-container", strict=False),
+        )
+    else:
+        result = _legacy_result()
+        result.update(
+            {
+                "status": "rejected",
+                "failure_class": "capability_mismatch",
+                "budget_observations": {"attempts": 1, "retries_consumed": 0},
+                "execution_backend": dispatch._execution_backend_payload(
+                    _probe("apple-container", strict=True),
+                    passed=True,
+                ),
+            }
+        )
     result["mutated_paths"] = mutated_paths
     result["oracle_results"] = oracle_results
 
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(
+        ValueError,
+        match=f"capability_mismatch with attempts {attempts} must use {field} 0",
+    ):
         experiment_contract.validate_experiment_result(result)
 
 

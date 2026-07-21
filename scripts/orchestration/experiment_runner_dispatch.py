@@ -40,6 +40,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     IMAGE_DIGEST_RE,
+    MAX_CANDIDATE_PATCH_BYTES,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     validate_contribution_attribution,
     validate_experiment_packet,
@@ -70,7 +71,6 @@ CONTAINER_RESULT_DIR = "/repo/artifacts/orchestration/experiments/results"
 CONTAINER_PRIVATE_TMP = Path("/", "tmp").as_posix()
 RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
-MAX_CANDIDATE_PATCH_BYTES = 2 * 1024 * 1024
 PUBLIC_STATUS_ACCEPTED = "accepted"
 PUBLIC_STATUS_REJECTED = "rejected"
 RUNNER_CAPABILITY_EXIT_CODE = 3

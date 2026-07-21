@@ -112,7 +112,7 @@ def _mock_successful_builder_edges(monkeypatch: pytest.MonkeyPatch) -> None:
             "experiment_id": packet["experiment_id"],
             "status": "accepted",
             "failure_class": None,
-            "mutated_paths": ["core/rag/orchestration.py"],
+            "mutated_paths": [],
             "oracle_results": [{"status": "passed"}],
             "budget_observations": {
                 "oracle_commands_configured": len(packet["immutable_oracles"]),
@@ -1901,7 +1901,7 @@ def test_generate_candidate_persists_capability_mismatch_without_retry_or_promot
             "experiment_id": packet["experiment_id"],
             "status": "rejected",
             "failure_class": "capability_mismatch",
-            "mutated_paths": ["core/rag/orchestration.py"],
+            "mutated_paths": [],
             "oracle_results": [],
             "budget_observations": {
                 "oracle_commands_configured": len(packet["immutable_oracles"]),
@@ -1932,6 +1932,8 @@ def test_generate_candidate_persists_capability_mismatch_without_retry_or_promot
     assert result["runner_summary"]["failure_class"] == "capability_mismatch"
     assert result["runner_summary"]["attempts"] == 1
     assert result["runner_summary"]["retries_consumed"] == 0
+    assert result["runner_summary"]["mutated_path_count"] == 0
+    assert result["runner_summary"]["oracle_commands_executed"] == 0
     assert result["promotion_ready"] is False
     assert result["authority"]["promotion"] is False
     assert receipt["status"] == "rejected"
@@ -1940,6 +1942,8 @@ def test_generate_candidate_persists_capability_mismatch_without_retry_or_promot
     assert receipt["runner_summary"]["failure_class"] == "capability_mismatch"
     assert receipt["runner_summary"]["attempts"] == 1
     assert receipt["runner_summary"]["retries_consumed"] == 0
+    assert receipt["runner_summary"]["mutated_path_count"] == 0
+    assert receipt["runner_summary"]["oracle_commands_executed"] == 0
     assert receipt["promotion_ready"] is False
     assert receipt["authority"]["promote_candidate"] is False
 
@@ -2110,78 +2114,47 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
         validate_generation_receipt(policy_without_runner_error_fingerprint)
 
     for failure_class in ("capability_mismatch", "policy_violation"):
-        for field, message in (
-            (
-                "mutated_path_count",
-                f"{failure_class} with attempts 0 must use mutated_path_count 0",
-            ),
-            (
-                "oracle_commands_executed",
-                f"{failure_class} with attempts 0 must use oracle_commands_executed 0",
-            ),
-        ):
-            zero_attempt_tamper = deepcopy(reference)
-            zero_attempt_tamper["status"] = "rejected"
-            zero_attempt_tamper["failure_class"] = failure_class
-            zero_attempt_tamper["runner_summary"].update(
-                {
-                    "status": "rejected",
-                    "failure_class": failure_class,
-                    "mutated_path_count": 0,
-                    "oracle_commands_executed": 0,
-                    "attempts": 0,
-                    "retries_consumed": 0,
-                }
-            )
-            if failure_class == "policy_violation":
+        for attempts in (0, 1):
+            for field, message in (
+                (
+                    "mutated_path_count",
+                    f"{failure_class} with attempts {attempts} must use mutated_path_count 0",
+                ),
+                (
+                    "oracle_commands_executed",
+                    f"{failure_class} with attempts {attempts} must use oracle_commands_executed 0",
+                ),
+            ):
+                zero_attempt_tamper = deepcopy(reference)
+                zero_attempt_tamper["status"] = "rejected"
+                zero_attempt_tamper["failure_class"] = failure_class
                 zero_attempt_tamper["runner_summary"].update(
                     {
-                        "runner_error_present": True,
-                        "runner_error_fingerprint": fingerprint_payload(
-                            {"runner_error": "candidate rejected before oracle execution"}
-                        ),
+                        "status": "rejected",
+                        "failure_class": failure_class,
+                        "mutated_path_count": 0,
+                        "oracle_commands_executed": 0,
+                        "attempts": attempts,
+                        "retries_consumed": 0,
                     }
                 )
-            zero_attempt_tamper["runner_summary"][field] = 1
-            _reset_receipt_identity(zero_attempt_tamper)
-            with pytest.raises(CreativeCodePatchGenerationError, match=message):
-                validate_generation_receipt(zero_attempt_tamper)
-
-    for field, message in (
-        (
-            "mutated_path_count",
-            "policy_violation with attempts 1 must use mutated_path_count 0",
-        ),
-        (
-            "oracle_commands_executed",
-            "policy_violation with attempts 1 must use oracle_commands_executed 0",
-        ),
-    ):
-        one_attempt_policy_tamper = deepcopy(reference)
-        one_attempt_policy_tamper["status"] = "rejected"
-        one_attempt_policy_tamper["failure_class"] = "policy_violation"
-        one_attempt_policy_tamper["runner_summary"].update(
-            {
-                "status": "rejected",
-                "failure_class": "policy_violation",
-                "mutated_path_count": 0,
-                "oracle_commands_executed": 0,
-                "attempts": 1,
-                "retries_consumed": 0,
-                "runner_error_present": True,
-                "runner_error_fingerprint": fingerprint_payload(
-                    {"runner_error": "candidate rejected before oracle execution"}
-                ),
-            }
-        )
-        one_attempt_policy_tamper["runner_summary"][field] = 1
-        _reset_receipt_identity(one_attempt_policy_tamper)
-        with pytest.raises(CreativeCodePatchGenerationError, match=message):
-            validate_generation_receipt(one_attempt_policy_tamper)
+                if failure_class == "policy_violation":
+                    zero_attempt_tamper["runner_summary"].update(
+                        {
+                            "runner_error_present": True,
+                            "runner_error_fingerprint": fingerprint_payload(
+                                {"runner_error": "candidate rejected before oracle execution"}
+                            ),
+                        }
+                    )
+                zero_attempt_tamper["runner_summary"][field] = 1
+                _reset_receipt_identity(zero_attempt_tamper)
+                with pytest.raises(CreativeCodePatchGenerationError, match=message):
+                    validate_generation_receipt(zero_attempt_tamper)
 
     for attempts, mutated_path_count, oracle_commands_executed in (
         (0, 0, 0),
-        (1, 1, 1),
+        (1, 0, 0),
     ):
         coherent_capability = deepcopy(reference)
         coherent_capability["status"] = "rejected"
@@ -3247,7 +3220,6 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
         {
             "properties": {
                 "failure_class": {"const": "capability_mismatch"},
-                "attempts": {"const": 0},
             }
         },
         {"properties": {"failure_class": {"const": "policy_violation"}}},

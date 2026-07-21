@@ -33,6 +33,7 @@ PROMOTION_TARGETS: tuple[str, ...] = (
 RESULT_STATUSES: tuple[str, ...] = ("accepted", "rejected")
 DEFAULT_RUNNER_MODE = "candidate_patch"
 ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE = "oracle_only_governance_reviewer"
+MAX_CANDIDATE_PATCH_BYTES = 2 * 1024 * 1024
 RUNNER_MODES: tuple[str, ...] = (
     DEFAULT_RUNNER_MODE,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
@@ -98,7 +99,7 @@ def validate_capability_zero_attempt_observations(
 
     if not isinstance(attempts, int) or isinstance(attempts, bool):
         return
-    if failure_class == "capability_mismatch" and attempts != 0:
+    if failure_class == "capability_mismatch" and attempts not in {0, 1}:
         return
     if failure_class == "policy_violation" and attempts not in {0, 1}:
         return

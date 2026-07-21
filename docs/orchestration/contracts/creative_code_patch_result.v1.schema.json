@@ -369,8 +369,7 @@
             "anyOf": [
               {
                 "properties": {
-                  "failure_class": { "const": "capability_mismatch" },
-                  "attempts": { "const": 0 }
+                  "failure_class": { "const": "capability_mismatch" }
                 }
               },
               {
