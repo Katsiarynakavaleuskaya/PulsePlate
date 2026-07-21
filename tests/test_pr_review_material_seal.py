@@ -1810,6 +1810,26 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     assert str(tmp_path) not in json.dumps(receipt)
 
 
+def test_scan_receipt_accepts_coverage_without_optional_open_questions(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    coverage_path = manifest_path.parent / "coverage.json"
+    coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+    del coverage["openQuestions"]
+    coverage_raw = _write_json(coverage_path, coverage)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["scan"]["artifacts"]:
+        if artifact["path"] == "coverage.json":
+            artifact["sha256"] = hashlib.sha256(coverage_raw).hexdigest()
+    _write_json(manifest_path, manifest)
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
+
+
 def test_scan_receipt_accepts_v011_remote_hardening_and_supplemental_artifacts(
     tmp_path: Path,
 ) -> None:

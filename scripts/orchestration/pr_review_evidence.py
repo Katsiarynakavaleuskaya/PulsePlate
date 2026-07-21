@@ -973,31 +973,35 @@ def _ingest_codex_security_receipt_from_descriptor(
     coverage = _load_json_bytes(canonical_payloads["coverage.json"], label="coverage.json")
     if not isinstance(coverage, dict):
         raise ReviewEvidenceError("coverage.json must contain an object")
-    _require_exact_keys(
-        coverage,
-        {
-            "completeness",
-            "deferred",
-            "documentType",
-            "excludePaths",
-            "explicitExclusions",
-            "includePaths",
-            "inventoryStrategy",
-            "mode",
-            "openQuestions",
-            "scanId",
-            "schemaVersion",
-            "surfaces",
-        },
-        label="coverage",
-    )
+    required_coverage_keys = {
+        "completeness",
+        "deferred",
+        "documentType",
+        "excludePaths",
+        "explicitExclusions",
+        "includePaths",
+        "inventoryStrategy",
+        "mode",
+        "scanId",
+        "schemaVersion",
+        "surfaces",
+    }
+    optional_coverage_keys = {"openQuestions"}
+    coverage_keys = set(coverage)
+    missing_coverage_keys = sorted(required_coverage_keys - coverage_keys)
+    unknown_coverage_keys = sorted(coverage_keys - required_coverage_keys - optional_coverage_keys)
+    if missing_coverage_keys or unknown_coverage_keys:
+        raise ReviewEvidenceError(
+            "coverage keys mismatch: "
+            f"missing={missing_coverage_keys!r} unknown={unknown_coverage_keys!r}"
+        )
     if (
         coverage["documentType"] != "codex-security.coverage"
         or coverage["schemaVersion"] != "1.0"
         or coverage["scanId"] != scan_id
         or coverage["completeness"] != "complete"
         or coverage["deferred"] != []
-        or coverage["openQuestions"] != []
+        or coverage.get("openQuestions", []) != []
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
 
