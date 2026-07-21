@@ -4254,6 +4254,60 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
 
 
 @pytest.mark.parametrize(
+    ("capture", "mutation"),
+    [
+        ("", 'object.__setattr__(builtins, "object", lambda: app)'),
+        ("", 'builtins.object.__setattr__(builtins, "object", lambda: app)'),
+        (
+            "descriptor = object\n",
+            'descriptor.__setattr__(builtins, "object", lambda: app)',
+        ),
+    ],
+    ids=["implicit-builtin", "builtins-attribute", "captured-builtin"],
+)
+def test_legacy_growth_guard_tracks_builtin_object_descriptor_mutation(
+    capture: str,
+    mutation: str,
+) -> None:
+    source = (
+        textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        """)
+        + capture
+        + mutation
+        + "\n"
+        + textwrap.dedent("""
+        app = object()
+        app.get("/api/v1/descriptor-route")(handler)
+        """)
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/descriptor-route"
+    ]
+
+
+def test_legacy_growth_guard_does_not_poison_foreign_descriptor_target() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        class Box:
+            pass
+
+        app = resolve_app()
+        box = Box()
+        object.__setattr__(box, "object", lambda: app)
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     ("use_captured", "expected_error"),
     [
         (

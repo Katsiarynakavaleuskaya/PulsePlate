@@ -4192,7 +4192,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _record_object_namespace_call_mutation(self, node: ast.Call) -> None:
         function_reference = self._resolve_reference(node.func)
-        if function_reference in {"builtins.setattr", "builtins.delattr"}:
+        descriptor_method = (
+            node.func.attr
+            if isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"__setattr__", "__delattr__"}
+            and self._is_proven_builtin_object_callable(node.func.value)
+            else None
+        )
+        if function_reference in {"builtins.setattr", "builtins.delattr"} or (
+            descriptor_method is not None
+        ):
             if len(node.args) < 2 or node.keywords:
                 return
             owner = node.args[0]
@@ -4209,7 +4218,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 return
             self._record_object_namespace_kind(
                 namespace_kind,
-                deletion=function_reference == "builtins.delattr",
+                deletion=(
+                    function_reference == "builtins.delattr" or descriptor_method == "__delattr__"
+                ),
             )
             return
 
