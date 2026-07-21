@@ -133,8 +133,15 @@ governance PR number + 1; the governance PR may opt in with
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
 - The trusted submitted Codex review object's real GitHub `commit_id` must be
-  the frozen material head. An official unedited no-findings issue comment is
-  accepted only when the trusted Codex GitHub App identity and its short
+  the frozen material head. A direct PR-root reaction from the official Codex
+  Connector is accepted only for `+1`, `heart`, `hooray`, or `rocket`, after
+  live verification of its immutable GitHub account identity and a timestamp
+  strictly later than the frozen head's GitHub push timestamp. It is bounded
+  no-findings evidence, never a GitHub approval, Codex Security result, or
+  thread-resolution authority. The verifier polls GitHub event visibility for
+  at most 30 seconds; a pending event requires a later closeout retry, never a
+  substitute or manual retrigger. An official unedited no-findings issue comment
+  is accepted only when the trusted Codex GitHub App identity and its short
   reviewed-commit marker resolve through the Commit API to that same full head;
   reviewer-execution/synthetic refs never satisfy this proof. The selected
   review-evidence variant and one completed final Codex Security diff scan bind

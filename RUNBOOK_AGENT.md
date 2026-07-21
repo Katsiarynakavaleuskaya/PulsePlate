@@ -658,9 +658,16 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    with MCP `-32001 Request timed out`, use the bounded operator-outage path only
    after an explicit operator decision; it is not scan or no-findings evidence.
 5. Record dispositions with `add-disposition`, then run `seal` with exactly one
-   review-evidence mode: `--review-ref ...` for a completed trusted review, or
+   review-evidence mode: `--review-ref ...` for a completed trusted review, an
+   official Connector positive PR-root reaction (`#reaction-<id>`), or
    `--review-source-unavailable-ref ...` for an exact trusted Codex rate-limit /
-   usage-limit comment. The source-unavailable path requires no retry,
+   usage-limit comment. A reaction is accepted only when its exact Connector
+   account identity, positive content (`+1`, `heart`, `hooray`, or `rocket`),
+   PR-root location, and post-push timestamp bind it to the frozen material
+   head; it is bounded no-findings evidence, not a GitHub approval, Codex
+   Security result, or thread-resolution authority. The verifier polls GitHub
+   event visibility for at most 30 seconds; a pending event requires a later
+   closeout retry, never a substitute or manual retrigger. The source-unavailable path requires no retry,
    substitute review, prior review, operator override, or TTL; it proves only
    source unavailability (`source_degraded=true`, `fallback_required=false`,
    `blocking=false`, and `review_claim=none`), never review/PASS/no-findings.

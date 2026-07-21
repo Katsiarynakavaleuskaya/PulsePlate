@@ -744,6 +744,254 @@ def test_codex_no_findings_comment_rejects_unresolved_short_commit() -> None:
         )
 
 
+def _codex_positive_reaction(
+    reaction_id: int = 456,
+    *,
+    content: str = "+1",
+    created_at: str = "2026-07-15T11:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "content": content,
+        "created_at": created_at,
+        "id": reaction_id,
+        "user": {
+            "id": 199_175_422,
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "User",
+        },
+    }
+
+
+def _codex_positive_reaction_request(
+    reaction: dict[str, Any] | list[dict[str, Any]],
+    *,
+    head_sha: str = HEAD_SHA,
+    head_ref: str = "codex/reaction-evidence",
+    head_repository: str = "owner/repo",
+    push_head_sha: str | None = None,
+    push_created_at: str = "2026-07-15T10:59:59Z",
+    push_visible_on_attempt: int = 1,
+) -> Any:
+    event_repository = head_repository
+    event_head_sha = head_sha if push_head_sha is None else push_head_sha
+    push_event_attempts = 0
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/pulls/42"):
+            return {
+                "head": {
+                    "ref": head_ref,
+                    "repo": {"full_name": head_repository},
+                    "sha": head_sha,
+                }
+            }
+        if "/events?" in url:
+            nonlocal push_event_attempts
+            assert url.startswith(f"https://api.github.com/repos/{event_repository}/events?")
+            push_event_attempts += 1
+            if push_event_attempts < push_visible_on_attempt:
+                return []
+            return [
+                {
+                    "created_at": push_created_at,
+                    "payload": {"head": event_head_sha, "ref": f"refs/heads/{head_ref}"},
+                    "type": "PushEvent",
+                }
+            ]
+        if "/reactions?" in url:
+            return reaction if isinstance(reaction, list) else [reaction]
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    return request_json
+
+
+@pytest.mark.parametrize("content", ("+1", "heart", "hooray", "rocket"))
+def test_codex_positive_reaction_is_bound_to_exact_published_head(content: str) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    reaction = _codex_positive_reaction(content=content)
+    requested_urls: list[str] = []
+    request = _codex_positive_reaction_request(reaction)
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        return request(url)
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence == identity_module.CodexReviewEvidence(
+        reference=reference,
+        submitted_at="2026-07-15T11:00:00Z",
+        commit_ref=HEAD_SHA,
+    )
+    assert requested_urls == [
+        "https://api.github.com/repos/owner/repo/pulls/42",
+        "https://api.github.com/repos/owner/repo/events?per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
+    ]
+
+
+def test_codex_positive_reaction_uses_the_pr_head_repository_push_event() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(),
+            head_repository="fork-owner/fork-repo",
+        ),
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+
+
+def test_codex_positive_reaction_retries_for_delayed_material_push_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    waited_seconds: list[int] = []
+    monkeypatch.setattr(identity_module.time, "sleep", waited_seconds.append)
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(),
+            push_visible_on_attempt=2,
+        ),
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+    assert waited_seconds == [identity_module._PR_PUSH_EVENT_VISIBILITY_RETRY_SECONDS]
+
+
+def test_codex_positive_reaction_rejects_an_invalid_material_push_timestamp() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(CommitIdentityError, match="not a valid ISO-8601"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                push_created_at="2026-99-15T10:59:59Z",
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error"),
+    [
+        (lambda reaction: reaction["user"].update(login="spoofed[bot]"), "not a trusted"),
+        (lambda reaction: reaction["user"].update(id=1), "not a trusted"),
+        (lambda reaction: reaction["user"].update(type="Organization"), "not a trusted"),
+        (lambda reaction: reaction.update(content="eyes"), "not a trusted"),
+        (lambda reaction: reaction.update(content=[]), "not a trusted"),
+        (
+            lambda reaction: reaction.update(created_at="2026-07-15T10:59:59Z"),
+            "does not postdate",
+        ),
+    ],
+)
+def test_codex_positive_reaction_rejects_untrusted_or_stale_inputs(
+    mutate: Any,
+    error: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    reaction = _codex_positive_reaction()
+    mutate(reaction)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(reaction),
+        )
+
+
+def test_codex_positive_reaction_requires_exact_pr_reference_and_one_live_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    reaction = _codex_positive_reaction()
+
+    with pytest.raises(CommitIdentityError, match="requires an expected full material"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=lambda *_a, **_k: pytest.fail("missing material head must not fetch"),
+        )
+
+    with pytest.raises(CommitIdentityError, match="missing or ambiguous"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request([reaction, reaction]),
+        )
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=_codex_positive_reaction_request(
+            reaction,
+            head_sha=OUTSIDE_SHA,
+            push_head_sha=HEAD_SHA,
+        ),
+    )
+    assert evidence.commit_ref == HEAD_SHA
+
+    monkeypatch.setattr(identity_module.time, "sleep", lambda _seconds: None)
+    with pytest.raises(CommitIdentityError, match="pending visibility"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                reaction,
+                push_head_sha=OUTSIDE_SHA,
+            ),
+        )
+
+    with pytest.raises(CommitIdentityError, match="code-review reference must be"):
+        verify_codex_review_reference(
+            "https://github.com/owner/repo/pull/43#reaction-456",
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=lambda *_a, **_k: pytest.fail("cross-PR reaction must not fetch"),
+        )
+
+
 def _review_credit_quota_comment(
     reference: str,
     *,

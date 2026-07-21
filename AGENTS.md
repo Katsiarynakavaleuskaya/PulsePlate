@@ -204,9 +204,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    PR head. Reviewer execution SHAs are opaque until the Commit API proves
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
-9. **Material identity:** one completed Codex review or one trusted terminal
-   review-source unavailability receipt, plus one completed final Codex Security
-   diff scan, bind to one material digest. When Codex Security is systemically
+9. **Material identity:** one completed Codex review, one verified positive
+   official Codex Connector reaction, or one trusted terminal review-source
+   unavailability receipt, plus one completed final Codex Security diff scan,
+   bind to one material digest. When Codex Security is systemically
    unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
    operator-outage override may replace only the plugin receipt: it must be an
    unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
@@ -232,12 +233,18 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    `#2142` review-credit override receipts remain
    readable everywhere but are live-authenticated only for PR `#2142`; the
    legacy override path is not an active authoring contract for later PRs.
-   The trusted submitted review object's
-   real GitHub `commit_id` must equal the frozen material head. When the official
-   Codex connector emits an unedited no-findings issue comment instead, its
-   trusted GitHub App identity and reviewed-commit prefix must resolve through
-   the Commit API to that same full frozen head. A synthetic execution ref is
-   never review proof. Every path is material except the exact
+   The trusted submitted review object's real GitHub `commit_id` must equal the
+   frozen material head. A direct PR-root reaction from the official Connector
+   is accepted only for `+1`, `heart`, `hooray`, or `rocket`, with its immutable
+   GitHub account id and exact login revalidated live; it must postdate the
+   current material head's GitHub push timestamp. It is bounded no-findings
+   evidence, not a GitHub approval, Codex Security result, or thread-resolution
+   authority. GitHub event visibility is polled for at most 30 seconds; a
+   pending event requires a later closeout retry, never a substitute or manual
+   retrigger. When the official Codex connector emits an unedited no-findings
+   issue comment instead, its trusted GitHub App identity and reviewed-commit
+   prefix must resolve through the Commit API to that same full frozen head. A
+   synthetic execution ref is never review proof. Every path is material except the exact
    current-PR mapping artifact. PR-body edits are outside Git. Any later code,
    test, workflow, dependency, policy, contract, or other docs change invalidates
    the seal and reopens review/final scan.
@@ -554,8 +561,9 @@ Rules:
   pre-open role agents. This post-open chain is a single required pass for the
   lane, not an unbounded loop. Later review or bot comments must be handled by
   fixing or dispositioning the specific finding in `docs/review/PR_<N>_FIXED_MAPPING.md`
-  and rerunning targeted gates. Request Codex review manually after material
-  freeze and run the final Codex Security diff scan only after all material
+  and rerunning targeted gates. Observe the automatic Codex response after
+  material freeze; do not manually retrigger it. Run the final Codex Security
+  diff scan only after all material
   fixes. Do not restart the full role/review/scan chain unless the material
   digest changed, a run failed or was incomplete, the coordinator records a
   new evidence-backed routing update, or the operator explicitly overrides it.
@@ -602,8 +610,8 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
-4. **Review cycle**: freeze the material state, request one Codex review, apply
-   any material fix and refreeze, then run one final security scan. A systemic
+4. **Review cycle**: freeze the material state, observe one automatic Codex
+   response, apply any material fix and refreeze, then run one final security scan. A systemic
    MCP `-32001` outage may use only the authenticated, expiring operator-outage
    evidence variant described above; do not fabricate or relabel a scan receipt. Keep
    dispositions in the gitignored closeout draft and publish one generated
