@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -16,13 +18,15 @@ from app import app
 from app.middleware.api_tiers import TEST_KEY_PRO
 from app.schemas.premium_contracts import (
     NutrientGapsRequest,
+    NutrientGapsResponse,
     PlateRequest,
     WHOTargetsRequest,
 )
 from app.services import pro_nutrition_targets as service
-from core.nutrition_utils import alias_micros, ensure_priority_micros
+from core.nutrition_utils import alias_micros, clamp_daily_kcal, ensure_priority_micros
 
 _LEGACY_HEADER_VALUE = "targets-gaps-edge-value"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
@@ -550,3 +554,87 @@ def test_legacy_compatibility_shims_delegate_exactly_once(
     assert gaps_result is gaps_marker
     assert target_calls == [(request, False), (request, True)]
     assert gaps_calls == [gaps_request]
+
+
+def _function_node(path: Path, function_name: str) -> ast.AsyncFunctionDef:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == function_name
+    )
+
+
+def _assert_no_legacy_or_sys_modules(node: ast.AST) -> None:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Import):
+            assert all(alias.name != "legacy_app" for alias in child.names)
+        if isinstance(child, ast.ImportFrom):
+            assert child.module != "legacy_app"
+        if isinstance(child, ast.Attribute) and child.attr == "modules":
+            assert not isinstance(child.value, ast.Name) or child.value.id not in {
+                "sys",
+                "_sys",
+            }
+
+
+def _module_scope_nodes(node: ast.AST) -> Iterator[ast.AST]:
+    for child in ast.iter_child_nodes(node):
+        if isinstance(
+            child,
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda),
+        ):
+            continue
+        yield child
+        yield from _module_scope_nodes(child)
+
+
+def _assert_no_module_scope_legacy_imports(tree: ast.Module) -> None:
+    for node in _module_scope_nodes(tree):
+        if isinstance(node, ast.Import):
+            assert all(alias.name != "legacy_app" for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            assert node.module != "legacy_app"
+
+
+def test_targets_and_gaps_runtime_owners_do_not_resolve_through_legacy_facades() -> None:
+    service_path = _REPO_ROOT / "app/services/pro_nutrition_targets.py"
+    service_tree = ast.parse(service_path.read_text(encoding="utf-8"))
+    _assert_no_legacy_or_sys_modules(service_tree)
+    module_scope_imports = {
+        alias.name
+        for node in _module_scope_nodes(service_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    module_scope_imports.update(
+        node.module
+        for node in _module_scope_nodes(service_tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    )
+    assert "core.menu_engine" not in module_scope_imports
+    assert {"core.recommendations", "core.targets"} <= module_scope_imports
+
+    pro_router = _REPO_ROOT / "app/routers/pro_nutrition_contracts.py"
+    legacy_router = _REPO_ROOT / "app/routers/legacy_premium_nutrition.py"
+    for path, function_names in (
+        (pro_router, ("pro_nutrition_targets",)),
+        (
+            legacy_router,
+            ("api_who_targets", "premium_targets_legacy", "api_nutrient_gaps"),
+        ),
+    ):
+        router_tree = ast.parse(path.read_text(encoding="utf-8"))
+        _assert_no_module_scope_legacy_imports(router_tree)
+        for function_name in function_names:
+            _assert_no_legacy_or_sys_modules(_function_node(path, function_name))
+
+
+def test_legacy_targets_gaps_and_shared_helpers_are_exact_aliases() -> None:
+    assert legacy_app.NutrientGapsRequest is NutrientGapsRequest
+    assert legacy_app.NutrientGapsResponse is NutrientGapsResponse
+    assert legacy_app._generate_who_targets_response is service.generate_who_targets_response
+    assert legacy_app._fallback_targets_response is service.fallback_targets_response
+    assert legacy_app._clamp_daily_kcal is clamp_daily_kcal
+    assert legacy_app._alias_micros is alias_micros
+    assert legacy_app._ensure_priority_micros is ensure_priority_micros
