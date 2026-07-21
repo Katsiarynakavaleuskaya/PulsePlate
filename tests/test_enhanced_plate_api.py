@@ -15,9 +15,12 @@ Tests cover:
 import os
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from app.middleware.api_tiers import TEST_KEY_PRO
 from app.services import pro_nutrition_plate
+from app.services.pro_nutrition_targets import WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
 
 # Import the FastAPI app from the app package
 from app import app
@@ -338,25 +341,44 @@ class TestEnhancedPlateAPI:
         assert "/srv/pulseplate/plate.py" not in response.text
 
     @pytest.mark.parametrize(
-        "non_finite_token",
+        "invalid_micro",
         [
             pytest.param("NaN", id="nan"),
             pytest.param("Infinity", id="infinity"),
             pytest.param("-Infinity", id="negative-infinity"),
             pytest.param("1e309", id="exponent-overflow"),
+            pytest.param(-0.01, id="negative-finite"),
+            pytest.param(100000.01, id="above-canonical-maximum"),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("route", "headers"),
+        [
+            pytest.param(
+                "/api/v1/pro/nutrition/plate",
+                {"X-API-Key": TEST_KEY_PRO},
+                id="canonical",
+            ),
+            pytest.param(
+                "/api/v1/premium/plate",
+                {"X-API-Key": "test_key"},
+                id="legacy",
+            ),
         ],
     )
     def test_plate_non_finite_day_micros_is_safe_500_at_http_boundary(
         self,
         monkeypatch: pytest.MonkeyPatch,
-        non_finite_token: str,
+        invalid_micro: object,
+        route: str,
+        headers: dict[str, str],
     ) -> None:
-        """String non-finite day micros never become a null-bearing false 200."""
+        """Invalid enriched day micros never become a null-bearing false 200."""
 
         def _non_finite_day_micros(
             _meals: list[dict[str, object]],
         ) -> dict[str, object]:
-            return {"private_dependency_nutrient": non_finite_token}
+            return {"private_dependency_nutrient": invalid_micro}
 
         monkeypatch.setattr(
             pro_nutrition_plate,
@@ -373,17 +395,75 @@ class TestEnhancedPlateAPI:
         }
 
         response = client.post(
-            "/api/v1/premium/plate",
+            route,
             json=payload,
-            headers={"X-API-Key": "test_key"},
+            headers=headers,
         )
 
         assert response.status_code == 500
         assert response.json() == {"detail": ENHANCED_PLATE_GENERATION_FAILED_DETAIL}
         response_text = response.text.casefold()
         assert "private_dependency_nutrient" not in response_text
-        assert non_finite_token.casefold() not in response_text
+        assert str(invalid_micro).casefold() not in response_text
         assert "null" not in response_text
+
+    @pytest.mark.parametrize(
+        ("route", "headers"),
+        [
+            pytest.param(
+                "/api/v1/pro/nutrition/plate",
+                {"X-API-Key": TEST_KEY_PRO},
+                id="canonical",
+            ),
+            pytest.param(
+                "/api/v1/premium/plate",
+                {"X-API-Key": "test_key"},
+                id="legacy",
+            ),
+        ],
+    )
+    def test_plate_routes_propagate_canonical_target_safety_failure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        route: str,
+        headers: dict[str, str],
+    ) -> None:
+        """Both route families preserve canonical target safety failures."""
+
+        def _reject_unsafe_targets(*_args: object, **_kwargs: object) -> object:
+            raise HTTPException(
+                status_code=500,
+                detail=WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL,
+            )
+
+        def _empty_day_micros(
+            _meals: list[dict[str, object]],
+        ) -> dict[str, float]:
+            return {}
+
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "generate_who_targets_response",
+            _reject_unsafe_targets,
+        )
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "_aggregate_day_micronutrients",
+            _empty_day_micros,
+        )
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 170,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        response = client.post(route, json=payload, headers=headers)
+
+        assert response.status_code == 500
+        assert response.json() == {"detail": WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL}
 
     @pytest.mark.parametrize(
         ("response_field", "non_finite_value"),

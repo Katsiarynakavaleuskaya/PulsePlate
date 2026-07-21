@@ -31,6 +31,7 @@ from app.services.pro_nutrition_plate import (
     PlateServiceDependencies,
     generate_plate_response,
 )
+from app.services.pro_nutrition_targets import WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
 from core.data_sanitizer import MissingOptionalDependencyError
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +82,21 @@ def _valid_generated_plate(**_kwargs: object) -> dict[str, Any]:
         "meals": [],
         "meals_per_day": 3,
     }
+
+
+def _valid_generated_plate_with_meal(**_kwargs: object) -> dict[str, Any]:
+    payload = _valid_generated_plate()
+    payload["meals"] = [
+        {
+            "title": "Meal",
+            "kcal": 500,
+            "protein_g": 30,
+            "fat_g": 15,
+            "carbs_g": 60,
+            "fiber_g": 8,
+        }
+    ]
+    return payload
 
 
 def _real_dependencies() -> PlateServiceDependencies:
@@ -222,6 +238,53 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
     assert aligned is True
 
 
+@pytest.mark.parametrize("use_legacy_delegate", [False, True], ids=["canonical", "legacy"])
+def test_plate_alignment_propagates_canonical_target_safety_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    use_legacy_delegate: bool,
+) -> None:
+    """Canonical and legacy Python entrypoints preserve the safety failure."""
+
+    def _builder(_profile: object) -> object:
+        return object()
+
+    def _reject_unsafe_targets(*_args: object, **_kwargs: object) -> object:
+        raise HTTPException(
+            status_code=500,
+            detail=WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL,
+        )
+
+    plate_data = {
+        "macros": {
+            "protein_g": 80,
+            "fat_g": 50,
+            "carbs_g": 200,
+            "fiber_g": 25,
+        }
+    }
+
+    if use_legacy_delegate:
+        monkeypatch.setattr(legacy_app, "_resolve_build_targets_callable", lambda: _builder)
+        monkeypatch.setattr(
+            legacy_app,
+            "_generate_who_targets_response",
+            _reject_unsafe_targets,
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            legacy_app.align_macros_with_targets(_request(), plate_data)
+    else:
+        with pytest.raises(HTTPException) as exc_info:
+            pro_nutrition_plate.align_macros_with_targets(
+                _request(),
+                plate_data,
+                targets_builder=_builder,
+                targets_response_factory=_reject_unsafe_targets,
+            )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
+
+
 def test_generate_plate_response_documented_backend_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -325,6 +388,8 @@ def test_generate_plate_response_unexpected_error_is_safe_500(
         "Infinity",
         "-Infinity",
         "1e309",
+        -0.01,
+        100000.01,
     ],
     ids=[
         "float-nan",
@@ -337,6 +402,8 @@ def test_generate_plate_response_unexpected_error_is_safe_500(
         "string-positive-infinity",
         "string-negative-infinity",
         "string-exponent-overflow",
+        "negative-finite",
+        "above-canonical-maximum",
     ],
 )
 @pytest.mark.parametrize(
@@ -383,6 +450,63 @@ def test_generate_plate_response_rejects_non_finite_micronutrient_dependency_out
     assert "private_dependency_nutrient" not in detail
     if isinstance(non_finite_value, str):
         assert non_finite_value.casefold() not in detail
+
+
+def test_generate_plate_response_returns_honest_empty_micronutrients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing recipe evidence stays empty instead of receiving fabricated values."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "search_recipes",
+        lambda *_args, **_kwargs: [],
+    )
+    dependencies = PlateServiceDependencies(
+        make_plate=_valid_generated_plate_with_meal,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=pro_nutrition_plate._aggregate_day_micronutrients,
+    )
+
+    response = asyncio.run(generate_plate_response(_request(), dependencies=dependencies))
+
+    assert response.day_micros == {}
+    assert response.meals[0]["micros"] == {}
+
+
+def test_generate_plate_response_fails_closed_on_malformed_recipe_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed recipe evidence becomes a generic non-leaking server failure."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "search_recipes",
+        lambda *_args, **_kwargs: [{"recipe_id": "recipe-1"}],
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "get_recipe",
+        lambda *_args, **_kwargs: {"ingredients_json": "private malformed provider payload"},
+    )
+    dependencies = PlateServiceDependencies(
+        make_plate=_valid_generated_plate_with_meal,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=pro_nutrition_plate._aggregate_day_micronutrients,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert "private malformed provider payload" not in str(exc_info.value.detail)
 
 
 @pytest.mark.parametrize(

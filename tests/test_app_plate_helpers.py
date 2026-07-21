@@ -7,7 +7,9 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 
+from app.http_error_details import ENHANCED_PLATE_GENERATION_FAILED_DETAIL
 from app.schemas.premium_contracts import PlateRequest, PlateResponse, VisualShape
 from app.services import pro_nutrition_plate as plate_service
 from app.services.pro_nutrition_plate import PlateServiceDependencies
@@ -206,22 +208,17 @@ def test_api_premium_plate_fallback_handles_unexpected_target_error(
         goal="maintain",
     )
 
-    response = asyncio.run(
-        plate_service.generate_plate_response(
-            request,
-            dependencies=_fallback_dependencies(failing_targets),
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            plate_service.generate_plate_response(
+                request,
+                dependencies=_fallback_dependencies(failing_targets),
+            )
         )
-    )
 
-    assert isinstance(response, PlateResponse)
-    assert response.kcal == 2400
-    assert response.macros == {
-        "protein_g": 128,
-        "fat_g": 72,
-        "carbs_g": 310,
-        "fiber_g": int(FIBER_MIN_G),
-    }
-    assert "private target backend payload" not in response.model_dump_json()
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert "private target backend payload" not in str(exc_info.value.detail)
 
 
 def test_api_premium_plate_fallback_discards_partial_non_finite_targets(
@@ -251,22 +248,17 @@ def test_api_premium_plate_fallback_discards_partial_non_finite_targets(
         goal="maintain",
     )
 
-    response = asyncio.run(
-        plate_service.generate_plate_response(
-            request,
-            dependencies=_fallback_dependencies(non_finite_targets),
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            plate_service.generate_plate_response(
+                request,
+                dependencies=_fallback_dependencies(non_finite_targets),
+            )
         )
-    )
 
-    assert isinstance(response, PlateResponse)
-    assert response.kcal == 2400
-    assert response.macros == {
-        "protein_g": 128,
-        "fat_g": 72,
-        "carbs_g": 310,
-        "fiber_g": int(FIBER_MIN_G),
-    }
-    assert "Infinity" not in response.model_dump_json()
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert "Infinity" not in str(exc_info.value.detail)
 
 
 def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(

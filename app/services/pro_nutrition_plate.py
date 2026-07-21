@@ -40,7 +40,6 @@ from core.data_sanitizer import MissingOptionalDependencyError, sanity_filter_pl
 from core.nutrition_utils import (
     alias_micros,
     clamp_daily_kcal,
-    ensure_priority_micros,
 )
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor
@@ -50,9 +49,14 @@ logger = logging.getLogger(__name__)
 PLATE_FEATURE_UNAVAILABLE_DETAIL = "Enhanced plate feature not available"
 _FALLBACK_KCAL_MAX = 2400
 _SAFE_DEFAULT_KCAL = 1200
+_MAX_MICRONUTRIENT_VALUE = 100000.0
 
 
-class _NonFinitePlateDependencyOutputError(RuntimeError):
+class _InvalidPlateMicronutrientOutputError(RuntimeError):
+    """A Plate dependency returned malformed micronutrient output."""
+
+
+class _NonFinitePlateDependencyOutputError(_InvalidPlateMicronutrientOutputError):
     """A Plate dependency returned a numeric value unsafe for JSON output."""
 
 
@@ -105,6 +109,38 @@ def _ensure_finite_numeric_mapping(value: Any) -> None:
         return
     for nested_value in value.values():
         _ensure_finite_numeric_value(nested_value)
+
+
+def _validated_micronutrient_mapping(value: Any) -> dict[str, float]:
+    """Return finite canonical-range micronutrients or fail closed."""
+
+    if not isinstance(value, dict):
+        raise _InvalidPlateMicronutrientOutputError(
+            "Plate dependency returned malformed micronutrient output"
+        )
+
+    validated: dict[str, float] = {}
+    for nutrient_key, raw_amount in value.items():
+        if not isinstance(nutrient_key, str) or isinstance(raw_amount, (bool, str)):
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned malformed micronutrient output"
+            )
+        try:
+            amount = float(raw_amount)
+        except (TypeError, ValueError, OverflowError):
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned malformed micronutrient output"
+            ) from None
+        if not math.isfinite(amount):
+            raise _NonFinitePlateDependencyOutputError(
+                "Plate dependency returned non-finite numeric output"
+            )
+        if not 0.0 <= amount <= _MAX_MICRONUTRIENT_VALUE:
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned out-of-range micronutrient output"
+            )
+        validated[nutrient_key] = amount
+    return validated
 
 
 def _ensure_finite_plate_response_output(value: Any) -> None:
@@ -249,100 +285,108 @@ async def _aggregate_meal_micronutrients(
                 "Plate dependency returned non-finite numeric output"
             ) from None
         except (TypeError, ValueError):
-            logger.debug(
-                "Skipping ingredient %r with invalid grams in meal %r",
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned malformed ingredient grams"
+            ) from None
+        _ensure_finite_dependency_output(grams)
+        if grams == 0:
+            continue
+        if grams < 0:
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned negative ingredient grams"
+            )
+
+        food = await asyncio.to_thread(get_food, food_id)
+        if not food:
+            logger.warning(
+                "Food %r not found while aggregating meal %r",
                 food_id,
                 meal_title,
             )
             continue
-        _ensure_finite_dependency_output(grams)
-        if grams <= 0:
-            continue
 
+        per_g_raw = food.get("per_g")
         try:
-            food = await asyncio.to_thread(get_food, food_id)
-            if not food:
-                logger.warning(
-                    "Food %r not found while aggregating meal %r",
-                    food_id,
-                    meal_title,
-                )
-                continue
+            per_g = float(per_g_raw) if per_g_raw is not None else default_per_g
+        except OverflowError:
+            raise _NonFinitePlateDependencyOutputError(
+                "Plate dependency returned non-finite numeric output"
+            ) from None
+        except (TypeError, ValueError):
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned malformed serving basis"
+            ) from None
+        _ensure_finite_dependency_output(per_g)
+        if per_g <= 0:
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned non-positive serving basis"
+            )
+        ratio = grams / per_g
 
-            per_g_raw = food.get("per_g")
+        for db_key in db_micro_keys:
+            nutrient_value = food.get(db_key, 0.0)
             try:
-                per_g = float(per_g_raw) if per_g_raw is not None else default_per_g
+                numeric_value = float(nutrient_value) if nutrient_value is not None else 0.0
             except OverflowError:
                 raise _NonFinitePlateDependencyOutputError(
                     "Plate dependency returned non-finite numeric output"
                 ) from None
             except (TypeError, ValueError):
-                per_g = default_per_g
-            _ensure_finite_dependency_output(per_g)
-            if per_g <= 0:
-                per_g = default_per_g
-            ratio = grams / per_g
+                raise _InvalidPlateMicronutrientOutputError(
+                    "Plate dependency returned malformed micronutrient output"
+                ) from None
+            _ensure_finite_dependency_output(numeric_value)
+            alias_key = DB_TO_ALIAS_NUTRIENT_MAP[db_key]
+            aggregate_value = meal_micros.get(alias_key, 0.0) + numeric_value * ratio
+            _ensure_finite_dependency_output(aggregate_value)
+            meal_micros[alias_key] = aggregate_value
 
-            for db_key in db_micro_keys:
-                nutrient_value = food.get(db_key, 0.0)
-                try:
-                    numeric_value = float(nutrient_value) if nutrient_value is not None else 0.0
-                except OverflowError:
-                    raise _NonFinitePlateDependencyOutputError(
-                        "Plate dependency returned non-finite numeric output"
-                    ) from None
-                except (TypeError, ValueError):
-                    numeric_value = 0.0
-                _ensure_finite_dependency_output(numeric_value)
-                alias_key = DB_TO_ALIAS_NUTRIENT_MAP[db_key]
-                aggregate_value = meal_micros.get(alias_key, 0.0) + numeric_value * ratio
-                _ensure_finite_dependency_output(aggregate_value)
-                meal_micros[alias_key] = aggregate_value
-        except _NonFinitePlateDependencyOutputError:
-            raise
-        except Exception:
-            logger.exception(
-                "Food lookup failed for %r while aggregating meal %r",
-                food_id,
-                meal_title,
-            )
-
-    return meal_micros
+    return _validated_micronutrient_mapping(meal_micros)
 
 
 def _get_recipe_ingredients_for_meal(meal_title: str) -> list[dict[str, Any]]:
     """Return normalized recipe ingredients when the generated meal has none."""
 
-    try:
-        recipes = recipe_store.search_recipes(meal_title, limit=1)
-        if not recipes:
-            return []
-        recipe_id = recipes[0].get("recipe_id")
-        if not recipe_id:
-            return []
-        recipe = recipe_store.get_recipe(recipe_id)
-        if not recipe:
-            return []
-        ingredients_json = recipe.get("ingredients_json")
-        if not ingredients_json:
-            return []
-        ingredients = json.loads(ingredients_json)
-        if not isinstance(ingredients, list):
-            return []
-
-        normalized: list[dict[str, Any]] = []
-        for ingredient in ingredients:
-            if isinstance(ingredient, dict):
-                food_id = ingredient.get("food_id") or ingredient.get("id")
-                grams = ingredient.get("grams")
-                if food_id and grams is not None:
-                    normalized.append({"food_id": str(food_id), "grams": grams})
-            elif isinstance(ingredient, (list, tuple)) and len(ingredient) >= 2:
-                normalized.append({"food_id": str(ingredient[0]), "grams": ingredient[1]})
-        return normalized
-    except Exception:
-        logger.exception("Recipe lookup failed for generated meal %r", meal_title)
+    recipes = recipe_store.search_recipes(meal_title, limit=1)
+    if not recipes:
         return []
+    recipe_id = recipes[0].get("recipe_id")
+    if not recipe_id:
+        return []
+    recipe = recipe_store.get_recipe(recipe_id)
+    if not recipe:
+        return []
+    ingredients_json = recipe.get("ingredients_json")
+    if not ingredients_json:
+        return []
+    try:
+        ingredients = json.loads(ingredients_json)
+    except (json.JSONDecodeError, TypeError):
+        raise _InvalidPlateMicronutrientOutputError(
+            "Recipe provider returned malformed ingredients"
+        ) from None
+    if not isinstance(ingredients, list):
+        raise _InvalidPlateMicronutrientOutputError(
+            "Recipe provider returned malformed ingredients"
+        )
+
+    normalized: list[dict[str, Any]] = []
+    for ingredient in ingredients:
+        if isinstance(ingredient, dict):
+            food_id = ingredient.get("food_id") or ingredient.get("id")
+            grams = ingredient.get("grams")
+            if not food_id or grams is None:
+                raise _InvalidPlateMicronutrientOutputError(
+                    "Recipe provider returned malformed ingredient"
+                )
+            normalized.append({"food_id": str(food_id), "grams": grams})
+        elif isinstance(ingredient, (list, tuple)) and len(ingredient) >= 2:
+            normalized.append({"food_id": str(ingredient[0]), "grams": ingredient[1]})
+        else:
+            raise _InvalidPlateMicronutrientOutputError(
+                "Recipe provider returned malformed ingredient"
+            )
+    return normalized
 
 
 async def _aggregate_day_micronutrients(
@@ -372,7 +416,7 @@ async def _aggregate_day_micronutrients(
             meal_micros = alias_micros(dict(raw_micros))
             meal["micros"] = dict(meal_micros)
 
-        _ensure_finite_numeric_mapping(meal_micros)
+        meal_micros = _validated_micronutrient_mapping(meal_micros)
         for nutrient_key, amount in meal_micros.items():
             if isinstance(amount, (int, float)):
                 aggregate_value = day_micros.get(nutrient_key, 0.0) + float(amount)
@@ -380,18 +424,7 @@ async def _aggregate_day_micronutrients(
                 day_micros[nutrient_key] = aggregate_value
 
     aliased = alias_micros(dict(day_micros))
-    if not aliased:
-        aliased = alias_micros(
-            {
-                "iron_mg": 4.0,
-                "calcium_mg": 300.0,
-                "magnesium_mg": 100.0,
-                "potassium_mg": 1200.0,
-            }
-        )
-    result: dict[str, float] = ensure_priority_micros(aliased)
-    _ensure_finite_numeric_mapping(result)
-    return result
+    return _validated_micronutrient_mapping(aliased)
 
 
 def _macros_to_kcal(macros: dict[str, Any]) -> int | None:
@@ -505,7 +538,7 @@ def build_fallback_plate(
             carbs_g = resolved_carbs_g
             fiber_g = resolved_fiber_g
             targets_used = True
-        except Exception:
+        except (ValueError, ImportError):
             logger.warning(
                 "Plate target alignment unavailable during fallback",
                 exc_info=True,
@@ -644,10 +677,10 @@ def align_macros_with_targets(
             "Canonical WHO target alignment rejected the Plate profile",
             exc_info=True,
         )
-        return macros_aligned, None, False
+        raise
     except Exception:
         logger.exception("Unexpected WHO target alignment failure")
-        return macros_aligned, None, False
+        raise
 
     alignment_succeeded = False
     for macro_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
@@ -742,9 +775,8 @@ async def aggregate_day_micros(
     result = aggregate(meals)
     if isinstance(result, Awaitable):
         result = await result
-    resolved_result = result or {}
-    _ensure_finite_numeric_mapping(resolved_result)
-    return resolved_result
+    resolved_result = {} if result is None else result
+    return _validated_micronutrient_mapping(resolved_result)
 
 
 async def generate_plate_response(
@@ -867,8 +899,8 @@ async def generate_plate_response(
             day_micros=day_micros,
             meals_per_day=plate_data.get("meals_per_day", 3),
         )
-    except _NonFinitePlateDependencyOutputError:
-        logger.exception("Rejected non-finite Plate dependency output")
+    except _InvalidPlateMicronutrientOutputError:
+        logger.exception("Rejected invalid Plate micronutrient output")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL,

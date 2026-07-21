@@ -108,8 +108,7 @@ def test_aggregate_day_micronutrients_rejects_existing_non_finite_meal_micros(
         asyncio.run(plate_service._aggregate_day_micronutrients(meals))
 
 
-@pytest.mark.asyncio
-async def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyPatch) -> None:
     collected_calls: List[Dict[str, Any]] = []
 
     foods = {
@@ -124,38 +123,62 @@ async def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyP
             "Folate_ug": 7.0,
             "Iodine_ug": 8.0,
         },
-        "bad_per_g": {"per_g": "oops"},
-        "zero_per_g": {"per_g": 0, "Fe_mg": 1.0},
-        "bad_micro": {"per_g": 100, "Fe_mg": "bad-value"},
     }
 
     async def fake_to_thread(func, *args, **kwargs):
         collected_calls.append({"func": func, "args": args, "kwargs": kwargs})
         food_id = args[0]
-        if food_id == "raise":
-            raise RuntimeError("boom")
         return foods.get(food_id)
 
     monkeypatch.setattr(plate_service.asyncio, "to_thread", fake_to_thread)
 
     ingredients = [
         {"grams": 10},  # missing food_id -> skip
-        {"food_id": "valid", "grams": "not-number"},  # invalid grams -> skip
-        {"food_id": "valid", "grams": -5},  # non-positive grams -> skip
+        {"food_id": "valid", "grams": 0},  # zero quantity -> no evidence
         {"food_id": "missing", "grams": 10},  # missing food -> skip
-        {"food_id": "bad_per_g", "grams": 10},  # invalid per_g -> uses default
-        {"food_id": "zero_per_g", "grams": 10},  # zero per_g -> default
-        {"food_id": "bad_micro", "grams": 10},  # invalid nutrient value
-        {"food_id": "raise", "grams": 5},  # exception path
         {"food_id": "valid", "grams": 25},  # valid path
     ]
 
-    result = await plate_service._aggregate_meal_micronutrients(
-        ingredients,
-        meal_title="Test",
+    result = asyncio.run(
+        plate_service._aggregate_meal_micronutrients(
+            ingredients,
+            meal_title="Test",
+        )
     )
     assert "iron_mg" in result
     assert collected_calls  # ensured to_thread invoked
+
+
+@pytest.mark.parametrize(
+    ("food", "grams"),
+    [
+        pytest.param({"per_g": "oops"}, 10, id="malformed-serving-basis"),
+        pytest.param({"per_g": 0, "Fe_mg": 1.0}, 10, id="zero-serving-basis"),
+        pytest.param({"per_g": 100, "Fe_mg": "bad-value"}, 10, id="malformed-micro"),
+        pytest.param({"per_g": 100, "Fe_mg": 1.0}, "bad-grams", id="malformed-grams"),
+    ],
+)
+def test_aggregate_meal_micronutrients_rejects_malformed_provider_values(
+    monkeypatch: pytest.MonkeyPatch,
+    food: dict[str, object],
+    grams: object,
+) -> None:
+    async def _food_from_db(
+        _func: object,
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        return food
+
+    monkeypatch.setattr(plate_service.asyncio, "to_thread", _food_from_db)
+
+    with pytest.raises(plate_service._InvalidPlateMicronutrientOutputError):
+        asyncio.run(
+            plate_service._aggregate_meal_micronutrients(
+                [{"food_id": "db-food", "grams": grams}],
+                meal_title="Meal",
+            )
+        )
 
 
 def test_get_recipe_ingredients_for_meal_parses(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -243,11 +266,11 @@ def test_get_recipe_ingredients_invalid_json(monkeypatch: pytest.MonkeyPatch) ->
         "get_recipe",
         lambda recipe_id: {"ingredients_json": "{}"},
     )
-    assert plate_service._get_recipe_ingredients_for_meal("Soup") == []
+    with pytest.raises(plate_service._InvalidPlateMicronutrientOutputError):
+        plate_service._get_recipe_ingredients_for_meal("Soup")
 
 
-@pytest.mark.asyncio
-async def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test _aggregate_day_micronutrients aggregates micros from meals.
 
     Meal A has explicit micros, Meal B needs ingredient lookup + aggregation.
@@ -284,7 +307,7 @@ async def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> 
         {"title": "Meal B"},  # No micros/ingredients, will trigger lookup + aggregation
     ]
 
-    result = await plate_service._aggregate_day_micronutrients(meals)
+    result = asyncio.run(plate_service._aggregate_day_micronutrients(meals))
     # Meal A: 0.5, Meal B: 1.0 (from fake_aggregate) = 1.5 total
     assert result["iron_mg"] == pytest.approx(1.5)
 
