@@ -373,6 +373,82 @@ class TestEnhancedPlateAPI:
         assert "private_dependency_nutrient" not in response.text
         assert "nan" not in response.text.lower()
 
+    @pytest.mark.parametrize(
+        ("response_field", "non_finite_value"),
+        [
+            pytest.param("portions", float("nan"), id="portions-nan"),
+            pytest.param("portions", float("inf"), id="portions-infinity"),
+            pytest.param("layout", float("nan"), id="layout-nan"),
+            pytest.param("layout", float("inf"), id="layout-infinity"),
+        ],
+    )
+    def test_plate_non_finite_response_bound_values_are_safe_500_at_http_boundary(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        response_field: str,
+        non_finite_value: float,
+    ) -> None:
+        """Portions and layout values cannot reach JSON serialization as NaN/Infinity."""
+
+        def _non_finite_plate(**_kwargs: object) -> dict[str, object]:
+            portions: dict[str, object] = {
+                "protein_palm": 2.0,
+                "fat_thumbs": 2.0,
+                "carb_cups": 2.0,
+                "veg_cups": 3.0,
+            }
+            layout: list[dict[str, object]] = [
+                {
+                    "kind": "plate_sector",
+                    "fraction": 1.0,
+                    "label": "Plate",
+                    "tooltip": "Plate",
+                }
+            ]
+            if response_field == "portions":
+                portions["protein_palm"] = non_finite_value
+            else:
+                layout[0]["fraction"] = non_finite_value
+            return {
+                "kcal": 2000,
+                "macros": {
+                    "protein_g": 110,
+                    "fat_g": 60,
+                    "carbs_g": 240,
+                    "fiber_g": 25,
+                },
+                "portions": portions,
+                "layout": layout,
+                "meals": [],
+                "meals_per_day": 3,
+            }
+
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_plate,
+            "make_plate",
+            _non_finite_plate,
+        )
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 170,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        response = client.post(
+            "/api/v1/premium/plate",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 500
+        assert response.json() == {"detail": ENHANCED_PLATE_GENERATION_FAILED_DETAIL}
+        assert response_field not in response.text
+        assert "nan" not in response.text.lower()
+        assert "infinity" not in response.text.lower()
+
     def test_plate_goal_specific_differences(self) -> None:
         """Test different goals produce appropriate macro distributions."""
         base_payload = {

@@ -75,7 +75,7 @@ def _ensure_finite_dependency_output(value: Any) -> None:
         for nested_value in value.values():
             _ensure_finite_dependency_output(nested_value)
         return
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, set, frozenset)):
         for nested_value in value:
             _ensure_finite_dependency_output(nested_value)
 
@@ -740,8 +740,7 @@ async def generate_plate_response(
                 detail=INVALID_PREMIUM_PLATE_INPUT_DETAIL,
             ) from exc
 
-        _ensure_finite_dependency_output(plate_data_raw.get("meals", []))
-        _ensure_finite_dependency_output(plate_data_raw.get("day_micros", {}))
+        _ensure_finite_dependency_output(plate_data_raw)
         plate_data = sanitize_plate_data(plate_data_raw)
         layout = [VisualShape(**item) for item in plate_data["layout"]]
         day_micros = await aggregate_day_micros(

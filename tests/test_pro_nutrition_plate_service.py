@@ -419,6 +419,53 @@ def test_generate_plate_response_rejects_non_finite_nested_meal_output(
 
 
 @pytest.mark.parametrize(
+    ("response_field", "non_finite_value"),
+    [
+        pytest.param("portions", float("nan"), id="portions-nan"),
+        pytest.param("portions", float("inf"), id="portions-infinity"),
+        pytest.param("layout", float("nan"), id="layout-nan"),
+        pytest.param("layout", float("inf"), id="layout-infinity"),
+    ],
+)
+def test_generate_plate_response_rejects_non_finite_response_bound_output(
+    monkeypatch: pytest.MonkeyPatch,
+    response_field: str,
+    non_finite_value: float,
+) -> None:
+    """Response-bound Plate dependency values fail closed before serialization."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _non_finite_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate()
+        if response_field == "portions":
+            payload["portions"]["protein_palm"] = non_finite_value
+        else:
+            payload["layout"][0]["fraction"] = non_finite_value
+        return payload
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_non_finite_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            generate_plate_response(
+                _request(),
+                dependencies=dependencies,
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert response_field not in str(exc_info.value.detail)
+
+
+@pytest.mark.parametrize(
     "non_finite_value",
     [float("nan"), float("inf"), float("-inf")],
     ids=["nan", "positive-infinity", "negative-infinity"],
