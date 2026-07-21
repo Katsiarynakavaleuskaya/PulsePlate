@@ -204,11 +204,15 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    PR head. Reviewer execution SHAs are opaque until the Commit API proves
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
-9. **Material identity:** one completed Codex review or one trusted terminal
+9. **Material identity:** one completed Codex review/Connector response or one trusted terminal
    review-source unavailability receipt, plus one completed final Codex
    Security diff scan, bind to one material digest. A verified official Codex
-   Connector reaction may be recorded as advisory context only; it never binds
-   a material digest or substitutes review evidence. When Codex Security is systemically
+   Connector PR-root reaction (`+1`, `heart`, `hooray`, or `rocket`) may satisfy
+   the normal `--review-ref` path only when its canonical reaction ID, immutable
+   Connector account id/login, and the caller's full live material head all verify.
+   It is a Connector response bound to that current material state, never a native
+   GitHub approval, Codex Security result, or review-thread disposition authority.
+   Optional advisory rendering remains non-authoritative. When Codex Security is systemically
    unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
    operator-outage override may replace only the plugin receipt: it must be an
    unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
@@ -236,13 +240,12 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    legacy override path is not an active authoring contract for later PRs.
    The trusted submitted review object's real GitHub `commit_id` must equal the
    frozen material head. A direct PR-root reaction from the official Connector
-   may be recorded with `seal --connector-advisory-reaction <canonical-reaction-url>`
-   only for `+1`, `heart`, `hooray`, or `rocket`, after live verification of its
-   immutable GitHub account id and exact login. GitHub reactions carry no
-   reviewed SHA or run id, so they are advisory only: never a `--review-ref`,
-   exact-head proof, GitHub approval, Codex Security result, or thread-resolution
-   authority. A missing, malformed, or unavailable advisory reaction is omitted
-   with a warning; it neither blocks closeout nor clears another review gate. When
+   may be passed to `seal --review-ref <canonical-reaction-url>` only for `+1`,
+   `heart`, `hooray`, or `rocket`, after live verification of its immutable GitHub
+   account id/login and binding to the caller's full current material head. It is
+   not a native GitHub approval, Codex Security result, or thread-resolution
+   authority. The optional `--connector-advisory-reaction` rendering path remains
+   non-authoritative and may be omitted with a warning. When
    the official Codex connector emits an unedited no-findings
    issue comment instead, its trusted GitHub App identity and reviewed-commit
    prefix must resolve through the Commit API to that same full frozen head. A

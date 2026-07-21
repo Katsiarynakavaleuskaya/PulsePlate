@@ -658,17 +658,16 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    with MCP `-32001 Request timed out`, use the bounded operator-outage path only
    after an explicit operator decision; it is not scan or no-findings evidence.
 5. Record dispositions with `add-disposition`, then run `seal` with exactly one
-   review-evidence mode: `--review-ref ...` for a completed trusted review, or
-   `--review-source-unavailable-ref ...` for an exact trusted Codex rate-limit /
-   usage-limit comment. Optionally add one or more
-   `--connector-advisory-reaction <canonical-reaction-url>` values to record verified
-   official Connector `+1`, `heart`, `hooray`, or `rocket` reactions. The
-   verifier checks the exact PR-root URL and immutable Connector account
-   identity, but a reaction has no reviewed SHA or run id: it is advisory only,
-   not review evidence, an exact-head proof, GitHub approval, Codex Security
-   result, or thread-resolution authority. If it cannot be verified, the signal
-   is omitted with a warning; it neither blocks closeout nor clears another review
-   gate. The source-unavailable path requires no retry,
+   review-evidence mode: `--review-ref ...` for a completed trusted review or a
+   canonical official Connector PR-root `+1`, `heart`, `hooray`, or `rocket`
+   reaction, or `--review-source-unavailable-ref ...` for an exact trusted Codex
+   rate-limit / usage-limit comment. A reaction supplied through `--review-ref`
+   is live-verified by exact PR-root URL and immutable Connector account identity,
+   then bound to the caller's full snapshotted material head. It is a Connector
+   response for that material state, not a native GitHub approval, Codex Security
+   result, or thread-resolution authority. The optional
+   `--connector-advisory-reaction <canonical-reaction-url>` rendering path remains
+   non-authoritative and may be omitted with a warning. The source-unavailable path requires no retry,
    substitute review, prior review, operator override, or TTL; it proves only
    source unavailability (`source_degraded=true`, `fallback_required=false`,
    `blocking=false`, and `review_claim=none`), never review/PASS/no-findings.

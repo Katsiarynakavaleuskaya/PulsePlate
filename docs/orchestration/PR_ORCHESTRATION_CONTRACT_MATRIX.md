@@ -134,14 +134,13 @@ governance PR number + 1; the governance PR may opt in with
   dependencies, schemas, and policies remain material.
 - The trusted submitted Codex review object's real GitHub `commit_id` must be
   the frozen material head. A direct PR-root reaction from the official Codex
-  Connector may be recorded through `seal --connector-advisory-reaction` only
-  for `+1`, `heart`, `hooray`, or `rocket`, after live verification of its
-  immutable GitHub account identity and exact PR-root URL. A reaction has no
-  reviewed SHA or run id, so it is advisory only: never review evidence,
-  exact-head proof, GitHub approval, Codex Security evidence, or
-  thread-resolution authority. If verification fails, the advisory signal is
-  omitted with a warning; it neither blocks closeout nor clears another review
-  gate. An official unedited no-findings issue comment
+  Connector may instead use the normal `seal --review-ref` path only for `+1`,
+  `heart`, `hooray`, or `rocket`, after live verification of its immutable
+  GitHub account identity, exact PR-root URL, and binding to the caller's full
+  snapshotted material head. This is a verified Connector response for that
+  material state, not a native GitHub approval, Codex Security evidence, or
+  thread-resolution authority. The optional advisory rendering path remains
+  non-authoritative and may be omitted with a warning. An official unedited no-findings issue comment
   is accepted only when the trusted Codex GitHub App identity and its short
   reviewed-commit marker resolve through the Commit API to that same full head;
   reviewer-execution/synthetic refs never satisfy this proof. The selected

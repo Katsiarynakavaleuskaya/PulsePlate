@@ -776,7 +776,9 @@ def _codex_positive_reaction_request(
 
 
 @pytest.mark.parametrize("content", ("+1", "heart", "hooray", "rocket"))
-def test_codex_positive_reaction_is_accepted_as_advisory_only(content: str) -> None:
+def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
+    content: str,
+) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
     reaction = _codex_positive_reaction(content=content)
     requested_urls: list[str] = []
@@ -786,35 +788,49 @@ def test_codex_positive_reaction_is_accepted_as_advisory_only(content: str) -> N
         requested_urls.append(url)
         return request(url)
 
-    evidence = verify_codex_connector_advisory_reaction_reference(
+    evidence = verify_codex_review_reference(
         reference,
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_commit_ref=HEAD_SHA,
         request_json=request_json,
     )
 
-    assert evidence == identity_module.CodexConnectorAdvisoryReactionEvidence(
+    assert evidence == identity_module.CodexReviewEvidence(
         reference=reference,
-        created_at="2026-07-15T11:00:00Z",
-        content=content,
+        submitted_at="2026-07-15T11:00:00Z",
+        commit_ref=HEAD_SHA,
     )
     assert requested_urls == [
         "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
     ]
 
 
-def test_codex_positive_reaction_cannot_satisfy_exact_head_review_evidence() -> None:
+def test_codex_positive_reaction_requires_expected_full_material_head() -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
 
-    with pytest.raises(CommitIdentityError, match="advisory only"):
+    with pytest.raises(CommitIdentityError, match="requires an expected full material commit"):
         verify_codex_review_reference(
             reference,
             repository="owner/repo",
             pr_number=42,
             token="opaque",
-            expected_commit_ref=HEAD_SHA,
-            request_json=lambda *_a, **_k: pytest.fail("reaction must not be read as review proof"),
+            request_json=lambda *_a, **_k: pytest.fail(
+                "reaction must require a material head first"
+            ),
+        )
+
+    with pytest.raises(CommitIdentityError, match="expected Codex review commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA[:10],
+            request_json=lambda *_a, **_k: pytest.fail(
+                "reaction must reject a short material head"
+            ),
         )
 
 
@@ -2552,6 +2568,111 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
     assert "WARNING: Connector advisory reaction omitted: GitHub reaction not found" in captured.err
 
 
+def test_closeout_seal_binds_connector_reaction_through_normal_review_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    target = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    freeze = {
+        "base_ref_oid": BASE_SHA,
+        "digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "merge_base_sha": BASE_SHA,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "freeze": freeze,
+        "packet": None,
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+    }
+    security_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    review_calls: list[tuple[str, str | None]] = []
+    snapshot_rechecks: list[PrSnapshot] = []
+
+    def verify_reaction_review(
+        reference: str, **kwargs: Any
+    ) -> identity_module.CodexReviewEvidence:
+        review_calls.append((reference, kwargs.get("expected_commit_ref")))
+        return identity_module.CodexReviewEvidence(
+            reference=reaction_reference,
+            submitted_at="2026-07-15T11:00:00Z",
+            commit_ref=HEAD_SHA,
+        )
+
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "_load_state", lambda _pr: state)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_require_clean_live_head", lambda _head: None)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", verify_reaction_review)
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "ingest_codex_security_receipt",
+        lambda *_a, **_k: security_receipt,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_render_mapping",
+        lambda _state, seal: _mapping_artifact_with_seal(seal),
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: target)
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        closeout_module,
+        "assert_snapshot_unchanged",
+        lambda snapshot, **_k: snapshot_rechecks.append(snapshot),
+    )
+
+    closeout_module._cmd_seal(
+        Namespace(
+            pr_number=42,
+            repo="owner/repo",
+            review_ref=reaction_reference,
+            review_source_unavailable_ref=None,
+            connector_advisory_reaction=[],
+            scan_manifest="/tmp/scan-manifest.json",
+            security_outage_override_ref=None,
+        )
+    )
+
+    seal = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
+    assert review_calls == [(reaction_reference, HEAD_SHA)]
+    assert seal["code_review"] == {
+        "review_commit_ref": HEAD_SHA,
+        "review_commit_ref_kind": "repository_commit",
+        "review_reference": reaction_reference,
+        "reviewed_material_digest": DIGEST,
+        "status": "completed",
+    }
+    assert seal["codex_security"] == security_receipt
+    assert snapshot_rechecks == [_snapshot()]
+
+
 def test_authenticated_closeout_validation_rejects_nonexistent_review(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2560,8 +2681,11 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         expected_base_sha=BASE_SHA,
         expected_head_sha=HEAD_SHA,
     )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    seal = _seal(receipt)
+    seal["code_review"]["review_reference"] = reaction_reference
     mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
-    mapping.write_text(_mapping_artifact_with_seal(_seal(receipt)), encoding="utf-8")
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
     manifest = MaterialManifest(
         base_ref_oid=BASE_SHA,
         head_ref_oid=HEAD_SHA,
@@ -2570,10 +2694,10 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         entries=(),
         digest=DIGEST,
     )
-    verifier_expected_commits: list[str | None] = []
+    verifier_calls: list[tuple[str, str | None]] = []
 
-    def reject_review(*_args: Any, **kwargs: Any) -> Any:
-        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
+    def reject_review(reference: str, **kwargs: Any) -> Any:
+        verifier_calls.append((reference, kwargs.get("expected_commit_ref")))
         raise CommitIdentityError("GitHub review not found")
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
@@ -2600,7 +2724,7 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
             token="opaque",
         )
 
-    assert verifier_expected_commits == [HEAD_SHA]
+    assert verifier_calls == [(reaction_reference, HEAD_SHA)]
 
 
 def test_authenticated_closeout_revalidates_operator_outage_override(

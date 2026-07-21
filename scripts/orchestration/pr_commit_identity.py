@@ -1172,11 +1172,12 @@ def verify_codex_connector_advisory_reaction_reference(
     token: str,
     request_json: ApiRequest = github_api_request,
 ) -> CodexConnectorAdvisoryReactionEvidence:
-    """Verify one official positive PR-root reaction as advisory evidence only.
+    """Verify one official positive PR-root Connector reaction.
 
-    GitHub reactions do not name a reviewed commit or execution run.  This
-    verifier therefore intentionally cannot bind a reaction to material and
-    must never be used as a code-review or review-seal proof.
+    The reaction itself has no commit field.  Callers that use it as normal
+    review evidence must supply an independently snapshotted exact material
+    head; the optional advisory rendering path intentionally carries no such
+    binding.
     """
 
     owner, name = _require_repository(repository)
@@ -1314,9 +1315,21 @@ def verify_codex_review_reference(
         rf"{pr_number}#reaction-[1-9]\d*$"
     )
     if reaction_pattern.fullmatch(reference):
-        raise CommitIdentityError(
-            "positive Codex connector reactions are advisory only and cannot satisfy "
-            "exact-head code-review evidence"
+        if expected_commit is None:
+            raise CommitIdentityError(
+                "Codex connector reaction requires an expected full material commit"
+            )
+        reaction = verify_codex_connector_advisory_reaction_reference(
+            reference,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            request_json=request_json,
+        )
+        return CodexReviewEvidence(
+            reference=reference,
+            submitted_at=reaction.created_at,
+            commit_ref=expected_commit,
         )
 
     comment_pattern = re.compile(
@@ -1326,7 +1339,8 @@ def verify_codex_review_reference(
     comment_match = comment_pattern.fullmatch(reference)
     if not comment_match:
         raise CommitIdentityError(
-            "code-review reference must be a GitHub PR review or Codex no-findings comment URL"
+            "code-review reference must be a GitHub PR review, official Connector reaction, "
+            "or Codex no-findings comment URL"
         )
     if expected_commit is None:
         raise CommitIdentityError(
