@@ -4620,6 +4620,33 @@ def test_legacy_growth_guard_rejects_poisoned_control_flow_decorator_factories(
     ]
 
 
+def test_legacy_growth_guard_rejects_inherited_poisoned_decorator_factory() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/inherited-poisoned-factory")
+        captured = builtins.object
+        builtins.object = original_object
+
+        class Base:
+            factory = captured
+
+        class Holder(Base):
+            pass
+
+        @Holder.factory()
+        def inherited_poisoned_decorator_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> inherited_poisoned_decorator_factory"
+    ]
+
+
 @pytest.mark.parametrize(
     "safe_rebind",
     [

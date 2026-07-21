@@ -555,6 +555,27 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             class_body_update,
         )
         class_bindings = set().union(*class_flow)
+        class_defines_member = any(
+            class_body_update(statement) is not no_binding_update for statement in class_node.body
+        )
+        if not class_defines_member:
+            for base in class_node.bases:
+                base_reference = static_reference(base)
+                if base_reference is None or not base_reference.startswith(
+                    _CLASS_REFERENCE_PREFIX,
+                ):
+                    continue
+                if (
+                    class_member_binding(
+                        base_reference,
+                        member_name,
+                        instance=False,
+                        before_line=before_line,
+                    )
+                    == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+                ):
+                    class_bindings.add(_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE)
+                    break
         module_statements = tuple(
             statement for statement in tree.body if getattr(statement, "lineno", 0) < before_line
         )
