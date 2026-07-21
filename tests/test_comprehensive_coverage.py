@@ -34,11 +34,9 @@ class TestComprehensiveCoverage:
 
         monkeypatch.setenv("API_KEY", "test_key")
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-        self.client = TestClient(cast(ASGIApp, app))
-        try:
+        with TestClient(cast(ASGIApp, app)) as client:
+            self.client = client
             yield
-        finally:
-            self.client.close()
 
     def test_debug_env_endpoint(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test debug_env endpoint with deterministic response."""

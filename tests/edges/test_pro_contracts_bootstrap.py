@@ -1,4 +1,4 @@
-"""Tests for PRO contract routes bootstrap registration (idempotency, partial state detection)."""
+"""Critical PRO route bootstrap registration contract tests."""
 
 from __future__ import annotations
 

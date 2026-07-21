@@ -1,5 +1,5 @@
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from tests._client import get_client
 
 import pytest
@@ -130,10 +130,11 @@ class TestAppMissingLinesExtra:
         from app.services import pro_nutrition_plate as plate_service
 
         # Force the documented canonical backend fallback.
+        make_plate = MagicMock(return_value={})
         with (
             patch.object(plate_service.nutrition_bmr, "calculate_all_bmr", None),
             patch.object(plate_service.nutrition_bmr, "calculate_all_tdee", None),
-            patch.object(plate_service.nutrition_plate, "make_plate", lambda **k: {}),
+            patch.object(plate_service.nutrition_plate, "make_plate", make_plate),
         ):
             payload = {
                 "sex": "male",
@@ -147,6 +148,7 @@ class TestAppMissingLinesExtra:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code == 200
+            make_plate.assert_not_called()
 
     def test_nutrient_gaps_value_error(self):
         # Hit 1275 by raising ValueError from build_nutrition_targets

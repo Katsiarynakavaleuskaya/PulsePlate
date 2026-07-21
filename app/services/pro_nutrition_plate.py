@@ -509,9 +509,6 @@ def calculate_heuristic_macros(
             scale = max(available_kcal / (protein_kcal + fat_kcal), 0.0)
             protein_raw *= scale
             fat_raw *= scale
-        else:
-            protein_raw = 0.0
-            fat_raw = 0.0
 
     protein_g = max(0, int(round(protein_raw)))
     fat_g = max(0, int(round(fat_raw)))
@@ -575,10 +572,14 @@ def build_fallback_plate(
             targets = targets_builder(_build_user_profile(req))
             validate_targets_safety_warnings(targets)
             target_macros = targets.macros
-            resolved_target_kcal = int(targets.kcal_daily)
-            resolved_protein_g = int(target_macros.protein_g)
-            resolved_fat_g = int(target_macros.fat_g)
-            resolved_carbs_g = int(target_macros.carbs_g)
+            try:
+                resolved_target_kcal = int(targets.kcal_daily)
+                resolved_protein_g = int(target_macros.protein_g)
+                resolved_fat_g = int(target_macros.fat_g)
+                resolved_carbs_g = int(target_macros.carbs_g)
+            except (TypeError, ValueError, OverflowError):
+                logger.warning("Invalid fallback target kcal or macros; using bounded heuristic")
+                raise ValueError("invalid fallback target kcal or macros") from None
             try:
                 resolved_fiber_g = int(target_macros.fiber_g)
             except (TypeError, ValueError, OverflowError):
@@ -754,7 +755,14 @@ def align_macros_with_targets(
             continue
         if macro_name == "fiber_g" and macros_aligned.get("fiber_g") == int(round(FIBER_MIN_G)):
             continue
-        macros_aligned[macro_name] = int(target_value)
+        try:
+            macros_aligned[macro_name] = int(target_value)
+        except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "Canonical WHO target %s was invalid; preserving generated value",
+                macro_name,
+            )
+            continue
         alignment_succeeded = True
 
     try:

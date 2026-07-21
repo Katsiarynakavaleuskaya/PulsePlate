@@ -1,3 +1,5 @@
+"""Critical Plate micronutrient boundary tests."""
+
 from __future__ import annotations
 
 import asyncio

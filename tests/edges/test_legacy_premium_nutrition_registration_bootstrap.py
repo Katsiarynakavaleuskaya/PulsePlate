@@ -1,3 +1,5 @@
+"""Critical legacy premium nutrition registration contract tests."""
+
 from __future__ import annotations
 
 import asyncio

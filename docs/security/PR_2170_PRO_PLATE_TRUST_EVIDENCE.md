@@ -52,6 +52,10 @@ Recorded successful evidence includes:
 - `pre-commit run --all-files`: passed on the final runtime/test head;
 - `git diff --check`: passed, with a clean worktree after each commit.
 
+Primary runtime and regression anchors include
+`app/services/pro_nutrition_plate.py:578` and
+`tests/edges/test_pro_nutrition_plate_service.py:146`.
+
 The machine-heavy local `make verify` target was not run, in accordance with repository
 policy.
 
@@ -72,20 +76,22 @@ merge authority.
 
 ## Codex Security material identity and stop condition
 
-Exactly one Codex Security scan session was used:
+The final operator-authorized exact-head Codex Security scan completed at the evidence
+commit that followed the earlier historical scan:
 
-- session: `2f00c998-c5a9-41d6-954d-e30c7f2fbb40`;
-- scan: `880bb67f-2965-4858-b2f0-fa94ff2f6ffe`;
-- frozen head: `197e3c3e1e7a39ef8662a02fd4e629c5364cbfa3`;
-- scan progress: `5 of 5` completed;
+- scan: `605022ae-6aa8-47f2-ab14-54cae9622912`;
+- frozen head: `cb7a0cd6614ca1ccd07b9ced13914c7e98b43d1b`;
+- snapshot digest:
+  `codex-security-snapshot/v1:sha256:a99a2fe9c177f50b7e76e0041162025ce3b0ae76035ed4a573a7803686f40fac`;
+- scan progress: `6 of 6` completed;
 - reportable findings: `0`.
 
-After that frozen scan, correctness actionables were fixed. The exact runtime/test head
-before this evidence-only commit is
-`17071a32ac963b0a0d1485407bc6a97aaf7375dd`, so it is not the scanned head. No second
-scan was started. Therefore this lane has no exact-current-head Codex Security scan and
-this evidence makes no ready, green, or mergeable claim. The operator stop remains in
-force pending the repository's authorized disposition of the changed material digest.
+The previous scan `880bb67f-2965-4858-b2f0-fa94ff2f6ffe` at
+`197e3c3e1e7a39ef8662a02fd4e629c5364cbfa3` is historical evidence only and does not
+authorize later material. No retry or additional scan is permitted after the final
+exact-head scan. Required post-scan test, documentation, or runtime fixes change the
+material digest and therefore restore the fail-closed operator stop. This evidence makes
+no ready, green, or mergeable claim for such a changed head.
 
 ## Rollback
 

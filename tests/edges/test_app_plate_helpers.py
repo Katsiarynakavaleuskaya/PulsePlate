@@ -1,4 +1,4 @@
-"""Focused helpers and fallback tests for canonical Plate ownership."""
+"""Critical helpers and fallback tests for canonical Plate ownership."""
 
 from __future__ import annotations
 
@@ -293,17 +293,18 @@ def test_api_premium_plate_fallback_discards_partial_non_finite_targets(
         goal="maintain",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(
-            plate_service.generate_plate_response(
-                request,
-                dependencies=_fallback_dependencies(non_finite_targets),
-            )
+    expected = plate_service.build_fallback_plate(request)
+    response = asyncio.run(
+        plate_service.generate_plate_response(
+            request,
+            dependencies=_fallback_dependencies(non_finite_targets),
         )
+    )
 
-    assert exc_info.value.status_code == 500
-    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
-    assert "Infinity" not in str(exc_info.value.detail)
+    assert response.kcal == expected.kcal
+    assert response.macros == expected.macros
+    assert response.meals_per_day == expected.meals_per_day
+    assert "Infinity" not in response.model_dump_json()
 
 
 def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(

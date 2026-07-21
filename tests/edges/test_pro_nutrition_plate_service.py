@@ -5,12 +5,14 @@ from __future__ import annotations
 import ast
 import asyncio
 from decimal import Decimal
+from numbers import Number
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 import core.bmr as nutrition_bmr
 import core.plate as nutrition_plate
@@ -34,7 +36,24 @@ from app.services.pro_nutrition_plate import (
 from app.services.pro_nutrition_targets import WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
 from core.data_sanitizer import MissingOptionalDependencyError
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+class _ExplodingNumber(Number):
+    """Numeric dependency value that cannot be converted to float."""
+
+    def __float__(self) -> float:
+        raise OverflowError("private numeric overflow")
+
+
+class _ExplodingMeasurement:
+    """Request measurement with a controlled conversion failure."""
+
+    def __init__(self, error: type[Exception]) -> None:
+        self._error = error
+
+    def __float__(self) -> float:
+        raise self._error("private measurement conversion failure")
 
 
 def _request() -> PlateRequest:
@@ -236,6 +255,101 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
     }
     assert kcal == 2250
     assert aligned is True
+
+
+def test_plate_alignment_preserves_generated_macro_when_target_is_invalid() -> None:
+    """An invalid injected target macro cannot escape or replace a safe value."""
+
+    def _response_factory(
+        _request: WHOTargetsRequest,
+        *,
+        allow_backend_fallback: bool = True,
+        targets_builder: pro_nutrition_plate.TargetsBuilder | None = None,
+    ) -> object:
+        assert allow_backend_fallback is True
+        assert callable(targets_builder)
+        return SimpleNamespace(
+            kcal_daily=2100,
+            macros={
+                "protein_g": float("inf"),
+                "fat_g": 70,
+                "carbs_g": 250,
+                "fiber_g": 30,
+            },
+        )
+
+    macros, kcal, aligned = pro_nutrition_plate.align_macros_with_targets(
+        _request(),
+        {
+            "macros": {
+                "protein_g": 90,
+                "fat_g": 55,
+                "carbs_g": 220,
+                "fiber_g": 25,
+            }
+        },
+        targets_builder=lambda _profile: object(),
+        targets_response_factory=_response_factory,
+    )
+
+    assert macros == {
+        "protein_g": 90,
+        "fat_g": 70,
+        "carbs_g": 250,
+        "fiber_g": 25,
+    }
+    assert kcal == 2100
+    assert aligned is True
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        pytest.param("kcal_daily", float("inf"), id="kcal-infinity"),
+        pytest.param("protein_g", None, id="protein-none"),
+        pytest.param("fat_g", "invalid", id="fat-string"),
+        pytest.param("carbs_g", float("nan"), id="carbs-nan"),
+    ],
+)
+def test_fallback_uses_bounded_heuristic_for_invalid_target_values(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    invalid_value: object,
+) -> None:
+    """Malformed canonical target values cannot break the last-resort response."""
+
+    values: dict[str, object] = {
+        "kcal_daily": 2100,
+        "protein_g": 120,
+        "fat_g": 70,
+        "carbs_g": 250,
+    }
+    values[field] = invalid_value
+    target = SimpleNamespace(
+        kcal_daily=values["kcal_daily"],
+        macros=SimpleNamespace(
+            protein_g=values["protein_g"],
+            fat_g=values["fat_g"],
+            carbs_g=values["carbs_g"],
+            fiber_g=30,
+        ),
+        validate_consistency=lambda: True,
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "validate_targets_safety_warnings",
+        lambda _targets: None,
+    )
+
+    response = pro_nutrition_plate.build_fallback_plate(
+        _request(),
+        targets_builder=lambda _profile: target,
+    )
+
+    assert 1200 <= response.kcal <= 5000
+    assert response.macros["protein_g"] > 0
+    assert response.macros["fat_g"] > 0
+    assert response.macros["carbs_g"] >= 0
 
 
 @pytest.mark.parametrize("use_legacy_delegate", [False, True], ids=["canonical", "legacy"])
@@ -832,6 +946,312 @@ def test_generate_plate_response_missing_nh3_is_exact_424(
         ),
         "action": "Install server dependency: python -m pip install nh3",
     }
+
+
+@pytest.mark.parametrize("error", [OverflowError, TypeError, ValueError])
+def test_plate_request_rejects_unconvertible_measurements(
+    error: type[Exception],
+) -> None:
+    """All measurement conversion failures remain deterministic schema errors."""
+
+    payload = _request().model_dump()
+    payload["height_cm"] = _ExplodingMeasurement(error)
+
+    with pytest.raises(ValidationError):
+        PlateRequest.model_validate(payload)
+
+
+def test_numeric_dependency_helpers_reject_conversion_and_shape_failures() -> None:
+    """Low-level validators fail closed on malformed provider objects."""
+
+    with pytest.raises(pro_nutrition_plate._InvalidPlateCalculationOutputError):
+        pro_nutrition_plate._validate_calculation_mapping({"mifflin": _ExplodingNumber()})
+    pro_nutrition_plate._ensure_finite_dependency_output(True)
+    pro_nutrition_plate._ensure_finite_dependency_output("display text")
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._ensure_finite_dependency_output(_ExplodingNumber())
+    pro_nutrition_plate._ensure_finite_numeric_value("12.5")
+    pro_nutrition_plate._ensure_finite_plate_response_output("not a mapping")
+    pro_nutrition_plate._ensure_finite_plate_response_output({"meals": ["not a meal mapping"]})
+
+
+def test_micronutrient_helpers_reject_malformed_provider_values() -> None:
+    """Micronutrient adapters reject non-mappings and conversion overflows."""
+
+    with pytest.raises(pro_nutrition_plate._InvalidPlateMicronutrientOutputError):
+        pro_nutrition_plate._validated_micronutrient_mapping([])
+    with pytest.raises(pro_nutrition_plate._InvalidPlateMicronutrientOutputError):
+        pro_nutrition_plate._validated_micronutrient_mapping({"iron_mg": _ExplodingNumber()})
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._convert_db_nutrients_to_alias_format({"Fe_mg": _ExplodingNumber()})
+
+
+@pytest.mark.parametrize(
+    ("grams", "food", "expected_error"),
+    [
+        pytest.param(
+            _ExplodingNumber(),
+            {"per_g": 100.0, "Fe_mg": 1.0},
+            pro_nutrition_plate._NonFinitePlateDependencyOutputError,
+            id="grams-overflow",
+        ),
+        pytest.param(
+            -1.0,
+            {"per_g": 100.0, "Fe_mg": 1.0},
+            pro_nutrition_plate._InvalidPlateMicronutrientOutputError,
+            id="negative-grams",
+        ),
+        pytest.param(
+            100.0,
+            {"per_g": _ExplodingNumber(), "Fe_mg": 1.0},
+            pro_nutrition_plate._NonFinitePlateDependencyOutputError,
+            id="serving-basis-overflow",
+        ),
+        pytest.param(
+            100.0,
+            {"per_g": 100.0, "Fe_mg": _ExplodingNumber()},
+            pro_nutrition_plate._NonFinitePlateDependencyOutputError,
+            id="nutrient-overflow",
+        ),
+    ],
+)
+def test_meal_micronutrient_aggregation_rejects_invalid_measurements(
+    monkeypatch: pytest.MonkeyPatch,
+    grams: object,
+    food: dict[str, object],
+    expected_error: type[Exception],
+) -> None:
+    """Persisted ingredient measurements are validated before arithmetic."""
+
+    monkeypatch.setattr(pro_nutrition_plate, "get_food", lambda _food_id: food)
+
+    with pytest.raises(expected_error):
+        asyncio.run(
+            pro_nutrition_plate._aggregate_meal_micronutrients(
+                [{"food_id": "food-1", "grams": grams}],
+                meal_title="Meal",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "ingredients_json",
+    [
+        pytest.param('[{"grams": 100}]', id="missing-food-id"),
+        pytest.param('["invalid"]', id="invalid-entry-shape"),
+    ],
+)
+def test_recipe_ingredient_provider_rejects_malformed_entries(
+    monkeypatch: pytest.MonkeyPatch,
+    ingredients_json: str,
+) -> None:
+    """Recipe fallback rejects entries that cannot identify a food and amount."""
+
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "search_recipes",
+        lambda _title, limit: [{"recipe_id": "recipe-1"}],
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "get_recipe",
+        lambda _recipe_id: {"ingredients_json": ingredients_json},
+    )
+
+    with pytest.raises(pro_nutrition_plate._InvalidPlateMicronutrientOutputError):
+        pro_nutrition_plate._get_recipe_ingredients_for_meal("Meal")
+
+
+def test_recipe_and_day_aggregation_handle_missing_optional_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Absent recipe evidence stays empty and malformed meal containers are ignored."""
+
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "search_recipes",
+        lambda _title, limit: [{"recipe_id": "recipe-1"}],
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate.recipe_store,
+        "get_recipe",
+        lambda _recipe_id: {"ingredients_json": None},
+    )
+    assert pro_nutrition_plate._get_recipe_ingredients_for_meal("Meal") == []
+
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "_get_recipe_ingredients_for_meal",
+        lambda _title: [],
+    )
+    day_micros = asyncio.run(
+        pro_nutrition_plate._aggregate_day_micronutrients(
+            [{"title": "Meal", "ingredients": "invalid"}]
+        )
+    )
+    assert day_micros == {}
+
+
+def test_macro_helpers_cover_invalid_and_bounded_high_weight_inputs() -> None:
+    """Macro calculation rejects malformed values and scales oversized profiles."""
+
+    assert pro_nutrition_plate._macros_to_kcal({"protein_g": object()}) is None
+    protein_g, fat_g, carbs_g = pro_nutrition_plate.calculate_heuristic_macros(
+        1200,
+        1000,
+    )
+    assert protein_g >= 0
+    assert fat_g >= 0
+    assert carbs_g >= 1
+    assert protein_g * 4 + fat_g * 9 + carbs_g * 4 <= 1204
+
+
+def test_gain_fallback_uses_default_surplus() -> None:
+    """The documented gain fallback remains bounded without an explicit surplus."""
+
+    request = _request().model_copy(update={"goal": "gain", "surplus_pct": None})
+    response = pro_nutrition_plate.build_fallback_plate(request)
+    assert 1200 <= response.kcal <= 2400
+    assert response.macros["protein_g"] > 0
+
+
+def test_alignment_handles_missing_invalid_and_unexpected_target_outputs() -> None:
+    """Injected target adapters cannot silently corrupt generated macro output."""
+
+    plate_data = {"macros": {"protein_g": 90, "fat_g": 55}}
+
+    def _unexpected_factory(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("private target adapter failure")
+
+    with pytest.raises(RuntimeError, match="private target adapter failure"):
+        pro_nutrition_plate.align_macros_with_targets(
+            _request(),
+            plate_data,
+            targets_builder=lambda _profile: object(),
+            targets_response_factory=_unexpected_factory,
+        )
+
+    def _partial_factory(*_args: object, **_kwargs: object) -> object:
+        return SimpleNamespace(
+            kcal_daily="invalid",
+            macros={"protein_g": 100, "fat_g": None},
+        )
+
+    macros, kcal, aligned = pro_nutrition_plate.align_macros_with_targets(
+        _request(),
+        plate_data,
+        targets_builder=lambda _profile: object(),
+        targets_response_factory=_partial_factory,
+    )
+    assert macros == {"protein_g": 100, "fat_g": 55}
+    assert kcal is None
+    assert aligned is True
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ModuleNotFoundError("No module named 'nh3'", name="nh3"),
+        ImportError("No module named nh3"),
+    ],
+)
+def test_missing_nh3_detection_handles_import_error_variants(error: Exception) -> None:
+    """Both Python import error shapes map to the stable dependency envelope."""
+
+    assert pro_nutrition_plate._is_missing_nh3_error(error) is True
+
+
+def test_generate_plate_response_recovers_from_invalid_response_numbers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid response-bound kcal and fiber use their documented safe values."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _invalid_kcal_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate()
+        payload["kcal"] = "invalid"
+        return payload
+
+    kcal_dependencies = PlateServiceDependencies(
+        make_plate=_invalid_kcal_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "sanitize_plate_data",
+        lambda data: data,
+    )
+    kcal_response = asyncio.run(generate_plate_response(_request(), dependencies=kcal_dependencies))
+    assert kcal_response.kcal >= 1200
+
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "align_macros_with_targets",
+        lambda *_args, **_kwargs: (
+            {
+                "protein_g": 100,
+                "fat_g": 60,
+                "carbs_g": 200,
+                "fiber_g": "invalid",
+            },
+            2000,
+            True,
+        ),
+    )
+    fiber_response = asyncio.run(
+        generate_plate_response(_request(), dependencies=_real_dependencies())
+    )
+    assert fiber_response.macros["fiber_g"] == int(round(pro_nutrition_plate.FIBER_MIN_G))
+
+
+def test_value_error_caused_by_missing_nh3_is_exact_424(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wrapped sanitizer dependency failure retains the stable 424 contract."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _wrapped_missing_nh3(_data: dict[str, Any]) -> dict[str, Any]:
+        try:
+            raise MissingOptionalDependencyError("nh3", "private dependency trace")
+        except MissingOptionalDependencyError as exc:
+            raise ValueError("private validation wrapper") from exc
+
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "sanitize_plate_data",
+        _wrapped_missing_nh3,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=_real_dependencies()))
+    assert exc_info.value.status_code == 424
+    assert exc_info.value.detail["dependency"] == "nh3"
+
+
+def test_legacy_plate_delegates_cover_candidate_compatibility(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy wrappers remain thin while honoring the documented aggregator seam."""
+
+    monkeypatch.setattr(legacy_app, "build_nutrition_targets", None)
+    assert legacy_app._resolve_build_targets_callable() is None
+    fallback = legacy_app.build_fallback_plate(_request(), candidates=[object()])
+    assert fallback.kcal >= 1200
+
+    class _Candidate:
+        @staticmethod
+        async def _aggregate_day_micronutrients(
+            _meals: list[dict[str, Any]],
+        ) -> dict[str, float]:
+            return {"iron_mg": 2.0}
+
+    day_micros = asyncio.run(legacy_app.aggregate_day_micros([], candidates=[_Candidate()]))
+    assert day_micros == {"iron_mg": 2.0}
 
 
 @pytest.mark.parametrize(
