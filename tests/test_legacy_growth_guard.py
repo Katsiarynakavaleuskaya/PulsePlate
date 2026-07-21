@@ -4428,6 +4428,74 @@ def test_legacy_growth_guard_rejects_wrapped_poisoned_object_decorator_factories
 
 
 @pytest.mark.parametrize(
+    "factory_expression",
+    ["Holder().factory", 'getattr(Holder(), "factory")'],
+    ids=["attribute", "getattr"],
+)
+def test_legacy_growth_guard_rejects_poisoned_object_instance_decorator_factory(
+    factory_expression: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/poisoned-instance-decorator")
+        captured = builtins.object
+        builtins.object = original_object
+
+        class Holder:
+            def __init__(self):
+                self.factory = captured
+
+        @{factory_expression}()
+        def poisoned_instance_decorator_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> poisoned_instance_decorator_factory"
+    ]
+
+
+@pytest.mark.parametrize(
+    "safe_rebind",
+    [
+        "Holder.factory = safe_factory",
+        'setattr(Holder, "factory", safe_factory)',
+    ],
+    ids=["attribute-assignment", "setattr"],
+)
+def test_legacy_growth_guard_keeps_safely_rebound_class_decorator_factory(
+    safe_rebind: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/not-a-poisoned-class-decorator")
+        captured = builtins.object
+        builtins.object = original_object
+
+        def safe_factory():
+            return lambda function: function
+
+        class Holder:
+            factory = captured
+
+        {safe_rebind}
+
+        @Holder.factory()
+        def safely_rebound_decorator_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     ("setup", "factory_expression"),
     [
         ("holder = (captured,)\n", "holder[0]"),

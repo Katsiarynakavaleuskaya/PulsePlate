@@ -62,7 +62,9 @@ and the matching pending mapping-status line. This lets the Phase 2 body gate
 validate the truthful pre-closeout state without fabricating an artifact. The
 marker requires both Phase 2 boxes to remain unchecked and forbids mapping
 entries; `check_merge_ready.py` still requires the canonical artifact and
-therefore cannot treat this state as merge-ready.
+therefore cannot treat this state as merge-ready. Once the canonical
+mapping/seal is published, the marker must be removed; a stale marker is a
+Phase 2 body-gate error even when the artifact exists.
 
 Temporary seam tracking:
 

@@ -338,79 +338,179 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         preserve_route_method_conflicts=True,
     )
 
-    static_class_member_references: dict[tuple[str, str], str | None] = {}
-    for class_node in ast.walk(tree):
-        if not isinstance(class_node, ast.ClassDef):
-            continue
-        class_reference = f"{_CLASS_REFERENCE_PREFIX}{class_node.name}:{id(class_node)}>"
-        for statement in class_node.body:
-            member_targets: tuple[ast.expr, ...]
-            if isinstance(statement, ast.Assign):
-                value = statement.value
-                member_targets = tuple(statement.targets)
-            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                value = statement.value
-                member_targets = (statement.target,)
-            else:
-                continue
-            references = route_reference_snapshots.get(id(value), {})
-            strings = route_string_snapshots.get(id(value), static_string_bindings)
-            reference = _static_module_reference(
-                value,
-                module_aliases=references,
-                import_module_aliases=frozenset(),
-                static_string_bindings=strings,
-            )
-            for member_target in member_targets:
-                if isinstance(member_target, ast.Name):
-                    static_class_member_references[(class_reference, member_target.id)] = reference
+    class_nodes_by_reference = {
+        f"{_CLASS_REFERENCE_PREFIX}{class_node.name}:{id(class_node)}>": class_node
+        for class_node in ast.walk(tree)
+        if isinstance(class_node, ast.ClassDef)
+    }
 
-    def captured_factory_reference(node: ast.AST) -> str | None:
-        call_result = route_call_result_snapshots.get(id(node))
-        if call_result is not None and (
-            call_result.reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
-        ):
-            return call_result.reference
+    def static_reference(node: ast.AST) -> str | None:
         references = route_reference_snapshots.get(id(node), {})
         strings = route_string_snapshots.get(id(node), static_string_bindings)
-        reference = _static_module_reference(
+        return _static_module_reference(
             node,
             module_aliases=references,
             import_module_aliases=frozenset(),
             static_string_bindings=strings,
         )
+
+    def class_owner_reference(node: ast.AST) -> tuple[str, bool] | None:
+        reference = static_reference(node)
+        if reference is not None and reference.startswith(_CLASS_REFERENCE_PREFIX):
+            return reference, False
+        if reference is not None and reference.startswith(_INSTANCE_REFERENCE_PREFIX):
+            return (
+                reference.replace(
+                    _INSTANCE_REFERENCE_PREFIX,
+                    _CLASS_REFERENCE_PREFIX,
+                    1,
+                ),
+                True,
+            )
+        if isinstance(node, ast.Call):
+            constructor_reference = static_reference(node.func)
+            if constructor_reference is not None and constructor_reference.startswith(
+                _CLASS_REFERENCE_PREFIX
+            ):
+                return constructor_reference, True
+        return None
+
+    def class_member_binding(
+        class_reference: str,
+        member_name: str,
+        *,
+        instance: bool,
+        before_line: int,
+    ) -> str | None:
+        class_node = class_nodes_by_reference.get(class_reference)
+        if class_node is None:
+            return None
+
+        class_member_found = False
+        class_member_reference: str | None = None
+        instance_member_found = False
+        instance_member_reference: str | None = None
+        for statement in class_node.body:
+            if isinstance(statement, ast.Assign):
+                value = statement.value
+                member_targets = tuple(statement.targets)
+                for member_target in member_targets:
+                    if isinstance(member_target, ast.Name) and member_target.id == member_name:
+                        class_member_found = True
+                        class_member_reference = static_reference(value)
+                continue
+            if isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                if isinstance(statement.target, ast.Name) and statement.target.id == member_name:
+                    class_member_found = True
+                    class_member_reference = static_reference(statement.value)
+                continue
+            if not (
+                instance
+                and isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and statement.name == "__init__"
+            ):
+                continue
+            parameters = (*statement.args.posonlyargs, *statement.args.args)
+            if not parameters:
+                continue
+            instance_name = parameters[0].arg
+            for init_statement in statement.body:
+                if isinstance(init_statement, ast.Assign):
+                    value = init_statement.value
+                    member_targets = tuple(init_statement.targets)
+                elif isinstance(init_statement, ast.AnnAssign) and init_statement.value is not None:
+                    value = init_statement.value
+                    member_targets = (init_statement.target,)
+                else:
+                    continue
+                for member_target in member_targets:
+                    if (
+                        isinstance(member_target, ast.Attribute)
+                        and isinstance(member_target.value, ast.Name)
+                        and member_target.value.id == instance_name
+                        and member_target.attr == member_name
+                    ):
+                        instance_member_found = True
+                        instance_member_reference = static_reference(value)
+
+        member_found = class_member_found
+        member_reference = class_member_reference
+        for statement in tree.body:
+            if getattr(statement, "lineno", 0) >= before_line:
+                break
+            module_assignment_value: ast.AST | None = None
+            module_member_targets: tuple[ast.expr, ...] = ()
+            if isinstance(statement, ast.Assign):
+                module_assignment_value = statement.value
+                module_member_targets = tuple(statement.targets)
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                module_assignment_value = statement.value
+                module_member_targets = (statement.target,)
+            if module_assignment_value is not None:
+                for member_target in module_member_targets:
+                    if (
+                        isinstance(member_target, ast.Attribute)
+                        and member_target.attr == member_name
+                        and class_owner_reference(member_target.value) == (class_reference, False)
+                    ):
+                        member_found = True
+                        member_reference = static_reference(module_assignment_value)
+            if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+                continue
+            call = statement.value
+            if static_reference(call.func) != "builtins.setattr" or len(call.args) < 3:
+                continue
+            member = _literal_value(call.args[1])
+            if member == member_name and class_owner_reference(call.args[0]) == (
+                class_reference,
+                False,
+            ):
+                member_found = True
+                member_reference = static_reference(call.args[2])
+
+        if instance and instance_member_found:
+            return instance_member_reference
+        return member_reference if member_found else None
+
+    def captured_factory_reference(node: ast.AST, *, before_line: int) -> str | None:
+        call_result = route_call_result_snapshots.get(id(node))
+        if call_result is not None and (
+            call_result.reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+        ):
+            return call_result.reference
+        reference = static_reference(node)
         if reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
             return reference
         if isinstance(node, ast.Attribute):
-            owner_reference = _static_module_reference(
-                node.value,
-                module_aliases=references,
-                import_module_aliases=frozenset(),
-                static_string_bindings=strings,
+            owner = class_owner_reference(node.value)
+            if owner is None:
+                return reference
+            class_reference, instance = owner
+            return class_member_binding(
+                class_reference,
+                node.attr,
+                instance=instance,
+                before_line=before_line,
             )
-            return static_class_member_references.get((owner_reference or "", node.attr))
         if not (
             isinstance(node, ast.Call)
             and len(node.args) >= 2
-            and _static_module_reference(
-                node.func,
-                module_aliases=references,
-                import_module_aliases=frozenset(),
-                static_string_bindings=strings,
-            )
-            == "builtins.getattr"
+            and static_reference(node.func) == "builtins.getattr"
         ):
             return reference
         member_name = _literal_value(node.args[1])
         if not isinstance(member_name, str):
             return reference
-        owner_reference = _static_module_reference(
-            node.args[0],
-            module_aliases=references,
-            import_module_aliases=frozenset(),
-            static_string_bindings=strings,
+        owner = class_owner_reference(node.args[0])
+        if owner is None:
+            return reference
+        class_reference, instance = owner
+        return class_member_binding(
+            class_reference,
+            member_name,
+            instance=instance,
+            before_line=before_line,
         )
-        return static_class_member_references.get((owner_reference or "", member_name), reference)
 
     def scoped_route_bindings(
         node: ast.AST,
@@ -564,7 +664,10 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     APP_ROUTE_METHODS,
                 )
                 if action is None:
-                    reference = captured_factory_reference(decorator.func)
+                    reference = captured_factory_reference(
+                        decorator.func,
+                        before_line=decorator.lineno,
+                    )
                     if reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
                         action = "dynamic"
                 if action is not None:

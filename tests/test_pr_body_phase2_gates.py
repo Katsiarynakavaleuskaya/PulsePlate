@@ -193,6 +193,22 @@ def test_phase2_guard_accepts_mirror_only_body_when_mapping_details_not_required
     assert errors == []
 
 
+def test_phase2_guard_rejects_stale_pre_closeout_marker_in_mirror_only_body() -> None:
+    body = VALID_BODY_MIRROR_ONLY.replace(
+        "## Discussion Thread Pass",
+        "<!-- phase2-pre-closeout: final-security-pending -->\n\n## Discussion Thread Pass",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.MIRROR_ONLY,
+    )
+
+    assert errors == [
+        "Pre-closeout marker must be removed after the canonical mapping/seal is published."
+    ]
+
+
 def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> None:
     errors = gates.check_pr_body_phase2_gates(
         body=PRE_CLOSEOUT_BODY,
