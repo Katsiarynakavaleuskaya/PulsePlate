@@ -6304,6 +6304,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         mapping: _StaticMapping,
         key_node: ast.AST,
         site: ast.AST,
+        *,
+        preserve_if_absent: bool,
     ) -> _ResolvedBinding | None:
         removed_key = _literal_value(key_node)
         if removed_key is _UNRESOLVED_LITERAL_VALUE:
@@ -6321,7 +6323,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             remaining.append(entry)
         if not removed:
-            return None
+            return self._copied_mapping_binding(mapping, site) if preserve_if_absent else None
         synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), site)
         return self._variadic_mapping_binding(
             [entry.binding for entry in remaining],
@@ -6424,6 +6426,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             not isinstance(element, ast.Starred) for element in keys.elts
         ):
             entries.extend(_StaticMappingEntry(key=key, binding=value_binding) for key in keys.elts)
+        elif isinstance(keys, ast.Constant) and isinstance(keys.value, (bytes, str)):
+            entries.extend(
+                _StaticMappingEntry(
+                    key=ast.copy_location(ast.Constant(value=key), keys),
+                    binding=value_binding,
+                )
+                for key in keys.value
+            )
         else:
             entries.append(_StaticMappingEntry(key=None, binding=value_binding))
         synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
@@ -6447,6 +6457,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and len(positional_arguments) == 1
             and self._is_proven_nonempty_iterable(positional_arguments[0])
         )
+
+    def _resolve_first_static_iterable_binding(
+        self,
+        node: ast.AST,
+    ) -> _ResolvedBinding | None:
+        if isinstance(node, (ast.List, ast.Tuple)) and node.elts:
+            first = node.elts[0]
+            return None if isinstance(first, ast.Starred) else self._capture_argument_binding(first)
+        if not isinstance(node, ast.Call) or node.keywords:
+            return None
+        positional_arguments, unresolved_sources = _expand_static_positional_arguments(node.args)
+        if (
+            self._resolve_reference(node.func) != "builtins.iter"
+            or unresolved_sources
+            or len(positional_arguments) != 1
+        ):
+            return None
+        return self._resolve_first_static_iterable_binding(positional_arguments[0])
 
     def _is_proven_empty_iterable(self, node: ast.AST) -> bool:
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
@@ -7253,6 +7281,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             else None
         )
+        known_pop_mapping = mutated_mapping
+        known_pop_receiver = mapping_lookup_receiver
+        known_pop_key = positional_arguments[0] if positional_arguments else None
+        known_pop_has_default = len(positional_arguments) >= 2
+        if wrapper_reference == "builtins.dict.pop" and unbound_mapping_receiver is not None:
+            known_pop_mapping = unbound_mapping_receiver.mapping
+            known_pop_receiver = unbound_mapping_receiver
+            known_pop_key = positional_arguments[1]
+            known_pop_has_default = len(positional_arguments) >= 3
         unbound_iterator_method = (
             wrapper_reference.removeprefix("builtins.dict.")
             if (
@@ -7486,7 +7523,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     [self._capture_argument_binding(argument) for argument in positional_arguments]
                 )
             else:
-                projected_result = self._resolve_iterable_element_binding(positional_arguments[0])
+                projected_result = (
+                    self._resolve_first_static_iterable_binding(positional_arguments[0])
+                    if (
+                        wrapper_reference == "builtins.next"
+                        and isinstance(positional_arguments[0], ast.Call)
+                        and self._resolve_reference(positional_arguments[0].func) == "builtins.iter"
+                    )
+                    else None
+                )
+                if projected_result is None:
+                    projected_result = self._resolve_iterable_element_binding(
+                        positional_arguments[0]
+                    )
                 if (
                     wrapper_reference == "builtins.next"
                     and len(positional_arguments) >= 2
@@ -7697,24 +7746,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         rewritten_mappings: set[_StaticMapping] = set()
         if (
-            mutated_mapping is not None
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "pop"
-            and positional_arguments
+            known_pop_mapping is not None
+            and known_pop_key is not None
             and not unresolved_positional_sources
-            and mapping_lookup_receiver is not None
-            and mapping_lookup_receiver.mapping is mutated_mapping
-            and self._mapping_invalidation_counts.get(mutated_mapping, 0)
-            == mapping_lookup_receiver.invalidation_count
+            and known_pop_receiver is not None
+            and known_pop_receiver.mapping is known_pop_mapping
+            and self._mapping_invalidation_counts.get(known_pop_mapping, 0)
+            == known_pop_receiver.invalidation_count
         ):
             replacement = self._mapping_after_known_pop(
-                mutated_mapping,
-                positional_arguments[0],
+                known_pop_mapping,
+                known_pop_key,
                 node,
+                preserve_if_absent=known_pop_has_default,
             )
             if replacement is not None:
-                self._replace_mapping_aliases(mutated_mapping, replacement)
-                rewritten_mappings.add(mutated_mapping)
+                self._replace_mapping_aliases(known_pop_mapping, replacement)
+                rewritten_mappings.add(known_pop_mapping)
         for mapping in set(escaped_mappings):
             if mapping in rewritten_mappings:
                 continue

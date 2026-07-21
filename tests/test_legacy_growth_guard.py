@@ -7308,6 +7308,30 @@ def test_legacy_growth_guard_preserves_registrar_from_dict_pair_iterable() -> No
     ]
 
 
+@pytest.mark.parametrize("keys", ['"abc"', 'b"abc"'])
+def test_legacy_growth_guard_expands_literal_dict_fromkeys_iterables(keys: str) -> None:
+    source = textwrap.dedent(f"""
+        routes = dict.fromkeys({keys}, app.get)
+        route = routes.get("route", safe)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_literal_dict_fromkeys_registrar() -> None:
+    source = textwrap.dedent("""
+        routes = dict.fromkeys("route", app.get)
+        route = routes.get("r", safe)
+        route("/api/v1/fromkeys-literal-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/fromkeys-literal-route"
+    ]
+
+
 def test_legacy_growth_guard_preserves_variadic_mapping_keys_for_missing_lookup() -> None:
     source = textwrap.dedent("""
         def safe(path):
@@ -10328,6 +10352,35 @@ def test_legacy_growth_guard_preserves_other_keys_after_known_key_pop() -> None:
 
 
 @pytest.mark.parametrize(
+    "pop_call",
+    ['routes.pop("route", None)', 'dict.pop(routes, "route", None)'],
+    ids=["bound", "unbound"],
+)
+def test_legacy_growth_guard_preserves_mapping_after_absent_key_pop(pop_call: str) -> None:
+    source = textwrap.dedent(f"""
+        routes = {{"other": app.get}}
+        {pop_call}
+        route = routes.get("route", safe)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_other_registrar_after_absent_key_pop() -> None:
+    source = textwrap.dedent("""
+        routes = {"other": app.get}
+        routes.pop("route", None)
+        route = routes.get("other", safe)
+        route("/api/v1/other-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/other-route"
+    ]
+
+
+@pytest.mark.parametrize(
     ("right", "expected"),
     [
         (
@@ -10521,6 +10574,27 @@ def test_legacy_growth_guard_ignores_unreachable_next_default() -> None:
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_uses_first_static_next_element() -> None:
+    source = textwrap.dedent("""
+        route = next(iter([safe, app.get]))
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_first_static_next_registrar() -> None:
+    source = textwrap.dedent("""
+        route = next(iter([app.get, safe]))
+        route("/api/v1/first-next-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/first-next-route"
+    ]
 
 
 def test_legacy_growth_guard_keeps_reachable_next_default_fail_closed() -> None:
