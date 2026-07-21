@@ -29,6 +29,8 @@ _MAX_PR_COMMIT_PAGES = 100
 _MAX_PR_COMMITS = 10_000
 _MAX_PR_REACTION_PAGES = 100
 _MAX_PR_REACTIONS = 10_000
+_MAX_HEAD_CHECK_SUITE_PAGES = 100
+_MAX_HEAD_CHECK_SUITES = 10_000
 _MAX_REVIEW_THREAD_PAGES = 100
 _MAX_REVIEW_COMMENT_PAGES = 100
 _MAX_REVIEW_THREADS = 10_000
@@ -1256,6 +1258,79 @@ def verify_codex_connector_advisory_reaction_reference(
     )
 
 
+def _require_codex_reaction_after_head_check_suite(
+    *,
+    repository: str,
+    expected_commit: str,
+    reaction_created_at: str,
+    token: str,
+    request_json: ApiRequest,
+) -> None:
+    """Require a server-timestamped Actions suite for the exact head before a reaction."""
+
+    owner, name = _require_repository(repository)
+    reaction_created = datetime.fromisoformat(
+        reaction_created_at[:-1] + "+00:00"
+        if reaction_created_at.endswith("Z")
+        else reaction_created_at
+    )
+    check_suite_count = 0
+    for page in range(1, _MAX_HEAD_CHECK_SUITE_PAGES + 1):
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/commits/{expected_commit}/check-suites"
+            f"?per_page=100&page={page}",
+            token=token,
+        )
+        if not isinstance(response, dict):
+            raise CommitIdentityError("GitHub head check-suites response is malformed")
+        total_count = response.get("total_count")
+        check_suites = response.get("check_suites")
+        if (
+            not isinstance(total_count, int)
+            or isinstance(total_count, bool)
+            or total_count < 0
+            or not isinstance(check_suites, list)
+            or len(check_suites) > 100
+        ):
+            raise CommitIdentityError("GitHub head check-suites response is malformed")
+        check_suite_count += len(check_suites)
+        if check_suite_count > _MAX_HEAD_CHECK_SUITES:
+            raise CommitIdentityError("GitHub head check-suites exceed safety limit")
+        for suite in check_suites:
+            if not isinstance(suite, dict):
+                raise CommitIdentityError("GitHub head check-suite entry is malformed")
+            app = suite.get("app")
+            app_slug = app.get("slug") if isinstance(app, dict) else None
+            head_sha = _require_sha(
+                str(suite.get("head_sha") or ""),
+                field="GitHub head check-suite SHA",
+            )
+            suite_created_at = _require_iso8601(
+                suite.get("created_at"),
+                field="GitHub head check-suite created_at",
+            )
+            suite_created = datetime.fromisoformat(
+                suite_created_at[:-1] + "+00:00"
+                if suite_created_at.endswith("Z")
+                else suite_created_at
+            )
+            if (
+                app_slug == "github-actions"
+                and head_sha == expected_commit
+                and suite_created <= reaction_created
+            ):
+                return
+        if len(check_suites) < 100:
+            break
+    else:
+        raise CommitIdentityError("GitHub head check-suite pagination exceeded page limit")
+
+    raise CommitIdentityError(
+        "Codex connector reaction does not follow a GitHub Actions observation "
+        "of the exact material head"
+    )
+
+
 def verify_codex_review_reference(
     reference: str,
     *,
@@ -1323,6 +1398,13 @@ def verify_codex_review_reference(
             reference,
             repository=repository,
             pr_number=pr_number,
+            token=token,
+            request_json=request_json,
+        )
+        _require_codex_reaction_after_head_check_suite(
+            repository=repository,
+            expected_commit=expected_commit,
+            reaction_created_at=reaction.created_at,
             token=token,
             request_json=request_json,
         )

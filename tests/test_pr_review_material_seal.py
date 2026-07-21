@@ -766,13 +766,35 @@ def _codex_positive_reaction(
 
 def _codex_positive_reaction_request(
     reaction: dict[str, Any] | list[dict[str, Any]],
+    *,
+    check_suites: dict[str, Any] | None = None,
 ) -> Any:
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return reaction if isinstance(reaction, list) else [reaction]
+        if "/check-suites?" in url and check_suites is not None:
+            return check_suites
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     return request_json
+
+
+def _github_actions_check_suites(
+    *,
+    head_sha: str = HEAD_SHA,
+    created_at: str = "2026-07-15T10:59:59Z",
+    app_slug: str = "github-actions",
+) -> dict[str, Any]:
+    return {
+        "total_count": 1,
+        "check_suites": [
+            {
+                "app": {"slug": app_slug},
+                "created_at": created_at,
+                "head_sha": head_sha,
+            }
+        ],
+    }
 
 
 @pytest.mark.parametrize("content", ("+1", "heart", "hooray", "rocket"))
@@ -782,7 +804,10 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
     reaction = _codex_positive_reaction(content=content)
     requested_urls: list[str] = []
-    request = _codex_positive_reaction_request(reaction)
+    request = _codex_positive_reaction_request(
+        reaction,
+        check_suites=_github_actions_check_suites(),
+    )
 
     def request_json(url: str, **_kwargs: Any) -> Any:
         requested_urls.append(url)
@@ -804,7 +829,45 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     )
     assert requested_urls == [
         "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
+        f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA}/check-suites"
+        "?per_page=100&page=1",
     ]
+
+
+@pytest.mark.parametrize(
+    ("suite_head_sha", "suite_created_at", "suite_app_slug"),
+    [
+        (HEAD_SHA, "2026-07-15T11:00:01Z", "github-actions"),
+        (FIX_SHA, "2026-07-15T10:59:59Z", "github-actions"),
+        (HEAD_SHA, "2026-07-15T10:59:59Z", "untrusted-app"),
+    ],
+)
+def test_codex_positive_reaction_rejects_invalid_head_check_suite(
+    suite_head_sha: str,
+    suite_created_at: str,
+    suite_app_slug: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(
+        CommitIdentityError,
+        match="does not follow a GitHub Actions observation of the exact material head",
+    ):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                check_suites=_github_actions_check_suites(
+                    head_sha=suite_head_sha,
+                    created_at=suite_created_at,
+                    app_slug=suite_app_slug,
+                ),
+            ),
+        )
 
 
 def test_codex_positive_reaction_requires_expected_full_material_head() -> None:
