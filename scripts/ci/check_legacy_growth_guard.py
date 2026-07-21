@@ -489,6 +489,15 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     decorator.func,
                     APP_ROUTE_METHODS,
                 )
+                if action is None:
+                    reference = _static_module_reference(
+                        decorator.func,
+                        module_aliases=route_reference_snapshots[id(decorator)],
+                        import_module_aliases=frozenset(),
+                        static_string_bindings=route_string_snapshots[id(decorator)],
+                    )
+                    if reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
+                        action = "dynamic"
                 if action is not None:
                     facts.add(
                         LegacyFact("decorator", action, _first_arg_label(decorator), node.name)

@@ -4347,6 +4347,27 @@ def test_legacy_growth_guard_preserves_poisoned_object_capture_provenance(
     assert legacy_guard.validate_legacy_growth(source) == [expected_error]
 
 
+def test_legacy_growth_guard_rejects_poisoned_object_capture_as_decorator_factory() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/poisoned-decorator-factory")
+        captured = builtins.object
+        builtins.object = original_object
+
+        @captured()
+        def poisoned_decorator_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> poisoned_decorator_factory"
+    ]
+
+
 def test_legacy_growth_guard_keeps_safe_object_capture_after_namespace_poisoning() -> None:
     source = textwrap.dedent("""
         import builtins
@@ -4355,6 +4376,10 @@ def test_legacy_growth_guard_keeps_safe_object_capture_after_namespace_poisoning
         captured = builtins.object
         builtins.object = lambda: app
         captured().get("/api/v1/not-a-route")(handler)
+
+        @captured()
+        def safe_capture_control():
+            return None
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == []
