@@ -34,6 +34,7 @@ from app.services.food_store import get_food
 from app.services.pro_nutrition_targets import (
     TargetsBuilder,
     generate_who_targets_response,
+    validate_targets_safety_warnings,
 )
 from app.utils.feature_flags import _is_truthy
 from core.data_sanitizer import MissingOptionalDependencyError, sanity_filter_plate_data
@@ -234,12 +235,13 @@ def _convert_db_nutrients_to_alias_format(
     alias_nutrients: dict[str, float] = {}
     for db_key, value in db_nutrients.items():
         alias_key = DB_TO_ALIAS_NUTRIENT_MAP.get(db_key)
-        if value is None:
+        if value is None or isinstance(value, bool):
             logger.warning(
-                "Invalid nutrient value for key %s: value is None",
+                "Invalid nutrient value for key %s: type=%s",
                 alias_key or db_key,
+                type(value).__name__,
             )
-            raise ValueError(f"Nutrient value for key '{db_key}' cannot be None")
+            raise ValueError(f"Nutrient value for key '{db_key}' must be numeric")
         try:
             converted_value = float(value)
         except OverflowError:
@@ -278,6 +280,10 @@ async def _aggregate_meal_micronutrients(
             )
             continue
 
+        if isinstance(grams_raw, bool):
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned malformed ingredient grams"
+            )
         try:
             grams = float(grams_raw) if grams_raw is not None else 0.0
         except OverflowError:
@@ -306,6 +312,10 @@ async def _aggregate_meal_micronutrients(
             continue
 
         per_g_raw = food.get("per_g")
+        if isinstance(per_g_raw, bool):
+            raise _InvalidPlateMicronutrientOutputError(
+                "Plate dependency returned malformed serving basis"
+            )
         try:
             per_g = float(per_g_raw) if per_g_raw is not None else default_per_g
         except OverflowError:
@@ -324,9 +334,15 @@ async def _aggregate_meal_micronutrients(
         ratio = grams / per_g
 
         for db_key in db_micro_keys:
-            nutrient_value = food.get(db_key, 0.0)
+            if db_key not in food or food[db_key] is None:
+                continue
+            nutrient_value = food[db_key]
+            if isinstance(nutrient_value, bool):
+                raise _InvalidPlateMicronutrientOutputError(
+                    "Plate dependency returned malformed micronutrient output"
+                )
             try:
-                numeric_value = float(nutrient_value) if nutrient_value is not None else 0.0
+                numeric_value = float(nutrient_value)
             except OverflowError:
                 raise _NonFinitePlateDependencyOutputError(
                     "Plate dependency returned non-finite numeric output"
@@ -521,6 +537,7 @@ def build_fallback_plate(
     if callable(targets_builder):
         try:
             targets = targets_builder(_build_user_profile(req))
+            validate_targets_safety_warnings(targets)
             target_macros = targets.macros
             resolved_target_kcal = int(targets.kcal_daily)
             resolved_protein_g = int(target_macros.protein_g)
@@ -544,7 +561,10 @@ def build_fallback_plate(
                 exc_info=True,
             )
 
-    target_kcal = min(target_kcal, _FALLBACK_KCAL_MAX)
+    target_kcal = max(
+        _SAFE_DEFAULT_KCAL,
+        min(target_kcal, _FALLBACK_KCAL_MAX),
+    )
     if not targets_used:
         used_kcal = protein_g * 4 + fat_g * 9
         carbs_g = max(0, int(round((target_kcal - used_kcal) / 4)))

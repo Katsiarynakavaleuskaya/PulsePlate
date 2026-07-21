@@ -466,6 +466,58 @@ class TestEnhancedPlateAPI:
         assert response.json() == {"detail": WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL}
 
     @pytest.mark.parametrize(
+        ("route", "headers"),
+        [
+            pytest.param(
+                "/api/v1/pro/nutrition/plate",
+                {"X-API-Key": TEST_KEY_PRO},
+                id="canonical",
+            ),
+            pytest.param(
+                "/api/v1/premium/plate",
+                {"X-API-Key": "test_key"},
+                id="legacy",
+            ),
+        ],
+    )
+    def test_plate_fallback_rejects_real_zero_kcal_extreme_profile(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        route: str,
+        headers: dict[str, str],
+    ) -> None:
+        """Schema-accepted extremes cannot bypass canonical target safety."""
+
+        fallback_dependencies = pro_nutrition_plate.PlateServiceDependencies(
+            make_plate=None,
+            calculate_all_bmr=None,
+            calculate_all_tdee=None,
+            build_nutrition_targets=(
+                pro_nutrition_plate.nutrition_recommendations.build_nutrition_targets
+            ),
+            aggregate_day_micronutrients=lambda _meals: {},
+        )
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "_default_dependencies",
+            lambda: fallback_dependencies,
+        )
+        payload = {
+            "sex": "female",
+            "age": 10,
+            "height_cm": 32.2,
+            "weight_kg": 1,
+            "activity": "sedentary",
+            "goal": "maintain",
+        }
+
+        response = client.post(route, json=payload, headers=headers)
+
+        assert response.status_code == 500
+        assert response.json() == {"detail": WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL}
+        assert '"kcal":0' not in response.text
+
+    @pytest.mark.parametrize(
         ("response_field", "non_finite_value"),
         [
             pytest.param("portions", float("nan"), id="portions-nan"),

@@ -13,6 +13,7 @@ from app.http_error_details import ENHANCED_PLATE_GENERATION_FAILED_DETAIL
 from app.schemas.premium_contracts import PlateRequest, PlateResponse, VisualShape
 from app.services import pro_nutrition_plate as plate_service
 from app.services.pro_nutrition_plate import PlateServiceDependencies
+from app.services.pro_nutrition_targets import WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
 from core.targets import FIBER_MIN_G, UserProfile
 
 
@@ -26,6 +27,11 @@ class _TargetMacros:
 class _Targets:
     kcal_daily = 2200
     macros = _TargetMacros()
+    water_ml_daily = 2500
+
+    @staticmethod
+    def validate_consistency() -> bool:
+        return True
 
 
 def _empty_micros(
@@ -191,6 +197,40 @@ def test_api_premium_plate_fallback_handles_target_error(
     }
 
 
+def test_api_premium_plate_fallback_propagates_target_safety_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _broken_safety_validator(_targets: object) -> list[str]:
+        raise RuntimeError("private validator state")
+
+    monkeypatch.setattr(
+        plate_service.nutrition_recommendations,
+        "validate_targets_safety",
+        _broken_safety_validator,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            plate_service.generate_plate_response(
+                PlateRequest(
+                    sex="male",
+                    age=30,
+                    height_cm=180,
+                    weight_kg=80,
+                    activity="moderate",
+                    goal="maintain",
+                ),
+                dependencies=_fallback_dependencies(lambda _profile: _Targets()),
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
+    assert "private validator state" not in str(exc_info.value.detail)
+
+
 def test_api_premium_plate_fallback_handles_unexpected_target_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -235,6 +275,11 @@ def test_api_premium_plate_fallback_discards_partial_non_finite_targets(
     class NonFiniteTargets:
         kcal_daily = 1800
         macros = NonFiniteMacros()
+        water_ml_daily = 2500
+
+        @staticmethod
+        def validate_consistency() -> bool:
+            return True
 
     def non_finite_targets(_profile: UserProfile) -> Any:
         return NonFiniteTargets()
@@ -275,6 +320,11 @@ def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(
     class InvalidFiberTargets:
         kcal_daily = 2400
         macros = InvalidFiberMacros()
+        water_ml_daily = 2500
+
+        @staticmethod
+        def validate_consistency() -> bool:
+            return True
 
     def bad_targets(_profile: UserProfile) -> Any:
         return InvalidFiberTargets()

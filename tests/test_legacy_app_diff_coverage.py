@@ -1264,6 +1264,11 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min() -> None:
     class _Targets:
         kcal_daily = 2000
         macros = _Macros()
+        water_ml_daily = 2500
+
+        @staticmethod
+        def validate_consistency() -> bool:
+            return True
 
     req = legacy_app.PlateRequest(
         sex="male",

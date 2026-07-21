@@ -30,6 +30,11 @@ def test_convert_db_nutrients_invalid_value() -> None:
         plate_service._convert_db_nutrients_to_alias_format({"Fe_mg": object()})
 
 
+def test_convert_db_nutrients_rejects_boolean_measurement() -> None:
+    with pytest.raises(ValueError):
+        plate_service._convert_db_nutrients_to_alias_format({"Fe_mg": True})
+
+
 @pytest.mark.parametrize(
     "non_finite_value",
     [
@@ -149,6 +154,36 @@ def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyPatch) 
     assert collected_calls  # ensured to_thread invoked
 
 
+def test_aggregate_meal_micronutrients_preserves_only_available_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _sparse_food_from_db(
+        _func: object,
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        return {
+            "per_g": 100,
+            "Fe_mg": None,
+            "Ca_mg": 0,
+            "K_mg": 10,
+        }
+
+    monkeypatch.setattr(plate_service.asyncio, "to_thread", _sparse_food_from_db)
+
+    result = asyncio.run(
+        plate_service._aggregate_meal_micronutrients(
+            [{"food_id": "sparse-food", "grams": 50}],
+            meal_title="Sparse meal",
+        )
+    )
+
+    assert result == {
+        "calcium_mg": 0.0,
+        "potassium_mg": 5.0,
+    }
+
+
 @pytest.mark.parametrize(
     ("food", "grams"),
     [
@@ -156,6 +191,9 @@ def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyPatch) 
         pytest.param({"per_g": 0, "Fe_mg": 1.0}, 10, id="zero-serving-basis"),
         pytest.param({"per_g": 100, "Fe_mg": "bad-value"}, 10, id="malformed-micro"),
         pytest.param({"per_g": 100, "Fe_mg": 1.0}, "bad-grams", id="malformed-grams"),
+        pytest.param({"per_g": True, "Fe_mg": 1.0}, 10, id="boolean-serving-basis"),
+        pytest.param({"per_g": 100, "Fe_mg": True}, 10, id="boolean-micro"),
+        pytest.param({"per_g": 100, "Fe_mg": 1.0}, True, id="boolean-grams"),
     ],
 )
 def test_aggregate_meal_micronutrients_rejects_malformed_provider_values(
