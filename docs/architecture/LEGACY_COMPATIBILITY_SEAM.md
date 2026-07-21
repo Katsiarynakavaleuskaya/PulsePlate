@@ -130,6 +130,9 @@ Forbidden in `legacy_app.py`:
 | Admin scheduler access | `app/services/scheduler_access.py` | Lazy typed delegation only; core owns singleton/lifecycle and compatibility exports preserve service-callable identity. |
 | Legacy weekly-menu builder access | `core/menu_engine.py` + `app/services/legacy_premium_weekly_plan.py` | Core owns the builder; the service provides lazy exact-callable access and response normalization; facade exports are compatibility only. |
 | Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
+| PRO targets/gaps API contracts | `app/schemas/premium_contracts.py` | Canonical request/response ownership; legacy imports preserve the existing wire shapes without parallel schema definitions. |
+| PRO targets/gaps runtime | `app/services/pro_nutrition_targets.py` + `core/nutrition_utils.py` | The service owns typed targets/gaps orchestration and stable error envelopes; core owns shared kcal/micronutrient helpers; legacy exports are exact aliases or thin route shims only. |
+| PRO targets/gaps routes | `app/routers/pro_nutrition_contracts.py` + `app/routers/legacy_premium_nutrition.py` | Canonical targets and retained compatibility routes call the service directly; existing tier/API-key, visibility, deprecation, and OpenAPI contracts remain authoritative. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 

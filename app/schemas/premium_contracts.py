@@ -10,9 +10,10 @@ and deprecated premium aliases.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Literal, Optional, Set
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.intervention import NextBestAction
 
@@ -89,6 +90,19 @@ class WHOTargetsRequest(BaseModel):
 
     model_config = {"extra": "forbid"}
 
+    @field_validator("height_cm", "weight_kg", mode="before")
+    @classmethod
+    def _reject_non_finite_measurement(cls, value: Any) -> Any:
+        try:
+            numeric_value = float(value)
+        except OverflowError:
+            return "non-finite measurement"
+        except (TypeError, ValueError):
+            return value
+        if not math.isfinite(numeric_value):
+            return "non-finite measurement"
+        return value
+
     @model_validator(mode="before")
     @classmethod
     def _normalize_values(
@@ -106,6 +120,13 @@ class WHOTargetsRequest(BaseModel):
             elif g in {"gain", "weight_gain"}:
                 values["goal"] = "gain"
         return values
+
+
+class NutrientGapsRequest(BaseModel):
+    """RU: Запрос на анализ дефицитов. EN: Nutrient-gap analysis request."""
+
+    consumed_nutrients: Dict[str, float]
+    user_profile: WHOTargetsRequest
 
 
 class WHOTargetsUiLabels(BaseModel):
@@ -186,3 +207,11 @@ class WHOTargetsResponse(BaseModel):
     warnings: List[Dict[str, str]] = Field(default_factory=list)
     ui_labels: WHOTargetsUiLabels
     next_best_action: NextBestAction | None = None
+
+
+class NutrientGapsResponse(BaseModel):
+    """RU: Ответ анализа дефицитов. EN: Nutrient-gap analysis response."""
+
+    gaps: Dict[str, Dict[str, Any]]
+    food_recommendations: List[str]
+    adherence_score: float

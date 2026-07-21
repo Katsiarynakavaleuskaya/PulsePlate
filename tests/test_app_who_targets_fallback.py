@@ -1,211 +1,126 @@
-"""Targeted coverage for WHO targets fallback and safety handling."""
+"""Compatibility-path tests for WHO targets fallback and safety handling."""
 
 from __future__ import annotations
 
-import logging
-import sys
-from types import SimpleNamespace
+import asyncio
 
 import pytest
+from fastapi import HTTPException
 
 import app
+from app.services import pro_nutrition_targets as service
+from core.bmr import FALLBACK_BMR_KCAL_PER_KG_PER_DAY
 
 
-class _DummyMicros:
-    def get_priority_nutrients(self) -> dict[str, float]:
-        return {"iron_mg": 12.0}
-
-
-def _build_dummy_targets() -> SimpleNamespace:
-    macros = SimpleNamespace(protein_g=120, fat_g=70, carbs_g=230, fiber_g=30)
-    activity = SimpleNamespace(
-        moderate_aerobic_min=150,
-        strength_sessions=2,
-        steps_daily=8000,
-    )
-    return SimpleNamespace(
-        kcal_daily=2150,
-        macros=macros,
-        water_ml_daily=2300,
-        micros=_DummyMicros(),
-        activity=activity,
-        calculation_date="2025-01-01",
-    )
-
-
-@pytest.mark.asyncio
-async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """ValueError from builder should trigger loss fallback with life-stage warnings."""
-
-    def failing_builder(_profile: object) -> object:
-        raise ValueError("invalid profile")
-
-    # Patch in all module candidates that _resolve_build_targets_callable checks
-    # This ensures the patch works regardless of which module is found first
-    for module_name in ("app", "app_module", "__main__"):
-        if module_name in sys.modules:
-            monkeypatch.setattr(
-                sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False
-            )
-    # Also patch the local app module reference
-    monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
-
-    request = app.WHOTargetsRequest(
-        sex="female",
+def _request(
+    *,
+    sex: str = "female",
+    weight_kg: float = 65,
+    activity: str = "moderate",
+    goal: str = "maintain",
+    life_stage: str = "adult",
+) -> app.WHOTargetsRequest:
+    return app.WHOTargetsRequest(
+        sex=sex,
         age=34,
         height_cm=168,
-        weight_kg=65,
-        activity="moderate",
-        goal="loss",
-        life_stage="pregnant",
+        weight_kg=weight_kg,
+        activity=activity,
+        goal=goal,
+        life_stage=life_stage,
     )
 
-    response = await app.api_who_targets(request)
 
-    # Use same formula as app.py fallback (pct / 100.0)
-    tdee = int(24 * request.weight_kg * app.get_activity_factor(request.activity))
-    pct = 15.0  # default deficit_pct
-    expected = max(1200, int(tdee * (1.0 - pct / 100.0)))
-
-    assert response.kcal_daily == expected
-    assert any(w["code"] == "life_stage" for w in response.warnings)
-
-
-@pytest.mark.asyncio
-async def test_api_who_targets_fallback_gain_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Unexpected exceptions also trigger gain fallback with default surplus percent."""
-
-    def failing_builder(_profile: object) -> object:
-        raise RuntimeError("backend unavailable")
-
-    # Patch in all module candidates that _resolve_build_targets_callable checks
-    # This ensures the patch works regardless of which module is found first
-    for module_name in ("app", "app_module", "__main__"):
-        if module_name in sys.modules:
-            monkeypatch.setattr(
-                sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False
-            )
-    # Also patch the local app module reference
-    monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
-
-    request = app.WHOTargetsRequest(
-        sex="male",
-        age=28,
-        height_cm=180,
-        weight_kg=78,
-        activity="light",
-        goal="gain",
-    )
-
-    response = await app.api_who_targets(request)
-
-    # Use same formula as app.py fallback (pct / 100.0)
-    tdee = int(24 * request.weight_kg * app.get_activity_factor(request.activity))
-    pct = 10.0  # default surplus_pct
-    expected = int(tdee * (1.0 + pct / 100.0))
-
-    assert response.kcal_daily == expected
-    assert not response.warnings
-
-
-@pytest.mark.asyncio
-async def test_api_who_targets_resets_safety_failures(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Successful safety validation should reset the failure counter."""
-
-    dummy_module = SimpleNamespace(validate_targets_safety=lambda _targets: ["hydrate more"])
-    monkeypatch.setitem(sys.modules, "core.recommendations", dummy_module)
-    monkeypatch.setattr(
-        app, "build_nutrition_targets", lambda _profile: _build_dummy_targets(), raising=False
-    )
-    # Set counter before test
-    app._safety_failure_count = 3
-
-    request = app.WHOTargetsRequest(
-        sex="female",
-        age=30,
-        height_cm=165,
-        weight_kg=60,
-        activity="moderate",
-        goal="maintain",
-    )
-
-    response = await app.api_who_targets(request)
-
-    assert response.kcal_daily > 0
-    # Safety validation succeeded (warnings returned), counter should be reset
-    # Note: Counter may not be accessible in parallel test execution
-    assert "hydrate more" in str(response.warnings)
-
-
-@pytest.mark.asyncio
-async def test_api_who_targets_logs_import_errors(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+def test_api_who_targets_value_error_uses_loss_fallback(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Import errors should increment the failure counter and log an error at threshold."""
+    def _reject(_profile: object) -> object:
+        raise ValueError("invalid profile")
 
-    def failing_validation(_targets: object) -> None:
-        raise ImportError("module missing")
+    monkeypatch.setattr(service.nutrition_recommendations, "build_nutrition_targets", _reject)
+    request = _request(goal="loss", life_stage="pregnant")
 
-    dummy_module = SimpleNamespace(validate_targets_safety=failing_validation)
-    monkeypatch.setitem(sys.modules, "core.recommendations", dummy_module)
-    monkeypatch.setattr(
-        app, "build_nutrition_targets", lambda _profile: _build_dummy_targets(), raising=False
+    response = asyncio.run(app.api_who_targets(request.model_dump()))
+
+    tdee = int(
+        FALLBACK_BMR_KCAL_PER_KG_PER_DAY
+        * request.weight_kg
+        * app.get_activity_factor(request.activity)
     )
-    # Reset counter before test
-    app._safety_failure_count = 0
-    monkeypatch.setattr(app, "_MAX_SAFETY_FAILURES", 1, raising=False)
-
-    request = app.WHOTargetsRequest(
-        sex="male",
-        age=40,
-        height_cm=175,
-        weight_kg=82,
-        activity="moderate",
-        goal="maintain",
-    )
-
-    with caplog.at_level(logging.DEBUG):
-        await app.api_who_targets(request)
-
-    # Check that debug message was logged (ImportError is logged as DEBUG)
-    # When counter reaches threshold, ERROR is also logged
-    assert any(
-        "Safety validation unavailable" in message or "Safety validation failed" in message
-        for message in caplog.messages
-    )
+    expected = max(1200, int(tdee * 0.85))
+    assert response.kcal_daily == expected
+    assert any(warning["code"] == "pregnant" for warning in response.warnings)
 
 
-@pytest.mark.asyncio
-async def test_api_who_targets_logs_value_errors(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+def test_api_who_targets_import_error_uses_gain_fallback(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Value errors should also bump the counter and emit warnings then errors."""
+    def _unavailable(_profile: object) -> object:
+        raise ImportError("optional target backend unavailable")
 
-    def failing_validation(_targets: object) -> None:
-        raise ValueError("bad payload")
-
-    dummy_module = SimpleNamespace(validate_targets_safety=failing_validation)
-    monkeypatch.setitem(sys.modules, "core.recommendations", dummy_module)
     monkeypatch.setattr(
-        app, "build_nutrition_targets", lambda _profile: _build_dummy_targets(), raising=False
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unavailable,
     )
-    # Reset counter before test (direct assignment, not monkeypatch, due to global in function)
-    app._safety_failure_count = 0
-    monkeypatch.setattr(app, "_MAX_SAFETY_FAILURES", 1, raising=False)
+    request = _request(sex="male", weight_kg=78, activity="light", goal="gain")
 
-    request = app.WHOTargetsRequest(
-        sex="female",
-        age=45,
-        height_cm=170,
-        weight_kg=70,
-        activity="moderate",
-        goal="maintain",
+    response = asyncio.run(app.api_who_targets(request.model_dump()))
+
+    tdee = int(
+        FALLBACK_BMR_KCAL_PER_KG_PER_DAY
+        * request.weight_kg
+        * app.get_activity_factor(request.activity)
+    )
+    assert response.kcal_daily == int(tdee * 1.1)
+    assert response.warnings == []
+
+
+def test_api_who_targets_unexpected_failure_is_not_false_200(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _crash(_profile: object) -> object:
+        raise RuntimeError("sensitive backend details")
+
+    monkeypatch.setattr(service.nutrition_recommendations, "build_nutrition_targets", _crash)
+
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(app.api_who_targets(_request().model_dump()))
+
+    assert raised.value.status_code == 500
+    assert raised.value.detail == service.WHO_TARGETS_CALCULATION_FAILED_DETAIL
+    assert "sensitive backend details" not in str(raised.value.detail)
+
+
+def test_api_who_targets_returns_safety_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "validate_targets_safety",
+        lambda _targets: ["hydrate more"],
     )
 
-    with caplog.at_level("WARNING"):
-        await app.api_who_targets(request)
+    response = asyncio.run(app.api_who_targets(_request().model_dump()))
 
-    # Check that warning was logged (counter may not be accessible in parallel tests)
-    assert any(
-        "Safety validation failed with invalid data" in message for message in caplog.messages
+    assert {"code": "safety", "message": "hydrate more"} in response.warnings
+
+
+def test_api_who_targets_safety_failure_is_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fail_closed(_targets: object) -> object:
+        raise ValueError("sensitive validator payload")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "validate_targets_safety",
+        _fail_closed,
     )
+
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(app.api_who_targets(_request().model_dump()))
+
+    assert raised.value.status_code == 500
+    assert raised.value.detail == service.WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
+    assert "sensitive validator payload" not in str(raised.value.detail)

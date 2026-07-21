@@ -15,6 +15,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
+from app.services.pro_nutrition_targets import generate_who_targets_response
 
 router = APIRouter(
     prefix="/api/v1/pro/nutrition",
@@ -30,10 +31,7 @@ router = APIRouter(
 )
 async def pro_nutrition_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Canonical targets endpoint for PRO tier."""
-    from legacy_app import _generate_who_targets_response
-
-    resp: WHOTargetsResponse = _generate_who_targets_response(req)
-    return resp
+    return generate_who_targets_response(req)
 
 
 @router.post(
