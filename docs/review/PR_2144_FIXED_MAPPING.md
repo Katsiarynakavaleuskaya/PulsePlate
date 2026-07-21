@@ -444,6 +444,11 @@ Commit: 0897503b3c3ff787863df765279dc800c171f892
 Evidence: scripts/orchestration/experiment_runner_dispatch.py:1823-1831,1853-1859; tests/test_experiment_runner_dispatch.py:2327-2382
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3618373512 -> 0897503b3c3ff787863df765279dc800c171f892
 
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/creative_code_patch_generation.py:2350-2366 requires `candidate.patch` for every `capability_mismatch`; tests/test_creative_code_patch_generation.py:1055-1134 finalizes the same marker for both zero- and one-attempt capability results.
+Reason: A post-preflight capability signal is still a pre-oracle terminal result, not a normal runner-output result; the canonical finalizer and focused regression already preserve this contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3619965348
+
 Disposition: FIXED
 Commit: 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 Evidence: The review finding set was addressed by the trusted-dispatch hardening sequence; commit 67a047d4 closes final evidence gaps and tests pass.
