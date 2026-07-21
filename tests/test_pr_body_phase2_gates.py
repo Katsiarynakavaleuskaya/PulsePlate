@@ -1869,6 +1869,59 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert "canonical mapping artifact passed" in result.stdout
 
 
+def test_phase2_rejects_stale_pre_closeout_marker_without_mirror(
+    tmp_path: Path,
+) -> None:
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": "<!-- phase2-pre-closeout: final-security-pending -->",
+        }
+    }
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = f"""# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture artifact only checks stale pre-closeout marker behavior.
+
+## Lane Start Provenance
+Packet: {LANE_START_PACKET_PATH}
+Starter: scripts/orchestration/start_pr_lane.sh
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
+
+    assert result.returncode == 1
+    assert "Pre-closeout marker must be removed" in result.stdout
+
+
 def test_phase2_rejects_invalid_present_body_mirror_when_artifact_is_valid(
     tmp_path: Path,
 ) -> None:
