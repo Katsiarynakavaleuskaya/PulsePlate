@@ -390,6 +390,31 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         class_member_reference: str | None = None
         instance_member_found = False
         instance_member_reference: str | None = None
+
+        def may_exit_constructor(statement: ast.stmt) -> bool:
+            def has_outer_exit(node: ast.AST, *, nested_scope: bool = False) -> bool:
+                if nested_scope:
+                    return False
+                if isinstance(node, (ast.Return, ast.Raise)):
+                    return True
+                return any(
+                    has_outer_exit(
+                        child,
+                        nested_scope=isinstance(
+                            child,
+                            (
+                                ast.ClassDef,
+                                ast.FunctionDef,
+                                ast.AsyncFunctionDef,
+                                ast.Lambda,
+                            ),
+                        ),
+                    )
+                    for child in ast.iter_child_nodes(node)
+                )
+
+            return has_outer_exit(statement)
+
         for statement in class_node.body:
             if isinstance(statement, ast.Assign):
                 value = statement.value
@@ -415,6 +440,8 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 continue
             instance_name = parameters[0].arg
             for init_statement in statement.body:
+                if may_exit_constructor(init_statement):
+                    break
                 if isinstance(init_statement, ast.Assign):
                     value = init_statement.value
                     member_targets = tuple(init_statement.targets)

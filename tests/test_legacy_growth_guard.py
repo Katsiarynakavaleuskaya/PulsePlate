@@ -4459,6 +4459,37 @@ def test_legacy_growth_guard_rejects_poisoned_object_instance_decorator_factory(
     ]
 
 
+def test_legacy_growth_guard_does_not_trust_unreachable_instance_rebind() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/poisoned-unreachable-instance")
+        captured = builtins.object
+        builtins.object = original_object
+
+        def safe_factory():
+            return lambda function: function
+
+        class Holder:
+            factory = captured
+
+            def __init__(self):
+                return
+                self.factory = safe_factory
+
+        @Holder().factory()
+        def poisoned_unreachable_instance_rebind():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> poisoned_unreachable_instance_rebind"
+    ]
+
+
 @pytest.mark.parametrize(
     "safe_rebind",
     [
