@@ -60,6 +60,11 @@ Evidence: app/services/pro_nutrition_targets.py resolves optional gaps backends 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#discussion_r3611472625 -> e43c3ed4bebce581a9d2c8de5d3789a90d967117
 
 Disposition: NOT-A-BUG
+Evidence: The Review Material Seal below binds frozen material head 02e7dd745ad86f5b607d5cf063c51439bad0edd1, digest sha256:ba8fc2ff67f7ba2b3ce83a1e341267629a8b9836c89d38abb593daba4aa3883e, and final Codex Security scan 2c7c3917-e017-477e-9f39-3c5176de6a94.
+Reason: The comment correctly identified an interim stale seal; the canonical one-closeout cycle replaces it atomically on the frozen final material, so no independent product defect remains.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#discussion_r3619311531
+
+Disposition: NOT-A-BUG
 Evidence: Current-head CI lint, security, OpenAPI, test-pr, coverage-pr, and diff-coverage checks pass; CodeRabbit reports no recent actionable comments.
 Reason: The remaining docstring-coverage item is an external advisory warning, not a repository gate or production defect, and broad docstring churn would violate the narrow legacy-removal scope.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#issuecomment-5017448564
@@ -70,12 +75,22 @@ Reason: The report shows one partial branch rather than a missed changed line an
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#issuecomment-5017622531
 
 Disposition: NOT-A-BUG
+Evidence: Its only inline actionable is mapped separately at discussion_r3611393205 with post-comment FIXED commit 8c7ffc6e3c4fa6aa3daf35fd9731e226c7d74271 and exact canonical PRO missing-key 401 plus invalid-key 403 coverage.
+Reason: The Sourcery review shell is a pointer to that single child finding and contains no independent unresolved defect once the child disposition is recorded.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#pullrequestreview-4731511693
+
+Disposition: NOT-A-BUG
 Evidence: tests/test_critical_blocks_targets_gaps.py rejects non-finite and overflowing measurements before core execution; existing NutrientGapsRequest extra-ignore compatibility remains unchanged.
 Reason: The aggregate CodeRabbit review contains two summary-only nitpicks that would change the preserved wire contract or weaken overflow handling; all actionable inline child threads are mapped separately.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#pullrequestreview-4731577217
 
+Disposition: NOT-A-BUG
+Evidence: The review's single inline stale-seal finding is dispositioned separately at discussion_r3619311531, and the same exact-head review object is embedded below as the completed Codex review receipt.
+Reason: The review shell aggregates its child comment and contains no additional standalone actionable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#pullrequestreview-4741079443
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:c12f83dfb1406c3c9c837f16eb71d68e674283a09aba064270173c56f9953ae4","material_head_sha":"ae9c655ff23de63f607ca3604f83ef949854d005","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T11:06:19Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#issuecomment-5021541792","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:7142928d385bfe72587d93599debb406630ca3c40a6de3be60369ab341ccb2ea","findings_sha256":"sha256:5d2d10c3f92ce849a76d6071e84cca020408eacdaa7bd48d73df3073c9cb7eaf","work_ledger_sha256":"sha256:d98a66e0c1a3f3359d25f6e332101a1c5c7c2459afc77578da4f2317a03a4407"},"authority":"human_asserted_content_receipt","base_revision":"b9d637c2f89cea1faae9fbd19ed3489ea9bf5a1b","coverage_completeness":"complete","findings_count":0,"head_revision":"ae9c655ff23de63f607ca3604f83ef949854d005","manifest_sha256":"sha256:665f6810df2186dbcaaee7cb73b0d05f7de1eab177d8b1adceeee36182707358","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"16932c4f-c8b2-4f70-92a4-6df6ee66b9df","snapshot_digest":"codex-security-snapshot/v1:sha256:c12f83dfb1406c3c9c837f16eb71d68e674283a09aba064270173c56f9953ae4"},"material":{"base_ref_oid":"b9d637c2f89cea1faae9fbd19ed3489ea9bf5a1b","digest":"sha256:c12f83dfb1406c3c9c837f16eb71d68e674283a09aba064270173c56f9953ae4","material_head_sha":"ae9c655ff23de63f607ca3604f83ef949854d005","merge_base_sha":"b9d637c2f89cea1faae9fbd19ed3489ea9bf5a1b","policy_version":"pulseplate.material-classification/v1"},"pr_number":2163,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"review_commit_ref":"02e7dd745ad86f5b607d5cf063c51439bad0edd1","review_commit_ref_kind":"repository_commit","review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2163#pullrequestreview-4741079443","reviewed_material_digest":"sha256:ba8fc2ff67f7ba2b3ce83a1e341267629a8b9836c89d38abb593daba4aa3883e","status":"completed"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:3463cd42bcce979d621b581434f978715e16be170dffea311434f6429e08dcf3","findings_sha256":"sha256:188c78d29340aa9e61ac84ce38252f5ef96d3a735d9ee876bef774bfa7e4ae97","work_ledger_sha256":"sha256:3d5ee054915c14fdb9b2874a55ca8ba3577f5bd585e42d56a0959cabd82042b5"},"authority":"human_asserted_content_receipt","base_revision":"24d8c3885f6d282ebfd31c6229d6b0644027333b","coverage_completeness":"complete","findings_count":0,"head_revision":"02e7dd745ad86f5b607d5cf063c51439bad0edd1","manifest_sha256":"sha256:b394664eeb0ffa46d50ecdbd15bd4254ec95fa9f31577337ea367f2e81063140","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"2c7c3917-e017-477e-9f39-3c5176de6a94","snapshot_digest":"codex-security-snapshot/v1:sha256:e4834d2a4441522feb6b40206bc881f5487a69d5434e4b5b94779fdf490a085e"},"material":{"base_ref_oid":"24d8c3885f6d282ebfd31c6229d6b0644027333b","digest":"sha256:ba8fc2ff67f7ba2b3ce83a1e341267629a8b9836c89d38abb593daba4aa3883e","material_head_sha":"02e7dd745ad86f5b607d5cf063c51439bad0edd1","merge_base_sha":"24d8c3885f6d282ebfd31c6229d6b0644027333b","policy_version":"pulseplate.material-classification/v1"},"pr_number":2163,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
