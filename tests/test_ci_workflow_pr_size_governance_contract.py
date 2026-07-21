@@ -10,6 +10,7 @@ import re
 from typing import cast
 
 import yaml
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import ci_risk_profile
 
@@ -1340,10 +1341,26 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
 def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
     """Guard every active CodeQL action ref against pin and location drift."""
 
+    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
+        if isinstance(node, MappingNode):
+            for key_node, value_node in node.value:
+                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
+                    if isinstance(value_node, ScalarNode):
+                        yield key_node, value_node
+                yield from iter_uses_source_mappings(value_node)
+        elif isinstance(node, SequenceNode):
+            for value_node in node.value:
+                yield from iter_uses_source_mappings(value_node)
+
     expected_uses_by_component = {
         "init": f"github/codeql-action/init@{CODEQL_ACTION_V4_37_1_SHA}",
         "analyze": f"github/codeql-action/analyze@{CODEQL_ACTION_V4_37_1_SHA}",
         "upload-sarif": f"github/codeql-action/upload-sarif@{CODEQL_ACTION_V4_37_1_SHA}",
+    }
+    expected_comment_counts_by_component = {
+        "init": 1,
+        "analyze": 1,
+        "upload-sarif": 3,
     }
     expected_line_counts = {
         BUILD_WORKFLOW_PATH: {
@@ -1358,19 +1375,50 @@ def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
         },
     }
     observed_contracts: list[tuple[str, str, object, str]] = []
+    observed_comment_counts_by_component = {
+        component: 0 for component in expected_comment_counts_by_component
+    }
 
     for workflow_path in _active_workflow_paths():
         workflow_text = workflow_path.read_text(encoding="utf-8")
-        workflow_lines = [line.strip() for line in workflow_text.splitlines()]
-        for expected_line, expected_count in expected_line_counts.get(workflow_path, {}).items():
-            assert workflow_lines.count(expected_line) == expected_count
+        workflow_lines = workflow_text.splitlines()
+        expected_source_line_counts = expected_line_counts.get(workflow_path, {})
+        observed_source_line_counts = {
+            expected_line: 0 for expected_line in expected_source_line_counts
+        }
+        workflow_document = yaml.compose(workflow_text)
+        assert isinstance(workflow_document, Node)
+        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+            uses = uses_value_node.value
+            normalized_uses = uses.casefold()
+            if not normalized_uses.startswith("github/codeql-action/"):
+                continue
+
+            assert uses.startswith("github/codeql-action/")
+            component = normalized_uses.removeprefix("github/codeql-action/").split(
+                "@", maxsplit=1
+            )[0]
+            assert component in expected_uses_by_component
+            observed_comment_counts_by_component[component] += 1
+            expected_line = f"uses: {uses} # v4.37.1"
+            assert workflow_lines[uses_key_node.start_mark.line].strip() == expected_line
+            if expected_line in observed_source_line_counts:
+                observed_source_line_counts[expected_line] += 1
+
+        assert observed_source_line_counts == expected_source_line_counts
 
         for job_id, step in _iter_job_steps(workflow_path):
             uses = step.get("uses")
-            if not isinstance(uses, str) or not uses.startswith("github/codeql-action/"):
+            if not isinstance(uses, str):
+                continue
+            normalized_uses = uses.casefold()
+            if not normalized_uses.startswith("github/codeql-action/"):
                 continue
 
-            component = uses.removeprefix("github/codeql-action/").split("@", maxsplit=1)[0]
+            assert uses.startswith("github/codeql-action/")
+            component = normalized_uses.removeprefix("github/codeql-action/").split(
+                "@", maxsplit=1
+            )[0]
             assert component in expected_uses_by_component
             assert uses == expected_uses_by_component[component]
             observed_contracts.append(
@@ -1382,6 +1430,7 @@ def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
                 )
             )
 
+    assert observed_comment_counts_by_component == expected_comment_counts_by_component
     assert observed_contracts == [
         (
             ".github/workflows/build.yml",
