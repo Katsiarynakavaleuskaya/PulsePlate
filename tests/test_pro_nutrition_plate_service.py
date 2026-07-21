@@ -465,6 +465,87 @@ def test_generate_plate_response_rejects_non_finite_response_bound_output(
     assert response_field not in str(exc_info.value.detail)
 
 
+@pytest.mark.parametrize("response_field", ["portions", "layout"])
+@pytest.mark.parametrize(
+    "non_finite_token",
+    [
+        pytest.param("NaN", id="nan"),
+        pytest.param("Infinity", id="infinity"),
+        pytest.param("-Infinity", id="negative-infinity"),
+        pytest.param("+nAn", id="case-and-sign-nan"),
+        pytest.param(" -InFiNiTy ", id="whitespace-case-and-sign-infinity"),
+    ],
+)
+def test_generate_plate_response_rejects_non_finite_string_response_bound_output(
+    monkeypatch: pytest.MonkeyPatch,
+    response_field: str,
+    non_finite_token: str,
+) -> None:
+    """String-form non-finite dependency values fail closed before serialization."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _non_finite_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate()
+        if response_field == "portions":
+            payload["portions"]["protein_palm"] = non_finite_token
+        else:
+            payload["layout"][0]["fraction"] = non_finite_token
+        return payload
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_non_finite_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            generate_plate_response(
+                _request(),
+                dependencies=dependencies,
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    detail = str(exc_info.value.detail).casefold()
+    assert "nan" not in detail
+    assert "infinity" not in detail
+
+
+def test_generate_plate_response_allows_ordinary_textual_layout_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ordinary labels containing token-like words remain valid text."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _ordinary_text_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate()
+        payload["layout"][0]["label"] = "Infinity bowl"
+        return payload
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_ordinary_text_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    response = asyncio.run(
+        generate_plate_response(
+            _request(),
+            dependencies=dependencies,
+        )
+    )
+
+    assert response.layout[0].label == "Infinity bowl"
+
+
 @pytest.mark.parametrize(
     "non_finite_value",
     [float("nan"), float("inf"), float("-inf")],

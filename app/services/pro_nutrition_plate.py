@@ -50,6 +50,19 @@ logger = logging.getLogger(__name__)
 PLATE_FEATURE_UNAVAILABLE_DETAIL = "Enhanced plate feature not available"
 _FALLBACK_KCAL_MAX = 2400
 _SAFE_DEFAULT_KCAL = 1200
+_NON_FINITE_STRING_TOKENS = frozenset(
+    {
+        "nan",
+        "+nan",
+        "-nan",
+        "inf",
+        "+inf",
+        "-inf",
+        "infinity",
+        "+infinity",
+        "-infinity",
+    }
+)
 
 
 class _NonFinitePlateDependencyOutputError(RuntimeError):
@@ -60,6 +73,12 @@ def _ensure_finite_dependency_output(value: Any) -> None:
     """Reject non-finite numbers recursively without exposing dependency data."""
 
     if isinstance(value, bool):
+        return
+    if isinstance(value, str):
+        if value.strip().casefold() in _NON_FINITE_STRING_TOKENS:
+            raise _NonFinitePlateDependencyOutputError(
+                "Plate dependency returned non-finite numeric output"
+            )
         return
     if isinstance(value, Number):
         try:
