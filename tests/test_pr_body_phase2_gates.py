@@ -52,6 +52,26 @@ Packet: {packet_path}
 Starter: scripts/orchestration/start_pr_lane.sh
 """.format(packet_path=LANE_START_PACKET_PATH)
 
+PRE_CLOSEOUT_BODY = """## Summary
+Phase2 PR body gate pre-closeout state.
+
+<!-- phase2-pre-closeout: final-security-pending -->
+
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- Pending final clean scan and the single mapping/closeout commit.
+
+## Experiment Runner Evidence
+Not applicable: fixture only exercises the non-mergeable pre-closeout state.
+
+## Lane Start Provenance
+Packet: {packet_path}
+Starter: scripts/orchestration/start_pr_lane.sh
+""".format(packet_path=LANE_START_PACKET_PATH)
+
 
 def _valid_experiment_result_payload(*, status: str = "accepted") -> dict[str, object]:
     return {
@@ -171,6 +191,108 @@ def test_phase2_guard_accepts_mirror_only_body_when_mapping_details_not_required
         mode=gates.BodyValidationMode.MIRROR_ONLY,
     )
     assert errors == []
+
+
+def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> None:
+    errors = gates.check_pr_body_phase2_gates(
+        body=PRE_CLOSEOUT_BODY,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert errors == []
+
+
+def test_phase2_guard_rejects_checked_pre_closeout_boxes() -> None:
+    body = PRE_CLOSEOUT_BODY.replace("- [ ]", "- [x]")
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert any("must remain unchecked" in error for error in errors)
+
+
+def test_phase2_guard_rejects_pre_closeout_without_pending_status() -> None:
+    body = PRE_CLOSEOUT_BODY.replace(
+        "- Pending final clean scan and the single mapping/closeout commit.\n",
+        "",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert any("must declare the exact pending" in error for error in errors)
+
+
+def test_phase2_guard_rejects_mapping_entries_during_pre_closeout() -> None:
+    body = PRE_CLOSEOUT_BODY.replace(
+        "- Pending final clean scan and the single mapping/closeout commit.",
+        "- https://github.com/org/repo/pull/719#issuecomment-123 -> 28069fd4",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert any("must not contain completed mapping entries" in error for error in errors)
+
+
+def test_phase2_cli_accepts_explicit_pre_closeout_without_mapping_artifact(
+    tmp_path: Path,
+) -> None:
+    event = {"pull_request": {"number": 998, "body": PRE_CLOSEOUT_BODY}}
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    _write_lane_start_packet(repo_root)
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci/check_pr_body_phase2_gates.py",
+                "--event-path",
+                str(tmp_path / "event.json"),
+                "--commit-range",
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            env=env,
+        )
+    finally:
+        _cleanup_lane_start_packet(repo_root)
+
+    assert result.returncode == 0
+    assert "Pre-closeout: canonical mapping artifact is intentionally pending" in result.stdout
+    assert "explicit non-mergeable pre-closeout state passed" in result.stdout
+
+
+def test_phase2_cli_rejects_missing_mapping_without_pre_closeout(tmp_path: Path) -> None:
+    event = {"pull_request": {"number": 998, "body": VALID_BODY_WITH_MAPPING}}
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    assert result.returncode == 1
+    assert "Missing canonical review mapping artifact" in result.stdout
 
 
 def test_select_body_validation_mode_prefers_mirror_when_artifact_exists() -> None:

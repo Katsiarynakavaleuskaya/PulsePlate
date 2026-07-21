@@ -56,6 +56,14 @@ Canonical runtime behavior is artifact-first when `pr_number` is available.
 PR-body parsing is a temporary compatibility seam for legacy local/body-only
 checks. It is not authority and must not cause agents to copy mapping blocks.
 
+Before the single final-material scan, an open PR may declare the exact
+non-mergeable marker `<!-- phase2-pre-closeout: final-security-pending -->`
+and the matching pending mapping-status line. This lets the Phase 2 body gate
+validate the truthful pre-closeout state without fabricating an artifact. The
+marker requires both Phase 2 boxes to remain unchecked and forbids mapping
+entries; `check_merge_ready.py` still requires the canonical artifact and
+therefore cannot treat this state as merge-ready.
+
 Temporary seam tracking:
 
 - ADR: `docs/architecture/ADR_FIXED_MAPPING_PR_BODY_FALLBACK_SEAM_2026-03-07.md`
