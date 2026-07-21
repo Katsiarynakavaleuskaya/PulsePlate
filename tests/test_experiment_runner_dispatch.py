@@ -2324,6 +2324,63 @@ def test_container_runner_pins_packet_and_patch_before_execution(
     assert result["candidate_patch_fingerprint"] == packet["candidate_patch_fingerprint"]
 
 
+def test_container_runner_legacy_patch_skips_fingerprint_read(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_require_candidate_checkout",
+        lambda _packet, *, root: None,
+    )
+    monkeypatch.setattr(dispatch, "MAX_CANDIDATE_PATCH_BYTES", 8)
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet = experiment_contract.validate_experiment_packet(packet)
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch_bytes = b"legacy patch without a fingerprint\n"
+    candidate_patch.write_bytes(candidate_patch_bytes)
+    captured: dict[str, bytes] = {}
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_CAPABILITY_EXIT_CODE,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_read_candidate_patch_for_fingerprint",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("legacy patch must not use fingerprint-only reading")
+        ),
+    )
+
+    def capture_container_argv(**kwargs: Any) -> list[str]:
+        captured["candidate_patch"] = (kwargs["input_dir"] / "candidate.patch").read_bytes()
+        return ["/usr/local/bin/runtime", "run"]
+
+    monkeypatch.setattr(dispatch, "_container_run_argv", capture_container_argv)
+    monkeypatch.setattr(
+        dispatch,
+        "_collect_result_volume",
+        lambda **_kwargs: pytest.fail("capability signal must not collect a result artifact"),
+    )
+
+    result = dispatch._invoke_container_runner(
+        probe=_probe("apple-container", strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=candidate_patch,
+        output_name="result.json",
+        expected_packet=packet,
+    )
+
+    assert captured["candidate_patch"] == candidate_patch_bytes
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "capability_mismatch"
+
+
 @pytest.mark.parametrize("returncode", [1, 4])
 def test_container_runner_rejects_non_owned_nonzero_exit(
     monkeypatch: pytest.MonkeyPatch,

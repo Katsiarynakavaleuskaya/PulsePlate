@@ -1822,12 +1822,13 @@ def _invoke_container_runner(
     _require_candidate_checkout(packet, root=REPO_ROOT)
     candidate_patch_text: str | None = None
     if candidate_patch is not None:
-        candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
         expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
-        if expected_patch_fingerprint is not None and expected_patch_fingerprint != (
-            fingerprint_payload({"candidate_patch": candidate_patch_text})
-        ):
-            raise DispatchError("result_validation_failed")
+        if expected_patch_fingerprint is not None:
+            candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
+            if expected_patch_fingerprint != fingerprint_payload(
+                {"candidate_patch": candidate_patch_text}
+            ):
+                raise DispatchError("result_validation_failed")
     candidate_checkout_proof = _candidate_checkout_proof(
         packet,
         root=REPO_ROOT,
@@ -1854,6 +1855,8 @@ def _invoke_container_runner(
                 candidate_patch_text,
                 encoding="utf-8",
             )
+        elif candidate_patch is not None:
+            shutil.copyfile(candidate_patch, input_dir / "candidate.patch")
         command = [
             CONTAINER_PYTHON,
             f"{CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
