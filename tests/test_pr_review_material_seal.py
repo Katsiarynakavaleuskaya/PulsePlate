@@ -1753,6 +1753,51 @@ def _build_scan_bundle(root: Path) -> Path:
     return root / "scan-manifest.json"
 
 
+def _add_manifest_artifact(manifest_path: Path, *, path: str, media_type: str, raw: bytes) -> None:
+    artifact_path = manifest_path.parent / path
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_bytes(raw)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"].append(
+        {
+            "mediaType": media_type,
+            "path": path,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+        }
+    )
+    _write_json(manifest_path, manifest)
+
+
+def _build_v011_scan_bundle(root: Path) -> Path:
+    manifest_path = _build_scan_bundle(root)
+    hardening_path = root / "hardening" / "hardening.md"
+    hardening_path.parent.mkdir(parents=True, exist_ok=True)
+    hardening_path.write_bytes(b"# Hardening\n")
+    for path, raw in (
+        (
+            "artifacts/02_discovery/finding_discovery_report.md",
+            b"# Finding discovery\n",
+        ),
+        (
+            "artifacts/03_coverage/repository_coverage_ledger.md",
+            b"# Coverage ledger\n",
+        ),
+        (
+            "artifacts/05_findings/attack_path_analysis_report.md",
+            b"# Attack path analysis\n",
+        ),
+        ("artifacts/05_findings/validation_summary.md", b"# Validation summary\n"),
+    ):
+        _add_manifest_artifact(
+            manifest_path, path=path, media_type="application/octet-stream", raw=raw
+        )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["hardening"] = {"portfolioPath": "hardening/hardening.md"}
+    manifest["scan"]["target"]["remote"] = "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+    _write_json(manifest_path, manifest)
+    return manifest_path
+
+
 def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path: Path) -> None:
     manifest_path = _build_scan_bundle(tmp_path / "scan")
 
@@ -1763,6 +1808,294 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     assert receipt["authority"] == RECEIPT_AUTHORITY
     assert receipt["findings_count"] == 0
     assert str(tmp_path) not in json.dumps(receipt)
+
+
+def test_scan_receipt_accepts_v011_remote_hardening_and_supplemental_artifacts(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert set(receipt) == {
+        "artifacts",
+        "authority",
+        "base_revision",
+        "coverage_completeness",
+        "findings_count",
+        "head_revision",
+        "manifest_sha256",
+        "producer",
+        "scan_id",
+        "snapshot_digest",
+    }
+    assert receipt["producer"]["version"] == "0.1.11"
+    assert set(receipt["artifacts"]) == {
+        "coverage_sha256",
+        "findings_sha256",
+        "work_ledger_sha256",
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error"),
+    [
+        (
+            lambda manifest: manifest["scan"]["target"].update(
+                remote="https://github.com/example/other"
+            ),
+            "remote",
+        ),
+        (lambda manifest: manifest["scan"].update(unexpected=True), "scan keys mismatch"),
+        (
+            lambda manifest: manifest["scan"]["target"].update(unexpected=True),
+            "scan.target keys mismatch",
+        ),
+        (
+            lambda manifest: manifest["scan"].update(hardening={"portfolioPath": "wrong.md"}),
+            "hardening",
+        ),
+        (lambda manifest: manifest["scan"].update(hardening="wrong"), "must be an object"),
+        (lambda manifest: manifest["scan"].update(hardening=[]), "must be an object"),
+        (lambda manifest: manifest["scan"].update(hardening={}), "scan.hardening keys mismatch"),
+        (
+            lambda manifest: manifest["scan"].update(
+                hardening={"portfolioPath": "hardening/hardening.md", "unexpected": True}
+            ),
+            "scan.hardening keys mismatch",
+        ),
+    ],
+)
+def test_scan_receipt_rejects_invalid_v011_manifest_shape(
+    tmp_path: Path, mutate: Any, error: str
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    mutate(manifest)
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    "canonical_path",
+    ["coverage.json", "findings.json", "artifacts/02_discovery/work_ledger.jsonl"],
+)
+def test_scan_receipt_requires_canonical_artifact_media_types(
+    tmp_path: Path, canonical_path: str
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"] = [
+        artifact for artifact in manifest["scan"]["artifacts"] if artifact["path"] != canonical_path
+    ]
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="canonical artifacts"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    ("canonical_path", "wrong_media_type"),
+    [
+        ("coverage.json", "text/plain"),
+        ("findings.json", "text/plain"),
+        ("artifacts/02_discovery/work_ledger.jsonl", "application/json"),
+    ],
+)
+def test_scan_receipt_rejects_wrong_canonical_artifact_media_type(
+    tmp_path: Path, canonical_path: str, wrong_media_type: str
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["scan"]["artifacts"]:
+        if artifact["path"] == canonical_path:
+            artifact["mediaType"] = wrong_media_type
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="canonical artifacts"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_supplemental_artifact_hash_drift(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    supplemental_path = manifest_path.parent / "artifacts" / "05_findings" / "validation_summary.md"
+    supplemental_path.write_text("changed\n", encoding="utf-8")
+
+    with pytest.raises(ReviewEvidenceError, match="artifacts/05_findings/validation_summary.md"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_empty_supplemental_artifact_media_type(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"][3]["mediaType"] = ""
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="mediaType must be a non-empty string"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    "path", ["artifacts/02_discovery/finding_discovery_report.md", "../outside.txt"]
+)
+def test_scan_receipt_rejects_unsafe_supplemental_artifact_paths(tmp_path: Path, path: str) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    supplemental = manifest["scan"]["artifacts"][3]
+    supplemental["path"] = path
+    if path.startswith("../"):
+        (manifest_path.parent.parent / "outside.txt").write_text("outside\n", encoding="utf-8")
+    else:
+        artifact_path = manifest_path.parent / path
+        outside = tmp_path / "outside.md"
+        outside.write_bytes(artifact_path.read_bytes())
+        artifact_path.unlink()
+        artifact_path.symlink_to(outside)
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="symlink|escapes the scan root"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_dot_supplemental_artifact_path(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"][3]["path"] = "."
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="escapes the scan root"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_fifo_supplemental_artifact_without_blocking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    fifo_path = manifest_path.parent / "artifacts" / "05_findings" / "validation_summary.md"
+    fifo_path.unlink()
+    os.mkfifo(fifo_path)
+    original_open = evidence_module.os.open
+    nonblocking_flag = os.O_NONBLOCK
+
+    def require_nonblocking_fifo_open(
+        path: Any,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if path == fifo_path.name:
+            assert flags & nonblocking_flag
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(evidence_module.os, "open", require_nonblocking_fifo_open)
+
+    with pytest.raises(ReviewEvidenceError, match="must be a regular file"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_duplicate_supplemental_artifact_path(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    duplicate = dict(manifest["scan"]["artifacts"][3])
+    manifest["scan"]["artifacts"].append(duplicate)
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="paths must be unique"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_excessive_artifact_count(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    supplemental_count = (
+        evidence_module._MAX_SCAN_ARTIFACTS + 1 - len(manifest["scan"]["artifacts"])
+    )
+    manifest["scan"]["artifacts"].extend(
+        {
+            "mediaType": "application/octet-stream",
+            "path": f"artifacts/extra/{index}.bin",
+            "sha256": "0" * 64,
+        }
+        for index in range(supplemental_count)
+    )
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="artifact count exceeds limit"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_excessive_aggregate_artifact_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    aggregate_bytes = sum(
+        (manifest_path.parent / artifact["path"]).stat().st_size
+        for artifact in manifest["scan"]["artifacts"]
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "_MAX_TOTAL_SCAN_ARTIFACT_BYTES",
+        aggregate_bytes - 1,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="aggregate size exceeds limit"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_streams_non_json_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    original_reader = evidence_module._read_contained_artifact_from_descriptor
+
+    def reject_buffered_non_json(descriptor: int, relative: Any, *, max_bytes: int) -> bytes:
+        if str(relative) not in {
+            "scan-manifest.json",
+            "coverage.json",
+            "findings.json",
+        }:
+            raise AssertionError(f"buffered non-JSON artifact: {relative}")
+        return original_reader(descriptor, relative, max_bytes=max_bytes)
+
+    monkeypatch.setattr(
+        evidence_module,
+        "_read_contained_artifact_from_descriptor",
+        reject_buffered_non_json,
+    )
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["findings_count"] == 0
 
 
 def test_scan_receipt_rejects_symlinked_artifact(tmp_path: Path) -> None:

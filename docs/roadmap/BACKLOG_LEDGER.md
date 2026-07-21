@@ -6232,15 +6232,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Vector retrieval for RAG (pgvector + sentence-transformers)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (AI / RAG)
-  - Target PR: PR-next-6 (runtime)
-  - Status: Planned
-  - Reason (EN): Replace Jaccard-only retrieval with semantic search; pgvector already in W4 food search. Improves retrieval quality 40–60% per audit.
+  - Target PR: pgvector 0.5 compatibility lane; staging and ANN follow-up lanes
+  - Status: Feature-gated foundation exists; compatibility and rollout evidence remain open
+  - Reason (EN): Feature-gated vector retrieval with Jaccard fallback already exists. The
+    pgvector 0.5 compatibility lane proves the Python binding against the pinned
+    PostgreSQL extension and real RLS behavior without widening runtime scope.
   - Links:
     - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.1, 5.1)
     - `core/rag/simple_rag.py`, W4 semantic search implementation
   - DoD:
-    - Feature-flagged vector retrieval; fallback to current Jaccard path
-    - Latency and recall documented; `make verify` passes
+    - ✅ Feature-flagged vector retrieval with fallback to the current Jaccard path
+    - ✅ Python binding compatibility proof covers vector bind/result, cosine ordering,
+      dimension rejection, and tenant RLS isolation
+    - Staging extension readiness is proven before rollout
+    - ANN index and query-plan compatibility are proven against representative data
+    - Latency and recall are documented with current-head CI evidence
+  - Security boundary: this dependency/runtime compatibility proof is not a BOLA
+    closure claim; authorization remains owned by the authenticated subject and RLS
+    contracts.
 
 
 - [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
