@@ -1201,6 +1201,57 @@ def test_legacy_plate_entrypoints_are_exact_canonical_aliases() -> None:
     assert not hasattr(legacy_app, "_plate_deps")
 
 
+def test_legacy_plate_dependencies_preserve_direct_import_shape() -> None:
+    """Legacy Python callers retain the pre-extraction dependency container API."""
+
+    def _make_plate(**_kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    def _build_targets(_profile: object) -> object:
+        return object()
+
+    def _calculate_bmr(*_args: object) -> dict[str, float]:
+        return {}
+
+    def _calculate_tdee(*_args: object) -> dict[str, float]:
+        return {}
+
+    def _aggregate_micros(_meals: list[dict[str, Any]]) -> dict[str, float]:
+        return {}
+
+    empty = legacy_app.PlateDependencies()
+    assert empty.make_plate_fn is None
+    assert empty.make_plate is None
+    assert empty.build_nutrition_targets_fn is None
+    assert empty.build_nutrition_targets is None
+    assert empty.calculate_all_bmr_fn is None
+    assert empty.calculate_all_bmr is None
+    assert empty.calculate_all_tdee_fn is None
+    assert empty.calculate_all_tdee is None
+    assert empty.aggregate_day_micronutrients_fn is None
+    assert empty._aggregate_day_micronutrients is None
+
+    dependencies = legacy_app.PlateDependencies(
+        make_plate_fn=_make_plate,
+        build_nutrition_targets_fn=_build_targets,
+        calculate_all_bmr_fn=_calculate_bmr,
+        calculate_all_tdee_fn=_calculate_tdee,
+        aggregate_day_micronutrients_fn=_aggregate_micros,
+    )
+
+    assert dependencies.make_plate_fn is _make_plate
+    assert dependencies.make_plate is _make_plate
+    assert dependencies.build_nutrition_targets_fn is _build_targets
+    assert dependencies.build_nutrition_targets is _build_targets
+    assert dependencies.calculate_all_bmr_fn is _calculate_bmr
+    assert dependencies.calculate_all_bmr is _calculate_bmr
+    assert dependencies.calculate_all_tdee_fn is _calculate_tdee
+    assert dependencies.calculate_all_tdee is _calculate_tdee
+    assert dependencies.aggregate_day_micronutrients_fn is _aggregate_micros
+    assert dependencies._aggregate_day_micronutrients is _aggregate_micros
+    assert legacy_app.PlateServiceDependencies is plate_service.PlateServiceDependencies
+
+
 def test_build_fallback_plate_invalid_fiber_uses_fiber_min() -> None:
     """Canonical fallback replaces an invalid target fiber with the minimum."""
 

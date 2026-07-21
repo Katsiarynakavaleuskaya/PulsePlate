@@ -854,7 +854,36 @@ class WeeklyPlanFlexibleRequest(BaseModel):
 # local implementations with exact service callables while compatibility imports
 # remain. Canonical and retained HTTP handlers import the service directly.
 DB_TO_ALIAS_NUTRIENT_MAP = _canonical_plate_service.DB_TO_ALIAS_NUTRIENT_MAP
-PlateDependencies = _canonical_plate_service.PlateServiceDependencies
+
+
+class PlateDependencies:
+    """Legacy direct-import dependency container retained for compatibility.
+
+    Canonical Plate execution uses ``PlateServiceDependencies`` directly. This
+    mutable shim preserves the historical constructor and attributes for Python
+    callers without recreating the former process-global dependency registry.
+    """
+
+    def __init__(
+        self,
+        make_plate_fn: Callable[..., Any] | None = None,
+        build_nutrition_targets_fn: Callable[..., Any] | None = None,
+        calculate_all_bmr_fn: Callable[..., Any] | None = None,
+        calculate_all_tdee_fn: Callable[..., Any] | None = None,
+        aggregate_day_micronutrients_fn: Callable[..., Any] | None = None,
+    ) -> None:
+        self.make_plate_fn = make_plate_fn
+        self.make_plate = make_plate_fn
+        self.build_nutrition_targets_fn = build_nutrition_targets_fn
+        self.build_nutrition_targets = build_nutrition_targets_fn
+        self.calculate_all_bmr_fn = calculate_all_bmr_fn
+        self.calculate_all_bmr = calculate_all_bmr_fn
+        self.calculate_all_tdee_fn = calculate_all_tdee_fn
+        self.calculate_all_tdee = calculate_all_tdee_fn
+        self.aggregate_day_micronutrients_fn = aggregate_day_micronutrients_fn
+        self._aggregate_day_micronutrients = aggregate_day_micronutrients_fn
+
+
 PlateServiceDependencies = _canonical_plate_service.PlateServiceDependencies
 _convert_db_nutrients_to_alias_format = (
     _canonical_plate_service._convert_db_nutrients_to_alias_format
