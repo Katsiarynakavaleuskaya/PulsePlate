@@ -1,7 +1,8 @@
+import asyncio
 import math
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any, Dict, NoReturn, Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -69,8 +70,8 @@ def test_generate_who_targets_response_sets_next_best_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """RU/EN: Smoke-cover canonical WHO-targets post-processing after builder success."""
-    import app as app_module
     import legacy_app
+    from app.services import pro_nutrition_targets as service
 
     targets = SimpleNamespace(
         kcal_daily=2150,
@@ -80,8 +81,16 @@ def test_generate_who_targets_response_sets_next_best_action(
         activity=SimpleNamespace(moderate_aerobic_min=150, strength_sessions=2, steps_daily=8000),
         calculation_date="2025-01-01",
     )
-    monkeypatch.setattr(legacy_app, "build_nutrition_targets", lambda _profile: targets)
-    monkeypatch.setattr(app_module, "build_nutrition_targets", lambda _profile: targets)
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        lambda _profile: targets,
+    )
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "validate_targets_safety",
+        lambda _targets: [],
+    )
 
     request = legacy_app.WHOTargetsRequest(
         sex="female",
@@ -392,31 +401,38 @@ def test_unified_db_cache_load_error_and_save_throttle(
     db._save_cache()  # should return early without error
 
 
-@pytest.mark.asyncio
-async def test_unified_db_off_exception_and_invalid_ids(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
-    db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+def test_unified_db_off_exception_and_invalid_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    async def _exercise() -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-    class OffMock:
-        async def search_products(self, *args: Any, **kwargs: Any):  # noqa: D401
-            raise RuntimeError("OFF boom")
+        class OffMock:
+            async def search_products(
+                self,
+                *args: Any,
+                **kwargs: Any,
+            ) -> NoReturn:  # noqa: D401
+                raise RuntimeError("OFF boom")
 
-        async def get_product_details(self, code: str):  # noqa: D401
-            raise RuntimeError("detail boom")
+            async def get_product_details(self, code: str) -> NoReturn:  # noqa: D401
+                raise RuntimeError("detail boom")
 
-        async def close(self) -> None:
-            return None
+            async def close(self) -> None:
+                return None
 
-    db.off_client = OffMock()
-    # Force OFF path by preferring openfoodfacts and ensure empty result on exception
-    res = await db.search_food("milk", prefer_source="openfoodfacts")
-    assert res == []
+        db.off_client = OffMock()
+        # Force OFF path by preferring openfoodfacts and ensure empty result on exception
+        res = await db.search_food("milk", prefer_source="openfoodfacts")
+        assert res == []
 
-    # Invalid USDA id path
-    assert await db.get_food_by_id("usda", "abc") is None
-    # OFF detail exception path
-    assert await db.get_food_by_id("openfoodfacts", "123") is None
+        # Invalid USDA id path
+        assert await db.get_food_by_id("usda", "abc") is None
+        # OFF detail exception path
+        assert await db.get_food_by_id("openfoodfacts", "123") is None
+
+    asyncio.run(_exercise())
 
 
 def test_product_finder_error_paths_and_csv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
