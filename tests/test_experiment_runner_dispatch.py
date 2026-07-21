@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from types import SimpleNamespace
 from typing import Any, NoReturn
 
@@ -633,11 +634,7 @@ def test_candidate_checkout_requires_clean_matching_base(tmp_path: Path) -> None
     tracked.write_text("dirty\n", encoding="utf-8")
     with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
         dispatch._require_candidate_checkout(packet, root=source)
-    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
-        dispatch._require_candidate_checkout(
-            {"runner_mode": "candidate_patch"},
-            root=source,
-        )
+    dispatch._require_candidate_checkout({"runner_mode": "candidate_patch"}, root=source)
 
 
 def test_candidate_checkout_rejects_non_base_head(tmp_path: Path) -> None:
@@ -1966,6 +1963,43 @@ def test_run_help_describes_material_oracle_only_attribution_boundary(
     assert "if it materially shapes the engineering decision" in normalized_help
 
 
+def test_dispatch_help_does_not_import_experiment_runner(tmp_path: Path) -> None:
+    blocker_dir = tmp_path / "runner-import-blocker"
+    blocker_dir.mkdir()
+    (blocker_dir / "sitecustomize.py").write_text(
+        "import importlib.abc\n"
+        "\n"
+        "class _BlockExperimentRunner(importlib.abc.MetaPathFinder):\n"
+        "    def find_spec(self, fullname, path=None, target=None):\n"
+        "        if fullname == 'scripts.orchestration.experiment_runner':\n"
+        "            raise ImportError('blocked experiment runner import')\n"
+        "        return None\n"
+        "\n"
+        "import sys\n"
+        "sys.meta_path.insert(0, _BlockExperimentRunner())\n",
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            [str(blocker_dir), str(dispatch.REPO_ROOT), os.environ.get("PYTHONPATH", "")]
+        ),
+    }
+
+    result = subprocess.run(
+        [sys.executable, "scripts/orchestration/experiment_runner_dispatch.py", "--help"],
+        cwd=str(dispatch.REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Select and execute a strict Experiment Runner backend" in result.stdout
+
+
 def test_artifact_root_rejects_symlinked_components(tmp_path: Path) -> None:
     real = tmp_path / "real"
     real.mkdir()
@@ -2373,6 +2407,11 @@ def test_container_runner_legacy_patch_skips_fingerprint_read(
         lambda _path: (_ for _ in ()).throw(
             AssertionError("legacy patch must not use fingerprint-only reading")
         ),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_create_snapshot",
+        lambda _root, destination: destination.mkdir() or "legacy tracked diff\n",
     )
 
     def capture_container_argv(**kwargs: Any) -> list[str]:

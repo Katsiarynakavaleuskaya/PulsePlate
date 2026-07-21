@@ -46,10 +46,6 @@ from scripts.orchestration.experiment_contract import (
     validate_experiment_packet,
     validate_experiment_result,
 )
-from scripts.orchestration.experiment_runner import (
-    ExperimentRunnerError,
-    _extract_mutated_paths,
-)
 
 CAPABILITY_SCHEMA_VERSION = "1.0"
 CAPABILITY_ARTIFACT_TYPE = "experiment_runner_backend_capability.v1"
@@ -1456,13 +1452,13 @@ def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
         return
     expected_base = packet.get("base_commit_sha")
     patch_fingerprint = packet.get("candidate_patch_fingerprint")
-    tracked_status = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
-    if tracked_status:
-        raise DispatchError("result_validation_failed")
     if (expected_base is None) != (patch_fingerprint is None):
         raise DispatchError("result_validation_failed")
     if expected_base is None:
         return
+    tracked_status = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
+    if tracked_status:
+        raise DispatchError("result_validation_failed")
     head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
     if not isinstance(expected_base, str) or head != expected_base:
         raise DispatchError("result_validation_failed")
@@ -1486,6 +1482,11 @@ def _candidate_checkout_proof(
         "source_checkout_clean": True,
     }
     if candidate_patch_text is not None:
+        from scripts.orchestration.experiment_runner import (
+            ExperimentRunnerError,
+            _extract_mutated_paths,
+        )
+
         try:
             proof["candidate_changed_files"] = len(_extract_mutated_paths(candidate_patch_text))
         except ExperimentRunnerError as exc:
@@ -1840,7 +1841,11 @@ def _invoke_container_runner(
         input_dir.mkdir()
         tracked_diff = _create_snapshot(REPO_ROOT, snapshot)
         _require_candidate_checkout(packet, root=REPO_ROOT)
-        if packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE and tracked_diff:
+        if (
+            packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+            and packet.get("base_commit_sha") is not None
+            and tracked_diff
+        ):
             raise DispatchError("result_validation_failed")
         (snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
         (snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
