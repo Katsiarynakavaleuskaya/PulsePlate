@@ -321,6 +321,10 @@ def test_generate_plate_response_unexpected_error_is_safe_500(
         Decimal("NaN"),
         Decimal("Infinity"),
         Decimal("-Infinity"),
+        "NaN",
+        "Infinity",
+        "-Infinity",
+        "1e309",
     ],
     ids=[
         "float-nan",
@@ -329,6 +333,10 @@ def test_generate_plate_response_unexpected_error_is_safe_500(
         "decimal-nan",
         "decimal-positive-infinity",
         "decimal-negative-infinity",
+        "string-nan",
+        "string-positive-infinity",
+        "string-negative-infinity",
+        "string-exponent-overflow",
     ],
 )
 @pytest.mark.parametrize(
@@ -371,7 +379,10 @@ def test_generate_plate_response_rejects_non_finite_micronutrient_dependency_out
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
-    assert "private_dependency_nutrient" not in str(exc_info.value.detail)
+    detail = str(exc_info.value.detail).casefold()
+    assert "private_dependency_nutrient" not in detail
+    if isinstance(non_finite_value, str):
+        assert non_finite_value.casefold() not in detail
 
 
 @pytest.mark.parametrize(

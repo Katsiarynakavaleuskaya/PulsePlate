@@ -337,16 +337,26 @@ class TestEnhancedPlateAPI:
         assert response.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
         assert "/srv/pulseplate/plate.py" not in response.text
 
+    @pytest.mark.parametrize(
+        "non_finite_token",
+        [
+            pytest.param("NaN", id="nan"),
+            pytest.param("Infinity", id="infinity"),
+            pytest.param("-Infinity", id="negative-infinity"),
+            pytest.param("1e309", id="exponent-overflow"),
+        ],
+    )
     def test_plate_non_finite_day_micros_is_safe_500_at_http_boundary(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        non_finite_token: str,
     ) -> None:
-        """Non-finite dependency output never reaches JSON serialization."""
+        """String non-finite day micros never become a null-bearing false 200."""
 
         def _non_finite_day_micros(
             _meals: list[dict[str, object]],
-        ) -> dict[str, float]:
-            return {"private_dependency_nutrient": float("nan")}
+        ) -> dict[str, object]:
+            return {"private_dependency_nutrient": non_finite_token}
 
         monkeypatch.setattr(
             pro_nutrition_plate,
@@ -370,8 +380,10 @@ class TestEnhancedPlateAPI:
 
         assert response.status_code == 500
         assert response.json() == {"detail": ENHANCED_PLATE_GENERATION_FAILED_DETAIL}
-        assert "private_dependency_nutrient" not in response.text
-        assert "nan" not in response.text.lower()
+        response_text = response.text.casefold()
+        assert "private_dependency_nutrient" not in response_text
+        assert non_finite_token.casefold() not in response_text
+        assert "null" not in response_text
 
     @pytest.mark.parametrize(
         ("response_field", "non_finite_value"),
