@@ -91,9 +91,9 @@ def _validate_calculation_mapping(value: Any, *, required_key: str | None = None
             raise _InvalidPlateCalculationOutputError(
                 "Plate calculation dependency returned malformed output"
             ) from None
-        if not math.isfinite(numeric_value):
+        if not math.isfinite(numeric_value) or numeric_value <= 0:
             raise _InvalidPlateCalculationOutputError(
-                "Plate calculation dependency returned non-finite output"
+                "Plate calculation dependency returned non-positive or non-finite output"
             )
 
 

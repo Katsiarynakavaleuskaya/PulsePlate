@@ -379,8 +379,12 @@ def test_generate_plate_response_unexpected_error_is_safe_500(
     ("dependency", "calculation_output"),
     [
         pytest.param("bmr", {"mifflin": float("nan")}, id="bmr-non-finite"),
+        pytest.param("bmr", {"mifflin": 0.0}, id="bmr-zero"),
+        pytest.param("bmr", {"mifflin": -1.0}, id="bmr-negative"),
         pytest.param("bmr", [], id="bmr-malformed-shape"),
         pytest.param("tdee", {"mifflin": float("inf")}, id="tdee-non-finite"),
+        pytest.param("tdee", {"mifflin": 0.0}, id="tdee-zero"),
+        pytest.param("tdee", {"mifflin": -1.0}, id="tdee-negative"),
         pytest.param("tdee", {"mifflin": "2200"}, id="tdee-malformed-value"),
         pytest.param("tdee", {"harris": 2200.0}, id="tdee-missing-selected-formula"),
     ],
