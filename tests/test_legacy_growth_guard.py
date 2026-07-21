@@ -4675,6 +4675,59 @@ def test_legacy_growth_guard_allows_proven_safe_inherited_factory_override() -> 
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_rejects_staticmethod_wrapped_poisoned_factory() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/staticmethod-poisoned-factory")
+        captured = builtins.object
+        builtins.object = original_object
+
+        class Base:
+            factory = captured
+
+        class Holder(Base):
+            factory = staticmethod(captured)
+
+        @Holder.factory()
+        def staticmethod_poisoned_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> staticmethod_poisoned_factory"
+    ]
+
+
+def test_legacy_growth_guard_allows_safe_staticmethod_factory_override() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/staticmethod-poisoned-factory")
+        captured = builtins.object
+        builtins.object = original_object
+
+        class Base:
+            factory = captured
+
+        class Holder(Base):
+            @staticmethod
+            def factory():
+                return lambda function: function
+
+        @Holder.factory()
+        def safe_staticmethod_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "safe_rebind",
     [

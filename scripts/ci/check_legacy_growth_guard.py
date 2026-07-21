@@ -522,10 +522,23 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             return set(bindings), set(), set(), set()
 
         def class_body_update(statement: ast.stmt) -> object:
-            return assignment_reference(
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return None if statement.name == member_name else no_binding_update
+            assignment = assignment_reference(
                 statement,
                 lambda target: isinstance(target, ast.Name) and target.id == member_name,
             )
+            if assignment is no_binding_update:
+                return no_binding_update
+            value = statement.value if isinstance(statement, (ast.Assign, ast.AnnAssign)) else None
+            if (
+                isinstance(value, ast.Call)
+                and len(value.args) == 1
+                and not value.keywords
+                and static_reference(value.func) == "builtins.staticmethod"
+            ):
+                return static_reference(value.args[0])
+            return assignment
 
         def class_body_defines_member(statements: Sequence[ast.stmt]) -> bool:
             for statement in statements:
