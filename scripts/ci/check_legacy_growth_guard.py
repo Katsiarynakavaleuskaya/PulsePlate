@@ -386,138 +386,236 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         if class_node is None:
             return None
 
-        class_member_found = False
-        class_member_reference: str | None = None
-        instance_member_found = False
-        instance_member_reference: str | None = None
+        def merge_binding_flows(
+            flows: Sequence[
+                tuple[
+                    set[str | None],
+                    set[str | None],
+                    set[str | None],
+                    set[str | None],
+                ]
+            ],
+        ) -> tuple[
+            set[str | None],
+            set[str | None],
+            set[str | None],
+            set[str | None],
+        ]:
+            live: set[str | None] = set()
+            terminal: set[str | None] = set()
+            breaks: set[str | None] = set()
+            continues: set[str | None] = set()
+            for flow_live, flow_terminal, flow_breaks, flow_continues in flows:
+                live.update(flow_live)
+                terminal.update(flow_terminal)
+                breaks.update(flow_breaks)
+                continues.update(flow_continues)
+            return live, terminal, breaks, continues
 
-        def constructor_block_exit_behavior(
-            statements: Sequence[ast.stmt],
-        ) -> tuple[bool, bool]:
-            may_exit = False
-            for block_statement in statements:
-                statement_may_exit, statement_always_exits = constructor_exit_behavior(
-                    block_statement,
-                )
-                may_exit = may_exit or statement_may_exit
-                if statement_always_exits:
-                    return True, True
-            return may_exit, False
+        no_binding_update = object()
 
-        def constructor_exit_behavior(statement: ast.stmt) -> tuple[bool, bool]:
-            if isinstance(statement, (ast.Return, ast.Raise)):
-                return True, True
-            if not isinstance(statement, ast.If):
-                return False, False
-            if isinstance(statement.test, ast.Constant) and isinstance(
-                statement.test.value,
-                bool,
-            ):
-                branch = statement.body if statement.test.value else statement.orelse
-                return constructor_block_exit_behavior(branch)
-            body_may_exit, body_always_exits = constructor_block_exit_behavior(
-                statement.body,
-            )
-            else_may_exit, else_always_exits = constructor_block_exit_behavior(
-                statement.orelse,
-            )
-            return (
-                body_may_exit or else_may_exit,
-                body_always_exits and else_always_exits,
-            )
+        def literal_bool(node: ast.AST) -> bool | None:
+            if isinstance(node, ast.Constant) and isinstance(node.value, bool):
+                return node.value
+            return None
 
-        for statement in class_node.body:
+        def assignment_reference(
+            statement: ast.stmt,
+            target_matches: Callable[[ast.expr], bool],
+        ) -> object:
+            value: ast.AST | None = None
+            targets: tuple[ast.expr, ...] = ()
             if isinstance(statement, ast.Assign):
                 value = statement.value
-                member_targets = tuple(statement.targets)
-                for member_target in member_targets:
-                    if isinstance(member_target, ast.Name) and member_target.id == member_name:
-                        class_member_found = True
-                        class_member_reference = static_reference(value)
-                continue
-            if isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                if isinstance(statement.target, ast.Name) and statement.target.id == member_name:
-                    class_member_found = True
-                    class_member_reference = static_reference(statement.value)
-                continue
-            if not (
-                instance
-                and isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and statement.name == "__init__"
-            ):
-                continue
-            parameters = (*statement.args.posonlyargs, *statement.args.args)
-            if not parameters:
-                continue
-            instance_name = parameters[0].arg
-            earlier_statement_may_exit = False
-            for init_statement in statement.body:
-                may_exit, always_exits = constructor_exit_behavior(init_statement)
-                init_value: ast.AST | None = None
-                init_member_targets: tuple[ast.expr, ...] = ()
-                if isinstance(init_statement, ast.Assign):
-                    init_value = init_statement.value
-                    init_member_targets = tuple(init_statement.targets)
-                elif isinstance(init_statement, ast.AnnAssign) and init_statement.value is not None:
-                    init_value = init_statement.value
-                    init_member_targets = (init_statement.target,)
-                if init_value is not None:
-                    for member_target in init_member_targets:
-                        if (
-                            isinstance(member_target, ast.Attribute)
-                            and isinstance(member_target.value, ast.Name)
-                            and member_target.value.id == instance_name
-                            and member_target.attr == member_name
-                        ):
-                            reference = static_reference(init_value)
-                            if (
-                                not earlier_statement_may_exit
-                                or reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
-                            ):
-                                instance_member_found = True
-                                instance_member_reference = reference
-                if always_exits:
-                    break
-                earlier_statement_may_exit = earlier_statement_may_exit or may_exit
-
-        member_found = class_member_found
-        member_reference = class_member_reference
-        for statement in tree.body:
-            if getattr(statement, "lineno", 0) >= before_line:
-                break
-            module_assignment_value: ast.AST | None = None
-            module_member_targets: tuple[ast.expr, ...] = ()
-            if isinstance(statement, ast.Assign):
-                module_assignment_value = statement.value
-                module_member_targets = tuple(statement.targets)
+                targets = tuple(statement.targets)
             elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
-                module_assignment_value = statement.value
-                module_member_targets = (statement.target,)
-            if module_assignment_value is not None:
-                for member_target in module_member_targets:
-                    if (
-                        isinstance(member_target, ast.Attribute)
-                        and member_target.attr == member_name
-                        and class_owner_reference(member_target.value) == (class_reference, False)
-                    ):
-                        member_found = True
-                        member_reference = static_reference(module_assignment_value)
+                value = statement.value
+                targets = (statement.target,)
+            if value is None or not any(target_matches(target) for target in targets):
+                return no_binding_update
+            return static_reference(value)
+
+        def evaluate_binding_statements(
+            statements: Sequence[ast.stmt],
+            bindings: set[str | None],
+            binding_update: Callable[[ast.stmt], object],
+        ) -> tuple[
+            set[str | None],
+            set[str | None],
+            set[str | None],
+            set[str | None],
+        ]:
+            live = set(bindings)
+            terminal: set[str | None] = set()
+            breaks: set[str | None] = set()
+            continues: set[str | None] = set()
+            for block_statement in statements:
+                if not live:
+                    break
+                (
+                    live,
+                    statement_terminal,
+                    statement_breaks,
+                    statement_continues,
+                ) = evaluate_binding_statement(
+                    block_statement,
+                    live,
+                    binding_update,
+                )
+                terminal.update(statement_terminal)
+                breaks.update(statement_breaks)
+                continues.update(statement_continues)
+            return live, terminal, breaks, continues
+
+        def evaluate_binding_statement(
+            statement: ast.stmt,
+            bindings: set[str | None],
+            binding_update: Callable[[ast.stmt], object],
+        ) -> tuple[
+            set[str | None],
+            set[str | None],
+            set[str | None],
+            set[str | None],
+        ]:
+            updated_reference = binding_update(statement)
+            if updated_reference is not no_binding_update:
+                return {cast(str | None, updated_reference)}, set(), set(), set()
+            if isinstance(statement, (ast.Return, ast.Raise)):
+                return set(), set(bindings), set(), set()
+            if isinstance(statement, ast.Break):
+                return set(), set(), set(bindings), set()
+            if isinstance(statement, ast.Continue):
+                return set(), set(), set(), set(bindings)
+            if isinstance(statement, ast.If):
+                condition = literal_bool(statement.test)
+                if condition is not None:
+                    branch = statement.body if condition else statement.orelse
+                    return evaluate_binding_statements(branch, bindings, binding_update)
+                return merge_binding_flows(
+                    [
+                        evaluate_binding_statements(statement.body, bindings, binding_update),
+                        evaluate_binding_statements(statement.orelse, bindings, binding_update),
+                    ],
+                )
+            if isinstance(statement, ast.While):
+                condition = literal_bool(statement.test)
+                if condition is False:
+                    return evaluate_binding_statements(statement.orelse, bindings, binding_update)
+                body_flow = evaluate_binding_statements(
+                    statement.body,
+                    bindings,
+                    binding_update,
+                )
+                if condition is True:
+                    return body_flow[2], body_flow[1], set(), set()
+                normal_flow = evaluate_binding_statements(
+                    statement.orelse,
+                    body_flow[0] | body_flow[3] | bindings,
+                    binding_update,
+                )
+                return (
+                    normal_flow[0] | body_flow[2],
+                    normal_flow[1] | body_flow[1],
+                    set(),
+                    set(),
+                )
+            return set(bindings), set(), set(), set()
+
+        def class_body_update(statement: ast.stmt) -> object:
+            return assignment_reference(
+                statement,
+                lambda target: isinstance(target, ast.Name) and target.id == member_name,
+            )
+
+        def module_update(statement: ast.stmt) -> object:
+            assignment = assignment_reference(
+                statement,
+                lambda target: (
+                    isinstance(target, ast.Attribute)
+                    and target.attr == member_name
+                    and class_owner_reference(target.value) == (class_reference, False)
+                ),
+            )
+            if assignment is not no_binding_update:
+                return assignment
             if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
-                continue
+                return no_binding_update
             call = statement.value
             if static_reference(call.func) != "builtins.setattr" or len(call.args) < 3:
-                continue
-            member = _literal_value(call.args[1])
-            if member == member_name and class_owner_reference(call.args[0]) == (
-                class_reference,
-                False,
-            ):
-                member_found = True
-                member_reference = static_reference(call.args[2])
+                return no_binding_update
+            if _literal_value(call.args[1]) == member_name and class_owner_reference(
+                call.args[0]
+            ) == (class_reference, False):
+                return static_reference(call.args[2])
+            return no_binding_update
 
-        if instance and instance_member_found:
-            return instance_member_reference
-        return member_reference if member_found else None
+        class_flow = evaluate_binding_statements(
+            class_node.body,
+            {None},
+            class_body_update,
+        )
+        class_bindings = set().union(*class_flow)
+        module_statements = tuple(
+            statement for statement in tree.body if getattr(statement, "lineno", 0) < before_line
+        )
+        module_flow = evaluate_binding_statements(
+            module_statements,
+            class_bindings,
+            module_update,
+        )
+        possible_bindings = set().union(*module_flow)
+
+        if instance:
+            for statement in class_node.body:
+                if not (
+                    isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and statement.name == "__init__"
+                ):
+                    continue
+                parameters = (*statement.args.posonlyargs, *statement.args.args)
+                if not parameters:
+                    break
+                instance_name = parameters[0].arg
+
+                def instance_update(init_statement: ast.stmt) -> object:
+                    assignment = assignment_reference(
+                        init_statement,
+                        lambda target: (
+                            isinstance(target, ast.Attribute)
+                            and isinstance(target.value, ast.Name)
+                            and target.value.id == instance_name
+                            and target.attr == member_name
+                        ),
+                    )
+                    if assignment is not no_binding_update:
+                        return assignment
+                    if not isinstance(init_statement, ast.Expr) or not isinstance(
+                        init_statement.value,
+                        ast.Call,
+                    ):
+                        return no_binding_update
+                    call = init_statement.value
+                    if static_reference(call.func) != "builtins.setattr" or len(call.args) < 3:
+                        return no_binding_update
+                    if (
+                        isinstance(call.args[0], ast.Name)
+                        and call.args[0].id == instance_name
+                        and _literal_value(call.args[1]) == member_name
+                    ):
+                        return static_reference(call.args[2])
+                    return no_binding_update
+
+                instance_flow = evaluate_binding_statements(
+                    statement.body,
+                    possible_bindings,
+                    instance_update,
+                )
+                possible_bindings = set().union(*instance_flow)
+                break
+
+        if _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE in possible_bindings:
+            return _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+        return next(iter(possible_bindings)) if len(possible_bindings) == 1 else None
 
     def captured_factory_reference(node: ast.AST, *, before_line: int) -> str | None:
         call_result = route_call_result_snapshots.get(id(node))

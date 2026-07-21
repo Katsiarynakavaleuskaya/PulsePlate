@@ -4518,6 +4518,109 @@ def test_legacy_growth_guard_keeps_reachable_instance_factory_after_false_exit()
 
 
 @pytest.mark.parametrize(
+    ("holder_setup", "factory_expression", "function_name"),
+    [
+        (
+            """
+            class Holder:
+                factory = safe_factory
+
+                def __init__(self, enabled):
+                    if enabled:
+                        self.factory = captured
+            """,
+            "Holder(True).factory",
+            "poisoned_conditional_instance_factory",
+        ),
+        (
+            """
+            class Holder:
+                if enabled:
+                    factory = captured
+            """,
+            "Holder.factory",
+            "poisoned_conditional_class_factory",
+        ),
+        (
+            """
+            class Holder:
+                factory = safe_factory
+
+            if enabled:
+                Holder.factory = captured
+            """,
+            "Holder.factory",
+            "poisoned_conditional_module_factory",
+        ),
+        (
+            """
+            class Holder:
+                factory = safe_factory
+
+            if enabled:
+                setattr(Holder, "factory", captured)
+            """,
+            "Holder.factory",
+            "poisoned_conditional_setattr_factory",
+        ),
+        (
+            """
+            class Holder:
+                factory = captured
+
+                def __init__(self):
+                    while True:
+                        return
+                    self.factory = safe_factory
+            """,
+            "Holder().factory",
+            "poisoned_terminal_loop_factory",
+        ),
+    ],
+    ids=[
+        "instance-if",
+        "class-if",
+        "module-if",
+        "module-setattr-if",
+        "terminal-loop",
+    ],
+)
+def test_legacy_growth_guard_rejects_poisoned_control_flow_decorator_factories(
+    holder_setup: str,
+    factory_expression: str,
+    function_name: str,
+) -> None:
+    source = (
+        textwrap.dedent(f"""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/{function_name}")
+        captured = builtins.object
+        builtins.object = original_object
+
+        def safe_factory():
+            return lambda function: function
+
+        enabled = True
+        """)
+        + textwrap.dedent(holder_setup)
+        + textwrap.dedent(f"""
+
+        @{factory_expression}()
+        def {function_name}():
+            return None
+        """)
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        f"decorator:dynamic:<missing> -> {function_name}"
+    ]
+
+
+@pytest.mark.parametrize(
     "safe_rebind",
     [
         "Holder.factory = safe_factory",
