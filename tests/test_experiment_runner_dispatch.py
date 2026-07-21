@@ -151,6 +151,7 @@ def test_image_reference_requires_immutable_digest() -> None:
 
 def test_runner_capability_exit_code_matches_dispatch_owned_code() -> None:
     assert dispatch.RUNNER_CAPABILITY_EXIT_CODE == experiment_runner.RUNNER_CAPABILITY_EXIT_CODE
+    assert dispatch.RUNNER_REJECTED_EXIT_CODE == experiment_runner.RUNNER_REJECTED_EXIT_CODE
 
 
 def test_auto_prefers_strict_apple_without_probing_docker(
@@ -2439,7 +2440,66 @@ def test_container_runner_legacy_patch_skips_fingerprint_read(
     assert result["failure_class"] == "capability_mismatch"
 
 
-@pytest.mark.parametrize("returncode", [1, 4])
+def test_container_runner_rejects_forged_acceptance_when_runner_exit_was_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_REJECTED_EXIT_CODE,
+    )
+    monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **_kwargs: _legacy_result())
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
+
+
+def test_container_runner_accepts_matching_rejected_exit_and_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_REJECTED_EXIT_CODE,
+    )
+    rejected = _legacy_result()
+    rejected.update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 0,
+                "retries_consumed": 0,
+                "runner_error": "candidate rejected before oracle execution",
+            },
+        }
+    )
+    monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **_kwargs: rejected)
+
+    result = dispatch._invoke_container_runner(
+        probe=_probe("apple-container", strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=None,
+        output_name="result.json",
+    )
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+
+
+@pytest.mark.parametrize("returncode", [1, 5])
 def test_container_runner_rejects_non_owned_nonzero_exit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2738,7 +2798,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
         **kwargs: Any,
     ) -> dict[str, Any]:
         captured_sanitize_kwargs.append(kwargs)
-        return payload
+        return {**payload, "status": "accepted"}
 
     monkeypatch.setattr(dispatch, "_sanitize_result", capture_sanitize_result)
 

@@ -63,6 +63,7 @@ CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR = (
     "Execution capability became unavailable after an infrastructure retry."
 )
 RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_REJECTED_EXIT_CODE = 4
 RUNNER_CAPABILITY_DIAGNOSTIC = (
     "FAIL: execution capability unavailable; trusted backend provenance is required."
 )
@@ -1218,7 +1219,7 @@ def main(argv: list[str] | None = None) -> int:
             sort_keys=True,
         )
     )
-    return 0
+    return 0 if result["status"] == "accepted" else RUNNER_REJECTED_EXIT_CODE
 
 
 if __name__ == "__main__":

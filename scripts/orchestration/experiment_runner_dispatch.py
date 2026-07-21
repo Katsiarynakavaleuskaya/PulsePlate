@@ -70,6 +70,7 @@ MAX_RESULT_BYTES = 2 * 1024 * 1024
 PUBLIC_STATUS_ACCEPTED = "accepted"
 PUBLIC_STATUS_REJECTED = "rejected"
 RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_REJECTED_EXIT_CODE = 4
 RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
@@ -1744,6 +1745,16 @@ def _sanitize_result(
     return sanitized
 
 
+def _require_result_status_matches_runner_exit(
+    result: dict[str, Any], runner_returncode: int
+) -> None:
+    """Bind lower-trust result status to the container runtime's exit evidence."""
+
+    expected_returncode = 0 if result["status"] == "accepted" else RUNNER_REJECTED_EXIT_CODE
+    if runner_returncode != expected_returncode:
+        raise DispatchError("result_validation_failed")
+
+
 def _collect_result_volume(
     *,
     cli: str,
@@ -1927,7 +1938,11 @@ def _invoke_container_runner(
             if not cleanup_completed:
                 raise DispatchError("container_cleanup_failed")
             runner_capability_signal = completed.returncode == RUNNER_CAPABILITY_EXIT_CODE
-            if completed.returncode not in {0, RUNNER_CAPABILITY_EXIT_CODE}:
+            if completed.returncode not in {
+                0,
+                RUNNER_CAPABILITY_EXIT_CODE,
+                RUNNER_REJECTED_EXIT_CODE,
+            }:
                 raise DispatchError("runner_execution_failed")
             payload = None
             if not runner_capability_signal:
@@ -1973,7 +1988,7 @@ def _invoke_container_runner(
             )
         if payload is None:
             raise DispatchError("result_extraction_failed")
-        return _sanitize_result(
+        sanitized = _sanitize_result(
             payload,
             probe,
             expected_candidate_patch_fingerprint=packet.get("candidate_patch_fingerprint"),
@@ -1982,6 +1997,8 @@ def _invoke_container_runner(
             requested_coauthor_required=coauthor_required,
             requested_coauthor_reason=coauthor_reason,
         )
+        _require_result_status_matches_runner_exit(sanitized, completed.returncode)
+        return sanitized
 
 
 def _build_image(backend: str, tag: str) -> dict[str, str]:

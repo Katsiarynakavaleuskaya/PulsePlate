@@ -1982,6 +1982,56 @@ def test_main_capability_signal_uses_fixed_exit_without_artifact_or_canary(
     assert not (result_dir / "capability.json").exists()
 
 
+def test_main_uses_owned_exit_code_for_written_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    result_dir = _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "packet.json"
+    patch_path = tmp_path / "candidate.patch"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "print(1)"',
+                experiment_id="exp-rejected-cli",
+            )
+        ),
+        encoding="utf-8",
+    )
+    patch_path.write_text("rejected candidate", encoding="utf-8")
+    monkeypatch.setattr(
+        experiment_runner,
+        "evaluate_candidate",
+        lambda *_args: experiment_runner._result_payload(
+            experiment_id="exp-rejected-cli",
+            candidate_patch="candidate.patch",
+            status="rejected",
+            failure_class="policy_violation",
+            mutated_paths=[],
+            oracle_results=[],
+            budget_observations={"attempts": 0, "retries_consumed": 0},
+            shared_tree_untouched=True,
+        ),
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+            "--output",
+            "rejected.json",
+        ]
+    )
+
+    assert exit_code == experiment_runner.RUNNER_REJECTED_EXIT_CODE
+    written = json.loads((result_dir / "rejected.json").read_text(encoding="utf-8"))
+    assert written["status"] == "rejected"
+
+
 def test_main_writes_oracle_only_governance_reviewer_artifact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
