@@ -474,6 +474,7 @@ def test_generate_plate_response_rejects_non_finite_response_bound_output(
         pytest.param("-Infinity", id="negative-infinity"),
         pytest.param("+nAn", id="case-and-sign-nan"),
         pytest.param(" -InFiNiTy ", id="whitespace-case-and-sign-infinity"),
+        pytest.param("1e309", id="exponent-overflow"),
     ],
 )
 def test_generate_plate_response_rejects_non_finite_string_response_bound_output(
@@ -481,7 +482,7 @@ def test_generate_plate_response_rejects_non_finite_string_response_bound_output
     response_field: str,
     non_finite_token: str,
 ) -> None:
-    """String-form non-finite dependency values fail closed before serialization."""
+    """Non-finite numeric strings fail closed before response coercion."""
 
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
@@ -514,22 +515,35 @@ def test_generate_plate_response_rejects_non_finite_string_response_bound_output
     detail = str(exc_info.value.detail).casefold()
     assert "nan" not in detail
     assert "infinity" not in detail
+    assert non_finite_token.strip().casefold() not in detail
 
 
-def test_generate_plate_response_allows_ordinary_textual_layout_values(
+def test_generate_plate_response_allows_exact_numeric_tokens_in_text_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Ordinary labels containing token-like words remain valid text."""
+    """Exact numeric-looking tokens remain valid in schema-defined text fields."""
 
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
-    def _ordinary_text_plate(**_kwargs: object) -> dict[str, Any]:
+    def _text_token_plate(**_kwargs: object) -> dict[str, Any]:
         payload = _valid_generated_plate()
-        payload["layout"][0]["label"] = "Infinity bowl"
+        payload["layout"][0]["label"] = "Infinity"
+        payload["layout"][0]["tooltip"] = "NaN"
+        payload["meals"] = [
+            {
+                "title": "Inf",
+                "kcal": 500,
+                "protein_g": 30,
+                "fat_g": 15,
+                "carbs_g": 60,
+                "fiber_g": 8,
+                "micros": {"iron_mg": 1.0},
+            }
+        ]
         return payload
 
     dependencies = PlateServiceDependencies(
-        make_plate=_ordinary_text_plate,
+        make_plate=_text_token_plate,
         calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
         calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
         build_nutrition_targets=None,
@@ -543,7 +557,9 @@ def test_generate_plate_response_allows_ordinary_textual_layout_values(
         )
     )
 
-    assert response.layout[0].label == "Infinity bowl"
+    assert response.layout[0].label == "Infinity"
+    assert response.layout[0].tooltip == "NaN"
+    assert response.meals[0]["title"] == "Inf"
 
 
 @pytest.mark.parametrize(

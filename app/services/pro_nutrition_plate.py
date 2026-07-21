@@ -50,19 +50,6 @@ logger = logging.getLogger(__name__)
 PLATE_FEATURE_UNAVAILABLE_DETAIL = "Enhanced plate feature not available"
 _FALLBACK_KCAL_MAX = 2400
 _SAFE_DEFAULT_KCAL = 1200
-_NON_FINITE_STRING_TOKENS = frozenset(
-    {
-        "nan",
-        "+nan",
-        "-nan",
-        "inf",
-        "+inf",
-        "-inf",
-        "infinity",
-        "+infinity",
-        "-infinity",
-    }
-)
 
 
 class _NonFinitePlateDependencyOutputError(RuntimeError):
@@ -70,15 +57,11 @@ class _NonFinitePlateDependencyOutputError(RuntimeError):
 
 
 def _ensure_finite_dependency_output(value: Any) -> None:
-    """Reject non-finite numbers recursively without exposing dependency data."""
+    """Reject non-finite numeric objects without interpreting arbitrary text."""
 
     if isinstance(value, bool):
         return
     if isinstance(value, str):
-        if value.strip().casefold() in _NON_FINITE_STRING_TOKENS:
-            raise _NonFinitePlateDependencyOutputError(
-                "Plate dependency returned non-finite numeric output"
-            )
         return
     if isinstance(value, Number):
         try:
@@ -97,6 +80,61 @@ def _ensure_finite_dependency_output(value: Any) -> None:
     if isinstance(value, (list, tuple, set, frozenset)):
         for nested_value in value:
             _ensure_finite_dependency_output(nested_value)
+
+
+def _ensure_finite_numeric_value(value: Any) -> None:
+    """Reject non-finite values where the response contract expects a number."""
+
+    if isinstance(value, str):
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return
+        if not math.isfinite(numeric_value):
+            raise _NonFinitePlateDependencyOutputError(
+                "Plate dependency returned non-finite numeric output"
+            )
+        return
+    _ensure_finite_dependency_output(value)
+
+
+def _ensure_finite_numeric_mapping(value: Any) -> None:
+    """Validate values in a schema-defined numeric mapping."""
+
+    if not isinstance(value, dict):
+        return
+    for nested_value in value.values():
+        _ensure_finite_numeric_value(nested_value)
+
+
+def _ensure_finite_plate_response_output(value: Any) -> None:
+    """Validate raw Plate output using its response-bound numeric paths."""
+
+    _ensure_finite_dependency_output(value)
+    if not isinstance(value, dict):
+        return
+
+    for key in ("kcal", "meals_per_day"):
+        if key in value:
+            _ensure_finite_numeric_value(value[key])
+    for key in ("macros", "portions", "day_micros"):
+        _ensure_finite_numeric_mapping(value.get(key))
+
+    layout = value.get("layout")
+    if isinstance(layout, list):
+        for item in layout:
+            if isinstance(item, dict) and "fraction" in item:
+                _ensure_finite_numeric_value(item["fraction"])
+
+    meals = value.get("meals")
+    if isinstance(meals, list):
+        for meal in meals:
+            if not isinstance(meal, dict):
+                continue
+            for key in ("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g"):
+                if key in meal:
+                    _ensure_finite_numeric_value(meal[key])
+            _ensure_finite_numeric_mapping(meal.get("micros"))
 
 
 PlateGenerator = Callable[..., dict[str, Any]]
@@ -334,7 +372,7 @@ async def _aggregate_day_micronutrients(
             meal_micros = alias_micros(dict(raw_micros))
             meal["micros"] = dict(meal_micros)
 
-        _ensure_finite_dependency_output(meal_micros)
+        _ensure_finite_numeric_mapping(meal_micros)
         for nutrient_key, amount in meal_micros.items():
             if isinstance(amount, (int, float)):
                 aggregate_value = day_micros.get(nutrient_key, 0.0) + float(amount)
@@ -352,7 +390,7 @@ async def _aggregate_day_micronutrients(
             }
         )
     result: dict[str, float] = ensure_priority_micros(aliased)
-    _ensure_finite_dependency_output(result)
+    _ensure_finite_numeric_mapping(result)
     return result
 
 
@@ -705,7 +743,7 @@ async def aggregate_day_micros(
     if isinstance(result, Awaitable):
         result = await result
     resolved_result = result or {}
-    _ensure_finite_dependency_output(resolved_result)
+    _ensure_finite_numeric_mapping(resolved_result)
     return resolved_result
 
 
@@ -759,7 +797,7 @@ async def generate_plate_response(
                 detail=INVALID_PREMIUM_PLATE_INPUT_DETAIL,
             ) from exc
 
-        _ensure_finite_dependency_output(plate_data_raw)
+        _ensure_finite_plate_response_output(plate_data_raw)
         plate_data = sanitize_plate_data(plate_data_raw)
         layout = [VisualShape(**item) for item in plate_data["layout"]]
         day_micros = await aggregate_day_micros(

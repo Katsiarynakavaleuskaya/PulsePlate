@@ -458,6 +458,7 @@ class TestEnhancedPlateAPI:
             pytest.param("-Infinity", id="negative-infinity"),
             pytest.param("+nAn", id="case-and-sign-nan"),
             pytest.param(" -InFiNiTy ", id="whitespace-case-and-sign-infinity"),
+            pytest.param("1e309", id="exponent-overflow"),
         ],
     )
     def test_plate_non_finite_string_response_bound_values_are_safe_500_at_http_boundary(
@@ -466,7 +467,7 @@ class TestEnhancedPlateAPI:
         response_field: str,
         non_finite_token: str,
     ) -> None:
-        """String-form NaN/Infinity values cannot reach JSON serialization."""
+        """Non-finite numeric strings cannot reach JSON serialization."""
 
         def _non_finite_plate(**_kwargs: object) -> dict[str, object]:
             portions: dict[str, object] = {
@@ -526,6 +527,76 @@ class TestEnhancedPlateAPI:
         response_text = response.text.casefold()
         assert "nan" not in response_text
         assert "infinity" not in response_text
+        assert non_finite_token.strip().casefold() not in response_text
+
+    def test_plate_exact_numeric_tokens_are_allowed_in_text_fields(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Labels, tooltips, and titles preserve exact token-like text."""
+
+        def _text_token_plate(**_kwargs: object) -> dict[str, object]:
+            return {
+                "kcal": 2000,
+                "macros": {
+                    "protein_g": 110,
+                    "fat_g": 60,
+                    "carbs_g": 240,
+                    "fiber_g": 25,
+                },
+                "portions": {
+                    "protein_palm": 2.0,
+                    "fat_thumbs": 2.0,
+                    "carb_cups": 2.0,
+                    "veg_cups": 3.0,
+                },
+                "layout": [
+                    {
+                        "kind": "plate_sector",
+                        "fraction": 1.0,
+                        "label": "Infinity",
+                        "tooltip": "NaN",
+                    }
+                ],
+                "meals": [
+                    {
+                        "title": "Inf",
+                        "kcal": 500,
+                        "protein_g": 30,
+                        "fat_g": 15,
+                        "carbs_g": 60,
+                        "fiber_g": 8,
+                        "micros": {"iron_mg": 1.0},
+                    }
+                ],
+                "meals_per_day": 3,
+            }
+
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_plate,
+            "make_plate",
+            _text_token_plate,
+        )
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 170,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        response = client.post(
+            "/api/v1/premium/plate",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["layout"][0]["label"] == "Infinity"
+        assert data["layout"][0]["tooltip"] == "NaN"
+        assert data["meals"][0]["title"] == "Inf"
 
     def test_plate_goal_specific_differences(self) -> None:
         """Test different goals produce appropriate macro distributions."""
