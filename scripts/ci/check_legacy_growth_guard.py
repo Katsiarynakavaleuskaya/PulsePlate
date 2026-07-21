@@ -391,29 +391,40 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         instance_member_found = False
         instance_member_reference: str | None = None
 
-        def may_exit_constructor(statement: ast.stmt) -> bool:
-            def has_outer_exit(node: ast.AST, *, nested_scope: bool = False) -> bool:
-                if nested_scope:
-                    return False
-                if isinstance(node, (ast.Return, ast.Raise)):
-                    return True
-                return any(
-                    has_outer_exit(
-                        child,
-                        nested_scope=isinstance(
-                            child,
-                            (
-                                ast.ClassDef,
-                                ast.FunctionDef,
-                                ast.AsyncFunctionDef,
-                                ast.Lambda,
-                            ),
-                        ),
-                    )
-                    for child in ast.iter_child_nodes(node)
+        def constructor_block_exit_behavior(
+            statements: Sequence[ast.stmt],
+        ) -> tuple[bool, bool]:
+            may_exit = False
+            for block_statement in statements:
+                statement_may_exit, statement_always_exits = constructor_exit_behavior(
+                    block_statement,
                 )
+                may_exit = may_exit or statement_may_exit
+                if statement_always_exits:
+                    return True, True
+            return may_exit, False
 
-            return has_outer_exit(statement)
+        def constructor_exit_behavior(statement: ast.stmt) -> tuple[bool, bool]:
+            if isinstance(statement, (ast.Return, ast.Raise)):
+                return True, True
+            if not isinstance(statement, ast.If):
+                return False, False
+            if isinstance(statement.test, ast.Constant) and isinstance(
+                statement.test.value,
+                bool,
+            ):
+                branch = statement.body if statement.test.value else statement.orelse
+                return constructor_block_exit_behavior(branch)
+            body_may_exit, body_always_exits = constructor_block_exit_behavior(
+                statement.body,
+            )
+            else_may_exit, else_always_exits = constructor_block_exit_behavior(
+                statement.orelse,
+            )
+            return (
+                body_may_exit or else_may_exit,
+                body_always_exits and else_always_exits,
+            )
 
         for statement in class_node.body:
             if isinstance(statement, ast.Assign):
@@ -439,26 +450,35 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             if not parameters:
                 continue
             instance_name = parameters[0].arg
+            earlier_statement_may_exit = False
             for init_statement in statement.body:
-                if may_exit_constructor(init_statement):
-                    break
+                may_exit, always_exits = constructor_exit_behavior(init_statement)
+                init_value: ast.AST | None = None
+                init_member_targets: tuple[ast.expr, ...] = ()
                 if isinstance(init_statement, ast.Assign):
-                    value = init_statement.value
-                    member_targets = tuple(init_statement.targets)
+                    init_value = init_statement.value
+                    init_member_targets = tuple(init_statement.targets)
                 elif isinstance(init_statement, ast.AnnAssign) and init_statement.value is not None:
-                    value = init_statement.value
-                    member_targets = (init_statement.target,)
-                else:
-                    continue
-                for member_target in member_targets:
-                    if (
-                        isinstance(member_target, ast.Attribute)
-                        and isinstance(member_target.value, ast.Name)
-                        and member_target.value.id == instance_name
-                        and member_target.attr == member_name
-                    ):
-                        instance_member_found = True
-                        instance_member_reference = static_reference(value)
+                    init_value = init_statement.value
+                    init_member_targets = (init_statement.target,)
+                if init_value is not None:
+                    for member_target in init_member_targets:
+                        if (
+                            isinstance(member_target, ast.Attribute)
+                            and isinstance(member_target.value, ast.Name)
+                            and member_target.value.id == instance_name
+                            and member_target.attr == member_name
+                        ):
+                            reference = static_reference(init_value)
+                            if (
+                                not earlier_statement_may_exit
+                                or reference == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+                            ):
+                                instance_member_found = True
+                                instance_member_reference = reference
+                if always_exits:
+                    break
+                earlier_statement_may_exit = earlier_statement_may_exit or may_exit
 
         member_found = class_member_found
         member_reference = class_member_reference
