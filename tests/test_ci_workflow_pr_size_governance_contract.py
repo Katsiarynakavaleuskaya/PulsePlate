@@ -173,6 +173,20 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
         "6c25",
     )
 )
+CODEQL_ACTION_V4_37_1_SHA = "".join(
+    (
+        "7188",
+        "fc36",
+        "3630",
+        "916d",
+        "eb70",
+        "2c7f",
+        "dcf4",
+        "e481",
+        "b751",
+        "f97a",
+    )
+)
 SETUP_GO_NODE24_SHA = "".join(
     (
         "4a36",
@@ -1321,6 +1335,85 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
             assert workflow_text.count(expected_line) == workflow_upload_count
 
     assert observed_upload_steps
+
+
+def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
+    """Guard every active CodeQL action ref against pin and location drift."""
+
+    expected_uses_by_component = {
+        "init": f"github/codeql-action/init@{CODEQL_ACTION_V4_37_1_SHA}",
+        "analyze": f"github/codeql-action/analyze@{CODEQL_ACTION_V4_37_1_SHA}",
+        "upload-sarif": f"github/codeql-action/upload-sarif@{CODEQL_ACTION_V4_37_1_SHA}",
+    }
+    expected_line_counts = {
+        BUILD_WORKFLOW_PATH: {
+            f"uses: {expected_uses_by_component['upload-sarif']} # v4.37.1": 2,
+        },
+        CODEQL_WORKFLOW_PATH: {
+            f"uses: {expected_uses_by_component['init']} # v4.37.1": 1,
+            f"uses: {expected_uses_by_component['analyze']} # v4.37.1": 1,
+        },
+        TRIVY_WORKFLOW_PATH: {
+            f"uses: {expected_uses_by_component['upload-sarif']} # v4.37.1": 1,
+        },
+    }
+    observed_contracts: list[tuple[str, str, object, str]] = []
+
+    for workflow_path in _active_workflow_paths():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        workflow_lines = [line.strip() for line in workflow_text.splitlines()]
+        for expected_line, expected_count in expected_line_counts.get(workflow_path, {}).items():
+            assert workflow_lines.count(expected_line) == expected_count
+
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str) or not uses.startswith("github/codeql-action/"):
+                continue
+
+            component = uses.removeprefix("github/codeql-action/").split("@", maxsplit=1)[0]
+            assert component in expected_uses_by_component
+            assert uses == expected_uses_by_component[component]
+            observed_contracts.append(
+                (
+                    str(workflow_path.relative_to(REPO_ROOT)),
+                    job_id,
+                    step.get("name"),
+                    uses,
+                )
+            )
+
+    assert observed_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "security-scan",
+            "Upload Trivy scan results to GitHub Security tab",
+            expected_uses_by_component["upload-sarif"],
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Upload Trivy image scan results",
+            expected_uses_by_component["upload-sarif"],
+        ),
+        (
+            ".github/workflows/codeql.yml",
+            "analyze",
+            "Initialize CodeQL",
+            expected_uses_by_component["init"],
+        ),
+        (
+            ".github/workflows/codeql.yml",
+            "analyze",
+            "Perform CodeQL Analysis",
+            expected_uses_by_component["analyze"],
+        ),
+        (
+            ".github/workflows/trivy.yml",
+            "build",
+            "Upload Trivy scan results to GitHub Security tab",
+            expected_uses_by_component["upload-sarif"],
+        ),
+    ]
 
 
 def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() -> None:
