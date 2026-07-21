@@ -4647,6 +4647,34 @@ def test_legacy_growth_guard_rejects_inherited_poisoned_decorator_factory() -> N
     ]
 
 
+def test_legacy_growth_guard_allows_proven_safe_inherited_factory_override() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/inherited-poisoned-factory")
+        captured = builtins.object
+        builtins.object = original_object
+
+        def safe_factory():
+            return lambda function: function
+
+        class Base:
+            factory = captured
+
+        class Holder(Base):
+            if True:
+                factory = safe_factory
+
+        @Holder.factory()
+        def inherited_safe_override():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "safe_rebind",
     [

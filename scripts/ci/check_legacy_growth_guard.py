@@ -527,6 +527,22 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 lambda target: isinstance(target, ast.Name) and target.id == member_name,
             )
 
+        def class_body_defines_member(statements: Sequence[ast.stmt]) -> bool:
+            for statement in statements:
+                if class_body_update(statement) is not no_binding_update:
+                    return True
+                if not isinstance(statement, ast.If):
+                    continue
+                condition = literal_bool(statement.test)
+                if condition is not None:
+                    if class_body_defines_member(statement.body if condition else statement.orelse):
+                        return True
+                elif class_body_defines_member(statement.body) and class_body_defines_member(
+                    statement.orelse,
+                ):
+                    return True
+            return False
+
         def module_update(statement: ast.stmt) -> object:
             assignment = assignment_reference(
                 statement,
@@ -555,9 +571,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             class_body_update,
         )
         class_bindings = set().union(*class_flow)
-        class_defines_member = any(
-            class_body_update(statement) is not no_binding_update for statement in class_node.body
-        )
+        class_defines_member = class_body_defines_member(class_node.body)
         if not class_defines_member:
             for base in class_node.bases:
                 base_reference = static_reference(base)
