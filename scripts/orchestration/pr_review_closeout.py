@@ -297,6 +297,28 @@ def _validated_final_security_review_evidence(
             )
         return dict(value)
 
+    if is_review_source_positive_response_receipt(value):
+        try:
+            expected = build_review_source_positive_response_receipt(
+                material_digest=value["material_digest"],
+                material_head_sha=value["material_head_sha"],
+                response_reference=value["response_reference"],
+                response_created_at=value["response_created_at"],
+                response_content=value["response_content"],
+            )
+        except (KeyError, TypeError, ReviewEvidenceError) as exc:
+            raise CloseoutError("final-security positive-response evidence is malformed") from exc
+        if (
+            value != expected
+            or value["material_head_sha"] != material_head_sha
+            or value["material_digest"] != material_digest
+            or not str(value["response_reference"]).startswith(reference_prefix + "reaction-")
+        ):
+            raise CloseoutError(
+                "final-security positive-response evidence is not bound to the material"
+            )
+        return dict(value)
+
     expected_fields = {
         "kind",
         "review_commit_sha",
@@ -412,6 +434,8 @@ def _require_completed_final_security_preparation(
     pr_number: int,
     material_head_sha: str,
     material_digest: str,
+    expected_review_evidence: Mapping[str, Any] | None = None,
+    scan_manifest: Path | None = None,
 ) -> None:
     state = _load_final_security_state(
         repository=repository,
@@ -427,6 +451,67 @@ def _require_completed_final_security_preparation(
         raise CloseoutError("latest final-security preparation does not match frozen material")
     if latest["attempt_status"] != "completed" or latest["attempt_outcome"] != "completed":
         raise CloseoutError("latest final-security preparation lacks a completed scan outcome")
+    if expected_review_evidence is not None and latest["review_evidence"] != dict(
+        expected_review_evidence
+    ):
+        raise CloseoutError("sealed review evidence does not match final-security preparation")
+    if scan_manifest is not None:
+        recorded_reference = latest["outcome_evidence_ref"]
+        if not isinstance(recorded_reference, str) or not recorded_reference:
+            raise CloseoutError("completed final-security preparation lacks scan evidence")
+        try:
+            recorded_manifest = Path(recorded_reference).expanduser().resolve(strict=True)
+            supplied_manifest = scan_manifest.expanduser().resolve(strict=True)
+        except OSError as exc:
+            raise CloseoutError("recorded final-security scan manifest is unavailable") from exc
+        if recorded_manifest != supplied_manifest:
+            raise CloseoutError("sealed scan manifest does not match the recorded final outcome")
+        try:
+            payload = json.loads(supplied_manifest.read_text(encoding="utf-8"))
+            scan = payload["scan"]
+            started_at = scan["startedAt"]
+        except (
+            KeyError,
+            TypeError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            OSError,
+        ) as exc:
+            raise CloseoutError("recorded final-security scan manifest is malformed") from exc
+        if _parse_utc_timestamp(
+            started_at,
+            field="final-security scan startedAt",
+        ) < _parse_utc_timestamp(
+            latest["prepared_at"],
+            field="preparation prepared_at",
+        ):
+            raise CloseoutError("recorded final-security scan predates its preparation")
+
+
+def _require_terminal_outage_final_security_preparation(
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+    expected_review_evidence: Mapping[str, Any],
+) -> None:
+    state = _load_final_security_state(
+        repository=repository,
+        pr_number=pr_number,
+    )
+    if state is None:
+        raise CloseoutError("prepare and record final security before sealing an outage override")
+    latest = state["preparations"][-1]
+    if (
+        latest["material_head_sha"] != material_head_sha
+        or latest["material_digest"] != material_digest
+    ):
+        raise CloseoutError("latest final-security preparation does not match frozen material")
+    if latest["attempt_status"] != "completed" or latest["attempt_outcome"] != "timeout":
+        raise CloseoutError("latest final-security preparation lacks a recorded timeout outcome")
+    if latest["review_evidence"] != dict(expected_review_evidence):
+        raise CloseoutError("sealed review evidence does not match final-security preparation")
 
 
 def _git_path() -> str:
@@ -718,9 +803,10 @@ def _verify_final_material_review(
     repository: str,
     pr_number: int,
     material_head_sha: str,
+    material_digest: str,
     snapshot: Any,
     token: str,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Bind preparation to completed exact-head review evidence."""
 
     review = verify_codex_review_reference(
@@ -730,6 +816,17 @@ def _verify_final_material_review(
         token=token,
         expected_commit_ref=material_head_sha,
     )
+    if isinstance(review, CodexConnectorAdvisoryReactionEvidence):
+        return cast(
+            dict[str, Any],
+            build_review_source_positive_response_receipt(
+                material_digest=material_digest,
+                material_head_sha=material_head_sha,
+                response_reference=review.reference,
+                response_created_at=review.created_at,
+                response_content=review.content,
+            ),
+        )
     commit = classify_commit_ref(review.commit_ref, snapshot, token=token)
     if (
         not isinstance(commit, RepositoryCommitRef)
@@ -929,6 +1026,7 @@ def _cmd_prepare_final_security(args: argparse.Namespace) -> None:
             repository=repository,
             pr_number=args.pr_number,
             material_head_sha=snapshot.head_sha,
+            material_digest=manifest.digest,
             snapshot=snapshot,
             token=token,
         )
@@ -1349,6 +1447,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             quota_body_sha256=source_evidence.body_sha256,
             source_status=source_evidence.source_status,
         )
+        prepared_review_evidence = code_review_receipt
     else:
         review_ref = _required_line(args.review_ref, label="review-ref")
         review_prefix = f"https://github.com/{args.repo}/pull/{args.pr_number}#"
@@ -1369,6 +1468,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
                 response_created_at=review_evidence.created_at,
                 response_content=review_evidence.content,
             )
+            prepared_review_evidence = code_review_receipt
         else:
             review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
             if (
@@ -1386,19 +1486,40 @@ def _cmd_seal(args: argparse.Namespace) -> None:
                 "reviewed_material_digest": manifest.digest,
                 "status": "completed",
             }
+            prepared_review_evidence = {
+                "kind": "completed_review",
+                "review_commit_sha": review_commit.sha,
+                "review_reference": review_ref,
+                "review_submitted_at": _format_utc_timestamp(
+                    _parse_utc_timestamp(
+                        review_evidence.submitted_at,
+                        field="final-material review submitted_at",
+                    )
+                ),
+            }
     if args.scan_manifest:
+        scan_manifest = Path(args.scan_manifest)
+        receipt = ingest_codex_security_receipt(
+            scan_manifest,
+            expected_base_sha=manifest.merge_base_sha,
+            expected_head_sha=snapshot.head_sha,
+        )
         _require_completed_final_security_preparation(
             repository=args.repo,
             pr_number=args.pr_number,
             material_head_sha=snapshot.head_sha,
             material_digest=manifest.digest,
-        )
-        receipt = ingest_codex_security_receipt(
-            Path(args.scan_manifest),
-            expected_base_sha=manifest.merge_base_sha,
-            expected_head_sha=snapshot.head_sha,
+            expected_review_evidence=prepared_review_evidence,
+            scan_manifest=scan_manifest,
         )
     else:
+        _require_terminal_outage_final_security_preparation(
+            repository=args.repo,
+            pr_number=args.pr_number,
+            material_head_sha=snapshot.head_sha,
+            material_digest=manifest.digest,
+            expected_review_evidence=prepared_review_evidence,
+        )
         validate_security_outage_override_scope(
             repository=args.repo,
             pr_number=args.pr_number,

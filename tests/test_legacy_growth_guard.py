@@ -7941,6 +7941,24 @@ def test_legacy_growth_guard_preserves_registrar_values_through_filter() -> None
     ]
 
 
+def test_legacy_growth_guard_replays_consumed_filter_predicate() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+
+        list(
+            filter(
+                lambda route: route("/api/v1/filter-callback")(handler),
+                routes.values(),
+            )
+        )
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/filter-callback"
+    ]
+
+
 def test_legacy_growth_guard_preserves_registrar_values_through_comprehension() -> None:
     source = textwrap.dedent("""
         routes = {"route": app.get}

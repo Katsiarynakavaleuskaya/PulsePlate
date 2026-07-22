@@ -3131,17 +3131,8 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
     )
     monkeypatch.setattr(
         closeout_module,
-        "_load_final_security_state",
-        lambda **_kwargs: {
-            "preparations": [
-                {
-                    "attempt_outcome": "completed",
-                    "attempt_status": "completed",
-                    "material_digest": DIGEST,
-                    "material_head_sha": HEAD_SHA,
-                }
-            ]
-        },
+        "_require_completed_final_security_preparation",
+        lambda **_kwargs: None,
     )
     monkeypatch.setattr(
         closeout_module,
@@ -3244,17 +3235,8 @@ def test_closeout_seal_records_connector_reaction_as_positive_response(
     )
     monkeypatch.setattr(
         closeout_module,
-        "_load_final_security_state",
-        lambda **_kwargs: {
-            "preparations": [
-                {
-                    "attempt_outcome": "completed",
-                    "attempt_status": "completed",
-                    "material_digest": DIGEST,
-                    "material_head_sha": HEAD_SHA,
-                }
-            ]
-        },
+        "_require_completed_final_security_preparation",
+        lambda **_kwargs: None,
     )
     monkeypatch.setattr(
         closeout_module,
@@ -5140,6 +5122,131 @@ def test_seal_requires_completed_exact_material_final_security_preparation(
         )
 
 
+def test_seal_binds_completed_scan_and_review_to_prepared_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded_manifest = tmp_path / "recorded" / "scan-manifest.json"
+    supplied_manifest = tmp_path / "supplied" / "scan-manifest.json"
+    recorded_manifest.parent.mkdir()
+    supplied_manifest.parent.mkdir()
+    recorded_manifest.write_text(
+        '{"scan":{"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    supplied_manifest.write_text(
+        '{"scan":{"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    review_evidence = {
+        "kind": "completed_review",
+        "review_commit_sha": HEAD_SHA,
+        "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+        "review_submitted_at": "2026-07-15T11:59:00Z",
+    }
+    state = {
+        "preparations": [
+            {
+                "attempt_outcome": "completed",
+                "attempt_status": "completed",
+                "material_digest": DIGEST,
+                "material_head_sha": HEAD_SHA,
+                "outcome_evidence_ref": str(recorded_manifest),
+                "prepared_at": "2026-07-15T12:00:00Z",
+                "review_evidence": review_evidence,
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: state,
+    )
+
+    closeout_module._require_completed_final_security_preparation(
+        repository="owner/repo",
+        pr_number=42,
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        expected_review_evidence=review_evidence,
+        scan_manifest=recorded_manifest,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="does not match the recorded"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=supplied_manifest,
+        )
+    with pytest.raises(closeout_module.CloseoutError, match="review evidence does not match"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence={**review_evidence, "review_reference": "different"},
+            scan_manifest=recorded_manifest,
+        )
+
+    recorded_manifest.write_text(
+        '{"scan":{"startedAt":"2026-07-15T11:59:59Z"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="predates its preparation"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=recorded_manifest,
+        )
+
+
+def test_outage_seal_requires_matching_prepared_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    review_evidence = {
+        "kind": "completed_review",
+        "review_commit_sha": HEAD_SHA,
+        "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+        "review_submitted_at": "2026-07-15T11:59:00Z",
+    }
+    record = {
+        "attempt_outcome": "incomplete",
+        "attempt_status": "completed",
+        "material_digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "review_evidence": review_evidence,
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: {"preparations": [record]},
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="recorded timeout"):
+        closeout_module._require_terminal_outage_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+        )
+
+    record["attempt_outcome"] = "timeout"
+    closeout_module._require_terminal_outage_final_security_preparation(
+        repository="owner/repo",
+        pr_number=42,
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        expected_review_evidence=review_evidence,
+    )
+
+
 def _final_security_approval_response(
     reference: str,
     *,
@@ -5263,6 +5370,43 @@ def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_
     with pytest.raises(closeout_module.CloseoutError, match="already prepared"):
         closeout_module._cmd_prepare_final_security(args)
     assert closeout_module._final_security_state_path(42).read_bytes() == state_before_duplicate
+
+
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_prepare_final_security_accepts_connector_positive_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reaction_content: str,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    args.review_ref = reaction_reference
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reaction_reference,
+            created_at="2026-07-15T11:59:00Z",
+            content=reaction_content,
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    assert state["preparations"][0]["review_evidence"] == (
+        build_review_source_positive_response_receipt(
+            material_digest=DIGEST,
+            material_head_sha=HEAD_SHA,
+            response_reference=reaction_reference,
+            response_created_at="2026-07-15T11:59:00Z",
+            response_content=reaction_content,
+        )
+    )
 
 
 def test_prepare_final_security_accepts_terminal_review_source_unavailability(

@@ -8529,6 +8529,38 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 is not None
             )
+        filters_callback = id(node) in self._iterated_call_ids and (
+            wrapper_reference == "builtins.filter"
+            or isinstance(node.func, ast.Name)
+            and node.func.id == "filter"
+        )
+        if filters_callback and len(node.args) == 2 and not isinstance(node.args[0], ast.Constant):
+            iterable_binding = (
+                self._resolve_iterable_element_binding(node.args[1])
+                or self._conservative_argument_binding()
+            )
+            replay_inputs.extend(
+                (target, arguments)
+                for target in sorted(
+                    self._resolve_callables(node.args[0]),
+                    key=lambda candidate: (
+                        candidate.lineno,
+                        candidate.col_offset,
+                        candidate.name,
+                    ),
+                )
+                if not isinstance(target, ast.AsyncFunctionDef)
+                if not _function_is_generator(target)
+                if (
+                    arguments := self._resolve_call_argument_bindings(
+                        target,
+                        node,
+                        callable_expr=node.args[0],
+                        positional_override=[iterable_binding],
+                    )
+                )
+                is not None
+            )
         replay_results = [
             self._replay_function_call(target, arguments) for target, arguments in replay_inputs
         ]
