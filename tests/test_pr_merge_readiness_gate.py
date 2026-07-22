@@ -142,6 +142,15 @@ def test_canonical_artifact_link_count_accepts_full_github_blob_url() -> None:
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "branch") == 1
 
 
+def test_canonical_artifact_link_count_does_not_require_fixed_link_text() -> None:
+    body = (
+        "- [fixed mapping](https://github.com/owner/repo/blob/branch/"
+        "docs/review/PR_42_FIXED_MAPPING.md)"
+    )
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "branch") == 1
+
+
 def test_canonical_artifact_link_count_rejects_trailing_duplicate() -> None:
     url = "https://github.com/owner/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md"
     body = f"- [canonical artifact]({url}) and [duplicate]({url})"
@@ -545,6 +554,24 @@ def test_pre_closeout_fails_when_dirty_paths_change_during_validation(
 
     assert merge_gate.main() == 1
     assert "local working tree changed" in capsys.readouterr().out
+
+
+def test_pre_closeout_fails_when_mapping_artifact_changes_during_validation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    initial_artifact = _pre_closeout_artifact(
+        "https://github.com/owner/repo/pull/42#issuecomment-previous"
+    )
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=initial_artifact,
+        actionable_items=[],
+    )
+    artifacts = iter((initial_artifact, f"{initial_artifact}\nconcurrent edit\n"))
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: next(artifacts))
+
+    assert merge_gate.main() == 1
+    assert "canonical mapping artifact changed" in capsys.readouterr().out
 
 
 def test_review_seal_rollout_boundary_is_explicit_and_self_opt_in(

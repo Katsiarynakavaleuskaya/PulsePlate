@@ -118,7 +118,7 @@ MAPPING_HEADING_RE = re.compile(r"(?im)^\s*###\s+Fixed\s+in\s+Commit\s+Mapping\s
 MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-9a-f]{7,40}`?\s*$")
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
 CANONICAL_ARTIFACT_LINK_LINE_RE = re.compile(
-    r"^ {0,3}-[ \t]+\[canonical artifact\]\(\s*"
+    r"^ {0,3}-[ \t]+\[[^\]\n]+\]\(\s*"
     r"(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))\s*\)"
     r"[ \t]*$",
     re.IGNORECASE,
@@ -1304,6 +1304,11 @@ def main() -> int:
             if _pre_closeout_dirty_paths() != {expected_mapping_path}:
                 raise CommitIdentityError(
                     "SNAPSHOT_CHANGED: local working tree changed during pre-closeout validation"
+                )
+            if read_mapping_artifact(pr_number) != artifact_text:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: canonical mapping artifact changed during "
+                    "pre-closeout validation"
                 )
         assert_snapshot_unchanged(snapshot, token=token)
     except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
