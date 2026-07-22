@@ -79,7 +79,12 @@ def evaluate_candidate(packet: dict[str, Any], patch_file: Path) -> dict[str, An
 
     from scripts.orchestration.experiment_runner import evaluate_candidate as runner_evaluate
 
-    return runner_evaluate(packet, patch_file)
+    result: object = runner_evaluate(packet, patch_file)
+    if not _is_string_keyed_dict(result):
+        raise CreativeCodePatchBuilderError(
+            "Experiment Runner result must be a string-keyed object."
+        )
+    return result
 
 
 @contextmanager
