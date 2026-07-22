@@ -530,6 +530,31 @@ Evidence: scripts/orchestration/creative_code_patch_generation.py:2735-2738 and 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3630143381 -> 7336bedd590830e797df793ceb8b146df5fe7688
 
 Disposition: FIXED
+Commit: f76251c82d7bc044811d37584248581689d2ec84
+Evidence: scripts/orchestration/creative_code_patch_generation.py bounds all five admission-source reads with root-contained no-follow descriptor reads; focused oversized-source tests and the narrow local bundle pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3631584476 -> f76251c82d7bc044811d37584248581689d2ec84
+
+Disposition: FIXED
+Commit: f76251c82d7bc044811d37584248581689d2ec84
+Evidence: scripts/orchestration/creative_code_patch_builder.py persists the exact Experiment Runner dispatch packet before heavyweight runner loading; focused import-failure handoff tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3631584483 -> f76251c82d7bc044811d37584248581689d2ec84
+
+Disposition: FIXED
+Commit: d34ea5e9511630fbf5227364bf0e78fea0803e43
+Evidence: tests/test_creative_code_patch_builder.py uses the explicit _import_runner_api seam instead of mutating sys.modules; the policy guard and focused builder suite pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3633516672 -> d34ea5e9511630fbf5227364bf0e78fea0803e43
+
+Disposition: FIXED
+Commit: d34ea5e9511630fbf5227364bf0e78fea0803e43
+Evidence: scripts/orchestration/creative_code_patch_generation.py reads coordinator hints through the bounded root-contained no-follow helper; the oversized advisory-artifact regression passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3633516680 -> d34ea5e9511630fbf5227364bf0e78fea0803e43
+
+Disposition: FIXED
+Commit: d34ea5e9511630fbf5227364bf0e78fea0803e43
+Evidence: tests/test_creative_code_patch_builder.py uses the explicit _import_runner_api seam instead of mutating sys.modules; the policy guard and focused builder suite pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3633516687 -> d34ea5e9511630fbf5227364bf0e78fea0803e43
+
+Disposition: FIXED
 Commit: 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 Evidence: The review finding set was addressed by the trusted-dispatch hardening sequence; commit 67a047d4 closes final evidence gaps and tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#pullrequestreview-4713233850 -> 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
@@ -617,5 +642,5 @@ Reason: This duplicate finding refers to an intermediate material head; policy r
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:19577b7ce65dfc70115afa62f4728a735fd1051b0e94756b1e3ad5824e32b6f9","material_head_sha":"7336bedd590830e797df793ceb8b146df5fe7688","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T18:55:43Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#issuecomment-5026013280","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:ac39a4701c8e7e26a0db20a9265ef2c8da5680cb64d624994fb357b202efc4b3","findings_sha256":"sha256:3472115bad17b0a9dd604a59eed68a885266c532ff37ca73d41f995b43cee782","work_ledger_sha256":"sha256:88bd3222d627bc3b7fbe0571608f46d170807bfbd34215b8948ab886a87cde88"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"7336bedd590830e797df793ceb8b146df5fe7688","manifest_sha256":"sha256:68933fb49529c7ef0e368ef8a6ae59245a967aaa3d8c3fcfecc77418b9b6cf96","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"b0333bb3-8639-49e4-b0b8-c809290c918f","snapshot_digest":"codex-security-snapshot/v1:sha256:a80b3c66c9944743c3fdf0ce52c45108dc28ffd8996a8b9d03715291a892aa00"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:19577b7ce65dfc70115afa62f4728a735fd1051b0e94756b1e3ad5824e32b6f9","material_head_sha":"7336bedd590830e797df793ceb8b146df5fe7688","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2144,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:7b4a6299ea214f634475db94bf24a60c39391ccd55a04e546e77143aa4534d49","material_head_sha":"d34ea5e9511630fbf5227364bf0e78fea0803e43","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T18:55:43Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#issuecomment-5026013280","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:f08498c92d94ca295eacc6854738b4f0e0c8334e8b888bccee7f03fd006069b7","findings_sha256":"sha256:366331030b91200601265028edc109d97c602b2ce7dbc7c3324c55f9c041d095","work_ledger_sha256":"sha256:1d26edc1a5bab35d0fb2f0e337937462e7768d239c49e4d5ded87621038d41fe"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"d34ea5e9511630fbf5227364bf0e78fea0803e43","manifest_sha256":"sha256:55cec4281c242d9e5005e4481545103a702bcd8d3f6ae49bd86ca3c5e7d109f0","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"4114eab3-7e1d-4d22-b841-177d5536ee1f","snapshot_digest":"codex-security-snapshot/v1:sha256:a96dff838e41c01a63d8fa97c0b562c60e499912f00f4874cfa3ee892fcb728f"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:7b4a6299ea214f634475db94bf24a60c39391ccd55a04e546e77143aa4534d49","material_head_sha":"d34ea5e9511630fbf5227364bf0e78fea0803e43","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2144,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
