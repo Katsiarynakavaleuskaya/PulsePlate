@@ -1499,6 +1499,12 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
         (
             "owner/repo",
             42,
+            ("scripts/orchestration/review_source_status.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
             (".github/actions/python-setup/action.yml",),
             False,
         ),

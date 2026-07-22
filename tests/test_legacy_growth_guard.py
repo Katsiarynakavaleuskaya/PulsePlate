@@ -4427,6 +4427,61 @@ def test_legacy_growth_guard_rejects_wrapped_poisoned_object_decorator_factories
     ]
 
 
+def test_legacy_growth_guard_preserves_loop_bound_class_factory_provenance() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app.get("/api/v1/looped-class-factory")
+        captured = builtins.object
+        builtins.object = original_object
+
+        class Holder:
+            for _ in [1]:
+                factory = captured
+
+        @Holder.factory()
+        def looped_class_factory():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:dynamic:<missing> -> looped_class_factory"
+    ]
+
+
+def test_legacy_growth_guard_preserves_identity_map_mapping_values() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+
+        for route in map(lambda value: value, routes.values()):
+            route("/api/v1/identity-map-value")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/identity-map-value"
+    ]
+
+
+def test_legacy_growth_guard_resolves_direct_class_registrar_member() -> None:
+    source = textwrap.dedent("""
+        class Holder:
+            factory = app.get
+
+        @Holder.factory("/api/v1/direct-class-member")
+        def direct_class_member():
+            return None
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/direct-class-member -> direct_class_member"
+    ]
+
+
 @pytest.mark.parametrize(
     "factory_expression",
     ["Holder().factory", 'getattr(Holder(), "factory")'],

@@ -419,6 +419,15 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 return node.value
             return None
 
+        def literal_iterable_nonempty(node: ast.AST) -> bool | None:
+            if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+                if any(isinstance(element, ast.Starred) for element in node.elts):
+                    return None
+                return bool(node.elts)
+            if isinstance(node, ast.Dict):
+                return bool(node.keys)
+            return None
+
         def assignment_reference(
             statement: ast.stmt,
             target_matches: Callable[[ast.expr], bool],
@@ -519,6 +528,36 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     set(),
                     set(),
                 )
+            if isinstance(statement, (ast.For, ast.AsyncFor)):
+                nonempty = literal_iterable_nonempty(statement.iter)
+                if nonempty is False:
+                    return evaluate_binding_statements(statement.orelse, bindings, binding_update)
+                body_flow = evaluate_binding_statements(
+                    statement.body,
+                    bindings,
+                    binding_update,
+                )
+                if nonempty is True:
+                    after_body = body_flow[0] | body_flow[2] | body_flow[3]
+                    if not after_body:
+                        return body_flow
+                    orelse_flow = evaluate_binding_statements(
+                        statement.orelse,
+                        after_body,
+                        binding_update,
+                    )
+                    return merge_binding_flows([body_flow, orelse_flow])
+                zero_iteration_flow = evaluate_binding_statements(
+                    statement.orelse,
+                    bindings,
+                    binding_update,
+                )
+                iterated_flow = evaluate_binding_statements(
+                    statement.orelse,
+                    body_flow[0] | body_flow[2] | body_flow[3],
+                    binding_update,
+                )
+                return merge_binding_flows([body_flow, zero_iteration_flow, iterated_flow])
             return set(bindings), set(), set(), set()
 
         def class_body_update(statement: ast.stmt) -> object:
@@ -544,16 +583,30 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             for statement in statements:
                 if class_body_update(statement) is not no_binding_update:
                     return True
-                if not isinstance(statement, ast.If):
-                    continue
-                condition = literal_bool(statement.test)
-                if condition is not None:
-                    if class_body_defines_member(statement.body if condition else statement.orelse):
+                if isinstance(statement, ast.If):
+                    condition = literal_bool(statement.test)
+                    if condition is not None:
+                        if class_body_defines_member(
+                            statement.body if condition else statement.orelse
+                        ):
+                            return True
+                    elif class_body_defines_member(statement.body) and class_body_defines_member(
+                        statement.orelse,
+                    ):
                         return True
-                elif class_body_defines_member(statement.body) and class_body_defines_member(
-                    statement.orelse,
-                ):
-                    return True
+                    continue
+                if isinstance(statement, (ast.For, ast.AsyncFor)):
+                    nonempty = literal_iterable_nonempty(statement.iter)
+                    if nonempty is True and class_body_defines_member(statement.body):
+                        return True
+                    if nonempty is False and class_body_defines_member(statement.orelse):
+                        return True
+                    if (
+                        nonempty is None
+                        and class_body_defines_member(statement.body)
+                        and class_body_defines_member(statement.orelse)
+                    ):
+                        return True
             return False
 
         def module_update(statement: ast.stmt) -> object:
@@ -747,6 +800,18 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     _POSSIBLE_ROUTER_REFERENCE,
                 }:
                     return "dynamic"
+            class_owner = class_owner_reference(func.value)
+            if class_owner is not None:
+                class_reference, instance = class_owner
+                member_reference = class_member_binding(
+                    class_reference,
+                    func.attr,
+                    instance=instance,
+                    before_line=func.lineno,
+                )
+                action = _registration_action_for_reference(member_reference, methods)
+                if action is not None:
+                    return action
         node_id = id(node)
         if node_id not in route_reference_snapshots:
             return None
@@ -6941,6 +7006,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._variadic_iterable_binding([pair_element])
         return self._variadic_iterable_binding(elements)
 
+    def _identity_map_result_binding(
+        self,
+        arguments: Sequence[ast.expr],
+        unresolved_sources: Sequence[ast.expr],
+    ) -> _ResolvedBinding | None:
+        if unresolved_sources or len(arguments) != 2:
+            return None
+        mapper, iterable = arguments
+        if not isinstance(mapper, ast.Lambda):
+            return None
+        parameters = (*mapper.args.posonlyargs, *mapper.args.args)
+        if (
+            len(parameters) != 1
+            or mapper.args.defaults
+            or mapper.args.kwonlyargs
+            or mapper.args.vararg is not None
+            or mapper.args.kwarg is not None
+            or not isinstance(mapper.body, ast.Name)
+            or mapper.body.id != parameters[0].arg
+        ):
+            return None
+        element = self._resolve_iterable_element_binding(iterable)
+        return self._variadic_iterable_binding(
+            [element if element is not None else self._conservative_argument_binding()]
+        )
+
     def _join_resolved_bindings(
         self,
         bindings: Sequence[_ResolvedBinding],
@@ -8073,6 +8164,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     if existing is None
                     else self._join_resolved_bindings([existing, result_binding])
                 )
+        if maps_callback:
+            identity_map_result = self._identity_map_result_binding(
+                positional_arguments,
+                unresolved_positional_sources,
+            )
+            if identity_map_result is not None:
+                self._call_result_bindings[id(node)] = identity_map_result
+                if self.call_result_snapshots is not None:
+                    self.call_result_snapshots[id(node)] = identity_map_result
         partial_templates = self._partial_function_templates(
             node,
             wrapper_reference=wrapper_reference,
