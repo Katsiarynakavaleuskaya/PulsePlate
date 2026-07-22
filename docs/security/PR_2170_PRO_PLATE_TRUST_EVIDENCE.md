@@ -76,22 +76,24 @@ merge authority.
 
 ## Codex Security material identity and stop condition
 
-The final operator-authorized exact-head Codex Security scan completed at the evidence
-commit that followed the earlier historical scan:
+The single explicitly authorized exceptional Codex Security scan completed for the
+frozen material that included all findings known before the final review cycle:
 
-- scan: `605022ae-6aa8-47f2-ab14-54cae9622912`;
-- frozen head: `cb7a0cd6614ca1ccd07b9ced13914c7e98b43d1b`;
+- scan: `14e6e86f-18bc-4314-97b9-6683eb04d36f`;
+- frozen head: `4aafde870f620640ec519a7803319e7706d84183`;
 - snapshot digest:
-  `codex-security-snapshot/v1:sha256:a99a2fe9c177f50b7e76e0041162025ce3b0ae76035ed4a573a7803686f40fac`;
-- scan progress: `6 of 6` completed;
+  `codex-security-snapshot/v1:sha256:cc4b1abf959a098431c35554793a901985f3fc7a820b2e9348f84a35cc94bc43`;
+- scan progress: `7 of 7` completed;
 - reportable findings: `0`.
 
-The previous scan `880bb67f-2965-4858-b2f0-fa94ff2f6ffe` at
-`197e3c3e1e7a39ef8662a02fd4e629c5364cbfa3` is historical evidence only and does not
-authorize later material. No retry or additional scan is permitted after the final
-exact-head scan. Required post-scan test, documentation, or runtime fixes change the
-material digest and therefore restore the fail-closed operator stop. This evidence makes
-no ready, green, or mergeable claim for such a changed head.
+Earlier scans, including `605022ae-6aa8-47f2-ab14-54cae9622912` at
+`cb7a0cd6614ca1ccd07b9ced13914c7e98b43d1b`, are historical evidence only and do not
+authorize later material. The final review cycle subsequently identified a bounded
+Plate safety-warning defect that requires a runtime and test fix after the frozen head.
+That material change invalidates the exact-head binding above and restores the
+fail-closed operator stop. No retry or additional scan is permitted under the approved
+lane rules, so this document makes no ready, green, or mergeable claim for the changed
+head.
 
 ## Rollback
 

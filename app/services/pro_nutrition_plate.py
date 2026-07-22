@@ -585,7 +585,12 @@ def build_fallback_plate(
     if callable(targets_builder):
         try:
             targets = targets_builder(_build_user_profile(req))
-            validate_targets_safety_warnings(targets)
+            safety_warnings = validate_targets_safety_warnings(targets)
+            if safety_warnings:
+                logger.warning(
+                    "Canonical WHO targets carried safety warnings; " "using bounded Plate fallback"
+                )
+                raise ValueError("unsafe fallback targets")
             target_macros = targets.macros
             try:
                 resolved_target_kcal = int(targets.kcal_daily)
@@ -772,6 +777,16 @@ def align_macros_with_targets(
     except Exception:
         logger.exception("Unexpected WHO target alignment failure")
         raise
+
+    response_warnings = getattr(targets_response, "warnings", ())
+    if any(
+        isinstance(warning, dict) and warning.get("code") == "safety"
+        for warning in response_warnings
+    ):
+        logger.warning(
+            "Canonical WHO targets carried safety warnings; preserving generated Plate macros"
+        )
+        return macros_aligned, None, False
 
     alignment_succeeded = False
     for macro_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):

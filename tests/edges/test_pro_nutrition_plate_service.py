@@ -329,6 +329,135 @@ def test_plate_alignment_preserves_generated_macro_when_target_is_invalid(
 
 
 @pytest.mark.parametrize(
+    ("warnings", "expected_macros", "expected_kcal", "expected_aligned"),
+    [
+        pytest.param(
+            [{"code": "safety", "message": "Unsafe target combination"}],
+            {
+                "protein_g": 90,
+                "fat_g": 55,
+                "carbs_g": 220,
+                "fiber_g": 20,
+            },
+            None,
+            False,
+            id="safety-warning-preserves-generated",
+        ),
+        pytest.param(
+            [{"code": "life_stage", "message": "Use age-appropriate references"}],
+            {
+                "protein_g": 120,
+                "fat_g": 70,
+                "carbs_g": 250,
+                "fiber_g": 30,
+            },
+            2100,
+            True,
+            id="non-safety-warning-aligns",
+        ),
+    ],
+)
+def test_plate_alignment_rejects_only_safety_warned_targets(
+    warnings: list[dict[str, str]],
+    expected_macros: dict[str, int],
+    expected_kcal: int | None,
+    expected_aligned: bool,
+) -> None:
+    """Safety warnings reject target copying without blocking safe warnings."""
+
+    generated_macros = {
+        "protein_g": 90,
+        "fat_g": 55,
+        "carbs_g": 220,
+        "fiber_g": 20,
+    }
+
+    def _response_factory(*_args: object, **_kwargs: object) -> object:
+        return SimpleNamespace(
+            kcal_daily=2100,
+            macros={
+                "protein_g": 120,
+                "fat_g": 70,
+                "carbs_g": 250,
+                "fiber_g": 30,
+            },
+            warnings=warnings,
+        )
+
+    macros, kcal, aligned = pro_nutrition_plate.align_macros_with_targets(
+        _request(),
+        {"macros": generated_macros},
+        targets_builder=lambda _profile: object(),
+        targets_response_factory=_response_factory,
+    )
+
+    assert macros == expected_macros
+    assert kcal == expected_kcal
+    assert aligned is expected_aligned
+
+
+def test_fallback_rejects_safety_warned_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Safety warnings keep the bounded heuristic instead of copying targets."""
+
+    target = SimpleNamespace(
+        kcal_daily=2100,
+        macros=SimpleNamespace(
+            protein_g=120,
+            fat_g=70,
+            carbs_g=250,
+            fiber_g=30,
+        ),
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "validate_targets_safety_warnings",
+        lambda _targets: ["Unsafe target combination"],
+    )
+
+    response = pro_nutrition_plate.build_fallback_plate(
+        _request(),
+        targets_builder=lambda _profile: target,
+    )
+
+    assert response.kcal == 1980
+    assert response.macros == {
+        "protein_g": 96,
+        "fat_g": 54,
+        "carbs_g": 278,
+        "fiber_g": 25,
+    }
+
+
+def test_fallback_propagates_target_safety_validator_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validator execution failures remain fail-closed in fallback mode."""
+
+    def _reject_targets(_targets: object) -> list[str]:
+        raise HTTPException(
+            status_code=500,
+            detail=WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL,
+        )
+
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "validate_targets_safety_warnings",
+        _reject_targets,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        pro_nutrition_plate.build_fallback_plate(
+            _request(),
+            targets_builder=lambda _profile: object(),
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
+
+
+@pytest.mark.parametrize(
     ("field", "invalid_value"),
     [
         pytest.param("kcal_daily", float("inf"), id="kcal-infinity"),
