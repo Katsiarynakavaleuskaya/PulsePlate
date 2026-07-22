@@ -2037,18 +2037,19 @@ def test_rejected_pre_oracle_class_must_not_include_oracle_evidence() -> None:
         experiment_notify.render_notification_markdown(packet, result)
 
 
-def test_rejected_policy_violation_must_not_include_mutated_paths() -> None:
-    packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(
-        _result(status="rejected", failure_class="policy_violation")
-    )
-    result["oracle_results"] = []
+def test_rejected_policy_violation_result_rejects_mutated_paths() -> None:
+    raw_result = _result(status="rejected", failure_class="policy_violation")
+    raw_result["budget_observations"] = {
+        "attempts": 0,
+        "retries_consumed": 0,
+        "runner_error": "terminal policy violation",
+    }
 
     with pytest.raises(
-        experiment_notify.ExperimentNotificationError,
-        match="mutated_paths must be empty",
+        ValueError,
+        match="must use mutated_path_count 0",
     ):
-        experiment_notify.render_notification_markdown(packet, result)
+        experiment_contract.validate_experiment_result(raw_result)
 
 
 def test_promotion_evidence_must_match_packet_and_result() -> None:

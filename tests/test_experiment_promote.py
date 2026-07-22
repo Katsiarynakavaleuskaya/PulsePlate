@@ -385,6 +385,33 @@ def test_rejected_result_backlog_entry_is_allowed(
     assert ledger.count("ledger-exp-promote") == 1
 
 
+@pytest.mark.parametrize(
+    "failure_class",
+    ["capability_mismatch", "infra_flake", "policy_violation"],
+)
+def test_terminal_rejected_result_stops_before_backlog_promotion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_class: str,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="backlog_entry")
+    )
+    result = _result(status="rejected", failure_class=failure_class)
+    backlog_path = repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    original_backlog = backlog_path.read_text(encoding="utf-8")
+
+    with pytest.raises(
+        experiment_promote.ExperimentPromotionError,
+        match="must stop before promotion",
+    ):
+        experiment_promote.build_promotion_decision(packet, result)
+
+    assert backlog_path.read_text(encoding="utf-8") == original_backlog
+
+
 def test_rejected_backlog_entry_preserves_creative_research_origin(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
