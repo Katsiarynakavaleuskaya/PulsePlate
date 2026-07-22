@@ -193,8 +193,22 @@ def _canonical_artifact_markdown_link_count(
 
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     expected_path = f"/{repository}/blob/{head_ref}/{artifact_path}"
-    expected_url = f"https://github.com{expected_path}"
-    canonical_url_occurrences = urllib.parse.unquote(pr_body).count(expected_url)
+
+    def is_canonical_destination(destination: str) -> bool:
+        parsed = urllib.parse.urlsplit(destination)
+        return (
+            bool(head_ref)
+            and parsed.scheme == "https"
+            and parsed.netloc.lower() == "github.com"
+            and not parsed.query
+            and not parsed.fragment
+            and urllib.parse.unquote(parsed.path) == expected_path
+        )
+
+    canonical_url_occurrences = sum(
+        is_canonical_destination(match.group(0))
+        for match in re.finditer(r"https://github\.com/[^\s<>()]+", pr_body)
+    )
     count = 0
     in_html_comment = False
     fence_char = ""
@@ -254,17 +268,11 @@ def _canonical_artifact_markdown_link_count(
         if match is None:
             continue
         raw_destination = match.group("angle") or match.group("plain") or ""
-        destination = urllib.parse.unquote(raw_destination or "")
+        destination = raw_destination or ""
         parsed = urllib.parse.urlsplit(destination)
         if parsed.query or parsed.fragment:
             continue
-        if parsed.scheme or parsed.netloc:
-            if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
-                continue
-            is_canonical_destination = bool(head_ref) and parsed.path == expected_path
-        else:
-            is_canonical_destination = False
-        if is_canonical_destination:
+        if is_canonical_destination(destination):
             count += 1
     if count == 1:
         return canonical_url_occurrences
@@ -318,7 +326,10 @@ def _pre_closeout_dirty_paths() -> set[str]:
         raise ValueError("git status timed out during pre-closeout cleanliness check") from exc
     if completed.returncode != 0:
         raise ValueError("git status failed during pre-closeout cleanliness check")
-    return {line[3:] for line in completed.stdout.splitlines() if len(line) >= 4}
+    status_lines = [line for line in completed.stdout.splitlines() if len(line) >= 4]
+    if any(line[0] not in {" ", "?"} for line in status_lines):
+        raise ValueError("staged changes are forbidden during pre-closeout validation")
+    return {line[3:] for line in status_lines}
 
 
 def _is_actionable(body: str) -> bool:
@@ -1301,6 +1312,10 @@ def main() -> int:
                 "SNAPSHOT_CHANGED: actionable bot review inventory changed during validation"
             )
         if args.pre_closeout and expected_mapping_path is not None:
+            if _local_head_sha() != snapshot.head_sha:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: local HEAD changed during pre-closeout validation"
+                )
             if _pre_closeout_dirty_paths() != {expected_mapping_path}:
                 raise CommitIdentityError(
                     "SNAPSHOT_CHANGED: local working tree changed during pre-closeout validation"
