@@ -4527,6 +4527,21 @@ def test_legacy_growth_guard_preserves_chain_mapping_values() -> None:
     ]
 
 
+def test_legacy_growth_guard_preserves_islice_mapping_values() -> None:
+    source = textwrap.dedent("""
+        from itertools import islice
+
+        routes = {"route": app.get}
+        for route in islice(routes.values(), 1):
+            route("/api/v1/islice-map-value")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/islice-map-value"
+    ]
+
+
 def test_legacy_growth_guard_preserves_chain_from_iterable_mapping_values() -> None:
     source = textwrap.dedent("""
         from itertools import chain

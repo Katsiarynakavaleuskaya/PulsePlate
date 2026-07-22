@@ -470,6 +470,7 @@ def _require_completed_final_security_preparation(
             payload = json.loads(supplied_manifest.read_text(encoding="utf-8"))
             scan = payload["scan"]
             started_at = scan["startedAt"]
+            completed_at = scan["completedAt"]
         except (
             KeyError,
             TypeError,
@@ -486,6 +487,14 @@ def _require_completed_final_security_preparation(
             field="preparation prepared_at",
         ):
             raise CloseoutError("recorded final-security scan predates its preparation")
+        if _parse_utc_timestamp(
+            completed_at,
+            field="final-security scan completedAt",
+        ) > _parse_utc_timestamp(
+            latest["attempt_completed_at"],
+            field="preparation attempt_completed_at",
+        ):
+            raise CloseoutError("recorded final-security outcome predates the scan completion")
 
 
 def _require_terminal_outage_final_security_preparation(

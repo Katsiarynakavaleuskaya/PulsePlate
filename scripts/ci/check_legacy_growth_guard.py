@@ -3169,6 +3169,9 @@ _ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
 _ITERABLE_FILTERING_BUILTIN_REFERENCES = frozenset({"builtins.filter"})
 _ITERABLE_CONCATENATING_REFERENCES = frozenset({"itertools.chain"})
 _ITERABLE_FLATTENING_REFERENCES = frozenset({"itertools.chain.from_iterable"})
+_ITERABLE_PRESERVING_WRAPPER_REFERENCES = _ITERABLE_PRESERVING_BUILTIN_REFERENCES | {
+    "itertools.islice"
+}
 
 
 def _namespace_mutator_method(reference: str | None) -> str | None:
@@ -8377,7 +8380,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         elif (
             projected_result is None
             and (positional_arguments or unresolved_positional_sources)
-            and wrapper_reference in _ITERABLE_PRESERVING_BUILTIN_REFERENCES
+            and wrapper_reference in _ITERABLE_PRESERVING_WRAPPER_REFERENCES
         ):
             element = (
                 self._conservative_argument_binding()

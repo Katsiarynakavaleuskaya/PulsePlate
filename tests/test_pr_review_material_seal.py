@@ -5141,11 +5141,11 @@ def test_seal_binds_completed_scan_and_review_to_prepared_request(
     recorded_manifest.parent.mkdir()
     supplied_manifest.parent.mkdir()
     recorded_manifest.write_text(
-        '{"scan":{"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
         encoding="utf-8",
     )
     supplied_manifest.write_text(
-        '{"scan":{"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
         encoding="utf-8",
     )
     review_evidence = {
@@ -5157,6 +5157,7 @@ def test_seal_binds_completed_scan_and_review_to_prepared_request(
     state = {
         "preparations": [
             {
+                "attempt_completed_at": "2026-07-15T12:00:03Z",
                 "attempt_outcome": "completed",
                 "attempt_status": "completed",
                 "material_digest": DIGEST,
@@ -5202,7 +5203,21 @@ def test_seal_binds_completed_scan_and_review_to_prepared_request(
         )
 
     recorded_manifest.write_text(
-        '{"scan":{"startedAt":"2026-07-15T11:59:59Z"}}\n',
+        '{"scan":{"completedAt":"2026-07-15T12:00:04Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="predates the scan completion"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=recorded_manifest,
+        )
+
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T11:59:59Z"}}\n',
         encoding="utf-8",
     )
     with pytest.raises(closeout_module.CloseoutError, match="predates its preparation"):
