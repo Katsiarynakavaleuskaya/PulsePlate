@@ -257,8 +257,44 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
     assert aligned is True
 
 
-def test_plate_alignment_preserves_generated_macro_when_target_is_invalid() -> None:
-    """An invalid injected target macro cannot escape or replace a safe value."""
+@pytest.mark.parametrize(
+    ("invalid_macro", "invalid_value"),
+    [
+        pytest.param("protein_g", -1, id="protein-below-minimum"),
+        pytest.param("protein_g", 501, id="protein-above-maximum"),
+        pytest.param("fat_g", -1, id="fat-below-minimum"),
+        pytest.param("fat_g", 301, id="fat-above-maximum"),
+        pytest.param("carbs_g", -1, id="carbs-below-minimum"),
+        pytest.param("carbs_g", 1001, id="carbs-above-maximum"),
+        pytest.param("fiber_g", -1, id="fiber-below-minimum"),
+        pytest.param("fiber_g", 101, id="fiber-above-maximum"),
+        pytest.param("protein_g", float("inf"), id="protein-non-finite"),
+        pytest.param("protein_g", True, id="protein-boolean"),
+        pytest.param("protein_g", "120", id="protein-numeric-string"),
+        pytest.param("protein_g", 120.5, id="protein-fractional-float"),
+        pytest.param("protein_g", 120.0, id="protein-integral-float"),
+        pytest.param("protein_g", Decimal("120"), id="protein-decimal"),
+    ],
+)
+def test_plate_alignment_preserves_generated_macro_when_target_is_invalid(
+    invalid_macro: str,
+    invalid_value: object,
+) -> None:
+    """Invalid target macros preserve safe values while valid fields align."""
+
+    generated_macros = {
+        "protein_g": 90,
+        "fat_g": 55,
+        "carbs_g": 220,
+        "fiber_g": 20,
+    }
+    target_macros: dict[str, object] = {
+        "protein_g": 120,
+        "fat_g": 70,
+        "carbs_g": 250,
+        "fiber_g": 30,
+    }
+    target_macros[invalid_macro] = invalid_value
 
     def _response_factory(
         _request: WHOTargetsRequest,
@@ -270,34 +306,24 @@ def test_plate_alignment_preserves_generated_macro_when_target_is_invalid() -> N
         assert callable(targets_builder)
         return SimpleNamespace(
             kcal_daily=2100,
-            macros={
-                "protein_g": float("inf"),
-                "fat_g": 70,
-                "carbs_g": 250,
-                "fiber_g": 30,
-            },
+            macros=target_macros,
         )
 
     macros, kcal, aligned = pro_nutrition_plate.align_macros_with_targets(
         _request(),
-        {
-            "macros": {
-                "protein_g": 90,
-                "fat_g": 55,
-                "carbs_g": 220,
-                "fiber_g": 25,
-            }
-        },
+        {"macros": generated_macros},
         targets_builder=lambda _profile: object(),
         targets_response_factory=_response_factory,
     )
 
-    assert macros == {
-        "protein_g": 90,
+    expected_macros = {
+        "protein_g": 120,
         "fat_g": 70,
         "carbs_g": 250,
-        "fiber_g": 25,
+        "fiber_g": 30,
     }
+    expected_macros[invalid_macro] = generated_macros[invalid_macro]
+    assert macros == expected_macros
     assert kcal == 2100
     assert aligned is True
 

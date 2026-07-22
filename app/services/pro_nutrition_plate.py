@@ -37,7 +37,11 @@ from app.services.pro_nutrition_targets import (
     validate_targets_safety_warnings,
 )
 from app.utils.feature_flags import _is_truthy
-from core.data_sanitizer import MissingOptionalDependencyError, sanity_filter_plate_data
+from core.data_sanitizer import (
+    PLATE_MACRO_RANGES,
+    MissingOptionalDependencyError,
+    sanity_filter_plate_data,
+)
 from core.nutrition_utils import (
     alias_micros,
     clamp_daily_kcal,
@@ -756,13 +760,19 @@ def align_macros_with_targets(
         if macro_name == "fiber_g" and macros_aligned.get("fiber_g") == int(round(FIBER_MIN_G)):
             continue
         try:
-            macros_aligned[macro_name] = int(target_value)
+            if isinstance(target_value, bool) or not isinstance(target_value, int):
+                raise TypeError("target macro must be an integer")
+            normalized_target = target_value
+            minimum, maximum = PLATE_MACRO_RANGES[macro_name]
+            if not minimum <= normalized_target <= maximum:
+                raise ValueError("target macro outside canonical Plate range")
         except (TypeError, ValueError, OverflowError):
             logger.warning(
                 "Canonical WHO target %s was invalid; preserving generated value",
                 macro_name,
             )
             continue
+        macros_aligned[macro_name] = normalized_target
         alignment_succeeded = True
 
     try:
