@@ -353,8 +353,9 @@ def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_alias_micros_type_error() -> None:
+    invalid_micros: Any = ["not", "a", "dict"]
     with pytest.raises(TypeError):
-        plate_service.alias_micros(["not", "a", "dict"])  # type: ignore[arg-type]
+        plate_service.alias_micros(invalid_micros)
 
 
 def test_alias_micros_value_error() -> None:
