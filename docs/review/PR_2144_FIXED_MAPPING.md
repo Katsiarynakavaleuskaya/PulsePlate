@@ -485,6 +485,41 @@ Evidence: The final freeze binds digest sha256:792725425fa253b8035e872e2d9338601
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3625128255 -> 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
 
 Disposition: FIXED
+Commit: f017477357b44d4fabafeeeb9518a928db89efb8
+Evidence: scripts/orchestration/experiment_pipeline.py accepts RUNNER_REJECTED_EXIT_CODE for the runner stage; focused pipeline and runner tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3628594868 -> f017477357b44d4fabafeeeb9518a928db89efb8
+
+Disposition: FIXED
+Commit: a0c12678ba3b9889c2638d47563a630af3d2ffe9
+Evidence: creative_code_patch_generation defers runner-specific validation so non-runner CLI paths stay import-light; focused generation tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3628594878 -> a0c12678ba3b9889c2638d47563a630af3d2ffe9
+
+Disposition: FIXED
+Commit: b04d8bbe3dd418fabcc004a54cb84e7fbbd9e414
+Evidence: creative_code_patch_generation records/restores state publication across identity failures; focused atomic-publication rollback tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3628594885 -> b04d8bbe3dd418fabcc004a54cb84e7fbbd9e414
+
+Disposition: FIXED
+Commit: a36a865791d218168d639eb79967ff582f99dd73
+Evidence: scripts/orchestration/experiment_runner_dispatch.py returns owned RUNNER_REJECTED_EXIT_CODE for valid rejected dispatch evidence; focused dispatch tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3629306323 -> a36a865791d218168d639eb79967ff582f99dd73
+
+Disposition: FIXED
+Commit: a36a865791d218168d639eb79967ff582f99dd73
+Evidence: scripts/orchestration/creative_code_patch_generation.py records successful hard-link publication before best-effort temp cleanup; atomic publication tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3629306334 -> a36a865791d218168d639eb79967ff582f99dd73
+
+Disposition: FIXED
+Commit: a36a865791d218168d639eb79967ff582f99dd73
+Evidence: OOM patterns moved to dependency-light scripts/orchestration/experiment_contract.py and both runner/finalizer consume the canonical helper; import-blocker tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3629626451 -> a36a865791d218168d639eb79967ff582f99dd73
+
+Disposition: FIXED
+Commit: a36a865791d218168d639eb79967ff582f99dd73
+Evidence: Forbidden sys.modules injection was removed from tests/test_experiment_runner_dispatch.py while subprocess import-blocker coverage remains; repo policy and focused tests passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3629626454 -> a36a865791d218168d639eb79967ff582f99dd73
+
+Disposition: FIXED
 Commit: 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 Evidence: The review finding set was addressed by the trusted-dispatch hardening sequence; commit 67a047d4 closes final evidence gaps and tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#pullrequestreview-4713233850 -> 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
@@ -549,8 +584,28 @@ Evidence: scripts/orchestration/creative_code_patch_generation.py:2350-2366 requ
 Reason: A post-preflight capability signal is still a pre-oracle terminal result, not a normal runner-output result; the canonical finalizer and focused regression already preserve this contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3619965348
 
+Disposition: NOT-A-BUG
+Evidence: Final closeout freeze binds live head a36a865791d218168d639eb79967ff582f99dd73 and material digest sha256:f869c26949ea71993bdb760bbef0cecdaad5a32cfddd6daa9048fe44832975ca; canonical replay live-verifies all historical FIXED commits as reachable.
+Reason: The finding described the pre-closeout mapping state. The canonical final closeout regenerates reachable proof and excludes only the exact mapping artifact from material identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3628594857
+
+Disposition: NOT-A-BUG
+Evidence: Final bounded evidence manifest artifacts/security_lab/pr-2144-final-a36a86579/scan-manifest.json binds base 880753ee3d1db61c7fc8593798ade03cdb2177c2 to head a36a865791d218168d639eb79967ff582f99dd73 and the frozen material digest.
+Reason: The comment correctly observed an intermediate stale seal; the one-closeout workflow intentionally reseals only after material freeze.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3628594863
+
+Disposition: NOT-A-BUG
+Evidence: Final closeout freeze binds live head a36a865791d218168d639eb79967ff582f99dd73 and final material digest; the completed bounded evidence manifest is stored at artifacts/security_lab/pr-2144-final-a36a86579/scan-manifest.json.
+Reason: This duplicate finding refers to an intermediate material head; policy requires one final seal after the last material commit, which is the closeout now being produced.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3629306308
+
+Disposition: NOT-A-BUG
+Evidence: Final closeout freeze binds live head a36a865791d218168d639eb79967ff582f99dd73 and final material digest; the completed bounded evidence manifest is stored at artifacts/security_lab/pr-2144-final-a36a86579/scan-manifest.json.
+Reason: This duplicate finding refers to an intermediate material head; policy requires one final seal after the last material commit, which is the closeout now being produced.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3629306316
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:792725425fa253b8035e872e2d93386018f40477f8f20d50f24c8797fa4ad8a1","material_head_sha":"9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T18:55:43Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#issuecomment-5026013280","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:83f6745fbc8bd7c4b926311a153f79cd2b0eb4852bcf5231b6583336ccf90771","findings_sha256":"sha256:30abe1aa5d6ff9768250d1f96780ec24b997637c118deee37c78638b3c10756c","work_ledger_sha256":"sha256:7532880b5a4f9929c396c9c157d70e2511eb97d71877638eff57abc0365de203"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88","manifest_sha256":"sha256:85bc2dbd20d5c1595babfaa89e785bf4c703b88ee60b36228c19ae6e2978adda","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"87278735-eaff-4592-8d78-33a5489f2b10","snapshot_digest":"codex-security-snapshot/v1:sha256:620dc433d2028a0e84fefae3b1f282a13e3b2a9eacfe673455f52f97b85f5cc6"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:792725425fa253b8035e872e2d93386018f40477f8f20d50f24c8797fa4ad8a1","material_head_sha":"9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2144,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:f869c26949ea71993bdb760bbef0cecdaad5a32cfddd6daa9048fe44832975ca","material_head_sha":"a36a865791d218168d639eb79967ff582f99dd73","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T18:55:43Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#issuecomment-5026013280","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:9dc7dd20f57e627053dd78afd80c5ccee60ded639b4109cbd73a79b7bb48e974","findings_sha256":"sha256:14b9d1010fc91217125808bd8faf26f2697a1dc7eae4fefceb6daa74894e59d6","work_ledger_sha256":"sha256:e1e277bd5ebf11113f41a99d08b2c50d9e4076d1847aa87badc9576251e6f80a"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"a36a865791d218168d639eb79967ff582f99dd73","manifest_sha256":"sha256:a43275c7b14c42a09ba1f1c2d889bbc4e5b5228d555202eabccaa19f82070593","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"c7b8843a-c4df-4be7-b5c5-b01de95095f2","snapshot_digest":"codex-security-snapshot/v1:sha256:53034fdb167d644729d2e44284805cdcc35a5d090793476d330fd2f1680f9a17"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:f869c26949ea71993bdb760bbef0cecdaad5a32cfddd6daa9048fe44832975ca","material_head_sha":"a36a865791d218168d639eb79967ff582f99dd73","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2144,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
