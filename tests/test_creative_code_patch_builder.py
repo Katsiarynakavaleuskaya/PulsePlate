@@ -291,16 +291,39 @@ def test_pr2_experiment_packet_binds_builder_owned_semantics() -> None:
         request=request,
         source_bundle=bundle,
         changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("a" * 64),
     )
 
     assert packet["decision_question"] == selected_variant["problem_statement"]
     assert packet["task_class"] == "Experimentation"
     assert packet["negative_controls"] == selected_variant["negative_controls"]
     assert packet["promotion_target"] == "audit_artifact"
+    assert packet["candidate_patch_fingerprint"] == "sha256:" + ("a" * 64)
+    assert packet["base_commit_sha"] == request["base_commit_sha"]
     assert packet["creative_research_origin"] == {
         key: bundle["source_creative_research"][key]
         for key in ("bundle_id", "candidate_id", "promotion_decision")
     }
+
+
+def test_pr2_experiment_packet_id_changes_with_candidate_patch() -> None:
+    request = _reference_request()
+    bundle = _reference_bundle()
+
+    first = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("a" * 64),
+    )
+    second = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("b" * 64),
+    )
+
+    assert first["experiment_id"] != second["experiment_id"]
 
 
 def test_generation_prompt_uses_single_file_wording_for_single_file_budget() -> None:
@@ -365,6 +388,11 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
         creative_code_patch_contract.FAILURE_CLASSES
     )
     assert result_schema["properties"]["failure_class"]["$ref"].endswith("failure_class")
+    pre_oracle_execution_rule = result_schema["$defs"]["runner_summary"]["allOf"][4]
+    assert pre_oracle_execution_rule["if"]["anyOf"] == [
+        {"properties": {"failure_class": {"const": "capability_mismatch"}}},
+        {"properties": {"failure_class": {"const": "policy_violation"}}},
+    ]
     assert result_schema["$defs"]["runner_summary"]["properties"]["failure_class"]["$ref"].endswith(
         "failure_class"
     )
@@ -397,7 +425,17 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert root_retry_rule["failure_class"] == {"const": "capability_mismatch"}
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
-    rejected_pair_rule = result_schema["allOf"][3]
+    assert result_schema["allOf"][3]["if"]["properties"]["failure_class"] == {
+        "const": "policy_violation"
+    }
+    policy_root_rule = result_schema["allOf"][3]["then"]["properties"]["runner_summary"][
+        "properties"
+    ]
+    assert policy_root_rule["attempts"] == {"enum": [0, 1]}
+    assert policy_root_rule["retries_consumed"] == {"const": 0}
+    assert policy_root_rule["runner_error_present"] == {"const": True}
+    assert policy_root_rule["runner_error_fingerprint"] == {"$ref": "#/$defs/sha256"}
+    rejected_pair_rule = result_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
         "const": "rejected"
@@ -418,17 +456,28 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
     assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
-    zero_attempt_rule = runner_rules[3]
-    assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
-    assert zero_attempt_rule["if"]["properties"] == {
-        "failure_class": {"const": "capability_mismatch"},
-        "attempts": {"const": 0},
+    assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
+    assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
+    assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    assert runner_rules[3]["then"]["properties"]["runner_error_present"] == {"const": True}
+    assert runner_rules[3]["then"]["properties"]["runner_error_fingerprint"] == {
+        "$ref": "#/$defs/sha256"
     }
-    assert zero_attempt_rule["then"]["properties"] == {
+    pre_oracle_execution_rule = runner_rules[4]
+    assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
+    assert pre_oracle_execution_rule["if"]["anyOf"] == [
+        {
+            "properties": {
+                "failure_class": {"const": "capability_mismatch"},
+            }
+        },
+        {"properties": {"failure_class": {"const": "policy_violation"}}},
+    ]
+    assert pre_oracle_execution_rule["then"]["properties"] == {
         "mutated_path_count": {"const": 0},
         "oracle_commands_executed": {"const": 0},
     }
-    assert "oracle_commands_configured" not in zero_attempt_rule["then"]["properties"]
+    assert "oracle_commands_configured" not in pre_oracle_execution_rule["then"]["properties"]
     assert (
         result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
         is True
@@ -572,20 +621,21 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
 
     assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
 
-    capability_without_runner_proof = _reference_result()
-    capability_without_runner_proof["status"] = "rejected"
-    capability_without_runner_proof["failure_class"] = "capability_mismatch"
-    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
-        capability_without_runner_proof
-    )
-    capability_without_runner_proof["result_id"] = result_id
-    capability_without_runner_proof["idempotency_key"] = idempotency_key
+    for failure_class in ("capability_mismatch", "policy_violation"):
+        pre_oracle_without_runner_proof = _reference_result()
+        pre_oracle_without_runner_proof["status"] = "rejected"
+        pre_oracle_without_runner_proof["failure_class"] = failure_class
+        result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+            pre_oracle_without_runner_proof
+        )
+        pre_oracle_without_runner_proof["result_id"] = result_id
+        pre_oracle_without_runner_proof["idempotency_key"] = idempotency_key
 
-    with pytest.raises(
-        CreativeCodePatchContractError,
-        match="capability_mismatch results require a rejected runner summary",
-    ):
-        validate_creative_code_patch_result(capability_without_runner_proof)
+        with pytest.raises(
+            CreativeCodePatchContractError,
+            match="terminal pre-oracle rejected results require a rejected runner summary",
+        ):
+            validate_creative_code_patch_result(pre_oracle_without_runner_proof)
 
 
 @pytest.mark.parametrize(
@@ -677,7 +727,7 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
 
     with pytest.raises(
         CreativeCodePatchContractError,
-        match="capability_mismatch results require a rejected runner summary",
+        match="terminal pre-oracle rejected results require a rejected runner summary",
     ):
         validate_creative_code_patch_result(top_level_tamper)
 
@@ -704,48 +754,85 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
         validate_creative_code_patch_result(compound_tamper)
 
 
-@pytest.mark.parametrize(
-    ("field", "message"),
-    [
-        (
-            "mutated_path_count",
-            "capability_mismatch with attempts 0 must use mutated_path_count 0",
-        ),
-        (
-            "oracle_commands_executed",
-            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
-        ),
-    ],
-)
-def test_patch_result_rejects_zero_attempt_capability_execution_evidence(
-    field: str,
-    message: str,
-) -> None:
+def test_patch_result_requires_policy_violation_runner_error_proof() -> None:
     tampered = _reference_result()
     tampered["status"] = "rejected"
-    tampered["failure_class"] = "capability_mismatch"
+    tampered["failure_class"] = "policy_violation"
     tampered["runner_summary"].update(
         {
             "status": "rejected",
-            "failure_class": "capability_mismatch",
+            "failure_class": "policy_violation",
             "mutated_path_count": 0,
             "oracle_commands_executed": 0,
-            "attempts": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error_present": False,
+            "runner_error_fingerprint": None,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="policy_violation requires non-empty runner_error evidence",
+    ):
+        validate_creative_code_patch_result(tampered)
+
+
+@pytest.mark.parametrize("attempts", [0, 1])
+@pytest.mark.parametrize(
+    ("failure_class", "field"),
+    [
+        ("capability_mismatch", "mutated_path_count"),
+        ("capability_mismatch", "oracle_commands_executed"),
+        ("policy_violation", "mutated_path_count"),
+        ("policy_violation", "oracle_commands_executed"),
+    ],
+)
+def test_patch_result_rejects_pre_oracle_execution_evidence(
+    attempts: int,
+    failure_class: str,
+    field: str,
+) -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = failure_class
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": failure_class,
+            "mutated_path_count": 0,
+            "oracle_commands_executed": 0,
+            "attempts": attempts,
             "retries_consumed": 0,
         }
     )
+    if failure_class == "policy_violation":
+        tampered["runner_summary"].update(
+            {
+                "runner_error_present": True,
+                "runner_error_fingerprint": fingerprint_payload(
+                    {"runner_error": "candidate rejected before oracle execution"}
+                ),
+            }
+        )
     tampered["runner_summary"][field] = 1
     result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
     tampered["result_id"] = result_id
     tampered["idempotency_key"] = idempotency_key
 
-    with pytest.raises(CreativeCodePatchContractError, match=message):
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match=f"{failure_class} with attempts {attempts} must use {field} 0",
+    ):
         validate_creative_code_patch_result(tampered)
 
 
 @pytest.mark.parametrize(
     ("attempts", "mutated_path_count", "oracle_commands_executed"),
-    [(0, 0, 0), (1, 1, 1)],
+    [(0, 0, 0), (1, 0, 0)],
 )
 def test_patch_result_accepts_coherent_capability_execution_evidence(
     attempts: int,
@@ -1396,6 +1483,32 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
     assert "diff --git leak" not in encoded
 
 
+def test_evaluate_rejects_shared_head_drift_before_runner_or_result_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-shared-head-drift"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    (repo / "README.md").write_text("advanced shared head\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "advance shared head")
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run after shared HEAD drift")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="HEAD must match candidate base"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert not (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).exists()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
+
+
 def test_evaluate_supplies_cv_context_for_cv_candidate(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1550,6 +1663,56 @@ def test_evaluate_fallback_stores_error_class_not_raw_exception(
     assert "ghp_secret" not in encoded
 
 
+def test_evaluate_rejects_rerun_without_replacing_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-rerun"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+
+    def fake_evaluate_candidate(
+        packet: dict[str, Any], candidate_patch_path: Path
+    ) -> dict[str, Any]:
+        return {
+            "experiment_id": packet["experiment_id"],
+            "runner_mode": "candidate_patch",
+            "candidate_patch": str(candidate_patch_path),
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/orchestration.py"],
+            "oracle_results": [{"returncode": 0, "timed_out": False, "truncated": False}],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "shared_tree_untouched": True,
+        }
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
+
+    creative_code_patch_builder.evaluate(run_id=run_id)
+    result_file = run_dir / creative_code_patch_builder.RESULT_FILE
+    original_result = result_file.read_bytes()
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="already evaluated"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert result_file.read_bytes() == original_result
+
+    state_file = run_dir / creative_code_patch_builder.STATE_FILE
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state["candidate_patch_evaluated"] = False
+    creative_code_patch_workspace.write_json_atomic(state_file, state)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="result already exists"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert result_file.read_bytes() == original_result
+
+
 def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1566,8 +1729,8 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
 
     monkeypatch.setattr(
         creative_code_patch_builder,
-        "evaluate_candidate",
-        raise_capability_signal,
+        "_import_runner_api",
+        lambda: (experiment_runner.RunnerCapabilitySignal, raise_capability_signal),
     )
 
     with pytest.raises(
@@ -1590,6 +1753,42 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
     )
     assert canary not in captured.err
     assert "Traceback" not in captured.err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
+
+
+def test_evaluate_import_failure_preserves_dispatch_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-runner-import-unavailable"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+
+    def fail_runner_import() -> tuple[Any, Any]:
+        raise ImportError
+
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "_import_runner_api",
+        fail_runner_import,
+    )
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
+    ) as exc_info:
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert exc_info.value.__cause__ is None
+    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    metadata = json.loads(
+        (run_dir / creative_code_patch_builder.PATCH_METADATA_FILE).read_text(encoding="utf-8")
+    )
+    assert packet["candidate_patch_fingerprint"] == metadata["patch_fingerprint"]
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
     assert state.get("candidate_patch_evaluated") is not True

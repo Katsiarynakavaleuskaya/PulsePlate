@@ -54,6 +54,9 @@ DEFAULT_BACKLOG_PRIORITY = "P1"
 DEFAULT_BACKLOG_TARGET_PR_PREFIX = "PR_TBD_"
 DEFAULT_BACKLOG_AREA = "orchestration / experimentation"
 RESULT_PROMOTION_STATUSES: tuple[str, ...] = ("promoted", "deferred")
+TERMINAL_REJECTION_FAILURE_CLASSES: frozenset[str] = frozenset(
+    {"capability_mismatch", "infra_flake", "policy_violation"}
+)
 
 
 class ExperimentPromotionError(RuntimeError):
@@ -114,6 +117,10 @@ def _require_matching_experiment(packet: dict[str, Any], result: dict[str, Any])
         raise ExperimentPromotionError(
             "Experiment packet and result must reference the same runner_mode."
         )
+    if packet.get("candidate_patch_fingerprint") != result.get("candidate_patch_fingerprint"):
+        raise ExperimentPromotionError(
+            "Experiment packet and result must reference the same candidate_patch_fingerprint."
+        )
 
 
 def _result_policy(packet: dict[str, Any], result: dict[str, Any]) -> str:
@@ -134,6 +141,11 @@ def _result_policy(packet: dict[str, Any], result: dict[str, Any]) -> str:
             )
         return "promoted"
     if status == "rejected":
+        failure_class = result.get("failure_class")
+        if failure_class in TERMINAL_REJECTION_FAILURE_CLASSES:
+            raise ExperimentPromotionError(
+                f"Rejected {failure_class} results must stop before promotion."
+            )
         if target != "backlog_entry":
             raise ExperimentPromotionError("Rejected results may promote only to backlog_entry.")
         return "deferred"

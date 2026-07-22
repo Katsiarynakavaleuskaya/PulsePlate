@@ -62,18 +62,31 @@ def _valid_experiment_result_payload(*, status: str = "accepted") -> dict[str, o
         "status": status,
         "failure_class": None if status == "accepted" else "policy_violation",
         "mutated_paths": [],
-        "oracle_results": [
-            {
-                "command": ".venv/bin/python -m pytest -q tests/test_pr_body_phase2_gates.py",
-                "returncode": 0,
-                "timed_out": False,
-                "truncated": False,
-                "stdout": "passed",
-                "stderr": "",
-                "cwd": ".",
-            }
-        ],
-        "budget_observations": {"wall_clock_seconds": 1},
+        "oracle_results": (
+            [
+                {
+                    "command": ".venv/bin/python -m pytest -q tests/test_pr_body_phase2_gates.py",
+                    "returncode": 0,
+                    "timed_out": False,
+                    "truncated": False,
+                    "stdout": "passed",
+                    "stderr": "",
+                    "cwd": ".",
+                }
+            ]
+            if status == "accepted"
+            else []
+        ),
+        "budget_observations": {
+            "wall_clock_seconds": 1,
+            "attempts": 1 if status == "accepted" else 0,
+            "retries_consumed": 0,
+            **(
+                {"runner_error": "candidate rejected before oracle execution"}
+                if status == "rejected"
+                else {}
+            ),
+        },
         "shared_tree_untouched": True,
         "promotion_ready": False,
         "contribution_kind": "none",

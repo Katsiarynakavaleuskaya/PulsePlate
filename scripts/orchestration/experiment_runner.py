@@ -15,7 +15,6 @@ import json
 import math
 import os
 from pathlib import Path, PurePosixPath
-import re
 import shlex
 import shutil
 import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-07-31, ref: PR-1082)
@@ -31,6 +30,7 @@ if str(RUNNER_REPO_ROOT) not in sys.path:
 from app.security import agent_control_plane as cp
 from app.security import execution_sandbox as sandbox
 from app.security.execution_sandbox import SandboxRequest
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state as _sanitized_git_env_without_parent_state,
@@ -40,6 +40,8 @@ from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     DEFAULT_STOP_CONDITION,
     DEFAULT_RUNNER_MODE,
+    MAX_CANDIDATE_PATCH_BYTES,
+    has_oom_evidence,
     ORACLE_BINARY_ALLOWLIST,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
@@ -51,16 +53,12 @@ from scripts.orchestration.experiment_contract import (
 
 RESULT_SCHEMA_VERSION = SCHEMA_VERSION
 RESULT_ARTIFACT_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
-OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bout of memory\b", re.IGNORECASE),
-    re.compile(r"\boom\b", re.IGNORECASE),
-    re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
-)
 PYTHON_ORACLE_BINARIES = {"python", "python3"}
 CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR = (
     "Execution capability became unavailable after an infrastructure retry."
 )
 RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_REJECTED_EXIT_CODE = 4
 RUNNER_CAPABILITY_DIAGNOSTIC = (
     "FAIL: execution capability unavailable; trusted backend provenance is required."
 )
@@ -162,10 +160,21 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _read_patch_text(path: Path) -> str:
+def _read_patch_text(path: Path, *, max_bytes: int | None = None) -> str:
+    """Read a candidate patch, bounding fingerprinted inputs before hashing."""
+
     try:
-        return path.read_text(encoding="utf-8")
+        if max_bytes is None:
+            return path.read_text(encoding="utf-8")
+        with path.open("rb") as handle:
+            raw_patch = handle.read(max_bytes + 1)
     except (OSError, UnicodeDecodeError) as exc:
+        raise InfraFlakeError(f"Unable to read candidate patch: {exc}") from exc
+    if len(raw_patch) > max_bytes:
+        raise PolicyViolationError("Candidate patch exceeds the host fingerprint limit.")
+    try:
+        return raw_patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
         raise InfraFlakeError(f"Unable to read candidate patch: {exc}") from exc
 
 
@@ -458,7 +467,11 @@ def _invalid_packet_result(
         failure_class="policy_violation",
         mutated_paths=[],
         oracle_results=[],
-        budget_observations={"runner_error": error},
+        budget_observations={
+            "attempts": 0,
+            "retries_consumed": 0,
+            "runner_error": error,
+        },
         shared_tree_untouched=False,
     )
 
@@ -518,6 +531,24 @@ def _create_temp_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str],
     return temp_dir, checkout_root
 
 
+def _require_candidate_base_commit(packet: dict[str, Any]) -> None:
+    """Bind a fingerprinted direct runner invocation to its packet base."""
+
+    expected_base = packet.get("base_commit_sha")
+    if expected_base is None:
+        return
+    current_head = _run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if current_head != expected_base:
+        raise PolicyViolationError(
+            "Experiment packet base_commit_sha does not match current repository HEAD."
+        )
+    tracked_status = _run_git(["status", "--short", "--untracked-files=no"], cwd=REPO_ROOT).stdout
+    if tracked_status:
+        raise PolicyViolationError(
+            "Fingerprinted candidate packets require a clean tracked repository checkout."
+        )
+
+
 def _apply_candidate_patch(checkout_root: Path, patch_text: str) -> None:
     """Verify patch applicability before applying it inside the isolated checkout."""
 
@@ -572,7 +603,7 @@ def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
         )
     ):
         return "capability_mismatch"
-    if any(pattern.search(combined_output) for pattern in OOM_PATTERNS):
+    if has_oom_evidence(combined_output):
         return "oom"
     return "guard_failure"
 
@@ -744,6 +775,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
     }
     shared_status_before: str | None = None
     capability_signal = False
+    candidate_patch_fingerprint: str | None = None
 
     try:
         candidate_patch_ref = normalize_repo_path(candidate_patch_path)
@@ -752,7 +784,22 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             raise PolicyViolationError(
                 "oracle_only_governance_reviewer mode must not evaluate candidate patches"
             )
-        patch_text = _read_patch_text(candidate_patch_path)
+        expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+        if expected_patch_fingerprint is None:
+            patch_text = _read_patch_text(candidate_patch_path)
+        else:
+            patch_text = _read_patch_text(
+                candidate_patch_path,
+                max_bytes=MAX_CANDIDATE_PATCH_BYTES,
+            )
+        actual_patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+        if expected_patch_fingerprint is not None:
+            if expected_patch_fingerprint != actual_patch_fingerprint:
+                raise PolicyViolationError(
+                    "Candidate patch fingerprint does not match the experiment packet."
+                )
+            candidate_patch_fingerprint = actual_patch_fingerprint
+            _require_candidate_base_commit(packet)
         mutated_paths = _extract_mutated_paths(patch_text)
         budget_observations["candidate_changed_files"] = len(mutated_paths)
         if not mutated_paths:
@@ -767,6 +814,8 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                 budget_observations=budget_observations,
                 shared_tree_untouched=True,
             )
+            if candidate_patch_fingerprint is not None:
+                result["candidate_patch_fingerprint"] = candidate_patch_fingerprint
             return result
 
         _validate_patch_targets(packet, mutated_paths)
@@ -862,6 +911,8 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             shared_tree_untouched=shared_status_before is not None,
         )
 
+    if candidate_patch_fingerprint is not None:
+        result["candidate_patch_fingerprint"] = candidate_patch_fingerprint
     if shared_status_before is None:
         result["shared_tree_untouched"] = False
         result["status"] = "rejected"
@@ -1163,7 +1214,7 @@ def main(argv: list[str] | None = None) -> int:
             sort_keys=True,
         )
     )
-    return 0
+    return 0 if result["status"] == "accepted" else RUNNER_REJECTED_EXIT_CODE
 
 
 if __name__ == "__main__":

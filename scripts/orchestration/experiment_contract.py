@@ -17,6 +17,13 @@ from typing import Any
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
 
 SCHEMA_VERSION = "1.0"
+CANDIDATE_PATCH_FINGERPRINT_RE = re.compile(r"sha256:[0-9a-f]{64}")
+GIT_COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bout of memory\b", re.IGNORECASE),
+    re.compile(r"\boom\b", re.IGNORECASE),
+    re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
+)
 
 PRIMARY_AGENT = "agent-coordinator"
 REVIEWER = "architecture-specialist"
@@ -31,6 +38,7 @@ PROMOTION_TARGETS: tuple[str, ...] = (
 RESULT_STATUSES: tuple[str, ...] = ("accepted", "rejected")
 DEFAULT_RUNNER_MODE = "candidate_patch"
 ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE = "oracle_only_governance_reviewer"
+MAX_CANDIDATE_PATCH_BYTES = 2 * 1024 * 1024
 RUNNER_MODES: tuple[str, ...] = (
     DEFAULT_RUNNER_MODE,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
@@ -56,16 +64,23 @@ FAILURE_CLASSES: tuple[str, ...] = (
 )
 
 
+def has_oom_evidence(output: str) -> bool:
+    """Return whether bounded runner output contains canonical OOM evidence."""
+
+    return any(pattern.search(output) for pattern in OOM_PATTERNS)
+
+
 def validate_failure_retry_observations(
     *,
     failure_class: str | None,
     attempts: Any,
     retries_consumed: Any,
+    runner_error_present: Any,
     label: str,
 ) -> None:
-    """Reject retry evidence for terminal non-retryable capability loss."""
+    """Reject incomplete evidence for terminal pre-oracle failures."""
 
-    if failure_class != "capability_mismatch":
+    if failure_class not in {"capability_mismatch", "policy_violation"}:
         return
     attempts_valid = (
         isinstance(attempts, int) and not isinstance(attempts, bool) and attempts in {0, 1}
@@ -77,8 +92,10 @@ def validate_failure_retry_observations(
     )
     if not attempts_valid or not retries_valid:
         raise ValueError(
-            f"{label} capability_mismatch must use attempts 0 or 1 and " "retries_consumed 0."
+            f"{label} {failure_class} must use attempts 0 or 1 and retries_consumed 0."
         )
+    if failure_class == "policy_violation" and runner_error_present is not True:
+        raise ValueError(f"{label} policy_violation requires non-empty runner_error evidence.")
 
 
 def validate_capability_zero_attempt_observations(
@@ -89,22 +106,24 @@ def validate_capability_zero_attempt_observations(
     oracle_commands_executed: int,
     label: str,
 ) -> None:
-    """Reject execution evidence when capability preflight stopped the run."""
+    """Reject execution evidence when a terminal pre-oracle failure stopped the run."""
 
-    if (
-        failure_class != "capability_mismatch"
-        or not isinstance(attempts, int)
-        or isinstance(attempts, bool)
-        or attempts != 0
-    ):
+    if not isinstance(attempts, int) or isinstance(attempts, bool):
+        return
+    if failure_class == "capability_mismatch" and attempts not in {0, 1}:
+        return
+    if failure_class == "policy_violation" and attempts not in {0, 1}:
+        return
+    if failure_class not in {"capability_mismatch", "policy_violation"}:
         return
     if mutated_path_count != 0:
         raise ValueError(
-            f"{label} capability_mismatch with attempts 0 must use mutated_path_count 0."
+            f"{label} {failure_class} with attempts {attempts} " "must use mutated_path_count 0."
         )
     if oracle_commands_executed != 0:
         raise ValueError(
-            f"{label} capability_mismatch with attempts 0 must use " "oracle_commands_executed 0."
+            f"{label} {failure_class} with attempts {attempts} "
+            "must use oracle_commands_executed 0."
         )
 
 
@@ -786,6 +805,33 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     creative_research_origin = validate_creative_research_origin(
         packet.get("creative_research_origin")
     )
+    candidate_patch_fingerprint_raw = packet.get("candidate_patch_fingerprint")
+    candidate_patch_fingerprint: str | None = None
+    if candidate_patch_fingerprint_raw is not None:
+        candidate_patch_fingerprint = str(candidate_patch_fingerprint_raw).strip()
+        if not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(candidate_patch_fingerprint):
+            raise ValueError(
+                "Experiment packet candidate_patch_fingerprint must be a sha256 digest."
+            )
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only experiment packets must not bind a candidate patch fingerprint."
+            )
+    base_commit_sha_raw = packet.get("base_commit_sha")
+    base_commit_sha: str | None = None
+    if base_commit_sha_raw is not None:
+        base_commit_sha = str(base_commit_sha_raw).strip()
+        if not GIT_COMMIT_SHA_RE.fullmatch(base_commit_sha):
+            raise ValueError("Experiment packet base_commit_sha must be a 40-char git SHA.")
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only experiment packets must not bind a candidate base commit."
+            )
+    if (candidate_patch_fingerprint is None) != (base_commit_sha is None):
+        raise ValueError(
+            "Candidate experiment packets must bind candidate_patch_fingerprint "
+            "and base_commit_sha together."
+        )
 
     normalized = dict(packet)
     normalized["schema_version"] = schema_version
@@ -808,6 +854,14 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         normalized["creative_research_origin"] = creative_research_origin
     else:
         normalized.pop("creative_research_origin", None)
+    if candidate_patch_fingerprint is not None:
+        normalized["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    else:
+        normalized.pop("candidate_patch_fingerprint", None)
+    if base_commit_sha is not None:
+        normalized["base_commit_sha"] = base_commit_sha
+    else:
+        normalized.pop("base_commit_sha", None)
     return normalized
 
 
@@ -870,11 +924,17 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         command = str(oracle_result.get("command", "")).strip()
         if not command:
             raise ValueError("Each oracle result must include a non-empty command.")
+        timed_out = oracle_result.get("timed_out")
+        if not isinstance(timed_out, bool):
+            raise ValueError("Each oracle result timed_out must be a boolean.")
+        returncode = oracle_result.get("returncode")
+        if not isinstance(returncode, int) or isinstance(returncode, bool):
+            raise ValueError("Each oracle result returncode must be an integer.")
         oracle_results.append(
             {
                 "command": command,
-                "returncode": int(oracle_result.get("returncode", 0) or 0),
-                "timed_out": bool(oracle_result.get("timed_out", False)),
+                "returncode": returncode,
+                "timed_out": timed_out,
                 "truncated": bool(oracle_result.get("truncated", False)),
                 "stdout": str(oracle_result.get("stdout", "")),
                 "stderr": str(oracle_result.get("stderr", "")),
@@ -908,6 +968,10 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         failure_class=failure_class,
         attempts=budget_observations.get("attempts"),
         retries_consumed=budget_observations.get("retries_consumed"),
+        runner_error_present=bool(
+            isinstance(budget_observations.get("runner_error"), str)
+            and budget_observations["runner_error"].strip()
+        ),
         label="Experiment result budget_observations",
     )
 
@@ -1018,6 +1082,18 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
                 "Oracle-only governance reviewer results must use the stable "
                 "candidate_patch marker."
             )
+    candidate_patch_fingerprint_raw = result.get("candidate_patch_fingerprint")
+    candidate_patch_fingerprint: str | None = None
+    if candidate_patch_fingerprint_raw is not None:
+        candidate_patch_fingerprint = str(candidate_patch_fingerprint_raw).strip()
+        if not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(candidate_patch_fingerprint):
+            raise ValueError(
+                "Experiment result candidate_patch_fingerprint must be a sha256 digest."
+            )
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only experiment results must not bind a candidate patch fingerprint."
+            )
 
     normalized = dict(result)
     normalized["schema_version"] = schema_version
@@ -1034,6 +1110,10 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     normalized["coauthor_required"] = coauthor_required
     normalized["coauthor_reason"] = coauthor_reason
     normalized["candidate_patch"] = candidate_patch
+    if candidate_patch_fingerprint is not None:
+        normalized["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    else:
+        normalized.pop("candidate_patch_fingerprint", None)
     if execution_backend is not None:
         normalized["execution_backend"] = execution_backend
     return normalized

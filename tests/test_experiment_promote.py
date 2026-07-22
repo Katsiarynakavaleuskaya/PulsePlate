@@ -94,6 +94,8 @@ def _packet(
     experiment_id: str = "exp-promote",
     promotion_target: str = "pr_packet",
     creative_research_origin: dict[str, str] | None = None,
+    candidate_patch_fingerprint: str | None = None,
+    base_commit_sha: str | None = None,
 ) -> dict[str, object]:
     packet: dict[str, object] = {
         "schema_version": "1.0",
@@ -125,6 +127,10 @@ def _packet(
     }
     if creative_research_origin is not None:
         packet["creative_research_origin"] = creative_research_origin
+    if candidate_patch_fingerprint is not None:
+        packet["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    if base_commit_sha is not None:
+        packet["base_commit_sha"] = base_commit_sha
     return packet
 
 
@@ -135,8 +141,9 @@ def _result(
     failure_class: str | None = None,
     shared_tree_untouched: bool = True,
     runner_mode: str = "candidate_patch",
+    candidate_patch_fingerprint: str | None = None,
 ) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
         "runner_mode": runner_mode,
@@ -159,6 +166,9 @@ def _result(
         "shared_tree_untouched": shared_tree_untouched,
         "promotion_ready": False,
     }
+    if candidate_patch_fingerprint is not None:
+        result["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    return result
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
@@ -375,6 +385,33 @@ def test_rejected_result_backlog_entry_is_allowed(
     assert ledger.count("ledger-exp-promote") == 1
 
 
+@pytest.mark.parametrize(
+    "failure_class",
+    ["capability_mismatch", "infra_flake", "policy_violation"],
+)
+def test_terminal_rejected_result_stops_before_backlog_promotion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_class: str,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="backlog_entry")
+    )
+    result = _result(status="rejected", failure_class=failure_class)
+    backlog_path = repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    original_backlog = backlog_path.read_text(encoding="utf-8")
+
+    with pytest.raises(
+        experiment_promote.ExperimentPromotionError,
+        match="must stop before promotion",
+    ):
+        experiment_promote.build_promotion_decision(packet, result)
+
+    assert backlog_path.read_text(encoding="utf-8") == original_backlog
+
+
 def test_rejected_backlog_entry_preserves_creative_research_origin(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -472,6 +509,62 @@ def test_mismatched_experiment_id_fails(
 
     with pytest.raises(experiment_promote.ExperimentPromotionError, match="experiment_id"):
         experiment_promote.build_promotion_decision(packet, result)
+
+
+@pytest.mark.parametrize(
+    "result_fingerprint",
+    [None, "sha256:" + ("b" * 64)],
+    ids=["missing", "mismatched"],
+)
+def test_bound_candidate_fingerprint_must_match_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    result_fingerprint: str | None,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(
+            candidate_patch_fingerprint="sha256:" + ("a" * 64),
+            base_commit_sha="c" * 40,
+        )
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(candidate_patch_fingerprint=result_fingerprint)
+    )
+
+    with pytest.raises(
+        experiment_promote.ExperimentPromotionError,
+        match="candidate_patch_fingerprint",
+    ):
+        experiment_promote.build_promotion_decision(packet, result)
+
+    assert not (
+        repo / "docs" / "orchestration" / "experiment_pr_packets" / "exp-promote.md"
+    ).exists()
+
+
+def test_matching_candidate_fingerprint_promotes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    fingerprint = "sha256:" + ("a" * 64)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(
+            candidate_patch_fingerprint=fingerprint,
+            base_commit_sha="c" * 40,
+        )
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(candidate_patch_fingerprint=fingerprint)
+    )
+
+    decision = experiment_promote.build_promotion_decision(packet, result)
+
+    assert decision["disposition"] == "promoted"
+    assert (repo / "docs" / "orchestration" / "experiment_pr_packets" / "exp-promote.md").exists()
 
 
 def test_validate_packet_rejects_pathlike_experiment_id() -> None:

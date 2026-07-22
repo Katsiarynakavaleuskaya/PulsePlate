@@ -1112,8 +1112,6 @@ def is_ancestor(
         descendant, RepositoryCommitRef
     ):
         raise TypeError("ancestry requires two RepositoryCommitRef values")
-    if ancestor.sha == descendant.sha:
-        return True
     owner, name = _require_repository(repository)
     compare_url = (
         f"{_API_ROOT}/repos/{owner}/{name}/compare/"
@@ -1131,42 +1129,92 @@ def is_ancestor(
             raise CommitIdentityError("Compare API response is malformed")
         return response
 
+    def optional_head_matches(response: dict[str, Any]) -> bool:
+        if "head_commit" not in response:
+            return True
+        head_commit = response["head_commit"]
+        return isinstance(head_commit, dict) and head_commit.get("sha") == descendant.sha
+
     response = fetch_compare_page(1)
     status = response.get("status")
     ahead_by = response.get("ahead_by")
     behind_by = response.get("behind_by")
     base_commit = response.get("base_commit")
+    commits = response.get("commits")
+    total_commits = response.get("total_commits")
     merge_base_commit = response.get("merge_base_commit")
     if (
         not isinstance(base_commit, dict)
+        or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
+        or not optional_head_matches(response)
+        or not isinstance(commits, list)
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
         or not isinstance(behind_by, int)
         or isinstance(behind_by, bool)
+        or ahead_by < 0
+        or behind_by < 0
+        or not isinstance(total_commits, int)
+        or isinstance(total_commits, bool)
+        or total_commits < len(commits)
     ):
         raise CommitIdentityError("Compare API response does not bind the requested commits")
 
     if status in {"behind", "diverged"}:
         return False
-    if status != "ahead" or not 1 <= ahead_by <= _MAX_PR_COMMITS or behind_by != 0:
+    if status not in {"ahead", "identical"}:
         raise CommitIdentityError("Compare API returned unknown ancestry status")
-    if not isinstance(merge_base_commit, dict) or merge_base_commit.get("sha") != ancestor.sha:
+    if merge_base_commit.get("sha") != ancestor.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "identical" and ancestor.sha != descendant.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "identical" and (total_commits != 0 or commits or ahead_by != 0 or behind_by != 0):
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "identical":
+        return True
+
+    if (
+        not 1 <= ahead_by <= _MAX_PR_COMMITS
+        or behind_by != 0
+        or total_commits != ahead_by
+        or len(commits) != 1
+    ):
         raise CommitIdentityError("Compare API response does not bind the requested commits")
 
-    last_page = response if ahead_by == 1 else fetch_compare_page(ahead_by)
-    if ahead_by > 1 and (
-        last_page.get("status") != status
-        or last_page.get("ahead_by") != ahead_by
-        or last_page.get("behind_by") != behind_by
-        or not isinstance(last_page.get("base_commit"), dict)
-        or last_page["base_commit"].get("sha") != ancestor.sha
-        or not isinstance(last_page.get("merge_base_commit"), dict)
-        or last_page["merge_base_commit"].get("sha") != ancestor.sha
-    ):
-        raise CommitIdentityError("Compare API response changed while paginating")
-    commits = last_page.get("commits")
-    last_commit = commits[-1] if isinstance(commits, list) and commits else None
+    terminal_commits = commits
+    if total_commits > 1:
+        terminal_response = fetch_compare_page(total_commits)
+        terminal_base = terminal_response.get("base_commit")
+        terminal_merge_base = terminal_response.get("merge_base_commit")
+        terminal_page_commits = terminal_response.get("commits")
+        terminal_ahead_by = terminal_response.get("ahead_by")
+        terminal_behind_by = terminal_response.get("behind_by")
+        terminal_total_commits = terminal_response.get("total_commits")
+        if (
+            terminal_response.get("status") != status
+            or not isinstance(terminal_ahead_by, int)
+            or isinstance(terminal_ahead_by, bool)
+            or terminal_ahead_by != ahead_by
+            or not isinstance(terminal_behind_by, int)
+            or isinstance(terminal_behind_by, bool)
+            or terminal_behind_by != behind_by
+            or not isinstance(terminal_total_commits, int)
+            or isinstance(terminal_total_commits, bool)
+            or terminal_total_commits != total_commits
+            or not isinstance(terminal_base, dict)
+            or terminal_base.get("sha") != ancestor.sha
+            or not isinstance(terminal_merge_base, dict)
+            or terminal_merge_base.get("sha") != ancestor.sha
+            or not optional_head_matches(terminal_response)
+            or not isinstance(terminal_page_commits, list)
+            or len(terminal_page_commits) != 1
+        ):
+            raise CommitIdentityError(
+                "Compare API terminal page does not bind the requested commits"
+            )
+        terminal_commits = terminal_page_commits
+    last_commit = terminal_commits[-1]
     if not isinstance(last_commit, dict) or last_commit.get("sha") != descendant.sha:
         raise CommitIdentityError("Compare API response does not bind the requested commits")
     return True

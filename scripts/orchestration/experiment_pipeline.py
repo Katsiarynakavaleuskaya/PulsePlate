@@ -98,6 +98,8 @@ def _run_stage(
     stage: str,
     stage_main: Callable[[list[str]], int],
     argv: list[str],
+    *,
+    allowed_exit_codes: tuple[int, ...] = (0,),
 ) -> dict[str, Any]:
     """Run a child stage while preventing child stdout leakage."""
 
@@ -108,7 +110,7 @@ def _run_stage(
             exit_code = stage_main(argv)
     except Exception as exc:
         raise ExperimentPipelineError(f"Experiment pipeline {stage} stage failed.") from exc
-    if exit_code != 0:
+    if exit_code not in allowed_exit_codes:
         raise ExperimentPipelineError(f"Experiment pipeline {stage} stage failed.")
     raw_output = stdout.getvalue().strip()
     if not raw_output:
@@ -183,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
                 "--output",
                 str(result_path),
             ],
+            allowed_exit_codes=(0, experiment_runner.RUNNER_REJECTED_EXIT_CODE),
         )
         _run_stage(
             "promotion",
