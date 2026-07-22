@@ -4269,6 +4269,20 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
     ]
 
 
+def test_legacy_growth_guard_preserves_app_bound_to_builtins_object() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        builtins.object = app
+        object.get("/api/v1/object-app-instance")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/object-app-instance"
+    ]
+
+
 @pytest.mark.parametrize(
     ("capture", "mutation"),
     [
@@ -4525,6 +4539,50 @@ def test_legacy_growth_guard_preserves_static_dict_comprehension_mapping() -> No
         "legacy_app.py: unexpected legacy route growth: "
         "registration:get:/api/v1/dict-comprehension"
     ]
+
+
+def test_legacy_growth_guard_preserves_filtered_dict_comprehension_mapping() -> None:
+    source = textwrap.dedent("""
+        routes = {
+            key: registrar
+            for key, registrar in [("route", app.get)]
+            if True
+        }
+        route = routes.get("route")
+        route("/api/v1/filtered-dict-comprehension")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/filtered-dict-comprehension"
+    ]
+
+
+def test_legacy_growth_guard_preserves_bound_items_pair_values() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+
+        for pair in routes.items():
+            route = pair[1]
+            route("/api/v1/bound-items-pair")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/bound-items-pair"
+    ]
+
+
+def test_legacy_growth_guard_applies_known_mapping_update_last_write_wins() -> None:
+    source = textwrap.dedent("""
+        safe_register = lambda _path: lambda _handler: None
+        routes = {"route": app.get}
+        routes.update({"route": safe_register})
+        route = routes.get("route")
+        route("/api/v1/known-update")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 def test_legacy_growth_guard_preserves_literal_mapping_copy() -> None:

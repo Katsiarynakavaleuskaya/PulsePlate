@@ -3655,8 +3655,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if len(node.generators) != 1:
             return None
         generator = node.generators[0]
-        if generator.ifs or generator.is_async:
+        if generator.is_async:
             return None
+        if any(
+            isinstance(condition, ast.Constant) and not bool(condition.value)
+            for condition in generator.ifs
+        ):
+            site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
+            candidate = _StaticMapping(site=site, entries=())
+            return self._mapping_snapshot_intern.setdefault(candidate, candidate)
         if not (
             isinstance(generator.target, (ast.Tuple, ast.List))
             and len(generator.target.elts) == 2
@@ -4717,6 +4724,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=None,
         )
         return True
+
+    def _refine_object_namespace_assignment(
+        self,
+        target: ast.AST,
+        value_reference: str | None,
+    ) -> None:
+        if self._object_namespace_target_kind(target) not in {"builtins", "module"}:
+            return
+        if value_reference not in {
+            "pulseplate.app",
+            "pulseplate.app.router",
+            _POSSIBLE_APP_REFERENCE,
+            _POSSIBLE_ROUTER_REFERENCE,
+        }:
+            return
+        self._module_scope().bind(
+            "object",
+            reference=value_reference,
+            string=None,
+        )
 
     def _record_object_namespace_kind(
         self,
@@ -6556,7 +6583,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and not node.args
             and not node.keywords
         ):
-            return self._resolve_mapping_value_binding(node.func.value)
+            value_binding = self._resolve_mapping_value_binding(node.func.value)
+            if value_binding is None or node.func.attr == "values":
+                return value_binding
+            return _ResolvedBinding(
+                reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
+                string=None,
+                iterable_element=value_binding,
+            )
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)) and node.elts:
             element_bindings: list[_ResolvedBinding] = []
             for element in node.elts:
@@ -6634,10 +6668,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_Assign(self, node: ast.Assign) -> None:
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
+        value_reference = self._resolve_reference(node.value)
         for target in node.targets:
             self._visit_object_namespace_target_expressions(target)
             self._invalidate_mapping_target(target)
             self._record_object_namespace_target(target)
+            self._refine_object_namespace_assignment(target, value_reference)
             self._bind_target_value(
                 target,
                 node.value,
@@ -6657,9 +6693,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
+        value_reference = self._resolve_reference(node.value)
         self._visit_object_namespace_target_expressions(node.target)
         self._invalidate_mapping_target(node.target)
         self._record_object_namespace_target(node.target)
+        self._refine_object_namespace_assignment(node.target, value_reference)
         self._bind_target_value(
             node.target,
             node.value,
@@ -6944,6 +6982,42 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return self._variadic_mapping_binding(
             [entry.binding for entry in remaining],
             mapping_entries=remaining,
+            mapping_site=synthetic_site,
+        )
+
+    def _mapping_after_known_update(
+        self,
+        mapping: _StaticMapping,
+        node: ast.Call,
+        positional_arguments: Sequence[ast.expr],
+        unresolved_positional_sources: Sequence[ast.expr],
+    ) -> _ResolvedBinding | None:
+        if unresolved_positional_sources or len(positional_arguments) > 1:
+            return None
+        entries = list(mapping.entries)
+        if positional_arguments:
+            source = self._resolve_mapping(positional_arguments[0])
+            if source is None:
+                return None
+            entries.extend(source.entries)
+        for keyword in node.keywords:
+            if keyword.arg is None:
+                source = self._resolve_mapping(keyword.value)
+                if source is None:
+                    return None
+                entries.extend(source.entries)
+                continue
+            entries.append(
+                _StaticMappingEntry(
+                    key=ast.copy_location(ast.Constant(keyword.arg), keyword.value),
+                    binding=self._capture_argument_binding(keyword.value),
+                )
+            )
+        effective = _effective_static_mapping_entries(entries)
+        synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
+        return self._variadic_mapping_binding(
+            [entry.binding for entry in effective],
+            mapping_entries=effective,
             mapping_site=synthetic_site,
         )
 
@@ -7932,6 +8006,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             known_pop_receiver = unbound_mapping_receiver
             known_pop_key = positional_arguments[1]
             known_pop_has_default = len(positional_arguments) >= 3
+        known_update_mapping = (
+            mutated_mapping
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "update"
+            else None
+        )
+        known_update_invalidation_count = (
+            self._mapping_invalidation_counts.get(known_update_mapping, 0)
+            if known_update_mapping is not None
+            else None
+        )
         unbound_iterator_method = (
             wrapper_reference.removeprefix("builtins.dict.")
             if (
@@ -8438,6 +8522,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if replacement is not None:
                 self._replace_mapping_aliases(known_pop_mapping, replacement)
                 rewritten_mappings.add(known_pop_mapping)
+        if (
+            known_update_mapping is not None
+            and known_update_invalidation_count is not None
+            and self._mapping_invalidation_counts.get(known_update_mapping, 0)
+            == known_update_invalidation_count
+        ):
+            replacement = self._mapping_after_known_update(
+                known_update_mapping,
+                node,
+                positional_arguments,
+                unresolved_positional_sources,
+            )
+            if replacement is not None:
+                self._replace_mapping_aliases(known_update_mapping, replacement)
+                rewritten_mappings.add(known_update_mapping)
         for mapping in set(escaped_mappings):
             if mapping in rewritten_mappings:
                 continue

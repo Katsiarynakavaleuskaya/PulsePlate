@@ -49,6 +49,7 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
         ".bandit.yaml",
+        ".pre-commit-config.yaml",
         ".trivyignore",
         "AGENTS.md",
         "RUNBOOK_AGENT.md",
@@ -58,6 +59,7 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "scripts/ci_bandit.sh",
         "scripts/ci_pip_audit.sh",
         "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
         "scripts/orchestration/pr_commit_identity.py",
         "scripts/orchestration/pr_review_closeout.py",
         "scripts/orchestration/pr_review_evidence.py",
