@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import ipaddress
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
@@ -1328,6 +1328,65 @@ def _read_candidate_patch_for_fingerprint(path: Path) -> str:
         raise ValueError("Candidate patch could not be read.") from exc
 
 
+def _normalize_candidate_patch_target(raw_path: str) -> str:
+    """Normalize one diff target without importing runner application dependencies."""
+
+    stripped = raw_path.strip()
+    if stripped in {"", "/dev/null"}:
+        return ""
+    if stripped.startswith(("a/", "b/")):
+        stripped = stripped[2:]
+    pure_path = PurePosixPath(stripped)
+    if pure_path.is_absolute() or any(part == ".." for part in pure_path.parts):
+        raise DispatchError("result_validation_failed")
+    normalized_parts = [part for part in pure_path.parts if part not in {"", "."}]
+    if not normalized_parts:
+        raise DispatchError("result_validation_failed")
+    return PurePosixPath(*normalized_parts).as_posix()
+
+
+def _extract_candidate_mutated_paths(patch_text: str) -> list[str]:
+    """Extract changed paths on dispatcher-only hosts without loading the runner app."""
+
+    if patch_text.strip() == "":
+        return []
+
+    mutated_paths: set[str] = set()
+    saw_diff_marker = False
+    for raw_line in patch_text.splitlines():
+        if raw_line.startswith("diff --git "):
+            saw_diff_marker = True
+            parts = raw_line.split()
+            if len(parts) >= 4:
+                target = _normalize_candidate_patch_target(parts[3])
+                if target:
+                    mutated_paths.add(target)
+            continue
+        if raw_line.startswith(("rename to ", "copy to ")):
+            saw_diff_marker = True
+            target = _normalize_candidate_patch_target(raw_line.split(" ", 2)[2])
+            if target:
+                mutated_paths.add(target)
+            continue
+        if raw_line.startswith("rename from "):
+            saw_diff_marker = True
+            source = _normalize_candidate_patch_target(raw_line.split(" ", 2)[2])
+            if source:
+                mutated_paths.add(source)
+            continue
+        if raw_line.startswith("+++ "):
+            saw_diff_marker = True
+            target = _normalize_candidate_patch_target(raw_line[4:])
+            if target:
+                mutated_paths.add(target)
+
+    if not mutated_paths and saw_diff_marker:
+        return []
+    if not mutated_paths:
+        raise DispatchError("result_validation_failed")
+    return sorted(mutated_paths)
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     _reject_symlink_components(path.parent)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1483,15 +1542,9 @@ def _candidate_checkout_proof(
         "source_checkout_clean": True,
     }
     if candidate_patch_text is not None:
-        from scripts.orchestration.experiment_runner import (
-            ExperimentRunnerError,
-            _extract_mutated_paths,
+        proof["candidate_changed_files"] = len(
+            _extract_candidate_mutated_paths(candidate_patch_text)
         )
-
-        try:
-            proof["candidate_changed_files"] = len(_extract_mutated_paths(candidate_patch_text))
-        except ExperimentRunnerError as exc:
-            raise DispatchError("result_validation_failed") from exc
     return proof
 
 

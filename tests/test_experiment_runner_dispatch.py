@@ -2122,6 +2122,32 @@ def test_post_preflight_capability_result_preserves_candidate_checkout_proof() -
     assert result["budget_observations"]["candidate_changed_files"] == 1
 
 
+def test_candidate_checkout_proof_stays_host_lightweight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet(network_budget=0)
+    packet["runner_mode"] = "candidate_patch"
+    packet["base_commit_sha"] = "a" * 40
+    packet["candidate_patch_fingerprint"] = "sha256:" + ("b" * 64)
+    monkeypatch.setitem(sys.modules, "scripts.orchestration.experiment_runner", None)
+
+    proof = dispatch._candidate_checkout_proof(
+        packet,
+        root=dispatch.REPO_ROOT,
+        candidate_patch_text=(
+            "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+            "--- a/core/rag/orchestration.py\n"
+            "+++ b/core/rag/orchestration.py\n"
+        ),
+    )
+
+    assert proof == {
+        "source_checkout_head_sha": packet["base_commit_sha"],
+        "source_checkout_clean": True,
+        "candidate_changed_files": 1,
+    }
+
+
 def test_sanitize_result_rejects_malformed_observations_with_checkout_proof() -> None:
     result = _accepted_oracle_result()
     result["budget_observations"] = None
