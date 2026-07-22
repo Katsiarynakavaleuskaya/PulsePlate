@@ -495,7 +495,7 @@ def _require_terminal_outage_final_security_preparation(
     material_head_sha: str,
     material_digest: str,
     expected_review_evidence: Mapping[str, Any],
-) -> None:
+) -> datetime:
     state = _load_final_security_state(
         repository=repository,
         pr_number=pr_number,
@@ -512,6 +512,10 @@ def _require_terminal_outage_final_security_preparation(
         raise CloseoutError("latest final-security preparation lacks a recorded timeout outcome")
     if latest["review_evidence"] != dict(expected_review_evidence):
         raise CloseoutError("sealed review evidence does not match final-security preparation")
+    return _parse_utc_timestamp(
+        latest["attempt_completed_at"],
+        field="preparation attempt_completed_at",
+    )
 
 
 def _git_path() -> str:
@@ -1513,7 +1517,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             scan_manifest=scan_manifest,
         )
     else:
-        _require_terminal_outage_final_security_preparation(
+        timeout_completed_at = _require_terminal_outage_final_security_preparation(
             repository=args.repo,
             pr_number=args.pr_number,
             material_head_sha=snapshot.head_sha,
@@ -1536,6 +1540,14 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             expected_material_head_sha=snapshot.head_sha,
             expected_material_digest=manifest.digest,
         )
+        outage_created_at = _parse_utc_timestamp(
+            outage_evidence.created_at,
+            field="security outage override created_at",
+        )
+        if outage_created_at <= timeout_completed_at:
+            raise CloseoutError(
+                "Codex Security outage override must be created after the recorded timeout"
+            )
         receipt = build_security_outage_override_receipt(
             base_revision=manifest.merge_base_sha,
             head_revision=snapshot.head_sha,

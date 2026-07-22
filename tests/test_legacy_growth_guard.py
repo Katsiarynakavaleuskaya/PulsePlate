@@ -7959,6 +7959,26 @@ def test_legacy_growth_guard_replays_consumed_filter_predicate() -> None:
     ]
 
 
+@pytest.mark.parametrize("wrapper_name", ["filter", "map"])
+def test_legacy_growth_guard_does_not_replay_shadowed_builtin_callback(
+    wrapper_name: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def {wrapper_name}(callback, iterable):
+            return []
+
+        routes = {{"route": app.get}}
+        list(
+            {wrapper_name}(
+                lambda route: route("/api/v1/shadowed-callback")(handler),
+                routes.values(),
+            )
+        )
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_preserves_registrar_values_through_comprehension() -> None:
     source = textwrap.dedent("""
         routes = {"route": app.get}

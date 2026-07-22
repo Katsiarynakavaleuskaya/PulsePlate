@@ -3304,6 +3304,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
         self.scope.bind("globals", reference="builtins.globals", string=None)
         self.scope.bind("dict", reference="builtins.dict", string=None)
+        self.scope.bind("map", reference="builtins.map", string=None)
         self.scope.bind("object", reference="builtins.object", string=None)
         self.scope.bind("setattr", reference="builtins.setattr", string=None)
         self.scope.bind("delattr", reference="builtins.delattr", string=None)
@@ -8492,11 +8493,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 excluded_targets=prepared_targets,
             )
         )
-        maps_callback = id(node) in self._iterated_call_ids and (
-            wrapper_reference == "builtins.map"
-            or isinstance(node.func, ast.Name)
-            and node.func.id == "map"
-        )
+        maps_callback = id(node) in self._iterated_call_ids and wrapper_reference == "builtins.map"
         if maps_callback and len(node.args) >= 2:
             iterable_bindings = [
                 (
@@ -8529,10 +8526,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 is not None
             )
-        filters_callback = id(node) in self._iterated_call_ids and (
-            wrapper_reference == "builtins.filter"
-            or isinstance(node.func, ast.Name)
-            and node.func.id == "filter"
+        filters_callback = (
+            id(node) in self._iterated_call_ids and wrapper_reference == "builtins.filter"
         )
         if filters_callback and len(node.args) == 2 and not isinstance(node.args[0], ast.Constant):
             iterable_binding = (

@@ -2099,6 +2099,14 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
         ),
         ("owner/repo", 42, ("scripts/ci_pip_audit.sh",), False),
         ("owner/repo", 42, (".pre-commit-config.yaml",), False),
+        ("owner/repo", 42, (".secrets.baseline",), False),
+        ("owner/repo", 42, ("scripts/hooks/repo_python.sh",), False),
+        (
+            "owner/repo",
+            42,
+            ("scripts/run-backend-tests-pre-commit.sh",),
+            False,
+        ),
         (
             "owner/repo",
             42,
@@ -5216,6 +5224,7 @@ def test_outage_seal_requires_matching_prepared_timeout(
         "review_submitted_at": "2026-07-15T11:59:00Z",
     }
     record = {
+        "attempt_completed_at": "2026-07-15T12:00:00Z",
         "attempt_outcome": "incomplete",
         "attempt_status": "completed",
         "material_digest": DIGEST,
@@ -5238,13 +5247,122 @@ def test_outage_seal_requires_matching_prepared_timeout(
         )
 
     record["attempt_outcome"] = "timeout"
-    closeout_module._require_terminal_outage_final_security_preparation(
+    completed_at = closeout_module._require_terminal_outage_final_security_preparation(
         repository="owner/repo",
         pr_number=42,
         material_head_sha=HEAD_SHA,
         material_digest=DIGEST,
         expected_review_evidence=review_evidence,
     )
+    assert completed_at == datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    ("override_created_at", "should_pass"),
+    [
+        ("2026-07-15T12:00:00Z", False),
+        ("2026-07-15T12:00:01Z", True),
+    ],
+)
+def test_closeout_outage_override_must_follow_recorded_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    override_created_at: str,
+    should_pass: bool,
+) -> None:
+    repo = tmp_path / "repo"
+    target = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "freeze": {
+            "base_ref_oid": BASE_SHA,
+            "digest": DIGEST,
+            "material_head_sha": HEAD_SHA,
+            "merge_base_sha": BASE_SHA,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "packet": None,
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+    }
+    review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-456"
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "_load_state", lambda _pr: state)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_require_clean_live_head", lambda _head: None)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: CodexReviewEvidence(
+            reference=review_reference,
+            submitted_at="2026-07-15T11:59:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_terminal_outage_final_security_preparation",
+        lambda **_kwargs: datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "validate_security_outage_override_scope",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        lambda *_a, **_k: SecurityOutageOverrideEvidence(
+            reference=override_reference,
+            created_at=override_created_at,
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_render_mapping",
+        lambda _state, seal: _mapping_artifact_with_seal(seal),
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: target)
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: "")
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    args = Namespace(
+        pr_number=42,
+        repo="owner/repo",
+        review_ref=review_reference,
+        review_source_unavailable_ref=None,
+        connector_advisory_reaction=[],
+        scan_manifest=None,
+        security_outage_override_ref=override_reference,
+    )
+
+    if not should_pass:
+        with pytest.raises(closeout_module.CloseoutError, match="after the recorded timeout"):
+            closeout_module._cmd_seal(args)
+        assert not target.exists()
+        return
+
+    closeout_module._cmd_seal(args)
+    seal = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
+    assert seal["codex_security"]["created_at"] == override_created_at
 
 
 def _final_security_approval_response(
