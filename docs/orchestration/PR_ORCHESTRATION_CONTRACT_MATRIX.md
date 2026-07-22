@@ -158,8 +158,28 @@ GitHub Codex Connector review is separate from the locally invoked Codex Securit
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
 - The trusted submitted Codex review object's real GitHub `commit_id` must be
-  the frozen material head. An official unedited no-findings issue comment is
-  accepted only when the trusted Codex GitHub App identity and its short
+  the frozen material head. A direct PR-root reaction from the official Codex
+  Connector may instead use the normal `seal --review-ref` path as a nonblocking
+  terminal source response only for `+1`,
+  `heart`, `hooray`, or `rocket`, after live verification of its immutable
+  GitHub account identity, exact PR-root URL, a live PR head equal to the caller's
+  full snapshotted material head at seal time, and a server-timestamped GitHub Actions
+  `pull_request` run linked to that same PR and head strictly preceding the
+  reaction, with no later force-push or head-restoration event. This chronology
+  proves only that GitHub observed the material head before the response; it is
+  not Connector-owned reviewed-commit provenance. Authenticated
+  validation after the one canonical mapping-only closeout commit may accept the
+  descendant live head only after material-digest equality is re-established.
+  When that automatic mapping-only cycle replaces the sealed reaction, the
+  validator may accept only a newer live positive reaction from the same trusted
+  Connector with the same content; the sealed receipt remains unchanged and the
+  completed security scan is not restarted.
+  The receipt uses `binding_kind=seal_context_only`, `review_claim=none`, and
+  `blocking=false`. This is a verified positive Connector response, not exact-head
+  review proof, a native GitHub approval, Codex Security evidence, or
+  thread-resolution authority. The optional advisory rendering path remains
+  non-authoritative and may be omitted with a warning. An official unedited no-findings issue comment
+  is accepted only when the trusted Codex GitHub App identity and its short
   reviewed-commit marker resolve through the Commit API to that same full head;
   reviewer-execution/synthetic refs never satisfy this proof. The selected
   review-evidence variant and one completed final Codex Security diff scan bind

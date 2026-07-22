@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 import app
+from app.services import pro_nutrition_targets as targets_service
 
 
 @pytest.mark.parametrize(
@@ -45,10 +46,11 @@ def test_generate_who_targets_response_backend_unavailable_fallback(
 
     Covers allow_backend_fallback=True branch when build_nutrition_targets is not callable.
     """
-    # Force backend to be unavailable by setting it to None
-    monkeypatch.setattr(app._plate_deps, "build_nutrition_targets_fn", None)
-    monkeypatch.setattr(app, "build_nutrition_targets", None)
-    app.reset_targets_cache()
+    monkeypatch.setattr(
+        targets_service.nutrition_recommendations,
+        "build_nutrition_targets",
+        None,
+    )
 
     req = app.WHOTargetsRequest(
         sex="male",
@@ -76,11 +78,8 @@ def test_generate_who_targets_response_strict_backend_available() -> None:
     no-fallback API behaves like the main WHO targets endpoint under normal conditions.
     """
 
-    # Skip in environments where the backend is not wired
-    if not callable(getattr(app, "build_nutrition_targets", None)):
-        pytest.skip("Backend not available in this environment")
+    assert callable(targets_service.nutrition_recommendations.build_nutrition_targets)
 
-    # Ensure we do NOT break the backend in this test: we exercise the normal path.
     req = app.WHOTargetsRequest(
         sex="male",
         age=30,

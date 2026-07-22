@@ -27,6 +27,12 @@ _API_ROOT = f"https://{_API_HOST}"
 _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _MAX_PR_COMMIT_PAGES = 100
 _MAX_PR_COMMITS = 10_000
+_MAX_PR_REACTION_PAGES = 100
+_MAX_PR_REACTIONS = 10_000
+_MAX_HEAD_WORKFLOW_RUN_PAGES = 100
+_MAX_HEAD_WORKFLOW_RUNS = 10_000
+_MAX_PR_HEAD_EVENT_PAGES = 10
+_MAX_PR_HEAD_EVENTS = 1_000
 _MAX_REVIEW_THREAD_PAGES = 100
 _MAX_REVIEW_COMMENT_PAGES = 100
 _MAX_REVIEW_THREADS = 10_000
@@ -34,6 +40,7 @@ _MAX_REVIEW_COMMENTS = 10_000
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _ISO_8601_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 _CODEX_CONNECTOR_LOGIN = "chatgpt-codex-connector[bot]"
+_CODEX_CONNECTOR_USER_ID = 199_175_422
 _CODEX_CONNECTOR_APP_ID = 1_144_995
 _CODEX_CONNECTOR_APP_SLUG = "chatgpt-codex-connector"
 _CODEX_CONNECTOR_OWNER = "openai"
@@ -65,6 +72,7 @@ _CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
 _OPERATOR_EXACT_HEAD_REVIEW_PREFIX = "Exact-head bounded review completed for"
 _CODEX_REVIEW_CREDIT_OUTAGE_CLASS = "codex_review_credits_exhausted"
 _CODEX_REVIEW_CREDIT_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
+_CODEX_POSITIVE_REACTION_CONTENTS = frozenset({"+1", "heart", "hooray", "rocket"})
 
 
 class CommitIdentityError(RuntimeError):
@@ -159,6 +167,15 @@ class CodexReviewEvidence:
     reference: str
     submitted_at: str
     commit_ref: str
+
+
+@dataclass(frozen=True)
+class CodexConnectorAdvisoryReactionEvidence:
+    """Verified Connector reaction that intentionally carries no review claim."""
+
+    reference: str
+    created_at: str
+    content: str
 
 
 @dataclass(frozen=True)
@@ -662,6 +679,10 @@ def verify_review_credit_outage_references(
         token=token,
         request_json=request_json,
     )
+    if isinstance(prior_review, CodexConnectorAdvisoryReactionEvidence):
+        raise CommitIdentityError(
+            "review credit outage prior review must carry a real commit identity"
+        )
     prior_commit = classify_commit_ref(
         prior_review.commit_ref,
         snapshot,
@@ -1151,6 +1172,327 @@ def is_ancestor(
     return True
 
 
+def verify_codex_connector_advisory_reaction_reference(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    request_json: ApiRequest = github_api_request,
+) -> CodexConnectorAdvisoryReactionEvidence:
+    """Verify one official positive PR-root Connector reaction.
+
+    The reaction itself has no commit field.  Callers that use it as normal
+    review evidence must supply an independently snapshotted exact material
+    head; the optional advisory rendering path intentionally carries no such
+    binding.
+    """
+
+    owner, name = _require_repository(repository)
+    pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#reaction-([1-9]\d*)$"
+    )
+    match = pattern.fullmatch(reference)
+    if not match:
+        raise CommitIdentityError(
+            "Codex positive reaction must be a canonical reaction URL on the exact PR"
+        )
+    reaction_id_text = match.group(1)
+    reaction_id = int(reaction_id_text)
+    if str(reaction_id) != reaction_id_text:
+        raise CommitIdentityError("Codex positive reaction reference is not canonical")
+
+    matches: list[dict[str, Any]] = []
+    reaction_count = 0
+    for page in range(1, _MAX_PR_REACTION_PAGES + 1):
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}/reactions"
+            f"?per_page=100&page={page}",
+            token=token,
+        )
+        if not isinstance(response, list) or len(response) > 100:
+            raise CommitIdentityError("GitHub PR reactions response is malformed")
+        reaction_count += len(response)
+        if reaction_count > _MAX_PR_REACTIONS:
+            raise CommitIdentityError("GitHub PR reactions exceed safety limit")
+        for reaction in response:
+            if not isinstance(reaction, dict):
+                raise CommitIdentityError("GitHub PR reaction entry is malformed")
+            candidate_id = reaction.get("id")
+            if (
+                not isinstance(candidate_id, int)
+                or isinstance(candidate_id, bool)
+                or candidate_id <= 0
+            ):
+                raise CommitIdentityError("GitHub PR reaction id is malformed")
+            if candidate_id == reaction_id:
+                matches.append(reaction)
+        if len(response) < 100:
+            break
+    else:
+        raise CommitIdentityError("GitHub PR reaction pagination exceeded page limit")
+
+    if not matches:
+        raise CommitIdentityError("Codex positive reaction is missing")
+    if len(matches) != 1:
+        raise CommitIdentityError("Codex positive reaction is ambiguous")
+    reaction = matches[0]
+    user = reaction.get("user")
+    user_id = user.get("id") if isinstance(user, dict) else None
+    login = user.get("login") if isinstance(user, dict) else None
+    user_type = user.get("type") if isinstance(user, dict) else None
+    content = reaction.get("content")
+    created_at = _require_iso8601(
+        reaction.get("created_at"),
+        field="Codex positive reaction created_at",
+    )
+    if (
+        not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id != _CODEX_CONNECTOR_USER_ID
+        or not isinstance(login, str)
+        or login != _CODEX_CONNECTOR_LOGIN
+        or not isinstance(user_type, str)
+        or user_type not in {"Bot", "User"}
+        or not isinstance(content, str)
+        or content not in _CODEX_POSITIVE_REACTION_CONTENTS
+    ):
+        raise CommitIdentityError("reaction is not a trusted positive Codex connector reaction")
+    return CodexConnectorAdvisoryReactionEvidence(
+        reference=reference,
+        created_at=created_at,
+        content=content,
+    )
+
+
+def _latest_codex_connector_positive_reaction(
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    request_json: ApiRequest,
+) -> CodexConnectorAdvisoryReactionEvidence:
+    """Return the latest live trusted positive reaction for mapping-only revalidation."""
+
+    owner, name = _require_repository(repository)
+    candidates: list[tuple[datetime, int, CodexConnectorAdvisoryReactionEvidence]] = []
+    reaction_count = 0
+    for page in range(1, _MAX_PR_REACTION_PAGES + 1):
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}/reactions"
+            f"?per_page=100&page={page}",
+            token=token,
+        )
+        if not isinstance(response, list) or len(response) > 100:
+            raise CommitIdentityError("GitHub PR reactions response is malformed")
+        reaction_count += len(response)
+        if reaction_count > _MAX_PR_REACTIONS:
+            raise CommitIdentityError("GitHub PR reactions exceed safety limit")
+        for reaction in response:
+            if not isinstance(reaction, dict):
+                raise CommitIdentityError("GitHub PR reaction entry is malformed")
+            reaction_id = reaction.get("id")
+            if (
+                not isinstance(reaction_id, int)
+                or isinstance(reaction_id, bool)
+                or reaction_id <= 0
+            ):
+                raise CommitIdentityError("GitHub PR reaction id is malformed")
+            user = reaction.get("user")
+            user_id = user.get("id") if isinstance(user, dict) else None
+            login = user.get("login") if isinstance(user, dict) else None
+            user_type = user.get("type") if isinstance(user, dict) else None
+            content = reaction.get("content")
+            if (
+                user_id != _CODEX_CONNECTOR_USER_ID
+                or login != _CODEX_CONNECTOR_LOGIN
+                or not isinstance(user_type, str)
+                or user_type not in {"Bot", "User"}
+                or not isinstance(content, str)
+                or content not in _CODEX_POSITIVE_REACTION_CONTENTS
+            ):
+                continue
+            created_at = _require_iso8601(
+                reaction.get("created_at"),
+                field="Codex positive reaction created_at",
+            )
+            created = datetime.fromisoformat(
+                created_at[:-1] + "+00:00" if created_at.endswith("Z") else created_at
+            )
+            reference = f"https://github.com/{owner}/{name}/pull/{pr_number}#reaction-{reaction_id}"
+            candidates.append(
+                (
+                    created,
+                    reaction_id,
+                    CodexConnectorAdvisoryReactionEvidence(
+                        reference=reference,
+                        created_at=created_at,
+                        content=str(content),
+                    ),
+                )
+            )
+        if len(response) < 100:
+            break
+    else:
+        raise CommitIdentityError("GitHub PR reaction pagination exceeded page limit")
+    if not candidates:
+        raise CommitIdentityError("Codex positive reaction is missing or ambiguous")
+    return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+
+def _require_codex_reaction_after_current_head_observation(
+    *,
+    repository: str,
+    pr_number: int,
+    expected_commit: str,
+    expected_live_pr_head: str | None,
+    reaction_created_at: str,
+    token: str,
+    request_json: ApiRequest,
+) -> None:
+    """Require a live PR head and server-observed exact head before a reaction."""
+
+    owner, name = _require_repository(repository)
+    pull = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}",
+        token=token,
+    )
+    if not isinstance(pull, dict):
+        raise CommitIdentityError("GitHub PR response is malformed")
+    head = pull.get("head")
+    live_head = head.get("sha") if isinstance(head, dict) else None
+    required_live_head = (
+        expected_commit
+        if expected_live_pr_head is None
+        else _require_sha(expected_live_pr_head, field="expected live PR head")
+    )
+    if live_head != required_live_head:
+        raise CommitIdentityError(
+            "Codex connector reaction is not attached to the current material head"
+        )
+    reaction_created = datetime.fromisoformat(
+        reaction_created_at[:-1] + "+00:00"
+        if reaction_created_at.endswith("Z")
+        else reaction_created_at
+    )
+    workflow_run_count = 0
+    latest_same_pr_run: datetime | None = None
+    for page in range(1, _MAX_HEAD_WORKFLOW_RUN_PAGES + 1):
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/actions/runs"
+            f"?event=pull_request&head_sha={expected_commit}&per_page=100&page={page}",
+            token=token,
+        )
+        if not isinstance(response, dict):
+            raise CommitIdentityError("GitHub head workflow-runs response is malformed")
+        total_count = response.get("total_count")
+        workflow_runs = response.get("workflow_runs")
+        if (
+            not isinstance(total_count, int)
+            or isinstance(total_count, bool)
+            or total_count < 0
+            or not isinstance(workflow_runs, list)
+            or len(workflow_runs) > 100
+        ):
+            raise CommitIdentityError("GitHub head workflow-runs response is malformed")
+        if total_count > _MAX_HEAD_WORKFLOW_RUNS:
+            raise CommitIdentityError("GitHub head workflow-runs exceed safety limit")
+        workflow_run_count += len(workflow_runs)
+        if workflow_run_count > _MAX_HEAD_WORKFLOW_RUNS:
+            raise CommitIdentityError("GitHub head workflow-runs exceed safety limit")
+        for workflow_run in workflow_runs:
+            if not isinstance(workflow_run, dict):
+                raise CommitIdentityError("GitHub head workflow-run entry is malformed")
+            head_sha = _require_sha(
+                str(workflow_run.get("head_sha") or ""),
+                field="GitHub head workflow-run SHA",
+            )
+            run_created_at = _require_iso8601(
+                workflow_run.get("created_at"),
+                field="GitHub head workflow-run created_at",
+            )
+            run_created = datetime.fromisoformat(
+                run_created_at[:-1] + "+00:00" if run_created_at.endswith("Z") else run_created_at
+            )
+            pull_requests = workflow_run.get("pull_requests")
+            if not isinstance(pull_requests, list) or len(pull_requests) > 100:
+                raise CommitIdentityError("GitHub head workflow-run PR links are malformed")
+            same_pr = False
+            for pull_request in pull_requests:
+                if not isinstance(pull_request, dict):
+                    raise CommitIdentityError("GitHub head workflow-run PR link is malformed")
+                linked_pr_number = pull_request.get("number")
+                if (
+                    not isinstance(linked_pr_number, int)
+                    or isinstance(linked_pr_number, bool)
+                    or linked_pr_number <= 0
+                ):
+                    raise CommitIdentityError("GitHub head workflow-run PR link is malformed")
+                same_pr = same_pr or linked_pr_number == pr_number
+            if (
+                workflow_run.get("event") == "pull_request"
+                and head_sha == expected_commit
+                and same_pr
+                and run_created < reaction_created
+            ):
+                latest_same_pr_run = (
+                    run_created
+                    if latest_same_pr_run is None or run_created > latest_same_pr_run
+                    else latest_same_pr_run
+                )
+        if len(workflow_runs) < 100:
+            break
+    else:
+        raise CommitIdentityError("GitHub head workflow-run pagination exceeded page limit")
+
+    if latest_same_pr_run is not None:
+        head_event_count = 0
+        for page in range(1, _MAX_PR_HEAD_EVENT_PAGES + 1):
+            events = request_json(
+                f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}/events"
+                f"?per_page=100&page={page}",
+                token=token,
+            )
+            if not isinstance(events, list) or len(events) > 100:
+                raise CommitIdentityError("GitHub PR head-events response is malformed")
+            head_event_count += len(events)
+            if head_event_count > _MAX_PR_HEAD_EVENTS:
+                raise CommitIdentityError("GitHub PR head-events exceed safety limit")
+            for event in events:
+                if not isinstance(event, dict):
+                    raise CommitIdentityError("GitHub PR head-event entry is malformed")
+                event_name = event.get("event")
+                if not isinstance(event_name, str) or not event_name:
+                    raise CommitIdentityError("GitHub PR head-event type is malformed")
+                if event_name not in {
+                    "head_ref_force_pushed",
+                    "head_ref_restored",
+                }:
+                    continue
+                event_created_at = _require_iso8601(
+                    event.get("created_at"),
+                    field="GitHub PR head-event created_at",
+                )
+                event_created = datetime.fromisoformat(
+                    event_created_at[:-1] + "+00:00"
+                    if event_created_at.endswith("Z")
+                    else event_created_at
+                )
+                if event_created >= latest_same_pr_run:
+                    raise CommitIdentityError(
+                        "Codex connector reaction follows a superseded PR head observation"
+                    )
+            if len(events) < 100:
+                return
+        raise CommitIdentityError("GitHub PR head-event pagination exceeded page limit")
+
+    raise CommitIdentityError(
+        "Codex connector reaction does not follow a GitHub observation "
+        "of the exact material head"
+    )
+
+
 def verify_codex_review_reference(
     reference: str,
     *,
@@ -1158,9 +1500,10 @@ def verify_codex_review_reference(
     pr_number: int,
     token: str,
     expected_commit_ref: str | None = None,
+    expected_live_pr_head_ref: str | None = None,
     request_json: ApiRequest = github_api_request,
-) -> CodexReviewEvidence:
-    """Prove that a seal reference names trusted exact-head Codex review evidence."""
+) -> CodexReviewEvidence | CodexConnectorAdvisoryReactionEvidence:
+    """Verify trusted Codex review evidence or a commitless positive response."""
 
     owner, name = _require_repository(repository)
     expected_commit = (
@@ -1205,6 +1548,47 @@ def verify_codex_review_reference(
             commit_ref=commit_ref,
         )
 
+    reaction_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#reaction-[1-9]\d*$"
+    )
+    if reaction_pattern.fullmatch(reference):
+        if expected_commit is None:
+            raise CommitIdentityError(
+                "Codex connector reaction requires an expected full material commit"
+            )
+        try:
+            reaction = verify_codex_connector_advisory_reaction_reference(
+                reference,
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                request_json=request_json,
+            )
+        except CommitIdentityError as exc:
+            mapping_only_descendant = (
+                expected_live_pr_head_ref is not None
+                and expected_live_pr_head_ref != expected_commit
+            )
+            if not mapping_only_descendant or str(exc) != "Codex positive reaction is missing":
+                raise
+            reaction = _latest_codex_connector_positive_reaction(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                request_json=request_json,
+            )
+        _require_codex_reaction_after_current_head_observation(
+            repository=repository,
+            pr_number=pr_number,
+            expected_commit=expected_commit,
+            expected_live_pr_head=expected_live_pr_head_ref,
+            reaction_created_at=reaction.created_at,
+            token=token,
+            request_json=request_json,
+        )
+        return reaction
+
     comment_pattern = re.compile(
         rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
         rf"{pr_number}#issuecomment-(\d+)$"
@@ -1212,7 +1596,8 @@ def verify_codex_review_reference(
     comment_match = comment_pattern.fullmatch(reference)
     if not comment_match:
         raise CommitIdentityError(
-            "code-review reference must be a GitHub PR review or Codex no-findings comment URL"
+            "code-review reference must be a GitHub PR review, official Connector reaction, "
+            "or Codex no-findings comment URL"
         )
     if expected_commit is None:
         raise CommitIdentityError(

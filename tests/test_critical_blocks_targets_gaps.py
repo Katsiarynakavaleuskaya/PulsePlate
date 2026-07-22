@@ -1,408 +1,366 @@
-#!/usr/bin/env python3
-"""
-КРИТИЧНО! Тесты для блоков 1265-1339 и 1437-1503 в main.py
+"""Exact route-level contracts for legacy targets and nutrient gaps."""
 
-Блок 1265-1339: endpoint /api/v1/premium/targets (WHOTargetsRequest)
-Блок 1437-1503: endpoint /api/v1/premium/gaps (NutrientGapsRequest)
+from __future__ import annotations
 
-Эти 142 строки критичны для достижения 97% покрытия!
-"""
-
-import os
+import json
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import app
+from app.middleware.api_tiers import TEST_KEY_PRO
+from app.services import pro_nutrition_targets as service
+
+_TARGETS_PATH = "/api/v1/premium/targets"
+_STRICT_TARGETS_PATH = "/premium_targets"
+_GAPS_PATH = "/api/v1/premium/gaps"
+_PRO_TARGETS_PATH = "/api/v1/pro/nutrition/targets"
+_AUTH_HEADER_VALUE = "targets-gaps-test-value"
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Test client fixture"""
-    return TestClient(app)
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    monkeypatch.setenv("API_KEY", _AUTH_HEADER_VALUE)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-class TestWHOTargetsEndpoint:
-    """Тесты для endpoint /api/v1/premium/targets (блок 1265-1339)"""
-
-    def test_who_targets_unavailable_path(self, client: TestClient) -> None:
-        """Тест пути когда build_nutrition_targets недоступна (line 1271)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            response = client.post(
-                "/api/v1/premium/targets",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 170,
-                    "weight_kg": 70,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                    "deficit_pct": 15.0,
-                    "surplus_pct": 10.0,
-                    "bodyfat": 15.0,
-                    "diet_flags": ["vegetarian"],
-                    "life_stage": "adult",
-                },
-            )
-
-            # Если build_nutrition_targets недоступна - должно быть 503
-            # Если доступна - может быть 200
-            # Если схема неправильная - 422
-            assert response.status_code in [200, 503, 422, 400]
-
-            if response.status_code == 503:
-                data = response.json()
-                assert "detail" in data
-                assert "not available" in data["detail"].lower()
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_who_targets_with_various_profiles(self, client: TestClient) -> None:
-        """Тест WHO targets с различными профилями (lines 1275-1315)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Различные профили для покрытия всех путей
-            test_profiles = [
-                {
-                    "sex": "female",
-                    "age": 25,
-                    "height_cm": 165,
-                    "weight_kg": 55,
-                    "activity": "light",
-                    "goal": "lose",
-                    "deficit_pct": 20.0,
-                    "life_stage": "adult",
-                },
-                {
-                    "sex": "male",
-                    "age": 45,
-                    "height_cm": 180,
-                    "weight_kg": 90,
-                    "activity": "very_active",
-                    "goal": "gain",
-                    "surplus_pct": 15.0,
-                    "bodyfat": 20.0,
-                    "diet_flags": ["vegan"],
-                    "life_stage": "adult",
-                },
-                {
-                    "sex": "female",
-                    "age": 28,
-                    "height_cm": 160,
-                    "weight_kg": 65,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                    "diet_flags": ["dairy_free", "gluten_free"],
-                    "life_stage": "pregnant",
-                },
-            ]
-
-            for profile in test_profiles:
-                response = client.post(
-                    "/api/v1/premium/targets",
-                    headers={"X-API-Key": "test_key"},
-                    json=profile,
-                )
-                # Любой из этих статусов допустим
-                assert response.status_code in [200, 503, 422, 400]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_who_targets_error_handling(self, client: TestClient) -> None:
-        """Тест error handling в WHO targets (lines 1325-1339)"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        try:
-            # Невалидные данные для тестирования ValueError пути
-            invalid_cases = [
-                # Отрицательный возраст
-                {
-                    "sex": "male",
-                    "age": -5,
-                    "height_cm": 170,
-                    "weight_kg": 70,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-                # Экстремально большой вес
-                {
-                    "sex": "female",
-                    "age": 30,
-                    "height_cm": 160,
-                    "weight_kg": 500,
-                    "activity": "light",
-                    "goal": "lose",
-                },
-                # Невалидная активность
-                {
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 170,
-                    "weight_kg": 70,
-                    "activity": "invalid_activity",
-                    "goal": "maintain",
-                },
-            ]
-
-            for case in invalid_cases:
-                response = client.post(
-                    "/api/v1/premium/targets",
-                    headers={"X-API-Key": "test_key"},
-                    json=case,
-                )
-                # Должно быть 400 (ValueError) или 422 (validation error)
-                assert response.status_code in [200, 400, 422, 503]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-                del os.environ["FEATURE_PREMIUM_NUTRITION"]
+def _headers(key: str = _AUTH_HEADER_VALUE) -> dict[str, str]:
+    return {"X-API-Key": key}
 
 
-class TestNutrientGapsEndpoint:
-    """Тесты для endpoint /api/v1/premium/gaps (блок 1437-1503)"""
-
-    def test_nutrient_gaps_unavailable_path(self, client: TestClient) -> None:
-        """Тест пути когда analyze_nutrient_gaps недоступна (line 1445)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            response = client.post(
-                "/api/v1/premium/gaps",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "user_profile": {
-                        "sex": "male",
-                        "age": 30,
-                        "height_cm": 170,
-                        "weight_kg": 70,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                    },
-                    "consumed_nutrients": {
-                        "protein_g": 80,
-                        "fat_g": 60,
-                        "carbs_g": 200,
-                        "fiber_g": 25,
-                        "calcium_mg": 800,
-                        "iron_mg": 12,
-                    },
-                },
-            )
-
-            # Если analyze_nutrient_gaps недоступна - должно быть 503
-            assert response.status_code in [200, 503, 422, 400]
-
-            if response.status_code == 503:
-                data = response.json()
-                assert "detail" in data
-                assert "not available" in data["detail"].lower()
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_nutrient_gaps_build_targets_unavailable(self, client: TestClient) -> None:
-        """Тест пути когда build_nutrition_targets недоступна (line 1467)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            response = client.post(
-                "/api/v1/premium/gaps",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "user_profile": {
-                        "sex": "female",
-                        "age": 25,
-                        "height_cm": 165,
-                        "weight_kg": 55,
-                        "activity": "light",
-                        "goal": "lose",
-                        "life_stage": "adult",
-                    },
-                    "consumed_nutrients": {
-                        "protein_g": 60,
-                        "fat_g": 45,
-                        "carbs_g": 150,
-                        "vitamin_c_mg": 40,
-                        "folate_mcg": 200,
-                    },
-                },
-            )
-
-            assert response.status_code in [200, 503, 422, 400]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_nutrient_gaps_various_profiles(self, client: TestClient) -> None:
-        """Тест gaps с различными профилями (lines 1450-1495)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Различные профили и нутриенты для максимального покрытия
-            test_cases = [
-                {
-                    "user_profile": {
-                        "sex": "male",
-                        "age": 35,
-                        "height_cm": 175,
-                        "weight_kg": 80,
-                        "activity": "active",
-                        "goal": "gain",
-                        "surplus_pct": 10.0,
-                        "diet_flags": ["vegetarian"],
-                    },
-                    "consumed_nutrients": {
-                        "protein_g": 100,
-                        "fat_g": 70,
-                        "carbs_g": 300,
-                        "fiber_g": 30,
-                        "vitamin_d_mcg": 10,
-                        "b12_mcg": 2,
-                    },
-                },
-                {
-                    "user_profile": {
-                        "sex": "female",
-                        "age": 45,
-                        "height_cm": 160,
-                        "weight_kg": 60,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                        "life_stage": "adult",
-                        "diet_flags": ["gluten_free"],
-                    },
-                    "consumed_nutrients": {
-                        "protein_g": 50,
-                        "fat_g": 40,
-                        "carbs_g": 180,
-                        "calcium_mg": 600,
-                        "iron_mg": 8,
-                        "zinc_mg": 6,
-                    },
-                },
-            ]
-
-            for case in test_cases:
-                response = client.post(
-                    "/api/v1/premium/gaps", headers={"X-API-Key": "test_key"}, json=case
-                )
-                assert response.status_code in [200, 503, 422, 400]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_nutrient_gaps_error_handling(self, client: TestClient) -> None:
-        """Тест error handling в gaps (lines 1495-1503)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Невалидные данные для ValueError пути
-            response = client.post(
-                "/api/v1/premium/gaps",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "user_profile": {
-                        "sex": "male",
-                        "age": -10,  # Невалидный возраст
-                        "height_cm": 170,
-                        "weight_kg": 70,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                    },
-                    "consumed_nutrients": {"protein_g": -50},  # Невалидное значение
-                },
-            )
-
-            assert response.status_code in [400, 422, 503]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+def _profile(**overrides: object) -> dict[str, object]:
+    profile: dict[str, object] = {
+        "sex": "female",
+        "age": 34,
+        "height_cm": 168,
+        "weight_kg": 62,
+        "activity": "light",
+        "goal": "maintain",
+        "life_stage": "adult",
+        "lang": "en",
+    }
+    profile.update(overrides)
+    return profile
 
 
-class TestAdditionalCriticalCoverage:
-    """Дополнительные тесты для покрытия critical paths"""
+def _gaps_payload(**profile_overrides: object) -> dict[str, object]:
+    return {
+        "user_profile": _profile(**profile_overrides),
+        "consumed_nutrients": {
+            "protein_g": 10.0,
+            "iron_mg": 1.0,
+            "calcium_mg": 100.0,
+        },
+    }
 
-    def test_api_key_validation_scenarios(self, client: TestClient) -> None:
-        """Тест различных сценариев API key validation"""
-        # Тест без API ключа
-        response = client.post(
-            "/api/v1/premium/targets",
-            json={
-                "sex": "male",
-                "age": 30,
-                "height_cm": 170,
-                "weight_kg": 70,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-        )
-        assert response.status_code in [200, 403, 422]
 
-        # Тест с неправильным API ключом
-        os.environ["API_KEY"] = "correct_key"
-        try:
-            response = client.post(
-                "/api/v1/premium/targets",
-                headers={"X-API-Key": "wrong_key"},
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 170,
-                    "weight_kg": 70,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-            )
-            assert response.status_code in [200, 403, 422]
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+@pytest.mark.parametrize(
+    "profile",
+    [
+        _profile(goal="loss", deficit_pct=20.0),
+        _profile(
+            sex="male",
+            age=45,
+            height_cm=180,
+            weight_kg=90,
+            activity="very_active",
+            goal="gain",
+            surplus_pct=15.0,
+            diet_flags=["VEGAN"],
+        ),
+        _profile(life_stage="pregnant", lang="ru"),
+    ],
+)
+def test_premium_targets_real_profiles_return_exact_contract(
+    client: TestClient,
+    profile: dict[str, object],
+) -> None:
+    response = client.post(_TARGETS_PATH, headers=_headers(), json=profile)
 
-    def test_targets_and_gaps_endpoints_basic_access(self, client: TestClient) -> None:
-        """Verify targets/gaps endpoints respond for valid inputs."""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Test targets endpoint
-            response = client.post(
-                "/api/v1/premium/targets",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 170,
-                    "weight_kg": 70,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-            )
-            assert response.status_code in [200, 400, 503, 422]
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    payload = response.json()
+    assert 1200 <= payload["kcal_daily"] <= 5000
+    assert payload["macros"]["protein_g"] > 0
+    assert payload["priority_micros"]["iodine_ug"] > 0
+    assert payload["next_best_action"]["recommended_tier"] == "PRO"
 
-            # Test gaps endpoint
-            response = client.post(
-                "/api/v1/premium/gaps",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "user_profile": {
-                        "sex": "male",
-                        "age": 30,
-                        "height_cm": 170,
-                        "weight_kg": 70,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                    },
-                    "consumed_nutrients": {"protein_g": 50},
-                },
-            )
-            assert response.status_code in [200, 500, 503, 422]
 
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+@pytest.mark.parametrize(
+    "invalid_profile",
+    [
+        _profile(age=-5),
+        _profile(activity="invalid_activity"),
+        _profile(goal="loss", deficit_pct=50.0),
+        {**_profile(), "unexpected": "field"},
+    ],
+)
+def test_premium_targets_invalid_payloads_are_exact_422(
+    client: TestClient,
+    invalid_profile: dict[str, object],
+) -> None:
+    response = client.post(_TARGETS_PATH, headers=_headers(), json=invalid_profile)
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["detail"]
+
+
+def test_pro_targets_rejects_infinite_height_before_core_builder(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    core_calls: list[str] = []
+
+    def _unexpected_builder(_profile: object) -> object:
+        core_calls.append("builder")
+        raise AssertionError("builder must not receive non-finite height")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unexpected_builder,
+    )
+    payload = _profile(height_cm=float("inf"))
+
+    response = client.post(
+        _PRO_TARGETS_PATH,
+        headers={"X-API-Key": TEST_KEY_PRO, "Content-Type": "application/json"},
+        content=json.dumps(payload, allow_nan=True),
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert any(error["loc"] == ["body", "height_cm"] for error in response.json()["detail"])
+    assert core_calls == []
+
+
+def test_pro_targets_rejects_huge_weight_before_core_builder(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    core_calls: list[str] = []
+
+    def _unexpected_builder(_profile: object) -> object:
+        core_calls.append("builder")
+        raise AssertionError("builder must not receive an overflowing weight")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unexpected_builder,
+    )
+    payload = _profile(weight_kg=10**4000)
+
+    response = client.post(
+        _PRO_TARGETS_PATH,
+        headers={"X-API-Key": TEST_KEY_PRO, "Content-Type": "application/json"},
+        content=json.dumps(payload),
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert any(error["loc"] == ["body", "weight_kg"] for error in response.json()["detail"])
+    assert core_calls == []
+
+
+def test_pro_targets_finite_measurements_still_work(client: TestClient) -> None:
+    response = client.post(
+        _PRO_TARGETS_PATH,
+        headers={"X-API-Key": TEST_KEY_PRO},
+        json=_profile(height_cm=168.0, weight_kg=62.0),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["kcal_daily"] > 0
+
+
+def test_targets_missing_builder_preserves_alias_divergence(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(service.nutrition_recommendations, "build_nutrition_targets", None)
+
+    canonical_alias = client.post(_TARGETS_PATH, headers=_headers(), json=_profile())
+    strict_legacy = client.post(_STRICT_TARGETS_PATH, headers=_headers(), json=_profile())
+
+    assert canonical_alias.status_code == 200
+    assert strict_legacy.status_code == 503
+    assert strict_legacy.headers["content-type"].startswith("application/json")
+    assert strict_legacy.json() == {"detail": service.WHO_TARGETS_UNAVAILABLE_DETAIL}
+
+
+@pytest.mark.parametrize(("lang", "prefix"), [("ru", "Для "), ("es", "Para ")])
+def test_premium_gaps_real_profiles_use_localized_food_first_recommendations(
+    client: TestClient,
+    lang: str,
+    prefix: str,
+) -> None:
+    response = client.post(
+        _GAPS_PATH,
+        headers=_headers(),
+        json=_gaps_payload(lang=lang),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    payload = response.json()
+    assert payload["gaps"]["iron_mg"]["priority"] == "high"
+    assert payload["food_recommendations"]
+    assert all(item.startswith(prefix) for item in payload["food_recommendations"])
+    assert payload["adherence_score"] == 0.0
+
+
+def test_premium_gaps_unavailable_analyzer_is_exact_503(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(service, "_resolve_nutrient_gaps_analyzer", lambda: None)
+
+    response = client.post(_GAPS_PATH, headers=_headers(), json=_gaps_payload())
+
+    assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": service.NUTRIENT_GAPS_UNAVAILABLE_DETAIL}
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        pytest.param(-0.01, id="negative"),
+        pytest.param(float("nan"), id="nan"),
+        pytest.param(float("inf"), id="infinity"),
+    ],
+)
+def test_premium_gaps_rejects_invalid_consumed_values_as_exact_400(
+    client: TestClient,
+    invalid_value: float,
+) -> None:
+    payload = _gaps_payload()
+    payload["consumed_nutrients"] = {"iron_mg": invalid_value}
+
+    response = client.post(
+        _GAPS_PATH,
+        headers={**_headers(), "Content-Type": "application/json"},
+        content=json.dumps(payload, allow_nan=True),
+    )
+
+    assert response.status_code == 400
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": service.INVALID_NUTRIENT_GAPS_INPUT_DETAIL}
+
+
+def test_premium_gaps_invalid_profile_is_exact_422(client: TestClient) -> None:
+    response = client.post(
+        _GAPS_PATH,
+        headers=_headers(),
+        json=_gaps_payload(age=-10),
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["detail"]
+
+
+def test_premium_gaps_rejects_nested_infinite_weight_before_core_calls(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    core_calls: list[str] = []
+
+    def _unexpected_core_call(*_args: object) -> object:
+        core_calls.append("called")
+        raise AssertionError("core must not receive non-finite weight")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unexpected_core_call,
+    )
+    monkeypatch.setattr(
+        service,
+        "_resolve_nutrient_gaps_analyzer",
+        lambda: _unexpected_core_call,
+    )
+    payload = _gaps_payload(weight_kg=float("inf"))
+
+    response = client.post(
+        _GAPS_PATH,
+        headers={**_headers(), "Content-Type": "application/json"},
+        content=json.dumps(payload, allow_nan=True),
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert any(
+        error["loc"] == ["body", "user_profile", "weight_kg"] for error in response.json()["detail"]
+    )
+    assert core_calls == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [_TARGETS_PATH, _STRICT_TARGETS_PATH, _GAPS_PATH],
+)
+@pytest.mark.parametrize("headers", [{}, _headers("wrong-key")])
+def test_targets_and_gaps_api_key_guard_is_exact_403(
+    client: TestClient,
+    path: str,
+    headers: dict[str, str],
+) -> None:
+    payload = _gaps_payload() if path == _GAPS_PATH else _profile()
+
+    response = client.post(path, headers=headers, json=payload)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("headers", "status_code", "detail", "authenticate"),
+    [
+        pytest.param(
+            {},
+            401,
+            "API key required for PRO tier access",
+            "ApiKey",
+            id="missing",
+        ),
+        pytest.param(
+            _headers("wrong-key"),
+            403,
+            "API key does not have PRO tier access",
+            None,
+            id="wrong",
+        ),
+    ],
+)
+def test_pro_targets_guard_rejects_before_core_builder(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
+    status_code: int,
+    detail: str,
+    authenticate: str | None,
+) -> None:
+    core_calls: list[str] = []
+
+    def _unexpected_builder(_profile: object) -> object:
+        core_calls.append("builder")
+        raise AssertionError("builder must not run before PRO authorization")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unexpected_builder,
+    )
+
+    response = client.post(_PRO_TARGETS_PATH, headers=headers, json=_profile())
+
+    assert response.status_code == status_code
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": detail}
+    assert response.headers.get("www-authenticate") == authenticate
+    assert core_calls == []

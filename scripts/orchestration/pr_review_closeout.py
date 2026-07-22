@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import http.client
 import json
 import os
 import re
@@ -39,12 +40,14 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     CommitIdentityError,
     CommitRefKind,
+    CodexConnectorAdvisoryReactionEvidence,
     RepositoryCommitRef,
     assert_snapshot_unchanged,
     classify_commit_ref,
     fetch_pr_snapshot,
     github_api_request,
     is_ancestor,
+    verify_codex_connector_advisory_reaction_reference,
     verify_codex_review_reference,
     verify_codex_review_source_unavailability_reference,
     verify_review_credit_outage_references,
@@ -57,11 +60,14 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
+    is_mapping_only_positive_response_successor,
+    is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
@@ -475,6 +481,71 @@ def _required_line(value: str | None, *, label: str) -> str:
     if result is None:
         raise CloseoutError(f"{label} is required")
     return result
+
+
+def _verify_connector_advisory_reactions(
+    raw_references: Any,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+) -> tuple[CodexConnectorAdvisoryReactionEvidence, ...]:
+    """Return bounded, unique Connector reaction signals with no seal authority."""
+
+    if raw_references is None:
+        return ()
+    if not isinstance(raw_references, list):
+        raise CloseoutError("connector-advisory-reaction values are malformed")
+    if len(raw_references) > 8:
+        raise CloseoutError("at most eight connector-advisory-reaction values are allowed")
+
+    references: list[str] = []
+    for raw_reference in raw_references:
+        if not isinstance(raw_reference, str):
+            raise CloseoutError("connector-advisory-reaction must be a string")
+        reference = _required_line(
+            raw_reference,
+            label="connector-advisory-reaction",
+        )
+        if reference in references:
+            raise CloseoutError("connector-advisory-reaction values must be unique")
+        references.append(reference)
+
+    return tuple(
+        sorted(
+            (
+                verify_codex_connector_advisory_reaction_reference(
+                    reference,
+                    repository=repository,
+                    pr_number=pr_number,
+                    token=token,
+                )
+                for reference in references
+            ),
+            key=lambda evidence: evidence.reference,
+        )
+    )
+
+
+def _optional_connector_advisory_reactions(
+    raw_references: Any,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+) -> tuple[CodexConnectorAdvisoryReactionEvidence, ...]:
+    """Omit unavailable advisory signals without changing closeout authority."""
+
+    try:
+        return _verify_connector_advisory_reactions(
+            raw_references,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+        )
+    except (CloseoutError, CommitIdentityError, OSError, http.client.HTTPException) as exc:
+        print(f"WARNING: Connector advisory reaction omitted: {exc}", file=sys.stderr)
+        return ()
 
 
 def _validated_backlog_reference(value: str | None) -> str:
@@ -1089,7 +1160,12 @@ def _cmd_add_disposition(args: argparse.Namespace) -> None:
     print(f"closeout-disposition: recorded {disposition} for {url}")
 
 
-def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
+def _render_mapping(
+    state: Mapping[str, Any],
+    seal: Mapping[str, Any],
+    *,
+    connector_advisory_reactions: tuple[CodexConnectorAdvisoryReactionEvidence, ...] = (),
+) -> str:
     pr_number = int(state["pr_number"])
     packet = state.get("packet")
     experiment = state.get("experiment_result")
@@ -1139,6 +1215,26 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
             lines.append(f"- {item['url']} -> {item['commit']}")
         else:
             lines.append(f"- {item['url']}")
+    if connector_advisory_reactions:
+        lines.extend(
+            [
+                "",
+                "## Connector Advisory Signals",
+                (
+                    "Accepted Connector reactions are advisory only. They are not a "
+                    "review, exact-head proof, GitHub approval, security receipt, or "
+                    "thread-resolution authority."
+                ),
+            ]
+        )
+        for evidence in connector_advisory_reactions:
+            lines.extend(
+                [
+                    f"- {evidence.reference}",
+                    f"  - Received: {evidence.created_at}",
+                    f"  - Content: {evidence.content}",
+                ]
+            )
     lines.extend(["", "## Review Material Seal", render_embedded_review_seal(seal), ""])
     return "\n".join(lines)
 
@@ -1229,6 +1325,12 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     }
     if freeze != expected_freeze:
         raise CloseoutError("material state changed after freeze; freeze and review again")
+    connector_advisory_reactions = _optional_connector_advisory_reactions(
+        getattr(args, "connector_advisory_reaction", None),
+        repository=args.repo,
+        pr_number=args.pr_number,
+        token=token,
+    )
     if args.review_source_unavailable_ref:
         source_evidence = verify_codex_review_source_unavailability_reference(
             _required_line(
@@ -1259,22 +1361,31 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             token=token,
             expected_commit_ref=snapshot.head_sha,
         )
-        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-        if (
-            not isinstance(review_commit, RepositoryCommitRef)
-            or review_commit.kind is not CommitRefKind.PR_HEAD
-            or review_commit.sha != snapshot.head_sha
-        ):
-            raise CloseoutError(
-                "Codex review must be machine-bound to the exact frozen material head"
+        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
+            code_review_receipt = build_review_source_positive_response_receipt(
+                material_digest=manifest.digest,
+                material_head_sha=snapshot.head_sha,
+                response_reference=review_evidence.reference,
+                response_created_at=review_evidence.created_at,
+                response_content=review_evidence.content,
             )
-        code_review_receipt = {
-            "review_commit_ref": review_commit.sha,
-            "review_commit_ref_kind": "repository_commit",
-            "review_reference": review_ref,
-            "reviewed_material_digest": manifest.digest,
-            "status": "completed",
-        }
+        else:
+            review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
+            if (
+                not isinstance(review_commit, RepositoryCommitRef)
+                or review_commit.kind is not CommitRefKind.PR_HEAD
+                or review_commit.sha != snapshot.head_sha
+            ):
+                raise CloseoutError(
+                    "Codex review must be machine-bound to the exact frozen material head"
+                )
+            code_review_receipt = {
+                "review_commit_ref": review_commit.sha,
+                "review_commit_ref_kind": "repository_commit",
+                "review_reference": review_ref,
+                "reviewed_material_digest": manifest.digest,
+                "status": "completed",
+            }
     if args.scan_manifest:
         _require_completed_final_security_preparation(
             repository=args.repo,
@@ -1323,7 +1434,15 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         "repository": args.repo,
         "schema_version": SEAL_SCHEMA_VERSION,
     }
-    markdown = _render_mapping(state, seal)
+    markdown = (
+        _render_mapping(
+            state,
+            seal,
+            connector_advisory_reactions=connector_advisory_reactions,
+        )
+        if connector_advisory_reactions
+        else _render_mapping(state, seal)
+    )
     errors = validate_mapping_artifact_text(markdown)
     if errors:
         raise CloseoutError("generated mapping is invalid: " + "; ".join(errors))
@@ -1406,7 +1525,44 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     }:
         raise CloseoutError("sealed material head is not a real live PR commit")
     code_review = seal["code_review"]
-    if is_review_source_unavailability_receipt(code_review):
+    if is_review_source_positive_response_receipt(code_review):
+        response_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if response_manifest.digest != material["digest"]:
+            raise CloseoutError("positive response material head has a different material digest")
+        response_evidence = verify_codex_review_reference(
+            code_review["response_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material_head.sha,
+            expected_live_pr_head_ref=snapshot.head_sha,
+        )
+        if not isinstance(response_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise CloseoutError("Codex positive response reference changed evidence type")
+        expected_code_review = build_review_source_positive_response_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            response_reference=response_evidence.reference,
+            response_created_at=response_evidence.created_at,
+            response_content=response_evidence.content,
+        )
+        successor_response = (
+            snapshot.head_sha != material_head.sha
+            and is_mapping_only_positive_response_successor(
+                code_review,
+                response_reference=response_evidence.reference,
+                response_created_at=response_evidence.created_at,
+                response_content=response_evidence.content,
+            )
+        )
+        if code_review != expected_code_review and not successor_response:
+            raise CloseoutError("Codex positive response receipt is stale")
+    elif is_review_source_unavailability_receipt(code_review):
         unavailable_manifest = compute_material_manifest(
             REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
@@ -1484,7 +1640,13 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
             pr_number=pr_number,
             token=token,
             expected_commit_ref=material_head.sha,
+            # The live head may be the canonical mapping-only closeout commit.
+            # The material-digest equality above proves that no material path
+            # changed after the sealed head.
+            expected_live_pr_head_ref=snapshot.head_sha,
         )
+        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise CloseoutError("Codex positive response is not exact-head review evidence")
         if (
             code_review["review_commit_ref_kind"] != "repository_commit"
             or review_evidence.commit_ref != code_review["review_commit_ref"]
@@ -1608,6 +1770,7 @@ def _parser() -> argparse.ArgumentParser:
     review_evidence = seal.add_mutually_exclusive_group(required=True)
     review_evidence.add_argument("--review-ref")
     review_evidence.add_argument("--review-source-unavailable-ref")
+    seal.add_argument("--connector-advisory-reaction", action="append", default=[])
     security_evidence = seal.add_mutually_exclusive_group(required=True)
     security_evidence.add_argument("--scan-manifest")
     security_evidence.add_argument("--security-outage-override-ref")

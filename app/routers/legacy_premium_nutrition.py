@@ -9,15 +9,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from app.routers.api_key import _get_api_key_dynamic
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
-from app.schemas.premium_contracts import PlateRequest, PlateResponse, WHOTargetsResponse
-from legacy_app import (
+from app.schemas.premium_contracts import (
     NutrientGapsRequest,
     NutrientGapsResponse,
+    PlateRequest,
+    PlateResponse,
     WHOTargetsRequest,
+    WHOTargetsResponse,
+)
+from app.services.pro_nutrition_targets import (
+    analyze_nutrient_gaps_response,
+    generate_who_targets_response,
 )
 
 LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
@@ -84,19 +92,19 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
 )
 async def api_who_targets(payload: dict[str, Any] = Body(...)) -> WHOTargetsResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`."""
-    from legacy_app import api_who_targets as _legacy_api_who_targets
+    try:
+        req: WHOTargetsRequest
+        req = WHOTargetsRequest.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
 
-    resp: WHOTargetsResponse = await _legacy_api_who_targets(payload)
-    return resp
+    return generate_who_targets_response(req)
 
 
 @router.post("/premium_targets", dependencies=[Depends(_get_api_key_dynamic)])
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy WHO targets alias."""
-    from legacy_app import premium_targets_legacy as _legacy_premium_targets
-
-    resp: WHOTargetsResponse = await _legacy_premium_targets(req)
-    return resp
+    return generate_who_targets_response(req, allow_backend_fallback=False)
 
 
 @router.post(
@@ -106,7 +114,4 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 )
 async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
     """Legacy-compatible nutrient gap analysis endpoint."""
-    from legacy_app import api_nutrient_gaps as _legacy_api_nutrient_gaps
-
-    resp: NutrientGapsResponse = await _legacy_api_nutrient_gaps(req)
-    return resp
+    return analyze_nutrient_gaps_response(req)
