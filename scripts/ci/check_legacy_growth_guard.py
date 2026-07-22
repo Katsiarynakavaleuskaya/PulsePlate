@@ -3596,6 +3596,49 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
         return frozenset(references)
 
+    def _static_dict_comprehension_mapping(
+        self,
+        node: ast.DictComp,
+    ) -> _StaticMapping | None:
+        """Project a literal sequence of key/value pairs through a simple dict comprehension."""
+
+        if len(node.generators) != 1:
+            return None
+        generator = node.generators[0]
+        if generator.ifs or generator.is_async:
+            return None
+        if not (
+            isinstance(generator.target, (ast.Tuple, ast.List))
+            and len(generator.target.elts) == 2
+            and all(isinstance(target, ast.Name) for target in generator.target.elts)
+            and isinstance(node.key, ast.Name)
+            and isinstance(node.value, ast.Name)
+            and node.key.id == generator.target.elts[0].id
+            and node.value.id == generator.target.elts[1].id
+            and isinstance(generator.iter, (ast.List, ast.Tuple, ast.Set))
+            and not any(isinstance(item, ast.Starred) for item in generator.iter.elts)
+        ):
+            return None
+
+        entries: list[_StaticMappingEntry] = []
+        for item in generator.iter.elts:
+            if not (
+                isinstance(item, (ast.Tuple, ast.List))
+                and len(item.elts) == 2
+                and not any(isinstance(element, ast.Starred) for element in item.elts)
+            ):
+                return None
+            key, value = item.elts
+            entries.append(
+                _StaticMappingEntry(
+                    key=key,
+                    binding=self._capture_argument_binding(value),
+                )
+            )
+        site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
+        candidate = _StaticMapping(site=site, entries=tuple(entries))
+        return self._mapping_snapshot_intern.setdefault(candidate, candidate)
+
     def _resolve_mapping(self, node: ast.AST) -> _StaticMapping | None:
         if id(node) in self._call_result_bindings:
             return self._call_result_bindings[id(node)].mapping
@@ -3604,6 +3647,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if isinstance(node, ast.NamedExpr):
             return self._resolve_mapping(node.value)
         if isinstance(node, ast.Dict):
+            return self._mapping_literal_snapshots.get(id(node))
+        if isinstance(node, ast.DictComp):
             return self._mapping_literal_snapshots.get(id(node))
         if isinstance(node, ast.Name):
             return self.scope.resolve_mapping(node.id)
@@ -4817,16 +4862,55 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if (
             isinstance(target, (ast.Tuple, ast.List))
             and isinstance(value, (ast.Tuple, ast.List))
-            and len(target.elts) == len(value.elts)
-            and not any(isinstance(element, ast.Starred) for element in target.elts)
+            and not any(isinstance(element, ast.Starred) for element in value.elts)
         ):
-            for child_target, child_value in zip(target.elts, value.elts, strict=True):
-                self._bind_target_value(
-                    child_target,
-                    child_value,
-                    dynamic_unknown_string=dynamic_unknown_string,
+            starred_targets = [
+                index
+                for index, element in enumerate(target.elts)
+                if isinstance(element, ast.Starred)
+            ]
+            if not starred_targets and len(target.elts) == len(value.elts):
+                for child_target, child_value in zip(target.elts, value.elts, strict=True):
+                    self._bind_target_value(
+                        child_target,
+                        child_value,
+                        dynamic_unknown_string=dynamic_unknown_string,
+                    )
+                return
+            if len(starred_targets) == 1 and len(value.elts) >= len(target.elts) - 1:
+                starred_index = starred_targets[0]
+                suffix_count = len(target.elts) - starred_index - 1
+                for child_target, child_value in zip(
+                    target.elts[:starred_index],
+                    value.elts[:starred_index],
+                    strict=True,
+                ):
+                    self._bind_target_value(
+                        child_target,
+                        child_value,
+                        dynamic_unknown_string=dynamic_unknown_string,
+                    )
+                star_values = value.elts[
+                    starred_index : len(value.elts) - suffix_count if suffix_count else None
+                ]
+                self._bind_targets_from_resolved_binding(
+                    [target.elts[starred_index]],
+                    self._variadic_iterable_binding(
+                        [self._capture_argument_binding(item) for item in star_values]
+                    ),
                 )
-            return
+                if suffix_count:
+                    for child_target, child_value in zip(
+                        target.elts[-suffix_count:],
+                        value.elts[-suffix_count:],
+                        strict=True,
+                    ):
+                        self._bind_target_value(
+                            child_target,
+                            child_value,
+                            dynamic_unknown_string=dynamic_unknown_string,
+                        )
+                return
         if isinstance(target, (ast.Tuple, ast.List)):
             value_binding = self._capture_argument_binding(value)
             if self._bind_indexed_pair_target(target, value_binding):
@@ -6449,6 +6533,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_DictComp(self, node: ast.DictComp) -> None:
         self._visit_comprehension(node.generators, [node.key, node.value])
+        snapshot = self._static_dict_comprehension_mapping(node)
+        if snapshot is not None:
+            self._mapping_literal_snapshots[id(node)] = snapshot
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -7797,15 +7884,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if unbound_iterator_method is not None
             else None
         )
+        bound_mapping_copy = (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "copy"
+            and not positional_arguments
+            and not unresolved_positional_sources
+            and not node.keywords
+        )
         mapping_copy = (
             self._resolve_mapping(node.func.value)
-            if (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "copy"
-                and not positional_arguments
-                and not unresolved_positional_sources
-                and not node.keywords
-            )
+            if bound_mapping_copy and isinstance(node.func, ast.Attribute)
             else None
         )
         popitem_receiver = (
@@ -7918,6 +8006,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
         self._record_object_namespace_call_mutation(node)
+        if mapping_copy is None and bound_mapping_copy and isinstance(node.func, ast.Attribute):
+            mapping_copy = self._resolve_mapping(node.func.value)
         projected_result = self._resolve_mapping_lookup_call_binding(
             node,
             receiver=mapping_lookup_receiver,

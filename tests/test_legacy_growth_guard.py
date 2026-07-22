@@ -4482,6 +4482,40 @@ def test_legacy_growth_guard_preserves_chain_mapping_values() -> None:
     ]
 
 
+def test_legacy_growth_guard_preserves_static_dict_comprehension_mapping() -> None:
+    source = textwrap.dedent("""
+        routes = {key: registrar for key, registrar in [("route", app.get)]}
+        route = routes.get("route")
+        route("/api/v1/dict-comprehension")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/dict-comprehension"
+    ]
+
+
+def test_legacy_growth_guard_preserves_literal_mapping_copy() -> None:
+    source = textwrap.dedent("""
+        route = {"route": app.get}.copy().get("route")
+        route("/api/v1/literal-copy")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:get:/api/v1/literal-copy"
+    ]
+
+
+def test_legacy_growth_guard_preserves_fixed_literal_values_for_starred_assignment() -> None:
+    source = textwrap.dedent("""
+        safe_register = lambda _path: lambda _handler: None
+        route, *rest = [safe_register, app.get]
+        route("/api/v1/starred-safe")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_resolves_direct_class_registrar_member() -> None:
     source = textwrap.dedent("""
         class Holder:
