@@ -56,6 +56,7 @@ from scripts.orchestration.creative_code_specification import (
 from scripts.orchestration.experiment_contract import (
     DEFAULT_RUNNER_MODE,
     DEFAULT_STOP_CONDITION,
+    has_oom_evidence,
     validate_budget_payload,
     validate_capability_zero_attempt_observations,
     validate_experiment_packet,
@@ -585,11 +586,9 @@ def _regular_file_identity(path: Path, *, label: str) -> tuple[int, int, int, in
 
 
 def _has_runner_oom_evidence(output: str) -> bool:
-    """Load runner-only OOM patterns only on the dispatch-validation path."""
+    """Match OOM evidence without importing the heavyweight runner module."""
 
-    from scripts.orchestration.experiment_runner import OOM_PATTERNS
-
-    return any(pattern.search(output) for pattern in OOM_PATTERNS)
+    return bool(has_oom_evidence(output))
 
 
 def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
@@ -614,6 +613,7 @@ def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
     """Publish one JSON artifact without replacing a concurrent writer."""
 
     temp_path: Path | None = None
+    published = False
     temp_fd, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
@@ -629,6 +629,7 @@ def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
             os.fsync(temp_file.fileno())
         try:
             os.link(temp_path, path, follow_symlinks=False)
+            published = True
         except FileExistsError as exc:
             raise CreativeCodePatchGenerationError("output artifact already exists.") from exc
         except OSError as exc:
@@ -641,6 +642,9 @@ def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
                 temp_path.unlink()
             except FileNotFoundError:
                 pass
+            except OSError:
+                if not published:
+                    raise
 
 
 @contextmanager

@@ -42,7 +42,7 @@ RECEIPT_SCHEMA = (
 )
 
 
-def test_generation_help_does_not_import_experiment_runner(tmp_path: Path) -> None:
+def test_generation_oom_validation_does_not_import_experiment_runner(tmp_path: Path) -> None:
     blocker_dir = tmp_path / "runner-import-blocker"
     blocker_dir.mkdir()
     (blocker_dir / "sitecustomize.py").write_text(
@@ -66,7 +66,15 @@ def test_generation_help_does_not_import_experiment_runner(tmp_path: Path) -> No
     }
 
     result = subprocess.run(
-        [sys.executable, "scripts/orchestration/creative_code_patch_generation.py", "--help"],
+        [
+            sys.executable,
+            "-c",
+            (
+                "from scripts.orchestration.creative_code_patch_generation "
+                "import _has_runner_oom_evidence; "
+                "assert _has_runner_oom_evidence('out of memory')"
+            ),
+        ],
         cwd=str(REPO_ROOT),
         env=env,
         capture_output=True,
@@ -76,7 +84,6 @@ def test_generation_help_does_not_import_experiment_runner(tmp_path: Path) -> No
     )
 
     assert result.returncode == 0, result.stderr
-    assert "Gate and execute local PR-2 creative-code candidate generation" in result.stdout
 
 
 def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
@@ -1900,6 +1907,25 @@ def test_write_json_new_preserves_concurrent_target(
 
     assert json.loads(output.read_text(encoding="utf-8")) == foreign_payload
     assert list(tmp_path.glob(".result.json.*.tmp")) == []
+
+
+def test_write_json_new_keeps_success_after_linked_temp_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "result.json"
+    real_unlink = Path.unlink
+
+    def fail_temp_cleanup(path: Path, *args: Any, **kwargs: Any) -> None:
+        if path.name.startswith(".result.json."):
+            raise PermissionError("simulated temp cleanup race")
+        real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_temp_cleanup)
+
+    generation_cli._write_json_new(output, {"owner": "finalizer"})
+
+    assert json.loads(output.read_text(encoding="utf-8")) == {"owner": "finalizer"}
 
 
 def test_finalize_dispatched_result_rejects_selected_variant_content_tamper(

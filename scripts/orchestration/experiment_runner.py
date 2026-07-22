@@ -15,7 +15,6 @@ import json
 import math
 import os
 from pathlib import Path, PurePosixPath
-import re
 import shlex
 import shutil
 import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-07-31, ref: PR-1082)
@@ -42,6 +41,7 @@ from scripts.orchestration.experiment_contract import (
     DEFAULT_STOP_CONDITION,
     DEFAULT_RUNNER_MODE,
     MAX_CANDIDATE_PATCH_BYTES,
+    has_oom_evidence,
     ORACLE_BINARY_ALLOWLIST,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
@@ -53,11 +53,6 @@ from scripts.orchestration.experiment_contract import (
 
 RESULT_SCHEMA_VERSION = SCHEMA_VERSION
 RESULT_ARTIFACT_DIR = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
-OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bout of memory\b", re.IGNORECASE),
-    re.compile(r"\boom\b", re.IGNORECASE),
-    re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
-)
 PYTHON_ORACLE_BINARIES = {"python", "python3"}
 CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR = (
     "Execution capability became unavailable after an infrastructure retry."
@@ -608,7 +603,7 @@ def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
         )
     ):
         return "capability_mismatch"
-    if any(pattern.search(combined_output) for pattern in OOM_PATTERNS):
+    if has_oom_evidence(combined_output):
         return "oom"
     return "guard_failure"
 

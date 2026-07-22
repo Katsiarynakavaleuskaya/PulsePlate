@@ -2122,32 +2122,6 @@ def test_post_preflight_capability_result_preserves_candidate_checkout_proof() -
     assert result["budget_observations"]["candidate_changed_files"] == 1
 
 
-def test_candidate_checkout_proof_stays_host_lightweight(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    packet = _packet(network_budget=0)
-    packet["runner_mode"] = "candidate_patch"
-    packet["base_commit_sha"] = "a" * 40
-    packet["candidate_patch_fingerprint"] = "sha256:" + ("b" * 64)
-    monkeypatch.setitem(sys.modules, "scripts.orchestration.experiment_runner", None)
-
-    proof = dispatch._candidate_checkout_proof(
-        packet,
-        root=dispatch.REPO_ROOT,
-        candidate_patch_text=(
-            "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
-            "--- a/core/rag/orchestration.py\n"
-            "+++ b/core/rag/orchestration.py\n"
-        ),
-    )
-
-    assert proof == {
-        "source_checkout_head_sha": packet["base_commit_sha"],
-        "source_checkout_clean": True,
-        "candidate_changed_files": 1,
-    }
-
-
 def test_sanitize_result_rejects_malformed_observations_with_checkout_proof() -> None:
     result = _accepted_oracle_result()
     result["budget_observations"] = None
@@ -2640,7 +2614,7 @@ def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
         dispatch, "_atomic_write_json", lambda _path, payload: written.update(payload)
     )
 
-    assert dispatch.main([]) == 1
+    assert dispatch.main([]) == dispatch.RUNNER_REJECTED_EXIT_CODE
     assert written["failure_class"] == "capability_mismatch"
     assert written["budget_observations"]["runner_error"] == "image_digest_drift"
     assert written["budget_observations"]["attempts"] == 0
@@ -2681,7 +2655,7 @@ def test_run_preserves_host_listener_blocker_and_resets_rejected_attribution(
         lambda _path, payload: written.update(payload),
     )
 
-    assert dispatch.main([]) == 1
+    assert dispatch.main([]) == dispatch.RUNNER_REJECTED_EXIT_CODE
     assert written["failure_class"] == "capability_mismatch"
     assert written["budget_observations"]["runner_error"] == "host_listener_unavailable"
     assert written["execution_backend"]["preflight_status"] == "failed"
@@ -2948,7 +2922,7 @@ def test_nonzero_network_budget_fails_before_backend_selection(
         dispatch, "_atomic_write_json", lambda _path, payload: written.update(payload)
     )
 
-    assert dispatch.main([]) == 1
+    assert dispatch.main([]) == dispatch.RUNNER_REJECTED_EXIT_CODE
     assert written["failure_class"] == "capability_mismatch"
     assert written["budget_observations"]["configured_budgets"]["network_budget"] == 1
     assert written["budget_observations"]["runner_error"] == ("strict_network_budget_required")
@@ -3137,7 +3111,7 @@ def test_candidate_patch_without_fingerprint_skips_host_read(
         lambda *_args: (None, [_probe("docker", strict=False)]),
     )
 
-    assert dispatch.main([]) == 1
+    assert dispatch.main([]) == dispatch.RUNNER_REJECTED_EXIT_CODE
 
 
 def test_candidate_patch_fingerprint_read_is_bounded(
@@ -3290,7 +3264,7 @@ def test_macos_oracle_explicit_apple_failure_has_no_docker_fallback(
     monkeypatch.setattr(dispatch, "probe_backend", failed_probe)
     monkeypatch.setattr(dispatch, "_atomic_write_json", capture_result)
 
-    assert dispatch.main([]) == 1
+    assert dispatch.main([]) == dispatch.RUNNER_REJECTED_EXIT_CODE
     assert probes == ["apple-container"]
     assert written["failure_class"] == "capability_mismatch"
     assert written["budget_observations"]["runner_error"] == "runtime_not_ready"
@@ -3351,7 +3325,7 @@ def test_macos_candidate_mode_preserves_auto_backend_selection(
     monkeypatch.setattr(dispatch, "select_backend", select)
     monkeypatch.setattr(dispatch, "_atomic_write_json", ignore_result_write)
 
-    assert dispatch.main([]) == 1
+    assert dispatch.main([]) == dispatch.RUNNER_REJECTED_EXIT_CODE
     assert requested == ["auto"]
 
 

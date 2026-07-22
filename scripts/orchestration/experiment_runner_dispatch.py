@@ -2267,7 +2267,7 @@ def main(argv: list[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
-            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
+            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else RUNNER_REJECTED_EXIT_CODE
         selected, attempts = select_backend(args.backend, image)
         if selected is None:
             result = _capability_mismatch_result(packet, image, attempts[-1])
@@ -2299,7 +2299,7 @@ def main(argv: list[str] | None = None) -> int:
         public_status = _public_result_status(result)
         _atomic_write_json(output_path, result)
         print(json.dumps({"artifact": output_path.name, "status": public_status}, sort_keys=True))
-        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
+        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else RUNNER_REJECTED_EXIT_CODE
     except (DispatchError, OSError, ValueError) as exc:
         print(f"experiment_runner_dispatch: {exc}", file=sys.stderr)
         return 2

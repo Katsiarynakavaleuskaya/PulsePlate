@@ -19,6 +19,11 @@ from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_r
 SCHEMA_VERSION = "1.0"
 CANDIDATE_PATCH_FINGERPRINT_RE = re.compile(r"sha256:[0-9a-f]{64}")
 GIT_COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bout of memory\b", re.IGNORECASE),
+    re.compile(r"\boom\b", re.IGNORECASE),
+    re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
+)
 
 PRIMARY_AGENT = "agent-coordinator"
 REVIEWER = "architecture-specialist"
@@ -57,6 +62,12 @@ FAILURE_CLASSES: tuple[str, ...] = (
     "capability_mismatch",
     "infra_flake",
 )
+
+
+def has_oom_evidence(output: str) -> bool:
+    """Return whether bounded runner output contains canonical OOM evidence."""
+
+    return any(pattern.search(output) for pattern in OOM_PATTERNS)
 
 
 def validate_failure_retry_observations(
