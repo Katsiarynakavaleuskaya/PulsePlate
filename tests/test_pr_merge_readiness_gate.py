@@ -15,6 +15,7 @@ import yaml
 from scripts.ci import check_pr_merge_readiness as merge_gate
 from scripts.ci.check_pr_merge_readiness import _is_actionable, _mapped_urls
 from scripts.orchestration.pr_commit_identity import (
+    CodexConnectorAdvisoryReactionEvidence,
     CodexReviewEvidence,
     CodexReviewSourceUnavailabilityEvidence,
     CommitRefKind,
@@ -29,6 +30,7 @@ from scripts.orchestration.pr_review_evidence import (
     RECEIPT_AUTHORITY,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
@@ -803,6 +805,242 @@ def _artifact_with_seal(seal: dict[str, Any]) -> str:
     )
 
 
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_ci_gate_accepts_trusted_positive_response_without_review_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reaction_content: str
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    (repo / "README.md").write_text("material\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    manifest = compute_material_manifest(
+        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
+    )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": build_review_source_positive_response_receipt(
+            material_digest=manifest.digest,
+            material_head_sha=material_head,
+            response_reference=reaction_reference,
+            response_created_at="2026-07-15T11:00:00Z",
+            response_content=reaction_content,
+        ),
+        "codex_security": _receipt(base_sha, material_head),
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": manifest.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": manifest.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+    }
+    artifact = _artifact_with_seal(seal)
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=material_head,
+        commits=(PrCommitEvidence(material_head, None),),
+    )
+    verifier_calls: list[tuple[str | None, str | None]] = []
+
+    def verify_response(*_args: Any, **kwargs: Any) -> CodexConnectorAdvisoryReactionEvidence:
+        verifier_calls.append(
+            (kwargs.get("expected_commit_ref"), kwargs.get("expected_live_pr_head_ref"))
+        )
+        return CodexConnectorAdvisoryReactionEvidence(
+            reference=reaction_reference,
+            created_at="2026-07-15T11:00:00Z",
+            content=reaction_content,
+        )
+
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_response)
+
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=artifact,
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+    )
+
+    assert validated["code_review"]["review_claim"] == "none"
+    assert validated["code_review"]["source_status"] == "positive_response"
+    assert verifier_calls == [(material_head, material_head)]
+
+    stale_seal = dict(seal)
+    stale_seal["code_review"] = dict(seal["code_review"])
+    stale_seal["code_review"]["response_content"] = "heart" if reaction_content != "heart" else "+1"
+    with pytest.raises(ReviewEvidenceError, match="positive response receipt is stale"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(stale_seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+        )
+
+    mapping_path = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    mapping_path.parent.mkdir(parents=True)
+    mapping_path.write_text("mapping-only\n", encoding="utf-8")
+    mapping_head = _commit(repo, "mapping-only")
+    mapping_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=mapping_head,
+        commits=(*snapshot.commits, PrCommitEvidence(mapping_head, None)),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_COMMIT if value == material_head else CommitRefKind.PR_HEAD,
+        ),
+    )
+
+    def verify_successor(*_args: Any, **kwargs: Any) -> CodexConnectorAdvisoryReactionEvidence:
+        verifier_calls.append(
+            (kwargs.get("expected_commit_ref"), kwargs.get("expected_live_pr_head_ref"))
+        )
+        return CodexConnectorAdvisoryReactionEvidence(
+            reference="https://github.com/owner/repo/pull/42#reaction-789",
+            created_at="2026-07-15T12:00:00Z",
+            content=reaction_content,
+        )
+
+    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_successor)
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=artifact,
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=mapping_snapshot,
+        token="opaque",
+    )
+    assert validated["code_review"]["response_reference"] == reaction_reference
+    assert verifier_calls[-1] == (material_head, mapping_head)
+
+    (repo / "README.md").write_text("later material\n", encoding="utf-8")
+    changed_head = _commit(repo, "later material")
+    changed_manifest = compute_material_manifest(
+        repo, base_ref_oid=base_sha, head_ref_oid=changed_head, pr_number=42
+    )
+    tampered_seal = json.loads(json.dumps(seal))
+    tampered_seal["material"]["digest"] = changed_manifest.digest
+    tampered_seal["code_review"] = build_review_source_positive_response_receipt(
+        material_digest=changed_manifest.digest,
+        material_head_sha=material_head,
+        response_reference=reaction_reference,
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
+    changed_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=changed_head,
+        commits=(*mapping_snapshot.commits, PrCommitEvidence(changed_head, None)),
+    )
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="positive response material head has a different material digest",
+    ):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(tampered_seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=changed_snapshot,
+            token="opaque",
+        )
+
+
+def test_ci_gate_rejects_positive_response_in_exact_review_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    (repo / "README.md").write_text("material\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    manifest = compute_material_manifest(
+        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
+    )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": {
+            "review_commit_ref": material_head,
+            "review_commit_ref_kind": "repository_commit",
+            "review_reference": reaction_reference,
+            "reviewed_material_digest": manifest.digest,
+            "status": "completed",
+        },
+        "codex_security": _receipt(base_sha, material_head),
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": manifest.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": manifest.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+    }
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=material_head,
+        commits=(PrCommitEvidence(material_head, None),),
+    )
+
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: CodexConnectorAdvisoryReactionEvidence(
+            reference=reaction_reference,
+            created_at="2026-07-15T11:00:00Z",
+            content="+1",
+        ),
+    )
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="Codex positive response is not exact-head review evidence",
+    ):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+        )
+
+
 def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -818,12 +1056,13 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     frozen = compute_material_manifest(
         repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
     )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
     seal = {
         "authority": RECEIPT_AUTHORITY,
         "code_review": {
             "review_commit_ref": material_head,
             "review_commit_ref_kind": "repository_commit",
-            "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+            "review_reference": reaction_reference,
             "reviewed_material_digest": frozen.digest,
             "status": "completed",
         },
@@ -864,12 +1103,17 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         ),
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    verifier_expected_commits: list[str | None] = []
+    verifier_expected_heads: list[tuple[str | None, str | None]] = []
 
     def verify_review(*_args: Any, **kwargs: Any) -> CodexReviewEvidence:
-        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
+        verifier_expected_heads.append(
+            (
+                kwargs.get("expected_commit_ref"),
+                kwargs.get("expected_live_pr_head_ref"),
+            )
+        )
         return CodexReviewEvidence(
-            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
+            reference=reaction_reference,
             submitted_at="2026-07-15T11:00:00Z",
             commit_ref=material_head,
         )
@@ -884,7 +1128,7 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         token="opaque",
     )
     assert validated["material"]["digest"] == frozen.digest
-    assert verifier_expected_commits == [material_head]
+    assert verifier_expected_heads == [(material_head, governance_head)]
 
     live_snapshot = {"value": snapshot}
     monkeypatch.setenv("GITHUB_TOKEN", "opaque")

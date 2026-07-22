@@ -658,9 +658,27 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    with MCP `-32001 Request timed out`, use the bounded operator-outage path only
    after an explicit operator decision; it is not scan or no-findings evidence.
 5. Record dispositions with `add-disposition`, then run `seal` with exactly one
-   review-evidence mode: `--review-ref ...` for a completed trusted review, or
-   `--review-source-unavailable-ref ...` for an exact trusted Codex rate-limit /
-   usage-limit comment. The source-unavailable path requires no retry,
+   review-evidence mode: `--review-ref ...` for a completed trusted review or a
+   canonical official Connector PR-root `+1`, `heart`, `hooray`, or `rocket`
+   reaction as a nonblocking terminal positive response, or
+   `--review-source-unavailable-ref ...` for an exact trusted Codex
+   rate-limit / usage-limit comment. A reaction supplied through `--review-ref`
+   is live-verified by exact PR-root URL and immutable Connector account identity,
+   then bound to the caller's full snapshotted material head by requiring the live
+   PR head to equal it at seal time and a server-timestamped GitHub Actions `pull_request` run
+   linked to that same PR and head to strictly precede the reaction, with no later
+   force-push or head-restoration event. That chronology proves freshness only;
+   it is not projected into a Connector-owned reviewed commit. After the one canonical mapping-only
+   closeout commit, authenticated validation may accept the descendant live head
+   only after material-digest equality is re-established. If the automatic
+   mapping-only cycle replaces the sealed reaction, revalidation may use only a
+   newer live trusted positive reaction with the same content; keep the sealed
+   receipt unchanged and do not restart the security scan. Its receipt is
+   `binding_kind=seal_context_only`, `review_claim=none`, and `blocking=false`.
+   It is a trusted positive Connector response, not exact-head review proof, a
+   native GitHub approval, Codex Security result, or thread-resolution authority. The optional
+   `--connector-advisory-reaction <canonical-reaction-url>` rendering path remains
+   non-authoritative and may be omitted with a warning. The source-unavailable path requires no retry,
    substitute review, prior review, operator override, or TTL; it proves only
    source unavailability (`source_degraded=true`, `fallback_required=false`,
    `blocking=false`, and `review_claim=none`), never review/PASS/no-findings.

@@ -10,6 +10,7 @@ import re
 from typing import cast
 
 import yaml
+from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from scripts.ci import ci_risk_profile
 
@@ -171,6 +172,20 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
         "913e",
         "5ce3",
         "6c25",
+    )
+)
+CODEQL_ACTION_V4_37_1_SHA = "".join(
+    (
+        "7188",
+        "fc36",
+        "3630",
+        "916d",
+        "eb70",
+        "2c7f",
+        "dcf4",
+        "e481",
+        "b751",
+        "f97a",
     )
 )
 SETUP_GO_NODE24_SHA = "".join(
@@ -1321,6 +1336,133 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
             assert workflow_text.count(expected_line) == workflow_upload_count
 
     assert observed_upload_steps
+
+
+def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
+    """Guard every active CodeQL action ref against pin and location drift."""
+
+    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
+        if isinstance(node, MappingNode):
+            for key_node, value_node in node.value:
+                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
+                    if isinstance(value_node, ScalarNode):
+                        yield key_node, value_node
+                yield from iter_uses_source_mappings(value_node)
+        elif isinstance(node, SequenceNode):
+            for value_node in node.value:
+                yield from iter_uses_source_mappings(value_node)
+
+    expected_uses_by_component = {
+        "init": f"github/codeql-action/init@{CODEQL_ACTION_V4_37_1_SHA}",
+        "analyze": f"github/codeql-action/analyze@{CODEQL_ACTION_V4_37_1_SHA}",
+        "upload-sarif": f"github/codeql-action/upload-sarif@{CODEQL_ACTION_V4_37_1_SHA}",
+    }
+    expected_comment_counts_by_component = {
+        "init": 1,
+        "analyze": 1,
+        "upload-sarif": 3,
+    }
+    expected_line_counts = {
+        BUILD_WORKFLOW_PATH: {
+            f"uses: {expected_uses_by_component['upload-sarif']} # v4.37.1": 2,
+        },
+        CODEQL_WORKFLOW_PATH: {
+            f"uses: {expected_uses_by_component['init']} # v4.37.1": 1,
+            f"uses: {expected_uses_by_component['analyze']} # v4.37.1": 1,
+        },
+        TRIVY_WORKFLOW_PATH: {
+            f"uses: {expected_uses_by_component['upload-sarif']} # v4.37.1": 1,
+        },
+    }
+    observed_contracts: list[tuple[str, str, object, str]] = []
+    observed_comment_counts_by_component = {
+        component: 0 for component in expected_comment_counts_by_component
+    }
+
+    for workflow_path in _active_workflow_paths():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        workflow_lines = workflow_text.splitlines()
+        expected_source_line_counts = expected_line_counts.get(workflow_path, {})
+        observed_source_line_counts = {
+            expected_line: 0 for expected_line in expected_source_line_counts
+        }
+        workflow_document = yaml.compose(workflow_text)
+        assert isinstance(workflow_document, Node)
+        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+            uses = uses_value_node.value
+            normalized_uses = uses.casefold()
+            if not normalized_uses.startswith("github/codeql-action/"):
+                continue
+
+            assert uses.startswith("github/codeql-action/")
+            component = normalized_uses.removeprefix("github/codeql-action/").split(
+                "@", maxsplit=1
+            )[0]
+            assert component in expected_uses_by_component
+            observed_comment_counts_by_component[component] += 1
+            expected_line = f"uses: {uses} # v4.37.1"
+            assert workflow_lines[uses_key_node.start_mark.line].strip() == expected_line
+            if expected_line in observed_source_line_counts:
+                observed_source_line_counts[expected_line] += 1
+
+        assert observed_source_line_counts == expected_source_line_counts
+
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str):
+                continue
+            normalized_uses = uses.casefold()
+            if not normalized_uses.startswith("github/codeql-action/"):
+                continue
+
+            assert uses.startswith("github/codeql-action/")
+            component = normalized_uses.removeprefix("github/codeql-action/").split(
+                "@", maxsplit=1
+            )[0]
+            assert component in expected_uses_by_component
+            assert uses == expected_uses_by_component[component]
+            observed_contracts.append(
+                (
+                    str(workflow_path.relative_to(REPO_ROOT)),
+                    job_id,
+                    step.get("name"),
+                    uses,
+                )
+            )
+
+    assert observed_comment_counts_by_component == expected_comment_counts_by_component
+    assert observed_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "security-scan",
+            "Upload Trivy scan results to GitHub Security tab",
+            expected_uses_by_component["upload-sarif"],
+        ),
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Upload Trivy image scan results",
+            expected_uses_by_component["upload-sarif"],
+        ),
+        (
+            ".github/workflows/codeql.yml",
+            "analyze",
+            "Initialize CodeQL",
+            expected_uses_by_component["init"],
+        ),
+        (
+            ".github/workflows/codeql.yml",
+            "analyze",
+            "Perform CodeQL Analysis",
+            expected_uses_by_component["analyze"],
+        ),
+        (
+            ".github/workflows/trivy.yml",
+            "build",
+            "Upload Trivy scan results to GitHub Security tab",
+            expected_uses_by_component["upload-sarif"],
+        ),
+    ]
 
 
 def test_node24_setup_go_and_upload_artifact_pins_preserve_workflow_contracts() -> None:
