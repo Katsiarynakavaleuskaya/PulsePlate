@@ -82,6 +82,27 @@ def test_xcode_lottie_requirement_is_exact_and_animation_tests_are_included() ->
     assert "AnimationTests.swift," not in test_exceptions[0]
 
 
+def test_lottie_product_is_linked_to_app_and_unit_test_targets() -> None:
+    source = PROJECT_FILE.read_text(encoding="utf-8")
+    native_targets = source.split("/* Begin PBXNativeTarget section */", maxsplit=1)[1]
+    native_targets = native_targets.split("/* End PBXNativeTarget section */", maxsplit=1)[0]
+
+    for target_name in ("PulsePlate", "PulsePlateTests"):
+        target = re.search(
+            rf"/\* {target_name} \*/ = \{{(?P<body>.*?)\n\s*\}};",
+            native_targets,
+            flags=re.DOTALL,
+        )
+        assert target is not None, f"missing {target_name} native target"
+        dependencies = re.search(
+            r"packageProductDependencies = \((?P<body>.*?)\);",
+            target.group("body"),
+            flags=re.DOTALL,
+        )
+        assert dependencies is not None, f"{target_name} must declare package products"
+        assert "/* Lottie */" in dependencies.group("body")
+
+
 def test_generated_lottie_locks_have_semantic_parity() -> None:
     pins = [_lottie_pin(path) for path in LOCKFILES]
     assert pins[0] == pins[1]

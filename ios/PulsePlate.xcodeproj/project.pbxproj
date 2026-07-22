@@ -10,6 +10,7 @@
 		B6A4F701C4F7A1001234A001 /* AppStoreScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A4F700C4F7A1001234A001 /* AppStoreScreenshotTests.swift */; };
 		B6A4F703C4F7A1001234A001 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A4F702C4F7A1001234A001 /* SnapshotHelper.swift */; };
 		B6B04C2D2EEF4BC4005E0955 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = B6B04C2C2EEF4BC4005E0955 /* Lottie */; };
+		B6B04C2F2EEF4BC4005E0955 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = B6B04C2E2EEF4BC4005E0955 /* Lottie */; };
 		B63DC54A60CDD04447BE2DD1 /* __CIAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6AAD8EE46580D4F79A394FC /* __CIAnchorTests.swift */; };
 		B6F5B1E4A0C840D5A8C7A9B1 /* PulsePlateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */; };
 		B6F5B1E5A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F5B1E3A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift */; };
@@ -84,6 +85,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B6B04C2F2EEF4BC4005E0955 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -186,6 +188,9 @@
 				B6169A892E893CF200B218D8 /* PulsePlateTests */,
 			);
 			name = PulsePlateTests;
+			packageProductDependencies = (
+				B6B04C2E2EEF4BC4005E0955 /* Lottie */,
+			);
 			productName = PulsePlateTests;
 			productReference = B6169A422E893CF200B218D8 /* PulsePlateTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -703,6 +708,11 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		B6B04C2C2EEF4BC4005E0955 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B6B04C2B2EEF4BC4005E0955 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
+		B6B04C2E2EEF4BC4005E0955 /* Lottie */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B6B04C2B2EEF4BC4005E0955 /* XCRemoteSwiftPackageReference "lottie-ios" */;
 			productName = Lottie;
