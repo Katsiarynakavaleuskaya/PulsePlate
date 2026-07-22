@@ -4466,6 +4466,22 @@ def test_legacy_growth_guard_preserves_identity_map_mapping_values() -> None:
     ]
 
 
+def test_legacy_growth_guard_preserves_chain_mapping_values() -> None:
+    source = textwrap.dedent("""
+        from itertools import chain
+
+        routes = {"route": app.get}
+
+        for route in chain(routes.values()):
+            route("/api/v1/chain-mapping-value")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/chain-mapping-value"
+    ]
+
+
 def test_legacy_growth_guard_resolves_direct_class_registrar_member() -> None:
     source = textwrap.dedent("""
         class Holder:

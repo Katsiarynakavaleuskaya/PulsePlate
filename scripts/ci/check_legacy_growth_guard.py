@@ -3090,6 +3090,7 @@ _ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
         "builtins.next",
     }
 )
+_ITERABLE_CONCATENATING_REFERENCES = frozenset({"itertools.chain"})
 
 
 def _namespace_mutator_method(reference: str | None) -> str | None:
@@ -7970,6 +7971,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 positional_arguments,
                 unresolved_positional_sources,
             )
+        elif projected_result is None and wrapper_reference in _ITERABLE_CONCATENATING_REFERENCES:
+            elements = [
+                self._resolve_iterable_element_binding(argument)
+                or self._conservative_argument_binding()
+                for argument in positional_arguments
+            ]
+            elements.extend(
+                self._conservative_argument_binding() for _source in unresolved_positional_sources
+            )
+            if elements:
+                projected_result = self._variadic_iterable_binding(elements)
         elif (
             projected_result is None
             and (positional_arguments or unresolved_positional_sources)
