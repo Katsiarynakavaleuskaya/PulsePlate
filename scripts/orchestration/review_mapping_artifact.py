@@ -57,7 +57,27 @@ COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REVIEW_SEAL_VERSION_RE = re.compile(r"(?m)^Review-Seal-Version:\s*(\S+)\s*$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+
+
+def _is_valid_git_branch_ref(ref: str) -> bool:
+    """Validate the branch-name subset required by a GitHub PR head ref."""
+
+    forbidden = " ~^:?*[\\"
+    if (
+        not ref
+        or ref == "@"
+        or ref.startswith(("-", "/"))
+        or ref.endswith(("/", "."))
+        or ".." in ref
+        or "@{" in ref
+        or any(ord(character) < 32 or ord(character) == 127 for character in ref)
+        or any(character in forbidden for character in ref)
+    ):
+        return False
+    return all(
+        segment and not segment.startswith(".") and not segment.endswith(".lock")
+        for segment in ref.split("/")
+    )
 
 
 @dataclass(frozen=True)
@@ -622,10 +642,8 @@ def render_phase2_body_mirror(pr_number: int, *, repository: str, ref: str) -> s
     normalized_ref = ref.strip()
     if not REPOSITORY_RE.fullmatch(normalized_repository):
         raise ValueError("repository must use the canonical owner/name form")
-    if not SAFE_REF_RE.fullmatch(normalized_ref) or any(
-        segment in {"", ".", ".."} for segment in normalized_ref.split("/")
-    ):
-        raise ValueError("ref must be a non-empty safe Git ref")
+    if not _is_valid_git_branch_ref(normalized_ref):
+        raise ValueError("ref must be a valid non-empty Git branch ref")
     encoded_ref = urllib.parse.quote(normalized_ref, safe="/-._~")
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     artifact_url = f"https://github.com/{normalized_repository}/blob/{encoded_ref}/{artifact_path}"

@@ -48,6 +48,24 @@ def test_render_phase2_body_mirror_is_stable(
     assert "`docs/review/PR_998_FIXED_MAPPING.md`" not in body
 
 
+@pytest.mark.parametrize(
+    ("ref", "encoded_ref"),
+    [("feature#x", "feature%23x"), ("feature+test", "feature%2Btest")],
+)
+def test_render_phase2_body_mirror_encodes_valid_git_ref_characters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    ref: str,
+    encoded_ref: str,
+) -> None:
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
+    monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+
+    body = artifact.render_phase2_body_mirror(998, repository="org/repo", ref=ref)
+
+    assert f"/blob/{encoded_ref}/docs/review/PR_998_FIXED_MAPPING.md" in body
+
+
 def test_render_phase2_body_mirror_fails_for_invalid_artifact(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
