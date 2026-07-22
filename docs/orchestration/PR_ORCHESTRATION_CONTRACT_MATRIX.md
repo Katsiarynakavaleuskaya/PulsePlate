@@ -39,8 +39,9 @@ Canonical operator entrypoint:
 - `scripts/orchestration/check_merge_ready.py` runs Phase 2, merge-readiness, and disposition proof as one verdict.
 - Before the sole mapping commit, its local-only `--pre-closeout --require-auth`
   mode reads the uncommitted canonical artifact, requires both `GH_TOKEN` and
-  `GITHUB_TOKEN`, explicitly maps every live actionable issue comment, inline
-  comment, and top-level bot review, and requires exactly one true
+  `GITHUB_TOKEN`, requires the mapping artifact to be the only dirty path,
+  explicitly maps every live actionable bot issue comment, bot inline comment,
+  and top-level bot review, and requires exactly one true
   same-repository `blob/<safe-ref>/docs/review/...` Markdown link to that
   artifact in the live PR body. Repo-relative PR-body links do not count. It skips thread-resolution,
   current-head-CI, and wait-window gates and is never merge-readiness evidence.
@@ -206,15 +207,16 @@ governance PR number + 1; the governance PR may opt in with
   accepted only when Git proves both the base and the previously sealed material
   head advanced by ancestry and the replacement preserves every disposition
   proof block.
-- Before publishing the one closeout commit, the pre-closeout gate must validate
-  the local sealed artifact against the complete live actionable bot inventory.
+- Before publishing the one closeout commit, the pre-closeout gate must require
+  the mapping artifact to be the only dirty path and validate the local sealed
+  artifact against the complete live actionable bot inventory.
   In this pre-commit mode an actionable top-level review requires its own
   mapping even when all actionable child comments are mapped. The PR body must
   contain exactly one rendered same-repository blob Markdown link whose
   destination is `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text,
   repo-relative links, inline-code examples, and fenced examples do not count.
-  Before PASS, the gate re-reads the live body and actionable inventory and
-  fails closed on concurrent drift.
+  Before PASS, the gate re-reads the live body and content-bound actionable
+  inventory and fails closed on new, removed, or edited concurrent bot activity.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`

@@ -120,14 +120,14 @@ Plain text: docs/review/PR_42_FIXED_MAPPING.md
 [canonical mapping](https://github.com/owner/repo/blob/codex/review/docs/review/PR_42_FIXED_MAPPING.md)
 \\[escaped literal](docs/review/PR_42_FIXED_MAPPING.md)
     [indented code](docs/review/PR_42_FIXED_MAPPING.md)
-	[tab-indented code](docs/review/PR_42_FIXED_MAPPING.md)
+<TAB>[tab-indented code](docs/review/PR_42_FIXED_MAPPING.md)
 `[inline code](docs/review/PR_42_FIXED_MAPPING.md)`
 ``[double inline code](docs/review/PR_42_FIXED_MAPPING.md)``
 <!-- [html comment](docs/review/PR_42_FIXED_MAPPING.md) -->
 ```markdown
 [fenced example](docs/review/PR_42_FIXED_MAPPING.md)
 ```
-"""
+""".replace("<TAB>", "\t")
 
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo") == 1
 
@@ -246,6 +246,11 @@ def _configure_pre_closeout_main(
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
     monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
+    monkeypatch.setattr(
+        merge_gate,
+        "_pre_closeout_dirty_paths",
+        lambda: {"docs/review/PR_42_FIXED_MAPPING.md"},
+    )
     monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: actionable_items)
     monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
@@ -272,6 +277,31 @@ def test_direct_pre_closeout_requires_gh_token(
 
     assert merge_gate.main() == 1
     assert "GH_TOKEN is also required" in capsys.readouterr().out
+
+
+def test_pre_closeout_rejects_non_mapping_dirty_paths(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(
+            "https://github.com/owner/repo/pull/42#issuecomment-previous"
+        ),
+        actionable_items=[],
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_pre_closeout_dirty_paths",
+        lambda: {
+            "docs/review/PR_42_FIXED_MAPPING.md",
+            "scripts/ci/check_pr_merge_readiness.py",
+        },
+    )
+
+    assert merge_gate.main() == 1
+    output = capsys.readouterr().out
+    assert "canonical mapping artifact to be the only dirty path" in output
+    assert "scripts/ci/check_pr_merge_readiness.py" in output
 
 
 def test_pre_closeout_requires_explicit_top_level_review_mapping(
@@ -327,7 +357,7 @@ def test_pre_closeout_accepts_explicit_issue_inline_and_top_level_mappings(
 
     assert merge_gate.main() == 0
     output = capsys.readouterr().out
-    assert "all live actionable issue comments, inline comments" in output
+    assert "all live actionable bot issue comments, bot inline comments" in output
     assert "not merge-readiness evidence" in output
 
 
@@ -353,6 +383,38 @@ def test_pre_closeout_fails_when_actionable_inventory_changes_during_validation(
         actionable_items=[mapped],
     )
     inventories = iter(([mapped], [mapped, late_review]))
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: next(inventories))
+
+    assert merge_gate.main() == 1
+    assert "actionable bot review inventory changed" in capsys.readouterr().out
+
+
+def test_pre_closeout_fails_when_bot_edits_existing_actionable_body(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#issuecomment-1"
+    initial = merge_gate.ActionableItem(
+        "bot[bot]",
+        url,
+        "2026-07-16T00:43:26Z",
+        "issue_comment",
+        updated_at="2026-07-16T00:43:26Z",
+        body_digest=merge_gate._comment_body_digest("P1: initial finding"),
+    )
+    edited = merge_gate.ActionableItem(
+        "bot[bot]",
+        url,
+        "2026-07-16T00:43:26Z",
+        "issue_comment",
+        updated_at="2026-07-16T00:44:00Z",
+        body_digest=merge_gate._comment_body_digest("P1: edited finding"),
+    )
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(url),
+        actionable_items=[initial],
+    )
+    inventories = iter(([initial], [edited]))
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: next(inventories))
 
     assert merge_gate.main() == 1

@@ -282,11 +282,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     the sole mapping commit, run
     `check_merge_ready.py --pre-closeout --require-auth` with both `GH_TOKEN`
     and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
-    every live actionable issue comment, inline comment, and top-level bot
-    review in the local artifact and require exactly one real same-repository
+    every live actionable bot issue comment, bot inline comment, and top-level
+    bot review in the local artifact and require exactly one real same-repository
     Markdown link through `blob/<safe-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`
     in the live PR body. Repo-relative links are invalid in PR-body context.
-    Child inline
+    The canonical mapping artifact must be the only dirty path. Child inline
     mappings do not substitute for an actionable top-level review in this
     pre-commit pass. A PASS authorizes only the one closeout commit: it does not
     require thread resolution, current-head CI, or the review wait window, and

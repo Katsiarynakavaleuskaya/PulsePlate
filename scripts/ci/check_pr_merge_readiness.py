@@ -8,6 +8,7 @@ required-check truth lives in `check_current_head_pr_checks.py` and the
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.client
 import json
 import os
@@ -140,6 +141,8 @@ class ActionableItem:
     created_at: str
     kind: str
     review_id: int | None = None
+    updated_at: str = ""
+    body_digest: str = ""
 
 
 class _OutageSecurityChecksPending(ReviewEvidenceError):
@@ -208,15 +211,49 @@ def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, reposi
 
 def _actionable_inventory(
     items: list[ActionableItem],
-) -> tuple[tuple[str, str, str, str, int], ...]:
+) -> tuple[tuple[str, str, str, str, int, str, str], ...]:
     """Return a deterministic identity for the live actionable review inventory."""
 
     return tuple(
         sorted(
-            (item.author, item.url, item.created_at, item.kind, item.review_id or 0)
+            (
+                item.author,
+                item.url,
+                item.created_at,
+                item.kind,
+                item.review_id or 0,
+                item.updated_at,
+                item.body_digest,
+            )
             for item in items
         )
     )
+
+
+def _comment_body_digest(body: str) -> str:
+    """Bind review inventory to content without retaining or logging bot bodies."""
+
+    normalized = body.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _pre_closeout_dirty_paths() -> set[str]:
+    """Return all tracked, staged, or untracked paths visible to a closeout commit."""
+
+    git = shutil.which("git")
+    if not git:
+        raise ValueError("git not found in PATH")
+    completed = subprocess.run(  # nosec B603: absolute git with fixed status argv only (remove-by: 2026-09-30, ref: PR-strict-closeout-precommit-guard)
+        [git, "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise ValueError("git status failed during pre-closeout cleanliness check")
+    return {line[3:] for line in completed.stdout.splitlines() if len(line) >= 4}
 
 
 def _is_actionable(body: str) -> bool:
@@ -405,6 +442,7 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
                 continue
             url = str(row.get("html_url") or "")
             created_at = str(row.get("created_at") or row.get("submitted_at") or "")
+            updated_at = str(row.get("updated_at") or created_at)
             if not url:
                 continue
             raw_review_id = row.get("id") if kind == "review" else row.get("pull_request_review_id")
@@ -422,6 +460,8 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
                     created_at=created_at,
                     kind=kind,
                     review_id=review_id,
+                    updated_at=updated_at,
+                    body_digest=_comment_body_digest(body),
                 )
             )
 
@@ -996,6 +1036,20 @@ def main() -> int:
     if args.pre_closeout and not os.getenv("GH_TOKEN", "").strip():
         print("ERROR: GH_TOKEN is also required for strict pre-closeout validation.")
         return 1
+    if args.pre_closeout and args.pr_number is not None:
+        expected_mapping_path = f"docs/review/PR_{args.pr_number}_FIXED_MAPPING.md"
+        try:
+            dirty_paths = _pre_closeout_dirty_paths()
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: pre-closeout cleanliness check failed: {exc}")
+            return 1
+        if dirty_paths != {expected_mapping_path}:
+            rendered = ", ".join(sorted(dirty_paths)) or "none"
+            print(
+                "ERROR: pre-closeout requires the canonical mapping artifact to be the "
+                f"only dirty path; found: {rendered}"
+            )
+            return 1
 
     if args.event_path:
         try:
@@ -1193,8 +1247,8 @@ def main() -> int:
 
     if args.pre_closeout:
         print(
-            "pre-closeout-review-governance: passed; all live actionable issue comments, "
-            "inline comments, and top-level bot reviews are explicitly mapped."
+            "pre-closeout-review-governance: passed; all live actionable bot issue comments, "
+            "bot inline comments, and top-level bot reviews are explicitly mapped."
         )
         print("pre-closeout-review-governance: not merge-readiness evidence.")
         return 0
