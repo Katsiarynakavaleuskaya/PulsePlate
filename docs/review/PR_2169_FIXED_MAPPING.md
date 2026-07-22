@@ -84,6 +84,30 @@ Evidence: The submitted review commit is a98dd6a330a930c37ccd49853e78a108d6cb0e6
 Reason: Duplicate expected pre-closeout state; no stale seal can authorize merge.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2169#discussion_r3630470393
 
+Disposition: NOT-A-BUG
+Evidence: The live mapping-only head is 241c1c83487b979f9b2bbb934cc5496fd2bd183e and authenticated seal validation accepts its unchanged material digest.
+Reason: The reviewer execution SHA is unavailable in the repository commit graph; the repository-addressable mapping-only successor remains valid.
+Fingerprint: sha256:108b54d1c2fa690f905fd99671701da476f534d48a54e91152c4d0816f8af18f
+Cause: unavailable_review_ref_ancestry
+Material-Digest: sha256:4f973a00982d13e6358c914ee6b14e9546a83f6786f54359d46670abdef0f719
+Verified-Fix: 241c1c83487b979f9b2bbb934cc5496fd2bd183e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2169#discussion_r3630624189
+
+Disposition: NOT-A-BUG
+Evidence: Commit 3f839b4dba0af801709b55117787a44b9d735ab4 is a reachable material commit and authenticated seal validation accepts the unchanged material digest.
+Reason: The reviewer execution SHA is unavailable in the repository commit graph; the reachable FIXED proof remains valid.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2169#discussion_r3630624195
+
+Disposition: NOT-A-BUG
+Evidence: tests/test_ci_workflow_pr_size_governance_contract.py enforces the approved exact five workflow/job/step/component tuples, full action references, and v4.37.1 comment counts.
+Reason: Relaxing the exact topology or version-comment assertions would violate the accepted PR contract and weaken the intended supply-chain guard.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2169#pullrequestreview-4743606772
+
+Disposition: FIXED
+Commit: 3f839b4dba0af801709b55117787a44b9d735ab4
+Evidence: scripts/orchestration/pr_review_evidence.py:1170-1195; scripts/orchestration/pr_review_closeout.py:718-735,876-903; scripts/ci/check_pr_merge_readiness.py:638-667,748-769; tests/test_pr_review_material_seal.py:3026-3258; tests/test_pr_merge_readiness_gate.py:808-950.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2169#pullrequestreview-4748203712 -> 3f839b4dba0af801709b55117787a44b9d735ab4
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
