@@ -3331,6 +3331,20 @@ def test_legacy_growth_guard_does_not_unwrap_shadowed_partial() -> None:
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_preserves_route_decorator_through_partial() -> None:
+    source = textwrap.dedent("""
+        from functools import partial
+
+        decorator = partial(app.get("/api/v1/partial-decorator"))
+        decorator(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/partial-decorator"
+    ]
+
+
 def test_legacy_growth_guard_uses_last_duplicate_literal_mapping_value() -> None:
     source = textwrap.dedent("""
         register = {"route": app.get, "route": None}["route"]
@@ -7910,6 +7924,19 @@ def test_legacy_growth_guard_preserves_items_key_value_shape() -> None:
 
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: " "registration:dynamic:/api/v1/items-value"
+    ]
+
+
+def test_legacy_growth_guard_preserves_registrar_values_through_filter() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+
+        for route in filter(None, routes.values()):
+            route("/api/v1/filtered-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/filtered-route"
     ]
 
 

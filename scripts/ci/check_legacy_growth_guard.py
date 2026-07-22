@@ -1042,6 +1042,33 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 APP_REGISTRATION_METHODS,
             )
             if isinstance(call.func, ast.Name):
+                captured_path = scoped_strings.get(call.func.id)
+                captured_reference = route_reference_snapshots[id(call)].get(call.func.id)
+                if (
+                    captured_path is not None
+                    and captured_reference is not None
+                    and captured_reference.startswith(_ROUTE_DECORATOR_REFERENCE_PREFIX)
+                ):
+                    captured_route_action = _registration_action_for_reference(
+                        captured_reference.removeprefix(_ROUTE_DECORATOR_REFERENCE_PREFIX),
+                        APP_ROUTE_METHODS,
+                    )
+                else:
+                    captured_route_action = None
+                if captured_route_action is not None and captured_path is not None:
+                    facts.add(
+                        LegacyFact(
+                            "registration",
+                            captured_route_action,
+                            (
+                                "<dynamic>"
+                                if captured_path == _DYNAMIC_STRING_BINDING
+                                else captured_path
+                            ),
+                            "",
+                        )
+                    )
+            if isinstance(call.func, ast.Name):
                 middleware_target = scoped_middleware_target(call, call.func.id)
                 if middleware_target is not None:
                     facts.add(
@@ -3073,6 +3100,7 @@ _POSSIBLE_APP_REFERENCE = "<possible:pulseplate.app>"
 _POSSIBLE_ROUTER_REFERENCE = "<possible:pulseplate.app.router>"
 _POSSIBLE_APP_CALL_REFERENCE = "<possible:pulseplate.app.call>"
 _MIDDLEWARE_DECORATOR_REFERENCE_PREFIX = "pulseplate.app.middleware.decorator:"
+_ROUTE_DECORATOR_REFERENCE_PREFIX = "pulseplate.app.route.decorator:"
 _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE = "<possible:pulseplate.app.middleware.decorator>"
 _POSSIBLE_GETATTR_REFERENCE = "<possible:builtins.getattr>"
 _POSSIBLE_API_KEY_SYMBOL = "<possible:api_key_symbol>"
@@ -3138,6 +3166,7 @@ _ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
         "builtins.next",
     }
 )
+_ITERABLE_FILTERING_BUILTIN_REFERENCES = frozenset({"builtins.filter"})
 _ITERABLE_CONCATENATING_REFERENCES = frozenset({"itertools.chain"})
 _ITERABLE_FLATTENING_REFERENCES = frozenset({"itertools.chain.from_iterable"})
 
@@ -3285,6 +3314,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 for reference in (
                     _ITERABLE_PRESERVING_BUILTIN_REFERENCES
                     | _ITERABLE_ELEMENT_BUILTIN_REFERENCES
+                    | _ITERABLE_FILTERING_BUILTIN_REFERENCES
                     | _INDEXING_ITERABLE_BUILTIN_REFERENCES
                     | _ZIPPING_ITERABLE_BUILTIN_REFERENCES
                 )
@@ -8208,6 +8238,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 positional_arguments,
                 unresolved_positional_sources,
             )
+        elif (
+            projected_result is None and wrapper_reference in _ITERABLE_FILTERING_BUILTIN_REFERENCES
+        ):
+            element = (
+                self._conservative_argument_binding()
+                if unresolved_positional_sources or len(positional_arguments) != 2
+                else self._resolve_iterable_element_binding(positional_arguments[1])
+            )
+            if element is not None:
+                projected_result = self._variadic_iterable_binding([element])
         elif projected_result is None and wrapper_reference in _ITERABLE_CONCATENATING_REFERENCES:
             elements = [
                 self._resolve_iterable_element_binding(argument)
@@ -8436,10 +8476,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             node,
             wrapper_reference=wrapper_reference,
         )
-        if partial_templates:
+        partial_wrapped_binding: _ResolvedBinding | None = None
+        if wrapper_reference == "functools.partial" and node.args:
+            wrapped = node.args[0]
+            if isinstance(wrapped, ast.Call):
+                registrar_reference = self._resolve_reference(wrapped.func)
+                if _is_registration_callable_reference(registrar_reference):
+                    partial_wrapped_binding = _ResolvedBinding(
+                        reference=f"{_ROUTE_DECORATOR_REFERENCE_PREFIX}{registrar_reference}",
+                        string=(self._resolve_string(wrapped.args[0]) if wrapped.args else None),
+                    )
+        if partial_templates or partial_wrapped_binding is not None:
             partial_binding = _ResolvedBinding(
-                reference=self._resolve_reference(node) or _KNOWN_NON_APP_REFERENCE,
-                string=None,
+                reference=(
+                    partial_wrapped_binding.reference
+                    if partial_wrapped_binding is not None
+                    else self._resolve_reference(node) or _KNOWN_NON_APP_REFERENCE
+                ),
+                string=(
+                    partial_wrapped_binding.string if partial_wrapped_binding is not None else None
+                ),
                 callables=frozenset(template.function for template in partial_templates),
                 deferred_calls=partial_templates,
             )
