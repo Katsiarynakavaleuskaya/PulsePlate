@@ -56,6 +56,8 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "constraints.txt",
         "docs/orchestration/AGENTS.md",
         "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+        "docs/orchestration/contracts/review_source_status.v1.json",
         "scripts/ci_bandit.sh",
         "scripts/ci_pip_audit.sh",
         "scripts/orchestration/check_merge_ready.py",

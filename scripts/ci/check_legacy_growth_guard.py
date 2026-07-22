@@ -6814,6 +6814,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 target,
                 deletion=True,
             )
+            if isinstance(target, ast.Subscript):
+                mapping = self._resolve_mapping(target.value)
+                if mapping is not None:
+                    replacement = self._mapping_after_known_pop(
+                        mapping,
+                        target.slice,
+                        target,
+                        preserve_if_absent=False,
+                    )
+                    if replacement is not None:
+                        self._replace_mapping_aliases(mapping, replacement)
+                        self._invalidate_mapping(mapping)
+                        continue
             names = _assignment_target_names(target)
             if not names:
                 self._invalidate_mapping_target(target)

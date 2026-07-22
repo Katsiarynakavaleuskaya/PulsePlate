@@ -3509,16 +3509,17 @@ def test_legacy_growth_guard_snapshots_mapping_value_before_rebinding() -> None:
 
 
 @pytest.mark.parametrize(
-    "mutation",
+    "mutation, expected_method",
     [
-        'del routes["route"]',
-        'routes |= {"route": app.get}',
-        'mutate = routes.update\nmutate({"route": app.get})',
+        ('del routes["route"]', "get"),
+        ('routes |= {"route": app.get}', "dynamic"),
+        ('mutate = routes.update\nmutate({"route": app.get})', "dynamic"),
     ],
     ids=["delete", "in-place-union", "bound-mutator"],
 )
 def test_legacy_growth_guard_invalidates_mapping_mutation_aliases(
     mutation: str,
+    expected_method: str,
 ) -> None:
     source = (
         'routes = {"route": None}\n'
@@ -3530,7 +3531,7 @@ def test_legacy_growth_guard_invalidates_mapping_mutation_aliases(
 
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: "
-        "registration:dynamic:/api/v1/mutated-alias-route"
+        f"registration:{expected_method}:/api/v1/mutated-alias-route"
     ]
 
 
@@ -11395,6 +11396,20 @@ def test_legacy_growth_guard_preserves_empty_mapping_alias_after_clear() -> None
 
         routes = {"route": app.get}
         routes.clear()
+        route = routes.get("route", safe_register)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_mapping_after_literal_key_delete() -> None:
+    source = textwrap.dedent("""
+        def safe_register(*args, **kwargs):
+            return None
+
+        routes = {"route": app.get}
+        del routes["route"]
         route = routes.get("route", safe_register)
         route("/api/v1/not-a-route")(handler)
         """)

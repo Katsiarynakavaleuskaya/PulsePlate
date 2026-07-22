@@ -1543,6 +1543,18 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
             ("scripts/orchestration/requested_agents.py",),
             False,
         ),
+        (
+            "owner/repo",
+            42,
+            ("docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("docs/orchestration/contracts/review_source_status.v1.json",),
+            False,
+        ),
         ("owner/repo", 42, (".bandit",), False),
         ("owner/repo", 42, (".bandit.yaml",), False),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
@@ -2444,6 +2456,20 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
         closeout_module,
         "ingest_codex_security_receipt",
         lambda *_a, **_k: security_receipt,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: {
+            "preparations": [
+                {
+                    "attempt_outcome": "completed",
+                    "attempt_status": "completed",
+                    "material_digest": DIGEST,
+                    "material_head_sha": HEAD_SHA,
+                }
+            ]
+        },
     )
     monkeypatch.setattr(
         closeout_module,
@@ -4114,6 +4140,71 @@ def _prepare_final_security_fixture(
         ),
         clock,
     )
+
+
+@pytest.mark.parametrize(
+    "state, error",
+    [
+        (None, "prepare and record final security"),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": "completed",
+                        "attempt_status": "completed",
+                        "material_digest": DIGEST,
+                        "material_head_sha": FIX_SHA,
+                    }
+                ]
+            },
+            "does not match frozen material",
+        ),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": None,
+                        "attempt_status": "reserved",
+                        "material_digest": DIGEST,
+                        "material_head_sha": HEAD_SHA,
+                    }
+                ]
+            },
+            "lacks a completed scan outcome",
+        ),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": "timeout",
+                        "attempt_status": "completed",
+                        "material_digest": DIGEST,
+                        "material_head_sha": HEAD_SHA,
+                    }
+                ]
+            },
+            "lacks a completed scan outcome",
+        ),
+    ],
+)
+def test_seal_requires_completed_exact_material_final_security_preparation(
+    state: dict[str, Any] | None,
+    error: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: state,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match=error):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
 
 
 def _final_security_approval_response(

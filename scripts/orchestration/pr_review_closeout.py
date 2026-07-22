@@ -400,6 +400,29 @@ def _load_final_security_state(*, repository: str, pr_number: int) -> dict[str, 
     return state
 
 
+def _require_completed_final_security_preparation(
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+) -> None:
+    state = _load_final_security_state(
+        repository=repository,
+        pr_number=pr_number,
+    )
+    if state is None:
+        raise CloseoutError("prepare and record final security before sealing a scan manifest")
+    latest = state["preparations"][-1]
+    if (
+        latest["material_head_sha"] != material_head_sha
+        or latest["material_digest"] != material_digest
+    ):
+        raise CloseoutError("latest final-security preparation does not match frozen material")
+    if latest["attempt_status"] != "completed" or latest["attempt_outcome"] != "completed":
+        raise CloseoutError("latest final-security preparation lacks a completed scan outcome")
+
+
 def _git_path() -> str:
     path = shutil.which("git")
     if not path:
@@ -1253,6 +1276,12 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             "status": "completed",
         }
     if args.scan_manifest:
+        _require_completed_final_security_preparation(
+            repository=args.repo,
+            pr_number=args.pr_number,
+            material_head_sha=snapshot.head_sha,
+            material_digest=manifest.digest,
+        )
         receipt = ingest_codex_security_receipt(
             Path(args.scan_manifest),
             expected_base_sha=manifest.merge_base_sha,
