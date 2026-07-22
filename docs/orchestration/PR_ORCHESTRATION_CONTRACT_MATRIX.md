@@ -137,8 +137,9 @@ governance PR number + 1; the governance PR may opt in with
   Connector may instead use the normal `seal --review-ref` path only for `+1`,
   `heart`, `hooray`, or `rocket`, after live verification of its immutable
   GitHub account identity, exact PR-root URL, a live PR head equal to the caller's
-  full snapshotted material head, and a server-timestamped GitHub Actions check
-  suite for that head strictly preceding the reaction. This is a verified Connector response for that
+  full snapshotted material head, and a server-timestamped GitHub Actions
+  `pull_request` run linked to that same PR and head strictly preceding the
+  reaction, with no later force-push or head-restoration event. This is a verified Connector response for that
   material state, not a native GitHub approval, Codex Security evidence, or
   thread-resolution authority. The optional advisory rendering path remains
   non-authoritative and may be omitted with a warning. An official unedited no-findings issue comment

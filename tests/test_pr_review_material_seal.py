@@ -768,36 +768,47 @@ def _codex_positive_reaction_request(
     reaction: dict[str, Any] | list[dict[str, Any]],
     *,
     pull_head: str = HEAD_SHA,
-    check_suites: dict[str, Any] | None = None,
+    workflow_runs: dict[str, Any] | None = None,
+    head_events: list[dict[str, Any]] | None = None,
 ) -> Any:
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return reaction if isinstance(reaction, list) else [reaction]
         if url.endswith("/pulls/42"):
             return {"head": {"sha": pull_head}}
-        if "/check-suites?" in url and check_suites is not None:
-            return check_suites
+        if "/actions/runs?" in url and workflow_runs is not None:
+            return workflow_runs
+        if "/issues/42/events?" in url:
+            return [] if head_events is None else head_events
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     return request_json
 
 
-def _github_actions_check_suites(
+def _github_actions_workflow_runs(
     *,
     head_sha: str = HEAD_SHA,
     created_at: str = "2026-07-15T10:59:59Z",
-    app_slug: str = "github-actions",
+    event: str = "pull_request",
+    pr_number: int = 42,
 ) -> dict[str, Any]:
     return {
         "total_count": 1,
-        "check_suites": [
+        "workflow_runs": [
             {
-                "app": {"slug": app_slug},
                 "created_at": created_at,
+                "event": event,
                 "head_sha": head_sha,
+                "pull_requests": [{"number": pr_number}],
             }
         ],
     }
+
+
+def _workflow_run_response_with_pr_links(links: Any) -> dict[str, Any]:
+    response = _github_actions_workflow_runs()
+    response["workflow_runs"][0]["pull_requests"] = links
+    return response
 
 
 @pytest.mark.parametrize("content", ("+1", "heart", "hooray", "rocket"))
@@ -809,7 +820,7 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     requested_urls: list[str] = []
     request = _codex_positive_reaction_request(
         reaction,
-        check_suites=_github_actions_check_suites(),
+        workflow_runs=_github_actions_workflow_runs(),
     )
 
     def request_json(url: str, **_kwargs: Any) -> Any:
@@ -833,8 +844,9 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     assert requested_urls == [
         "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
         "https://api.github.com/repos/owner/repo/pulls/42",
-        f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA}/check-suites"
-        "?per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/actions/runs"
+        f"?event=pull_request&head_sha={HEAD_SHA}&per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/issues/42/events?per_page=100&page=1",
     ]
 
 
@@ -842,9 +854,10 @@ def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> No
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
     untrusted_page = [
         {
-            "app": {"slug": "untrusted-app"},
             "created_at": "2026-07-15T10:59:59Z",
+            "event": "pull_request",
             "head_sha": HEAD_SHA,
+            "pull_requests": [{"number": 41}],
         }
         for _ in range(100)
     ]
@@ -856,10 +869,12 @@ def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> No
             return [_codex_positive_reaction()]
         if url.endswith("/pulls/42"):
             return {"head": {"sha": HEAD_SHA}}
-        if "/check-suites?" in url and url.endswith("&page=1"):
-            return {"total_count": 101, "check_suites": untrusted_page}
-        if "/check-suites?" in url and url.endswith("&page=2"):
-            return _github_actions_check_suites()
+        if "/actions/runs?" in url and url.endswith("&page=1"):
+            return {"total_count": 101, "workflow_runs": untrusted_page}
+        if "/actions/runs?" in url and url.endswith("&page=2"):
+            return _github_actions_workflow_runs()
+        if "/issues/42/events?" in url:
+            return []
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     evidence = verify_codex_review_reference(
@@ -872,29 +887,59 @@ def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> No
     )
 
     assert evidence.commit_ref == HEAD_SHA
-    assert requested_urls[-1].endswith("/check-suites?per_page=100&page=2")
+    assert requested_urls[-2].endswith("&per_page=100&page=2")
+    assert requested_urls[-1].endswith("/issues/42/events?per_page=100&page=1")
 
 
 @pytest.mark.parametrize(
     ("pull_response", "check_response", "error"),
     [
-        ([], _github_actions_check_suites(), "PR response is malformed"),
-        ({"head": {"sha": FIX_SHA}}, _github_actions_check_suites(), "current material head"),
-        ({"head": {"sha": HEAD_SHA}}, [], "check-suites response is malformed"),
+        ([], _github_actions_workflow_runs(), "PR response is malformed"),
+        (
+            {"head": {"sha": FIX_SHA}},
+            _github_actions_workflow_runs(),
+            "current material head",
+        ),
+        ({"head": {"sha": HEAD_SHA}}, [], "workflow-runs response is malformed"),
         (
             {"head": {"sha": HEAD_SHA}},
-            {"total_count": 1, "check_suites": [None]},
-            "check-suite entry is malformed",
+            {"total_count": 1, "workflow_runs": [None]},
+            "workflow-run entry is malformed",
         ),
         (
             {"head": {"sha": HEAD_SHA}},
-            _github_actions_check_suites(head_sha="not-a-sha"),
-            "check-suite SHA",
+            _github_actions_workflow_runs(head_sha="not-a-sha"),
+            "workflow-run SHA",
         ),
         (
             {"head": {"sha": HEAD_SHA}},
-            _github_actions_check_suites(created_at="not-a-date"),
-            "check-suite created_at",
+            _github_actions_workflow_runs(created_at="not-a-date"),
+            "workflow-run created_at",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            {
+                "total_count": 1,
+                "workflow_runs": [
+                    {
+                        "created_at": "2026-07-15T10:59:59Z",
+                        "event": "pull_request",
+                        "head_sha": HEAD_SHA,
+                        "pull_requests": {},
+                    }
+                ],
+            },
+            "workflow-run PR links are malformed",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _workflow_run_response_with_pr_links([None, {"number": 42}]),
+            "workflow-run PR link is malformed",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _workflow_run_response_with_pr_links([{"number": True}]),
+            "workflow-run PR link is malformed",
         ),
     ],
 )
@@ -910,7 +955,7 @@ def test_codex_positive_reaction_rejects_malformed_head_observation_data(
             return [_codex_positive_reaction()]
         if url.endswith("/pulls/42"):
             return pull_response
-        if "/check-suites?" in url:
+        if "/actions/runs?" in url:
             return check_response
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
@@ -925,25 +970,129 @@ def test_codex_positive_reaction_rejects_malformed_head_observation_data(
         )
 
 
-def test_codex_positive_reaction_fails_closed_at_check_suite_page_limit(
+def test_codex_positive_reaction_rejects_oversized_workflow_run_inventory() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    response = _github_actions_workflow_runs()
+    response["total_count"] = identity_module._MAX_HEAD_WORKFLOW_RUNS + 1
+
+    with pytest.raises(CommitIdentityError, match="workflow-runs exceed safety limit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=response,
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("head_events", "error"),
+    [
+        ([None], "head-event entry is malformed"),
+        ([{"event": None}], "head-event type is malformed"),
+        (
+            [{"created_at": "not-a-date", "event": "head_ref_force_pushed"}],
+            "head-event created_at",
+        ),
+    ],
+)
+def test_codex_positive_reaction_rejects_malformed_head_events(
+    head_events: Any,
+    error: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(),
+                head_events=head_events,
+            ),
+        )
+
+
+def test_codex_positive_reaction_fails_closed_at_head_event_page_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
-    monkeypatch.setattr(identity_module, "_MAX_HEAD_CHECK_SUITE_PAGES", 1)
+    monkeypatch.setattr(identity_module, "_MAX_PR_HEAD_EVENT_PAGES", 1)
+
+    with pytest.raises(CommitIdentityError, match="head-event pagination exceeded page limit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(),
+                head_events=[{"event": "commented"} for _ in range(100)],
+            ),
+        )
+
+
+@pytest.mark.parametrize("event", ("head_ref_force_pushed", "head_ref_restored"))
+@pytest.mark.parametrize(
+    "created_at",
+    ("2026-07-15T10:59:59Z", "2026-07-15T10:59:59.500Z"),
+)
+def test_codex_positive_reaction_rejects_replayed_head_after_ref_rewrite(
+    event: str,
+    created_at: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(CommitIdentityError, match="superseded PR head observation"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(),
+                head_events=[
+                    {
+                        "created_at": created_at,
+                        "event": event,
+                    }
+                ],
+            ),
+        )
+
+
+def test_codex_positive_reaction_fails_closed_at_workflow_run_page_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    monkeypatch.setattr(identity_module, "_MAX_HEAD_WORKFLOW_RUN_PAGES", 1)
 
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return [_codex_positive_reaction()]
         if url.endswith("/pulls/42"):
             return {"head": {"sha": HEAD_SHA}}
-        if "/check-suites?" in url:
+        if "/actions/runs?" in url:
             return {
                 "total_count": 100,
-                "check_suites": [
+                "workflow_runs": [
                     {
-                        "app": {"slug": "untrusted-app"},
                         "created_at": "2026-07-15T10:59:59Z",
+                        "event": "pull_request",
                         "head_sha": HEAD_SHA,
+                        "pull_requests": [{"number": 41}],
                     }
                     for _ in range(100)
                 ],
@@ -962,18 +1111,20 @@ def test_codex_positive_reaction_fails_closed_at_check_suite_page_limit(
 
 
 @pytest.mark.parametrize(
-    ("suite_head_sha", "suite_created_at", "suite_app_slug"),
+    ("run_head_sha", "run_created_at", "run_event", "run_pr_number"),
     [
-        (FIX_SHA, "2026-07-15T10:59:59Z", "github-actions"),
-        (HEAD_SHA, "2026-07-15T11:00:00Z", "github-actions"),
-        (HEAD_SHA, "2026-07-15T11:00:01Z", "github-actions"),
-        (HEAD_SHA, "2026-07-15T10:59:59Z", "untrusted-app"),
+        (FIX_SHA, "2026-07-15T10:59:59Z", "pull_request", 42),
+        (HEAD_SHA, "2026-07-15T11:00:00Z", "pull_request", 42),
+        (HEAD_SHA, "2026-07-15T11:00:01Z", "pull_request", 42),
+        (HEAD_SHA, "2026-07-15T10:59:59Z", "push", 42),
+        (HEAD_SHA, "2026-07-15T10:59:59Z", "pull_request", 41),
     ],
 )
 def test_codex_positive_reaction_rejects_invalid_head_observation(
-    suite_head_sha: str,
-    suite_created_at: str,
-    suite_app_slug: str,
+    run_head_sha: str,
+    run_created_at: str,
+    run_event: str,
+    run_pr_number: int,
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
 
@@ -989,10 +1140,11 @@ def test_codex_positive_reaction_rejects_invalid_head_observation(
             expected_commit_ref=HEAD_SHA,
             request_json=_codex_positive_reaction_request(
                 _codex_positive_reaction(),
-                check_suites=_github_actions_check_suites(
-                    head_sha=suite_head_sha,
-                    created_at=suite_created_at,
-                    app_slug=suite_app_slug,
+                workflow_runs=_github_actions_workflow_runs(
+                    head_sha=run_head_sha,
+                    created_at=run_created_at,
+                    event=run_event,
+                    pr_number=run_pr_number,
                 ),
             ),
         )

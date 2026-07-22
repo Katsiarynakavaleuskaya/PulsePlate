@@ -210,8 +210,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    Connector PR-root reaction (`+1`, `heart`, `hooray`, or `rocket`) may satisfy
    the normal `--review-ref` path only when its canonical reaction ID, immutable
    Connector account id/login, the live PR head equal to the exact caller material
-   head, and a server-timestamped GitHub Actions check suite for that head strictly
-   preceding the reaction all verify. It is a Connector response bound to that current material state, never a native
+   head, and a server-timestamped GitHub Actions `pull_request` run linked to that
+   same PR and head strictly preceding the reaction all verify, with no later
+   force-push or head-restoration event. It is a Connector response bound to that current material state, never a native
    GitHub approval, Codex Security result, or review-thread disposition authority.
    Optional advisory rendering remains non-authoritative. When Codex Security is systemically
    unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
@@ -244,8 +245,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    may be passed to `seal --review-ref <canonical-reaction-url>` only for `+1`,
    `heart`, `hooray`, or `rocket`, after live verification of its immutable GitHub
    account id/login, a live PR head equal to the caller's full current material
-   head, and a server-timestamped GitHub Actions check suite for that head strictly
-   preceding the reaction. It is
+   head, and a server-timestamped GitHub Actions `pull_request` run linked to that
+   same PR and head strictly preceding the reaction, with no later force-push or
+   head-restoration event. It is
    not a native GitHub approval, Codex Security result, or thread-resolution
    authority. The optional `--connector-advisory-reaction` rendering path remains
    non-authoritative and may be omitted with a warning. When

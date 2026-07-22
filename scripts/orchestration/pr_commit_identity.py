@@ -29,8 +29,10 @@ _MAX_PR_COMMIT_PAGES = 100
 _MAX_PR_COMMITS = 10_000
 _MAX_PR_REACTION_PAGES = 100
 _MAX_PR_REACTIONS = 10_000
-_MAX_HEAD_CHECK_SUITE_PAGES = 100
-_MAX_HEAD_CHECK_SUITES = 10_000
+_MAX_HEAD_WORKFLOW_RUN_PAGES = 100
+_MAX_HEAD_WORKFLOW_RUNS = 10_000
+_MAX_PR_HEAD_EVENT_PAGES = 10
+_MAX_PR_HEAD_EVENTS = 1_000
 _MAX_REVIEW_THREAD_PAGES = 100
 _MAX_REVIEW_COMMENT_PAGES = 100
 _MAX_REVIEW_THREADS = 10_000
@@ -1287,56 +1289,116 @@ def _require_codex_reaction_after_current_head_observation(
         if reaction_created_at.endswith("Z")
         else reaction_created_at
     )
-    check_suite_count = 0
-    for page in range(1, _MAX_HEAD_CHECK_SUITE_PAGES + 1):
+    workflow_run_count = 0
+    latest_same_pr_run: datetime | None = None
+    for page in range(1, _MAX_HEAD_WORKFLOW_RUN_PAGES + 1):
         response = request_json(
-            f"{_API_ROOT}/repos/{owner}/{name}/commits/{expected_commit}/check-suites"
-            f"?per_page=100&page={page}",
+            f"{_API_ROOT}/repos/{owner}/{name}/actions/runs"
+            f"?event=pull_request&head_sha={expected_commit}&per_page=100&page={page}",
             token=token,
         )
         if not isinstance(response, dict):
-            raise CommitIdentityError("GitHub head check-suites response is malformed")
+            raise CommitIdentityError("GitHub head workflow-runs response is malformed")
         total_count = response.get("total_count")
-        check_suites = response.get("check_suites")
+        workflow_runs = response.get("workflow_runs")
         if (
             not isinstance(total_count, int)
             or isinstance(total_count, bool)
             or total_count < 0
-            or not isinstance(check_suites, list)
-            or len(check_suites) > 100
+            or not isinstance(workflow_runs, list)
+            or len(workflow_runs) > 100
         ):
-            raise CommitIdentityError("GitHub head check-suites response is malformed")
-        check_suite_count += len(check_suites)
-        if check_suite_count > _MAX_HEAD_CHECK_SUITES:
-            raise CommitIdentityError("GitHub head check-suites exceed safety limit")
-        for suite in check_suites:
-            if not isinstance(suite, dict):
-                raise CommitIdentityError("GitHub head check-suite entry is malformed")
-            app = suite.get("app")
-            app_slug = app.get("slug") if isinstance(app, dict) else None
+            raise CommitIdentityError("GitHub head workflow-runs response is malformed")
+        if total_count > _MAX_HEAD_WORKFLOW_RUNS:
+            raise CommitIdentityError("GitHub head workflow-runs exceed safety limit")
+        workflow_run_count += len(workflow_runs)
+        if workflow_run_count > _MAX_HEAD_WORKFLOW_RUNS:
+            raise CommitIdentityError("GitHub head workflow-runs exceed safety limit")
+        for workflow_run in workflow_runs:
+            if not isinstance(workflow_run, dict):
+                raise CommitIdentityError("GitHub head workflow-run entry is malformed")
             head_sha = _require_sha(
-                str(suite.get("head_sha") or ""),
-                field="GitHub head check-suite SHA",
+                str(workflow_run.get("head_sha") or ""),
+                field="GitHub head workflow-run SHA",
             )
-            suite_created_at = _require_iso8601(
-                suite.get("created_at"),
-                field="GitHub head check-suite created_at",
+            run_created_at = _require_iso8601(
+                workflow_run.get("created_at"),
+                field="GitHub head workflow-run created_at",
             )
-            suite_created = datetime.fromisoformat(
-                suite_created_at[:-1] + "+00:00"
-                if suite_created_at.endswith("Z")
-                else suite_created_at
+            run_created = datetime.fromisoformat(
+                run_created_at[:-1] + "+00:00" if run_created_at.endswith("Z") else run_created_at
             )
+            pull_requests = workflow_run.get("pull_requests")
+            if not isinstance(pull_requests, list) or len(pull_requests) > 100:
+                raise CommitIdentityError("GitHub head workflow-run PR links are malformed")
+            same_pr = False
+            for pull_request in pull_requests:
+                if not isinstance(pull_request, dict):
+                    raise CommitIdentityError("GitHub head workflow-run PR link is malformed")
+                linked_pr_number = pull_request.get("number")
+                if (
+                    not isinstance(linked_pr_number, int)
+                    or isinstance(linked_pr_number, bool)
+                    or linked_pr_number <= 0
+                ):
+                    raise CommitIdentityError("GitHub head workflow-run PR link is malformed")
+                same_pr = same_pr or linked_pr_number == pr_number
             if (
-                app_slug == "github-actions"
+                workflow_run.get("event") == "pull_request"
                 and head_sha == expected_commit
-                and suite_created < reaction_created
+                and same_pr
+                and run_created < reaction_created
             ):
-                return
-        if len(check_suites) < 100:
+                latest_same_pr_run = (
+                    run_created
+                    if latest_same_pr_run is None or run_created > latest_same_pr_run
+                    else latest_same_pr_run
+                )
+        if len(workflow_runs) < 100:
             break
     else:
-        raise CommitIdentityError("GitHub head check-suite pagination exceeded page limit")
+        raise CommitIdentityError("GitHub head workflow-run pagination exceeded page limit")
+
+    if latest_same_pr_run is not None:
+        head_event_count = 0
+        for page in range(1, _MAX_PR_HEAD_EVENT_PAGES + 1):
+            events = request_json(
+                f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}/events"
+                f"?per_page=100&page={page}",
+                token=token,
+            )
+            if not isinstance(events, list) or len(events) > 100:
+                raise CommitIdentityError("GitHub PR head-events response is malformed")
+            head_event_count += len(events)
+            if head_event_count > _MAX_PR_HEAD_EVENTS:
+                raise CommitIdentityError("GitHub PR head-events exceed safety limit")
+            for event in events:
+                if not isinstance(event, dict):
+                    raise CommitIdentityError("GitHub PR head-event entry is malformed")
+                event_name = event.get("event")
+                if not isinstance(event_name, str) or not event_name:
+                    raise CommitIdentityError("GitHub PR head-event type is malformed")
+                if event_name not in {
+                    "head_ref_force_pushed",
+                    "head_ref_restored",
+                }:
+                    continue
+                event_created_at = _require_iso8601(
+                    event.get("created_at"),
+                    field="GitHub PR head-event created_at",
+                )
+                event_created = datetime.fromisoformat(
+                    event_created_at[:-1] + "+00:00"
+                    if event_created_at.endswith("Z")
+                    else event_created_at
+                )
+                if event_created >= latest_same_pr_run:
+                    raise CommitIdentityError(
+                        "Codex connector reaction follows a superseded PR head observation"
+                    )
+            if len(events) < 100:
+                return
+        raise CommitIdentityError("GitHub PR head-event pagination exceeded page limit")
 
     raise CommitIdentityError(
         "Codex connector reaction does not follow a GitHub observation "
