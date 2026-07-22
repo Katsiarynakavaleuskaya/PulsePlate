@@ -130,6 +130,10 @@ def _ensure_finite_dependency_output(value: Any) -> None:
 def _ensure_finite_numeric_value(value: Any) -> None:
     """Reject non-finite values where the response contract expects a number."""
 
+    if isinstance(value, bool):
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned unsafe numeric output"
+        )
     if isinstance(value, str):
         try:
             numeric_value = float(value)

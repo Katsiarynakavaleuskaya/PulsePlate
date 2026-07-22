@@ -981,6 +981,45 @@ def test_generate_plate_response_rejects_non_finite_response_bound_output(
     assert response_field not in str(exc_info.value.detail)
 
 
+@pytest.mark.parametrize(
+    "response_field",
+    [
+        pytest.param("portions", id="portions-boolean"),
+        pytest.param("meal_micros", id="meal-micros-boolean"),
+    ],
+)
+def test_generate_plate_response_rejects_boolean_response_bound_output(
+    monkeypatch: pytest.MonkeyPatch,
+    response_field: str,
+) -> None:
+    """Boolean provider values cannot masquerade as numeric Plate output."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _boolean_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate_with_meal()
+        if response_field == "portions":
+            payload["portions"]["protein_palm"] = True
+        else:
+            payload["meals"][0]["micros"] = {"iron_mg": True}
+        return payload
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_boolean_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert response_field not in str(exc_info.value.detail)
+
+
 @pytest.mark.parametrize("response_field", ["portions", "layout"])
 @pytest.mark.parametrize(
     "non_finite_token",
