@@ -55,7 +55,7 @@ def test_lottie_swiftpm_declarations_are_exact_and_canonical() -> None:
         assert not re.search(r"\.package\s*\(.*?\.upToNext", compact_source), manifest
 
 
-def test_xcode_lottie_requirement_is_exact_and_animation_tests_are_excluded() -> None:
+def test_xcode_lottie_requirement_is_exact_and_animation_tests_are_included() -> None:
     source = PROJECT_FILE.read_text(encoding="utf-8")
     package_block = re.search(
         r'XCRemoteSwiftPackageReference "lottie-ios" \*/ = \{(?P<body>.*?)\n\s*\};',
@@ -79,7 +79,7 @@ def test_xcode_lottie_requirement_is_exact_and_animation_tests_are_excluded() ->
     )
     test_exceptions = [body for body in exception_blocks if "/* PulsePlateTests */" in body]
     assert len(test_exceptions) == 1
-    assert "AnimationTests.swift," in test_exceptions[0]
+    assert "AnimationTests.swift," not in test_exceptions[0]
 
 
 def test_generated_lottie_locks_have_semantic_parity() -> None:
