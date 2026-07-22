@@ -120,10 +120,14 @@ MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review commen
 CANONICAL_ARTIFACT_LINK_LINE_RE = re.compile(
     r"^ {0,3}-[ \t]+\[canonical artifact\]\(\s*"
     r"(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))\s*\)"
-    r"(?:[ \t]+.*)?$",
+    r"[ \t]*$",
     re.IGNORECASE,
 )
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+RAW_HTML_BLOCK_OPEN_RE = re.compile(
+    r"<(?P<tag>pre|script|style|textarea)(?:[\t >]|$)",
+    re.IGNORECASE,
+)
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
@@ -189,10 +193,13 @@ def _canonical_artifact_markdown_link_count(
 
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     expected_path = f"/{repository}/blob/{head_ref}/{artifact_path}"
+    expected_url = f"https://github.com{expected_path}"
+    canonical_url_occurrences = urllib.parse.unquote(pr_body).count(expected_url)
     count = 0
     in_html_comment = False
     fence_char = ""
     fence_length = 0
+    raw_html_tag = ""
     for raw_line in pr_body.splitlines():
         line = raw_line
         visible_parts: list[str] = []
@@ -230,6 +237,17 @@ def _canonical_artifact_markdown_link_count(
             fence_char = fence[0]
             fence_length = len(fence)
             continue
+        if raw_html_tag:
+            if re.search(rf"</{re.escape(raw_html_tag)}\s*>", visible_line, re.IGNORECASE):
+                raw_html_tag = ""
+            continue
+        raw_html_open = RAW_HTML_BLOCK_OPEN_RE.search(visible_line)
+        if raw_html_open:
+            tag = raw_html_open.group("tag")
+            remainder = visible_line[raw_html_open.end() :]
+            if not re.search(rf"</{re.escape(tag)}\s*>", remainder, re.IGNORECASE):
+                raw_html_tag = tag
+            continue
         if raw_line.startswith(("\t", "    ")):
             continue
         match = CANONICAL_ARTIFACT_LINK_LINE_RE.fullmatch(visible_line)
@@ -248,6 +266,8 @@ def _canonical_artifact_markdown_link_count(
             is_canonical_destination = False
         if is_canonical_destination:
             count += 1
+    if count == 1:
+        return canonical_url_occurrences
     return count
 
 

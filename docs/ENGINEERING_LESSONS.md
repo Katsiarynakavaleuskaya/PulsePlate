@@ -799,8 +799,9 @@ issue comments, bot inline comments, and top-level bot reviews, and must
 find exactly one rendered same-repository
 `blob/<exact-live-head-ref>/...` Markdown link to the canonical artifact. The
 ref path must equal the authenticated PR `head.ref`, which avoids treating an
-extra file-path segment as part of a slash-containing branch name. Repo-relative
-links in PR bodies are broken. The gate must re-read the body, content-bound
+extra file-path segment as part of a slash-containing branch name. The link must
+be a standalone bullet, and the decoded canonical URL may occur only once; raw
+HTML/code examples and repo-relative links do not count. The gate must re-read the body, content-bound
 actionable inventory, and local dirty-path set before PASS so async bot activity
 or a concurrent local edit cannot create a false-green snapshot. An actionable
 review summary needs its own mapping even when all child comments are mapped.

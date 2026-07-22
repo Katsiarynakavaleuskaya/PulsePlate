@@ -287,7 +287,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     Markdown link through
     `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
     PR body. The ref path must exactly match the PR's authenticated `head.ref`;
-    repo-relative links are invalid in PR-body context.
+    the link must occupy its own bullet line, the decoded canonical URL must
+    occur exactly once, and repo-relative or non-rendered HTML/code examples are
+    invalid in PR-body context.
     The canonical mapping artifact must be the only dirty path both before and
     after the live validation calls. Child inline mappings do not substitute
     for an actionable top-level review in this pre-commit pass. A PASS

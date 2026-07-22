@@ -142,6 +142,20 @@ def test_canonical_artifact_link_count_accepts_full_github_blob_url() -> None:
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "branch") == 1
 
 
+def test_canonical_artifact_link_count_rejects_trailing_duplicate() -> None:
+    url = "https://github.com/owner/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md"
+    body = f"- [canonical artifact]({url}) and [duplicate]({url})"
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
+
+
+def test_canonical_artifact_link_count_rejects_duplicate_with_another_label() -> None:
+    url = "https://github.com/owner/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md"
+    body = f"- [canonical artifact]({url})\n- [duplicate]({url})"
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 2
+
+
 def test_merge_gate_does_not_require_optional_markdown_runtime_dependency() -> None:
     source = Path(merge_gate.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -217,6 +231,18 @@ def test_canonical_artifact_link_count_rejects_extra_segments_after_head_ref() -
 def test_canonical_artifact_link_count_rejects_unclosed_non_rendered_regions(
     body: str,
 ) -> None:
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
+
+
+@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea"])
+def test_canonical_artifact_link_count_rejects_raw_html_blocks(tag: str) -> None:
+    body = (
+        f"<{tag}>\n"
+        "- [canonical artifact](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)\n"
+        f"</{tag}>"
+    )
+
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
 
 

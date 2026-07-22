@@ -44,9 +44,9 @@ Canonical operator entrypoint:
   and top-level bot review, and requires exactly one true
   same-repository `blob/<exact-live-head-ref>/docs/review/...` Markdown link to
   that artifact in the live PR body. The ref path must equal the authenticated
-  PR `head.ref`; repo-relative PR-body links do not count. It skips
-  thread-resolution, current-head-CI, and wait-window gates and is never
-  merge-readiness evidence.
+  PR `head.ref`; the standalone link's decoded URL may occur only once, and
+  repo-relative or raw HTML/code examples do not count. It skips thread-resolution,
+  current-head-CI, and wait-window gates and is never merge-readiness evidence.
 - Underlying gate scripts remain authoritative for their own contract semantics.
 
 ## 4. Phase 2 Contract (Canonical Artifact)
@@ -216,8 +216,9 @@ governance PR number + 1; the governance PR may opt in with
   mapping even when all actionable child comments are mapped. The PR body must
   contain exactly one rendered same-repository blob Markdown link whose ref is
   the authenticated PR `head.ref` and whose destination is
-  `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text, repo-relative links,
-  inline-code examples, and fenced examples do not count.
+  `docs/review/PR_<N>_FIXED_MAPPING.md`; its decoded canonical URL may occur
+  only once, and plain text, repo-relative links, inline/fenced/raw-HTML
+  examples do not count.
   Before PASS, the gate re-reads the live body, content-bound actionable
   inventory, and local dirty-path set and fails closed on new, removed, or
   edited concurrent bot activity or local worktree drift.

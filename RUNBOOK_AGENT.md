@@ -703,10 +703,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    through
    `https://github.com/<owner>/<repo>/blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`.
    The path must use the authenticated PR `head.ref` exactly; this supports
-   slash-containing branch names without accepting extra file-path segments. A
-   plain repo-relative `docs/review/...` href is broken in PR-body context and
-   does not count. Then validate the still-uncommitted mapping before its sole
-   closeout commit:
+   slash-containing branch names without accepting extra file-path segments.
+   The link must be a standalone bullet, and the decoded canonical URL may
+   occur only once in the body; raw HTML/code examples and a plain repo-relative
+   `docs/review/...` href do not count. Then validate the still-uncommitted
+   mapping before its sole closeout commit:
 
    ```bash
    export GH_TOKEN="..."
