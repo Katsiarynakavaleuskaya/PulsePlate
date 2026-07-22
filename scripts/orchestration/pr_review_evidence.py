@@ -63,6 +63,7 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "scripts/orchestration/pr_commit_identity.py",
         "scripts/orchestration/pr_review_closeout.py",
         "scripts/orchestration/pr_review_evidence.py",
+        "scripts/orchestration/review_mapping_artifact.py",
         "scripts/orchestration/review_source_status.py",
         "scripts/orchestration/qoder_dispatch_bridge.py",
         "scripts/orchestration/render_codex_start_prompt.py",

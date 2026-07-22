@@ -67,6 +67,7 @@ _PRE_CLOSEOUT_MARKER = str(PHASE2_CONFIG["pre_closeout_marker"])
 _PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
 PRE_CLOSEOUT_MARKER_RE = re.compile(rf"(?im)^\s*<!--\s*{re.escape(_PRE_CLOSEOUT_MARKER)}\s*-->\s*$")
 PRE_CLOSEOUT_PENDING_RE = re.compile(rf"(?im)^\s*-\s*{re.escape(_PRE_CLOSEOUT_PENDING_TEXT)}\s*$")
+HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
 )
@@ -167,6 +168,18 @@ def _strip_fenced_code_blocks(text: str) -> str:
     return re.sub(r"(?s)~~~.*?~~~", "", cleaned)
 
 
+def _normalize_phase2_body(text: str) -> str:
+    """Remove non-authoritative Markdown content before Phase2 parsing."""
+
+    cleaned = _strip_fenced_code_blocks(text)
+
+    def preserve_pre_closeout_marker(match: re.Match[str]) -> str:
+        comment = match.group(0)
+        return comment if PRE_CLOSEOUT_MARKER_RE.fullmatch(comment) else ""
+
+    return HTML_COMMENT_RE.sub(preserve_pre_closeout_marker, cleaned)
+
+
 def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
 
@@ -174,7 +187,7 @@ def _extract_checked(match: re.Match[str] | None) -> bool:
 def _has_pre_closeout_marker(text: str) -> bool:
     """Return whether a body explicitly declares the non-mergeable closeout phase."""
 
-    return bool(PRE_CLOSEOUT_MARKER_RE.search(_strip_fenced_code_blocks(text)))
+    return bool(PRE_CLOSEOUT_MARKER_RE.search(_normalize_phase2_body(text)))
 
 
 def _load_event_pull_request(event_path: Path) -> dict[str, object]:
@@ -728,17 +741,31 @@ def check_pr_body_phase2_gates(
     mode: BodyValidationMode = BodyValidationMode.FULL_MAPPING,
 ) -> list[str]:
     errors: list[str] = []
-    cleaned = _strip_fenced_code_blocks(body)
+    cleaned = _normalize_phase2_body(body)
 
     d_heading = f"## {PHASE2_CONFIG['discussion_heading']}"
     m_heading = f"### {PHASE2_CONFIG['mapping_heading']}"
-    if not DISCUSSION_SECTION_RE.search(cleaned):
+    discussion_sections = list(DISCUSSION_SECTION_RE.finditer(cleaned))
+    mapping_sections = list(MAPPING_SECTION_RE.finditer(cleaned))
+    discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(cleaned))
+    mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(cleaned))
+    if not discussion_sections:
         errors.append(f"Missing required section: `{d_heading}`.")
-    if not MAPPING_SECTION_RE.search(cleaned):
+    elif len(discussion_sections) > 1:
+        errors.append(f"Duplicate required section: `{d_heading}`.")
+    if not mapping_sections:
         errors.append(f"Missing required section: `{m_heading}`.")
+    elif len(mapping_sections) > 1:
+        errors.append(f"Duplicate required section: `{m_heading}`.")
 
-    discussion_check = DISCUSSION_CHECKBOX_RE.search(cleaned)
-    mapping_check = MAPPING_CHECKBOX_RE.search(cleaned)
+    discussion_check = discussion_checks[0] if discussion_checks else None
+    mapping_check = mapping_checks[0] if mapping_checks else None
+    for checks, label in (
+        (discussion_checks, str(PHASE2_CONFIG["discussion_checkbox_label"])),
+        (mapping_checks, str(PHASE2_CONFIG["mapping_checkbox_label"])),
+    ):
+        if len(checks) > 1:
+            errors.append(f"Duplicate checklist item: `{label}`.")
 
     if mode is BodyValidationMode.PRE_CLOSEOUT:
         if not PRE_CLOSEOUT_MARKER_RE.search(cleaned):
@@ -918,7 +945,7 @@ def main() -> int:
                 lane_start_seen = True
 
     if body.strip():
-        cleaned_body = _strip_fenced_code_blocks(body)
+        cleaned_body = _normalize_phase2_body(body)
         has_pre_closeout_marker = bool(PRE_CLOSEOUT_MARKER_RE.search(cleaned_body))
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)

@@ -1531,6 +1531,12 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
             ("scripts/orchestration/check_review_threads_disposition.py",),
             False,
         ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/review_mapping_artifact.py",),
+            False,
+        ),
         ("owner/repo", 42, (".bandit",), False),
         ("owner/repo", 42, (".bandit.yaml",), False),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),

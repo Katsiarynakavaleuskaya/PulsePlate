@@ -257,6 +257,38 @@ def test_phase2_guard_rejects_mapping_entries_during_pre_closeout() -> None:
     assert any("must not contain completed mapping entries" in error for error in errors)
 
 
+def test_phase2_guard_ignores_hidden_duplicate_pre_closeout_content() -> None:
+    visible_checked = PRE_CLOSEOUT_BODY.replace("- [ ]", "- [x]")
+    body = visible_checked.replace(
+        "<!-- phase2-pre-closeout: final-security-pending -->",
+        """<!--
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+### Fixed in Commit Mapping
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+-->
+<!-- phase2-pre-closeout: final-security-pending -->""",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert sum("must remain unchecked" in error for error in errors) == 2
+
+
+def test_phase2_guard_rejects_duplicate_required_checklist_items() -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        "- [x] Discussion-thread pass completed",
+        "- [x] Discussion-thread pass completed\n- [x] Discussion-thread pass completed",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(body=body)
+
+    assert errors == ["Duplicate checklist item: `Discussion-thread pass completed`."]
+
+
 def test_phase2_cli_accepts_explicit_pre_closeout_without_mapping_artifact(
     tmp_path: Path,
 ) -> None:
@@ -1372,7 +1404,7 @@ def test_phase2_guard_requires_mapping_in_section_not_elsewhere() -> None:
     assert any("Add at least one review-thread entry" in error for error in errors)
 
 
-def test_phase2_guard_uses_last_mapping_section_when_multiple_exist() -> None:
+def test_phase2_guard_rejects_duplicate_required_sections() -> None:
     body = """## Summary
 Example.
 
@@ -1393,7 +1425,10 @@ Example.
 - No actionable review comments
 """
     errors = gates.check_pr_body_phase2_gates(body=body)
-    assert errors == []
+    assert "Duplicate required section: `## Discussion Thread Pass`." in errors
+    assert "Duplicate required section: `### Fixed in Commit Mapping`." in errors
+    assert "Duplicate checklist item: `Discussion-thread pass completed`." in errors
+    assert "Duplicate checklist item: `Fixed in commit mapping completed`." in errors
 
 
 def test_phase2_guard_ignores_fake_content_in_code_block() -> None:
