@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from markdown_it import MarkdownIt
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -116,10 +118,6 @@ NON_ACTIONABLE_MARKERS = (
 MAPPING_HEADING_RE = re.compile(r"(?im)^\s*###\s+Fixed\s+in\s+Commit\s+Mapping\s*$")
 MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-9a-f]{7,40}`?\s*$")
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
-MARKDOWN_LINK_RE = re.compile(
-    r"(?<![!\\])\[[^\]\n]+\]\(\s*(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))"
-    r"(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)"
-)
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
@@ -174,18 +172,21 @@ def _mapped_urls(pr_body: str) -> tuple[set[str], bool]:
 
 
 def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, repository: str) -> int:
-    """Count real inline Markdown links whose destination is the canonical artifact."""
+    """Count rendered Markdown links whose destination is the canonical artifact."""
 
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     absolute_prefix = f"/{repository}/blob/"
     absolute_suffix = f"/{artifact_path}"
     count = 0
-    body_without_comments = re.sub(r"(?s)<!--.*?-->", "", pr_body)
-    body_without_fences = _strip_fenced_code_blocks(body_without_comments)
-    body_without_indented_code = re.sub(r"(?m)^(?: {4}|\t).*?(?:\n|$)", "", body_without_fences)
-    body_without_code = re.sub(r"`[^`\n]*`", "", body_without_indented_code)
-    for match in MARKDOWN_LINK_RE.finditer(body_without_code):
-        destination = urllib.parse.unquote(match.group("angle") or match.group("plain") or "")
+    tokens = MarkdownIt("commonmark").parse(pr_body)
+    destinations = (
+        child.attrGet("href")
+        for token in tokens
+        for child in (token.children or [])
+        if child.type == "link_open"
+    )
+    for raw_destination in destinations:
+        destination = urllib.parse.unquote(raw_destination or "")
         parsed = urllib.parse.urlsplit(destination)
         if parsed.query or parsed.fragment:
             continue
@@ -199,10 +200,23 @@ def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, reposi
                 segment not in {"", ".", ".."} for segment in ref_path.split("/")
             )
         else:
-            is_canonical_destination = parsed.path in {artifact_path, f"./{artifact_path}"}
+            is_canonical_destination = False
         if is_canonical_destination:
             count += 1
     return count
+
+
+def _actionable_inventory(
+    items: list[ActionableItem],
+) -> tuple[tuple[str, str, str, str, int], ...]:
+    """Return a deterministic identity for the live actionable review inventory."""
+
+    return tuple(
+        sorted(
+            (item.author, item.url, item.created_at, item.kind, item.review_id or 0)
+            for item in items
+        )
+    )
 
 
 def _is_actionable(body: str) -> bool:
@@ -1150,8 +1164,20 @@ def main() -> int:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")
 
     try:
+        final_pr_context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
+        final_actionable_items = _collect_actionable_items(
+            repo=repo, pr_number=pr_number, token=token
+        )
+        if final_pr_context != (pr_number, repo, is_draft, pr_body):
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: live PR body or draft state changed during validation"
+            )
+        if _actionable_inventory(final_actionable_items) != _actionable_inventory(actionable_items):
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: actionable bot review inventory changed during validation"
+            )
         assert_snapshot_unchanged(snapshot, token=token)
-    except (CommitIdentityError, OSError) as exc:
+    except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
         errors.append(str(exc))
 
     if errors:

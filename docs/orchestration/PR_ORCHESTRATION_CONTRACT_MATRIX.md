@@ -40,8 +40,9 @@ Canonical operator entrypoint:
 - Before the sole mapping commit, its local-only `--pre-closeout --require-auth`
   mode reads the uncommitted canonical artifact, requires both `GH_TOKEN` and
   `GITHUB_TOKEN`, explicitly maps every live actionable issue comment, inline
-  comment, and top-level bot review, and requires exactly one true Markdown
-  link to that artifact in the live PR body. It skips thread-resolution,
+  comment, and top-level bot review, and requires exactly one true
+  same-repository `blob/<safe-ref>/docs/review/...` Markdown link to that
+  artifact in the live PR body. Repo-relative PR-body links do not count. It skips thread-resolution,
   current-head-CI, and wait-window gates and is never merge-readiness evidence.
 - Underlying gate scripts remain authoritative for their own contract semantics.
 
@@ -209,9 +210,11 @@ governance PR number + 1; the governance PR may opt in with
   the local sealed artifact against the complete live actionable bot inventory.
   In this pre-commit mode an actionable top-level review requires its own
   mapping even when all actionable child comments are mapped. The PR body must
-  contain exactly one rendered Markdown link whose destination is
-  `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text, inline-code examples, and
-  fenced examples do not count.
+  contain exactly one rendered same-repository blob Markdown link whose
+  destination is `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text,
+  repo-relative links, inline-code examples, and fenced examples do not count.
+  Before PASS, the gate re-reads the live body and actionable inventory and
+  fails closed on concurrent drift.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`

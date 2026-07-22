@@ -795,7 +795,10 @@ PR body is updated, run the local strict wrapper with `--pre-closeout
 --require-auth` before creating the sole mapping commit. Export both `GH_TOKEN`
 and `GITHUB_TOKEN`. The pass must compare the uncommitted artifact with all live
 actionable issue comments, inline comments, and top-level bot reviews, and must
-find exactly one rendered Markdown link to the canonical artifact. An
+find exactly one rendered same-repository `blob/<safe-ref>/...` Markdown link
+to the canonical artifact. Repo-relative links in PR bodies are broken. The
+gate must re-read the body and actionable inventory before PASS so async bot
+activity cannot create a false-green snapshot. An
 actionable review summary needs its own mapping even when all child comments are
 mapped.
 

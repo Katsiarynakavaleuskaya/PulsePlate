@@ -117,11 +117,12 @@ def test_standalone_actionable_review_summary_still_requires_mapping() -> None:
 def test_canonical_artifact_link_count_requires_true_markdown_destination() -> None:
     body = """
 Plain text: docs/review/PR_42_FIXED_MAPPING.md
-[canonical mapping](docs/review/PR_42_FIXED_MAPPING.md)
+[canonical mapping](https://github.com/owner/repo/blob/codex/review/docs/review/PR_42_FIXED_MAPPING.md)
 \\[escaped literal](docs/review/PR_42_FIXED_MAPPING.md)
     [indented code](docs/review/PR_42_FIXED_MAPPING.md)
 	[tab-indented code](docs/review/PR_42_FIXED_MAPPING.md)
 `[inline code](docs/review/PR_42_FIXED_MAPPING.md)`
+``[double inline code](docs/review/PR_42_FIXED_MAPPING.md)``
 <!-- [html comment](docs/review/PR_42_FIXED_MAPPING.md) -->
 ```markdown
 [fenced example](docs/review/PR_42_FIXED_MAPPING.md)
@@ -143,7 +144,8 @@ def test_canonical_artifact_link_count_accepts_full_github_blob_url() -> None:
 def test_canonical_artifact_link_count_rejects_duplicate_and_foreign_links() -> None:
     duplicate = "\n".join(
         [
-            "[one](docs/review/PR_42_FIXED_MAPPING.md)",
+            "[one](https://github.com/owner/repo/blob/codex/one/"
+            "docs/review/PR_42_FIXED_MAPPING.md)",
             "[two](https://github.com/owner/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md)",
         ]
     )
@@ -152,15 +154,40 @@ def test_canonical_artifact_link_count_rejects_duplicate_and_foreign_links() -> 
         "[fake](https://github.com/other/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md)"
     )
     wrong_relative = "[fake](other/docs/review/PR_42_FIXED_MAPPING.md)"
-    query_variant = "[fake](docs/review/PR_42_FIXED_MAPPING.md?raw=1)"
-    fragment_variant = "[fake](docs/review/PR_42_FIXED_MAPPING.md#section)"
+    repo_relative = "[fake](docs/review/PR_42_FIXED_MAPPING.md)"
+    query_variant = (
+        "[fake](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md?raw=1)"
+    )
+    fragment_variant = (
+        "[fake](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md#section)"
+    )
 
     assert _canonical_artifact_markdown_link_count(duplicate, 42, "owner/repo") == 2
     assert _canonical_artifact_markdown_link_count(foreign_host, 42, "owner/repo") == 0
     assert _canonical_artifact_markdown_link_count(foreign_repo, 42, "owner/repo") == 0
     assert _canonical_artifact_markdown_link_count(wrong_relative, 42, "owner/repo") == 0
+    assert _canonical_artifact_markdown_link_count(repo_relative, 42, "owner/repo") == 0
     assert _canonical_artifact_markdown_link_count(query_variant, 42, "owner/repo") == 0
     assert _canonical_artifact_markdown_link_count(fragment_variant, 42, "owner/repo") == 0
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "<!-- [fake](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)",
+        "```markdown\n[fake](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)",
+        "~~~markdown\n[fake](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)",
+    ],
+)
+def test_canonical_artifact_link_count_rejects_unclosed_non_rendered_regions(
+    body: str,
+) -> None:
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo") == 0
 
 
 def _pre_closeout_artifact(*urls: str) -> str:
@@ -213,7 +240,8 @@ def _configure_pre_closeout_main(
             42,
             "owner/repo",
             False,
-            "[canonical mapping](docs/review/PR_42_FIXED_MAPPING.md)",
+            "[canonical mapping](https://github.com/owner/repo/blob/codex/review/"
+            "docs/review/PR_42_FIXED_MAPPING.md)",
         ),
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
@@ -301,6 +329,60 @@ def test_pre_closeout_accepts_explicit_issue_inline_and_top_level_mappings(
     output = capsys.readouterr().out
     assert "all live actionable issue comments, inline comments" in output
     assert "not merge-readiness evidence" in output
+
+
+def test_pre_closeout_fails_when_actionable_inventory_changes_during_validation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    mapped = merge_gate.ActionableItem(
+        "bot[bot]",
+        "https://github.com/owner/repo/pull/42#issuecomment-1",
+        "2026-07-16T00:43:26Z",
+        "issue_comment",
+    )
+    late_review = merge_gate.ActionableItem(
+        "bot[bot]",
+        "https://github.com/owner/repo/pull/42#pullrequestreview-7",
+        "2026-07-16T00:43:27Z",
+        "review",
+        7,
+    )
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(mapped.url),
+        actionable_items=[mapped],
+    )
+    inventories = iter(([mapped], [mapped, late_review]))
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: next(inventories))
+
+    assert merge_gate.main() == 1
+    assert "actionable bot review inventory changed" in capsys.readouterr().out
+
+
+def test_pre_closeout_fails_when_pr_body_changes_during_validation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(
+            "https://github.com/owner/repo/pull/42#issuecomment-previous"
+        ),
+        actionable_items=[],
+    )
+    canonical_body = (
+        "[canonical mapping](https://github.com/owner/repo/blob/codex/review/"
+        "docs/review/PR_42_FIXED_MAPPING.md)"
+    )
+    contexts = iter(
+        (
+            (42, "owner/repo", False, canonical_body),
+            (42, "owner/repo", False, f"{canonical_body}\nconcurrent edit"),
+        )
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda *_a, **_k: next(contexts))
+
+    assert merge_gate.main() == 1
+    assert "live PR body or draft state changed" in capsys.readouterr().out
 
 
 def test_review_seal_rollout_boundary_is_explicit_and_self_opt_in(
@@ -1343,7 +1425,8 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
             42,
             "owner/repo",
             False,
-            "[canonical artifact](docs/review/PR_42_FIXED_MAPPING.md)",
+            "[canonical artifact](https://github.com/owner/repo/blob/main/"
+            "docs/review/PR_42_FIXED_MAPPING.md)",
         ),
     )
     monkeypatch.setattr(
@@ -1766,7 +1849,8 @@ def test_ci_gate_reauthenticates_terminal_review_source_unavailability(
             42,
             "owner/repo",
             False,
-            "[canonical artifact](docs/review/PR_42_FIXED_MAPPING.md)",
+            "[canonical artifact](https://github.com/owner/repo/blob/main/"
+            "docs/review/PR_42_FIXED_MAPPING.md)",
         ),
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)

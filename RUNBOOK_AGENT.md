@@ -699,8 +699,10 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    Historical PR `#2142` review-credit override receipts remain readable
    everywhere but are live-authenticated only for PR `#2142`; their old
    multi-reference authoring flags are not active CLI options for later PRs.
-6. Update the live PR body with exactly one real Markdown link to the canonical
-   artifact, then validate the still-uncommitted mapping before its sole
+6. Update the live PR body with exactly one real same-repository Markdown link
+   through `https://github.com/<owner>/<repo>/blob/<safe-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`.
+   A plain repo-relative `docs/review/...` href is broken in PR-body context and
+   does not count. Then validate the still-uncommitted mapping before its sole
    closeout commit:
 
    ```bash
@@ -715,7 +717,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 
    This pass must cover every live actionable issue comment, inline comment,
    and top-level bot review explicitly; a child-comment mapping does not cover
-   its actionable top-level review. It intentionally does not require resolved
+   its actionable top-level review. The validator re-reads the live body and
+   actionable inventory before PASS and fails closed if either changes during
+   validation. It intentionally does not require resolved
    threads, current-head CI, or the review wait window and is not
    merge-readiness evidence.
 7. Only after that pass, commit the artifact once and push it. Then run the

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,6 +56,8 @@ VALID_DISPOSITIONS = frozenset({"FIXED", "NOT-A-BUG", "DEFERRED"})
 COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REVIEW_SEAL_VERSION_RE = re.compile(r"(?m)^Review-Seal-Version:\s*(\S+)\s*$")
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+SAFE_REF_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
 @dataclass(frozen=True)
@@ -606,7 +609,7 @@ def has_no_actionable_marker(section: str) -> bool:
     return NO_ACTIONABLE_LINE in section
 
 
-def render_phase2_body_mirror(pr_number: int) -> str:
+def render_phase2_body_mirror(pr_number: int, *, repository: str, ref: str) -> str:
     """Render the canonical PR-body mirror block from the artifact source of truth."""
 
     artifact_text = read_mapping_artifact(pr_number)
@@ -615,7 +618,17 @@ def render_phase2_body_mirror(pr_number: int) -> str:
         joined_errors = "; ".join(errors)
         raise RuntimeError(f"Cannot render PR body mirror for PR #{pr_number}: {joined_errors}")
 
-    artifact_ref = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    normalized_repository = repository.strip()
+    normalized_ref = ref.strip()
+    if not REPOSITORY_RE.fullmatch(normalized_repository):
+        raise ValueError("repository must use the canonical owner/name form")
+    if not SAFE_REF_RE.fullmatch(normalized_ref) or any(
+        segment in {"", ".", ".."} for segment in normalized_ref.split("/")
+    ):
+        raise ValueError("ref must be a non-empty safe Git ref")
+    encoded_ref = urllib.parse.quote(normalized_ref, safe="/-._~")
+    artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    artifact_url = f"https://github.com/{normalized_repository}/blob/{encoded_ref}/{artifact_path}"
     return "\n".join(
         [
             DISCUSSION_THREAD_PASS_HEADING,
@@ -623,6 +636,6 @@ def render_phase2_body_mirror(pr_number: int) -> str:
             CHECKBOX_FIXED_MAPPING,
             "",
             "### Fixed in Commit Mapping",
-            f"- [canonical artifact]({artifact_ref})",
+            f"- [canonical artifact]({artifact_url})",
         ]
     )
