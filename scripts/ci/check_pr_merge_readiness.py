@@ -249,6 +249,7 @@ def _canonical_artifact_markdown_link_count(
                 visible_parts.append(line[cursor:])
                 break
             visible_parts.append(line[cursor:comment_start])
+            visible_parts.append(" ")
             in_html_comment = True
             cursor = comment_start + 4
         visible_line = "".join(visible_parts)

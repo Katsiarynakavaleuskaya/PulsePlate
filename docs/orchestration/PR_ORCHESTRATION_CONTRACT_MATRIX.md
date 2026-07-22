@@ -224,6 +224,12 @@ governance PR number + 1; the governance PR may opt in with
   edited concurrent bot activity or local worktree drift.
 
 Evidence:
+- `scripts/orchestration/check_merge_ready.py:383`
+- `scripts/orchestration/check_merge_ready.py:409`
+- `scripts/ci/check_pr_merge_readiness.py:1157`
+- `scripts/ci/check_pr_merge_readiness.py:1239`
+- `scripts/ci/check_pr_merge_readiness.py:1291`
+- `scripts/ci/check_pr_merge_readiness.py:1342`
 - `scripts/orchestration/review_mapping_artifact.py:44`
 - `scripts/orchestration/review_mapping_artifact.py:84`
 - `scripts/orchestration/review_mapping_artifact.py:110`

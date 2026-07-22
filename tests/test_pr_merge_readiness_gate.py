@@ -133,6 +133,16 @@ Plain text: docs/review/PR_42_FIXED_MAPPING.md
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "codex/review") == 1
 
 
+def test_canonical_artifact_link_count_rejects_comment_split_link() -> None:
+    body = (
+        "- [canonical artifact]<!-- hidden -->"
+        "(https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)"
+    )
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
+
+
 def test_canonical_artifact_link_count_accepts_full_github_blob_url() -> None:
     body = (
         "- [canonical artifact](https://github.com/owner/repo/blob/branch/"
