@@ -1467,6 +1467,7 @@ def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None
             or receipt["source_degraded"] is not False
             or receipt["fallback_required"] is not False
             or receipt["blocking"] is not False
+            or not isinstance(receipt["response_content"], str)
             or receipt["response_content"] not in {"+1", "heart", "hooray", "rocket"}
             or not isinstance(receipt["response_reference"], str)
             or not 1 <= len(receipt["response_reference"]) <= 500

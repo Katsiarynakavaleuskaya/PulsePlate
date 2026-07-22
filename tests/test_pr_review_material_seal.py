@@ -2857,6 +2857,7 @@ def test_review_source_positive_response_receipt_is_nonblocking_without_review_c
         (lambda receipt: receipt.update(review_claim="approved"), "malformed or stale"),
         (lambda receipt: receipt.update(source_degraded=True), "malformed or stale"),
         (lambda receipt: receipt.update(response_content="eyes"), "malformed or stale"),
+        (lambda receipt: receipt.update(response_content=[]), "malformed or stale"),
         (
             lambda receipt: receipt.update(authority="trusted_codex_review_source_unavailability"),
             "tagged-union identity is ambiguous",
