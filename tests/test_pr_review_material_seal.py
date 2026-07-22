@@ -834,6 +834,109 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     ]
 
 
+def test_codex_positive_reaction_accepts_approved_exact_head_review() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(),
+            reviews=[_codex_exact_head_review(state="APPROVED")],
+        ),
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+
+
+def test_codex_positive_reaction_accepts_exact_head_review_on_second_page() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    untrusted_page = [_codex_exact_head_review(user_id=1) for _ in range(100)]
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        if "/reactions?" in url:
+            return [_codex_positive_reaction()]
+        if "/reviews?" in url and url.endswith("&page=1"):
+            return untrusted_page
+        if "/reviews?" in url and url.endswith("&page=2"):
+            return [_codex_exact_head_review()]
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+    assert requested_urls[-1].endswith("/reviews?per_page=100&page=2")
+
+
+@pytest.mark.parametrize(
+    ("reviews", "error"),
+    [
+        ({"unexpected": "object"}, "response is malformed"),
+        ([None], "entry is malformed"),
+        ([_codex_exact_head_review(commit_id="not-a-sha")], "review commit_id"),
+        ([_codex_exact_head_review(submitted_at="not-a-date")], "review submitted_at"),
+    ],
+)
+def test_codex_positive_reaction_rejects_malformed_review_api_data(
+    reviews: Any,
+    error: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/reactions?" in url:
+            return [_codex_positive_reaction()]
+        if "/reviews?" in url:
+            return reviews
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=request_json,
+        )
+
+
+def test_codex_positive_reaction_fails_closed_at_review_page_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    monkeypatch.setattr(identity_module, "_MAX_PR_REVIEW_PAGES", 1)
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/reactions?" in url:
+            return [_codex_positive_reaction()]
+        if "/reviews?" in url:
+            return [_codex_exact_head_review(user_id=1) for _ in range(100)]
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    with pytest.raises(CommitIdentityError, match="pagination exceeded page limit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=request_json,
+        )
+
+
 @pytest.mark.parametrize(
     ("review_overrides",),
     [
