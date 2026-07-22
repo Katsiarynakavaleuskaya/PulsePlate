@@ -1230,7 +1230,7 @@ def _normalize_const(value: Any, expected: str, *, label: str) -> str:
 
 def _validate_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
     resolved_gate = admission_cli._resolve_repo_json_file(gate_path, label="generation gate")
-    gate = validate_generation_gate(_read_json_object(resolved_gate, label="generation gate"))
+    gate = _read_generation_gate(resolved_gate)
     expected_gate = build_generation_gate(
         admission_path=REPO_ROOT / gate["admission_ref"],
         run_id=gate["run_id"],
@@ -1243,6 +1243,19 @@ def _validate_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
     if expected_gate != gate:
         raise CreativeCodePatchGenerationError("generation gate is stale.")
     return resolved_gate, gate
+
+
+def _read_generation_gate(gate_path: Path) -> dict[str, Any]:
+    """Read one generation gate through a bounded no-follow descriptor."""
+
+    return validate_generation_gate(
+        _read_pinned_json_object(
+            gate_path,
+            trusted_root=gate_path.parent,
+            label="generation gate",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
+    )
 
 
 def _require_base_and_tree_for_step(base_commit_sha: str) -> None:
@@ -1273,11 +1286,17 @@ def _build_receipt(
         if not artifact.exists() or not artifact.is_file():
             raise CreativeCodePatchGenerationError(f"missing generated artifact: {artifact.name}")
     source_bundle = validate_creative_code_specification_bundle(
-        read_json(resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE))
+        _read_generated_sidecar_json_object(
+            resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE),
+            run_dir=run_dir,
+            label="receipt source bundle",
+        )
     )
     request = validate_creative_code_patch_build_request(
-        read_creative_code_patch_build_request(
-            str(resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE))
+        _read_generated_sidecar_json_object(
+            resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE),
+            run_dir=run_dir,
+            label="receipt request",
         ),
         source_bundle=source_bundle,
     )
@@ -2713,6 +2732,10 @@ def _finalize_dispatched_result_locked(
             raise CreativeCodePatchGenerationError(
                 "partial creative-code patch result changed before publication."
             )
+    if _read_generation_gate(gate_path) != gate:
+        raise CreativeCodePatchGenerationError(
+            "generation gate changed during trusted dispatch finalization."
+        )
     original_state = dict(state)
     result_written = False
     receipt_written = False
@@ -2825,9 +2848,13 @@ def _finalize_dispatched_result_locked(
 
 def _finalize_dispatched_result(args: argparse.Namespace) -> int:
     gate_path = admission_cli._resolve_repo_json_file(args.gate, label="generation gate")
-    gate = validate_generation_gate(_read_json_object(gate_path, label="generation gate"))
+    gate = _read_generation_gate(gate_path)
     run_dir = resolve_existing_run_dir(str(gate["run_id"]))
     with _exclusive_finalize_lock(run_dir):
+        if _read_generation_gate(gate_path) != gate:
+            raise CreativeCodePatchGenerationError(
+                "generation gate changed before trusted dispatch finalization."
+            )
         return _finalize_dispatched_result_locked(
             args,
             gate_path=gate_path,

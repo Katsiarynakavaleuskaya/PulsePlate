@@ -1361,6 +1361,115 @@ def test_finalize_dispatched_result_rejects_oversized_generated_sidecar(
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
+def test_finalize_dispatched_result_bounds_receipt_source_reread(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-bounded-receipt-source"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    source_bundle_path = run_dir / creative_code_patch_builder.SOURCE_BUNDLE_FILE
+    original_validate = generation_cli._validate_experiment_packet_matches_result
+    validation_calls = 0
+
+    def replace_source_after_initial_validation(*args: Any, **kwargs: Any) -> None:
+        nonlocal validation_calls
+        original_validate(*args, **kwargs)
+        validation_calls += 1
+        if validation_calls == 1:
+            source_bundle_path.write_bytes(
+                b"x" * (generation_cli.GENERATED_SIDECAR_JSON_MAX_BYTES + 1)
+            )
+
+    monkeypatch.setattr(
+        generation_cli,
+        "_validate_experiment_packet_matches_result",
+        replace_source_after_initial_validation,
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "receipt source bundle exceeds the maximum size" in capsys.readouterr().err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
+def test_finalize_dispatched_result_rereads_gate_under_finalize_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-reread-gate"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    original_load = generation_cli._load_generated_dispatch_context
+    load_calls = 0
+
+    def replace_gate_after_initial_context(*args: Any, **kwargs: Any) -> Any:
+        nonlocal load_calls
+        context = original_load(*args, **kwargs)
+        load_calls += 1
+        if load_calls == 1:
+            replacement = json.loads(gate_path.read_text(encoding="utf-8"))
+            replacement["budget_limits"]["max_diff_lines"] -= 1
+            generation_cli._set_identity(
+                replacement,
+                id_key="gate_id",
+                asset_type=generation_cli.GATE_ARTIFACT_TYPE,
+            )
+            _write_json(gate_path, replacement)
+        return context
+
+    monkeypatch.setattr(
+        generation_cli,
+        "_load_generated_dispatch_context",
+        replace_gate_after_initial_context,
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "generation gate changed during trusted dispatch finalization" in capsys.readouterr().err
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
