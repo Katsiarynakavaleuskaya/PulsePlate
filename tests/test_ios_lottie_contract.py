@@ -45,12 +45,14 @@ def test_lottie_swiftpm_declarations_are_exact_and_canonical() -> None:
 
     for manifest in PACKAGE_MANIFESTS:
         source = manifest.read_text(encoding="utf-8")
+        compact_source = " ".join(source.split())
         assert source.count(expected) == 1, manifest
+        assert source.count(LOTTIE_URL) == 1, manifest
         assert "4.5.2" not in source, manifest
         assert "lottie-ios.git" not in source, manifest
-        assert not re.search(r"\.package\([^\n]+\bfrom\s*:", source), manifest
-        assert not re.search(r"\.package\([^\n]+\bbranch\s*:", source), manifest
-        assert not re.search(r"\.package\([^\n]+\.upToNext", source), manifest
+        assert not re.search(r"\.package\s*\(.*?\bfrom\s*:", compact_source), manifest
+        assert not re.search(r"\.package\s*\(.*?\bbranch\s*:", compact_source), manifest
+        assert not re.search(r"\.package\s*\(.*?\.upToNext", compact_source), manifest
 
 
 def test_xcode_lottie_requirement_is_exact_and_animation_tests_are_excluded() -> None:

@@ -28,9 +28,8 @@ let package = Package(
                 .process("Assets.xcassets"),
                 .process("Resources")
             ]
-            // Note: Assets loaded via SPM require Bundle.module
-            // In UI code, use: Image("FitChef", bundle: .module)
-            // instead of: Image("FitChef")
+            // The Xcode app runtime resolves local Lottie resources from Bundle.main.
+            // Package-only Bundle.module semantics must not rewrite the app UI contract.
         ),
     ]
 )
