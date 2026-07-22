@@ -663,8 +663,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    reaction, or `--review-source-unavailable-ref ...` for an exact trusted Codex
    rate-limit / usage-limit comment. A reaction supplied through `--review-ref`
    is live-verified by exact PR-root URL and immutable Connector account identity,
-   then bound to the caller's full snapshotted material head through a GitHub Actions
-   check-suite timestamp that precedes the reaction. It is a Connector
+   then bound to the caller's full snapshotted material head through a trusted
+   same-PR Connector review whose real `commit_id` equals that head and whose
+   `submitted_at` strictly precedes the reaction. It is a Connector
    response for that material state, not a native GitHub approval, Codex Security
    result, or thread-resolution authority. The optional
    `--connector-advisory-reaction <canonical-reaction-url>` rendering path remains

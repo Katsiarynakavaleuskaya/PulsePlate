@@ -767,33 +767,34 @@ def _codex_positive_reaction(
 def _codex_positive_reaction_request(
     reaction: dict[str, Any] | list[dict[str, Any]],
     *,
-    check_suites: dict[str, Any] | None = None,
+    reviews: list[dict[str, Any]] | None = None,
 ) -> Any:
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return reaction if isinstance(reaction, list) else [reaction]
-        if "/check-suites?" in url and check_suites is not None:
-            return check_suites
+        if "/reviews?" in url and reviews is not None:
+            return reviews
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     return request_json
 
 
-def _github_actions_check_suites(
+def _codex_exact_head_review(
     *,
-    head_sha: str = HEAD_SHA,
-    created_at: str = "2026-07-15T10:59:59Z",
-    app_slug: str = "github-actions",
+    commit_id: str = HEAD_SHA,
+    submitted_at: str = "2026-07-15T10:59:59Z",
+    user_id: int = 199_175_422,
+    login: str = "chatgpt-codex-connector[bot]",
+    user_type: str = "Bot",
+    state: str = "COMMENTED",
+    html_url: str = "https://github.com/owner/repo/pull/42#pullrequestreview-123",
 ) -> dict[str, Any]:
     return {
-        "total_count": 1,
-        "check_suites": [
-            {
-                "app": {"slug": app_slug},
-                "created_at": created_at,
-                "head_sha": head_sha,
-            }
-        ],
+        "commit_id": commit_id,
+        "html_url": html_url,
+        "state": state,
+        "submitted_at": submitted_at,
+        "user": {"id": user_id, "login": login, "type": user_type},
     }
 
 
@@ -806,7 +807,7 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     requested_urls: list[str] = []
     request = _codex_positive_reaction_request(
         reaction,
-        check_suites=_github_actions_check_suites(),
+        reviews=[_codex_exact_head_review()],
     )
 
     def request_json(url: str, **_kwargs: Any) -> Any:
@@ -829,29 +830,31 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     )
     assert requested_urls == [
         "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
-        f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA}/check-suites"
-        "?per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/pulls/42/reviews?per_page=100&page=1",
     ]
 
 
 @pytest.mark.parametrize(
-    ("suite_head_sha", "suite_created_at", "suite_app_slug"),
+    ("review_overrides",),
     [
-        (HEAD_SHA, "2026-07-15T11:00:01Z", "github-actions"),
-        (FIX_SHA, "2026-07-15T10:59:59Z", "github-actions"),
-        (HEAD_SHA, "2026-07-15T10:59:59Z", "untrusted-app"),
+        ({"commit_id": FIX_SHA},),
+        ({"submitted_at": "2026-07-15T11:00:00Z"},),
+        ({"submitted_at": "2026-07-15T11:00:01Z"},),
+        ({"user_id": 1},),
+        ({"login": "spoofed[bot]"},),
+        ({"user_type": "User"},),
+        ({"state": "DISMISSED"},),
+        ({"html_url": "https://github.com/owner/repo/pull/43#pullrequestreview-123"},),
     ],
 )
-def test_codex_positive_reaction_rejects_invalid_head_check_suite(
-    suite_head_sha: str,
-    suite_created_at: str,
-    suite_app_slug: str,
+def test_codex_positive_reaction_rejects_invalid_exact_head_connector_review(
+    review_overrides: dict[str, Any],
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
 
     with pytest.raises(
         CommitIdentityError,
-        match="does not follow a GitHub Actions observation of the exact material head",
+        match="does not follow a trusted Connector review of the exact material head",
     ):
         verify_codex_review_reference(
             reference,
@@ -861,11 +864,7 @@ def test_codex_positive_reaction_rejects_invalid_head_check_suite(
             expected_commit_ref=HEAD_SHA,
             request_json=_codex_positive_reaction_request(
                 _codex_positive_reaction(),
-                check_suites=_github_actions_check_suites(
-                    head_sha=suite_head_sha,
-                    created_at=suite_created_at,
-                    app_slug=suite_app_slug,
-                ),
+                reviews=[_codex_exact_head_review(**review_overrides)],
             ),
         )
 
