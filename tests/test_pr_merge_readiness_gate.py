@@ -818,12 +818,13 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     frozen = compute_material_manifest(
         repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
     )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
     seal = {
         "authority": RECEIPT_AUTHORITY,
         "code_review": {
             "review_commit_ref": material_head,
             "review_commit_ref_kind": "repository_commit",
-            "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+            "review_reference": reaction_reference,
             "reviewed_material_digest": frozen.digest,
             "status": "completed",
         },
@@ -864,12 +865,17 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         ),
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    verifier_expected_commits: list[str | None] = []
+    verifier_expected_heads: list[tuple[str | None, str | None]] = []
 
     def verify_review(*_args: Any, **kwargs: Any) -> CodexReviewEvidence:
-        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
+        verifier_expected_heads.append(
+            (
+                kwargs.get("expected_commit_ref"),
+                kwargs.get("expected_live_pr_head_ref"),
+            )
+        )
         return CodexReviewEvidence(
-            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
+            reference=reaction_reference,
             submitted_at="2026-07-15T11:00:00Z",
             commit_ref=material_head,
         )
@@ -884,7 +890,7 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         token="opaque",
     )
     assert validated["material"]["digest"] == frozen.digest
-    assert verifier_expected_commits == [material_head]
+    assert verifier_expected_heads == [(material_head, governance_head)]
 
     live_snapshot = {"value": snapshot}
     monkeypatch.setenv("GITHUB_TOKEN", "opaque")

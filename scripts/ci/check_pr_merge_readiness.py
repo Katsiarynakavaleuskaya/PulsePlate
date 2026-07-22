@@ -708,6 +708,9 @@ def _validate_v1_seal(
             pr_number=pr_number,
             token=token,
             expected_commit_ref=material["material_head_sha"],
+            # The digest check above permits only the canonical mapping artifact
+            # to separate the sealed material head from the live PR head.
+            expected_live_pr_head_ref=snapshot.head_sha,
         )
         if (
             review_evidence.commit_ref != code_review["review_commit_ref"]

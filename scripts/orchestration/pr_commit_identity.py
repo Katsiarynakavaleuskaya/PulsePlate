@@ -1265,6 +1265,7 @@ def _require_codex_reaction_after_current_head_observation(
     repository: str,
     pr_number: int,
     expected_commit: str,
+    expected_live_pr_head: str | None,
     reaction_created_at: str,
     token: str,
     request_json: ApiRequest,
@@ -1280,7 +1281,12 @@ def _require_codex_reaction_after_current_head_observation(
         raise CommitIdentityError("GitHub PR response is malformed")
     head = pull.get("head")
     live_head = head.get("sha") if isinstance(head, dict) else None
-    if live_head != expected_commit:
+    required_live_head = (
+        expected_commit
+        if expected_live_pr_head is None
+        else _require_sha(expected_live_pr_head, field="expected live PR head")
+    )
+    if live_head != required_live_head:
         raise CommitIdentityError(
             "Codex connector reaction is not attached to the current material head"
         )
@@ -1413,6 +1419,7 @@ def verify_codex_review_reference(
     pr_number: int,
     token: str,
     expected_commit_ref: str | None = None,
+    expected_live_pr_head_ref: str | None = None,
     request_json: ApiRequest = github_api_request,
 ) -> CodexReviewEvidence:
     """Prove that a seal reference names trusted exact-head Codex review evidence."""
@@ -1480,6 +1487,7 @@ def verify_codex_review_reference(
             repository=repository,
             pr_number=pr_number,
             expected_commit=expected_commit,
+            expected_live_pr_head=expected_live_pr_head_ref,
             reaction_created_at=reaction.created_at,
             token=token,
             request_json=request_json,

@@ -850,6 +850,26 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     ]
 
 
+def test_codex_positive_reaction_accepts_revalidated_mapping_only_live_head() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        expected_live_pr_head_ref=OUTSIDE_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(),
+            pull_head=OUTSIDE_SHA,
+            workflow_runs=_github_actions_workflow_runs(),
+        ),
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+
+
 def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
     untrusted_page = [
@@ -3037,10 +3057,16 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         entries=(),
         digest=DIGEST,
     )
-    verifier_calls: list[tuple[str, str | None]] = []
+    verifier_calls: list[tuple[str, str | None, str | None]] = []
 
     def reject_review(reference: str, **kwargs: Any) -> Any:
-        verifier_calls.append((reference, kwargs.get("expected_commit_ref")))
+        verifier_calls.append(
+            (
+                reference,
+                kwargs.get("expected_commit_ref"),
+                kwargs.get("expected_live_pr_head_ref"),
+            )
+        )
         raise CommitIdentityError("GitHub review not found")
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
@@ -3067,7 +3093,80 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
             token="opaque",
         )
 
-    assert verifier_calls == [(reaction_reference, HEAD_SHA)]
+    assert verifier_calls == [(reaction_reference, HEAD_SHA, HEAD_SHA)]
+
+
+def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = ingest_codex_security_receipt(
+        _build_scan_bundle(tmp_path / "scan"),
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+    )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    seal = _seal(receipt)
+    seal["code_review"]["review_reference"] = reaction_reference
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+    closeout_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=BASE_SHA,
+        head_sha=OUTSIDE_SHA,
+        commits=(
+            PrCommitEvidence(HEAD_SHA, "2026-07-15T11:00:00Z"),
+            PrCommitEvidence(OUTSIDE_SHA, "2026-07-15T12:00:00Z"),
+        ),
+    )
+    verifier_calls: list[tuple[str, str | None, str | None]] = []
+
+    def verify_reaction(reference: str, **kwargs: Any) -> Any:
+        verifier_calls.append(
+            (
+                reference,
+                kwargs.get("expected_commit_ref"),
+                kwargs.get("expected_live_pr_head_ref"),
+            )
+        )
+        return identity_module.CodexReviewEvidence(
+            reference=reference,
+            submitted_at="2026-07-15T11:00:00Z",
+            commit_ref=HEAD_SHA,
+        )
+
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(
+        closeout_module,
+        "fetch_pr_snapshot",
+        lambda *_a, **_k: closeout_snapshot,
+    )
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: OUTSIDE_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **kwargs: _material_manifest(kwargs["head_ref_oid"]),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == OUTSIDE_SHA else CommitRefKind.PR_COMMIT,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", verify_reaction)
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    validated = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert validated["code_review"]["review_reference"] == reaction_reference
+    assert verifier_calls == [(reaction_reference, HEAD_SHA, OUTSIDE_SHA)]
 
 
 def test_authenticated_closeout_revalidates_operator_outage_override(

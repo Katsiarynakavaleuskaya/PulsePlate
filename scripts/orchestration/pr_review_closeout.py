@@ -940,6 +940,10 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
             pr_number=pr_number,
             token=token,
             expected_commit_ref=material_head.sha,
+            # The live head may be the canonical mapping-only closeout commit.
+            # The material-digest equality above proves that no material path
+            # changed after the sealed head.
+            expected_live_pr_head_ref=snapshot.head_sha,
         )
         if (
             code_review["review_commit_ref_kind"] != "repository_commit"
