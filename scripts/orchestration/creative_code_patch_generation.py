@@ -958,10 +958,16 @@ def _read_admission_context(
 def _read_hints(path: Path | None) -> tuple[str | None, str | None]:
     if path is None:
         return None, None
+    resolved = admission_cli._resolve_repo_json_file(path, label="coordinator hints")
     hints = validate_coordinator_advisory_hints(
-        _read_json_object(path, label="coordinator advisory hints")
+        _read_pinned_json_object(
+            resolved,
+            trusted_root=REPO_ROOT,
+            label="coordinator advisory hints",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
     )
-    hints_ref = _repo_ref(admission_cli._resolve_repo_json_file(path, label="coordinator hints"))
+    hints_ref = _repo_ref(resolved)
     return hints_ref, fingerprint_payload(hints)
 
 

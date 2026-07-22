@@ -207,9 +207,9 @@ def _prepare_generated_dispatch_handoff(
     _mock_successful_builder_edges(monkeypatch)
 
     def raise_capability_signal(_packet: dict[str, Any], _patch_file: Path) -> dict[str, Any]:
-        from scripts.orchestration.experiment_runner import RunnerCapabilitySignal
-
-        raise RunnerCapabilitySignal
+        raise creative_code_patch_builder.CreativeCodePatchBuilderError(
+            creative_code_patch_builder.RUNNER_CAPABILITY_ERROR
+        )
 
     monkeypatch.setattr(
         creative_code_patch_builder,
@@ -1984,6 +1984,24 @@ def test_pinned_dispatch_read_rejects_oversized_result(
         match="trusted dispatch result exceeds the maximum size",
     ):
         generation_cli._read_pinned_dispatch_json_object(result_path.resolve(strict=True))
+
+
+def test_read_hints_rejects_oversized_advisory_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    hints_path = repo / "artifacts" / "orchestration" / "creative_code" / "hints.json"
+    hints_path.parent.mkdir(parents=True)
+    hints_path.write_bytes(b" " * (generation_cli.GENERATED_SIDECAR_JSON_MAX_BYTES + 1))
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="coordinator advisory hints exceeds the maximum size",
+    ):
+        generation_cli._read_hints(hints_path)
 
 
 def test_pinned_run_read_rejects_symlinked_partial_result(

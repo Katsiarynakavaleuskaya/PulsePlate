@@ -7,7 +7,6 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
 from typing import Any
 
 import pytest
@@ -1730,8 +1729,8 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
 
     monkeypatch.setattr(
         creative_code_patch_builder,
-        "evaluate_candidate",
-        raise_capability_signal,
+        "_import_runner_api",
+        lambda: (experiment_runner.RunnerCapabilitySignal, raise_capability_signal),
     )
 
     with pytest.raises(
@@ -1767,7 +1766,15 @@ def test_evaluate_import_failure_preserves_dispatch_handoff(
     _patch_modules_to_repo(monkeypatch, repo)
     run_id = "eval-runner-import-unavailable"
     run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
-    monkeypatch.setitem(sys.modules, "scripts.orchestration.experiment_runner", None)
+
+    def fail_runner_import() -> tuple[Any, Any]:
+        raise ImportError
+
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "_import_runner_api",
+        fail_runner_import,
+    )
 
     with pytest.raises(
         CreativeCodePatchBuilderError,

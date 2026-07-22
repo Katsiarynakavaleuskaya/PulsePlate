@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from contextlib import contextmanager
+from importlib import import_module
 import os
 from pathlib import Path
 import sys
@@ -74,12 +75,25 @@ class CreativeCodePatchBuilderError(ValueError):
 RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
 
 
+def _import_runner_api() -> tuple[Any, Any]:
+    """Load the heavyweight runner API only after the dispatch packet exists."""
+
+    runner_module = import_module("scripts.orchestration.experiment_runner")
+    return runner_module.RunnerCapabilitySignal, runner_module.evaluate_candidate
+
+
 def evaluate_candidate(packet: dict[str, Any], patch_file: Path) -> dict[str, Any]:
     """Evaluate through the runner without importing its application stack at CLI startup."""
 
-    from scripts.orchestration.experiment_runner import evaluate_candidate as runner_evaluate
+    try:
+        runner_capability_signal, runner_evaluate = _import_runner_api()
+    except ImportError:
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
 
-    result: object = runner_evaluate(packet, patch_file)
+    try:
+        result: object = runner_evaluate(packet, patch_file)
+    except runner_capability_signal:
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
     if not _is_string_keyed_dict(result):
         raise CreativeCodePatchBuilderError(
             "Experiment Runner result must be a string-keyed object."
@@ -663,15 +677,11 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
         patch_fingerprint=patch_fingerprint,
     )
     write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)
-    try:
-        from scripts.orchestration.experiment_runner import RunnerCapabilitySignal
-    except ImportError:
-        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
     failure_class: str | None = None
     try:
         runner_result = evaluate_candidate(packet, patch_file)
-    except RunnerCapabilitySignal:
-        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
+    except CreativeCodePatchBuilderError:
+        raise
     except Exception as exc:
         failure_class = "infra_flake"
         runner_error = exc.__class__.__name__
