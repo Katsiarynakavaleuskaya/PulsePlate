@@ -11104,6 +11104,32 @@ def test_legacy_growth_guard_preserves_unbound_dict_iterator_values(loop: str) -
     ]
 
 
+@pytest.mark.parametrize(
+    "alias, loop",
+    [
+        (
+            "values",
+            "for route in iterator():\n" '    route("/api/v1/bound-iterator-route")(handler)',
+        ),
+        (
+            "items",
+            "for _name, route in iterator():\n"
+            '    route("/api/v1/bound-iterator-route")(handler)',
+        ),
+    ],
+)
+def test_legacy_growth_guard_preserves_bound_dict_iterator_aliases(
+    alias: str,
+    loop: str,
+) -> None:
+    source = 'routes = {"route": app.get}\n' f"iterator = routes.{alias}\n" f"{loop}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/bound-iterator-route"
+    ]
+
+
 def test_legacy_growth_guard_preserves_dict_fromkeys_registrar_mapping() -> None:
     source = textwrap.dedent("""
         routes = dict.fromkeys(["route"], app.get)
@@ -11356,6 +11382,20 @@ def test_legacy_growth_guard_uses_mapping_state_after_default_clear() -> None:
             return safe
 
         route = routes.get("route", clear())
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_empty_mapping_alias_after_clear() -> None:
+    source = textwrap.dedent("""
+        def safe_register(*args, **kwargs):
+            return None
+
+        routes = {"route": app.get}
+        routes.clear()
+        route = routes.get("route", safe_register)
         route("/api/v1/not-a-route")(handler)
         """)
 

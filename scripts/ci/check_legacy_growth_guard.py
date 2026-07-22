@@ -5063,7 +5063,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         mapping = self._resolve_mapping(value)
         if (
             isinstance(value, ast.Attribute)
-            and value.attr in {"__getitem__", "get", "pop", "setdefault"}
+            and value.attr in {"__getitem__", "get", "items", "pop", "setdefault", "values"}
             and (owner_mapping := self._resolve_mapping(value.value)) is not None
         ):
             resolved_reference = f"builtins.dict.{value.attr}"
@@ -8093,6 +8093,20 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if unbound_iterator_method is not None
             else None
         )
+        bound_iterator_method = (
+            wrapper_reference.removeprefix("builtins.dict.")
+            if (
+                wrapper_reference in {"builtins.dict.items", "builtins.dict.values"}
+                and not positional_arguments
+                and not unresolved_positional_sources
+                and not node.keywords
+                and self._resolve_mapping(node.func) is not None
+            )
+            else None
+        )
+        bound_iterator_receiver = (
+            self._capture_mapping_receiver(node.func) if bound_iterator_method is not None else None
+        )
         bound_mapping_copy = (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "copy"
@@ -8242,6 +8256,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         ):
             iterator_element = unbound_iterator_receiver.possible_value
             if unbound_iterator_method == "items":
+                iterator_element = _ResolvedBinding(
+                    reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
+                    string=None,
+                    iterable_element=iterator_element,
+                )
+            projected_result = self._variadic_iterable_binding([iterator_element])
+        if (
+            projected_result is None
+            and bound_iterator_receiver is not None
+            and bound_iterator_receiver.possible_value is not None
+        ):
+            iterator_element = bound_iterator_receiver.possible_value
+            if bound_iterator_method == "items":
                 iterator_element = _ResolvedBinding(
                     reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
                     string=None,
@@ -8635,6 +8662,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         for mapping in set(escaped_mappings):
             if mapping in rewritten_mappings:
                 continue
+            if mapping in known_empty_mappings:
+                empty_site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
+                replacement = self._variadic_mapping_binding(
+                    [],
+                    mapping_entries=(),
+                    mapping_site=empty_site,
+                )
+                self._replace_mapping_aliases(mapping, replacement)
             self._invalidate_mapping(
                 mapping,
                 known_empty=mapping in known_empty_mappings,
