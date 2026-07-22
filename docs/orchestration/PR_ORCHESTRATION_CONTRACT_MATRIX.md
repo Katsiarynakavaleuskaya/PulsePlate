@@ -145,6 +145,10 @@ governance PR number + 1; the governance PR may opt in with
   not Connector-owned reviewed-commit provenance. Authenticated
   validation after the one canonical mapping-only closeout commit may accept the
   descendant live head only after material-digest equality is re-established.
+  When that automatic mapping-only cycle replaces the sealed reaction, the
+  validator may accept only a newer live positive reaction from the same trusted
+  Connector with the same content; the sealed receipt remains unchanged and the
+  completed security scan is not restarted.
   The receipt uses `binding_kind=seal_context_only`, `review_claim=none`, and
   `blocking=false`. This is a verified positive Connector response, not exact-head
   review proof, a native GitHub approval, Codex Security evidence, or

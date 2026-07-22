@@ -1233,8 +1233,10 @@ def verify_codex_connector_advisory_reaction_reference(
     else:
         raise CommitIdentityError("GitHub PR reaction pagination exceeded page limit")
 
+    if not matches:
+        raise CommitIdentityError("Codex positive reaction is missing")
     if len(matches) != 1:
-        raise CommitIdentityError("Codex positive reaction is missing or ambiguous")
+        raise CommitIdentityError("Codex positive reaction is ambiguous")
     reaction = matches[0]
     user = reaction.get("user")
     user_id = user.get("id") if isinstance(user, dict) else None
@@ -1262,6 +1264,81 @@ def verify_codex_connector_advisory_reaction_reference(
         created_at=created_at,
         content=content,
     )
+
+
+def _latest_codex_connector_positive_reaction(
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    request_json: ApiRequest,
+) -> CodexConnectorAdvisoryReactionEvidence:
+    """Return the latest live trusted positive reaction for mapping-only revalidation."""
+
+    owner, name = _require_repository(repository)
+    candidates: list[tuple[datetime, int, CodexConnectorAdvisoryReactionEvidence]] = []
+    reaction_count = 0
+    for page in range(1, _MAX_PR_REACTION_PAGES + 1):
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}/reactions"
+            f"?per_page=100&page={page}",
+            token=token,
+        )
+        if not isinstance(response, list) or len(response) > 100:
+            raise CommitIdentityError("GitHub PR reactions response is malformed")
+        reaction_count += len(response)
+        if reaction_count > _MAX_PR_REACTIONS:
+            raise CommitIdentityError("GitHub PR reactions exceed safety limit")
+        for reaction in response:
+            if not isinstance(reaction, dict):
+                raise CommitIdentityError("GitHub PR reaction entry is malformed")
+            reaction_id = reaction.get("id")
+            if (
+                not isinstance(reaction_id, int)
+                or isinstance(reaction_id, bool)
+                or reaction_id <= 0
+            ):
+                raise CommitIdentityError("GitHub PR reaction id is malformed")
+            user = reaction.get("user")
+            user_id = user.get("id") if isinstance(user, dict) else None
+            login = user.get("login") if isinstance(user, dict) else None
+            user_type = user.get("type") if isinstance(user, dict) else None
+            content = reaction.get("content")
+            if (
+                user_id != _CODEX_CONNECTOR_USER_ID
+                or login != _CODEX_CONNECTOR_LOGIN
+                or not isinstance(user_type, str)
+                or user_type not in {"Bot", "User"}
+                or not isinstance(content, str)
+                or content not in _CODEX_POSITIVE_REACTION_CONTENTS
+            ):
+                continue
+            created_at = _require_iso8601(
+                reaction.get("created_at"),
+                field="Codex positive reaction created_at",
+            )
+            created = datetime.fromisoformat(
+                created_at[:-1] + "+00:00" if created_at.endswith("Z") else created_at
+            )
+            reference = f"https://github.com/{owner}/{name}/pull/{pr_number}#reaction-{reaction_id}"
+            candidates.append(
+                (
+                    created,
+                    reaction_id,
+                    CodexConnectorAdvisoryReactionEvidence(
+                        reference=reference,
+                        created_at=created_at,
+                        content=str(content),
+                    ),
+                )
+            )
+        if len(response) < 100:
+            break
+    else:
+        raise CommitIdentityError("GitHub PR reaction pagination exceeded page limit")
+    if not candidates:
+        raise CommitIdentityError("Codex positive reaction is missing or ambiguous")
+    return max(candidates, key=lambda item: (item[0], item[1]))[2]
 
 
 def _require_codex_reaction_after_current_head_observation(
@@ -1480,13 +1557,27 @@ def verify_codex_review_reference(
             raise CommitIdentityError(
                 "Codex connector reaction requires an expected full material commit"
             )
-        reaction = verify_codex_connector_advisory_reaction_reference(
-            reference,
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            request_json=request_json,
-        )
+        try:
+            reaction = verify_codex_connector_advisory_reaction_reference(
+                reference,
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                request_json=request_json,
+            )
+        except CommitIdentityError as exc:
+            mapping_only_descendant = (
+                expected_live_pr_head_ref is not None
+                and expected_live_pr_head_ref != expected_commit
+            )
+            if not mapping_only_descendant or str(exc) != "Codex positive reaction is missing":
+                raise
+            reaction = _latest_codex_connector_positive_reaction(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                request_json=request_json,
+            )
         _require_codex_reaction_after_current_head_observation(
             repository=repository,
             pr_number=pr_number,

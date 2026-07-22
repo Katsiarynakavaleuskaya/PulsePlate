@@ -1218,6 +1218,35 @@ def is_review_source_positive_response_receipt(receipt: Any) -> bool:
     )
 
 
+def is_mapping_only_positive_response_successor(
+    receipt: Any,
+    *,
+    response_reference: str,
+    response_created_at: str,
+    response_content: str,
+) -> bool:
+    """Accept a newer live response only after the sealed response was replaced."""
+
+    if not is_review_source_positive_response_receipt(receipt):
+        return False
+    try:
+        sealed_created = _parse_timestamp(
+            receipt.get("response_created_at"),
+            label="code_review.response_created_at",
+        )
+        successor_created = _parse_timestamp(
+            response_created_at,
+            label="successor response_created_at",
+        )
+    except ReviewEvidenceError:
+        return False
+    return (
+        response_reference != receipt.get("response_reference")
+        and response_content == receipt.get("response_content")
+        and successor_created > sealed_created
+    )
+
+
 def is_review_credit_outage_receipt(receipt: Any) -> bool:
     """Return whether code-review evidence uses the credit-outage variant."""
 

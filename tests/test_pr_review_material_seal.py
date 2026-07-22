@@ -873,6 +873,68 @@ def test_codex_positive_reaction_accepts_revalidated_mapping_only_live_head() ->
     assert evidence.content == "+1"
 
 
+def test_codex_positive_reaction_accepts_new_live_successor_after_mapping_only_push() -> None:
+    sealed_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    successor_reference = "https://github.com/owner/repo/pull/42#reaction-789"
+
+    evidence = verify_codex_review_reference(
+        sealed_reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        expected_live_pr_head_ref=OUTSIDE_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(
+                789,
+                created_at="2026-07-15T12:00:00Z",
+            ),
+            pull_head=OUTSIDE_SHA,
+            workflow_runs=_github_actions_workflow_runs(),
+        ),
+    )
+
+    assert evidence == identity_module.CodexConnectorAdvisoryReactionEvidence(
+        reference=successor_reference,
+        created_at="2026-07-15T12:00:00Z",
+        content="+1",
+    )
+
+
+def test_codex_positive_reaction_does_not_rebind_on_material_head() -> None:
+    with pytest.raises(CommitIdentityError, match="missing"):
+        verify_codex_review_reference(
+            "https://github.com/owner/repo/pull/42#reaction-456",
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(789),
+                workflow_runs=_github_actions_workflow_runs(),
+            ),
+        )
+
+
+def test_codex_positive_reaction_successor_rejects_malformed_live_content() -> None:
+    malformed = _codex_positive_reaction(789)
+    malformed["content"] = []
+    with pytest.raises(CommitIdentityError, match="missing or ambiguous"):
+        verify_codex_review_reference(
+            "https://github.com/owner/repo/pull/42#reaction-456",
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            expected_live_pr_head_ref=OUTSIDE_SHA,
+            request_json=_codex_positive_reaction_request(
+                malformed,
+                pull_head=OUTSIDE_SHA,
+                workflow_runs=_github_actions_workflow_runs(),
+            ),
+        )
+
+
 def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
     untrusted_page = [
@@ -1237,7 +1299,7 @@ def test_codex_positive_reaction_requires_exact_pr_reference_and_one_live_id() -
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
     reaction = _codex_positive_reaction()
 
-    with pytest.raises(CommitIdentityError, match="missing or ambiguous"):
+    with pytest.raises(CommitIdentityError, match="ambiguous"):
         verify_codex_connector_advisory_reaction_reference(
             reference,
             repository="owner/repo",
@@ -3228,6 +3290,7 @@ def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
             PrCommitEvidence(OUTSIDE_SHA, "2026-07-15T12:00:00Z"),
         ),
     )
+    successor_reference = "https://github.com/owner/repo/pull/42#reaction-789"
     verifier_calls: list[tuple[str, str | None, str | None]] = []
 
     def verify_reaction(reference: str, **kwargs: Any) -> Any:
@@ -3239,8 +3302,8 @@ def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
             )
         )
         return identity_module.CodexConnectorAdvisoryReactionEvidence(
-            reference=reference,
-            created_at="2026-07-15T11:00:00Z",
+            reference=successor_reference,
+            created_at="2026-07-15T12:00:00Z",
             content=reaction_content,
         )
 

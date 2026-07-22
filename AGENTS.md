@@ -217,7 +217,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    only that GitHub observed the material state before the response; it is not
    Connector-owned proof of a reviewed commit. Authenticated validation after the one
    canonical closeout commit may instead accept that mapping-only descendant as
-   the live head only after the material digest is proven unchanged. The receipt
+   the live head only after the material digest is proven unchanged. If that
+   automatic cycle replaces the sealed reaction, validation may use only a newer
+   live positive reaction from the same trusted Connector with the same content;
+   it does not rewrite the sealed receipt or restart the security scan. The receipt
    uses `binding_kind=seal_context_only`, `review_claim=none`, and `blocking=false`;
    it is a trusted positive Connector response, never an exact-head review claim,
    native GitHub approval, Codex Security result, or review-thread disposition authority.

@@ -52,6 +52,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     compute_material_manifest,
     ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
+    is_mapping_only_positive_response_successor,
     is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
@@ -899,7 +900,16 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
             response_created_at=response_evidence.created_at,
             response_content=response_evidence.content,
         )
-        if code_review != expected_code_review:
+        successor_response = (
+            snapshot.head_sha != material_head.sha
+            and is_mapping_only_positive_response_successor(
+                code_review,
+                response_reference=response_evidence.reference,
+                response_created_at=response_evidence.created_at,
+                response_content=response_evidence.content,
+            )
+        )
+        if code_review != expected_code_review and not successor_response:
             raise CloseoutError("Codex positive response receipt is stale")
     elif is_review_source_unavailability_receipt(code_review):
         unavailable_manifest = compute_material_manifest(

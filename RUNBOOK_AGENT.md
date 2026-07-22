@@ -670,7 +670,10 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    force-push or head-restoration event. That chronology proves freshness only;
    it is not projected into a Connector-owned reviewed commit. After the one canonical mapping-only
    closeout commit, authenticated validation may accept the descendant live head
-   only after material-digest equality is re-established. Its receipt is
+   only after material-digest equality is re-established. If the automatic
+   mapping-only cycle replaces the sealed reaction, revalidation may use only a
+   newer live trusted positive reaction with the same content; keep the sealed
+   receipt unchanged and do not restart the security scan. Its receipt is
    `binding_kind=seal_context_only`, `review_claim=none`, and `blocking=false`.
    It is a trusted positive Connector response, not exact-head review proof, a
    native GitHub approval, Codex Security result, or thread-resolution authority. The optional

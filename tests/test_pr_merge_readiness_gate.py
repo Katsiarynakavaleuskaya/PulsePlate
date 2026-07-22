@@ -894,6 +894,47 @@ def test_ci_gate_accepts_trusted_positive_response_without_review_claim(
             token="opaque",
         )
 
+    mapping_path = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    mapping_path.parent.mkdir(parents=True)
+    mapping_path.write_text("mapping-only\n", encoding="utf-8")
+    mapping_head = _commit(repo, "mapping-only")
+    mapping_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=mapping_head,
+        commits=(*snapshot.commits, PrCommitEvidence(mapping_head, None)),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_COMMIT if value == material_head else CommitRefKind.PR_HEAD,
+        ),
+    )
+
+    def verify_successor(*_args: Any, **kwargs: Any) -> CodexConnectorAdvisoryReactionEvidence:
+        verifier_calls.append(
+            (kwargs.get("expected_commit_ref"), kwargs.get("expected_live_pr_head_ref"))
+        )
+        return CodexConnectorAdvisoryReactionEvidence(
+            reference="https://github.com/owner/repo/pull/42#reaction-789",
+            created_at="2026-07-15T12:00:00Z",
+            content=reaction_content,
+        )
+
+    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_successor)
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=artifact,
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=mapping_snapshot,
+        token="opaque",
+    )
+    assert validated["code_review"]["response_reference"] == reaction_reference
+    assert verifier_calls[-1] == (material_head, mapping_head)
+
     (repo / "README.md").write_text("later material\n", encoding="utf-8")
     changed_head = _commit(repo, "later material")
     changed_manifest = compute_material_manifest(
@@ -913,7 +954,7 @@ def test_ci_gate_accepts_trusted_positive_response_without_review_claim(
         pr_number=42,
         base_sha=base_sha,
         head_sha=changed_head,
-        commits=(*snapshot.commits, PrCommitEvidence(changed_head, None)),
+        commits=(*mapping_snapshot.commits, PrCommitEvidence(changed_head, None)),
     )
     with pytest.raises(
         ReviewEvidenceError,
