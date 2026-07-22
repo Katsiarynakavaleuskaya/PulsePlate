@@ -3610,13 +3610,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if not (
             isinstance(generator.target, (ast.Tuple, ast.List))
             and len(generator.target.elts) == 2
-            and all(isinstance(target, ast.Name) for target in generator.target.elts)
             and isinstance(node.key, ast.Name)
             and isinstance(node.value, ast.Name)
-            and node.key.id == generator.target.elts[0].id
-            and node.value.id == generator.target.elts[1].id
             and isinstance(generator.iter, (ast.List, ast.Tuple, ast.Set))
             and not any(isinstance(item, ast.Starred) for item in generator.iter.elts)
+        ):
+            return None
+        key_target, value_target = generator.target.elts
+        if not (
+            isinstance(key_target, ast.Name)
+            and isinstance(value_target, ast.Name)
+            and node.key.id == key_target.id
+            and node.value.id == value_target.id
         ):
             return None
 
