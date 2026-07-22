@@ -69,6 +69,10 @@ class _InvalidPlateCalculationOutputError(RuntimeError):
     """A BMR/TDEE dependency returned malformed calculation output."""
 
 
+class _NonPositivePlateCalculationOutputError(_InvalidPlateCalculationOutputError):
+    """A BMR/TDEE dependency returned a finite non-positive value."""
+
+
 def _validate_calculation_mapping(value: Any, *, required_key: str | None = None) -> None:
     """Require a non-empty finite numeric calculation mapping."""
 
@@ -95,9 +99,13 @@ def _validate_calculation_mapping(value: Any, *, required_key: str | None = None
             raise _InvalidPlateCalculationOutputError(
                 "Plate calculation dependency returned malformed output"
             ) from None
-        if not math.isfinite(numeric_value) or numeric_value <= 0:
+        if not math.isfinite(numeric_value):
             raise _InvalidPlateCalculationOutputError(
-                "Plate calculation dependency returned non-positive or non-finite output"
+                "Plate calculation dependency returned non-finite output"
+            )
+        if numeric_value <= 0:
+            raise _NonPositivePlateCalculationOutputError(
+                "Plate calculation dependency returned non-positive output"
             )
 
 
@@ -135,15 +143,9 @@ def _ensure_finite_numeric_value(value: Any) -> None:
             "Plate dependency returned unsafe numeric output"
         )
     if isinstance(value, str):
-        try:
-            numeric_value = float(value)
-        except (TypeError, ValueError, OverflowError):
-            return
-        if not math.isfinite(numeric_value):
-            raise _NonFinitePlateDependencyOutputError(
-                "Plate dependency returned non-finite numeric output"
-            )
-        return
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned unsafe numeric output"
+        )
     _ensure_finite_dependency_output(value)
 
 
@@ -931,7 +933,16 @@ async def generate_plate_response(
             req.sex,
             req.bodyfat,
         )
-        _validate_calculation_mapping(bmr_results)
+        try:
+            _validate_calculation_mapping(bmr_results)
+        except _NonPositivePlateCalculationOutputError:
+            if deps.calculate_all_bmr is nutrition_bmr.calculate_all_bmr:
+                logger.warning("Rejected Plate input producing non-positive canonical BMR")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=INVALID_PREMIUM_PLATE_INPUT_DETAIL,
+                ) from None
+            raise
         tdee_results = deps.calculate_all_tdee(bmr_results, req.activity)
         _validate_calculation_mapping(tdee_results, required_key="mifflin")
         tdee_value = float(tdee_results["mifflin"])

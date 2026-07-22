@@ -6,20 +6,21 @@ import asyncio
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 
 import core.bmr as nutrition_bmr
+from app.http_error_details import ENHANCED_PLATE_GENERATION_FAILED_DETAIL
 from app.schemas.premium_contracts import PlateRequest
 from app.services.pro_nutrition_plate import (
     PlateServiceDependencies,
     generate_plate_response,
 )
-from core.targets import FIBER_MIN_G
 
 
-def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
+def test_api_premium_plate_rejects_invalid_raw_fiber(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Invalid generated fiber uses the same minimum and preserves source kcal."""
+    """Invalid raw generated fiber fails closed before response coercion."""
 
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
@@ -71,7 +72,9 @@ def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
         goal="loss",
     )
 
-    response = asyncio.run(generate_plate_response(request, dependencies=dependencies))
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(request, dependencies=dependencies))
 
-    assert response.macros["fiber_g"] == int(FIBER_MIN_G)
-    assert response.kcal == 2100
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert "not-a-number" not in str(exc_info.value.detail)

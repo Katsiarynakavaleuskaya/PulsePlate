@@ -756,6 +756,37 @@ def test_generate_plate_response_rejects_invalid_calculation_dependency_output(
     assert "mifflin" not in str(exc_info.value.detail).casefold()
 
 
+def test_generate_plate_response_rejects_non_positive_canonical_bmr_as_client_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Schema-valid inputs outside the canonical BMR domain return a safe 400."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    make_plate_calls: list[dict[str, object]] = []
+
+    def _make_plate(**kwargs: object) -> dict[str, Any]:
+        make_plate_calls.append(kwargs)
+        return _valid_generated_plate()
+
+    request_payload = _request().model_dump()
+    request_payload.update({"age": 100, "height_cm": 1.0, "weight_kg": 1.0})
+    request = PlateRequest.model_validate(request_payload)
+    dependencies = PlateServiceDependencies(
+        make_plate=_make_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(request, dependencies=dependencies))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == INVALID_PREMIUM_PLATE_INPUT_DETAIL
+    assert make_plate_calls == []
+
+
 @pytest.mark.parametrize(
     "non_finite_value",
     [
@@ -1022,8 +1053,9 @@ def test_generate_plate_response_rejects_boolean_response_bound_output(
 
 @pytest.mark.parametrize("response_field", ["portions", "layout"])
 @pytest.mark.parametrize(
-    "non_finite_token",
+    "numeric_token",
     [
+        pytest.param("2.0", id="finite"),
         pytest.param("NaN", id="nan"),
         pytest.param("Infinity", id="infinity"),
         pytest.param("-Infinity", id="negative-infinity"),
@@ -1032,21 +1064,21 @@ def test_generate_plate_response_rejects_boolean_response_bound_output(
         pytest.param("1e309", id="exponent-overflow"),
     ],
 )
-def test_generate_plate_response_rejects_non_finite_string_response_bound_output(
+def test_generate_plate_response_rejects_numeric_string_response_bound_output(
     monkeypatch: pytest.MonkeyPatch,
     response_field: str,
-    non_finite_token: str,
+    numeric_token: str,
 ) -> None:
-    """Non-finite numeric strings fail closed before response coercion."""
+    """Numeric strings fail closed before response coercion."""
 
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
     def _non_finite_plate(**_kwargs: object) -> dict[str, Any]:
         payload = _valid_generated_plate()
         if response_field == "portions":
-            payload["portions"]["protein_palm"] = non_finite_token
+            payload["portions"]["protein_palm"] = numeric_token
         else:
-            payload["layout"][0]["fraction"] = non_finite_token
+            payload["layout"][0]["fraction"] = numeric_token
         return payload
 
     dependencies = PlateServiceDependencies(
@@ -1070,7 +1102,7 @@ def test_generate_plate_response_rejects_non_finite_string_response_bound_output
     detail = str(exc_info.value.detail).casefold()
     assert "nan" not in detail
     assert "infinity" not in detail
-    assert non_finite_token.strip().casefold() not in detail
+    assert numeric_token.strip().casefold() not in detail
 
 
 def test_generate_plate_response_allows_exact_numeric_tokens_in_text_fields(
@@ -1221,7 +1253,8 @@ def test_numeric_dependency_helpers_reject_conversion_and_shape_failures() -> No
     pro_nutrition_plate._ensure_finite_dependency_output("display text")
     with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
         pro_nutrition_plate._ensure_finite_dependency_output(_ExplodingNumber())
-    pro_nutrition_plate._ensure_finite_numeric_value("12.5")
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._ensure_finite_numeric_value("12.5")
     pro_nutrition_plate._ensure_finite_plate_response_output("not a mapping")
     pro_nutrition_plate._ensure_finite_plate_response_output({"meals": ["not a meal mapping"]})
 
@@ -1431,10 +1464,10 @@ def test_missing_nh3_detection_handles_import_error_variants(error: Exception) -
     assert pro_nutrition_plate._is_missing_nh3_error(error) is True
 
 
-def test_generate_plate_response_recovers_from_invalid_response_numbers(
+def test_generate_plate_response_handles_invalid_response_numbers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Invalid response-bound kcal and fiber use their documented safe values."""
+    """Raw numeric strings fail closed while aligned invalid fiber stays bounded."""
 
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
@@ -1450,13 +1483,11 @@ def test_generate_plate_response_recovers_from_invalid_response_numbers(
         build_nutrition_targets=None,
         aggregate_day_micronutrients=_empty_micros,
     )
-    monkeypatch.setattr(
-        pro_nutrition_plate,
-        "sanitize_plate_data",
-        lambda data: data,
-    )
-    kcal_response = asyncio.run(generate_plate_response(_request(), dependencies=kcal_dependencies))
-    assert kcal_response.kcal >= 1200
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=kcal_dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
 
     monkeypatch.setattr(
         pro_nutrition_plate,
