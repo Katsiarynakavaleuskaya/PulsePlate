@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 import pytest
@@ -1753,6 +1754,34 @@ def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
     )
     assert canary not in captured.err
     assert "Traceback" not in captured.err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
+
+
+def test_evaluate_import_failure_preserves_dispatch_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-runner-import-unavailable"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    monkeypatch.setitem(sys.modules, "scripts.orchestration.experiment_runner", None)
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
+    ) as exc_info:
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert exc_info.value.__cause__ is None
+    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    metadata = json.loads(
+        (run_dir / creative_code_patch_builder.PATCH_METADATA_FILE).read_text(encoding="utf-8")
+    )
+    assert packet["candidate_patch_fingerprint"] == metadata["patch_fingerprint"]
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
     assert state.get("candidate_patch_evaluated") is not True

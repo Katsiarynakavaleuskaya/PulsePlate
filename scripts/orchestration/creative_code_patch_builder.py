@@ -633,8 +633,6 @@ def _verified_patch_metadata(
 def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
 
-    from scripts.orchestration.experiment_runner import RunnerCapabilitySignal
-
     run_dir, state, request, bundle = _load_run_state(run_id)
     if state.get("candidate_patch_evaluated") is True:
         raise CreativeCodePatchBuilderError("candidate patch is already evaluated.")
@@ -665,6 +663,10 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
         patch_fingerprint=patch_fingerprint,
     )
     write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)
+    try:
+        from scripts.orchestration.experiment_runner import RunnerCapabilitySignal
+    except ImportError:
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
     failure_class: str | None = None
     try:
         runner_result = evaluate_candidate(packet, patch_file)

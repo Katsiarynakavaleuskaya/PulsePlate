@@ -1361,6 +1361,65 @@ def test_finalize_dispatched_result_rejects_oversized_generated_sidecar(
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
+@pytest.mark.parametrize(
+    ("source_name", "label"),
+    [
+        ("admission", "creative spec patch admission"),
+        ("request", "patch request"),
+        ("bundle", "source bundle"),
+        ("finalize_receipt", "finalize receipt"),
+        ("human_admission", "human admission"),
+    ],
+)
+def test_finalize_dispatched_result_bounds_admission_source_reads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    source_name: str,
+    label: str,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = f"dispatch-finalize-bounded-{source_name}"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    admission_path = repo / gate["admission_ref"]
+    admission = json.loads(admission_path.read_text(encoding="utf-8"))
+    source_paths = {
+        "admission": admission_path,
+        "request": repo / admission["patch_request"]["request_ref"],
+        "bundle": repo / admission["patch_request"]["source_bundle_ref"],
+        "finalize_receipt": repo / admission["source"]["finalize_receipt_ref"],
+        "human_admission": repo / admission["human_admission"]["human_admission_ref"],
+    }
+    source_paths[source_name].write_bytes(
+        b"x" * (generation_cli.GENERATED_SIDECAR_JSON_MAX_BYTES + 1)
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert f"{label} exceeds the maximum size" in capsys.readouterr().err
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 def test_finalize_dispatched_result_bounds_receipt_source_reread(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

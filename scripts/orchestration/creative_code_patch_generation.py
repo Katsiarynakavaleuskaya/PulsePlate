@@ -903,8 +903,52 @@ def _require_no_preexisting_candidate_artifacts(run_dir: Path) -> None:
 def _read_admission_context(
     admission_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    admission, request, bundle, _finalize_receipt, _human_admission = (
-        admission_cli._read_admission_with_sources(admission_path)
+    def read_source(path: Path, *, label: str) -> dict[str, Any]:
+        resolved = admission_cli._resolve_repo_json_file(path, label=label)
+        return _read_pinned_json_object(
+            resolved,
+            trusted_root=REPO_ROOT,
+            label=label,
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
+
+    admission = admission_cli.validate_creative_spec_patch_admission(
+        read_source(admission_path, label="creative spec patch admission")
+    )
+    request = read_source(
+        admission_cli._resolve_ref(
+            admission["patch_request"]["request_ref"],
+            label="patch request",
+        ),
+        label="patch request",
+    )
+    bundle = read_source(
+        admission_cli._resolve_ref(
+            admission["patch_request"]["source_bundle_ref"],
+            label="source bundle",
+        ),
+        label="source bundle",
+    )
+    finalize_receipt = read_source(
+        admission_cli._resolve_ref(
+            admission["source"]["finalize_receipt_ref"],
+            label="finalize receipt",
+        ),
+        label="finalize receipt",
+    )
+    human_admission = read_source(
+        admission_cli._resolve_ref(
+            admission["human_admission"]["human_admission_ref"],
+            label="human admission",
+        ),
+        label="human admission",
+    )
+    admission_cli.validate_admission_bindings(
+        admission,
+        request=request,
+        source_bundle=bundle,
+        finalize_receipt=finalize_receipt,
+        human_admission=human_admission,
     )
     normalized_request = validate_creative_code_patch_build_request(request, source_bundle=bundle)
     normalized_bundle = validate_creative_code_specification_bundle(bundle)
