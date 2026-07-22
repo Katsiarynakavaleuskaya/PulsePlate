@@ -539,6 +539,17 @@ def _build_user_profile(req: PlateRequest) -> nutrition_targets.UserProfile:
     )
 
 
+def _validate_plate_target_macro(macro_name: str, target_value: object) -> int:
+    """Return a canonical Plate macro only when its type and range are valid."""
+
+    if isinstance(target_value, bool) or not isinstance(target_value, int):
+        raise TypeError("target macro must be an integer")
+    minimum, maximum = PLATE_MACRO_RANGES[macro_name]
+    if not minimum <= target_value <= maximum:
+        raise ValueError("target macro outside canonical Plate range")
+    return target_value
+
+
 def build_fallback_plate(
     req: PlateRequest,
     _legacy_candidates: list[Any] | None = None,
@@ -578,14 +589,26 @@ def build_fallback_plate(
             target_macros = targets.macros
             try:
                 resolved_target_kcal = int(targets.kcal_daily)
-                resolved_protein_g = int(target_macros.protein_g)
-                resolved_fat_g = int(target_macros.fat_g)
-                resolved_carbs_g = int(target_macros.carbs_g)
+                resolved_protein_g = _validate_plate_target_macro(
+                    "protein_g",
+                    target_macros.protein_g,
+                )
+                resolved_fat_g = _validate_plate_target_macro(
+                    "fat_g",
+                    target_macros.fat_g,
+                )
+                resolved_carbs_g = _validate_plate_target_macro(
+                    "carbs_g",
+                    target_macros.carbs_g,
+                )
             except (TypeError, ValueError, OverflowError):
                 logger.warning("Invalid fallback target kcal or macros; using bounded heuristic")
                 raise ValueError("invalid fallback target kcal or macros") from None
             try:
-                resolved_fiber_g = int(target_macros.fiber_g)
+                resolved_fiber_g = _validate_plate_target_macro(
+                    "fiber_g",
+                    target_macros.fiber_g,
+                )
             except (TypeError, ValueError, OverflowError):
                 logger.warning("Invalid fallback target fiber; using canonical minimum")
                 resolved_fiber_g = int(round(FIBER_MIN_G))
@@ -760,12 +783,7 @@ def align_macros_with_targets(
         if macro_name == "fiber_g" and macros_aligned.get("fiber_g") == int(round(FIBER_MIN_G)):
             continue
         try:
-            if isinstance(target_value, bool) or not isinstance(target_value, int):
-                raise TypeError("target macro must be an integer")
-            normalized_target = target_value
-            minimum, maximum = PLATE_MACRO_RANGES[macro_name]
-            if not minimum <= normalized_target <= maximum:
-                raise ValueError("target macro outside canonical Plate range")
+            normalized_target = _validate_plate_target_macro(macro_name, target_value)
         except (TypeError, ValueError, OverflowError):
             logger.warning(
                 "Canonical WHO target %s was invalid; preserving generated value",

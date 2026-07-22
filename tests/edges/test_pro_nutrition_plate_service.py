@@ -333,8 +333,17 @@ def test_plate_alignment_preserves_generated_macro_when_target_is_invalid(
     [
         pytest.param("kcal_daily", float("inf"), id="kcal-infinity"),
         pytest.param("protein_g", None, id="protein-none"),
+        pytest.param("protein_g", -1, id="protein-below-minimum"),
+        pytest.param("protein_g", 501, id="protein-above-maximum"),
+        pytest.param("protein_g", True, id="protein-boolean"),
         pytest.param("fat_g", "invalid", id="fat-string"),
+        pytest.param("fat_g", -1, id="fat-below-minimum"),
+        pytest.param("fat_g", 301, id="fat-above-maximum"),
+        pytest.param("fat_g", True, id="fat-boolean"),
         pytest.param("carbs_g", float("nan"), id="carbs-nan"),
+        pytest.param("carbs_g", -1, id="carbs-below-minimum"),
+        pytest.param("carbs_g", 1001, id="carbs-above-maximum"),
+        pytest.param("carbs_g", True, id="carbs-boolean"),
     ],
 )
 def test_fallback_uses_bounded_heuristic_for_invalid_target_values(
@@ -372,10 +381,58 @@ def test_fallback_uses_bounded_heuristic_for_invalid_target_values(
         targets_builder=lambda _profile: target,
     )
 
-    assert 1200 <= response.kcal <= 5000
-    assert response.macros["protein_g"] > 0
-    assert response.macros["fat_g"] > 0
-    assert response.macros["carbs_g"] >= 0
+    assert response.kcal == 1980
+    assert response.macros == {
+        "protein_g": 96,
+        "fat_g": 54,
+        "carbs_g": 278,
+        "fiber_g": 25,
+    }
+
+
+@pytest.mark.parametrize(
+    "invalid_fiber",
+    [
+        pytest.param(-1, id="below-minimum"),
+        pytest.param(101, id="above-maximum"),
+        pytest.param(True, id="boolean"),
+        pytest.param("30", id="numeric-string"),
+    ],
+)
+def test_fallback_replaces_invalid_target_fiber_with_canonical_minimum(
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_fiber: object,
+) -> None:
+    """Invalid target fiber cannot escape into the fallback response."""
+
+    target = SimpleNamespace(
+        kcal_daily=2100,
+        macros=SimpleNamespace(
+            protein_g=120,
+            fat_g=70,
+            carbs_g=250,
+            fiber_g=invalid_fiber,
+        ),
+        validate_consistency=lambda: True,
+    )
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "validate_targets_safety_warnings",
+        lambda _targets: None,
+    )
+
+    response = pro_nutrition_plate.build_fallback_plate(
+        _request(),
+        targets_builder=lambda _profile: target,
+    )
+
+    assert response.kcal == 2100
+    assert response.macros == {
+        "protein_g": 120,
+        "fat_g": 70,
+        "carbs_g": 250,
+        "fiber_g": 25,
+    }
 
 
 @pytest.mark.parametrize("use_legacy_delegate", [False, True], ids=["canonical", "legacy"])
