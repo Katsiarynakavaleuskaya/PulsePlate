@@ -767,34 +767,36 @@ def _codex_positive_reaction(
 def _codex_positive_reaction_request(
     reaction: dict[str, Any] | list[dict[str, Any]],
     *,
-    reviews: list[dict[str, Any]] | None = None,
+    pull_head: str = HEAD_SHA,
+    check_suites: dict[str, Any] | None = None,
 ) -> Any:
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return reaction if isinstance(reaction, list) else [reaction]
-        if "/reviews?" in url and reviews is not None:
-            return reviews
+        if url.endswith("/pulls/42"):
+            return {"head": {"sha": pull_head}}
+        if "/check-suites?" in url and check_suites is not None:
+            return check_suites
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     return request_json
 
 
-def _codex_exact_head_review(
+def _github_actions_check_suites(
     *,
-    commit_id: str = HEAD_SHA,
-    submitted_at: str = "2026-07-15T10:59:59Z",
-    user_id: int = 199_175_422,
-    login: str = "chatgpt-codex-connector[bot]",
-    user_type: str = "Bot",
-    state: str = "COMMENTED",
-    html_url: str = "https://github.com/owner/repo/pull/42#pullrequestreview-123",
+    head_sha: str = HEAD_SHA,
+    created_at: str = "2026-07-15T10:59:59Z",
+    app_slug: str = "github-actions",
 ) -> dict[str, Any]:
     return {
-        "commit_id": commit_id,
-        "html_url": html_url,
-        "state": state,
-        "submitted_at": submitted_at,
-        "user": {"id": user_id, "login": login, "type": user_type},
+        "total_count": 1,
+        "check_suites": [
+            {
+                "app": {"slug": app_slug},
+                "created_at": created_at,
+                "head_sha": head_sha,
+            }
+        ],
     }
 
 
@@ -807,7 +809,7 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     requested_urls: list[str] = []
     request = _codex_positive_reaction_request(
         reaction,
-        reviews=[_codex_exact_head_review()],
+        check_suites=_github_actions_check_suites(),
     )
 
     def request_json(url: str, **_kwargs: Any) -> Any:
@@ -830,41 +832,34 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
     )
     assert requested_urls == [
         "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
-        "https://api.github.com/repos/owner/repo/pulls/42/reviews?per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/pulls/42",
+        f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA}/check-suites"
+        "?per_page=100&page=1",
     ]
 
 
-def test_codex_positive_reaction_accepts_approved_exact_head_review() -> None:
+def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
-
-    evidence = verify_codex_review_reference(
-        reference,
-        repository="owner/repo",
-        pr_number=42,
-        token="opaque",
-        expected_commit_ref=HEAD_SHA,
-        request_json=_codex_positive_reaction_request(
-            _codex_positive_reaction(),
-            reviews=[_codex_exact_head_review(state="APPROVED")],
-        ),
-    )
-
-    assert evidence.commit_ref == HEAD_SHA
-
-
-def test_codex_positive_reaction_accepts_exact_head_review_on_second_page() -> None:
-    reference = "https://github.com/owner/repo/pull/42#reaction-456"
-    untrusted_page = [_codex_exact_head_review(user_id=1) for _ in range(100)]
+    untrusted_page = [
+        {
+            "app": {"slug": "untrusted-app"},
+            "created_at": "2026-07-15T10:59:59Z",
+            "head_sha": HEAD_SHA,
+        }
+        for _ in range(100)
+    ]
     requested_urls: list[str] = []
 
     def request_json(url: str, **_kwargs: Any) -> Any:
         requested_urls.append(url)
         if "/reactions?" in url:
             return [_codex_positive_reaction()]
-        if "/reviews?" in url and url.endswith("&page=1"):
-            return untrusted_page
-        if "/reviews?" in url and url.endswith("&page=2"):
-            return [_codex_exact_head_review()]
+        if url.endswith("/pulls/42"):
+            return {"head": {"sha": HEAD_SHA}}
+        if "/check-suites?" in url and url.endswith("&page=1"):
+            return {"total_count": 101, "check_suites": untrusted_page}
+        if "/check-suites?" in url and url.endswith("&page=2"):
+            return _github_actions_check_suites()
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     evidence = verify_codex_review_reference(
@@ -877,20 +872,35 @@ def test_codex_positive_reaction_accepts_exact_head_review_on_second_page() -> N
     )
 
     assert evidence.commit_ref == HEAD_SHA
-    assert requested_urls[-1].endswith("/reviews?per_page=100&page=2")
+    assert requested_urls[-1].endswith("/check-suites?per_page=100&page=2")
 
 
 @pytest.mark.parametrize(
-    ("reviews", "error"),
+    ("pull_response", "check_response", "error"),
     [
-        ({"unexpected": "object"}, "response is malformed"),
-        ([None], "entry is malformed"),
-        ([_codex_exact_head_review(commit_id="not-a-sha")], "review commit_id"),
-        ([_codex_exact_head_review(submitted_at="not-a-date")], "review submitted_at"),
+        ([], _github_actions_check_suites(), "PR response is malformed"),
+        ({"head": {"sha": FIX_SHA}}, _github_actions_check_suites(), "current material head"),
+        ({"head": {"sha": HEAD_SHA}}, [], "check-suites response is malformed"),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            {"total_count": 1, "check_suites": [None]},
+            "check-suite entry is malformed",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _github_actions_check_suites(head_sha="not-a-sha"),
+            "check-suite SHA",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _github_actions_check_suites(created_at="not-a-date"),
+            "check-suite created_at",
+        ),
     ],
 )
-def test_codex_positive_reaction_rejects_malformed_review_api_data(
-    reviews: Any,
+def test_codex_positive_reaction_rejects_malformed_head_observation_data(
+    pull_response: Any,
+    check_response: Any,
     error: str,
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
@@ -898,8 +908,10 @@ def test_codex_positive_reaction_rejects_malformed_review_api_data(
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return [_codex_positive_reaction()]
-        if "/reviews?" in url:
-            return reviews
+        if url.endswith("/pulls/42"):
+            return pull_response
+        if "/check-suites?" in url:
+            return check_response
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     with pytest.raises(CommitIdentityError, match=error):
@@ -913,17 +925,29 @@ def test_codex_positive_reaction_rejects_malformed_review_api_data(
         )
 
 
-def test_codex_positive_reaction_fails_closed_at_review_page_limit(
+def test_codex_positive_reaction_fails_closed_at_check_suite_page_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
-    monkeypatch.setattr(identity_module, "_MAX_PR_REVIEW_PAGES", 1)
+    monkeypatch.setattr(identity_module, "_MAX_HEAD_CHECK_SUITE_PAGES", 1)
 
     def request_json(url: str, **_kwargs: Any) -> Any:
         if "/reactions?" in url:
             return [_codex_positive_reaction()]
-        if "/reviews?" in url:
-            return [_codex_exact_head_review(user_id=1) for _ in range(100)]
+        if url.endswith("/pulls/42"):
+            return {"head": {"sha": HEAD_SHA}}
+        if "/check-suites?" in url:
+            return {
+                "total_count": 100,
+                "check_suites": [
+                    {
+                        "app": {"slug": "untrusted-app"},
+                        "created_at": "2026-07-15T10:59:59Z",
+                        "head_sha": HEAD_SHA,
+                    }
+                    for _ in range(100)
+                ],
+            }
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
     with pytest.raises(CommitIdentityError, match="pagination exceeded page limit"):
@@ -938,26 +962,24 @@ def test_codex_positive_reaction_fails_closed_at_review_page_limit(
 
 
 @pytest.mark.parametrize(
-    ("review_overrides",),
+    ("suite_head_sha", "suite_created_at", "suite_app_slug"),
     [
-        ({"commit_id": FIX_SHA},),
-        ({"submitted_at": "2026-07-15T11:00:00Z"},),
-        ({"submitted_at": "2026-07-15T11:00:01Z"},),
-        ({"user_id": 1},),
-        ({"login": "spoofed[bot]"},),
-        ({"user_type": "User"},),
-        ({"state": "DISMISSED"},),
-        ({"html_url": "https://github.com/owner/repo/pull/43#pullrequestreview-123"},),
+        (FIX_SHA, "2026-07-15T10:59:59Z", "github-actions"),
+        (HEAD_SHA, "2026-07-15T11:00:00Z", "github-actions"),
+        (HEAD_SHA, "2026-07-15T11:00:01Z", "github-actions"),
+        (HEAD_SHA, "2026-07-15T10:59:59Z", "untrusted-app"),
     ],
 )
-def test_codex_positive_reaction_rejects_invalid_exact_head_connector_review(
-    review_overrides: dict[str, Any],
+def test_codex_positive_reaction_rejects_invalid_head_observation(
+    suite_head_sha: str,
+    suite_created_at: str,
+    suite_app_slug: str,
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
 
     with pytest.raises(
         CommitIdentityError,
-        match="does not follow a trusted Connector review of the exact material head",
+        match="does not follow a GitHub observation of the exact material head",
     ):
         verify_codex_review_reference(
             reference,
@@ -967,7 +989,11 @@ def test_codex_positive_reaction_rejects_invalid_exact_head_connector_review(
             expected_commit_ref=HEAD_SHA,
             request_json=_codex_positive_reaction_request(
                 _codex_positive_reaction(),
-                reviews=[_codex_exact_head_review(**review_overrides)],
+                check_suites=_github_actions_check_suites(
+                    head_sha=suite_head_sha,
+                    created_at=suite_created_at,
+                    app_slug=suite_app_slug,
+                ),
             ),
         )
 

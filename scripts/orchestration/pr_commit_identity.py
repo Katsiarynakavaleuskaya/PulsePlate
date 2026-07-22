@@ -29,8 +29,8 @@ _MAX_PR_COMMIT_PAGES = 100
 _MAX_PR_COMMITS = 10_000
 _MAX_PR_REACTION_PAGES = 100
 _MAX_PR_REACTIONS = 10_000
-_MAX_PR_REVIEW_PAGES = 100
-_MAX_PR_REVIEWS = 10_000
+_MAX_HEAD_CHECK_SUITE_PAGES = 100
+_MAX_HEAD_CHECK_SUITES = 10_000
 _MAX_REVIEW_THREAD_PAGES = 100
 _MAX_REVIEW_COMMENT_PAGES = 100
 _MAX_REVIEW_THREADS = 10_000
@@ -1258,7 +1258,7 @@ def verify_codex_connector_advisory_reaction_reference(
     )
 
 
-def _require_codex_reaction_after_exact_head_review(
+def _require_codex_reaction_after_current_head_observation(
     *,
     repository: str,
     pr_number: int,
@@ -1267,68 +1267,79 @@ def _require_codex_reaction_after_exact_head_review(
     token: str,
     request_json: ApiRequest,
 ) -> None:
-    """Require a Connector-owned exact-head review before a positive reaction."""
+    """Require a live PR head and server-observed exact head before a reaction."""
 
     owner, name = _require_repository(repository)
+    pull = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}",
+        token=token,
+    )
+    if not isinstance(pull, dict):
+        raise CommitIdentityError("GitHub PR response is malformed")
+    head = pull.get("head")
+    live_head = head.get("sha") if isinstance(head, dict) else None
+    if live_head != expected_commit:
+        raise CommitIdentityError(
+            "Codex connector reaction is not attached to the current material head"
+        )
     reaction_created = datetime.fromisoformat(
         reaction_created_at[:-1] + "+00:00"
         if reaction_created_at.endswith("Z")
         else reaction_created_at
     )
-    review_count = 0
-    review_url_pattern = re.compile(
-        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
-        rf"{pr_number}#pullrequestreview-[1-9]\d*$"
-    )
-    for page in range(1, _MAX_PR_REVIEW_PAGES + 1):
+    check_suite_count = 0
+    for page in range(1, _MAX_HEAD_CHECK_SUITE_PAGES + 1):
         response = request_json(
-            f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews"
+            f"{_API_ROOT}/repos/{owner}/{name}/commits/{expected_commit}/check-suites"
             f"?per_page=100&page={page}",
             token=token,
         )
-        if not isinstance(response, list) or len(response) > 100:
-            raise CommitIdentityError("GitHub PR reviews response is malformed")
-        review_count += len(response)
-        if review_count > _MAX_PR_REVIEWS:
-            raise CommitIdentityError("GitHub PR reviews exceed safety limit")
-        for review in response:
-            if not isinstance(review, dict):
-                raise CommitIdentityError("GitHub PR review entry is malformed")
-            user = review.get("user")
-            user_id = user.get("id") if isinstance(user, dict) else None
-            login = user.get("login") if isinstance(user, dict) else None
-            user_type = user.get("type") if isinstance(user, dict) else None
+        if not isinstance(response, dict):
+            raise CommitIdentityError("GitHub head check-suites response is malformed")
+        total_count = response.get("total_count")
+        check_suites = response.get("check_suites")
+        if (
+            not isinstance(total_count, int)
+            or isinstance(total_count, bool)
+            or total_count < 0
+            or not isinstance(check_suites, list)
+            or len(check_suites) > 100
+        ):
+            raise CommitIdentityError("GitHub head check-suites response is malformed")
+        check_suite_count += len(check_suites)
+        if check_suite_count > _MAX_HEAD_CHECK_SUITES:
+            raise CommitIdentityError("GitHub head check-suites exceed safety limit")
+        for suite in check_suites:
+            if not isinstance(suite, dict):
+                raise CommitIdentityError("GitHub head check-suite entry is malformed")
+            app = suite.get("app")
+            app_slug = app.get("slug") if isinstance(app, dict) else None
+            head_sha = _require_sha(
+                str(suite.get("head_sha") or ""),
+                field="GitHub head check-suite SHA",
+            )
+            suite_created_at = _require_iso8601(
+                suite.get("created_at"),
+                field="GitHub head check-suite created_at",
+            )
+            suite_created = datetime.fromisoformat(
+                suite_created_at[:-1] + "+00:00"
+                if suite_created_at.endswith("Z")
+                else suite_created_at
+            )
             if (
-                user_id != _CODEX_CONNECTOR_USER_ID
-                or login != _CODEX_CONNECTOR_LOGIN
-                or user_type != "Bot"
-                or review.get("state") not in {"COMMENTED", "APPROVED"}
-                or not isinstance(review.get("html_url"), str)
-                or not review_url_pattern.fullmatch(review["html_url"])
+                app_slug == "github-actions"
+                and head_sha == expected_commit
+                and suite_created < reaction_created
             ):
-                continue
-            review_commit = _require_sha(
-                str(review.get("commit_id") or ""),
-                field="Codex Connector review commit_id",
-            )
-            review_submitted_at = _require_iso8601(
-                review.get("submitted_at"),
-                field="Codex Connector review submitted_at",
-            )
-            review_submitted = datetime.fromisoformat(
-                review_submitted_at[:-1] + "+00:00"
-                if review_submitted_at.endswith("Z")
-                else review_submitted_at
-            )
-            if review_commit == expected_commit and review_submitted < reaction_created:
                 return
-        if len(response) < 100:
+        if len(check_suites) < 100:
             break
     else:
-        raise CommitIdentityError("GitHub PR review pagination exceeded page limit")
+        raise CommitIdentityError("GitHub head check-suite pagination exceeded page limit")
 
     raise CommitIdentityError(
-        "Codex connector reaction does not follow a trusted Connector review "
+        "Codex connector reaction does not follow a GitHub observation "
         "of the exact material head"
     )
 
@@ -1403,7 +1414,7 @@ def verify_codex_review_reference(
             token=token,
             request_json=request_json,
         )
-        _require_codex_reaction_after_exact_head_review(
+        _require_codex_reaction_after_current_head_observation(
             repository=repository,
             pr_number=pr_number,
             expected_commit=expected_commit,
