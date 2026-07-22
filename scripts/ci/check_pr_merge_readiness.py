@@ -211,6 +211,7 @@ def _canonical_artifact_markdown_link_count(
 
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     expected_path = f"/{repository}/blob/{head_ref}/{artifact_path}"
+    expected_url = f"https://github.com{expected_path}"
 
     def is_canonical_destination(destination: str) -> bool:
         parsed = urllib.parse.urlsplit(destination)
@@ -223,10 +224,7 @@ def _canonical_artifact_markdown_link_count(
             and urllib.parse.unquote(parsed.path) == expected_path
         )
 
-    canonical_url_occurrences = sum(
-        is_canonical_destination(match.group(0))
-        for match in re.finditer(r"https://github\.com/[^\s<>()]+", pr_body)
-    )
+    canonical_url_occurrences = urllib.parse.unquote(pr_body).count(expected_url)
     count = 0
     in_html_comment = False
     fence_char = ""
@@ -812,6 +810,7 @@ def _validate_v1_seal(
     snapshot: PrSnapshot,
     token: str,
     outage_security_wait_seconds: int = 0,
+    enforce_outage_security_checks: bool = True,
 ) -> dict[str, Any]:
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
@@ -1024,16 +1023,17 @@ def _validate_v1_seal(
         )
         if security_receipt != expected_receipt:
             raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        _wait_for_operator_outage_security_checks(
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            expected_head_sha=snapshot.head_sha,
-            security_required=_operator_outage_security_required(
-                entry.path for entry in manifest.entries
-            ),
-            timeout_seconds=outage_security_wait_seconds,
-        )
+        if enforce_outage_security_checks:
+            _wait_for_operator_outage_security_checks(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                expected_head_sha=snapshot.head_sha,
+                security_required=_operator_outage_security_required(
+                    entry.path for entry in manifest.entries
+                ),
+                timeout_seconds=outage_security_wait_seconds,
+            )
     return seal
 
 
@@ -1277,6 +1277,7 @@ def main() -> int:
                     snapshot=snapshot,
                     token=token,
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
+                    enforce_outage_security_checks=not args.pre_closeout,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,

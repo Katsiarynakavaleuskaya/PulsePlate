@@ -174,6 +174,13 @@ def test_canonical_artifact_link_count_rejects_duplicate_with_another_label() ->
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 2
 
 
+def test_canonical_artifact_link_count_counts_inline_code_duplicate_url() -> None:
+    url = "https://github.com/owner/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md"
+    body = f"- [canonical artifact]({url})\n`{url}`"
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 2
+
+
 def test_merge_gate_does_not_require_optional_markdown_runtime_dependency() -> None:
     source = Path(merge_gate.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -1742,8 +1749,15 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     assert "Material review seal validation failed" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    ("enforce_outage_security_checks", "expected_check_calls"),
+    [(True, 1), (False, 0)],
+)
 def test_ci_gate_revalidates_live_operator_outage_override(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    enforce_outage_security_checks: bool,
+    expected_check_calls: int,
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -1846,11 +1860,12 @@ def test_ci_gate_revalidates_live_operator_outage_override(
         pr_number=42,
         snapshot=snapshot,
         token="opaque",
+        enforce_outage_security_checks=enforce_outage_security_checks,
     )
 
     assert validated["codex_security"]["status"] == "tooling_unavailable"
     assert override_calls == [(material_head, frozen.digest)]
-    assert check_calls == [governance_head]
+    assert check_calls == [governance_head] * expected_check_calls
 
 
 def test_ci_gate_revalidates_review_credit_outage_against_material_head(
