@@ -118,6 +118,9 @@ def test_canonical_artifact_link_count_requires_true_markdown_destination() -> N
     body = """
 Plain text: docs/review/PR_42_FIXED_MAPPING.md
 [canonical mapping](docs/review/PR_42_FIXED_MAPPING.md)
+\\[escaped literal](docs/review/PR_42_FIXED_MAPPING.md)
+    [indented code](docs/review/PR_42_FIXED_MAPPING.md)
+	[tab-indented code](docs/review/PR_42_FIXED_MAPPING.md)
 `[inline code](docs/review/PR_42_FIXED_MAPPING.md)`
 <!-- [html comment](docs/review/PR_42_FIXED_MAPPING.md) -->
 ```markdown

@@ -117,7 +117,7 @@ MAPPING_HEADING_RE = re.compile(r"(?im)^\s*###\s+Fixed\s+in\s+Commit\s+Mapping\s
 MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-9a-f]{7,40}`?\s*$")
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
 MARKDOWN_LINK_RE = re.compile(
-    r"(?<!!)\[[^\]\n]+\]\(\s*(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))"
+    r"(?<![!\\])\[[^\]\n]+\]\(\s*(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))"
     r"(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)"
 )
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -181,7 +181,9 @@ def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, reposi
     absolute_suffix = f"/{artifact_path}"
     count = 0
     body_without_comments = re.sub(r"(?s)<!--.*?-->", "", pr_body)
-    body_without_code = re.sub(r"`[^`\n]*`", "", _strip_fenced_code_blocks(body_without_comments))
+    body_without_fences = _strip_fenced_code_blocks(body_without_comments)
+    body_without_indented_code = re.sub(r"(?m)^(?: {4}|\t).*?(?:\n|$)", "", body_without_fences)
+    body_without_code = re.sub(r"`[^`\n]*`", "", body_without_indented_code)
     for match in MARKDOWN_LINK_RE.finditer(body_without_code):
         destination = urllib.parse.unquote(match.group("angle") or match.group("plain") or "")
         parsed = urllib.parse.urlsplit(destination)
