@@ -7940,6 +7940,34 @@ def test_legacy_growth_guard_preserves_registrar_values_through_filter() -> None
     ]
 
 
+def test_legacy_growth_guard_preserves_registrar_values_through_comprehension() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+
+        for route in [candidate for candidate in routes.values()]:
+            route("/api/v1/comprehension-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/comprehension-route"
+    ]
+
+
+def test_legacy_growth_guard_preserves_bound_mapping_lookup_alias() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        getter = routes.get
+        route = getter("route")
+        route("/api/v1/bound-lookup-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/bound-lookup-route"
+    ]
+
+
 @pytest.mark.parametrize(
     "dispatch",
     [

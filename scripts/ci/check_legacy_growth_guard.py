@@ -5061,6 +5061,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         callables = self._resolve_callables(value)
         deferred_calls = self._resolve_deferred_calls(value)
         mapping = self._resolve_mapping(value)
+        if (
+            isinstance(value, ast.Attribute)
+            and value.attr in {"__getitem__", "get", "pop", "setdefault"}
+            and (owner_mapping := self._resolve_mapping(value.value)) is not None
+        ):
+            resolved_reference = f"builtins.dict.{value.attr}"
+            mapping = owner_mapping
         class_references = self._resolve_class_references(value)
         descriptors = self._resolve_descriptors(value)
         iterable_element = self._resolve_iterable_element_binding(value)
@@ -6606,6 +6613,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._resolve_iterable_element_binding(node.value)
         if isinstance(node, ast.Name):
             return self.scope.resolve_iterable_element(node.id)
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+            if (
+                len(node.generators) == 1
+                and isinstance(node.elt, ast.Name)
+                and isinstance(node.generators[0].target, ast.Name)
+                and node.elt.id == node.generators[0].target.id
+            ):
+                return self._resolve_iterable_element_binding(node.generators[0].iter)
+            return None
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -8027,6 +8043,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             else None
         )
+        bound_mapping_alias_receiver = (
+            self._capture_mapping_receiver(node.func)
+            if (
+                wrapper_reference
+                in {
+                    "builtins.dict.__getitem__",
+                    "builtins.dict.get",
+                    "builtins.dict.pop",
+                    "builtins.dict.setdefault",
+                }
+                and self._resolve_mapping(node.func) is not None
+                and positional_arguments
+                and not unresolved_positional_sources
+            )
+            else None
+        )
         known_pop_mapping = mutated_mapping
         known_pop_receiver = mapping_lookup_receiver
         known_pop_key = positional_arguments[0] if positional_arguments else None
@@ -8195,6 +8227,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 key=positional_arguments[1],
                 default=(positional_arguments[2] if len(positional_arguments) >= 3 else None),
                 receiver=unbound_mapping_receiver,
+            )
+        if projected_result is None and bound_mapping_alias_receiver is not None:
+            projected_result = self._resolve_mapping_lookup_binding(
+                owner=node.func,
+                key=positional_arguments[0],
+                default=(positional_arguments[1] if len(positional_arguments) >= 2 else None),
+                receiver=bound_mapping_alias_receiver,
             )
         if (
             projected_result is None
