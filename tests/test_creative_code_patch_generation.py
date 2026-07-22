@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -39,6 +40,43 @@ GATE_SCHEMA = (
 RECEIPT_SCHEMA = (
     REPO_ROOT / "docs/orchestration/contracts/creative_code_patch_generation_receipt.v1.schema.json"
 )
+
+
+def test_generation_help_does_not_import_experiment_runner(tmp_path: Path) -> None:
+    blocker_dir = tmp_path / "runner-import-blocker"
+    blocker_dir.mkdir()
+    (blocker_dir / "sitecustomize.py").write_text(
+        "import importlib.abc\n"
+        "\n"
+        "class _BlockExperimentRunner(importlib.abc.MetaPathFinder):\n"
+        "    def find_spec(self, fullname, path=None, target=None):\n"
+        "        if fullname == 'scripts.orchestration.experiment_runner':\n"
+        "            raise ImportError('blocked experiment runner import')\n"
+        "        return None\n"
+        "\n"
+        "import sys\n"
+        "sys.meta_path.insert(0, _BlockExperimentRunner())\n",
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            [str(blocker_dir), str(REPO_ROOT), os.environ.get("PYTHONPATH", "")]
+        ),
+    }
+
+    result = subprocess.run(
+        [sys.executable, "scripts/orchestration/creative_code_patch_generation.py", "--help"],
+        cwd=str(REPO_ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Gate and execute local PR-2 creative-code candidate generation" in result.stdout
 
 
 def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
@@ -162,7 +200,9 @@ def _prepare_generated_dispatch_handoff(
     _mock_successful_builder_edges(monkeypatch)
 
     def raise_capability_signal(_packet: dict[str, Any], _patch_file: Path) -> dict[str, Any]:
-        raise creative_code_patch_builder.RunnerCapabilitySignal
+        from scripts.orchestration.experiment_runner import RunnerCapabilitySignal
+
+        raise RunnerCapabilitySignal
 
     monkeypatch.setattr(
         creative_code_patch_builder,
@@ -730,6 +770,61 @@ def test_finalize_dispatched_result_rolls_back_partial_publication(
         == 1
     )
     assert "simulated receipt publication failure" in capsys.readouterr().err
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+    state = json.loads(
+        (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
+    )
+    assert state["candidate_patch_generated"] is True
+    assert state["candidate_patch_evaluated"] is False
+
+
+def test_finalize_dispatched_result_rolls_back_when_state_identity_probe_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-state-identity-failure"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    original_identity = generation_cli._regular_file_identity
+
+    def fail_published_state_identity(
+        path: Path,
+        *,
+        label: str,
+    ) -> tuple[int, int, int, int, int]:
+        if label == "published state":
+            raise OSError("simulated state identity failure")
+        return original_identity(path, label=label)
+
+    monkeypatch.setattr(
+        generation_cli,
+        "_regular_file_identity",
+        fail_published_state_identity,
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "dispatch result publication failed after complete rollback" in capsys.readouterr().err
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
@@ -2260,7 +2355,7 @@ def test_validate_artifacts_rejects_tampered_receipt_gate_ref_with_recomputed_id
     receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     receipt["gate_ref"] = (
-        "artifacts/orchestration/creative_code/patch_generation/" "other-run/generation_gate.json"
+        "artifacts/orchestration/creative_code/patch_generation/other-run/generation_gate.json"
     )
     _reset_receipt_identity(receipt)
     _write_json(receipt_path, receipt)

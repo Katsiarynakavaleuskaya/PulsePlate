@@ -46,7 +46,6 @@ from scripts.orchestration.experiment_contract import (
     CV_UNCERTAINTY_BANDS,
     is_cv_experiment,
 )
-from scripts.orchestration.experiment_runner import RunnerCapabilitySignal, evaluate_candidate
 
 PREPARE_SUCCESS_OUTPUT = "PASS: creative-code patch prepare complete"
 GENERATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate complete"
@@ -73,6 +72,14 @@ class CreativeCodePatchBuilderError(ValueError):
 
 
 RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
+
+
+def evaluate_candidate(packet: dict[str, Any], patch_file: Path) -> dict[str, Any]:
+    """Evaluate through the runner without importing its application stack at CLI startup."""
+
+    from scripts.orchestration.experiment_runner import evaluate_candidate as runner_evaluate
+
+    return runner_evaluate(packet, patch_file)
 
 
 @contextmanager
@@ -620,6 +627,8 @@ def _verified_patch_metadata(
 
 def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
+
+    from scripts.orchestration.experiment_runner import RunnerCapabilitySignal
 
     run_dir, state, request, bundle = _load_run_state(run_id)
     if state.get("candidate_patch_evaluated") is True:

@@ -63,7 +63,6 @@ from scripts.orchestration.experiment_contract import (
     validate_failure_retry_observations,
     validate_metrics,
 )
-from scripts.orchestration.experiment_runner import OOM_PATTERNS
 from scripts.orchestration.experiment_runner_dispatch import (
     BLOCKER_CODES as TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS,
     CONTAINER_BACKENDS as TRUSTED_DISPATCH_BACKENDS,
@@ -583,6 +582,14 @@ def _regular_file_identity(path: Path, *, label: str) -> tuple[int, int, int, in
         file_info.st_mtime_ns,
         file_info.st_ctime_ns,
     )
+
+
+def _has_runner_oom_evidence(output: str) -> bool:
+    """Load runner-only OOM patterns only on the dispatch-validation path."""
+
+    from scripts.orchestration.experiment_runner import OOM_PATTERNS
+
+    return any(pattern.search(output) for pattern in OOM_PATTERNS)
 
 
 def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
@@ -2462,8 +2469,7 @@ def _validate_dispatch_result_binding(
                 "trusted dispatch result must record one attempt and zero retries."
             )
         raise CreativeCodePatchGenerationError(
-            "pre-oracle trusted dispatch result must record zero or one attempt "
-            "and zero retries."
+            "pre-oracle trusted dispatch result must record zero or one attempt and zero retries."
         )
     if (
         result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
@@ -2551,9 +2557,7 @@ def _validate_dispatch_result_binding(
                     "evidence."
                 )
             terminal_oracle_output = f"{terminal_oracle['stdout']}\n{terminal_oracle['stderr']}"
-            terminal_oracle_has_oom_evidence = any(
-                pattern.search(terminal_oracle_output) for pattern in OOM_PATTERNS
-            )
+            terminal_oracle_has_oom_evidence = _has_runner_oom_evidence(terminal_oracle_output)
             if failure_class == "oom":
                 if not terminal_oracle_has_oom_evidence:
                     raise CreativeCodePatchGenerationError(
@@ -2741,14 +2745,13 @@ def _finalize_dispatched_result_locked(
             result_path.unlink()
 
     def restore_matching_state() -> None:
-        if (
-            not state_written
-            or published_state_identity is None
-            or not state_path.exists()
-            or state_path.is_symlink()
-        ):
+        if not state_written or not state_path.exists() or state_path.is_symlink():
             return
-        if _regular_file_identity(state_path, label="rollback state") != published_state_identity:
+        if (
+            published_state_identity is not None
+            and _regular_file_identity(state_path, label="rollback state")
+            != published_state_identity
+        ):
             return
         current_state = _read_pinned_json_object(
             state_path,
@@ -2758,7 +2761,11 @@ def _finalize_dispatched_result_locked(
         )
         if current_state != state:
             return
-        if _regular_file_identity(state_path, label="rollback state") != published_state_identity:
+        if (
+            published_state_identity is not None
+            and _regular_file_identity(state_path, label="rollback state")
+            != published_state_identity
+        ):
             return
         write_json_atomic(state_path, original_state)
 
@@ -2769,11 +2776,11 @@ def _finalize_dispatched_result_locked(
         if state["candidate_patch_evaluated"] is not True:
             state["candidate_patch_evaluated"] = True
             write_json_atomic(state_path, state)
+            state_written = True
             published_state_identity = _regular_file_identity(
                 state_path,
                 label="published state",
             )
-            state_written = True
         _write_json_new(receipt_path, receipt)
         receipt_written = True
     except Exception as publication_error:
