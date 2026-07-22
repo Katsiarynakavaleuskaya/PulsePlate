@@ -646,8 +646,10 @@ def build_fallback_plate(
         min(target_kcal, _FALLBACK_KCAL_MAX),
     )
     if not targets_used:
-        used_kcal = protein_g * 4 + fat_g * 9
-        carbs_g = max(0, int(round((target_kcal - used_kcal) / 4)))
+        protein_g, fat_g, carbs_g = calculate_heuristic_macros(
+            target_kcal,
+            req.weight_kg,
+        )
 
     portions = {
         "protein_palm": round(protein_g / 25.0, 1),

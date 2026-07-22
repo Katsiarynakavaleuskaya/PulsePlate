@@ -1366,6 +1366,25 @@ def test_gain_fallback_uses_default_surplus() -> None:
     assert response.macros["protein_g"] > 0
 
 
+def test_fallback_scales_high_weight_macros_after_kcal_clamp() -> None:
+    """Accepted high weights cannot escape the bounded fallback macro budget."""
+
+    request = _request().model_copy(update={"weight_kg": 400.0})
+
+    response = pro_nutrition_plate.build_fallback_plate(request)
+
+    assert response.kcal == 2400
+    for macro_name in ("protein_g", "fat_g", "carbs_g"):
+        minimum, maximum = pro_nutrition_plate.PLATE_MACRO_RANGES[macro_name]
+        assert minimum <= response.macros[macro_name] <= maximum
+    macro_kcal = (
+        response.macros["protein_g"] * 4
+        + response.macros["fat_g"] * 9
+        + response.macros["carbs_g"] * 4
+    )
+    assert macro_kcal <= response.kcal + 4
+
+
 def test_alignment_handles_missing_invalid_and_unexpected_target_outputs() -> None:
     """Injected target adapters cannot silently corrupt generated macro output."""
 
