@@ -30,12 +30,19 @@ Evidence:
 | ------- | ----------------------- | ---------------------------------------------------------------- | ------------ |
 | Phase 1 | CI hygiene              | workflows/checks                                                 | yes          |
 | Phase 2 | artifact-first contract | canonical artifact (authoritative) + PR body link                | yes          |
+| Phase 2b | pre-closeout validation | uncommitted artifact + live bot inventory + true Markdown link | blocks closeout commit |
 | Phase 3 | Merge readiness         | unresolved threads + actionable mapping                          | yes          |
 | Phase 4 | Disposition proof       | script semantics                                                 | yes          |
 
 Canonical operator entrypoint:
 
 - `scripts/orchestration/check_merge_ready.py` runs Phase 2, merge-readiness, and disposition proof as one verdict.
+- Before the sole mapping commit, its local-only `--pre-closeout --require-auth`
+  mode reads the uncommitted canonical artifact, requires both `GH_TOKEN` and
+  `GITHUB_TOKEN`, explicitly maps every live actionable issue comment, inline
+  comment, and top-level bot review, and requires exactly one true Markdown
+  link to that artifact in the live PR body. It skips thread-resolution,
+  current-head-CI, and wait-window gates and is never merge-readiness evidence.
 - Underlying gate scripts remain authoritative for their own contract semantics.
 
 ## 4. Phase 2 Contract (Canonical Artifact)
@@ -198,6 +205,13 @@ governance PR number + 1; the governance PR may opt in with
   accepted only when Git proves both the base and the previously sealed material
   head advanced by ancestry and the replacement preserves every disposition
   proof block.
+- Before publishing the one closeout commit, the pre-closeout gate must validate
+  the local sealed artifact against the complete live actionable bot inventory.
+  In this pre-commit mode an actionable top-level review requires its own
+  mapping even when all actionable child comments are mapped. The PR body must
+  contain exactly one rendered Markdown link whose destination is
+  `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text, inline-code examples, and
+  fenced examples do not count.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`
@@ -244,6 +258,13 @@ Evidence:
   reachable from live head
 - Commit must not be trigger-only
 - Commit-after-comment applies
+- An off-live-PR original comment commit/ref is reviewer-execution context only
+  when the root comment author is exactly
+  `chatgpt-codex-connector` (the authenticated GraphQL login). It never supplies
+  FIX proof: the mapped FIX
+  must still be a real live-PR commit reachable from the live head.
+  `API_UNKNOWN` remains terminal, and off-graph refs from any other bot or
+  human remain untrusted.
 
 ### NOT-A-BUG
 
@@ -403,6 +424,9 @@ Evidence:
 - **CI strict:** `CI=true` requires `GH_TOKEN` and `gh auth status` before any GraphQL.
 - `GITHUB_TOKEN` remains the merge-readiness sub-gate token; `GH_TOKEN` is the canonical disposition/GraphQL token.
 - Advisory `SKIP` is not merge evidence; operators must use enforced mode before claiming strict local parity.
+- Local `--pre-closeout` is valid only with `--require-auth` and both
+  `GH_TOKEN` and `GITHUB_TOKEN`; it fails before network validation when either
+  is absent.
 
 Evidence:
 - `AGENTS.md:120`

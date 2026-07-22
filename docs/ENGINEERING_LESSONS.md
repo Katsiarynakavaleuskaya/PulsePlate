@@ -780,6 +780,29 @@ If any patch lands in the wrong tree, stop immediately, report the containment
 failure, and restore only with explicit ownership evidence. Never compensate by
 editing another checkout or sibling worktree.
 
+## 30) Validate the complete live review inventory before the one closeout commit
+
+### Problem
+Checking only discussion threads before the final mapping commit misses two
+independent contracts: actionable top-level bot reviews also need explicit
+mapping, and a plain-text artifact path is not the required Markdown link in the
+live PR body. Discovering either omission after push creates an avoidable CI and
+bot-review cycle.
+
+### Rule
+After the closeout tool writes the local canonical artifact and after the live
+PR body is updated, run the local strict wrapper with `--pre-closeout
+--require-auth` before creating the sole mapping commit. Export both `GH_TOKEN`
+and `GITHUB_TOKEN`. The pass must compare the uncommitted artifact with all live
+actionable issue comments, inline comments, and top-level bot reviews, and must
+find exactly one rendered Markdown link to the canonical artifact. An
+actionable review summary needs its own mapping even when all child comments are
+mapped.
+
+This is a commit-ordering gate, not a merge verdict: unresolved threads,
+current-head CI, and the mandatory wait cycle remain for the normal strict
+post-push wrapper.
+
 ---
 
 ## Repo Commands Reference

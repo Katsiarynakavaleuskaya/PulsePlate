@@ -280,6 +280,89 @@ def test_event_mode_forwards_required_experiment_runner_evidence_mode(
     )
 
 
+def test_pre_closeout_runs_only_mapping_gate_with_strict_tokens(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setenv("GH_TOKEN", "opaque-gh")
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque-github")
+    monkeypatch.setattr(merge_ready, "_require_pre_closeout_auth", lambda: None)
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
+
+    exit_code = merge_ready.main(
+        [
+            "--pr-number",
+            "1005",
+            "--repo",
+            "Katsiarynakavaleuskaya/PulsePlate",
+            "--require-auth",
+            "--pre-closeout",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == [
+        (
+            "pre-closeout-review-governance",
+            [
+                "--pr-number",
+                "1005",
+                "--repo",
+                "Katsiarynakavaleuskaya/PulsePlate",
+                "--pre-closeout",
+            ],
+        )
+    ]
+    output = capsys.readouterr().out
+    assert "not merge-readiness evidence" in output
+    assert "Blocking merge-ready bundle:" not in output
+
+
+def test_pre_closeout_requires_require_auth() -> None:
+    with pytest.raises(SystemExit):
+        merge_ready.main(
+            [
+                "--pr-number",
+                "1005",
+                "--repo",
+                "Katsiarynakavaleuskaya/PulsePlate",
+                "--pre-closeout",
+            ]
+        )
+
+
+@pytest.mark.parametrize("missing_token", ["GH_TOKEN", "GITHUB_TOKEN"])
+def test_pre_closeout_requires_both_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    missing_token: str,
+) -> None:
+    monkeypatch.setenv("GH_TOKEN", "opaque-gh")
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque-github")
+    monkeypatch.delenv(missing_token)
+
+    exit_code = merge_ready.main(
+        [
+            "--pr-number",
+            "1005",
+            "--repo",
+            "Katsiarynakavaleuskaya/PulsePlate",
+            "--require-auth",
+            "--pre-closeout",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "requires both GH_TOKEN and GITHUB_TOKEN" in capsys.readouterr().out
+
+
 def test_event_pr_number_accepts_numeric_string(tmp_path: Path) -> None:
     event_path = tmp_path / "event.json"
     event_path.write_text(json.dumps({"pull_request": {"number": "1008"}}), encoding="utf-8")

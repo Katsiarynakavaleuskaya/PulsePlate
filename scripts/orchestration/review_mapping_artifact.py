@@ -623,6 +623,6 @@ def render_phase2_body_mirror(pr_number: int) -> str:
             CHECKBOX_FIXED_MAPPING,
             "",
             "### Fixed in Commit Mapping",
-            f"- canonical artifact: `{artifact_ref}`",
+            f"- [canonical artifact]({artifact_ref})",
         ]
     )

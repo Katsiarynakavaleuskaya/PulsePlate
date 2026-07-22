@@ -699,9 +699,30 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    Historical PR `#2142` review-credit override receipts remain readable
    everywhere but are live-authenticated only for PR `#2142`; their old
    multi-reference authoring flags are not active CLI options for later PRs.
-6. Commit that artifact once, update the PR body link without a Git commit, and
-   run the authenticated strict wrapper.
-7. A later validated duplicate uses the exact structured reply contract and an
+6. Update the live PR body with exactly one real Markdown link to the canonical
+   artifact, then validate the still-uncommitted mapping before its sole
+   closeout commit:
+
+   ```bash
+   export GH_TOKEN="..."
+   export GITHUB_TOKEN="..."
+   python scripts/orchestration/check_merge_ready.py \
+     --pr-number <PR_NUMBER> \
+     --repo Katsiarynakavaleuskaya/PulsePlate \
+     --pre-closeout \
+     --require-auth
+   ```
+
+   This pass must cover every live actionable issue comment, inline comment,
+   and top-level bot review explicitly; a child-comment mapping does not cover
+   its actionable top-level review. It intentionally does not require resolved
+   threads, current-head CI, or the review wait window and is not
+   merge-readiness evidence.
+7. Only after that pass, commit the artifact once and push it. Then run the
+   unchanged authenticated strict wrapper without `--pre-closeout`; this
+   post-push pass owns thread resolution, current-head CI, and the final merge
+   verdict.
+8. A later validated duplicate uses the exact structured reply contract and an
    explicit thread resolution, followed by one status-check cycle only.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.

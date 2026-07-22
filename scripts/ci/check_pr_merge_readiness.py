@@ -116,6 +116,10 @@ NON_ACTIONABLE_MARKERS = (
 MAPPING_HEADING_RE = re.compile(r"(?im)^\s*###\s+Fixed\s+in\s+Commit\s+Mapping\s*$")
 MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-9a-f]{7,40}`?\s*$")
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
+MARKDOWN_LINK_RE = re.compile(
+    r"(?<!!)\[[^\]\n]+\]\(\s*(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))"
+    r"(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)"
+)
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
@@ -167,6 +171,36 @@ def _mapped_urls(pr_body: str) -> tuple[set[str], bool]:
     section = _extract_mapping_section(pr_body)
     urls = {m.group(1).strip() for m in MAPPING_ENTRY_RE.finditer(section)}
     return urls, bool(MAPPING_NO_ACTIONABLE_RE.search(section))
+
+
+def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, repository: str) -> int:
+    """Count real inline Markdown links whose destination is the canonical artifact."""
+
+    artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    absolute_prefix = f"/{repository}/blob/"
+    absolute_suffix = f"/{artifact_path}"
+    count = 0
+    body_without_comments = re.sub(r"(?s)<!--.*?-->", "", pr_body)
+    body_without_code = re.sub(r"`[^`\n]*`", "", _strip_fenced_code_blocks(body_without_comments))
+    for match in MARKDOWN_LINK_RE.finditer(body_without_code):
+        destination = urllib.parse.unquote(match.group("angle") or match.group("plain") or "")
+        parsed = urllib.parse.urlsplit(destination)
+        if parsed.query or parsed.fragment:
+            continue
+        if parsed.scheme or parsed.netloc:
+            if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
+                continue
+            ref_path = ""
+            if parsed.path.startswith(absolute_prefix) and parsed.path.endswith(absolute_suffix):
+                ref_path = parsed.path[len(absolute_prefix) : -len(absolute_suffix)]
+            is_canonical_destination = bool(ref_path) and all(
+                segment not in {"", ".", ".."} for segment in ref_path.split("/")
+            )
+        else:
+            is_canonical_destination = parsed.path in {artifact_path, f"./{artifact_path}"}
+        if is_canonical_destination:
+            count += 1
+    return count
 
 
 def _is_actionable(body: str) -> bool:
@@ -921,17 +955,30 @@ def main() -> int:
             "Failed or untrusted checks are never retried."
         ),
     )
+    parser.add_argument(
+        "--pre-closeout",
+        action="store_true",
+        help=(
+            "Validate the local uncommitted canonical mapping and live PR-body link "
+            "before its sole closeout commit. Does not require resolved threads or CI."
+        ),
+    )
     args = parser.parse_args()
     if args.outage_security_wait_seconds < 0:
         parser.error("--outage-security-wait-seconds must be non-negative")
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
+    if args.pre_closeout and args.event_path:
+        parser.error("--pre-closeout is local-only; use --pr-number and --repo.")
     if (args.pr_number is not None) != bool((args.repo or "").strip()):
         parser.error("For local/agent mode provide both --pr-number and --repo.")
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
         print("ERROR: GITHUB_TOKEN is required for merge-readiness gate.")
+        return 1
+    if args.pre_closeout and not os.getenv("GH_TOKEN", "").strip():
+        print("ERROR: GH_TOKEN is also required for strict pre-closeout validation.")
         return 1
 
     if args.event_path:
@@ -964,10 +1011,13 @@ def main() -> int:
         return 1
 
     if not pr_number or not repo:
+        if args.pre_closeout:
+            print("ERROR: pre-closeout validation requires a live PR context.")
+            return 1
         print("merge-readiness-gate: no PR context found; skipping.")
         return 0
 
-    if is_draft:
+    if is_draft and not args.pre_closeout:
         print("merge-readiness-gate: PR is draft; skipping strict checks.")
         return 0
 
@@ -990,7 +1040,7 @@ def main() -> int:
     unresolved_threads = sum(
         1 for thread in review_threads if not thread.is_resolved and not _is_ghas_thread(thread)
     )
-    if unresolved_threads > 0:
+    if unresolved_threads > 0 and not args.pre_closeout:
         errors.append(
             f"Unresolved review threads: {unresolved_threads}. Resolve all threads before merge."
         )
@@ -1046,13 +1096,12 @@ def main() -> int:
                 )
             except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
                 errors.append(f"Material review seal validation failed: {exc}")
-        artifact_reference = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-        body_without_fences = _strip_fenced_code_blocks(pr_body)
-        if body_without_fences.count(artifact_reference) != 1:
-            errors.append(
-                "PR body must contain exactly one canonical review artifact link "
-                f"to `{artifact_reference}`."
-            )
+    artifact_reference = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    if _canonical_artifact_markdown_link_count(pr_body, pr_number, repo) != 1:
+        errors.append(
+            "PR body must contain exactly one true Markdown link whose destination is "
+            f"`{artifact_reference}` (plain text and fenced examples do not count)."
+        )
 
     duplicate_covered_urls: set[str] = set()
     if seal is not None:
@@ -1086,7 +1135,7 @@ def main() -> int:
             for item in actionable_items
             if item.url not in mapped_urls
             and item.url not in duplicate_covered_urls
-            and item.url not in review_summary_covered_urls
+            and (args.pre_closeout or item.url not in review_summary_covered_urls)
         ]
         if unmapped:
             errors.append(
@@ -1104,25 +1153,35 @@ def main() -> int:
         errors.append(str(exc))
 
     if errors:
-        print("ERROR: review-governance merge gate failed:")
+        gate_label = (
+            "pre-closeout review-governance check"
+            if args.pre_closeout
+            else "review-governance merge gate"
+        )
+        print(f"ERROR: {gate_label} failed:")
         for line in errors:
             print(f"- {line}")
         return 1
+
+    if args.pre_closeout:
+        print(
+            "pre-closeout-review-governance: passed; all live actionable issue comments, "
+            "inline comments, and top-level bot reviews are explicitly mapped."
+        )
+        print("pre-closeout-review-governance: not merge-readiness evidence.")
+        return 0
 
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
         if is_review_source_positive_response_receipt(seal["code_review"]):
             print(
-                "REVIEW_SOURCE_POSITIVE_RESPONSE_VALID "
-                f"{seal['code_review']['response_content']}"
+                f"REVIEW_SOURCE_POSITIVE_RESPONSE_VALID {seal['code_review']['response_content']}"
             )
         elif is_review_source_unavailability_receipt(seal["code_review"]):
-            print("REVIEW_SOURCE_UNAVAILABLE_VALID " f"{seal['code_review']['source_status']}")
+            print(f"REVIEW_SOURCE_UNAVAILABLE_VALID {seal['code_review']['source_status']}")
         elif is_review_credit_outage_receipt(seal["code_review"]):
-            print(
-                "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID " f"{seal['code_review']['review_commit_ref']}"
-            )
+            print(f"REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID {seal['code_review']['review_commit_ref']}")
         else:
             print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
     if duplicate_covered_urls:

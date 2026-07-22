@@ -48,6 +48,9 @@ class GatePolicy:
 
 
 GATE_POLICIES: dict[str, GatePolicy] = {
+    "pre-closeout-review-governance": GatePolicy(
+        gate_class="hard", lane="review-governance", blocking=True
+    ),
     "phase2-pr-body-gates": GatePolicy(gate_class="hard", lane="pr-governance", blocking=True),
     "merge-readiness-gate": GatePolicy(gate_class="hard", lane="review-governance", blocking=True),
     "current-head-checks": GatePolicy(gate_class="hard", lane="required-checks", blocking=True),
@@ -67,6 +70,14 @@ def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
     has_event = bool((args.event_path or "").strip())
     has_local_pr = args.pr_number is not None or bool((args.repo or "").strip())
+
+    if args.pre_closeout:
+        if has_event:
+            parser.error("--pre-closeout is local-only; use --pr-number and --repo.")
+        if not args.require_auth:
+            parser.error("--pre-closeout requires --require-auth.")
+        if args.body:
+            parser.error("--pre-closeout always validates the live PR body; omit --body.")
 
     if has_event and has_local_pr:
         parser.error(
@@ -205,6 +216,39 @@ def _merge_gate_args(args: argparse.Namespace) -> list[str]:
     return ["--pr-number", str(args.pr_number), "--repo", args.repo]
 
 
+def _pre_closeout_gate_args(args: argparse.Namespace) -> list[str]:
+    """Build the local-only pre-closeout mapping validation argv."""
+
+    return [*_merge_gate_args(args), "--pre-closeout"]
+
+
+def _require_pre_closeout_auth() -> None:
+    """Require both strict-auth tokens before any pre-closeout network call."""
+
+    missing = [
+        name for name in ("GH_TOKEN", "GITHUB_TOKEN") if not (os.environ.get(name) or "").strip()
+    ]
+    if missing:
+        raise RuntimeError(
+            "pre-closeout strict auth requires both GH_TOKEN and GITHUB_TOKEN; "
+            f"missing: {', '.join(missing)}"
+        )
+
+    result = subprocess.run(  # nosec B603: absolute gh path with fixed auth-status argv (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+        [_github_cli_path(), "auth", "status"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=RUN_TIMEOUT_SEC,
+        env=os.environ.copy(),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "pre-closeout strict auth failed: GH_TOKEN is not accepted by `gh auth status`"
+        )
+
+
 def _current_head_checks_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
         return ["--event-path", args.event_path]
@@ -267,9 +311,7 @@ def _print_gate_output(result: GateResult) -> None:
     )
     status = "PASS" if result.returncode == 0 else "FAIL"
     blocking_label = "blocking" if policy.blocking else "advisory"
-    print(
-        f"[{status}] {result.name} " f"({policy.gate_class}; lane={policy.lane}; {blocking_label})"
-    )
+    print(f"[{status}] {result.name} ({policy.gate_class}; lane={policy.lane}; {blocking_label})")
     if result.stdout:
         print(result.stdout)
     if result.stderr:
@@ -338,6 +380,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Upgrade local disposition checks to strict CI-like auth semantics.",
     )
     parser.add_argument(
+        "--pre-closeout",
+        action="store_true",
+        help=(
+            "Before the sole mapping commit, validate the local canonical artifact "
+            "against all live actionable bot items and the live PR-body link. This "
+            "does not check thread resolution, current-head CI, or merge readiness."
+        ),
+    )
+    parser.add_argument(
         "--experiment-runner-evidence-mode",
         default=os.environ.get("PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE", "advisory"),
         help=(
@@ -354,6 +405,27 @@ def main(argv: list[str] | None = None) -> int:
     except argparse.ArgumentTypeError as exc:
         parser.error(str(exc))
     _validate_args(parsed, parser)
+
+    if parsed.pre_closeout:
+        try:
+            _require_pre_closeout_auth()
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}")
+            return 1
+        result = _run_gate(
+            "pre-closeout-review-governance",
+            MERGE_GATE,
+            _pre_closeout_gate_args(parsed),
+        )
+        _print_gate_output(result)
+        if result.returncode != 0:
+            print("ERROR: pre-closeout validation failed; do not create the mapping commit.")
+            return 1
+        print(
+            "pre-closeout-check: passed; this authorizes only the mapping closeout commit "
+            "and is not merge-readiness evidence."
+        )
+        return 0
 
     phase2_args = _phase2_args(parsed)
     phase2_result = _run_gate("phase2-pr-body-gates", PHASE2_GATE, phase2_args)

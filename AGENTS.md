@@ -277,6 +277,19 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     once. A repeated trusted Codex unavailable-ref ancestry finding on the same
     digest is handled by an authorized structured reply in the resolved thread;
     it does not create another docs commit or restart review/security scans.
+11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
+    mapping and after the live PR body contains its canonical link, but before
+    the sole mapping commit, run
+    `check_merge_ready.py --pre-closeout --require-auth` with both `GH_TOKEN`
+    and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
+    every live actionable issue comment, inline comment, and top-level bot
+    review in the local artifact and require exactly one real Markdown link to
+    `docs/review/PR_<N>_FIXED_MAPPING.md` in the live PR body. Child inline
+    mappings do not substitute for an actionable top-level review in this
+    pre-commit pass. A PASS authorizes only the one closeout commit: it does not
+    require thread resolution, current-head CI, or the review wait window, and
+    it must never be presented as merge-readiness evidence. After push, the
+    unchanged full strict wrapper remains mandatory.
 
 **Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
 

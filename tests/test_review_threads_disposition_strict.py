@@ -813,6 +813,7 @@ def test_real_commit_proof_never_uses_unavailable_original_for_ancestry(
         source="comment",
         is_resolved=True,
         created_at="2026-02-27T12:00:00Z",
+        author_login="chatgpt-codex-connector",
         original_commit_sha=original_sha,
     )
     ancestry_calls: list[tuple[str, str]] = []
@@ -844,6 +845,111 @@ def test_real_commit_proof_never_uses_unavailable_original_for_ancestry(
         assert violations == []
     else:
         assert expected_violation in violations[0]
+
+
+@pytest.mark.parametrize(
+    ("author_login", "expected_violation"),
+    [
+        ("chatgpt-codex-connector", None),
+        ("chatgpt-codex-connector[bot]", "trusted only for chatgpt-codex-connector"),
+        ("coderabbitai", "trusted only for chatgpt-codex-connector"),
+        ("human-reviewer", "trusted only for chatgpt-codex-connector"),
+    ],
+)
+def test_off_pr_repository_original_is_connector_only_review_context(
+    monkeypatch: "MonkeyPatch",
+    author_login: str,
+    expected_violation: str | None,
+) -> None:
+    fix_sha = "b" * 40
+    original_sha = "c" * 40
+    head_sha = "d" * 40
+    url = "https://github.com/org/repo/pull/1#discussion_r1"
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="e" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(fix_sha, "2026-02-27T13:00:00Z"),
+            PrCommitEvidence(head_sha, "2026-02-27T14:00:00Z"),
+        ),
+    )
+    thread = ResolvedThreadRef(
+        url=url,
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+        author_login=author_login,
+        original_commit_sha=original_sha,
+    )
+
+    def classify(value: str, *_args: object, **_kwargs: object) -> RepositoryCommitRef:
+        if value == original_sha:
+            return RepositoryCommitRef(value, CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+        return RepositoryCommitRef(value, CommitRefKind.PR_COMMIT)
+
+    monkeypatch.setattr(_disposition_mod, "classify_commit_ref", classify)
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", lambda *_a, **_k: True)
+
+    violations = _check_real_commit_proofs(
+        [thread],
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n",
+        snapshot=snapshot,
+        repository="org/repo",
+        token="opaque",
+    )
+
+    if expected_violation is None:
+        assert violations == []
+    else:
+        assert expected_violation in violations[0]
+
+
+def test_unavailable_original_from_arbitrary_bot_fails_closed(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    fix_sha = "b" * 40
+    original_sha = "c" * 40
+    head_sha = "d" * 40
+    url = "https://github.com/org/repo/pull/1#discussion_r1"
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="e" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(fix_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+    thread = ResolvedThreadRef(
+        url=url,
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+        author_login="arbitrary-reviewer[bot]",
+        original_commit_sha=original_sha,
+    )
+
+    monkeypatch.setattr(
+        _disposition_mod,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: ReviewExecutionRef(
+            value, CommitRefKind.REVIEW_REF_UNAVAILABLE, "unavailable"
+        ),
+    )
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", lambda *_a, **_k: True)
+
+    violations = _check_real_commit_proofs(
+        [thread],
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n",
+        snapshot=snapshot,
+        repository="org/repo",
+        token="opaque",
+    )
+
+    assert "trusted only for chatgpt-codex-connector" in violations[0]
 
 
 def test_env_diagnostic_returns_set_or_missing() -> None:

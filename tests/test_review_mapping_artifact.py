@@ -39,8 +39,10 @@ def test_render_phase2_body_mirror_is_stable(
         "- [x] Discussion-thread pass completed\n"
         "- [x] Fixed in commit mapping completed\n\n"
         "### Fixed in Commit Mapping\n"
-        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`"
+        "- [canonical artifact](docs/review/PR_998_FIXED_MAPPING.md)"
     )
+    assert body.count("docs/review/PR_998_FIXED_MAPPING.md") == 1
+    assert "`docs/review/PR_998_FIXED_MAPPING.md`" not in body
 
 
 def test_render_phase2_body_mirror_fails_for_invalid_artifact(

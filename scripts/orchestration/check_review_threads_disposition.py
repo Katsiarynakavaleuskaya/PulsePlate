@@ -73,12 +73,14 @@ class ResolvedThreadRef:
     source: str
     is_resolved: bool
     created_at: str  # ISO 8601 from GraphQL (first comment createdAt)
+    author_login: str = ""
     original_commit_sha: str | None = None
 
 
 # Timeout for gh CLI calls to avoid hanging CI (CodeRabbit/Cubic).
 _RUN_TIMEOUT_SEC = 60
 _GIT_TIMEOUT_SEC = 15
+_CODEX_CONNECTOR_GRAPHQL_LOGIN = "chatgpt-codex-connector"
 
 # Mapping line: "- https://... -> sha" or "- https://...#anchor -> sha"
 _MAPPING_LINE_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*([a-f0-9]{7,40})\b", re.IGNORECASE)
@@ -721,7 +723,7 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
             nodes {
               isResolved
               comments(first: 1) {
-                nodes { url createdAt }
+                nodes { url createdAt author { login } }
               }
             }
           }
@@ -750,6 +752,7 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
                         source="comment",
                         is_resolved=True,
                         created_at=created_at,
+                        author_login=str(((first.get("author") or {}).get("login") or "")),
                     )
                 )
         page = pr["reviewThreads"]["pageInfo"]
@@ -779,6 +782,7 @@ def _resolved_threads_from_evidence(
                 source="comment",
                 is_resolved=True,
                 created_at=first.created_at,
+                author_login=first.author_login,
                 original_commit_sha=first.original_commit_sha,
             )
         )
@@ -850,11 +854,26 @@ def _check_real_commit_proofs(
         if not thread.original_commit_sha:
             continue
         original = classify(thread.original_commit_sha)
+        trusted_connector_context = (
+            thread.author_login.strip().lower() == _CODEX_CONNECTOR_GRAPHQL_LOGIN
+        )
         if isinstance(original, ReviewExecutionRef):
             if original.kind is CommitRefKind.API_UNKNOWN:
                 violations.append(f"{thread.url}: original_commit_id identity is API_UNKNOWN")
-            # REVIEW_REF_UNAVAILABLE is reviewer execution context, not a graph
-            # endpoint. The independently proven real FIX remains sufficient.
+            elif not trusted_connector_context:
+                violations.append(
+                    f"{thread.url}: off-live-PR original_commit_id is trusted only for "
+                    "chatgpt-codex-connector review execution context"
+                )
+            # A trusted Connector-only unavailable ref is reviewer execution
+            # context, not graph proof. The real reachable mapped FIX remains required.
+            continue
+        if original.kind is CommitRefKind.REPO_COMMIT_OUTSIDE_PR:
+            if not trusted_connector_context:
+                violations.append(
+                    f"{thread.url}: off-live-PR original_commit_id is trusted only for "
+                    "chatgpt-codex-connector review execution context"
+                )
             continue
         if original.kind not in {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}:
             violations.append(f"{thread.url}: original_commit_id is not a real live PR commit")
