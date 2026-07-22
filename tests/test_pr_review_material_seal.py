@@ -2101,6 +2101,8 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
         ("owner/repo", 42, (".pre-commit-config.yaml",), False),
         ("owner/repo", 42, (".secrets.baseline",), False),
         ("owner/repo", 42, ("scripts/hooks/repo_python.sh",), False),
+        ("owner/repo", 42, ("tests/guards/test_nosec_policy_guard.py",), False),
+        ("owner/repo", 42, ("tests/test_repo_policy_guards.py",), False),
         (
             "owner/repo",
             42,

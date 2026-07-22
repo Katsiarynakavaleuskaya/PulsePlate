@@ -8144,6 +8144,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             else None
         )
+        if popitem_receiver is not None and popitem_receiver.mapping is not None:
+            effective_entries = _effective_static_mapping_entries(popitem_receiver.mapping.entries)
+            if (
+                len(effective_entries) == 1
+                and effective_entries[0].key is not None
+                and _literal_value(effective_entries[0].key) is not _UNRESOLVED_LITERAL_VALUE
+            ):
+                known_empty_mappings.add(popitem_receiver.mapping)
         namespace_kind = self._object_namespace_mapping_kind(node)
         if namespace_kind is not None:
             self._call_result_bindings[id(node)] = _ResolvedBinding(

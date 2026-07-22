@@ -80,12 +80,14 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "scripts/orchestration/render_codex_start_prompt.py",
         "scripts/orchestration/role_dispatch_bridge.py",
         "scripts/orchestration/task_bootstrap.py",
+        "tests/test_repo_policy_guards.py",
     }
 )
 OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     ".github/actions/",
     ".github/workflows/",
     "scripts/ci/",
+    "tests/guards/",
     "trivy/",
 )
 REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
