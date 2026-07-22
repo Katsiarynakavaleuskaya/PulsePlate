@@ -119,11 +119,15 @@ index 8f11111..8f22222 100644
 -    return 1
 +    return 2
 """
+    pre_oracle_rejection = not accepted and rejection_failure_class in {
+        "capability_mismatch",
+        "policy_violation",
+    }
     runner_result = {
         "experiment_id": "exp-pr4-telemetry",
         "status": "accepted" if accepted else "rejected",
         "failure_class": None if accepted else rejection_failure_class,
-        "mutated_paths": ["core/rag/orchestration.py"],
+        "mutated_paths": [] if pre_oracle_rejection else ["core/rag/orchestration.py"],
         "budget_observations": {
             "oracle_commands_configured": 1,
             "attempts": 1,
@@ -385,6 +389,9 @@ def test_capability_mismatch_telemetry_preserves_non_retryable_class(
     taxonomy_row = next(row for row in taxonomy["classes"] if row["code"] == "capability_mismatch")
 
     assert len(events) == 1
+    assert patch_result["changed_paths"] == ["core/rag/orchestration.py"]
+    assert patch_result["runner_summary"]["mutated_path_count"] == 0
+    assert patch_result["runner_summary"]["oracle_commands_executed"] == 0
     assert event["lane_stage"] == "patch_evaluation"
     assert event["status"] == "rejected"
     assert event["rejection_class"] == "capability_mismatch"
