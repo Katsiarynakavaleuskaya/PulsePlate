@@ -4230,6 +4230,22 @@ def test_legacy_growth_guard_keeps_globals_object_rebinding_fail_closed() -> Non
     ]
 
 
+@pytest.mark.parametrize("namespace", ["globals()", "vars()"], ids=["globals", "vars"])
+def test_legacy_growth_guard_preserves_module_object_factory_provenance(
+    namespace: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        {namespace}["object"] = lambda: app
+        route = object().get
+        route("/api/v1/module-object-factory")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/module-object-factory"
+    ]
+
+
 @pytest.mark.parametrize(
     "constructor",
     ["object()", "builtins.object()"],
@@ -4529,6 +4545,35 @@ def test_legacy_growth_guard_resolves_direct_class_registrar_member() -> None:
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: "
         "decorator:get:/api/v1/direct-class-member -> direct_class_member"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("setup", "decorator"),
+    [
+        ("", "property"),
+        ("from functools import cached_property", "cached_property"),
+    ],
+    ids=["property", "cached-property"],
+)
+def test_legacy_growth_guard_resolves_descriptor_registrar_member(
+    setup: str,
+    decorator: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        {setup}
+
+        class Holder:
+            @{decorator}
+            def factory(self):
+                return app.get
+
+        Holder().factory("/api/v1/descriptor-member")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/descriptor-member"
     ]
 
 

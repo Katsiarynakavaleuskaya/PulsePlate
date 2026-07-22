@@ -444,6 +444,50 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 return no_binding_update
             return static_reference(value)
 
+        def descriptor_return_reference(
+            statement: ast.FunctionDef | ast.AsyncFunctionDef,
+        ) -> str | None:
+            decorator_references = {
+                static_reference(decorator) for decorator in statement.decorator_list
+            }
+            if not decorator_references & {
+                "builtins.property",
+                "functools.cached_property",
+            }:
+                return None
+
+            return_references: set[str | None] = set()
+
+            class ReturnVisitor(ast.NodeVisitor):
+                def visit_Return(self, child: ast.Return) -> None:
+                    return_references.add(
+                        static_reference(child.value) if child.value is not None else None
+                    )
+
+                def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+                    return
+
+                def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
+                    return
+
+                def visit_Lambda(self, child: ast.Lambda) -> None:
+                    return
+
+                def visit_ClassDef(self, child: ast.ClassDef) -> None:
+                    return
+
+            visitor = ReturnVisitor()
+            for child in statement.body:
+                visitor.visit(child)
+            if len(return_references) == 1:
+                return next(iter(return_references))
+            if any(
+                _registration_action_for_reference(reference, APP_ROUTE_METHODS) is not None
+                for reference in return_references
+            ):
+                return _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+            return None
+
         def evaluate_binding_statements(
             statements: Sequence[ast.stmt],
             bindings: set[str | None],
@@ -562,7 +606,11 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
 
         def class_body_update(statement: ast.stmt) -> object:
             if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                return None if statement.name == member_name else no_binding_update
+                return (
+                    descriptor_return_reference(statement)
+                    if statement.name == member_name
+                    else no_binding_update
+                )
             assignment = assignment_reference(
                 statement,
                 lambda target: isinstance(target, ast.Name) and target.id == member_name,
@@ -3253,6 +3301,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             runtime_binding=False,
         )
         self.scope.bind("classmethod", reference="builtins.classmethod", string=None)
+        self.scope.bind("property", reference="builtins.property", string=None)
         self.scope.bind("staticmethod", reference="builtins.staticmethod", string=None)
         for name, reference in (initial_references or {}).items():
             self.scope.bind(name, reference=reference, string=None)
@@ -4659,7 +4708,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return True
         module_scope.bind(
             "object",
-            reference=("builtins.object" if deletion and self._builtins_object_is_safe() else None),
+            reference=(
+                "builtins.object"
+                if deletion and self._builtins_object_is_safe()
+                else _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+            ),
             string=None,
         )
         return True
@@ -4691,7 +4744,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
         module_scope.bind(
             "object",
-            reference=("builtins.object" if deletion and self._builtins_object_is_safe() else None),
+            reference=(
+                "builtins.object"
+                if deletion and self._builtins_object_is_safe()
+                else _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+            ),
             string=None,
         )
 
