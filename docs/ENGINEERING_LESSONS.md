@@ -796,12 +796,14 @@ PR body is updated, run the local strict wrapper with `--pre-closeout
 and `GITHUB_TOKEN`. The canonical mapping artifact must be the only dirty path.
 The pass must compare the uncommitted artifact with all live actionable bot
 issue comments, bot inline comments, and top-level bot reviews, and must
-find exactly one rendered same-repository `blob/<safe-ref>/...` Markdown link
-to the canonical artifact. Repo-relative links in PR bodies are broken. The
-gate must re-read the body and content-bound actionable inventory before PASS
-so new or edited async bot activity cannot create a false-green snapshot. An
-actionable review summary needs its own mapping even when all child comments are
-mapped.
+find exactly one rendered same-repository
+`blob/<exact-live-head-ref>/...` Markdown link to the canonical artifact. The
+ref path must equal the authenticated PR `head.ref`, which avoids treating an
+extra file-path segment as part of a slash-containing branch name. Repo-relative
+links in PR bodies are broken. The gate must re-read the body and content-bound
+actionable inventory before PASS so new or edited async bot activity cannot
+create a false-green snapshot. An actionable review summary needs its own
+mapping even when all child comments are mapped.
 
 This is a commit-ordering gate, not a merge verdict: unresolved threads,
 current-head CI, and the mandatory wait cycle remain for the normal strict

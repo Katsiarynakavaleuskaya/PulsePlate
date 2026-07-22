@@ -700,8 +700,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    everywhere but are live-authenticated only for PR `#2142`; their old
    multi-reference authoring flags are not active CLI options for later PRs.
 6. Update the live PR body with exactly one real same-repository Markdown link
-   through `https://github.com/<owner>/<repo>/blob/<safe-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`.
-   A plain repo-relative `docs/review/...` href is broken in PR-body context and
+   through
+   `https://github.com/<owner>/<repo>/blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`.
+   The path must use the authenticated PR `head.ref` exactly; this supports
+   slash-containing branch names without accepting extra file-path segments. A
+   plain repo-relative `docs/review/...` href is broken in PR-body context and
    does not count. Then validate the still-uncommitted mapping before its sole
    closeout commit:
 

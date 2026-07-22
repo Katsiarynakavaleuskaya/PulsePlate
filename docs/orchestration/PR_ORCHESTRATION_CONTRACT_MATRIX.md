@@ -42,9 +42,11 @@ Canonical operator entrypoint:
   `GITHUB_TOKEN`, requires the mapping artifact to be the only dirty path,
   explicitly maps every live actionable bot issue comment, bot inline comment,
   and top-level bot review, and requires exactly one true
-  same-repository `blob/<safe-ref>/docs/review/...` Markdown link to that
-  artifact in the live PR body. Repo-relative PR-body links do not count. It skips thread-resolution,
-  current-head-CI, and wait-window gates and is never merge-readiness evidence.
+  same-repository `blob/<exact-live-head-ref>/docs/review/...` Markdown link to
+  that artifact in the live PR body. The ref path must equal the authenticated
+  PR `head.ref`; repo-relative PR-body links do not count. It skips
+  thread-resolution, current-head-CI, and wait-window gates and is never
+  merge-readiness evidence.
 - Underlying gate scripts remain authoritative for their own contract semantics.
 
 ## 4. Phase 2 Contract (Canonical Artifact)
@@ -212,9 +214,10 @@ governance PR number + 1; the governance PR may opt in with
   artifact against the complete live actionable bot inventory.
   In this pre-commit mode an actionable top-level review requires its own
   mapping even when all actionable child comments are mapped. The PR body must
-  contain exactly one rendered same-repository blob Markdown link whose
-  destination is `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text,
-  repo-relative links, inline-code examples, and fenced examples do not count.
+  contain exactly one rendered same-repository blob Markdown link whose ref is
+  the authenticated PR `head.ref` and whose destination is
+  `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text, repo-relative links,
+  inline-code examples, and fenced examples do not count.
   Before PASS, the gate re-reads the live body and content-bound actionable
   inventory and fails closed on new, removed, or edited concurrent bot activity.
 

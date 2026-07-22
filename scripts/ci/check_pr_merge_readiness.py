@@ -25,8 +25,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from markdown_it import MarkdownIt
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -119,6 +117,13 @@ NON_ACTIONABLE_MARKERS = (
 MAPPING_HEADING_RE = re.compile(r"(?im)^\s*###\s+Fixed\s+in\s+Commit\s+Mapping\s*$")
 MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-9a-f]{7,40}`?\s*$")
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
+CANONICAL_ARTIFACT_LINK_LINE_RE = re.compile(
+    r"^ {0,3}-[ \t]+\[canonical artifact\]\(\s*"
+    r"(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))\s*\)"
+    r"(?:[ \t]+.*)?$",
+    re.IGNORECASE,
+)
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
@@ -174,21 +179,63 @@ def _mapped_urls(pr_body: str) -> tuple[set[str], bool]:
     return urls, bool(MAPPING_NO_ACTIONABLE_RE.search(section))
 
 
-def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, repository: str) -> int:
-    """Count rendered Markdown links whose destination is the canonical artifact."""
+def _canonical_artifact_markdown_link_count(
+    pr_body: str,
+    pr_number: int,
+    repository: str,
+    head_ref: str,
+) -> int:
+    """Count canonical standalone Markdown links outside non-rendered block regions."""
 
     artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-    absolute_prefix = f"/{repository}/blob/"
-    absolute_suffix = f"/{artifact_path}"
+    expected_path = f"/{repository}/blob/{head_ref}/{artifact_path}"
     count = 0
-    tokens = MarkdownIt("commonmark").parse(pr_body)
-    destinations = (
-        child.attrGet("href")
-        for token in tokens
-        for child in (token.children or [])
-        if child.type == "link_open"
-    )
-    for raw_destination in destinations:
+    in_html_comment = False
+    fence_char = ""
+    fence_length = 0
+    for raw_line in pr_body.splitlines():
+        line = raw_line
+        visible_parts: list[str] = []
+        cursor = 0
+        while cursor < len(line):
+            if in_html_comment:
+                comment_end = line.find("-->", cursor)
+                if comment_end < 0:
+                    cursor = len(line)
+                    break
+                in_html_comment = False
+                cursor = comment_end + 3
+                continue
+            comment_start = line.find("<!--", cursor)
+            if comment_start < 0:
+                visible_parts.append(line[cursor:])
+                break
+            visible_parts.append(line[cursor:comment_start])
+            in_html_comment = True
+            cursor = comment_start + 4
+        visible_line = "".join(visible_parts)
+
+        if fence_char:
+            closing_fence = re.fullmatch(
+                rf" {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
+                visible_line,
+            )
+            if closing_fence:
+                fence_char = ""
+                fence_length = 0
+            continue
+        fence_open = FENCE_OPEN_RE.match(visible_line)
+        if fence_open:
+            fence = fence_open.group("fence")
+            fence_char = fence[0]
+            fence_length = len(fence)
+            continue
+        if raw_line.startswith(("\t", "    ")):
+            continue
+        match = CANONICAL_ARTIFACT_LINK_LINE_RE.fullmatch(visible_line)
+        if match is None:
+            continue
+        raw_destination = match.group("angle") or match.group("plain") or ""
         destination = urllib.parse.unquote(raw_destination or "")
         parsed = urllib.parse.urlsplit(destination)
         if parsed.query or parsed.fragment:
@@ -196,12 +243,7 @@ def _canonical_artifact_markdown_link_count(pr_body: str, pr_number: int, reposi
         if parsed.scheme or parsed.netloc:
             if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
                 continue
-            ref_path = ""
-            if parsed.path.startswith(absolute_prefix) and parsed.path.endswith(absolute_suffix):
-                ref_path = parsed.path[len(absolute_prefix) : -len(absolute_suffix)]
-            is_canonical_destination = bool(ref_path) and all(
-                segment not in {"", ".", ".."} for segment in ref_path.split("/")
-            )
+            is_canonical_destination = bool(head_ref) and parsed.path == expected_path
         else:
             is_canonical_destination = False
         if is_canonical_destination:
@@ -243,14 +285,17 @@ def _pre_closeout_dirty_paths() -> set[str]:
     git = shutil.which("git")
     if not git:
         raise ValueError("git not found in PATH")
-    completed = subprocess.run(  # nosec B603: absolute git with fixed status argv only (remove-by: 2026-09-30, ref: PR-strict-closeout-precommit-guard)
-        [git, "status", "--porcelain=v1", "--untracked-files=all"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(  # nosec B603: absolute git with fixed status argv only (remove-by: 2026-09-30, ref: PR-strict-closeout-precommit-guard)
+            [git, "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError("git status timed out during pre-closeout cleanliness check") from exc
     if completed.returncode != 0:
         raise ValueError("git status failed during pre-closeout cleanliness check")
     return {line[3:] for line in completed.stdout.splitlines() if len(line) >= 4}
@@ -490,25 +535,27 @@ def _covered_review_summary_urls(
     return covered
 
 
-def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str]:
-    """Read GitHub event JSON; return (pr_number, repo, is_draft, pr_body)."""
+def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str, str]:
+    """Read GitHub event JSON; return PR identity, body, and exact head ref."""
     payload = json.loads(event_path.read_text(encoding="utf-8"))
     pr = payload.get("pull_request") or {}
     number = int(pr.get("number", 0))
     repo = str((payload.get("repository") or {}).get("full_name", ""))
     is_draft = bool(pr.get("draft", False))
     body = str(pr.get("body") or "")
-    return number, repo, is_draft, body
+    head_ref = str((pr.get("head") or {}).get("ref") or "")
+    return number, repo, is_draft, body, head_ref
 
 
-def _fetch_pr_context(pr_number: int, repo: str, token: str) -> tuple[int, str, bool, str]:
-    """Fetch PR via REST API; return (pr_number, repo, is_draft, pr_body). For local/agent use."""
+def _fetch_pr_context(pr_number: int, repo: str, token: str) -> tuple[int, str, bool, str, str]:
+    """Fetch PR identity, body, and exact head ref via REST for local/agent use."""
     owner, name = repo.split("/", maxsplit=1)
     url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
     data = _api_request(url, token=token)
     body = str(data.get("body") or "")
     is_draft = bool(data.get("draft", False))
-    return pr_number, repo, is_draft, body
+    head_ref = str((data.get("head") or {}).get("ref") or "")
+    return pr_number, repo, is_draft, body, head_ref
 
 
 def _event_head_sha(event_path: Path) -> str:
@@ -1053,9 +1100,11 @@ def main() -> int:
 
     if args.event_path:
         try:
-            pr_number, repo, is_draft, pr_body = _extract_pr_context(Path(args.event_path))
+            pr_number, repo, is_draft, pr_body, head_ref = _extract_pr_context(
+                Path(args.event_path)
+            )
             if pr_number and repo:
-                pr_number, repo, is_draft, pr_body = _fetch_pr_context(
+                pr_number, repo, is_draft, pr_body, head_ref = _fetch_pr_context(
                     pr_number=pr_number, repo=repo, token=token
                 )
         except Exception as exc:  # noqa: BLE001 - fail closed for CI gate script
@@ -1067,7 +1116,7 @@ def main() -> int:
             print("ERROR: --repo must be owner/name (e.g. Katsiarynakavaleuskaya/PulsePlate).")
             return 1
         try:
-            pr_number, repo, is_draft, pr_body = _fetch_pr_context(
+            pr_number, repo, is_draft, pr_body, head_ref = _fetch_pr_context(
                 pr_number=args.pr_number, repo=repo, token=token
             )
         except ValueError as exc:
@@ -1167,7 +1216,7 @@ def main() -> int:
             except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
                 errors.append(f"Material review seal validation failed: {exc}")
     artifact_reference = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-    if _canonical_artifact_markdown_link_count(pr_body, pr_number, repo) != 1:
+    if _canonical_artifact_markdown_link_count(pr_body, pr_number, repo, head_ref) != 1:
         errors.append(
             "PR body must contain exactly one true Markdown link whose destination is "
             f"`{artifact_reference}` (plain text and fenced examples do not count)."
@@ -1222,7 +1271,7 @@ def main() -> int:
         final_actionable_items = _collect_actionable_items(
             repo=repo, pr_number=pr_number, token=token
         )
-        if final_pr_context != (pr_number, repo, is_draft, pr_body):
+        if final_pr_context != (pr_number, repo, is_draft, pr_body, head_ref):
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: live PR body or draft state changed during validation"
             )

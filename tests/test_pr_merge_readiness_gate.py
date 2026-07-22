@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -117,7 +118,7 @@ def test_standalone_actionable_review_summary_still_requires_mapping() -> None:
 def test_canonical_artifact_link_count_requires_true_markdown_destination() -> None:
     body = """
 Plain text: docs/review/PR_42_FIXED_MAPPING.md
-[canonical mapping](https://github.com/owner/repo/blob/codex/review/docs/review/PR_42_FIXED_MAPPING.md)
+- [canonical artifact](https://github.com/owner/repo/blob/codex/review/docs/review/PR_42_FIXED_MAPPING.md)
 \\[escaped literal](docs/review/PR_42_FIXED_MAPPING.md)
     [indented code](docs/review/PR_42_FIXED_MAPPING.md)
 <TAB>[tab-indented code](docs/review/PR_42_FIXED_MAPPING.md)
@@ -129,65 +130,94 @@ Plain text: docs/review/PR_42_FIXED_MAPPING.md
 ```
 """.replace("<TAB>", "\t")
 
-    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo") == 1
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "codex/review") == 1
 
 
 def test_canonical_artifact_link_count_accepts_full_github_blob_url() -> None:
     body = (
-        "[canonical mapping](https://github.com/owner/repo/blob/branch/"
+        "- [canonical artifact](https://github.com/owner/repo/blob/branch/"
         "docs/review/PR_42_FIXED_MAPPING.md)"
     )
 
-    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo") == 1
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "branch") == 1
+
+
+def test_merge_gate_does_not_require_optional_markdown_runtime_dependency() -> None:
+    source = Path(merge_gate.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    imported_roots = {
+        alias.name.split(".", maxsplit=1)[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    imported_roots.update(
+        node.module.split(".", maxsplit=1)[0]
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    )
+
+    assert "markdown_it" not in imported_roots
 
 
 def test_canonical_artifact_link_count_rejects_duplicate_and_foreign_links() -> None:
     duplicate = "\n".join(
         [
-            "[one](https://github.com/owner/repo/blob/codex/one/"
+            "- [canonical artifact](https://github.com/owner/repo/blob/codex/one/"
             "docs/review/PR_42_FIXED_MAPPING.md)",
-            "[two](https://github.com/owner/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md)",
+            "- [canonical artifact](https://github.com/owner/repo/blob/codex/one/"
+            "docs/review/PR_42_FIXED_MAPPING.md)",
         ]
     )
-    foreign_host = "[fake](https://example.com/docs/review/PR_42_FIXED_MAPPING.md)"
+    foreign_host = "- [canonical artifact](https://example.com/docs/review/PR_42_FIXED_MAPPING.md)"
     foreign_repo = (
-        "[fake](https://github.com/other/repo/blob/main/docs/review/PR_42_FIXED_MAPPING.md)"
+        "- [canonical artifact](https://github.com/other/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)"
     )
-    wrong_relative = "[fake](other/docs/review/PR_42_FIXED_MAPPING.md)"
-    repo_relative = "[fake](docs/review/PR_42_FIXED_MAPPING.md)"
+    wrong_relative = "- [canonical artifact](other/docs/review/PR_42_FIXED_MAPPING.md)"
+    repo_relative = "- [canonical artifact](docs/review/PR_42_FIXED_MAPPING.md)"
     query_variant = (
-        "[fake](https://github.com/owner/repo/blob/main/"
+        "- [canonical artifact](https://github.com/owner/repo/blob/main/"
         "docs/review/PR_42_FIXED_MAPPING.md?raw=1)"
     )
     fragment_variant = (
-        "[fake](https://github.com/owner/repo/blob/main/"
+        "- [canonical artifact](https://github.com/owner/repo/blob/main/"
         "docs/review/PR_42_FIXED_MAPPING.md#section)"
     )
 
-    assert _canonical_artifact_markdown_link_count(duplicate, 42, "owner/repo") == 2
-    assert _canonical_artifact_markdown_link_count(foreign_host, 42, "owner/repo") == 0
-    assert _canonical_artifact_markdown_link_count(foreign_repo, 42, "owner/repo") == 0
-    assert _canonical_artifact_markdown_link_count(wrong_relative, 42, "owner/repo") == 0
-    assert _canonical_artifact_markdown_link_count(repo_relative, 42, "owner/repo") == 0
-    assert _canonical_artifact_markdown_link_count(query_variant, 42, "owner/repo") == 0
-    assert _canonical_artifact_markdown_link_count(fragment_variant, 42, "owner/repo") == 0
+    assert _canonical_artifact_markdown_link_count(duplicate, 42, "owner/repo", "codex/one") == 2
+    assert _canonical_artifact_markdown_link_count(foreign_host, 42, "owner/repo", "main") == 0
+    assert _canonical_artifact_markdown_link_count(foreign_repo, 42, "owner/repo", "main") == 0
+    assert _canonical_artifact_markdown_link_count(wrong_relative, 42, "owner/repo", "main") == 0
+    assert _canonical_artifact_markdown_link_count(repo_relative, 42, "owner/repo", "main") == 0
+    assert _canonical_artifact_markdown_link_count(query_variant, 42, "owner/repo", "main") == 0
+    assert _canonical_artifact_markdown_link_count(fragment_variant, 42, "owner/repo", "main") == 0
+
+
+def test_canonical_artifact_link_count_rejects_extra_segments_after_head_ref() -> None:
+    body = (
+        "- [canonical artifact](https://github.com/owner/repo/blob/main/other/"
+        "docs/review/PR_42_FIXED_MAPPING.md)"
+    )
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
 
 
 @pytest.mark.parametrize(
     "body",
     [
-        "<!-- [fake](https://github.com/owner/repo/blob/main/"
+        "<!-- - [canonical artifact](https://github.com/owner/repo/blob/main/"
         "docs/review/PR_42_FIXED_MAPPING.md)",
-        "```markdown\n[fake](https://github.com/owner/repo/blob/main/"
+        "```markdown\n- [canonical artifact](https://github.com/owner/repo/blob/main/"
         "docs/review/PR_42_FIXED_MAPPING.md)",
-        "~~~markdown\n[fake](https://github.com/owner/repo/blob/main/"
+        "~~~markdown\n- [canonical artifact](https://github.com/owner/repo/blob/main/"
         "docs/review/PR_42_FIXED_MAPPING.md)",
     ],
 )
 def test_canonical_artifact_link_count_rejects_unclosed_non_rendered_regions(
     body: str,
 ) -> None:
-    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo") == 0
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
 
 
 def _pre_closeout_artifact(*urls: str) -> str:
@@ -240,8 +270,9 @@ def _configure_pre_closeout_main(
             42,
             "owner/repo",
             False,
-            "[canonical mapping](https://github.com/owner/repo/blob/codex/review/"
+            "- [canonical artifact](https://github.com/owner/repo/blob/codex/review/"
             "docs/review/PR_42_FIXED_MAPPING.md)",
+            "codex/review",
         ),
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
@@ -302,6 +333,20 @@ def test_pre_closeout_rejects_non_mapping_dirty_paths(
     output = capsys.readouterr().out
     assert "canonical mapping artifact to be the only dirty path" in output
     assert "scripts/ci/check_pr_merge_readiness.py" in output
+
+
+def test_pre_closeout_dirty_paths_normalizes_git_status_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(merge_gate.shutil, "which", lambda _name: "/usr/bin/git")
+
+    def timeout(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd=["/usr/bin/git", "status"], timeout=30)
+
+    monkeypatch.setattr(merge_gate.subprocess, "run", timeout)
+
+    with pytest.raises(ValueError, match="git status timed out"):
+        merge_gate._pre_closeout_dirty_paths()
 
 
 def test_pre_closeout_requires_explicit_top_level_review_mapping(
@@ -432,13 +477,13 @@ def test_pre_closeout_fails_when_pr_body_changes_during_validation(
         actionable_items=[],
     )
     canonical_body = (
-        "[canonical mapping](https://github.com/owner/repo/blob/codex/review/"
+        "- [canonical artifact](https://github.com/owner/repo/blob/codex/review/"
         "docs/review/PR_42_FIXED_MAPPING.md)"
     )
     contexts = iter(
         (
-            (42, "owner/repo", False, canonical_body),
-            (42, "owner/repo", False, f"{canonical_body}\nconcurrent edit"),
+            (42, "owner/repo", False, canonical_body, "codex/review"),
+            (42, "owner/repo", False, f"{canonical_body}\nconcurrent edit", "codex/review"),
         )
     )
     monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda *_a, **_k: next(contexts))
@@ -1487,8 +1532,9 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
             42,
             "owner/repo",
             False,
-            "[canonical artifact](https://github.com/owner/repo/blob/main/"
+            "- [canonical artifact](https://github.com/owner/repo/blob/main/"
             "docs/review/PR_42_FIXED_MAPPING.md)",
+            "main",
         ),
     )
     monkeypatch.setattr(
@@ -1911,8 +1957,9 @@ def test_ci_gate_reauthenticates_terminal_review_source_unavailability(
             42,
             "owner/repo",
             False,
-            "[canonical artifact](https://github.com/owner/repo/blob/main/"
+            "- [canonical artifact](https://github.com/owner/repo/blob/main/"
             "docs/review/PR_42_FIXED_MAPPING.md)",
+            "main",
         ),
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
@@ -1999,7 +2046,13 @@ def test_merge_readiness_main_blocks_missing_mapping(
     monkeypatch.setattr(
         merge_gate,
         "_fetch_pr_context",
-        lambda *_a, **_k: (42, "owner/repo", False, "docs/review/PR_42_FIXED_MAPPING.md"),
+        lambda *_a, **_k: (
+            42,
+            "owner/repo",
+            False,
+            "docs/review/PR_42_FIXED_MAPPING.md",
+            "main",
+        ),
     )
     monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
     monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
@@ -2057,3 +2110,49 @@ def test_event_head_sha_is_required_and_exact(tmp_path: Path) -> None:
     event.write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="head.sha"):
         merge_gate._event_head_sha(event)
+
+
+def test_extract_pr_context_includes_exact_head_ref(tmp_path: Path) -> None:
+    event = tmp_path / "event.json"
+    event.write_text(
+        json.dumps(
+            {
+                "repository": {"full_name": "owner/repo"},
+                "pull_request": {
+                    "number": 42,
+                    "draft": False,
+                    "body": "body",
+                    "head": {"ref": "codex/review"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert merge_gate._extract_pr_context(event) == (
+        42,
+        "owner/repo",
+        False,
+        "body",
+        "codex/review",
+    )
+
+
+def test_fetch_pr_context_includes_exact_head_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        merge_gate,
+        "_api_request",
+        lambda *_args, **_kwargs: {
+            "draft": False,
+            "body": "body",
+            "head": {"ref": "codex/review"},
+        },
+    )
+
+    assert merge_gate._fetch_pr_context(42, "owner/repo", "opaque") == (
+        42,
+        "owner/repo",
+        False,
+        "body",
+        "codex/review",
+    )

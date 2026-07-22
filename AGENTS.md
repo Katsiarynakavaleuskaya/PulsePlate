@@ -284,8 +284,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
     every live actionable bot issue comment, bot inline comment, and top-level
     bot review in the local artifact and require exactly one real same-repository
-    Markdown link through `blob/<safe-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`
-    in the live PR body. Repo-relative links are invalid in PR-body context.
+    Markdown link through
+    `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
+    PR body. The ref path must exactly match the PR's authenticated `head.ref`;
+    repo-relative links are invalid in PR-body context.
     The canonical mapping artifact must be the only dirty path. Child inline
     mappings do not substitute for an actionable top-level review in this
     pre-commit pass. A PASS authorizes only the one closeout commit: it does not
