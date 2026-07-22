@@ -125,8 +125,26 @@ CANONICAL_ARTIFACT_LINK_LINE_RE = re.compile(
 )
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
 RAW_HTML_BLOCK_OPEN_RE = re.compile(
-    r"<(?P<tag>pre|script|style|textarea)(?:[\t >]|$)",
+    r"^ {0,3}<(?P<tag>[A-Za-z][A-Za-z0-9-]*)(?:[\t />]|$)",
     re.IGNORECASE,
+)
+RAW_HTML_VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
 )
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
@@ -214,6 +232,7 @@ def _canonical_artifact_markdown_link_count(
     fence_char = ""
     fence_length = 0
     raw_html_tag = ""
+    raw_html_depth = 0
     for raw_line in pr_body.splitlines():
         line = raw_line
         visible_parts: list[str] = []
@@ -252,15 +271,35 @@ def _canonical_artifact_markdown_link_count(
             fence_length = len(fence)
             continue
         if raw_html_tag:
-            if re.search(rf"</{re.escape(raw_html_tag)}\s*>", visible_line, re.IGNORECASE):
+            raw_html_depth += len(
+                re.findall(
+                    rf"<{re.escape(raw_html_tag)}(?:[\t />]|$)",
+                    visible_line,
+                    re.IGNORECASE,
+                )
+            )
+            raw_html_depth -= len(
+                re.findall(
+                    rf"</{re.escape(raw_html_tag)}\s*>",
+                    visible_line,
+                    re.IGNORECASE,
+                )
+            )
+            if raw_html_depth <= 0:
                 raw_html_tag = ""
+                raw_html_depth = 0
             continue
         raw_html_open = RAW_HTML_BLOCK_OPEN_RE.search(visible_line)
         if raw_html_open:
-            tag = raw_html_open.group("tag")
+            tag = raw_html_open.group("tag").lower()
             remainder = visible_line[raw_html_open.end() :]
-            if not re.search(rf"</{re.escape(tag)}\s*>", remainder, re.IGNORECASE):
+            if (
+                tag not in RAW_HTML_VOID_TAGS
+                and not re.search(r"/\s*>\s*$", visible_line)
+                and not re.search(rf"</{re.escape(tag)}\s*>", remainder, re.IGNORECASE)
+            ):
                 raw_html_tag = tag
+                raw_html_depth = 1
             continue
         if raw_line.startswith(("\t", "    ")):
             continue

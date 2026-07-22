@@ -252,7 +252,7 @@ def test_canonical_artifact_link_count_rejects_unclosed_non_rendered_regions(
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
 
 
-@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea"])
+@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea", "div"])
 def test_canonical_artifact_link_count_rejects_raw_html_blocks(tag: str) -> None:
     body = (
         f"<{tag}>\n"
@@ -262,6 +262,16 @@ def test_canonical_artifact_link_count_rejects_raw_html_blocks(tag: str) -> None
     )
 
     assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 0
+
+
+def test_canonical_artifact_link_count_allows_link_after_void_html_tag() -> None:
+    body = (
+        "<br>\n"
+        "- [canonical artifact](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)"
+    )
+
+    assert _canonical_artifact_markdown_link_count(body, 42, "owner/repo", "main") == 1
 
 
 def _pre_closeout_artifact(*urls: str) -> str:
