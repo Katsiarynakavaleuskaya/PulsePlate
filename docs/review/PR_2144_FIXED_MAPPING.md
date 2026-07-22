@@ -460,6 +460,31 @@ Evidence: scripts/orchestration/experiment_runner.py:541-553 rejects dirty track
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3621358047 -> 8e7004c9cea40261059a6119bf6e21975c62b664
 
 Disposition: FIXED
+Commit: 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+Evidence: scripts/orchestration/experiment_runner_dispatch.py:1508-1524 preserves the legacy unfingerprinted return before clean-tree enforcement; tests/test_experiment_runner_dispatch.py:600-638 and 2407-2467 cover dirty-tree and snapshot compatibility.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3622922971 -> 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+
+Disposition: FIXED
+Commit: 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+Evidence: The dispatcher no longer imports experiment_runner at module load; tests/test_experiment_runner_dispatch.py:1967-2001 proves dispatcher help succeeds while that import is blocked.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3622922976 -> 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+
+Disposition: FIXED
+Commit: 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+Evidence: scripts/orchestration/experiment_runner_dispatch.py:1331-1387 parses candidate paths locally and boundedly; tests/test_experiment_runner_dispatch.py:2125-2148 proves capability proof stays host-lightweight.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3623334052 -> 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+
+Disposition: FIXED
+Commit: 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+Evidence: All 35 historical FIXED proof commits were revalidated through the canonical helper as live PR commits reachable from current head 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3625128252 -> 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+
+Disposition: FIXED
+Commit: 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+Evidence: The final freeze binds digest sha256:792725425fa253b8035e872e2d93386018f40477f8f20d50f24c8797fa4ad8a1 to 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88; scan 87278735-eaff-4592-8d78-33a5489f2b10 completed 10/10 with zero findings on the exact range before reseal.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3625128255 -> 9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88
+
+Disposition: FIXED
 Commit: 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 Evidence: The review finding set was addressed by the trusted-dispatch hardening sequence; commit 67a047d4 closes final evidence gaps and tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#pullrequestreview-4713233850 -> 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
@@ -527,5 +552,5 @@ Reason: A post-preflight capability signal is still a pre-oracle terminal result
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:7ad91938f1df76ad7808f52a5f4a0fd24cc2f176a8300be28876fd0ba50be42f","material_head_sha":"0db0e5a71d7e0fbc95ad6a9ff84a80b37d76bdf7","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T18:55:43Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#issuecomment-5026013280","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:869b3d7638be83a37f326f61036ebb8b4a5d3c638b5aa702839bc0c4dcb8f287","findings_sha256":"sha256:c5727821c23439f74af5a4b32590b64cc250c0a96b4e9e25a606c6cd60f378c8","work_ledger_sha256":"sha256:a5fb6179f72dce0c1fe32a7c4838435839f31905e9e55f5dbab44fb0712113bb"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"0db0e5a71d7e0fbc95ad6a9ff84a80b37d76bdf7","manifest_sha256":"sha256:b95f6f4142ff93c0141c9dd4a9d03c70ee44190222d2d7d03054b6aa6b7db809","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"aa70262c-efe1-4c20-b043-3a87d08db3b7","snapshot_digest":"codex-security-snapshot/v1:sha256:0b2cdf153e2f234ca5141265f05629ed131b4560c5855c2c98d0b522d72bc511"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:7ad91938f1df76ad7808f52a5f4a0fd24cc2f176a8300be28876fd0ba50be42f","material_head_sha":"0db0e5a71d7e0fbc95ad6a9ff84a80b37d76bdf7","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2144,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:792725425fa253b8035e872e2d93386018f40477f8f20d50f24c8797fa4ad8a1","material_head_sha":"9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88","quota_body_sha256":"sha256:e39b189a2ed6388c9d919876a2893ca0216a023301e11d788df190b4366991b9","quota_created_at":"2026-07-20T18:55:43Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#issuecomment-5026013280","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:83f6745fbc8bd7c4b926311a153f79cd2b0eb4852bcf5231b6583336ccf90771","findings_sha256":"sha256:30abe1aa5d6ff9768250d1f96780ec24b997637c118deee37c78638b3c10756c","work_ledger_sha256":"sha256:7532880b5a4f9929c396c9c157d70e2511eb97d71877638eff57abc0365de203"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88","manifest_sha256":"sha256:85bc2dbd20d5c1595babfaa89e785bf4c703b88ee60b36228c19ae6e2978adda","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"87278735-eaff-4592-8d78-33a5489f2b10","snapshot_digest":"codex-security-snapshot/v1:sha256:620dc433d2028a0e84fefae3b1f282a13e3b2a9eacfe673455f52f97b85f5cc6"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:792725425fa253b8035e872e2d93386018f40477f8f20d50f24c8797fa4ad8a1","material_head_sha":"9bf0bcc45f44d895b1eb97d3f5b697a3a868ee88","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2144,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
