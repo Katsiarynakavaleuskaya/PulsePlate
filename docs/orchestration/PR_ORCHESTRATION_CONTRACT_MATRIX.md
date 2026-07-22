@@ -134,16 +134,20 @@ governance PR number + 1; the governance PR may opt in with
   dependencies, schemas, and policies remain material.
 - The trusted submitted Codex review object's real GitHub `commit_id` must be
   the frozen material head. A direct PR-root reaction from the official Codex
-  Connector may instead use the normal `seal --review-ref` path only for `+1`,
+  Connector may instead use the normal `seal --review-ref` path as a nonblocking
+  terminal source response only for `+1`,
   `heart`, `hooray`, or `rocket`, after live verification of its immutable
   GitHub account identity, exact PR-root URL, a live PR head equal to the caller's
   full snapshotted material head at seal time, and a server-timestamped GitHub Actions
   `pull_request` run linked to that same PR and head strictly preceding the
-  reaction, with no later force-push or head-restoration event. Authenticated
+  reaction, with no later force-push or head-restoration event. This chronology
+  proves only that GitHub observed the material head before the response; it is
+  not Connector-owned reviewed-commit provenance. Authenticated
   validation after the one canonical mapping-only closeout commit may accept the
   descendant live head only after material-digest equality is re-established.
-  This is a verified Connector response for that
-  material state, not a native GitHub approval, Codex Security evidence, or
+  The receipt uses `binding_kind=seal_context_only`, `review_claim=none`, and
+  `blocking=false`. This is a verified positive Connector response, not exact-head
+  review proof, a native GitHub approval, Codex Security evidence, or
   thread-resolution authority. The optional advisory rendering path remains
   non-authoritative and may be omitted with a warning. An official unedited no-findings issue comment
   is accepted only when the trusted Codex GitHub App identity and its short

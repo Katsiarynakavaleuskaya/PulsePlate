@@ -679,6 +679,10 @@ def verify_review_credit_outage_references(
         token=token,
         request_json=request_json,
     )
+    if isinstance(prior_review, CodexConnectorAdvisoryReactionEvidence):
+        raise CommitIdentityError(
+            "review credit outage prior review must carry a real commit identity"
+        )
     prior_commit = classify_commit_ref(
         prior_review.commit_ref,
         snapshot,
@@ -1421,8 +1425,8 @@ def verify_codex_review_reference(
     expected_commit_ref: str | None = None,
     expected_live_pr_head_ref: str | None = None,
     request_json: ApiRequest = github_api_request,
-) -> CodexReviewEvidence:
-    """Prove that a seal reference names trusted exact-head Codex review evidence."""
+) -> CodexReviewEvidence | CodexConnectorAdvisoryReactionEvidence:
+    """Verify trusted Codex review evidence or a commitless positive response."""
 
     owner, name = _require_repository(repository)
     expected_commit = (
@@ -1492,11 +1496,7 @@ def verify_codex_review_reference(
             token=token,
             request_json=request_json,
         )
-        return CodexReviewEvidence(
-            reference=reference,
-            submitted_at=reaction.created_at,
-            commit_ref=expected_commit,
-        )
+        return reaction
 
     comment_pattern = re.compile(
         rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"

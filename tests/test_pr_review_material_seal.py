@@ -53,11 +53,13 @@ from scripts.orchestration.pr_review_evidence import (
     MaterialManifest,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
+    is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_duplicate_disposition_reply,
@@ -812,7 +814,7 @@ def _workflow_run_response_with_pr_links(links: Any) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("content", ("+1", "heart", "hooray", "rocket"))
-def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
+def test_codex_positive_reaction_is_accepted_without_exact_head_review_claim(
     content: str,
 ) -> None:
     reference = "https://github.com/owner/repo/pull/42#reaction-456"
@@ -836,10 +838,10 @@ def test_codex_positive_reaction_is_accepted_as_exact_head_review_evidence(
         request_json=request_json,
     )
 
-    assert evidence == identity_module.CodexReviewEvidence(
+    assert evidence == identity_module.CodexConnectorAdvisoryReactionEvidence(
         reference=reference,
-        submitted_at="2026-07-15T11:00:00Z",
-        commit_ref=HEAD_SHA,
+        created_at="2026-07-15T11:00:00Z",
+        content=content,
     )
     assert requested_urls == [
         "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
@@ -867,7 +869,8 @@ def test_codex_positive_reaction_accepts_revalidated_mapping_only_live_head() ->
         ),
     )
 
-    assert evidence.commit_ref == HEAD_SHA
+    assert isinstance(evidence, identity_module.CodexConnectorAdvisoryReactionEvidence)
+    assert evidence.content == "+1"
 
 
 def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> None:
@@ -906,7 +909,8 @@ def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> No
         request_json=request_json,
     )
 
-    assert evidence.commit_ref == HEAD_SHA
+    assert isinstance(evidence, identity_module.CodexConnectorAdvisoryReactionEvidence)
+    assert evidence.content == "+1"
     assert requested_urls[-2].endswith("&per_page=100&page=2")
     assert requested_urls[-1].endswith("/issues/42/events?per_page=100&page=1")
 
@@ -2738,6 +2742,94 @@ def test_review_source_unavailability_receipt_is_tagged_and_material_bound() -> 
     }
 
 
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_review_source_positive_response_receipt_is_nonblocking_without_review_claim(
+    reaction_content: str,
+) -> None:
+    receipt = build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference="https://github.com/owner/repo/pull/42#reaction-456",
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"] = receipt
+
+    parsed = parse_embedded_review_seal(render_embedded_review_seal(seal))
+
+    assert is_review_source_positive_response_receipt(parsed["code_review"])
+    assert parsed["code_review"] == {
+        "authority": "trusted_codex_review_source_positive_response",
+        "binding_kind": "seal_context_only",
+        "blocking": False,
+        "fallback_required": False,
+        "material_digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "response_content": reaction_content,
+        "response_created_at": "2026-07-15T11:00:00Z",
+        "response_reference": "https://github.com/owner/repo/pull/42#reaction-456",
+        "review_claim": "none",
+        "schema_version": "pulseplate.codex-review-source-positive-response/v1",
+        "source": "codex_review",
+        "source_degraded": False,
+        "source_status": "positive_response",
+        "status": "completed",
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (lambda receipt: receipt.update(review_claim="approved"), "malformed or stale"),
+        (lambda receipt: receipt.update(source_degraded=True), "malformed or stale"),
+        (lambda receipt: receipt.update(response_content="eyes"), "malformed or stale"),
+        (
+            lambda receipt: receipt.update(authority="trusted_codex_review_source_unavailability"),
+            "tagged-union identity is ambiguous",
+        ),
+    ],
+)
+def test_review_source_positive_response_receipt_rejects_authority_escalation(
+    mutation: Any, error: str
+) -> None:
+    receipt = build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference="https://github.com/owner/repo/pull/42#reaction-456",
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content="+1",
+    )
+    mutation(receipt)
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"] = receipt
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        render_embedded_review_seal(seal)
+
+
 @pytest.mark.parametrize(
     ("mutation", "error"),
     [
@@ -2931,9 +3023,11 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
     assert "WARNING: Connector advisory reaction omitted: GitHub reaction not found" in captured.err
 
 
-def test_closeout_seal_binds_connector_reaction_through_normal_review_ref(
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_closeout_seal_records_connector_reaction_as_positive_response(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    reaction_content: str,
 ) -> None:
     repo = tmp_path / "repo"
     target = repo / "docs/review/PR_42_FIXED_MAPPING.md"
@@ -2969,12 +3063,12 @@ def test_closeout_seal_binds_connector_reaction_through_normal_review_ref(
 
     def verify_reaction_review(
         reference: str, **kwargs: Any
-    ) -> identity_module.CodexReviewEvidence:
+    ) -> identity_module.CodexConnectorAdvisoryReactionEvidence:
         review_calls.append((reference, kwargs.get("expected_commit_ref")))
-        return identity_module.CodexReviewEvidence(
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
             reference=reaction_reference,
-            submitted_at="2026-07-15T11:00:00Z",
-            commit_ref=HEAD_SHA,
+            created_at="2026-07-15T11:00:00Z",
+            content=reaction_content,
         )
 
     monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
@@ -3025,18 +3119,18 @@ def test_closeout_seal_binds_connector_reaction_through_normal_review_ref(
 
     seal = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
     assert review_calls == [(reaction_reference, HEAD_SHA)]
-    assert seal["code_review"] == {
-        "review_commit_ref": HEAD_SHA,
-        "review_commit_ref_kind": "repository_commit",
-        "review_reference": reaction_reference,
-        "reviewed_material_digest": DIGEST,
-        "status": "completed",
-    }
+    assert seal["code_review"] == build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference=reaction_reference,
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
     assert seal["codex_security"] == security_receipt
     assert snapshot_rechecks == [_snapshot()]
 
 
-def test_authenticated_closeout_validation_rejects_nonexistent_review(
+def test_authenticated_closeout_rejects_reaction_in_exact_review_receipt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     receipt = ingest_codex_security_receipt(
@@ -3059,7 +3153,7 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
     )
     verifier_calls: list[tuple[str, str | None, str | None]] = []
 
-    def reject_review(reference: str, **kwargs: Any) -> Any:
+    def return_positive_response(reference: str, **kwargs: Any) -> Any:
         verifier_calls.append(
             (
                 reference,
@@ -3067,7 +3161,11 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
                 kwargs.get("expected_live_pr_head_ref"),
             )
         )
-        raise CommitIdentityError("GitHub review not found")
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reference,
+            created_at="2026-07-15T11:00:00Z",
+            content="+1",
+        )
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
     monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
@@ -3082,11 +3180,15 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         "classify_commit_ref",
         lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
     )
-    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", reject_review)
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        return_positive_response,
+    )
     monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
     monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
 
-    with pytest.raises(CommitIdentityError, match="review not found"):
+    with pytest.raises(closeout_module.CloseoutError, match="not exact-head review evidence"):
         closeout_module.validate_live_mapping(
             repository="owner/repo",
             pr_number=42,
@@ -3096,8 +3198,9 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
     assert verifier_calls == [(reaction_reference, HEAD_SHA, HEAD_SHA)]
 
 
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
 def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reaction_content: str
 ) -> None:
     receipt = ingest_codex_security_receipt(
         _build_scan_bundle(tmp_path / "scan"),
@@ -3106,7 +3209,13 @@ def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
     )
     reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
     seal = _seal(receipt)
-    seal["code_review"]["review_reference"] = reaction_reference
+    seal["code_review"] = build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference=reaction_reference,
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
     mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
     mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
     closeout_snapshot = PrSnapshot(
@@ -3129,10 +3238,10 @@ def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
                 kwargs.get("expected_live_pr_head_ref"),
             )
         )
-        return identity_module.CodexReviewEvidence(
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
             reference=reference,
-            submitted_at="2026-07-15T11:00:00Z",
-            commit_ref=HEAD_SHA,
+            created_at="2026-07-15T11:00:00Z",
+            content=reaction_content,
         )
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
@@ -3165,8 +3274,45 @@ def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
         token="opaque",
     )
 
-    assert validated["code_review"]["review_reference"] == reaction_reference
+    assert validated["code_review"]["response_reference"] == reaction_reference
     assert verifier_calls == [(reaction_reference, HEAD_SHA, OUTSIDE_SHA)]
+
+    stale_seal = parse_embedded_review_seal(mapping.read_text(encoding="utf-8"))
+    stale_seal["code_review"]["response_content"] = "heart" if reaction_content != "heart" else "+1"
+    mapping.write_text(_mapping_artifact_with_seal(stale_seal), encoding="utf-8")
+    with pytest.raises(closeout_module.CloseoutError, match="positive response receipt is stale"):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+
+    def manifest_for_head(
+        _root: Path,
+        *,
+        base_ref_oid: str,
+        head_ref_oid: str,
+        pr_number: int,
+    ) -> MaterialManifest:
+        assert base_ref_oid == BASE_SHA
+        assert pr_number == 42
+        if head_ref_oid == OUTSIDE_SHA:
+            return _material_manifest(OUTSIDE_SHA, digest=DIGEST)
+        assert head_ref_oid == HEAD_SHA
+        return _material_manifest(HEAD_SHA, digest="sha256:" + "d" * 64)
+
+    monkeypatch.setattr(closeout_module, "compute_material_manifest", manifest_for_head)
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="positive response material head has a different material digest",
+    ):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
 
 
 def test_authenticated_closeout_revalidates_operator_outage_override(

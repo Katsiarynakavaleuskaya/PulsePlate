@@ -46,11 +46,13 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
+    is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
@@ -713,22 +715,31 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             token=token,
             expected_commit_ref=snapshot.head_sha,
         )
-        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-        if (
-            not isinstance(review_commit, RepositoryCommitRef)
-            or review_commit.kind is not CommitRefKind.PR_HEAD
-            or review_commit.sha != snapshot.head_sha
-        ):
-            raise CloseoutError(
-                "Codex review must be machine-bound to the exact frozen material head"
+        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
+            code_review_receipt = build_review_source_positive_response_receipt(
+                material_digest=manifest.digest,
+                material_head_sha=snapshot.head_sha,
+                response_reference=review_evidence.reference,
+                response_created_at=review_evidence.created_at,
+                response_content=review_evidence.content,
             )
-        code_review_receipt = {
-            "review_commit_ref": review_commit.sha,
-            "review_commit_ref_kind": "repository_commit",
-            "review_reference": review_ref,
-            "reviewed_material_digest": manifest.digest,
-            "status": "completed",
-        }
+        else:
+            review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
+            if (
+                not isinstance(review_commit, RepositoryCommitRef)
+                or review_commit.kind is not CommitRefKind.PR_HEAD
+                or review_commit.sha != snapshot.head_sha
+            ):
+                raise CloseoutError(
+                    "Codex review must be machine-bound to the exact frozen material head"
+                )
+            code_review_receipt = {
+                "review_commit_ref": review_commit.sha,
+                "review_commit_ref_kind": "repository_commit",
+                "review_reference": review_ref,
+                "reviewed_material_digest": manifest.digest,
+                "status": "completed",
+            }
     if args.scan_manifest:
         receipt = ingest_codex_security_receipt(
             Path(args.scan_manifest),
@@ -862,7 +873,35 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     }:
         raise CloseoutError("sealed material head is not a real live PR commit")
     code_review = seal["code_review"]
-    if is_review_source_unavailability_receipt(code_review):
+    if is_review_source_positive_response_receipt(code_review):
+        response_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if response_manifest.digest != material["digest"]:
+            raise CloseoutError("positive response material head has a different material digest")
+        response_evidence = verify_codex_review_reference(
+            code_review["response_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material_head.sha,
+            expected_live_pr_head_ref=snapshot.head_sha,
+        )
+        if not isinstance(response_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise CloseoutError("Codex positive response reference changed evidence type")
+        expected_code_review = build_review_source_positive_response_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            response_reference=response_evidence.reference,
+            response_created_at=response_evidence.created_at,
+            response_content=response_evidence.content,
+        )
+        if code_review != expected_code_review:
+            raise CloseoutError("Codex positive response receipt is stale")
+    elif is_review_source_unavailability_receipt(code_review):
         unavailable_manifest = compute_material_manifest(
             REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
@@ -945,6 +984,8 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
             # changed after the sealed head.
             expected_live_pr_head_ref=snapshot.head_sha,
         )
+        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise CloseoutError("Codex positive response is not exact-head review evidence")
         if (
             code_review["review_commit_ref_kind"] != "repository_commit"
             or review_evidence.commit_ref != code_review["review_commit_ref"]

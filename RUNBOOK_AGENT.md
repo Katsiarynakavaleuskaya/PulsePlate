@@ -660,17 +660,20 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 5. Record dispositions with `add-disposition`, then run `seal` with exactly one
    review-evidence mode: `--review-ref ...` for a completed trusted review or a
    canonical official Connector PR-root `+1`, `heart`, `hooray`, or `rocket`
-   reaction, or `--review-source-unavailable-ref ...` for an exact trusted Codex
+   reaction as a nonblocking terminal positive response, or
+   `--review-source-unavailable-ref ...` for an exact trusted Codex
    rate-limit / usage-limit comment. A reaction supplied through `--review-ref`
    is live-verified by exact PR-root URL and immutable Connector account identity,
    then bound to the caller's full snapshotted material head by requiring the live
    PR head to equal it at seal time and a server-timestamped GitHub Actions `pull_request` run
    linked to that same PR and head to strictly precede the reaction, with no later
-   force-push or head-restoration event. After the one canonical mapping-only
+   force-push or head-restoration event. That chronology proves freshness only;
+   it is not projected into a Connector-owned reviewed commit. After the one canonical mapping-only
    closeout commit, authenticated validation may accept the descendant live head
-   only after material-digest equality is re-established. It is a Connector
-   response for that material state, not a native GitHub approval, Codex Security
-   result, or thread-resolution authority. The optional
+   only after material-digest equality is re-established. Its receipt is
+   `binding_kind=seal_context_only`, `review_claim=none`, and `blocking=false`.
+   It is a trusted positive Connector response, not exact-head review proof, a
+   native GitHub approval, Codex Security result, or thread-resolution authority. The optional
    `--connector-advisory-reaction <canonical-reaction-url>` rendering path remains
    non-authoritative and may be omitted with a warning. The source-unavailable path requires no retry,
    substitute review, prior review, operator override, or TTL; it proves only

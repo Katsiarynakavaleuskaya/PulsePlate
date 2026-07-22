@@ -40,6 +40,7 @@ from scripts.orchestration.review_mapping_artifact import (
 from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     CommitIdentityError,
     CommitRefKind,
+    CodexConnectorAdvisoryReactionEvidence,
     PrSnapshot,
     RepositoryCommitRef,
     ReviewThreadEvidence,
@@ -56,10 +57,12 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     is_review_credit_outage_receipt,
+    is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
@@ -632,7 +635,37 @@ def _validate_v1_seal(
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
-    if is_review_source_unavailability_receipt(code_review):
+    if is_review_source_positive_response_receipt(code_review):
+        response_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if response_manifest.digest != material["digest"]:
+            raise ReviewEvidenceError(
+                "positive response material head has a different material digest"
+            )
+        response_evidence = verify_codex_review_reference(
+            code_review["response_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material_head.sha,
+            expected_live_pr_head_ref=snapshot.head_sha,
+        )
+        if not isinstance(response_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise ReviewEvidenceError("Codex positive response reference changed evidence type")
+        expected_code_review = build_review_source_positive_response_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            response_reference=response_evidence.reference,
+            response_created_at=response_evidence.created_at,
+            response_content=response_evidence.content,
+        )
+        if code_review != expected_code_review:
+            raise ReviewEvidenceError("Codex positive response receipt is stale")
+    elif is_review_source_unavailability_receipt(code_review):
         unavailable_manifest = compute_material_manifest(
             REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
@@ -712,6 +745,8 @@ def _validate_v1_seal(
             # to separate the sealed material head from the live PR head.
             expected_live_pr_head_ref=snapshot.head_sha,
         )
+        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise ReviewEvidenceError("Codex positive response is not exact-head review evidence")
         if (
             review_evidence.commit_ref != code_review["review_commit_ref"]
             or code_review["review_commit_ref_kind"] != "repository_commit"
@@ -1067,7 +1102,12 @@ def main() -> int:
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
-        if is_review_source_unavailability_receipt(seal["code_review"]):
+        if is_review_source_positive_response_receipt(seal["code_review"]):
+            print(
+                "REVIEW_SOURCE_POSITIVE_RESPONSE_VALID "
+                f"{seal['code_review']['response_content']}"
+            )
+        elif is_review_source_unavailability_receipt(seal["code_review"]):
             print("REVIEW_SOURCE_UNAVAILABLE_VALID " f"{seal['code_review']['source_status']}")
         elif is_review_credit_outage_receipt(seal["code_review"]):
             print(

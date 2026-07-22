@@ -45,6 +45,11 @@ REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR = 2142
 REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION = "pulseplate.codex-review-source-unavailability/v1"
 REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY = "trusted_codex_review_source_unavailability"
 REVIEW_SOURCE_UNAVAILABILITY_SOURCE = "codex_review"
+REVIEW_SOURCE_POSITIVE_RESPONSE_SCHEMA_VERSION = (
+    "pulseplate.codex-review-source-positive-response/v1"
+)
+REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY = "trusted_codex_review_source_positive_response"
+REVIEW_SOURCE_POSITIVE_RESPONSE_SOURCE = "codex_review"
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
@@ -1162,6 +1167,37 @@ def build_review_source_unavailability_receipt(
     return receipt
 
 
+def build_review_source_positive_response_receipt(
+    *,
+    material_digest: str,
+    material_head_sha: str,
+    response_reference: str,
+    response_created_at: str,
+    response_content: str,
+) -> dict[str, Any]:
+    """Build a material-context receipt for one trusted positive response."""
+
+    receipt = {
+        "authority": REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY,
+        "binding_kind": "seal_context_only",
+        "blocking": False,
+        "fallback_required": False,
+        "material_digest": material_digest,
+        "material_head_sha": material_head_sha,
+        "response_content": response_content,
+        "response_created_at": response_created_at,
+        "response_reference": response_reference,
+        "review_claim": "none",
+        "schema_version": REVIEW_SOURCE_POSITIVE_RESPONSE_SCHEMA_VERSION,
+        "source": REVIEW_SOURCE_POSITIVE_RESPONSE_SOURCE,
+        "source_degraded": False,
+        "source_status": "positive_response",
+        "status": "completed",
+    }
+    _validate_code_review_receipt(receipt, material_digest=material_digest)
+    return receipt
+
+
 def is_review_source_unavailability_receipt(receipt: Any) -> bool:
     """Return whether code-review evidence uses the tagged quota variant."""
 
@@ -1169,6 +1205,16 @@ def is_review_source_unavailability_receipt(receipt: Any) -> bool:
         isinstance(receipt, dict)
         and receipt.get("schema_version") == REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION
         and receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
+    )
+
+
+def is_review_source_positive_response_receipt(receipt: Any) -> bool:
+    """Return whether code-review evidence uses the positive-response variant."""
+
+    return (
+        isinstance(receipt, dict)
+        and receipt.get("schema_version") == REVIEW_SOURCE_POSITIVE_RESPONSE_SCHEMA_VERSION
+        and receipt.get("authority") == REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY
     )
 
 
@@ -1346,6 +1392,61 @@ def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None
     has_source_authority = receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
     if has_source_schema != has_source_authority:
         raise ReviewEvidenceError("review seal code_review tagged-union identity is ambiguous")
+    has_positive_schema = (
+        receipt.get("schema_version") == REVIEW_SOURCE_POSITIVE_RESPONSE_SCHEMA_VERSION
+    )
+    has_positive_authority = receipt.get("authority") == REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY
+    if has_positive_schema != has_positive_authority:
+        raise ReviewEvidenceError("review seal code_review tagged-union identity is ambiguous")
+    if has_source_schema and has_positive_schema:
+        raise ReviewEvidenceError("review seal code_review tagged-union identity is ambiguous")
+    if has_positive_schema:
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "binding_kind",
+                "blocking",
+                "fallback_required",
+                "material_digest",
+                "material_head_sha",
+                "response_content",
+                "response_created_at",
+                "response_reference",
+                "review_claim",
+                "schema_version",
+                "source",
+                "source_degraded",
+                "source_status",
+                "status",
+            },
+            label="review seal code_review source positive response",
+        )
+        _require_sha(receipt["material_head_sha"], label="code_review.material_head_sha")
+        _require_digest(receipt["material_digest"], label="code_review.material_digest")
+        _parse_timestamp(
+            receipt["response_created_at"],
+            label="code_review.response_created_at",
+        )
+        if (
+            receipt["material_digest"] != material_digest
+            or receipt["source"] != REVIEW_SOURCE_POSITIVE_RESPONSE_SOURCE
+            or receipt["source_status"] != "positive_response"
+            or receipt["status"] != "completed"
+            or receipt["binding_kind"] != "seal_context_only"
+            or receipt["review_claim"] != "none"
+            or receipt["source_degraded"] is not False
+            or receipt["fallback_required"] is not False
+            or receipt["blocking"] is not False
+            or receipt["response_content"] not in {"+1", "heart", "hooray", "rocket"}
+            or not isinstance(receipt["response_reference"], str)
+            or not 1 <= len(receipt["response_reference"]) <= 500
+            or any(ord(ch) < 32 for ch in receipt["response_reference"])
+        ):
+            raise ReviewEvidenceError(
+                "review seal code_review source positive response is malformed or stale"
+            )
+        return
     if has_source_schema:
         _require_exact_keys(
             receipt,
@@ -1546,11 +1647,12 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
         raise ReviewEvidenceError("review seal material policy version is unsupported")
     code_review = seal["code_review"]
     _validate_code_review_receipt(code_review, material_digest=material_digest)
-    if is_review_source_unavailability_receipt(code_review) and (
-        code_review["material_head_sha"] != material["material_head_sha"]
-    ):
+    if (
+        is_review_source_unavailability_receipt(code_review)
+        or is_review_source_positive_response_receipt(code_review)
+    ) and (code_review["material_head_sha"] != material["material_head_sha"]):
         raise ReviewEvidenceError(
-            "review-source unavailability receipt does not match sealed material head"
+            "review-source context receipt does not match sealed material head"
         )
     _validate_security_receipt(seal["codex_security"])
     if (
