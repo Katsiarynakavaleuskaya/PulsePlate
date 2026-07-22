@@ -288,9 +288,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
     PR body. The ref path must exactly match the PR's authenticated `head.ref`;
     repo-relative links are invalid in PR-body context.
-    The canonical mapping artifact must be the only dirty path. Child inline
-    mappings do not substitute for an actionable top-level review in this
-    pre-commit pass. A PASS authorizes only the one closeout commit: it does not
+    The canonical mapping artifact must be the only dirty path both before and
+    after the live validation calls. Child inline mappings do not substitute
+    for an actionable top-level review in this pre-commit pass. A PASS
+    authorizes only the one closeout commit: it does not
     require thread resolution, current-head CI, or the review wait window, and
     it must never be presented as merge-readiness evidence. After push, the
     unchanged full strict wrapper remains mandatory.

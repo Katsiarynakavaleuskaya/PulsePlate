@@ -721,9 +721,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    The canonical mapping artifact must be the only dirty path. This pass must
    cover every live actionable bot issue comment, bot inline comment, and
    top-level bot review explicitly; a child-comment mapping does not cover its
-   actionable top-level review. The validator re-reads the live body and
-   content-bound actionable inventory before PASS and fails closed if either
-   changes during validation. It intentionally does not require resolved
+   actionable top-level review. The validator re-reads the live body,
+   content-bound actionable inventory, and local dirty-path set before PASS and
+   fails closed if any changes during validation. It intentionally does not require resolved
    threads, current-head CI, or the review wait window and is not
    merge-readiness evidence.
 7. Only after that pass, commit the artifact once and push it. Then run the

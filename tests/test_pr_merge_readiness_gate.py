@@ -492,6 +492,35 @@ def test_pre_closeout_fails_when_pr_body_changes_during_validation(
     assert "live PR body or draft state changed" in capsys.readouterr().out
 
 
+def test_pre_closeout_fails_when_dirty_paths_change_during_validation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(
+            "https://github.com/owner/repo/pull/42#issuecomment-previous"
+        ),
+        actionable_items=[],
+    )
+    dirty_snapshots = iter(
+        (
+            {"docs/review/PR_42_FIXED_MAPPING.md"},
+            {
+                "docs/review/PR_42_FIXED_MAPPING.md",
+                "scripts/ci/check_pr_merge_readiness.py",
+            },
+        )
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_pre_closeout_dirty_paths",
+        lambda: next(dirty_snapshots),
+    )
+
+    assert merge_gate.main() == 1
+    assert "local working tree changed" in capsys.readouterr().out
+
+
 def test_review_seal_rollout_boundary_is_explicit_and_self_opt_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

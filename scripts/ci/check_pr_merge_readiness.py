@@ -1083,6 +1083,7 @@ def main() -> int:
     if args.pre_closeout and not os.getenv("GH_TOKEN", "").strip():
         print("ERROR: GH_TOKEN is also required for strict pre-closeout validation.")
         return 1
+    expected_mapping_path: str | None = None
     if args.pre_closeout and args.pr_number is not None:
         expected_mapping_path = f"docs/review/PR_{args.pr_number}_FIXED_MAPPING.md"
         try:
@@ -1279,6 +1280,11 @@ def main() -> int:
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: actionable bot review inventory changed during validation"
             )
+        if args.pre_closeout and expected_mapping_path is not None:
+            if _pre_closeout_dirty_paths() != {expected_mapping_path}:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: local working tree changed during pre-closeout validation"
+                )
         assert_snapshot_unchanged(snapshot, token=token)
     except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
         errors.append(str(exc))

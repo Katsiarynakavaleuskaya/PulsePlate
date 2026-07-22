@@ -218,8 +218,9 @@ governance PR number + 1; the governance PR may opt in with
   the authenticated PR `head.ref` and whose destination is
   `docs/review/PR_<N>_FIXED_MAPPING.md`; plain text, repo-relative links,
   inline-code examples, and fenced examples do not count.
-  Before PASS, the gate re-reads the live body and content-bound actionable
-  inventory and fails closed on new, removed, or edited concurrent bot activity.
+  Before PASS, the gate re-reads the live body, content-bound actionable
+  inventory, and local dirty-path set and fails closed on new, removed, or
+  edited concurrent bot activity or local worktree drift.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`
