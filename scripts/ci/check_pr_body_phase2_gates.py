@@ -34,6 +34,8 @@ PHASE2_CONFIG = {
     "discussion_checkbox_label": "Discussion-thread pass completed",
     "mapping_checkbox_label": "Fixed in commit mapping completed",
     "mapping_na_alternatives": ("N/A", "No actionable review comments"),
+    "pre_closeout_marker": "phase2-pre-closeout: final-security-pending",
+    "pre_closeout_pending_text": "Pending final clean scan and the single mapping/closeout commit.",
 }
 
 
@@ -61,6 +63,11 @@ MAPPING_ENTRY_RE = re.compile(
 THREAD_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*$")
 _na_alternatives = "|".join(re.escape(a) for a in PHASE2_CONFIG["mapping_na_alternatives"])
 MAPPING_NA_RE = re.compile(rf"(?im)^\s*-\s*(?:{_na_alternatives})\s*$")
+_PRE_CLOSEOUT_MARKER = str(PHASE2_CONFIG["pre_closeout_marker"])
+_PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
+PRE_CLOSEOUT_MARKER_RE = re.compile(rf"(?im)^\s*<!--\s*{re.escape(_PRE_CLOSEOUT_MARKER)}\s*-->\s*$")
+PRE_CLOSEOUT_PENDING_RE = re.compile(rf"(?im)^\s*-\s*{re.escape(_PRE_CLOSEOUT_PENDING_TEXT)}\s*$")
+HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
 )
@@ -129,6 +136,7 @@ class BodyValidationMode(str, Enum):
 
     FULL_MAPPING = "full_mapping"
     MIRROR_ONLY = "mirror_only"
+    PRE_CLOSEOUT = "pre_closeout"
 
 
 class ExperimentRunnerEvidenceMode(str, Enum):
@@ -160,8 +168,26 @@ def _strip_fenced_code_blocks(text: str) -> str:
     return re.sub(r"(?s)~~~.*?~~~", "", cleaned)
 
 
+def _normalize_phase2_body(text: str) -> str:
+    """Remove non-authoritative Markdown content before Phase2 parsing."""
+
+    cleaned = _strip_fenced_code_blocks(text)
+
+    def preserve_pre_closeout_marker(match: re.Match[str]) -> str:
+        comment = match.group(0)
+        return comment if PRE_CLOSEOUT_MARKER_RE.fullmatch(comment) else ""
+
+    return HTML_COMMENT_RE.sub(preserve_pre_closeout_marker, cleaned)
+
+
 def _extract_checked(match: re.Match[str] | None) -> bool:
     return bool(match and match.group("checked").lower() == "x")
+
+
+def _has_pre_closeout_marker(text: str) -> bool:
+    """Return whether a body explicitly declares the non-mergeable closeout phase."""
+
+    return bool(PRE_CLOSEOUT_MARKER_RE.search(_normalize_phase2_body(text)))
 
 
 def _load_event_pull_request(event_path: Path) -> dict[str, object]:
@@ -715,26 +741,76 @@ def check_pr_body_phase2_gates(
     mode: BodyValidationMode = BodyValidationMode.FULL_MAPPING,
 ) -> list[str]:
     errors: list[str] = []
-    cleaned = _strip_fenced_code_blocks(body)
+    cleaned = _normalize_phase2_body(body)
 
     d_heading = f"## {PHASE2_CONFIG['discussion_heading']}"
     m_heading = f"### {PHASE2_CONFIG['mapping_heading']}"
-    if not DISCUSSION_SECTION_RE.search(cleaned):
+    discussion_sections = list(DISCUSSION_SECTION_RE.finditer(cleaned))
+    mapping_sections = list(MAPPING_SECTION_RE.finditer(cleaned))
+    discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(cleaned))
+    mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(cleaned))
+    if not discussion_sections:
         errors.append(f"Missing required section: `{d_heading}`.")
-    if not MAPPING_SECTION_RE.search(cleaned):
+    elif len(discussion_sections) > 1:
+        errors.append(f"Duplicate required section: `{d_heading}`.")
+    if not mapping_sections:
         errors.append(f"Missing required section: `{m_heading}`.")
+    elif len(mapping_sections) > 1:
+        errors.append(f"Duplicate required section: `{m_heading}`.")
 
-    discussion_check = DISCUSSION_CHECKBOX_RE.search(cleaned)
-    if not _extract_checked(discussion_check):
-        errors.append(
-            f"Checklist item must be checked: `{PHASE2_CONFIG['discussion_checkbox_label']}`."
-        )
+    discussion_check = discussion_checks[0] if discussion_checks else None
+    mapping_check = mapping_checks[0] if mapping_checks else None
+    for checks, label in (
+        (discussion_checks, str(PHASE2_CONFIG["discussion_checkbox_label"])),
+        (mapping_checks, str(PHASE2_CONFIG["mapping_checkbox_label"])),
+    ):
+        if len(checks) > 1:
+            errors.append(f"Duplicate checklist item: `{label}`.")
 
-    mapping_check = MAPPING_CHECKBOX_RE.search(cleaned)
-    if not _extract_checked(mapping_check):
-        errors.append(
-            f"Checklist item must be checked: `{PHASE2_CONFIG['mapping_checkbox_label']}`."
-        )
+    if mode is BodyValidationMode.PRE_CLOSEOUT:
+        if not PRE_CLOSEOUT_MARKER_RE.search(cleaned):
+            errors.append(
+                "Pre-closeout requires the exact marker: " f"`<!-- {_PRE_CLOSEOUT_MARKER} -->`."
+            )
+        for check, label in (
+            (discussion_check, str(PHASE2_CONFIG["discussion_checkbox_label"])),
+            (mapping_check, str(PHASE2_CONFIG["mapping_checkbox_label"])),
+        ):
+            if check is None:
+                errors.append(f"Missing checklist item: `{label}`.")
+            elif _extract_checked(check):
+                errors.append(
+                    "Pre-closeout checklist item must remain unchecked until the "
+                    f"canonical mapping/seal is published: `{label}`."
+                )
+        mapping_section = _extract_mapping_section(cleaned)
+        if not PRE_CLOSEOUT_PENDING_RE.search(mapping_section):
+            errors.append(
+                "Pre-closeout mapping section must declare the exact pending final scan "
+                "and single mapping/closeout commit status."
+            )
+        if (
+            MAPPING_ENTRY_RE.search(mapping_section)
+            or THREAD_ENTRY_RE.search(mapping_section)
+            or MAPPING_NA_RE.search(mapping_section)
+        ):
+            errors.append(
+                "Pre-closeout mapping section must not contain completed mapping entries."
+            )
+    else:
+        if PRE_CLOSEOUT_MARKER_RE.search(cleaned):
+            errors.append(
+                "Pre-closeout marker must be removed after the canonical mapping/seal is "
+                "published."
+            )
+        if not _extract_checked(discussion_check):
+            errors.append(
+                f"Checklist item must be checked: `{PHASE2_CONFIG['discussion_checkbox_label']}`."
+            )
+        if not _extract_checked(mapping_check):
+            errors.append(
+                f"Checklist item must be checked: `{PHASE2_CONFIG['mapping_checkbox_label']}`."
+            )
 
     if mode is BodyValidationMode.FULL_MAPPING:
         mapping_section = _extract_mapping_section(cleaned)
@@ -820,6 +896,7 @@ def main() -> int:
     body = args.body
     if not body and args.event_path:
         body = _extract_pr_body(Path(args.event_path))
+    pre_closeout_requested = _has_pre_closeout_marker(body)
 
     # Canonical SoT: repo artifact (docs/review/PR_<N>_FIXED_MAPPING.md)
     pr_number = args.pr_number
@@ -841,28 +918,35 @@ def main() -> int:
         try:
             artifact_text = read_mapping_artifact(pr_number)
         except FileNotFoundError as exc:
-            print(f"ERROR: {exc}")
-            return 1
-        artifact_checked = True
-        artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
-        evidence_texts.append(artifact_text)
-        evidence_errors, evidence_warnings = check_experiment_runner_evidence(
-            artifact_text,
-            mode=args.experiment_runner_evidence_mode,
-            missing_section_is_warning=True,
-        )
-        artifact_errors.extend(evidence_errors)
-        evidence_warning_candidates.extend(evidence_warnings)
-        if not evidence_errors and not evidence_warnings:
-            experiment_runner_evidence_seen = True
-        lane_errors, lane_warnings = check_lane_start_provenance(artifact_text)
-        artifact_errors.extend(lane_errors)
-        lane_start_warning_candidates.extend(lane_warnings)
-        if _lane_start_source_seen(lane_errors, lane_warnings):
-            lane_start_seen = True
+            if not pre_closeout_requested:
+                print(f"ERROR: {exc}")
+                return 1
+            advisory_warnings.append(
+                "Pre-closeout: canonical mapping artifact is intentionally pending final "
+                "material review/security scan; merge readiness remains blocked."
+            )
+        else:
+            artifact_checked = True
+            artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
+            evidence_texts.append(artifact_text)
+            evidence_errors, evidence_warnings = check_experiment_runner_evidence(
+                artifact_text,
+                mode=args.experiment_runner_evidence_mode,
+                missing_section_is_warning=True,
+            )
+            artifact_errors.extend(evidence_errors)
+            evidence_warning_candidates.extend(evidence_warnings)
+            if not evidence_errors and not evidence_warnings:
+                experiment_runner_evidence_seen = True
+            lane_errors, lane_warnings = check_lane_start_provenance(artifact_text)
+            artifact_errors.extend(lane_errors)
+            lane_start_warning_candidates.extend(lane_warnings)
+            if _lane_start_source_seen(lane_errors, lane_warnings):
+                lane_start_seen = True
 
     if body.strip():
-        cleaned_body = _strip_fenced_code_blocks(body)
+        cleaned_body = _normalize_phase2_body(body)
+        has_pre_closeout_marker = bool(PRE_CLOSEOUT_MARKER_RE.search(cleaned_body))
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )
@@ -872,12 +956,17 @@ def main() -> int:
         has_lane_start_provenance = bool(
             _extract_section_by_h2(cleaned_body, str(PHASE2_CONFIG["lane_start_heading"]))
         )
-        if not artifact_checked or has_phase2_mirror:
+        if not artifact_checked or has_phase2_mirror or has_pre_closeout_marker:
             body_checked = True
+            body_mode = (
+                BodyValidationMode.PRE_CLOSEOUT
+                if not artifact_checked and pre_closeout_requested
+                else _select_body_validation_mode(artifact_checked=artifact_checked)
+            )
             body_errors.extend(
                 check_pr_body_phase2_gates(
                     body=body,
-                    mode=_select_body_validation_mode(artifact_checked=artifact_checked),
+                    mode=body_mode,
                 )
             )
         if not artifact_checked or has_experiment_runner_evidence:
@@ -970,6 +1059,12 @@ def main() -> int:
         print(
             "phase2-pr-body-gates: canonical mapping artifact passed "
             "(PR body mirror optional in artifact-first mode)."
+        )
+        return 0
+    if pre_closeout_requested:
+        print(
+            "phase2-pr-body-gates: explicit non-mergeable pre-closeout state passed; "
+            "canonical mapping artifact remains required for merge."
         )
         return 0
 

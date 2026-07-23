@@ -19,6 +19,7 @@ import pytest
 from scripts.orchestration.pr_commit_identity import (
     CommitIdentityError,
     CommitRefKind,
+    CodexReviewEvidence,
     CodexReviewSourceUnavailabilityEvidence,
     GitHubHttpError,
     PrCommitEvidence,
@@ -2319,10 +2320,72 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
         (
             "owner/repo",
             42,
+            ("scripts/orchestration/review_source_status.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
             (".github/actions/python-setup/action.yml",),
             False,
         ),
+        (
+            "owner/repo",
+            42,
+            (
+                "AGENTS.md",
+                "RUNBOOK_AGENT.md",
+                "docs/orchestration/AGENTS.md",
+                "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+                "scripts/orchestration/qoder_dispatch_bridge.py",
+                "scripts/orchestration/render_codex_start_prompt.py",
+                "scripts/orchestration/role_dispatch_bridge.py",
+                "scripts/orchestration/task_bootstrap.py",
+            ),
+            False,
+        ),
         ("owner/repo", 42, ("scripts/ci_pip_audit.sh",), False),
+        ("owner/repo", 42, (".pre-commit-config.yaml",), False),
+        ("owner/repo", 42, (".secrets.baseline",), False),
+        ("owner/repo", 42, ("scripts/hooks/repo_python.sh",), False),
+        ("owner/repo", 42, ("tests/guards/test_nosec_policy_guard.py",), False),
+        ("owner/repo", 42, ("tests/test_repo_policy_guards.py",), False),
+        (
+            "owner/repo",
+            42,
+            ("scripts/run-backend-tests-pre-commit.sh",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/check_review_threads_disposition.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/review_mapping_artifact.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/requested_agents.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("docs/orchestration/contracts/review_source_status.v1.json",),
+            False,
+        ),
         ("owner/repo", 42, (".bandit",), False),
         ("owner/repo", 42, (".bandit.yaml",), False),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
@@ -2378,7 +2441,12 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
             PurePosixPath(path).name,
         )
     }
-    protected_paths = tracked_dependency_paths | {"constraints.txt"}
+    protected_paths = tracked_dependency_paths | {
+        "Makefile",
+        "constraints.txt",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
+    }
 
     assert audited_manifests
     assert audited_manifests | audited_inputs <= protected_paths
@@ -2401,6 +2469,9 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
         "requirements-dev.txt",
         "requirements-lock.txt",
         "requirements-all.txt",
+        "Makefile",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
     } <= protected_paths
     for path in sorted(protected_paths):
         with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
@@ -2613,6 +2684,26 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     assert receipt["authority"] == RECEIPT_AUTHORITY
     assert receipt["findings_count"] == 0
     assert str(tmp_path) not in json.dumps(receipt)
+
+
+def test_scan_receipt_accepts_coverage_without_optional_open_questions(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    coverage_path = manifest_path.parent / "coverage.json"
+    coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+    del coverage["openQuestions"]
+    coverage_raw = _write_json(coverage_path, coverage)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["scan"]["artifacts"]:
+        if artifact["path"] == "coverage.json":
+            artifact["sha256"] = hashlib.sha256(coverage_raw).hexdigest()
+    _write_json(manifest_path, manifest)
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
 
 
 def test_scan_receipt_accepts_v011_remote_hardening_and_supplemental_artifacts(
@@ -3351,6 +3442,11 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
     )
     monkeypatch.setattr(
         closeout_module,
+        "_require_completed_final_security_preparation",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
         "_render_mapping",
         lambda _state, seal: _mapping_artifact_with_seal(seal),
     )
@@ -3447,6 +3543,11 @@ def test_closeout_seal_records_connector_reaction_as_positive_response(
         closeout_module,
         "ingest_codex_security_receipt",
         lambda *_a, **_k: security_receipt,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_completed_final_security_preparation",
+        lambda **_kwargs: None,
     )
     monkeypatch.setattr(
         closeout_module,
@@ -5191,6 +5292,988 @@ def test_closeout_init_is_atomic_and_idempotent(
     first = closeout_module._state_path(42).read_bytes()
     closeout_module._cmd_init(args)
     assert closeout_module._state_path(42).read_bytes() == first
+
+
+def _prepare_final_security_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Namespace, list[datetime]]:
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "state")
+    closeout_module._cmd_init(
+        Namespace(
+            repo="owner/repo",
+            pr_number=42,
+            packet=None,
+            experiment_result=None,
+        )
+    )
+    draft = closeout_module._load_state(42)
+    draft["freeze"] = {
+        "base_ref_oid": BASE_SHA,
+        "digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "merge_base_sha": BASE_SHA,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    closeout_module._write_state(draft)
+    clock = [datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)]
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(
+        closeout_module,
+        "fetch_pr_snapshot",
+        lambda *_args, **_kwargs: _snapshot(),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_clean_live_head",
+        lambda _head: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_args, **_kwargs: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "assert_snapshot_unchanged",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda reference, **_kwargs: CodexReviewEvidence(
+            reference=reference,
+            submitted_at="2026-07-15T11:59:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_args, **_kwargs: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "_utc_now", lambda: clock[0])
+    return (
+        Namespace(
+            repo="owner/repo",
+            pr_number=42,
+            review_ref="https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            review_source_unavailable_ref=None,
+            operator_approval_ref=None,
+        ),
+        clock,
+    )
+
+
+@pytest.mark.parametrize(
+    "state, error",
+    [
+        (None, "prepare and record final security"),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": "completed",
+                        "attempt_status": "completed",
+                        "material_digest": DIGEST,
+                        "material_head_sha": FIX_SHA,
+                    }
+                ]
+            },
+            "does not match frozen material",
+        ),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": None,
+                        "attempt_status": "reserved",
+                        "material_digest": DIGEST,
+                        "material_head_sha": HEAD_SHA,
+                    }
+                ]
+            },
+            "lacks a completed scan outcome",
+        ),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": "timeout",
+                        "attempt_status": "completed",
+                        "material_digest": DIGEST,
+                        "material_head_sha": HEAD_SHA,
+                    }
+                ]
+            },
+            "lacks a completed scan outcome",
+        ),
+    ],
+)
+def test_seal_requires_completed_exact_material_final_security_preparation(
+    state: dict[str, Any] | None,
+    error: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: state,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match=error):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+
+def test_seal_binds_completed_scan_and_review_to_prepared_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded_manifest = tmp_path / "recorded" / "scan-manifest.json"
+    supplied_manifest = tmp_path / "supplied" / "scan-manifest.json"
+    recorded_manifest.parent.mkdir()
+    supplied_manifest.parent.mkdir()
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    supplied_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    review_evidence = {
+        "kind": "completed_review",
+        "review_commit_sha": HEAD_SHA,
+        "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+        "review_submitted_at": "2026-07-15T11:59:00Z",
+    }
+    state = {
+        "preparations": [
+            {
+                "attempt_completed_at": "2026-07-15T12:00:03Z",
+                "attempt_outcome": "completed",
+                "attempt_status": "completed",
+                "material_digest": DIGEST,
+                "material_head_sha": HEAD_SHA,
+                "outcome_evidence_ref": str(recorded_manifest),
+                "prepared_at": "2026-07-15T12:00:00Z",
+                "review_evidence": review_evidence,
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: state,
+    )
+
+    closeout_module._require_completed_final_security_preparation(
+        repository="owner/repo",
+        pr_number=42,
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        expected_review_evidence=review_evidence,
+        scan_manifest=recorded_manifest,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="does not match the recorded"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=supplied_manifest,
+        )
+    with pytest.raises(closeout_module.CloseoutError, match="review evidence does not match"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence={**review_evidence, "review_reference": "different"},
+            scan_manifest=recorded_manifest,
+        )
+
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:04Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="predates the scan completion"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=recorded_manifest,
+        )
+
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T11:59:59Z"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="predates its preparation"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=recorded_manifest,
+        )
+
+
+def test_outage_seal_requires_matching_prepared_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    review_evidence = {
+        "kind": "completed_review",
+        "review_commit_sha": HEAD_SHA,
+        "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+        "review_submitted_at": "2026-07-15T11:59:00Z",
+    }
+    record = {
+        "attempt_completed_at": "2026-07-15T12:00:00Z",
+        "attempt_outcome": "incomplete",
+        "attempt_status": "completed",
+        "material_digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "review_evidence": review_evidence,
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: {"preparations": [record]},
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="recorded timeout"):
+        closeout_module._require_terminal_outage_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+        )
+
+    record["attempt_outcome"] = "timeout"
+    completed_at = closeout_module._require_terminal_outage_final_security_preparation(
+        repository="owner/repo",
+        pr_number=42,
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        expected_review_evidence=review_evidence,
+    )
+    assert completed_at == datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    ("override_created_at", "should_pass"),
+    [
+        ("2026-07-15T12:00:00Z", False),
+        ("2026-07-15T12:00:01Z", True),
+    ],
+)
+def test_closeout_outage_override_must_follow_recorded_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    override_created_at: str,
+    should_pass: bool,
+) -> None:
+    repo = tmp_path / "repo"
+    target = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "freeze": {
+            "base_ref_oid": BASE_SHA,
+            "digest": DIGEST,
+            "material_head_sha": HEAD_SHA,
+            "merge_base_sha": BASE_SHA,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "packet": None,
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+    }
+    review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-456"
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "_load_state", lambda _pr: state)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_require_clean_live_head", lambda _head: None)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: CodexReviewEvidence(
+            reference=review_reference,
+            submitted_at="2026-07-15T11:59:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_terminal_outage_final_security_preparation",
+        lambda **_kwargs: datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "validate_security_outage_override_scope",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        lambda *_a, **_k: SecurityOutageOverrideEvidence(
+            reference=override_reference,
+            created_at=override_created_at,
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_render_mapping",
+        lambda _state, seal: _mapping_artifact_with_seal(seal),
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: target)
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: "")
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    args = Namespace(
+        pr_number=42,
+        repo="owner/repo",
+        review_ref=review_reference,
+        review_source_unavailable_ref=None,
+        connector_advisory_reaction=[],
+        scan_manifest=None,
+        security_outage_override_ref=override_reference,
+    )
+
+    if not should_pass:
+        with pytest.raises(closeout_module.CloseoutError, match="after the recorded timeout"):
+            closeout_module._cmd_seal(args)
+        assert not target.exists()
+        return
+
+    closeout_module._cmd_seal(args)
+    seal = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
+    assert seal["codex_security"]["created_at"] == override_created_at
+
+
+def _final_security_approval_response(
+    reference: str,
+    *,
+    created_at: str = "2026-07-15T12:01:00Z",
+    updated_at: str | None = None,
+    association: str = "OWNER",
+    body: str | None = None,
+) -> dict[str, Any]:
+    comment_id = int(reference.rsplit("-", maxsplit=1)[1])
+    return {
+        "author_association": association,
+        "body": body
+        or closeout_module.render_final_security_approval_comment(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "id": comment_id,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": None,
+        "updated_at": updated_at or created_at,
+        "url": f"https://api.github.com/repos/owner/repo/issues/comments/{comment_id}",
+        "user": {"id": 1234, "login": "trusted-owner", "type": "User"},
+    }
+
+
+def _record_final_security_outcome(
+    clock: list[datetime],
+    *,
+    outcome: str = "completed",
+    when: datetime | None = None,
+) -> None:
+    clock[0] = when or datetime(2026, 7, 15, 12, 0, 30, tzinfo=timezone.utc)
+    closeout_module._cmd_record_final_security_outcome(
+        Namespace(
+            repo="owner/repo",
+            pr_number=42,
+            outcome=outcome,
+            evidence_ref=f"artifact:{outcome}:attempt-1",
+        )
+    )
+
+
+def test_final_security_lock_fails_closed_without_posix_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path)
+
+    def missing_backend(name: str) -> Any:
+        assert name == "fcntl"
+        raise ImportError("fcntl unavailable")
+
+    monkeypatch.setattr(closeout_module.importlib, "import_module", missing_backend)
+    backend = closeout_module._load_posix_locking_backend()
+    assert backend is None
+    monkeypatch.setattr(closeout_module, "_FCNTL", backend)
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match=r"requires POSIX fcntl\.flock support",
+    ):
+        with closeout_module._final_security_lock(42):
+            pytest.fail("missing locking backend must not enter the critical section")
+
+    assert not closeout_module._state_dir(42).exists()
+    assert not closeout_module._final_security_lock_path(42).exists()
+
+
+def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_guarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    draft_before = closeout_module._state_path(42).read_bytes()
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: pytest.fail("first preparation must not fetch a comment"),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    output = capsys.readouterr().out
+    assert "FINAL_SECURITY_PREPARED" in output
+    assert "no Codex Security plugin call or GitHub mutation was made" in output
+    assert "cannot prove cross-machine request consumption" in output
+    assert "automatic_retries=0" in output
+    assert closeout_module._state_path(42).read_bytes() == draft_before
+    preparation = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert preparation is not None
+    assert preparation["preparations"] == [
+        {
+            "attempt_completed_at": None,
+            "attempt_outcome": None,
+            "attempt_status": "reserved",
+            "material_digest": DIGEST,
+            "material_head_sha": HEAD_SHA,
+            "operator_approval": None,
+            "outcome_evidence_ref": None,
+            "pr_number": 42,
+            "prepared_at": "2026-07-15T12:00:00Z",
+            "repository": "owner/repo",
+            "review_evidence": {
+                "kind": "completed_review",
+                "review_commit_sha": HEAD_SHA,
+                "review_reference": args.review_ref,
+                "review_submitted_at": "2026-07-15T11:59:00Z",
+            },
+        }
+    ]
+
+    state_before_duplicate = closeout_module._final_security_state_path(42).read_bytes()
+    with pytest.raises(closeout_module.CloseoutError, match="already prepared"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert closeout_module._final_security_state_path(42).read_bytes() == state_before_duplicate
+
+
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_prepare_final_security_accepts_connector_positive_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reaction_content: str,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    args.review_ref = reaction_reference
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reaction_reference,
+            created_at="2026-07-15T11:59:00Z",
+            content=reaction_content,
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    assert state["preparations"][0]["review_evidence"] == (
+        build_review_source_positive_response_receipt(
+            material_digest=DIGEST,
+            material_head_sha=HEAD_SHA,
+            response_reference=reaction_reference,
+            response_created_at="2026-07-15T11:59:00Z",
+            response_content=reaction_content,
+        )
+    )
+
+
+def test_prepare_final_security_accepts_terminal_review_source_unavailability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    source_evidence = CodexReviewSourceUnavailabilityEvidence(
+        reference="https://github.com/owner/repo/pull/42#issuecomment-456",
+        created_at="2020-01-01T00:00:00Z",
+        source_status="usage_limit_reached",
+        body_sha256="sha256:" + "c" * 64,
+    )
+    args.review_ref = None
+    args.review_source_unavailable_ref = source_evidence.reference
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_source_unavailability_reference",
+        lambda *_args, **_kwargs: source_evidence,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: pytest.fail(
+            "terminal source evidence must not claim a completed review"
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    receipt = state["preparations"][0]["review_evidence"]
+    assert receipt == build_review_source_unavailability_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        quota_reference=source_evidence.reference,
+        quota_created_at=source_evidence.created_at,
+        quota_body_sha256=source_evidence.body_sha256,
+        source_status=source_evidence.source_status,
+    )
+    assert receipt["review_claim"] == "none"
+    assert "review_commit_sha" not in receipt
+
+
+@pytest.mark.parametrize(
+    ("review_ref", "source_ref"),
+    [
+        (None, None),
+        (
+            "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ),
+    ],
+    ids=["missing", "ambiguous"],
+)
+def test_prepare_final_security_rejects_nonexclusive_review_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    review_ref: str | None,
+    source_ref: str | None,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    args.review_ref = review_ref
+    args.review_source_unavailable_ref = source_ref
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="provide exactly one of --review-ref or --review-source-unavailable-ref",
+    ):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+def test_prepare_final_security_rejects_unfrozen_material(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    draft = closeout_module._load_state(42)
+    draft["freeze"] = None
+    closeout_module._write_state(draft)
+
+    with pytest.raises(closeout_module.CloseoutError, match="run freeze"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+@pytest.mark.parametrize(
+    ("failure", "match"),
+    [
+        ("freeze/seal requires a clean worktree", "clean worktree"),
+        (
+            f"local HEAD {OUTSIDE_SHA} does not match live PR head {HEAD_SHA}",
+            "does not match live PR head",
+        ),
+    ],
+    ids=["dirty", "stale-head"],
+)
+def test_prepare_final_security_rejects_dirty_or_stale_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    match: str,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+
+    def reject_checkout(_head: str) -> None:
+        raise closeout_module.CloseoutError(failure)
+
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_clean_live_head",
+        reject_checkout,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match=match):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+def test_prepare_final_security_rejects_material_digest_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_args, **_kwargs: _material_manifest(
+            HEAD_SHA,
+            digest="sha256:" + "b" * 64,
+        ),
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="material state changed"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+def test_prepare_final_security_rejects_missing_exact_head_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            CommitIdentityError("expected material commit does not match")
+        ),
+    )
+
+    with pytest.raises(CommitIdentityError, match="expected material commit"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    sorted(closeout_module.FINAL_SECURITY_ATTEMPT_OUTCOMES),
+)
+def test_record_final_security_outcome_consumes_reserved_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+
+    _record_final_security_outcome(clock, outcome=outcome)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    record = state["preparations"][0]
+    assert record["attempt_status"] == "completed"
+    assert record["attempt_outcome"] == outcome
+    assert record["attempt_completed_at"] == "2026-07-15T12:00:30Z"
+    assert record["outcome_evidence_ref"] == f"artifact:{outcome}:attempt-1"
+
+
+def test_prepare_final_security_rejects_preapproved_rerun_before_terminal_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    args.operator_approval_ref = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+
+    with pytest.raises(closeout_module.CloseoutError, match="still reserved"):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+def test_prepare_final_security_accepts_one_fresh_exact_operator_approval_read_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    draft_before = closeout_module._state_path(42).read_bytes()
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    requests: list[tuple[str, str, str, object]] = []
+
+    def request(
+        url: str,
+        *,
+        token: str,
+        method: str = "GET",
+        payload: object = None,
+    ) -> dict[str, Any]:
+        requests.append((url, token, method, payload))
+        return _final_security_approval_response(reference)
+
+    monkeypatch.setattr(closeout_module, "github_api_request", request)
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    assert requests == [
+        (
+            "https://api.github.com/repos/owner/repo/issues/comments/456",
+            "opaque",
+            "GET",
+            None,
+        )
+    ]
+    assert closeout_module._state_path(42).read_bytes() == draft_before
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    assert len(state["preparations"]) == 2
+    assert state["preparations"][1]["operator_approval"] == {
+        "author_association": "OWNER",
+        "author_login": "trusted-owner",
+        "author_user_id": 1234,
+        "comment_id": 456,
+        "created_at": "2026-07-15T12:01:00Z",
+        "reference": reference,
+    }
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "approve another request",
+        closeout_module.render_final_security_approval_comment(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=OUTSIDE_SHA,
+            material_digest=DIGEST,
+        ),
+        closeout_module.render_final_security_approval_comment(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest="sha256:" + "b" * 64,
+        ),
+    ],
+    ids=["wrong-body", "wrong-head", "wrong-digest"],
+)
+def test_prepare_final_security_rejects_non_exact_operator_approval_body(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    body: str,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: _final_security_approval_response(
+            reference,
+            body=body,
+        ),
+    )
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+
+    with pytest.raises(closeout_module.CloseoutError, match="exactly match"):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+@pytest.mark.parametrize(
+    ("response_changes", "error"),
+    [
+        ({"association": "COLLABORATOR"}, "trusted operator"),
+        ({"updated_at": "2026-07-15T12:01:30Z"}, "edited"),
+        ({"created_at": "2026-07-15T12:00:00Z"}, "newer than"),
+    ],
+    ids=["nonmember", "edited", "stale"],
+)
+def test_prepare_final_security_rejects_untrusted_or_stale_operator_approval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response_changes: dict[str, str],
+    error: str,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: _final_security_approval_response(
+            reference,
+            **response_changes,
+        ),
+    )
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+
+    with pytest.raises(closeout_module.CloseoutError, match=error):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+def test_prepare_final_security_rejects_reused_operator_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: _final_security_approval_response(reference),
+    )
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(
+        clock,
+        when=datetime(2026, 7, 15, 12, 2, 30, tzinfo=timezone.utc),
+    )
+    state_before_reuse = closeout_module._final_security_state_path(42).read_bytes()
+    clock[0] = datetime(2026, 7, 15, 12, 3, tzinfo=timezone.utc)
+
+    with pytest.raises(closeout_module.CloseoutError, match="already consumed"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert closeout_module._final_security_state_path(42).read_bytes() == state_before_reuse
+
+
+def test_prepare_final_security_parser_keeps_seal_contract_separate() -> None:
+    parser = closeout_module._parser()
+    args = parser.parse_args(
+        [
+            "prepare-final-security",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--review-ref",
+            "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            "--operator-approval-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ]
+    )
+
+    assert args.handler is closeout_module._cmd_prepare_final_security
+    assert args.review_ref.endswith("pullrequestreview-789")
+    assert args.review_source_unavailable_ref is None
+    assert args.operator_approval_ref.endswith("issuecomment-456")
+    assert not hasattr(args, "review_credit_outage_ref")
+    assert not hasattr(args, "review_credit_quota_ref")
+    assert not hasattr(args, "prior_codex_review_ref")
+    assert not hasattr(args, "scan_manifest")
+    assert not hasattr(args, "security_outage_override_ref")
+
+    source_args = parser.parse_args(
+        [
+            "prepare-final-security",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--review-source-unavailable-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ]
+    )
+    assert source_args.review_ref is None
+    assert source_args.review_source_unavailable_ref.endswith("issuecomment-456")
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "prepare-final-security",
+                "--repo",
+                "owner/repo",
+                "--pr-number",
+                "42",
+            ]
+        )
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "prepare-final-security",
+                "--repo",
+                "owner/repo",
+                "--pr-number",
+                "42",
+                "--review-ref",
+                "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+                "--review-source-unavailable-ref",
+                "https://github.com/owner/repo/pull/42#issuecomment-456",
+            ]
+        )
+
+    outcome_args = parser.parse_args(
+        [
+            "record-final-security-outcome",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--outcome",
+            "timeout",
+            "--evidence-ref",
+            "artifact:timeout:attempt-1",
+        ]
+    )
+    assert outcome_args.handler is closeout_module._cmd_record_final_security_outcome
 
 
 def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:

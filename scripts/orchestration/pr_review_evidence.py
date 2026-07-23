@@ -54,20 +54,43 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
         ".bandit.yaml",
+        ".pre-commit-config.yaml",
+        ".secrets.baseline",
         ".trivyignore",
+        "AGENTS.md",
+        "Makefile",
+        "RUNBOOK_AGENT.md",
         "constraints.txt",
+        "docs/orchestration/AGENTS.md",
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+        "docs/orchestration/contracts/review_source_status.v1.json",
         "scripts/ci_bandit.sh",
         "scripts/ci_pip_audit.sh",
+        "scripts/hooks/repo_python.sh",
+        "scripts/run-backend-tests-pre-commit.sh",
         "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
         "scripts/orchestration/pr_commit_identity.py",
         "scripts/orchestration/pr_review_closeout.py",
         "scripts/orchestration/pr_review_evidence.py",
+        "scripts/orchestration/requested_agents.py",
+        "scripts/orchestration/review_mapping_artifact.py",
+        "scripts/orchestration/review_source_status.py",
+        "scripts/orchestration/qoder_dispatch_bridge.py",
+        "scripts/orchestration/render_codex_start_prompt.py",
+        "scripts/orchestration/role_dispatch_bridge.py",
+        "scripts/orchestration/task_bootstrap.py",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
+        "tests/test_repo_policy_guards.py",
     }
 )
 OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     ".github/actions/",
     ".github/workflows/",
     "scripts/ci/",
+    "tests/guards/",
     "trivy/",
 )
 REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
@@ -979,31 +1002,35 @@ def _ingest_codex_security_receipt_from_descriptor(
     coverage = _load_json_bytes(canonical_payloads["coverage.json"], label="coverage.json")
     if not isinstance(coverage, dict):
         raise ReviewEvidenceError("coverage.json must contain an object")
-    _require_exact_keys(
-        coverage,
-        {
-            "completeness",
-            "deferred",
-            "documentType",
-            "excludePaths",
-            "explicitExclusions",
-            "includePaths",
-            "inventoryStrategy",
-            "mode",
-            "openQuestions",
-            "scanId",
-            "schemaVersion",
-            "surfaces",
-        },
-        label="coverage",
-    )
+    required_coverage_keys = {
+        "completeness",
+        "deferred",
+        "documentType",
+        "excludePaths",
+        "explicitExclusions",
+        "includePaths",
+        "inventoryStrategy",
+        "mode",
+        "scanId",
+        "schemaVersion",
+        "surfaces",
+    }
+    optional_coverage_keys = {"openQuestions"}
+    coverage_keys = set(coverage)
+    missing_coverage_keys = sorted(required_coverage_keys - coverage_keys)
+    unknown_coverage_keys = sorted(coverage_keys - required_coverage_keys - optional_coverage_keys)
+    if missing_coverage_keys or unknown_coverage_keys:
+        raise ReviewEvidenceError(
+            "coverage keys mismatch: "
+            f"missing={missing_coverage_keys!r} unknown={unknown_coverage_keys!r}"
+        )
     if (
         coverage["documentType"] != "codex-security.coverage"
         or coverage["schemaVersion"] != "1.0"
         or coverage["scanId"] != scan_id
         or coverage["completeness"] != "complete"
         or coverage["deferred"] != []
-        or coverage["openQuestions"] != []
+        or coverage.get("openQuestions", []) != []
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
 
