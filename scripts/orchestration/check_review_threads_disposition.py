@@ -638,6 +638,46 @@ def _fetch_server_commit_times(
                     previous
                 ):
                     times[commit.sha] = created_at
+
+    missing = {sha for sha in missing if not times.get(sha)}
+    if not missing:
+        return times
+
+    timeline_pages = json.loads(
+        _run(
+            [
+                "gh",
+                "api",
+                "--paginate",
+                "--slurp",
+                f"repos/{repository}/issues/{pr_number}/timeline?per_page=100",
+            ]
+        )
+    )
+    if not isinstance(timeline_pages, list):
+        raise RuntimeError("GitHub PR timeline response is malformed")
+    for page in timeline_pages:
+        if not isinstance(page, list):
+            raise RuntimeError("GitHub PR timeline page is malformed")
+        for event in page:
+            if not isinstance(event, dict) or event.get("event") != "head_ref_force_pushed":
+                continue
+            event_head = str(event.get("commit_id") or "").lower()
+            head_index = commit_index.get(event_head)
+            if head_index is None:
+                continue
+            created_at = _validated_server_timestamp(
+                event.get("created_at"),
+                label="GitHub head_ref_force_pushed event",
+            )
+            for commit in snapshot.commits[: head_index + 1]:
+                if commit.sha not in missing:
+                    continue
+                previous = times.get(commit.sha)
+                if previous is None or _parse_iso_datetime(created_at) < _parse_iso_datetime(
+                    previous
+                ):
+                    times[commit.sha] = created_at
     return times
 
 
@@ -797,7 +837,7 @@ def _check_real_commit_proofs(
     repository: str,
     token: str,
 ) -> list[str]:
-    """Prove every mapped FIX SHA and original comment commit in the live PR graph."""
+    """Prove every mapped FIX SHA and validate original review-commit identity."""
 
     violations: list[str] = []
     mapping = _parse_mapping_section(section)
@@ -869,11 +909,10 @@ def _check_real_commit_proofs(
             # context, not graph proof. The real reachable mapped FIX remains required.
             continue
         if original.kind is CommitRefKind.REPO_COMMIT_OUTSIDE_PR:
-            if not trusted_connector_context:
-                violations.append(
-                    f"{thread.url}: off-live-PR original_commit_id is trusted only for "
-                    "chatgpt-codex-connector review execution context"
-                )
+            # GitHub keeps repository-addressable originalCommit values on live
+            # review threads after a PR branch is rebased. That historical commit
+            # identifies review context only; the mapped FIX must still be a real
+            # current-PR commit reachable from the live head.
             continue
         if original.kind not in {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}:
             violations.append(f"{thread.url}: original_commit_id is not a real live PR commit")

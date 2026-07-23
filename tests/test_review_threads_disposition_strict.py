@@ -702,6 +702,7 @@ def test_server_commit_times_fail_closed_without_immutable_push_evidence(
         if endpoint in {
             "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
             "repos/org/repo/events?per_page=100",
+            "repos/org/repo/issues/1/timeline?per_page=100",
         }:
             return json.dumps([[]])
         raise AssertionError(command)
@@ -714,6 +715,58 @@ def test_server_commit_times_fail_closed_without_immutable_push_evidence(
         pr_number=1,
         mapped_shas=frozenset({sha}),
     ) == {sha: None}
+
+
+def test_server_commit_times_use_exact_pr_force_push_event(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    first_sha = "a" * 40
+    head_sha = "b" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="c" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(first_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint in {
+            "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
+            "repos/org/repo/events?per_page=100",
+        }:
+            return json.dumps([[]])
+        if endpoint == "repos/org/repo/issues/1/timeline?per_page=100":
+            return json.dumps(
+                [
+                    [
+                        {
+                            "event": "head_ref_force_pushed",
+                            "commit_id": head_sha,
+                            "created_at": "2026-02-27T13:00:00Z",
+                        }
+                    ]
+                ]
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({first_sha, head_sha}),
+    ) == {
+        first_sha: "2026-02-27T13:00:00Z",
+        head_sha: "2026-02-27T13:00:00Z",
+    }
 
 
 def test_real_commit_proof_caches_ancestry(
@@ -848,18 +901,16 @@ def test_real_commit_proof_never_uses_unavailable_original_for_ancestry(
 
 
 @pytest.mark.parametrize(
-    ("author_login", "expected_violation"),
+    "author_login",
     [
-        ("chatgpt-codex-connector", None),
-        ("chatgpt-codex-connector[bot]", "trusted only for chatgpt-codex-connector"),
-        ("coderabbitai", "trusted only for chatgpt-codex-connector"),
-        ("human-reviewer", "trusted only for chatgpt-codex-connector"),
+        "chatgpt-codex-connector",
+        "coderabbitai",
+        "human-reviewer",
     ],
 )
-def test_off_pr_repository_original_is_connector_only_review_context(
+def test_repository_backed_historical_original_is_review_context(
     monkeypatch: "MonkeyPatch",
     author_login: str,
-    expected_violation: str | None,
 ) -> None:
     fix_sha = "b" * 40
     original_sha = "c" * 40
@@ -900,10 +951,7 @@ def test_off_pr_repository_original_is_connector_only_review_context(
         token="opaque",
     )
 
-    if expected_violation is None:
-        assert violations == []
-    else:
-        assert expected_violation in violations[0]
+    assert violations == []
 
 
 def test_unavailable_original_from_arbitrary_bot_fails_closed(
