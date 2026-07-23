@@ -12370,6 +12370,43 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS release tooling and current-head CI pass without App Store mutation
     - rollback and operator migration instructions are documented
 
-**Last updated:** 2026-07-13 (Ruby 3.4.10 Fastlane runtime migration open; implementation and review in progress)
+<a id="ledger-p1-legacy-guard-final-security-carryover"></a>
+- [ ] P1: Consolidate legacy-growth guard hardening and final-security budget governance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: this PR (`codex/legacy-guard-final-security-hardening`)
+  - Status: In progress on 19 July 2026; replaces the incomplete PRs #2158,
+    #2159, #2160, and #2161 without cherry-picking their implementations.
+  - Reason: Twelve unresolved review findings across the four superseded lanes
+    show false-green variadic replay, non-terminating or false-safe provenance,
+    over-broad or non-propagating `object()` poisoning, and deferred-lambda
+    bypasses. The same consolidated lane separates repeatable role review from
+    exact-head review and the single operator-issued final Codex Security
+    request so paid scans do not run once per diff.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610033430`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610039977`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610039980`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2159#discussion_r3610033136`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2159#discussion_r3610040544`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041147`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041148`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041149`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041150`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2161#discussion_r3610042941`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2161#discussion_r3610042945`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2161#discussion_r3610042946`
+  - DoD:
+    - all twelve findings have deterministic positive/negative regression
+      coverage and the legacy-growth analysis remains terminating, idempotent,
+      and fail-closed at its provenance bound
+    - Qoder manifests remain role-only while the versioned lifecycle packet and
+      start prompt own exact-head review and final-security gates
+    - repository code makes no Codex Security plugin call or automatic retry;
+      every additional operator request requires fresh exact-material approval
+    - the replacement PR records the carryover, supersedes and closes
+      #2158-#2161 without merge, and is handed to the owner without merging
+
+**Last updated:** 2026-07-19 (legacy guard and final-security budget carryover in progress)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
