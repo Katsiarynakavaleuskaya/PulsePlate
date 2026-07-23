@@ -29,8 +29,8 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)
   - Priority: P0 prerequisite for mandatory Experiment Runner oracle evidence
   - Target PR: `codex/fix-experiment-runner-container-cves`
-  - Status: Implementation, exact-image admission, and oracle review complete
-    locally; current-head PR and merge evidence pending
+  - Status: Implementation and exact-image admission complete locally; final
+    oracle, current-head PR, and merge evidence pending
   - Area: Experiment Runner / container security / supply chain
   - Reason (EN): The immutable bookworm runner baseline reports 61
     HIGH/CRITICAL occurrences across 27 unique vulnerability IDs. Mandatory
@@ -38,10 +38,11 @@ If it is not recorded here — it does not exist.
     slim-trixie candidate remained blocked with 60 occurrences across 25 unique
     IDs, and Alpine 3.24 could not satisfy the existing exact binary-wheel lock
     for `matplotlib==3.10.8`. The admitted candidate instead uses the exact UBI
-    10 minimal digest, verifies exact EPEL sources and RPM signatures, pins
-    direct packages, and overlays the checksum-pinned official CPython 3.13
-    backport for `CVE-2026-15308`. It preserves the private-index locked install
-    and non-root boundary without a vulnerability suppression.
+    10 minimal digest, verifies exact EPEL sources and RPM signatures, pins the
+    complete transitive RPM inventories, and overlays the checksum-pinned
+    official CPython 3.13 backport for `CVE-2026-15308`. It preserves the
+    private-index locked install and non-root boundary without a vulnerability
+    suppression.
   - Links: `deploy/experiment-runner/Containerfile`,
     `tests/test_experiment_runner_dispatch.py`,
     `docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md`,
@@ -54,8 +55,11 @@ If it is not recorded here — it does not exist.
     database, and scan the exact OCI layout without package-type filtering,
     with `/dev/null` ignore policy, unfixed findings included, and zero
     HIGH/CRITICAL OS or language-package findings; verify exact RPM versions
-    and the CPython patch inside the same digest; pass the strict Apple
-    Container probe; and accept an oracle-only result with
+    and the CPython patch inside the same digest; verify the complete
+    107/108/129 package inventories over NEVRA, header SHA-256, payload digest,
+    and payload digest algorithm; preserve sanitized runtime, probe, scanner,
+    and success-only exit-status receipts; pass the strict Apple Container
+    probe; and accept an oracle-only result with
     `network_budget=0`,
     `shared_tree_untouched: true`, expected backend provenance, and no host path
     or secret. Any retained vulnerable package blocks admission and requires a

@@ -33,7 +33,15 @@ RUN --mount=type=bind,from=verified-sources,source=/verified,target=/run/verifie
       /usr/lib64/python3.13/html/parser.py; \
     rm -rf /usr/lib64/python3.13/html/__pycache__; \
     python3.13 -c 'from pathlib import Path; assert Path("/run/verified/html-parser.py").read_bytes() == Path("/usr/lib64/python3.13/html/parser.py").read_bytes()'; \
-    python3.13 -c 'from html.parser import HTMLParser; parser = HTMLParser(); assert parser._pending == []; assert parser._pending_len == 0; assert parser._parse_threshold == 1'
+    python3.13 -c 'from html.parser import HTMLParser; parser = HTMLParser(); assert parser._pending == []; assert parser._pending_len == 0; assert parser._parse_threshold == 1'; \
+    expected_rpm_package_count='107'; \
+    expected_rpm_inventory_sha256='89d2a8bb:1a6216d5:63f194d6:c65b556d:c5a1672c:9b126afe:d5d1b677:5a9c0125'; \
+    expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
+      "${expected_rpm_package_count}"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
+      "${expected_rpm_inventory_sha256}"
 
 FROM python-runtime AS builder
 
@@ -48,6 +56,14 @@ RUN set -eu; \
     microdnf clean all; \
     test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13-pip)" = \
       'python3.13-pip-25.1.1-1.el10_1'; \
+    expected_rpm_package_count='108'; \
+    expected_rpm_inventory_sha256='877f449d:91c786a5:353d0f25:d95423fa:cc1cf06e:b6e748c6:c0be04f6:ced7c26b'; \
+    expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
+      "${expected_rpm_package_count}"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
+      "${expected_rpm_inventory_sha256}"; \
     python3.13 -m venv /opt/venv
 
 COPY requirements-lock.txt constraints.txt /build/
@@ -116,6 +132,14 @@ RUN set -eu; \
       'shadow-utils-4.15.0-11.el10'; \
     test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' util-linux-core)" = \
       'util-linux-core-2.40.2-18.el10'; \
+    expected_rpm_package_count='129'; \
+    expected_rpm_inventory_sha256='bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2'; \
+    expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
+      "${expected_rpm_package_count}"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
+      "${expected_rpm_inventory_sha256}"; \
     test -x /usr/bin/git; \
     test -x /usr/bin/make; \
     test -x /usr/bin/unshare; \

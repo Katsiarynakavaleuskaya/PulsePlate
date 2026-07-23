@@ -226,6 +226,10 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
     containerfile = _runner_containerfile_text()
     logical_containerfile = containerfile.replace("\\\n", " ").lower()
     package_blocks = _microdnf_install_package_blocks(containerfile)
+    rpm_inventory_contracts = re.findall(
+        r"expected_rpm_package_count='(\d+)';\s+" r"expected_rpm_inventory_sha256='([0-9a-f:]+)'",
+        logical_containerfile,
+    )
 
     assert package_blocks == [
         ("python3.13-3.13.14-1.el10_2",),
@@ -237,6 +241,21 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
             "util-linux-core-2.40.2-18.el10",
         ),
     ]
+    assert rpm_inventory_contracts == [
+        (
+            "107",
+            "89d2a8bb:1a6216d5:63f194d6:c65b556d:c5a1672c:9b126afe:" "d5d1b677:5a9c0125",
+        ),
+        (
+            "108",
+            "877f449d:91c786a5:353d0f25:d95423fa:cc1cf06e:b6e748c6:" "c0be04f6:ced7c26b",
+        ),
+        (
+            "129",
+            "bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:" "7d737476:368a34b2",
+        ),
+    ]
+    assert containerfile.count("%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}") == 3
     assert logical_containerfile.count("microdnf clean all") == 3
     assert "rpm -e epel-release" in logical_containerfile
     assert not re.search(r"\b(?:apk|apt|apt-get|aptitude|dpkg|dnf|yum)\b", logical_containerfile)
@@ -300,6 +319,7 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     security_note = _runner_doc_text(_RUNNER_SECURITY_NOTE)
     admission = runbook.split("## Validation and rollback", maxsplit=1)[1]
     required_runbook_fragments = (
+        "set -euo pipefail",
         'RUNNER_IMAGE_DIGEST="${RUNNER_IMAGE_REF##*@}"',
         'image inspect "${RUNNER_IMAGE_REF}" >"${RUNNER_INSPECT_JSON}"',
         ".[0].configuration.descriptor.digest == $digest",
@@ -321,6 +341,9 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         "PULSEPLATE_PYTHON_TRUSTED_HOST",
         "PULSEPLATE_PYTHON_NETRC",
         'raise SystemExit("proxy_secret_material_present")',
+        'RUNNER_RUNTIME_REPORT="${RUNNER_EVIDENCE_DIR}/runtime-contract.stdout"',
+        'RUNNER_PROBE_STDOUT="${RUNNER_EVIDENCE_DIR}/apple-probe.stdout"',
+        'RUNNER_STATUS_REPORT="${RUNNER_EVIDENCE_DIR}/admission-exit-statuses.txt"',
         'run --rm --read-only --no-dns "${RUNNER_IMAGE_REF}"',
         'test "$(id -u):$(id -g)" = "65532:65532"',
         "EXPECTED_HTML_PARSER_SHA256=",
@@ -328,6 +351,12 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         '"python3.13-3.13.14-1.el10_2.aarch64"',
         '"git-core-2.52.0-1.el10.aarch64"',
         '"util-linux-core-2.40.2-18.el10.aarch64"',
+        'expected_rpm_package_count="129"',
+        'expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:'
+        'f208ee11:69251070:7d737476:368a34b2"',
+        "%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}",
+        '"runtime_contract=passed"',
+        '"${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"',
         'TRIVY_ASSET="trivy_${TRIVY_VERSION}_macOS-ARM64.tar.gz"',
         'TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"',
         '"${SHASUM_BIN}" -a 256 -c selected-checksum.txt',
@@ -340,6 +369,12 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         "--ignorefile /dev/null",
         "--ignore-unfixed=false",
         "--exit-code 1",
+        "TRIVY_FINDING_COUNT=",
+        "test \"${TRIVY_FINDING_COUNT}\" = '0'",
+        '"${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"',
+        "'runtime_contract_exit=0'",
+        '"trivy_high_critical_findings=${TRIVY_FINDING_COUNT}"',
+        "'apple_probe_exit=0'",
         '"${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe',
     )
 
@@ -356,6 +391,12 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert "consumes only the manifest-bound OCI layout" in security_note
     assert "`--ignorefile /dev/null`" in security_note
     assert "`--ignore-unfixed=false`" in security_note
+    assert "## Sanitized command receipts" in security_note
+    assert "`admission-exit-statuses.txt`" in security_note
+    assert "rpm_inventory_sha256=bf2426b194df76bf" in security_note
+    assert "trivy_high_critical_findings=0" in security_note
+    assert "Exit status: `1`" in security_note
+    assert "explicitly not used as audit proof" in " ".join(security_note.split())
 
 
 def test_runner_admission_docs_limit_candidate_rollback_scope() -> None:

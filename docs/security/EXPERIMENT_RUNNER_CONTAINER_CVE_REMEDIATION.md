@@ -1,6 +1,6 @@
 # Experiment Runner container CVE remediation
 
-**Status:** Exact image and oracle admitted locally; current-head PR/merge evidence pending
+**Status:** Exact image admitted locally; final oracle and current-head PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
 **Last reviewed:** 2026-07-23
 
@@ -67,37 +67,106 @@ direct-proxy installer. No vulnerability ignore, suppression, scan-severity
 reduction, package-manager upgrade, `@latest`, or public-index fallback was
 added.
 
+Direct package pins alone do not freeze the transitive RPM closure. Each stage
+therefore verifies a sorted inventory over the complete installed NEVRA,
+package-header SHA-256, payload digest, and payload digest algorithm. The
+accepted build locks 107 packages in `python-runtime`, 108 in `builder`, and
+129 in the final runner. Any repository-side change to a direct or transitive
+RPM now fails the build even if its package name and direct request remain
+unchanged.
+
 ## Exact image evidence
 
 The canonical Apple dispatcher built:
 
-`pulseplate/experiment-runner:ubi-cve-final@sha256:135a0da911661487b074ae710c8f02d523e7a33d51f1ac41607a37c4b752f1ff`
+`pulseplate/experiment-runner:ubi-cve-review-fix@sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70`
 
 The admission chain verified:
 
 - top image index:
-  `sha256:135a0da911661487b074ae710c8f02d523e7a33d51f1ac41607a37c4b752f1ff`;
+  `sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70`;
 - one `linux/arm64` manifest:
-  `sha256:45b20d721b0609c5c5c9caa23dedb8a12ea5ae9359a16729a9da470d3b5cc2bf`;
+  `sha256:c46d2bd8a174b6b10b9ed06c1c145eeb1ca131d326c67b4c72589ea84e6d1750`;
 - manifest-bound config/history:
-  `sha256:5d2e196f149dfcd063bdcd966637d2175fbb1fa1699befe7fc44727ef18e65b6`;
+  `sha256:b96621e97fd78527a93f9853970d1f17baffa46e8d188e5341899fc6a1efaa1d`;
 - no configured proxy-secret name or current secret value in config/history;
 - UID/GID `65532:65532`, Python `3.13.14`, exact patched parser checksum, and
   exact RPM/runtime tool versions;
+- exactly 129 runtime RPMs with complete inventory SHA-256
+  `bf2426b194df76bfc9f26642a23b7b94f208ee11692510707d737476368a34b2`;
 - Red Hat 10.2 with 125 OS packages and one Python dependency manifest, with
   zero HIGH/CRITICAL findings from the official checksum-verified Trivy 0.72.0
   binary across the unfiltered OS-and-language scan, using
   `--ignorefile /dev/null`, `--ignore-unfixed=false`, and `--exit-code 1`;
 - strict Apple Container 1.1.0 isolation with every required digest, network,
   mount, root-read-only, result-volume, and cleanup control true.
-- one accepted oracle-only review with all three immutable oracles passing,
-  `network_budget=0`, the exact five-file source diff applied in isolation,
-  `mutated_paths: []`, and `shared_tree_untouched: true`.
 
 The scan consumes only the manifest-bound OCI layout exported from that exact
 Apple image reference. Local artifacts remain gitignored and are evidence, not
 canonical repository files. Current-head CI and PR governance remain separate
-required signals.
+required signals. The final immutable-oracle review runs only after material
+freeze; its result is recorded in closeout evidence and is not back-written
+into this material security note.
+
+## Sanitized command receipts
+
+The admitted build command was:
+
+```bash
+python3 scripts/orchestration/experiment_runner_dispatch.py build-image \
+  --backend apple-container \
+  --tag pulseplate/experiment-runner:ubi-cve-review-fix
+```
+
+Exit status: `0`. Sanitized dispatcher output:
+
+```json
+{"backend": "apple-container", "image": "pulseplate/experiment-runner:ubi-cve-review-fix@sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70", "sanitized": "true"}
+```
+
+The runbook admission block was executed against that immutable reference with
+the official checksum-verified Trivy 0.72.0 binary. Exit status: `0`. The
+digest-bound `admission-exit-statuses.txt` receipt was:
+
+```text
+trivy_checksum_exit=0
+image_inspect_exit=0
+oci_descriptor_validation_exit=0
+config_history_validation_exit=0
+runtime_contract_exit=0
+trivy_exit=0
+trivy_high_critical_findings=0
+apple_probe_exit=0
+```
+
+The retained sanitized runtime and probe outputs were:
+
+```text
+uid_gid=65532:65532
+python_version=3.13.14
+rpm_package_count=129
+rpm_inventory_sha256=bf2426b194df76bfc9f26642a23b7b94f208ee11692510707d737476368a34b2
+runtime_contract=passed
+{"artifact": "mac-strict-capability-5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70.json", "strict_isolation": true}
+```
+
+The retained Trivy JSON identifies `redhat` `10.2`, a container-image
+artifact, and an empty vulnerability count for the selected HIGH/CRITICAL
+severities. Because the command uses `--exit-code 1`, its recorded exit status
+of `0` independently confirms that the unsuppressed scan found zero selected
+findings.
+
+The rejected exact trixie admission used the same unfiltered Trivy flags.
+Exit status: `1`. Its sanitized summary was:
+
+```json
+{"family":"debian","version":"13.6","high":44,"critical":16,"total":60}
+```
+
+The Alpine compatibility check stopped at the existing binary-wheel contract.
+Its exploratory console output was not retained and is explicitly not used as
+audit proof or as fallback evidence. Reconsidering Alpine requires a fresh,
+complete, digest-bound build and admission receipt.
 
 ## Source evidence
 
@@ -124,16 +193,19 @@ required signals.
 - `deploy/experiment-runner/Containerfile:3` pins the UBI base;
   `deploy/experiment-runner/Containerfile:7` starts checksum-pinned external
   sources; `deploy/experiment-runner/Containerfile:19` verifies EPEL/Python;
-  `deploy/experiment-runner/Containerfile:60` preserves the private-index
-  installer; and `deploy/experiment-runner/Containerfile:104` defines the exact
-  non-root runtime package contract.
-- `tests/test_experiment_runner_dispatch.py:173` guards stage/base identity;
-  `tests/test_experiment_runner_dispatch.py:187` guards source and patch
-  verification; `tests/test_experiment_runner_dispatch.py:215` enumerates exact
-  packages; and `tests/test_experiment_runner_dispatch.py:235` rejects
+  `deploy/experiment-runner/Containerfile:37` begins the three complete RPM
+  inventory checks; `deploy/experiment-runner/Containerfile:75` preserves the
+  private-index installer; and `deploy/experiment-runner/Containerfile:119`
+  defines the exact non-root runtime package contract.
+- `tests/test_experiment_runner_dispatch.py:181` guards stage/base identity;
+  `tests/test_experiment_runner_dispatch.py:195` guards source and patch
+  verification; `tests/test_experiment_runner_dispatch.py:225` enumerates exact
+  packages and inventories; and
+  `tests/test_experiment_runner_dispatch.py:264` rejects
   suppression and dependency-policy weakening.
 - `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:230` records the
-  negative candidates and executable digest-bound admission sequence.
+  negative candidates; its executable digest-bound admission sequence starts
+  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`.
 - `docs/roadmap/BACKLOG_LEDGER.md:27` keeps the prerequisite open until its PR is
   merged; ledger closure remains a later docs-only action.
 
@@ -149,9 +221,11 @@ Admission requires all of the following:
    language-package findings without package-type filtering, ignore policy,
    unfixed filtering, or severity reduction.
 3. Exact Python/RPM/CPython patch and non-root assertions pass inside that same
-   image.
+   image, including the complete 107/108/129 package inventories over NEVRA,
+   header SHA-256, payload digest, and payload digest algorithm.
 4. The strict Apple Container probe passes for that exact digest.
-5. The oracle-only result is accepted with `network_budget=0`,
+5. After material freeze, the oracle-only result is accepted with
+   `network_budget=0`,
    `shared_tree_untouched: true`, expected backend provenance, and no host path
    or secret.
 

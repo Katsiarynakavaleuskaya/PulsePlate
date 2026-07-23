@@ -249,11 +249,11 @@ index secret and did not fall back to public PyPI. Weakening the lock,
 
 The current UBI recipe built through the canonical Apple dispatcher as image
 index
-`sha256:135a0da911661487b074ae710c8f02d523e7a33d51f1ac41607a37c4b752f1ff`.
+`sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70`.
 Its exact `linux/arm64` manifest is
-`sha256:45b20d721b0609c5c5c9caa23dedb8a12ea5ae9359a16729a9da470d3b5cc2bf`,
+`sha256:c46d2bd8a174b6b10b9ed06c1c145eeb1ca131d326c67b4c72589ea84e6d1750`,
 and its manifest-bound config/history is
-`sha256:5d2e196f149dfcd063bdcd966637d2175fbb1fa1699befe7fc44727ef18e65b6`.
+`sha256:b96621e97fd78527a93f9853970d1f17baffa46e8d188e5341899fc6a1efaa1d`.
 The scan must consume the exact OCI layout cryptographically traversed from
 that Apple image digest; a mutable tag, bare repository-context scan, or
 unverified PATH Trivy binary is not evidence. Download the official Trivy
@@ -261,7 +261,7 @@ unverified PATH Trivy binary is not evidence. Download the official Trivy
 before execution, refresh its vulnerability database, and run:
 
 ```bash
-set -eu
+set -euo pipefail
 
 RUNNER_IMAGE_REF='pulseplate/experiment-runner:mac-local@sha256:<digest>'
 RUNNER_IMAGE_DIGEST="${RUNNER_IMAGE_REF##*@}"
@@ -272,6 +272,10 @@ RUNNER_OCI_ARCHIVE="${RUNNER_EVIDENCE_DIR}/runner.oci.tar"
 RUNNER_OCI_LAYOUT="${RUNNER_EVIDENCE_DIR}/oci-layout"
 RUNNER_TRIVY_REPORT="${RUNNER_EVIDENCE_DIR}/trivy-0.72.0.json"
 RUNNER_TRIVY_DIR="${RUNNER_EVIDENCE_DIR}/trivy-0.72.0"
+RUNNER_RUNTIME_REPORT="${RUNNER_EVIDENCE_DIR}/runtime-contract.stdout"
+RUNNER_PROBE_STDOUT="${RUNNER_EVIDENCE_DIR}/apple-probe.stdout"
+RUNNER_STATUS_REPORT="${RUNNER_EVIDENCE_DIR}/admission-exit-statuses.txt"
+RUNNER_PROBE_ARTIFACT="mac-strict-capability-${RUNNER_IMAGE_DIGEST#sha256:}.json"
 TRIVY_VERSION='0.72.0'
 TRIVY_ASSET="trivy_${TRIVY_VERSION}_macOS-ARM64.tar.gz"
 TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"
@@ -284,6 +288,7 @@ GREP_BIN="$(command -v grep)"
 JQ_BIN="$(command -v jq)"
 SHASUM_BIN="$(command -v shasum)"
 TAR_BIN="$(command -v tar)"
+TEE_BIN="$(command -v tee)"
 WC_BIN="$(command -v wc)"
 RUNNER_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 test -x "${AWK_BIN}"
@@ -293,6 +298,7 @@ test -x "${GREP_BIN}"
 test -x "${JQ_BIN}"
 test -x "${SHASUM_BIN}"
 test -x "${TAR_BIN}"
+test -x "${TEE_BIN}"
 test -x "${WC_BIN}"
 test -x "${RUNNER_PYTHON}"
 printf '%s\n' "${RUNNER_IMAGE_DIGEST}" | \
@@ -467,10 +473,24 @@ test "$(rpm -q git-core)" = "git-core-2.52.0-1.el10.aarch64"
 test "$(rpm -q make)" = "make-4.4.1-9.el10.aarch64"
 test "$(rpm -q shadow-utils)" = "shadow-utils-4.15.0-11.el10.aarch64"
 test "$(rpm -q util-linux-core)" = "util-linux-core-2.40.2-18.el10.aarch64"
+expected_rpm_package_count="129"
+expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2"
+expected_rpm_inventory_sha256="$(printf "%s" "${expected_rpm_inventory_sha256}" | tr -d ":")"
+rpm_inventory="$(rpm -qa --qf "%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n" | LC_ALL=C sort)"
+test "$(printf "%s\n" "${rpm_inventory}" | wc -l | tr -d " ")" = \
+  "${expected_rpm_package_count}"
+test "$(printf "%s\n" "${rpm_inventory}" | sha256sum | cut -d " " -f 1)" = \
+  "${expected_rpm_inventory_sha256}"
 test -x /usr/bin/git
 test -x /usr/bin/make
 test -x /usr/bin/unshare
-'
+printf "%s\n" \
+  "uid_gid=65532:65532" \
+  "python_version=3.13.14" \
+  "rpm_package_count=${expected_rpm_package_count}" \
+  "rpm_inventory_sha256=${expected_rpm_inventory_sha256}" \
+  "runtime_contract=passed"
+' | "${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"
 
 "${TRIVY_BIN}" image --download-db-only --no-progress
 "${TRIVY_BIN}" image --input "${RUNNER_OCI_LAYOUT}" \
@@ -481,10 +501,24 @@ test -x /usr/bin/unshare
   --exit-code 1 \
   --format json \
   --output "${RUNNER_TRIVY_REPORT}"
+TRIVY_FINDING_COUNT="$("${JQ_BIN}" \
+  '[.Results[]?.Vulnerabilities[]?] | length' "${RUNNER_TRIVY_REPORT}")"
+test "${TRIVY_FINDING_COUNT}" = '0'
 "${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe \
   --backend apple-container \
   --image "${RUNNER_IMAGE_REF}" \
-  --output mac-strict-capability.json
+  --output "${RUNNER_PROBE_ARTIFACT}" | \
+  "${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"
+printf '%s\n' \
+  'trivy_checksum_exit=0' \
+  'image_inspect_exit=0' \
+  'oci_descriptor_validation_exit=0' \
+  'config_history_validation_exit=0' \
+  'runtime_contract_exit=0' \
+  'trivy_exit=0' \
+  "trivy_high_critical_findings=${TRIVY_FINDING_COUNT}" \
+  'apple_probe_exit=0' \
+  >"${RUNNER_STATUS_REPORT}"
 ```
 
 The inspection and export must agree on the Apple-returned top index digest.
@@ -495,19 +529,23 @@ non-empty current secret value without printing those values. Runtime checks
 bind UID/GID 65532, Python 3.13.14, the exact CPython patch content, exact RPM
 versions, and required executables to the same digest. The downloaded official
 Trivy asset must pass its official release checksum before it scans the exact
-OCI layout.
+OCI layout. The command writes sanitized runtime output, probe output, scanner
+JSON, and one success-only exit-status receipt beneath the digest-bound local
+evidence directory. Because `set -euo pipefail` is active, a failed producer
+cannot be hidden by `tee`, and the all-zero status receipt is never written
+after a failed admission step.
 
 The admitted UBI image reported Red Hat 10.2 with 125 OS packages and one
 Python dependency manifest. The unfiltered OS-and-language scan reported zero
 HIGH/CRITICAL findings under the explicit `/dev/null` ignore policy with
 unfixed findings included. The strict Apple 1.1.0 probe passed every required
 network, mount, digest, cleanup, and non-root control for the same digest. The
-accepted oracle-only review then ran all three immutable oracles with
-`network_budget=0`, the exact five-file source diff applied in isolation,
-`mutated_paths: []`, `shared_tree_untouched: true`, populated Apple backend
-provenance, and no host path or secret. A failed inspection, digest check,
-checksum, scan, or probe blocks oracle execution; do not weaken the package,
-network, or suppression policy to force admission.
+sanitized build, runtime, scanner, and probe receipts are recorded in
+`docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md`. Run the final
+immutable-oracle review only after material freeze and do not edit tracked
+material afterward. A failed inspection, digest check, checksum, scan, or
+probe blocks oracle execution; do not weaken the package, network, or
+suppression policy to force admission.
 
 Rollback this candidate only by preserving any failed UBI admission evidence,
 deleting the candidate image by its exact digest, and reverting the UBI
