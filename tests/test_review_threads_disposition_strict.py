@@ -717,7 +717,7 @@ def test_server_commit_times_fail_closed_without_immutable_push_evidence(
     ) == {sha: None}
 
 
-def test_server_commit_times_use_exact_pr_force_push_event(
+def test_server_commit_times_force_push_event_timestamps_only_exact_head(
     monkeypatch: "MonkeyPatch",
 ) -> None:
     first_sha = "a" * 40
@@ -758,15 +758,32 @@ def test_server_commit_times_use_exact_pr_force_push_event(
 
     monkeypatch.setattr(_disposition_mod, "_run", run)
 
-    assert _disposition_mod._fetch_server_commit_times(
+    commit_times = _disposition_mod._fetch_server_commit_times(
         snapshot=snapshot,
         repository="org/repo",
         pr_number=1,
         mapped_shas=frozenset({first_sha, head_sha}),
-    ) == {
-        first_sha: "2026-02-27T13:00:00Z",
+    )
+    assert commit_times == {
+        first_sha: None,
         head_sha: "2026-02-27T13:00:00Z",
     }
+
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:30:00Z",
+    )
+    section = f"- {thread.url} -> {first_sha}\nDisposition: FIXED\nCommit: {first_sha}\n"
+
+    violations = _check_commit_after_comment(
+        [thread],
+        section,
+        commit_time_by_sha=commit_times,
+    )
+    assert len(violations) == 1
+    assert f"commit {first_sha} lacks server-side pushedDate" in violations[0]
 
 
 def test_real_commit_proof_caches_ancestry(

@@ -663,21 +663,15 @@ def _fetch_server_commit_times(
             if not isinstance(event, dict) or event.get("event") != "head_ref_force_pushed":
                 continue
             event_head = str(event.get("commit_id") or "").lower()
-            head_index = commit_index.get(event_head)
-            if head_index is None:
+            if event_head not in commit_index or event_head not in missing:
                 continue
             created_at = _validated_server_timestamp(
                 event.get("created_at"),
                 label="GitHub head_ref_force_pushed event",
             )
-            for commit in snapshot.commits[: head_index + 1]:
-                if commit.sha not in missing:
-                    continue
-                previous = times.get(commit.sha)
-                if previous is None or _parse_iso_datetime(created_at) < _parse_iso_datetime(
-                    previous
-                ):
-                    times[commit.sha] = created_at
+            previous = times.get(event_head)
+            if previous is None or _parse_iso_datetime(created_at) < _parse_iso_datetime(previous):
+                times[event_head] = created_at
     return times
 
 
