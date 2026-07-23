@@ -21,6 +21,7 @@ PACKET_PATH = REPO_ROOT / "docs" / "orchestration" / "PHILOSOPHY_EPIC_V2_PR1_PAC
 
 REQUIRED_TOP_LEVEL_KEYS = {
     "schema_version",
+    "manifest_contract_version",
     "generated_at",
     "packet_source",
     "mode",
@@ -28,9 +29,11 @@ REQUIRED_TOP_LEVEL_KEYS = {
     "parallelizable_groups",
     "parallel_execution_allowed",
     "parallel_execution_reason",
+    "post_open_role_gates",
     "mandatory_post_open",
     "mandatory_post_open_gates",
     "mandatory_post_open_role_agents",
+    "compatibility_aliases",
 }
 
 REQUIRED_ENTRY_KEYS = {
@@ -1840,19 +1843,45 @@ def test_mandatory_post_open_detection() -> None:
         packet_source="test",
     )
 
-    # The bridge keeps mandatory_post_open role-only for compatibility.
+    assert manifest["schema_version"] == "2.0"
+    assert manifest["manifest_contract_version"] == "pulseplate.role-dispatch-manifest/v2"
+    assert manifest["post_open_role_gates"] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert "final_material_review_timing" not in manifest
+    assert "final_material_review_gates" not in manifest
+    assert "codex_security_invocation_policy" not in manifest
+
+    # Every Qoder manifest gate alias remains role-only.
     assert "mandatory_post_open" in manifest
     post_open = manifest["mandatory_post_open"]
     assert isinstance(post_open, list)
     assert post_open == ["qa-engineer-agent", "bug-hunter", "security-auditor"]
-    post_open_gates = manifest["mandatory_post_open_gates"]
-    assert "Codex Security diff scan / finding discovery" in post_open_gates
-    assert "pulseplate-pr-review" in post_open_gates
+    assert manifest["mandatory_post_open_gates"] == post_open
     assert manifest["mandatory_post_open_role_agents"] == [
         "qa-engineer-agent",
         "bug-hunter",
         "security-auditor",
     ]
+    assert manifest["compatibility_aliases"] == {
+        "mandatory_post_open": {
+            "canonical_fields": ["post_open_role_gates"],
+            "fail_closed": True,
+        },
+        "mandatory_post_open_role_agents": {
+            "canonical_fields": ["post_open_role_gates"],
+            "fail_closed": True,
+        },
+        "mandatory_post_open_gates": {
+            "canonical_fields": ["post_open_role_gates"],
+            "fail_closed": True,
+        },
+    }
+    dispatched_roles = {entry["role_slug"] for entry in manifest["dispatch_sequence"]}
+    assert "pulseplate-pr-review" not in dispatched_roles
+    assert "Codex Security diff scan / finding discovery" not in dispatched_roles
 
 
 def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:

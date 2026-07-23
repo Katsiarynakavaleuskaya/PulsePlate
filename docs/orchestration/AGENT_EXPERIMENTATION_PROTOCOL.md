@@ -196,11 +196,13 @@ Rules:
   shared repository writes, branch/push/PR creation, ready-for-review,
   review-thread resolution, merge, release, public multi-tenant use,
   semantic-cache use, or Slack/GitHub authority expansion.
-- The post-open `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex
-  Security -> pulseplate-pr-review` chain is a single pass per material diff.
-  Later comments use fixed mapping and targeted gates unless the
-  security-relevant diff changes, the coordinator records an evidence-backed
-  reroute, or the operator explicitly requests a rerun.
+- The repeatable post-open pass is role-only:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`. After fixes, local
+  gates, current-head CI, and final material freeze, run the exact-head
+  `pulseplate-pr-review` self-review, validate trusted Connector evidence, and
+  request the expensive Codex Security plugin manually exactly once. Do not
+  restart either final gate automatically; every additional Security request
+  requires fresh exact-material `OWNER`/`MEMBER` approval.
 
 ---
 
