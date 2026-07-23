@@ -892,7 +892,8 @@ def _ingest_codex_security_receipt_from_descriptor(
     _require_exact_keys(
         target,
         {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"}
-        | ({"remote"} if "remote" in target else set()),
+        | ({"remote"} if "remote" in target else set())
+        | ({"revision"} if "revision" in target else set()),
         label="scan.target",
     )
     if (
@@ -905,6 +906,14 @@ def _ingest_codex_security_receipt_from_descriptor(
         or not re.fullmatch(r"target_sha256_[0-9a-f]{64}", target["targetId"])
     ):
         raise ReviewEvidenceError("scan target does not match the expected Git diff")
+    if "revision" in target and (
+        not isinstance(target["revision"], str)
+        or target["revision"] != target["headRevision"]
+        or target["revision"] != expected_head
+    ):
+        raise ReviewEvidenceError(
+            "scan.target.revision must exactly match the expected Git diff head"
+        )
     if (
         "remote" in target
         and target["remote"] != "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
