@@ -24,6 +24,52 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p0-experiment-runner-container-cve-remediation"></a>
+- [ ] P0: Remediate Experiment Runner container HIGH/CRITICAL vulnerabilities
+  - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)
+  - Priority: P0 prerequisite for mandatory Experiment Runner oracle evidence
+  - Target PR: `codex/fix-experiment-runner-container-cves`
+  - Status: Implementation and exact-image admission complete locally; final
+    oracle, current-head PR, and merge evidence pending
+  - Area: Experiment Runner / container security / supply chain
+  - Reason (EN): The immutable bookworm runner baseline reports 61
+    HIGH/CRITICAL occurrences across 27 unique vulnerability IDs. Mandatory
+    Apple Container oracle evidence must not execute on that image. An exact
+    slim-trixie candidate remained blocked with 60 occurrences across 25 unique
+    IDs, and Alpine 3.24 could not satisfy the existing exact binary-wheel lock
+    for `matplotlib==3.10.8`. The admitted candidate instead uses the exact UBI
+    10 minimal digest, verifies exact EPEL sources and RPM signatures, pins the
+    complete transitive RPM inventories, and overlays the checksum-pinned
+    official CPython 3.13 backport for `CVE-2026-15308`. It preserves the
+    private-index locked install and non-root boundary without a vulnerability
+    suppression.
+  - Links: `deploy/experiment-runner/Containerfile`,
+    `tests/test_experiment_runner_dispatch.py`,
+    `docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md`,
+    `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`
+  - DoD: Build the exact candidate with Apple Container; preserve its immutable
+    name-and-digest reference; verify the exported top index, exactly one
+    `linux/arm64` manifest, every referenced layer blob, and the manifest-bound
+    config by descriptor digest and size; require each layer to be a regular
+    file with exact descriptor size and SHA-256; reject proxy-secret names and
+    values in config/history; verify the official Trivy 0.72.0 asset against
+    its release checksum, refresh its database, and scan the exact OCI layout
+    without package-type filtering, with ambient Trivy configuration disabled,
+    external ignore-policy, ignore-status, and VEX inputs explicitly empty,
+    `/dev/null` ignore file, unfixed findings included, and zero HIGH/CRITICAL
+    OS or language-package findings; fail closed unless the report proves Trivy
+    schema v2, the exact container/Red Hat 10.2 identity, one 129-package OS
+    result, and one 136-package Python result; verify exact RPM versions and the
+    CPython patch inside the same digest; verify the complete 107/108/129
+    package inventories over NEVRA, header SHA-256, payload digest, and payload
+    digest algorithm; preserve sanitized runtime, probe, scanner, and
+    success-only exit-status receipts; pass the strict Apple Container probe;
+    and accept an oracle-only result with
+    `network_budget=0`,
+    `shared_tree_untouched: true`, expected backend provenance, and no host path
+    or secret. Any retained vulnerable package blocks admission and requires a
+    separately authorized remediation decision before oracle execution.
+
 <a id="ledger-p1-pr2133-docker-manifest-prerequisite-consolidation"></a>
 - [ ] P1: Consolidate the Docker source-manifest prerequisite into PR #2133
   - Owner: @katsiaryna_kavaleuskaya (Security / CI)

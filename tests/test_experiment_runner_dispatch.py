@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -20,6 +22,43 @@ from scripts.orchestration import experiment_runner_dispatch as dispatch
 
 _DIGEST = "sha256:" + "a" * 64
 _OTHER_DIGEST = "sha256:" + "b" * 64
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_RUNNER_CONTAINERFILE = _REPO_ROOT / "deploy" / "experiment-runner" / "Containerfile"
+_RUNNER_RUNBOOK = _REPO_ROOT / "docs" / "orchestration" / "EXPERIMENT_RUNNER_MACOS_RUNBOOK.md"
+_RUNNER_SECURITY_NOTE = (
+    _REPO_ROOT / "docs" / "security" / "EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md"
+)
+_EXPECTED_RUNNER_BASE = (
+    "registry.access.redhat.com/ubi10/ubi-minimal@"
+    "sha256:04140c8d78c6c6915b5c1fdad2f16d10eac3630c3339999ccdf659d8c903be50"
+)
+_EXPECTED_EPEL_KEY_SHA256 = (
+    "de390fc1:68eae5ab:2852e9e9:3d34a0b9:ddf05cf9:ce90ee28:d97de26a:4b1f6b93".replace(":", "")
+)
+_EXPECTED_EPEL_RELEASE_SHA256 = (
+    "8ff46bb5:9651203a:80175962:7c8c1829:c6fe610e:031f93c8:3747ba08:32bb97ed".replace(":", "")
+)
+_EXPECTED_HTML_PARSER_SHA256 = (
+    "4274e911:2adf3fa5:7c7f9afa:7c9b5c63:1456b18b:7403cc62:7cc5027d:02cdd2ae".replace(":", "")
+)
+_EXPECTED_CPYTHON_PATCH_COMMIT = "7933f4bf:7131aa41:40750f94:04f5de0a:a2969ced".replace(":", "")
+
+
+def _runner_containerfile_text() -> str:
+    return _RUNNER_CONTAINERFILE.read_text(encoding="utf-8")
+
+
+def _runner_doc_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _microdnf_install_package_blocks(containerfile: str) -> list[tuple[str, ...]]:
+    marker = "microdnf install -y --setopt=install_weak_deps=0"
+    logical_containerfile = containerfile.replace("\\\n", " ")
+    package_blocks: list[tuple[str, ...]] = []
+    for package_text in re.findall(rf"{re.escape(marker)}\s+([^;]+);", logical_containerfile):
+        package_blocks.append(tuple(package_text.split()))
+    return package_blocks
 
 
 def _run_isolated_git(
@@ -138,6 +177,582 @@ def _accepted_oracle_result() -> dict[str, Any]:
         "coauthor_required": True,
         "coauthor_reason": "Material oracle review shaped the commit decision.",
     }
+
+
+def _trivy_packages(prefix: str, count: int) -> list[dict[str, str]]:
+    return [{"Name": f"{prefix}-{index:03d}", "Version": "1.0.0"} for index in range(1, count + 1)]
+
+
+def _clean_trivy_admission_report() -> dict[str, Any]:
+    return {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "Metadata": {"OS": {"Family": "redhat", "Name": "10.2"}},
+        "Results": [
+            {
+                "Target": "runner (redhat 10.2)",
+                "Class": "os-pkgs",
+                "Type": "redhat",
+                "Packages": _trivy_packages("rpm", 129),
+            },
+            {
+                "Target": "Python",
+                "Class": "lang-pkgs",
+                "Type": "python-pkg",
+                "Packages": _trivy_packages("python", 136),
+            },
+        ],
+    }
+
+
+def _invalid_trivy_admission_report(case: str) -> Any:
+    report = _clean_trivy_admission_report()
+    if case == "report_not_object":
+        return []
+    if case == "empty_object":
+        return {}
+    if case == "wrong_schema":
+        report["SchemaVersion"] = 1
+    elif case == "missing_metadata":
+        report.pop("Metadata")
+    elif case == "missing_os_metadata":
+        report["Metadata"] = {}
+    elif case == "missing_results":
+        report.pop("Results")
+    elif case == "empty_results":
+        report["Results"] = []
+    elif case == "os_only":
+        report["Results"] = report["Results"][:1]
+    elif case == "python_only":
+        report["Results"] = report["Results"][1:]
+    elif case == "duplicate_os_result":
+        report["Results"].append(dict(report["Results"][0]))
+    elif case == "duplicate_python_result":
+        report["Results"].append(dict(report["Results"][1]))
+    elif case == "results_not_list":
+        report["Results"] = {}
+    elif case == "wrong_artifact_type":
+        report["ArtifactType"] = "filesystem"
+    elif case == "wrong_os_identity":
+        report["Metadata"]["OS"] = {"Family": "debian", "Name": "13.6"}
+    elif case == "result_not_object":
+        report["Results"][0] = []
+    elif case == "missing_result_identity":
+        report["Results"][0].pop("Target")
+    elif case == "wrong_os_package_count":
+        report["Results"][0]["Packages"].pop()
+    elif case == "wrong_python_package_count":
+        report["Results"][1]["Packages"].pop()
+    elif case == "packages_not_list":
+        report["Results"][0]["Packages"] = {}
+    elif case == "package_not_object":
+        report["Results"][0]["Packages"][0] = []
+    elif case == "malformed_package":
+        report["Results"][1]["Packages"][0] = {"Name": "", "Version": "1.0.0"}
+    elif case == "duplicate_package":
+        report["Results"][1]["Packages"][-1] = dict(report["Results"][1]["Packages"][0])
+    elif case == "vulnerabilities_not_list":
+        report["Results"][0]["Vulnerabilities"] = {}
+    elif case == "malformed_vulnerability":
+        report["Results"][0]["Vulnerabilities"] = ["CVE-2099-0001"]
+    elif case == "selected_finding":
+        report["Results"][0]["Vulnerabilities"] = [{"VulnerabilityID": "CVE-2099-0001"}]
+    else:
+        raise AssertionError(f"unknown test case: {case}")
+    return report
+
+
+def _trivy_coverage_validator_source() -> str:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    start = (
+        'TRIVY_COVERAGE_RECEIPT="$('
+        "\n"
+        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'\n'
+    )
+    end = '\nPY\n)"'
+    assert runbook.count(start) == 1
+    validator_and_rest = runbook.split(start, maxsplit=1)[1]
+    assert validator_and_rest.count(end) == 1
+    return validator_and_rest.split(end, maxsplit=1)[0]
+
+
+def _run_trivy_coverage_validator(
+    report_text: str,
+    *,
+    tmp_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    report_path = tmp_path / "trivy.json"
+    report_path.write_text(report_text, encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, "-", str(report_path)],
+        check=False,
+        capture_output=True,
+        input=_trivy_coverage_validator_source(),
+        text=True,
+    )
+
+
+def _oci_layer_validator_source() -> str:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    start = (
+        'OCI_LAYER_RECEIPT="$('
+        "\n"
+        '  "${RUNNER_PYTHON}" - \\\n'
+        '    "${RUNNER_PLATFORM_MANIFEST_BLOB}" "${RUNNER_OCI_LAYOUT}" <<\'PY\'\n'
+    )
+    end = '\nPY\n)"'
+    assert runbook.count(start) == 1
+    validator_and_rest = runbook.split(start, maxsplit=1)[1]
+    assert end in validator_and_rest
+    return validator_and_rest.split(end, maxsplit=1)[0]
+
+
+def _write_valid_oci_layer_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, Any]]:
+    layout_path = tmp_path / "oci-layout"
+    blobs_path = layout_path / "blobs" / "sha256"
+    blobs_path.mkdir(parents=True)
+    descriptors = []
+    for index in range(5):
+        content = f"layer-{index}".encode()
+        digest = hashlib.sha256(content).hexdigest()
+        (blobs_path / digest).write_bytes(content)
+        descriptors.append(
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": f"sha256:{digest}",
+                "size": len(content),
+            }
+        )
+    manifest = {"schemaVersion": 2, "layers": descriptors}
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path, layout_path, manifest
+
+
+def _run_oci_layer_validator(
+    manifest_path: Path,
+    layout_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-", str(manifest_path), str(layout_path)],
+        check=False,
+        capture_output=True,
+        input=_oci_layer_validator_source(),
+        text=True,
+    )
+
+
+def test_oci_layer_admission_verifies_every_manifest_descriptor(tmp_path: Path) -> None:
+    manifest_path, layout_path, _manifest = _write_valid_oci_layer_fixture(tmp_path)
+
+    completed = _run_oci_layer_validator(manifest_path, layout_path)
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout == "oci_layer_count=5\n"
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "wrong_layer_count",
+        "descriptor_not_object",
+        "wrong_media_type",
+        "invalid_digest",
+        "invalid_size",
+        "duplicate_digest",
+        "missing_blob",
+        "blob_not_regular",
+        "blob_size",
+        "blob_digest",
+    ),
+)
+def test_oci_layer_admission_rejects_incomplete_or_changed_blobs(
+    case: str,
+    tmp_path: Path,
+) -> None:
+    manifest_path, layout_path, manifest = _write_valid_oci_layer_fixture(tmp_path)
+    first = manifest["layers"][0]
+    first_blob = layout_path / "blobs" / "sha256" / first["digest"].removeprefix("sha256:")
+
+    if case == "wrong_layer_count":
+        manifest["layers"].pop()
+    elif case == "descriptor_not_object":
+        manifest["layers"][0] = []
+    elif case == "wrong_media_type":
+        first["mediaType"] = "application/octet-stream"
+    elif case == "invalid_digest":
+        first["digest"] = "sha256:not-a-digest"
+    elif case == "invalid_size":
+        first["size"] = True
+    elif case == "duplicate_digest":
+        manifest["layers"][1] = dict(first)
+    elif case == "missing_blob":
+        first_blob.unlink()
+    elif case == "blob_not_regular":
+        first_blob.unlink()
+        first_blob.mkdir()
+    elif case == "blob_size":
+        first_blob.write_bytes(first_blob.read_bytes() + b"x")
+    elif case == "blob_digest":
+        first_blob.write_bytes(b"x" * first["size"])
+    else:
+        raise AssertionError(f"unknown test case: {case}")
+
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    completed = _run_oci_layer_validator(manifest_path, layout_path)
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+
+
+def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: Path) -> None:
+    completed = _run_trivy_coverage_validator(
+        json.dumps(_clean_trivy_admission_report()),
+        tmp_path=tmp_path,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == [
+        "trivy_artifact_type=container_image",
+        "trivy_os_family=redhat",
+        "trivy_os_version=10.2",
+        "trivy_os_package_count=129",
+        "trivy_python_package_count=136",
+        "trivy_high_critical_findings=0",
+    ]
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "report_not_object",
+        "empty_object",
+        "wrong_schema",
+        "missing_metadata",
+        "missing_os_metadata",
+        "missing_results",
+        "empty_results",
+        "os_only",
+        "python_only",
+        "duplicate_os_result",
+        "duplicate_python_result",
+        "results_not_list",
+        "wrong_artifact_type",
+        "wrong_os_identity",
+        "result_not_object",
+        "missing_result_identity",
+        "wrong_os_package_count",
+        "wrong_python_package_count",
+        "packages_not_list",
+        "package_not_object",
+        "malformed_package",
+        "duplicate_package",
+        "vulnerabilities_not_list",
+        "malformed_vulnerability",
+        "selected_finding",
+    ),
+)
+def test_trivy_admission_report_rejects_incomplete_or_unsafe_shapes(
+    case: str,
+    tmp_path: Path,
+) -> None:
+    completed = _run_trivy_coverage_validator(
+        json.dumps(_invalid_trivy_admission_report(case)),
+        tmp_path=tmp_path,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+
+
+def test_trivy_admission_report_rejects_invalid_json(tmp_path: Path) -> None:
+    completed = _run_trivy_coverage_validator("not-json\n", tmp_path=tmp_path)
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+
+
+def test_runner_containerfile_pins_exact_base_and_shared_python_runtime() -> None:
+    containerfile = _runner_containerfile_text()
+    from_lines = [line.strip() for line in containerfile.splitlines() if line.startswith("FROM ")]
+
+    assert f'ARG RUNNER_BASE="{_EXPECTED_RUNNER_BASE}"' in containerfile
+    assert from_lines == [
+        "FROM scratch AS verified-sources",
+        "FROM ${RUNNER_BASE} AS python-runtime",
+        "FROM python-runtime AS builder",
+        "FROM python-runtime AS runner",
+    ]
+    assert containerfile.count("COPY --from=builder /opt/venv /opt/venv") == 1
+
+
+def test_runner_containerfile_verifies_external_sources_and_python_patch() -> None:
+    containerfile = _runner_containerfile_text()
+
+    assert (
+        f"ADD --checksum=sha256:{_EXPECTED_EPEL_KEY_SHA256} \\\n"
+        "    https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-10"
+    ) in containerfile
+    assert (
+        f"ADD --checksum=sha256:{_EXPECTED_EPEL_RELEASE_SHA256} \\\n"
+        "    https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm"
+    ) in containerfile
+    assert (
+        f"ADD --checksum=sha256:{_EXPECTED_HTML_PARSER_SHA256} \\\n"
+        "    https://raw.githubusercontent.com/python/cpython/"
+        f"{_EXPECTED_CPYTHON_PATCH_COMMIT}/Lib/html/parser.py"
+    ) in containerfile
+    assert "rpm --import /run/verified/RPM-GPG-KEY-EPEL-10" in containerfile
+    assert "rpm -Kv /run/verified/epel-release-latest-10.noarch.rpm" in containerfile
+    assert "key ID e37ed158: OK" in containerfile
+    assert "epel-release-10-8.el10_2.noarch" in containerfile
+    assert "install -m 0644 /run/verified/html-parser.py" in containerfile
+    assert containerfile.count(_EXPECTED_HTML_PARSER_SHA256) == 1
+    assert 'Path("/run/verified/html-parser.py").read_bytes()' in containerfile
+    assert 'Path("/usr/lib64/python3.13/html/parser.py").read_bytes()' in containerfile
+    assert "rm -rf /usr/lib64/python3.13/html/__pycache__" in containerfile
+    assert "parser._pending == []" in containerfile
+    assert "parser._pending_len == 0" in containerfile
+    assert "parser._parse_threshold == 1" in containerfile
+
+
+def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
+    containerfile = _runner_containerfile_text()
+    logical_containerfile = containerfile.replace("\\\n", " ").lower()
+    package_blocks = _microdnf_install_package_blocks(containerfile)
+    rpm_inventory_contracts = re.findall(
+        r"expected_rpm_package_count='(\d+)';\s+" r"expected_rpm_inventory_sha256='([0-9a-f:]+)'",
+        logical_containerfile,
+    )
+
+    assert package_blocks == [
+        ("python3.13-3.13.14-1.el10_2",),
+        ("python3.13-pip-25.1.1-1.el10_1",),
+        (
+            "git-core-2.52.0-1.el10",
+            "make-4.4.1-9.el10",
+            "shadow-utils-4.15.0-11.el10",
+            "util-linux-core-2.40.2-18.el10",
+        ),
+    ]
+    assert rpm_inventory_contracts == [
+        (
+            "107",
+            "89d2a8bb:1a6216d5:63f194d6:c65b556d:c5a1672c:9b126afe:" "d5d1b677:5a9c0125",
+        ),
+        (
+            "108",
+            "877f449d:91c786a5:353d0f25:d95423fa:cc1cf06e:b6e748c6:" "c0be04f6:ced7c26b",
+        ),
+        (
+            "129",
+            "bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:" "7d737476:368a34b2",
+        ),
+    ]
+    assert containerfile.count("%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}") == 3
+    assert logical_containerfile.count("microdnf clean all") == 3
+    assert "rpm -e epel-release" in logical_containerfile
+    assert not re.search(r"\b(?:apk|apt|apt-get|aptitude|dpkg|dnf|yum)\b", logical_containerfile)
+
+
+def test_runner_containerfile_forbids_suppressions_and_policy_weakening() -> None:
+    containerfile = _runner_containerfile_text().lower()
+    forbidden_fragments = (
+        "# nosec",
+        "|| true",
+        "--allow-unauthenticated",
+        "--allow-untrusted",
+        "--force-broken-world",
+        "--nogpgcheck",
+        "--nodigest",
+        "--nosignature",
+        "gpgcheck=0",
+        "sslverify=0",
+        "--ignore-unfixed",
+        "--privileged",
+        "cap_sys_admin",
+        "continue-on-error",
+        ".trivyignore",
+    )
+
+    assert not [fragment for fragment in forbidden_fragments if fragment in containerfile]
+    assert "microdnf upgrade" not in containerfile
+    assert "microdnf update" not in containerfile
+    assert "@latest" not in containerfile
+
+
+def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
+    containerfile = _runner_containerfile_text()
+    arg_lines = [line.strip() for line in containerfile.splitlines() if line.startswith("ARG ")]
+    runner_stage = containerfile.split("FROM python-runtime AS runner", maxsplit=1)[1]
+
+    assert arg_lines == [f'ARG RUNNER_BASE="{_EXPECTED_RUNNER_BASE}"']
+    assert "--mount=type=secret,id=pp_py_index,required=true" in containerfile
+    assert "--mount=type=secret,id=pp_py_host,required=false" in containerfile
+    assert "--mount=type=secret,id=pp_netrc,required=false" in containerfile
+    assert "trap 'rm -f /root/.netrc' EXIT" in containerfile
+    assert "--requirements-file /build/requirements-lock.txt" in containerfile
+    assert "--constraints-file /build/constraints.txt" in containerfile
+    assert "--install-mode direct-proxy" in containerfile
+    assert "--require-virtualenv" in containerfile
+    assert "pip install" not in containerfile
+    assert "COPY /run/secrets" not in containerfile
+    assert "groupadd --gid 65532 runner" in runner_stage
+    assert "useradd --uid 65532 --gid 65532 --no-create-home" in runner_stage
+    assert "--home-dir /tmp --shell /sbin/nologin runner" in runner_stage
+    assert runner_stage.count("USER 65532:65532") == 1
+    assert "USER root" not in runner_stage
+    assert "HOME=/tmp" in runner_stage
+    assert 'PATH="/opt/venv/bin:/usr/bin:/bin"' in runner_stage
+    assert "WORKDIR /repo" in runner_stage
+    assert 'CMD ["/opt/venv/bin/python", "--version"]' in runner_stage
+
+
+def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    security_note = _runner_doc_text(_RUNNER_SECURITY_NOTE)
+    admission = runbook.split("## Validation and rollback", maxsplit=1)[1]
+    required_runbook_fragments = (
+        "set -euo pipefail",
+        'RUNNER_IMAGE_DIGEST="${RUNNER_IMAGE_REF##*@}"',
+        'image inspect "${RUNNER_IMAGE_REF}" >"${RUNNER_INSPECT_JSON}"',
+        ".[0].configuration.descriptor.digest == $digest",
+        'image save --output "${RUNNER_OCI_ARCHIVE}"',
+        'test "${RUNNER_TOP_INDEX_DIGEST}" = "${RUNNER_IMAGE_DIGEST}"',
+        'test "${RUNNER_TOP_INDEX_SHA}" = "${RUNNER_TOP_INDEX_DIGEST}"',
+        'test "${RUNNER_TOP_INDEX_ACTUAL_SIZE}" = "${RUNNER_TOP_INDEX_SIZE}"',
+        'error("expected one linux/arm64 manifest")',
+        'test "${RUNNER_PLATFORM_MANIFEST_SHA}" = "${RUNNER_PLATFORM_MANIFEST_DIGEST}"',
+        '"${RUNNER_PLATFORM_MANIFEST_SIZE}"',
+        'OCI_LAYER_RECEIPT="$(',
+        '"${RUNNER_PLATFORM_MANIFEST_BLOB}" "${RUNNER_OCI_LAYOUT}" <<\'PY\'',
+        "oci_layer_validation_invalid:",
+        "len(layers) != 5",
+        "stat.S_ISREG(blob_stat.st_mode)",
+        "blob_stat.st_size != size",
+        "actual_digest.hexdigest()",
+        'error("expected OCI config")',
+        'test "${RUNNER_CONFIG_SHA}" = "${RUNNER_CONFIG_DIGEST}"',
+        'test "${RUNNER_CONFIG_ACTUAL_SIZE}" = "${RUNNER_CONFIG_SIZE}"',
+        'config.get("User") != "65532:65532"',
+        'config.get("Cmd") != ["/opt/venv/bin/python", "--version"]',
+        'config.get("WorkingDir") != "/repo"',
+        'raise SystemExit("manifest_bound_config_history_invalid")',
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "PULSEPLATE_PYTHON_NETRC",
+        'raise SystemExit("proxy_secret_material_present")',
+        'RUNNER_RUNTIME_REPORT="${RUNNER_EVIDENCE_DIR}/runtime-contract.stdout"',
+        'RUNNER_PROBE_STDOUT="${RUNNER_EVIDENCE_DIR}/apple-probe.stdout"',
+        'RUNNER_STATUS_REPORT="${RUNNER_EVIDENCE_DIR}/admission-exit-statuses.txt"',
+        'run --rm --read-only --no-dns "${RUNNER_IMAGE_REF}"',
+        'test "$(id -u):$(id -g)" = "65532:65532"',
+        "EXPECTED_HTML_PARSER_SHA256=",
+        '"${EXPECTED_HTML_PARSER_SHA256}"',
+        '"python3.13-3.13.14-1.el10_2.aarch64"',
+        '"git-core-2.52.0-1.el10.aarch64"',
+        '"util-linux-core-2.40.2-18.el10.aarch64"',
+        'expected_rpm_package_count="129"',
+        'expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:'
+        'f208ee11:69251070:7d737476:368a34b2"',
+        "%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}",
+        '"runtime_contract=passed"',
+        '"${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"',
+        'TRIVY_ASSET="trivy_${TRIVY_VERSION}_macOS-ARM64.tar.gz"',
+        'TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"',
+        '"${SHASUM_BIN}" -a 256 -c selected-checksum.txt',
+        '"${TRIVY_BIN}" --version',
+        "Version: 0.72.0",
+        "--config /dev/null image --download-db-only --no-progress",
+        '--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"',
+        "--scanners vuln",
+        "--severity HIGH,CRITICAL",
+        "--ignorefile /dev/null",
+        "--ignore-policy=",
+        "--ignore-status=",
+        "--ignore-unfixed=false",
+        "--vex=",
+        "--exit-code 1",
+        'TRIVY_COVERAGE_RECEIPT="$(',
+        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'',
+        "def package_count(result):",
+        'report.get("SchemaVersion") != 2',
+        'report.get("ArtifactType") != "container_image"',
+        "if os_package_counts[0] != 129:",
+        "if python_package_counts[0] != 136:",
+        'fail("selected_findings")',
+        '"${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"',
+        "'runtime_contract_exit=0'",
+        '"${OCI_LAYER_RECEIPT}"',
+        '"${TRIVY_COVERAGE_RECEIPT}"',
+        "'apple_probe_exit=0'",
+        '"${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe',
+    )
+
+    for fragment in required_runbook_fragments:
+        assert fragment in runbook
+    runtime_hash_assignment = re.search(r"EXPECTED_HTML_PARSER_SHA256='([0-9a-f:]+)'", runbook)
+    assert runtime_hash_assignment is not None
+    assert runtime_hash_assignment.group(1).replace(":", "") == _EXPECTED_HTML_PARSER_SHA256
+    assert "trivy image --scanners vuln" not in runbook
+    admission_lines = [line.strip() for line in admission.splitlines()]
+    assert [line for line in admission_lines if line.startswith('"${TRIVY_BIN}" --config')] == [
+        '"${TRIVY_BIN}" --config /dev/null image --download-db-only --no-progress',
+        '"${TRIVY_BIN}" --config /dev/null image --input "${RUNNER_OCI_LAYOUT}" \\',
+    ]
+    for option in ("--ignore-policy=", "--ignore-status=", "--vex="):
+        assert [line for line in admission_lines if line.startswith(option)] == [f"{option} \\"]
+    assert "--pkg-types" not in admission
+    assert "[.Results[]?.Vulnerabilities[]?] | length" not in admission
+    assert "TRIVY_FINDING_COUNT" not in admission
+    assert 'TRIVY_COVERAGE_RECEIPT="$("${JQ_BIN}"' not in admission
+    scan_index = admission.index('--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"')
+    layer_guard_index = admission.index('OCI_LAYER_RECEIPT="$(')
+    coverage_guard_index = admission.index('TRIVY_COVERAGE_RECEIPT="$(')
+    probe_index = admission.index("experiment_runner_dispatch.py probe")
+    status_receipt_index = admission.index('>"${RUNNER_STATUS_REPORT}"')
+    assert layer_guard_index < scan_index
+    assert scan_index < coverage_guard_index < probe_index < status_receipt_index
+    assert "consumes only the manifest-bound OCI layout" in security_note
+    assert "oci_layer_count=5" in security_note
+    assert "`--config /dev/null`" in security_note
+    assert "`--ignorefile /dev/null`" in security_note
+    assert "`--ignore-policy=`" in security_note
+    assert "`--ignore-status=`" in security_note
+    assert "`--ignore-unfixed=false`" in security_note
+    assert "`--vex=`" in security_note
+    assert "## Sanitized command receipts" in security_note
+    assert "`admission-exit-statuses.txt`" in security_note
+    assert "rpm_inventory_sha256=bf2426b194df76bf" in security_note
+    assert "trivy_os_package_count=129" in security_note
+    assert "trivy_python_package_count=136" in security_note
+    assert "trivy_high_critical_findings=0" in security_note
+    assert "Exit status: `1`" in security_note
+    assert "explicitly not used as audit proof" in " ".join(security_note.split())
+
+
+def test_runner_admission_docs_limit_candidate_rollback_scope() -> None:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    security_note = _runner_doc_text(_RUNNER_SECURITY_NOTE)
+    runbook_rollback = runbook.split("Rollback this candidate only", maxsplit=1)[1]
+    security_rollback = security_note.split("## Rollback", maxsplit=1)[1]
+    normalized_runbook_rollback = " ".join(runbook_rollback.split())
+    normalized_security_rollback = " ".join(security_rollback.split())
+
+    assert (
+        "fail-closed OCI layer, isolated Trivy invocation, and Trivy coverage guards must remain"
+        in normalized_runbook_rollback
+    )
+    assert (
+        "base/package/CPython patch pin plus its image-specific tests and evidence documentation"
+        in normalized_runbook_rollback
+    )
+    assert "result contract and capability schema are unchanged" in normalized_runbook_rollback
+    assert "revert only the UBI" in normalized_security_rollback
+    assert "coverage guard must not be removed" in normalized_security_rollback
+    assert "result contract and capability schema are unchanged" in normalized_security_rollback
 
 
 def test_image_reference_requires_immutable_digest() -> None:
