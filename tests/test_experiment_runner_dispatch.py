@@ -6,6 +6,7 @@ from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -20,6 +21,43 @@ from scripts.orchestration import experiment_runner_dispatch as dispatch
 
 _DIGEST = "sha256:" + "a" * 64
 _OTHER_DIGEST = "sha256:" + "b" * 64
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_RUNNER_CONTAINERFILE = _REPO_ROOT / "deploy" / "experiment-runner" / "Containerfile"
+_RUNNER_RUNBOOK = _REPO_ROOT / "docs" / "orchestration" / "EXPERIMENT_RUNNER_MACOS_RUNBOOK.md"
+_RUNNER_SECURITY_NOTE = (
+    _REPO_ROOT / "docs" / "security" / "EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md"
+)
+_EXPECTED_RUNNER_BASE = (
+    "registry.access.redhat.com/ubi10/ubi-minimal@"
+    "sha256:04140c8d78c6c6915b5c1fdad2f16d10eac3630c3339999ccdf659d8c903be50"
+)
+_EXPECTED_EPEL_KEY_SHA256 = (
+    "de390fc1:68eae5ab:2852e9e9:3d34a0b9:ddf05cf9:ce90ee28:d97de26a:4b1f6b93".replace(":", "")
+)
+_EXPECTED_EPEL_RELEASE_SHA256 = (
+    "8ff46bb5:9651203a:80175962:7c8c1829:c6fe610e:031f93c8:3747ba08:32bb97ed".replace(":", "")
+)
+_EXPECTED_HTML_PARSER_SHA256 = (
+    "4274e911:2adf3fa5:7c7f9afa:7c9b5c63:1456b18b:7403cc62:7cc5027d:02cdd2ae".replace(":", "")
+)
+_EXPECTED_CPYTHON_PATCH_COMMIT = "7933f4bf:7131aa41:40750f94:04f5de0a:a2969ced".replace(":", "")
+
+
+def _runner_containerfile_text() -> str:
+    return _RUNNER_CONTAINERFILE.read_text(encoding="utf-8")
+
+
+def _runner_doc_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _microdnf_install_package_blocks(containerfile: str) -> list[tuple[str, ...]]:
+    marker = "microdnf install -y --setopt=install_weak_deps=0"
+    logical_containerfile = containerfile.replace("\\\n", " ")
+    package_blocks: list[tuple[str, ...]] = []
+    for package_text in re.findall(rf"{re.escape(marker)}\s+([^;]+);", logical_containerfile):
+        package_blocks.append(tuple(package_text.split()))
+    return package_blocks
 
 
 def _run_isolated_git(
@@ -138,6 +176,210 @@ def _accepted_oracle_result() -> dict[str, Any]:
         "coauthor_required": True,
         "coauthor_reason": "Material oracle review shaped the commit decision.",
     }
+
+
+def test_runner_containerfile_pins_exact_base_and_shared_python_runtime() -> None:
+    containerfile = _runner_containerfile_text()
+    from_lines = [line.strip() for line in containerfile.splitlines() if line.startswith("FROM ")]
+
+    assert f'ARG RUNNER_BASE="{_EXPECTED_RUNNER_BASE}"' in containerfile
+    assert from_lines == [
+        "FROM scratch AS verified-sources",
+        "FROM ${RUNNER_BASE} AS python-runtime",
+        "FROM python-runtime AS builder",
+        "FROM python-runtime AS runner",
+    ]
+    assert containerfile.count("COPY --from=builder /opt/venv /opt/venv") == 1
+
+
+def test_runner_containerfile_verifies_external_sources_and_python_patch() -> None:
+    containerfile = _runner_containerfile_text()
+
+    assert (
+        f"ADD --checksum=sha256:{_EXPECTED_EPEL_KEY_SHA256} \\\n"
+        "    https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-10"
+    ) in containerfile
+    assert (
+        f"ADD --checksum=sha256:{_EXPECTED_EPEL_RELEASE_SHA256} \\\n"
+        "    https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm"
+    ) in containerfile
+    assert (
+        f"ADD --checksum=sha256:{_EXPECTED_HTML_PARSER_SHA256} \\\n"
+        "    https://raw.githubusercontent.com/python/cpython/"
+        f"{_EXPECTED_CPYTHON_PATCH_COMMIT}/Lib/html/parser.py"
+    ) in containerfile
+    assert "rpm --import /run/verified/RPM-GPG-KEY-EPEL-10" in containerfile
+    assert "rpm -Kv /run/verified/epel-release-latest-10.noarch.rpm" in containerfile
+    assert "key ID e37ed158: OK" in containerfile
+    assert "epel-release-10-8.el10_2.noarch" in containerfile
+    assert "install -m 0644 /run/verified/html-parser.py" in containerfile
+    assert containerfile.count(_EXPECTED_HTML_PARSER_SHA256) == 1
+    assert 'Path("/run/verified/html-parser.py").read_bytes()' in containerfile
+    assert 'Path("/usr/lib64/python3.13/html/parser.py").read_bytes()' in containerfile
+    assert "rm -rf /usr/lib64/python3.13/html/__pycache__" in containerfile
+    assert "parser._pending == []" in containerfile
+    assert "parser._pending_len == 0" in containerfile
+    assert "parser._parse_threshold == 1" in containerfile
+
+
+def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
+    containerfile = _runner_containerfile_text()
+    logical_containerfile = containerfile.replace("\\\n", " ").lower()
+    package_blocks = _microdnf_install_package_blocks(containerfile)
+
+    assert package_blocks == [
+        ("python3.13-3.13.14-1.el10_2",),
+        ("python3.13-pip-25.1.1-1.el10_1",),
+        (
+            "git-core-2.52.0-1.el10",
+            "make-4.4.1-9.el10",
+            "shadow-utils-4.15.0-11.el10",
+            "util-linux-core-2.40.2-18.el10",
+        ),
+    ]
+    assert logical_containerfile.count("microdnf clean all") == 3
+    assert "rpm -e epel-release" in logical_containerfile
+    assert not re.search(r"\b(?:apk|apt|apt-get|aptitude|dpkg|dnf|yum)\b", logical_containerfile)
+
+
+def test_runner_containerfile_forbids_suppressions_and_policy_weakening() -> None:
+    containerfile = _runner_containerfile_text().lower()
+    forbidden_fragments = (
+        "# nosec",
+        "|| true",
+        "--allow-unauthenticated",
+        "--allow-untrusted",
+        "--force-broken-world",
+        "--nogpgcheck",
+        "--nodigest",
+        "--nosignature",
+        "gpgcheck=0",
+        "sslverify=0",
+        "--ignore-unfixed",
+        "--privileged",
+        "cap_sys_admin",
+        "continue-on-error",
+        ".trivyignore",
+    )
+
+    assert not [fragment for fragment in forbidden_fragments if fragment in containerfile]
+    assert "microdnf upgrade" not in containerfile
+    assert "microdnf update" not in containerfile
+    assert "@latest" not in containerfile
+
+
+def test_runner_containerfile_preserves_secret_and_non_root_hygiene() -> None:
+    containerfile = _runner_containerfile_text()
+    arg_lines = [line.strip() for line in containerfile.splitlines() if line.startswith("ARG ")]
+    runner_stage = containerfile.split("FROM python-runtime AS runner", maxsplit=1)[1]
+
+    assert arg_lines == [f'ARG RUNNER_BASE="{_EXPECTED_RUNNER_BASE}"']
+    assert "--mount=type=secret,id=pp_py_index,required=true" in containerfile
+    assert "--mount=type=secret,id=pp_py_host,required=false" in containerfile
+    assert "--mount=type=secret,id=pp_netrc,required=false" in containerfile
+    assert "trap 'rm -f /root/.netrc' EXIT" in containerfile
+    assert "--requirements-file /build/requirements-lock.txt" in containerfile
+    assert "--constraints-file /build/constraints.txt" in containerfile
+    assert "--install-mode direct-proxy" in containerfile
+    assert "--require-virtualenv" in containerfile
+    assert "pip install" not in containerfile
+    assert "COPY /run/secrets" not in containerfile
+    assert "groupadd --gid 65532 runner" in runner_stage
+    assert "useradd --uid 65532 --gid 65532 --no-create-home" in runner_stage
+    assert "--home-dir /tmp --shell /sbin/nologin runner" in runner_stage
+    assert runner_stage.count("USER 65532:65532") == 1
+    assert "USER root" not in runner_stage
+    assert "HOME=/tmp" in runner_stage
+    assert 'PATH="/opt/venv/bin:/usr/bin:/bin"' in runner_stage
+    assert "WORKDIR /repo" in runner_stage
+    assert 'CMD ["/opt/venv/bin/python", "--version"]' in runner_stage
+
+
+def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    security_note = _runner_doc_text(_RUNNER_SECURITY_NOTE)
+    admission = runbook.split("## Validation and rollback", maxsplit=1)[1]
+    required_runbook_fragments = (
+        'RUNNER_IMAGE_DIGEST="${RUNNER_IMAGE_REF##*@}"',
+        'image inspect "${RUNNER_IMAGE_REF}" >"${RUNNER_INSPECT_JSON}"',
+        ".[0].configuration.descriptor.digest == $digest",
+        'image save --output "${RUNNER_OCI_ARCHIVE}"',
+        'test "${RUNNER_TOP_INDEX_DIGEST}" = "${RUNNER_IMAGE_DIGEST}"',
+        'test "${RUNNER_TOP_INDEX_SHA}" = "${RUNNER_TOP_INDEX_DIGEST}"',
+        'test "${RUNNER_TOP_INDEX_ACTUAL_SIZE}" = "${RUNNER_TOP_INDEX_SIZE}"',
+        'error("expected one linux/arm64 manifest")',
+        'test "${RUNNER_PLATFORM_MANIFEST_SHA}" = "${RUNNER_PLATFORM_MANIFEST_DIGEST}"',
+        '"${RUNNER_PLATFORM_MANIFEST_SIZE}"',
+        'error("expected OCI config")',
+        'test "${RUNNER_CONFIG_SHA}" = "${RUNNER_CONFIG_DIGEST}"',
+        'test "${RUNNER_CONFIG_ACTUAL_SIZE}" = "${RUNNER_CONFIG_SIZE}"',
+        'config.get("User") != "65532:65532"',
+        'config.get("Cmd") != ["/opt/venv/bin/python", "--version"]',
+        'config.get("WorkingDir") != "/repo"',
+        'raise SystemExit("manifest_bound_config_history_invalid")',
+        "PULSEPLATE_PYTHON_INDEX_URL",
+        "PULSEPLATE_PYTHON_TRUSTED_HOST",
+        "PULSEPLATE_PYTHON_NETRC",
+        'raise SystemExit("proxy_secret_material_present")',
+        'run --rm --read-only --no-dns "${RUNNER_IMAGE_REF}"',
+        'test "$(id -u):$(id -g)" = "65532:65532"',
+        "EXPECTED_HTML_PARSER_SHA256=",
+        '"${EXPECTED_HTML_PARSER_SHA256}"',
+        '"python3.13-3.13.14-1.el10_2.aarch64"',
+        '"git-core-2.52.0-1.el10.aarch64"',
+        '"util-linux-core-2.40.2-18.el10.aarch64"',
+        'TRIVY_ASSET="trivy_${TRIVY_VERSION}_macOS-ARM64.tar.gz"',
+        'TRIVY_CHECKSUMS="trivy_${TRIVY_VERSION}_checksums.txt"',
+        '"${SHASUM_BIN}" -a 256 -c selected-checksum.txt',
+        '"${TRIVY_BIN}" --version',
+        "Version: 0.72.0",
+        "image --download-db-only --no-progress",
+        'image --input "${RUNNER_OCI_LAYOUT}"',
+        "--scanners vuln",
+        "--severity HIGH,CRITICAL",
+        "--ignorefile /dev/null",
+        "--ignore-unfixed=false",
+        "--exit-code 1",
+        '"${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe',
+    )
+
+    for fragment in required_runbook_fragments:
+        assert fragment in runbook
+    runtime_hash_assignment = re.search(r"EXPECTED_HTML_PARSER_SHA256='([0-9a-f:]+)'", runbook)
+    assert runtime_hash_assignment is not None
+    assert runtime_hash_assignment.group(1).replace(":", "") == _EXPECTED_HTML_PARSER_SHA256
+    assert "trivy image --scanners vuln" not in runbook
+    assert "--pkg-types" not in admission
+    assert admission.index('image --input "${RUNNER_OCI_LAYOUT}"') < admission.index(
+        "experiment_runner_dispatch.py probe"
+    )
+    assert "consumes only the manifest-bound OCI layout" in security_note
+    assert "`--ignorefile /dev/null`" in security_note
+    assert "`--ignore-unfixed=false`" in security_note
+
+
+def test_runner_admission_docs_limit_candidate_rollback_scope() -> None:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    security_note = _runner_doc_text(_RUNNER_SECURITY_NOTE)
+    runbook_rollback = runbook.split("Rollback this candidate only", maxsplit=1)[1]
+    security_rollback = security_note.split("## Rollback", maxsplit=1)[1]
+    normalized_runbook_rollback = " ".join(runbook_rollback.split())
+    normalized_security_rollback = " ".join(security_rollback.split())
+
+    assert "revert of the dispatcher" not in normalized_runbook_rollback
+    assert (
+        "base/package/CPython patch pin plus its tests and evidence documentation"
+        in normalized_runbook_rollback
+    )
+    assert (
+        "dispatcher, result contract, and capability schema are unchanged"
+        in normalized_runbook_rollback
+    )
+    assert "revert only the UBI" in normalized_security_rollback
+    assert (
+        "dispatcher, result contract, and capability schema are unchanged"
+        in normalized_security_rollback
+    )
 
 
 def test_image_reference_requires_immutable_digest() -> None:
