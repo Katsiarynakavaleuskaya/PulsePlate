@@ -493,6 +493,123 @@ def _repository_activity_push_timestamp(activity: dict[str, object]) -> str:
     )
 
 
+def _fetch_pr_force_push_boundaries(
+    *,
+    repository: str,
+    pr_number: int,
+) -> list[tuple[str | None, str, str]]:
+    """Return server-authored before/after boundaries for PR force-push events."""
+
+    owner, name = repository.split("/", 1)
+    query = """
+    query($owner:String!, $name:String!, $pr:Int!, $after:String) {
+      repository(owner:$owner, name:$name) {
+        pullRequest(number:$pr) {
+          timelineItems(
+            first: 100,
+            after: $after,
+            itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]
+          ) {
+            nodes {
+              ... on HeadRefForcePushedEvent {
+                createdAt
+                beforeCommit { oid }
+                afterCommit { oid }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+    }
+    """
+    after: str | None = None
+    boundaries: list[tuple[str | None, str, str]] = []
+    while True:
+        data = _graphql(
+            query,
+            {"owner": owner, "name": name, "pr": pr_number, "after": after},
+        )
+        pull_request = (data.get("repository") or {}).get("pullRequest") or {}
+        timeline = pull_request.get("timelineItems")
+        if not isinstance(timeline, dict):
+            raise RuntimeError("GitHub force-push timeline response is malformed")
+        nodes = timeline.get("nodes")
+        page_info = timeline.get("pageInfo")
+        if not isinstance(nodes, list) or not isinstance(page_info, dict):
+            raise RuntimeError("GitHub force-push timeline page is malformed")
+        for node in nodes:
+            if not isinstance(node, dict):
+                raise RuntimeError("GitHub force-push timeline node is malformed")
+            before_commit = node.get("beforeCommit")
+            after_commit = node.get("afterCommit")
+            before_sha = (
+                str(before_commit.get("oid") or "").lower()
+                if isinstance(before_commit, dict)
+                else ""
+            )
+            after_sha = (
+                str(after_commit.get("oid") or "").lower() if isinstance(after_commit, dict) else ""
+            )
+            if _GIT_SHA_RE.fullmatch(after_sha) is None:
+                continue
+            if before_sha and _GIT_SHA_RE.fullmatch(before_sha) is None:
+                raise RuntimeError("GitHub force-push beforeCommit is malformed")
+            boundaries.append(
+                (
+                    before_sha or None,
+                    after_sha,
+                    _validated_server_timestamp(
+                        node.get("createdAt"),
+                        label="GitHub HeadRefForcePushedEvent",
+                    ),
+                )
+            )
+        has_next_page = page_info.get("hasNextPage")
+        end_cursor = page_info.get("endCursor")
+        if not isinstance(has_next_page, bool):
+            raise RuntimeError("GitHub force-push timeline pagination is malformed")
+        if not has_next_page:
+            break
+        if not isinstance(end_cursor, str) or not end_cursor:
+            raise RuntimeError("GitHub force-push timeline cursor is malformed")
+        after = end_cursor
+    return boundaries
+
+
+def _fetch_compare_commit_shas(
+    *,
+    repository: str,
+    before_sha: str,
+    after_sha: str,
+) -> frozenset[str]:
+    """Return commits GitHub proves were introduced between two exact heads."""
+
+    compare_pages = json.loads(
+        _run(
+            [
+                "gh",
+                "api",
+                "--paginate",
+                "--slurp",
+                f"repos/{repository}/compare/{before_sha}...{after_sha}?per_page=100",
+            ]
+        )
+    )
+    if not isinstance(compare_pages, list):
+        raise RuntimeError("GitHub compare response is malformed")
+    introduced: set[str] = set()
+    for page in compare_pages:
+        if not isinstance(page, dict) or not isinstance(page.get("commits"), list):
+            raise RuntimeError("GitHub compare page is malformed")
+        for commit in page["commits"]:
+            sha = str(commit.get("sha") or "").lower() if isinstance(commit, dict) else ""
+            if _GIT_SHA_RE.fullmatch(sha) is None:
+                raise RuntimeError("GitHub compare commit identity is malformed")
+            introduced.add(sha)
+    return frozenset(introduced)
+
+
 def _fetch_server_commit_times(
     *,
     snapshot: PrSnapshot,
@@ -643,35 +760,30 @@ def _fetch_server_commit_times(
     if not missing:
         return times
 
-    timeline_pages = json.loads(
-        _run(
-            [
-                "gh",
-                "api",
-                "--paginate",
-                "--slurp",
-                f"repos/{repository}/issues/{pr_number}/timeline?per_page=100",
-            ]
-        )
-    )
-    if not isinstance(timeline_pages, list):
-        raise RuntimeError("GitHub PR timeline response is malformed")
-    for page in timeline_pages:
-        if not isinstance(page, list):
-            raise RuntimeError("GitHub PR timeline page is malformed")
-        for event in page:
-            if not isinstance(event, dict) or event.get("event") != "head_ref_force_pushed":
+    for before_sha, event_head, created_at in _fetch_pr_force_push_boundaries(
+        repository=repository,
+        pr_number=pr_number,
+    ):
+        if event_head not in commit_index:
+            continue
+        introduced_shas = frozenset({event_head})
+        if before_sha is not None:
+            try:
+                introduced_shas |= _fetch_compare_commit_shas(
+                    repository=repository,
+                    before_sha=before_sha,
+                    after_sha=event_head,
+                )
+            except (json.JSONDecodeError, RuntimeError):
+                # The exact event head remains provable. Intermediate commits
+                # stay unproven and therefore fail closed at the consumer.
+                pass
+        for sha in introduced_shas:
+            if sha not in missing:
                 continue
-            event_head = str(event.get("commit_id") or "").lower()
-            if event_head not in commit_index or event_head not in missing:
-                continue
-            created_at = _validated_server_timestamp(
-                event.get("created_at"),
-                label="GitHub head_ref_force_pushed event",
-            )
-            previous = times.get(event_head)
+            previous = times.get(sha)
             if previous is None or _parse_iso_datetime(created_at) < _parse_iso_datetime(previous):
-                times[event_head] = created_at
+                times[sha] = created_at
     return times
 
 
