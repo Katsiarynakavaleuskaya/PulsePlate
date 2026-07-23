@@ -1334,6 +1334,17 @@ def test_plate_request_rejects_unconvertible_measurements(
         PlateRequest.model_validate(payload)
 
 
+@pytest.mark.parametrize("field_name", ["height_cm", "weight_kg"])
+def test_plate_request_rejects_boolean_measurements(field_name: str) -> None:
+    """Boolean JSON values must not be coerced into physical measurements."""
+
+    payload = _request().model_dump()
+    payload[field_name] = True
+
+    with pytest.raises(ValidationError, match="measurement must be numeric"):
+        PlateRequest.model_validate(payload)
+
+
 def test_numeric_dependency_helpers_reject_conversion_and_shape_failures() -> None:
     """Low-level validators fail closed on malformed provider objects."""
 

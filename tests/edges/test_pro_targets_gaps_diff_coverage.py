@@ -181,6 +181,7 @@ def test_legacy_target_and_gaps_routes_execute_canonical_services(
         pytest.param(10**4000, id="overflowing-integer"),
         pytest.param(object(), id="non-numeric-object"),
         pytest.param(float("inf"), id="non-finite-float"),
+        pytest.param(True, id="boolean"),
     ],
 )
 def test_target_schema_rejects_unsafe_measurements(

@@ -55,6 +55,8 @@ class PlateRequest(BaseModel):
     @field_validator("height_cm", "weight_kg", mode="before")
     @classmethod
     def _reject_non_finite_measurement(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError("measurement must be numeric")
         try:
             numeric_value = float(value)
         except OverflowError:
@@ -107,6 +109,8 @@ class WHOTargetsRequest(BaseModel):
     @field_validator("height_cm", "weight_kg", mode="before")
     @classmethod
     def _reject_non_finite_measurement(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError("measurement must be numeric")
         try:
             numeric_value = float(value)
         except OverflowError:
