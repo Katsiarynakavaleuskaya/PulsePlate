@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from contextlib import contextmanager
+from importlib import import_module
 import os
 from pathlib import Path
 import sys
 import tempfile
-from typing import Any, TypeGuard
+from typing import Any, Iterator, TypeGuard
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
@@ -26,6 +28,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
     CreativeCodePatchWorkspaceError,
     cleanup_run_dir,
     destroy_generation_checkout,
+    exclusive_patch_run_lock,
     generation_checkout,
     prepare_generation_checkout,
     read_json,
@@ -44,7 +47,6 @@ from scripts.orchestration.experiment_contract import (
     CV_UNCERTAINTY_BANDS,
     is_cv_experiment,
 )
-from scripts.orchestration.experiment_runner import RunnerCapabilitySignal, evaluate_candidate
 
 PREPARE_SUCCESS_OUTPUT = "PASS: creative-code patch prepare complete"
 GENERATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate complete"
@@ -71,6 +73,43 @@ class CreativeCodePatchBuilderError(ValueError):
 
 
 RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
+
+
+def _import_runner_api() -> tuple[Any, Any]:
+    """Load the heavyweight runner API only after the dispatch packet exists."""
+
+    runner_module = import_module("scripts.orchestration.experiment_runner")
+    return runner_module.RunnerCapabilitySignal, runner_module.evaluate_candidate
+
+
+def evaluate_candidate(packet: dict[str, Any], patch_file: Path) -> dict[str, Any]:
+    """Evaluate through the runner without importing its application stack at CLI startup."""
+
+    try:
+        runner_capability_signal, runner_evaluate = _import_runner_api()
+    except ImportError:
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
+
+    try:
+        result: object = runner_evaluate(packet, patch_file)
+    except runner_capability_signal:
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
+    if not _is_string_keyed_dict(result):
+        raise CreativeCodePatchBuilderError(
+            "Experiment Runner result must be a string-keyed object."
+        )
+    return result
+
+
+@contextmanager
+def _exclusive_evaluate_lock(run_dir: Path) -> Iterator[None]:
+    """Serialize builder evaluation with trusted-dispatch finalization."""
+
+    try:
+        with exclusive_patch_run_lock(run_dir, label="creative-code patch evaluation"):
+            yield
+    except CreativeCodePatchWorkspaceError as exc:
+        raise CreativeCodePatchBuilderError(str(exc)) from exc
 
 
 def _load_run_state(run_id: str) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -544,6 +583,7 @@ def build_pr2_experiment_packet(
     request: Mapping[str, Any],
     source_bundle: dict[str, Any],
     changed_paths: list[str],
+    patch_fingerprint: str,
 ) -> dict[str, Any]:
     """Build the canonical Experiment Runner packet for a normalized PR-2 request."""
 
@@ -562,6 +602,8 @@ def build_pr2_experiment_packet(
             changed_paths=changed_paths,
         ),
         creative_research_origin=_creative_research_origin(source_bundle),
+        candidate_patch_fingerprint=patch_fingerprint,
+        base_commit_sha=request["base_commit_sha"],
     )
     if not _is_string_keyed_dict(packet):
         raise CreativeCodePatchBuilderError("experiment packet must be a string-keyed object.")
@@ -602,11 +644,21 @@ def _verified_patch_metadata(
     return patch_file, sorted(changed_paths), current_fingerprint, current_bytes, current_lines
 
 
-def evaluate(*, run_id: str) -> dict[str, Any]:
+def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
 
     run_dir, state, request, bundle = _load_run_state(run_id)
+    if state.get("candidate_patch_evaluated") is True:
+        raise CreativeCodePatchBuilderError("candidate patch is already evaluated.")
+    result_file = resolve_run_file(run_dir, RESULT_FILE, for_write=True)
+    if result_file.exists():
+        raise CreativeCodePatchBuilderError("candidate patch result already exists.")
     normalized_request = validate_creative_code_patch_build_request(request, source_bundle=bundle)
+    shared_head = run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if shared_head != normalized_request["base_commit_sha"]:
+        raise CreativeCodePatchBuilderError(
+            "shared checkout HEAD must match candidate base before evaluate."
+        )
     metadata = read_json(resolve_run_file(run_dir, PATCH_METADATA_FILE))
     if not isinstance(metadata, dict):
         raise CreativeCodePatchBuilderError("patch metadata must be a JSON object.")
@@ -622,13 +674,14 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
         request=normalized_request,
         source_bundle=bundle,
         changed_paths=changed_paths,
+        patch_fingerprint=patch_fingerprint,
     )
     write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)
     failure_class: str | None = None
     try:
         runner_result = evaluate_candidate(packet, patch_file)
-    except RunnerCapabilitySignal:
-        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
+    except CreativeCodePatchBuilderError:
+        raise
     except Exception as exc:
         failure_class = "infra_flake"
         runner_error = exc.__class__.__name__
@@ -668,9 +721,17 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
     if not _is_string_keyed_dict(result):
         raise CreativeCodePatchBuilderError("patch result must be a string-keyed object.")
     state["candidate_patch_evaluated"] = True
-    write_json_atomic(resolve_run_file(run_dir, RESULT_FILE, for_write=True), result)
+    write_json_atomic(result_file, result)
     write_json_atomic(resolve_run_file(run_dir, STATE_FILE, for_write=True), state)
     return result
+
+
+def evaluate(*, run_id: str) -> dict[str, Any]:
+    """Evaluate one generated candidate while holding the shared run lock."""
+
+    run_dir = resolve_run_dir(run_id, create=False)
+    with _exclusive_evaluate_lock(run_dir):
+        return _evaluate_locked(run_id=run_id)
 
 
 def main(argv: list[str] | None = None) -> int:

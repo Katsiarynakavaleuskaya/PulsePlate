@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -18,6 +19,7 @@ import pytest
 from scripts.orchestration.pr_commit_identity import (
     CommitIdentityError,
     CommitRefKind,
+    CodexReviewEvidence,
     CodexReviewSourceUnavailabilityEvidence,
     GitHubHttpError,
     PrCommitEvidence,
@@ -35,6 +37,7 @@ from scripts.orchestration.pr_commit_identity import (
     is_ancestor,
     render_review_credit_outage_override_comment,
     render_security_outage_override_comment,
+    verify_codex_connector_advisory_reaction_reference,
     verify_codex_review_reference,
     verify_codex_review_source_unavailability_reference,
     verify_review_credit_outage_references,
@@ -51,11 +54,13 @@ from scripts.orchestration.pr_review_evidence import (
     MaterialManifest,
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
+    is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_duplicate_disposition_reply,
@@ -336,7 +341,7 @@ def test_all_unproven_api_failures_remain_unknown(failure: Exception) -> None:
     assert resolution.kind is CommitRefKind.API_UNKNOWN
 
 
-def test_compare_accepts_only_bound_ancestor_response() -> None:
+def test_compare_rejects_conflicting_head_commit() -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
     descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
@@ -346,8 +351,60 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "commits": [{"sha": OUTSIDE_SHA}, {"sha": HEAD_SHA}],
+            "head_commit": {"sha": OUTSIDE_SHA},
             "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+def test_compare_accepts_matching_head_commit() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "head_commit": {"sha": HEAD_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
+        }
+
+    assert is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+
+
+def test_compare_accepts_current_api_shape_without_head_commit() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
         }
 
     assert is_ancestor(
@@ -374,6 +431,7 @@ def test_compare_fetches_the_last_page_to_bind_a_distant_descendant() -> None:
             "base_commit": {"sha": FIX_SHA},
             "commits": [{"sha": commit_sha}],
             "merge_base_commit": {"sha": FIX_SHA},
+            "total_commits": 257,
         }
 
     assert is_ancestor(
@@ -395,37 +453,10 @@ def test_compare_fetches_the_last_page_to_bind_a_distant_descendant() -> None:
     ]
 
 
-@pytest.mark.parametrize(
-    ("status", "ahead_by", "behind_by"),
-    [("behind", 0, 1), ("diverged", 1, 1)],
-)
-def test_compare_returns_false_for_valid_negative_relationships(
-    status: str, ahead_by: int, behind_by: int
+@pytest.mark.parametrize("head_commit", [None, {"sha": OUTSIDE_SHA}, {"sha": HEAD_SHA}])
+def test_compare_rejects_unbound_descendant_even_with_head_commit(
+    head_commit: Any,
 ) -> None:
-    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
-    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
-
-    def request_json(*_args: Any, **_kwargs: Any) -> Any:
-        return {
-            "status": status,
-            "ahead_by": ahead_by,
-            "behind_by": behind_by,
-            "base_commit": {"sha": FIX_SHA},
-            "commits": [],
-            "merge_base_commit": {"sha": OUTSIDE_SHA},
-        }
-
-    assert not is_ancestor(
-        ancestor,
-        descendant,
-        repository="owner/repo",
-        token="opaque",
-        request_json=request_json,
-    )
-
-
-@pytest.mark.parametrize("commits", [None, [], [{"sha": OUTSIDE_SHA}]])
-def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
     descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
@@ -435,8 +466,10 @@ def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "commits": commits,
+            "head_commit": head_commit,
             "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [],
+            "total_commits": 1,
         }
 
     with pytest.raises(CommitIdentityError, match="does not bind"):
@@ -449,11 +482,77 @@ def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
         )
 
 
-def test_compare_accepts_identical_repository_commit_without_api_call() -> None:
-    commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+def test_compare_fetches_terminal_page_for_truncated_commit_inventory() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+    calls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        calls.append(url)
+        commits = [{"sha": FIX_SHA}]
+        if url.endswith("?per_page=1&page=2"):
+            commits = [{"sha": HEAD_SHA}]
+        return {
+            "status": "ahead",
+            "ahead_by": 2,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": commits,
+            "total_commits": 2,
+        }
+
+    assert is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+    assert calls[-1].endswith("?per_page=1&page=2")
+
+
+def test_compare_identical_requires_the_same_requested_sha() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
     def request_json(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("identical commits must not call the Compare API")
+        return {
+            "status": "identical",
+            "ahead_by": 0,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "head_commit": {"sha": HEAD_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [],
+            "total_commits": 0,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+def test_compare_identical_accepts_same_sha_without_head_commit() -> None:
+    commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        return {
+            "status": "identical",
+            "ahead_by": 0,
+            "behind_by": 0,
+            "base_commit": {"sha": HEAD_SHA},
+            "merge_base_commit": {"sha": HEAD_SHA},
+            "commits": [],
+            "total_commits": 0,
+        }
 
     assert is_ancestor(
         commit,
@@ -462,6 +561,158 @@ def test_compare_accepts_identical_repository_commit_without_api_call() -> None:
         token="opaque",
         request_json=request_json,
     )
+    assert requested_urls == [
+        (
+            "https://api.github.com/repos/owner/repo/compare/"
+            f"{HEAD_SHA}...{HEAD_SHA}?per_page=1&page=1"
+        )
+    ]
+
+
+def test_compare_identical_api_failure_remains_unproven() -> None:
+    commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise GitHubHttpError(503, "Service Unavailable")
+
+    with pytest.raises(CommitIdentityError, match="Compare API failed with HTTP 503"):
+        is_ancestor(
+            commit,
+            commit,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("status", "merge_base_sha"),
+    [("behind", HEAD_SHA), ("diverged", OUTSIDE_SHA)],
+)
+def test_compare_non_ancestor_statuses_return_false(status: str, merge_base_sha: str) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": status,
+            "ahead_by": 0,
+            "behind_by": 1,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": merge_base_sha},
+            "commits": [],
+            "total_commits": 0,
+        }
+
+    assert not is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+
+
+@pytest.mark.parametrize(
+    ("commits", "total_commits", "ahead_by"),
+    [
+        (None, 1, 1),
+        ([], 1, 1),
+        ([{"sha": OUTSIDE_SHA}], 1, 1),
+        ([{"sha": HEAD_SHA}], 1, 2),
+        ("not-a-list", 1, 1),
+    ],
+)
+def test_compare_rejects_incomplete_or_malformed_commit_inventory(
+    commits: Any, total_commits: Any, ahead_by: Any
+) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": ahead_by,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": commits,
+            "total_commits": total_commits,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(("ahead_by", "behind_by"), [(True, 0), (-1, 0), (0, -1)])
+def test_compare_rejects_invalid_counters(ahead_by: Any, behind_by: Any) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": ahead_by,
+            "behind_by": behind_by,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("head_commit", {"sha": OUTSIDE_SHA}),
+        ("ahead_by", True),
+        ("behind_by", False),
+        ("total_commits", True),
+    ],
+)
+def test_compare_rejects_invalid_terminal_page_binding(field: str, value: Any) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        terminal = "page=2" in url
+        response = {
+            "status": "ahead",
+            "ahead_by": 2,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "head_commit": {"sha": HEAD_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA if terminal else OUTSIDE_SHA}],
+            "total_commits": 2,
+        }
+        if terminal:
+            response[field] = value
+        return response
+
+    with pytest.raises(CommitIdentityError, match="terminal page does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
 
 
 def test_codex_review_reference_requires_exact_trusted_submitted_review() -> None:
@@ -744,6 +995,576 @@ def test_codex_no_findings_comment_rejects_unresolved_short_commit() -> None:
         )
 
 
+def _codex_positive_reaction(
+    reaction_id: int = 456,
+    *,
+    content: str = "+1",
+    created_at: str = "2026-07-15T11:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "content": content,
+        "created_at": created_at,
+        "id": reaction_id,
+        "user": {
+            "id": 199_175_422,
+            "login": "chatgpt-codex-connector[bot]",
+            "type": "User",
+        },
+    }
+
+
+def _codex_positive_reaction_request(
+    reaction: dict[str, Any] | list[dict[str, Any]],
+    *,
+    pull_head: str = HEAD_SHA,
+    workflow_runs: dict[str, Any] | None = None,
+    head_events: list[dict[str, Any]] | None = None,
+) -> Any:
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/reactions?" in url:
+            return reaction if isinstance(reaction, list) else [reaction]
+        if url.endswith("/pulls/42"):
+            return {"head": {"sha": pull_head}}
+        if "/actions/runs?" in url and workflow_runs is not None:
+            return workflow_runs
+        if "/issues/42/events?" in url:
+            return [] if head_events is None else head_events
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    return request_json
+
+
+def _github_actions_workflow_runs(
+    *,
+    head_sha: str = HEAD_SHA,
+    created_at: str = "2026-07-15T10:59:59Z",
+    event: str = "pull_request",
+    pr_number: int = 42,
+) -> dict[str, Any]:
+    return {
+        "total_count": 1,
+        "workflow_runs": [
+            {
+                "created_at": created_at,
+                "event": event,
+                "head_sha": head_sha,
+                "pull_requests": [{"number": pr_number}],
+            }
+        ],
+    }
+
+
+def _workflow_run_response_with_pr_links(links: Any) -> dict[str, Any]:
+    response = _github_actions_workflow_runs()
+    response["workflow_runs"][0]["pull_requests"] = links
+    return response
+
+
+@pytest.mark.parametrize("content", ("+1", "heart", "hooray", "rocket"))
+def test_codex_positive_reaction_is_accepted_without_exact_head_review_claim(
+    content: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    reaction = _codex_positive_reaction(content=content)
+    requested_urls: list[str] = []
+    request = _codex_positive_reaction_request(
+        reaction,
+        workflow_runs=_github_actions_workflow_runs(),
+    )
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        return request(url)
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence == identity_module.CodexConnectorAdvisoryReactionEvidence(
+        reference=reference,
+        created_at="2026-07-15T11:00:00Z",
+        content=content,
+    )
+    assert requested_urls == [
+        "https://api.github.com/repos/owner/repo/issues/42/reactions?per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/pulls/42",
+        "https://api.github.com/repos/owner/repo/actions/runs"
+        f"?event=pull_request&head_sha={HEAD_SHA}&per_page=100&page=1",
+        "https://api.github.com/repos/owner/repo/issues/42/events?per_page=100&page=1",
+    ]
+
+
+def test_codex_positive_reaction_accepts_revalidated_mapping_only_live_head() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        expected_live_pr_head_ref=OUTSIDE_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(),
+            pull_head=OUTSIDE_SHA,
+            workflow_runs=_github_actions_workflow_runs(),
+        ),
+    )
+
+    assert isinstance(evidence, identity_module.CodexConnectorAdvisoryReactionEvidence)
+    assert evidence.content == "+1"
+
+
+def test_codex_positive_reaction_accepts_new_live_successor_after_mapping_only_push() -> None:
+    sealed_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    successor_reference = "https://github.com/owner/repo/pull/42#reaction-789"
+
+    evidence = verify_codex_review_reference(
+        sealed_reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        expected_live_pr_head_ref=OUTSIDE_SHA,
+        request_json=_codex_positive_reaction_request(
+            _codex_positive_reaction(
+                789,
+                created_at="2026-07-15T12:00:00Z",
+            ),
+            pull_head=OUTSIDE_SHA,
+            workflow_runs=_github_actions_workflow_runs(),
+        ),
+    )
+
+    assert evidence == identity_module.CodexConnectorAdvisoryReactionEvidence(
+        reference=successor_reference,
+        created_at="2026-07-15T12:00:00Z",
+        content="+1",
+    )
+
+
+def test_codex_positive_reaction_does_not_rebind_on_material_head() -> None:
+    with pytest.raises(CommitIdentityError, match="missing"):
+        verify_codex_review_reference(
+            "https://github.com/owner/repo/pull/42#reaction-456",
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(789),
+                workflow_runs=_github_actions_workflow_runs(),
+            ),
+        )
+
+
+def test_codex_positive_reaction_successor_rejects_malformed_live_content() -> None:
+    malformed = _codex_positive_reaction(789)
+    malformed["content"] = []
+    with pytest.raises(CommitIdentityError, match="missing or ambiguous"):
+        verify_codex_review_reference(
+            "https://github.com/owner/repo/pull/42#reaction-456",
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            expected_live_pr_head_ref=OUTSIDE_SHA,
+            request_json=_codex_positive_reaction_request(
+                malformed,
+                pull_head=OUTSIDE_SHA,
+                workflow_runs=_github_actions_workflow_runs(),
+            ),
+        )
+
+
+def test_codex_positive_reaction_accepts_head_observation_on_second_page() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    untrusted_page = [
+        {
+            "created_at": "2026-07-15T10:59:59Z",
+            "event": "pull_request",
+            "head_sha": HEAD_SHA,
+            "pull_requests": [{"number": 41}],
+        }
+        for _ in range(100)
+    ]
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        if "/reactions?" in url:
+            return [_codex_positive_reaction()]
+        if url.endswith("/pulls/42"):
+            return {"head": {"sha": HEAD_SHA}}
+        if "/actions/runs?" in url and url.endswith("&page=1"):
+            return {"total_count": 101, "workflow_runs": untrusted_page}
+        if "/actions/runs?" in url and url.endswith("&page=2"):
+            return _github_actions_workflow_runs()
+        if "/issues/42/events?" in url:
+            return []
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert isinstance(evidence, identity_module.CodexConnectorAdvisoryReactionEvidence)
+    assert evidence.content == "+1"
+    assert requested_urls[-2].endswith("&per_page=100&page=2")
+    assert requested_urls[-1].endswith("/issues/42/events?per_page=100&page=1")
+
+
+@pytest.mark.parametrize(
+    ("pull_response", "check_response", "error"),
+    [
+        ([], _github_actions_workflow_runs(), "PR response is malformed"),
+        (
+            {"head": {"sha": FIX_SHA}},
+            _github_actions_workflow_runs(),
+            "current material head",
+        ),
+        ({"head": {"sha": HEAD_SHA}}, [], "workflow-runs response is malformed"),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            {"total_count": 1, "workflow_runs": [None]},
+            "workflow-run entry is malformed",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _github_actions_workflow_runs(head_sha="not-a-sha"),
+            "workflow-run SHA",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _github_actions_workflow_runs(created_at="not-a-date"),
+            "workflow-run created_at",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            {
+                "total_count": 1,
+                "workflow_runs": [
+                    {
+                        "created_at": "2026-07-15T10:59:59Z",
+                        "event": "pull_request",
+                        "head_sha": HEAD_SHA,
+                        "pull_requests": {},
+                    }
+                ],
+            },
+            "workflow-run PR links are malformed",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _workflow_run_response_with_pr_links([None, {"number": 42}]),
+            "workflow-run PR link is malformed",
+        ),
+        (
+            {"head": {"sha": HEAD_SHA}},
+            _workflow_run_response_with_pr_links([{"number": True}]),
+            "workflow-run PR link is malformed",
+        ),
+    ],
+)
+def test_codex_positive_reaction_rejects_malformed_head_observation_data(
+    pull_response: Any,
+    check_response: Any,
+    error: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/reactions?" in url:
+            return [_codex_positive_reaction()]
+        if url.endswith("/pulls/42"):
+            return pull_response
+        if "/actions/runs?" in url:
+            return check_response
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=request_json,
+        )
+
+
+def test_codex_positive_reaction_rejects_oversized_workflow_run_inventory() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    response = _github_actions_workflow_runs()
+    response["total_count"] = identity_module._MAX_HEAD_WORKFLOW_RUNS + 1
+
+    with pytest.raises(CommitIdentityError, match="workflow-runs exceed safety limit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=response,
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("head_events", "error"),
+    [
+        ([None], "head-event entry is malformed"),
+        ([{"event": None}], "head-event type is malformed"),
+        (
+            [{"created_at": "not-a-date", "event": "head_ref_force_pushed"}],
+            "head-event created_at",
+        ),
+    ],
+)
+def test_codex_positive_reaction_rejects_malformed_head_events(
+    head_events: Any,
+    error: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(),
+                head_events=head_events,
+            ),
+        )
+
+
+def test_codex_positive_reaction_fails_closed_at_head_event_page_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    monkeypatch.setattr(identity_module, "_MAX_PR_HEAD_EVENT_PAGES", 1)
+
+    with pytest.raises(CommitIdentityError, match="head-event pagination exceeded page limit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(),
+                head_events=[{"event": "commented"} for _ in range(100)],
+            ),
+        )
+
+
+@pytest.mark.parametrize("event", ("head_ref_force_pushed", "head_ref_restored"))
+@pytest.mark.parametrize(
+    "created_at",
+    ("2026-07-15T10:59:59Z", "2026-07-15T10:59:59.500Z"),
+)
+def test_codex_positive_reaction_rejects_replayed_head_after_ref_rewrite(
+    event: str,
+    created_at: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(CommitIdentityError, match="superseded PR head observation"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(),
+                head_events=[
+                    {
+                        "created_at": created_at,
+                        "event": event,
+                    }
+                ],
+            ),
+        )
+
+
+def test_codex_positive_reaction_fails_closed_at_workflow_run_page_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    monkeypatch.setattr(identity_module, "_MAX_HEAD_WORKFLOW_RUN_PAGES", 1)
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/reactions?" in url:
+            return [_codex_positive_reaction()]
+        if url.endswith("/pulls/42"):
+            return {"head": {"sha": HEAD_SHA}}
+        if "/actions/runs?" in url:
+            return {
+                "total_count": 100,
+                "workflow_runs": [
+                    {
+                        "created_at": "2026-07-15T10:59:59Z",
+                        "event": "pull_request",
+                        "head_sha": HEAD_SHA,
+                        "pull_requests": [{"number": 41}],
+                    }
+                    for _ in range(100)
+                ],
+            }
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    with pytest.raises(CommitIdentityError, match="pagination exceeded page limit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("run_head_sha", "run_created_at", "run_event", "run_pr_number"),
+    [
+        (FIX_SHA, "2026-07-15T10:59:59Z", "pull_request", 42),
+        (HEAD_SHA, "2026-07-15T11:00:00Z", "pull_request", 42),
+        (HEAD_SHA, "2026-07-15T11:00:01Z", "pull_request", 42),
+        (HEAD_SHA, "2026-07-15T10:59:59Z", "push", 42),
+        (HEAD_SHA, "2026-07-15T10:59:59Z", "pull_request", 41),
+    ],
+)
+def test_codex_positive_reaction_rejects_invalid_head_observation(
+    run_head_sha: str,
+    run_created_at: str,
+    run_event: str,
+    run_pr_number: int,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(
+        CommitIdentityError,
+        match="does not follow a GitHub observation of the exact material head",
+    ):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=_codex_positive_reaction_request(
+                _codex_positive_reaction(),
+                workflow_runs=_github_actions_workflow_runs(
+                    head_sha=run_head_sha,
+                    created_at=run_created_at,
+                    event=run_event,
+                    pr_number=run_pr_number,
+                ),
+            ),
+        )
+
+
+def test_codex_positive_reaction_requires_expected_full_material_head() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+
+    with pytest.raises(CommitIdentityError, match="requires an expected full material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=lambda *_a, **_k: pytest.fail(
+                "reaction must require a material head first"
+            ),
+        )
+
+    with pytest.raises(CommitIdentityError, match="expected Codex review commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA[:10],
+            request_json=lambda *_a, **_k: pytest.fail(
+                "reaction must reject a short material head"
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error"),
+    [
+        (lambda reaction: reaction["user"].update(login="spoofed[bot]"), "not a trusted"),
+        (lambda reaction: reaction["user"].update(id=1), "not a trusted"),
+        (lambda reaction: reaction["user"].update(type="Organization"), "not a trusted"),
+        (lambda reaction: reaction.update(content="eyes"), "not a trusted"),
+        (lambda reaction: reaction.update(content=[]), "not a trusted"),
+        (
+            lambda reaction: reaction.update(created_at="2026-99-15T11:00:00Z"),
+            "not a valid ISO-8601",
+        ),
+    ],
+)
+def test_codex_positive_reaction_rejects_untrusted_or_malformed_inputs(
+    mutate: Any,
+    error: str,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    reaction = _codex_positive_reaction()
+    mutate(reaction)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_connector_advisory_reaction_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=_codex_positive_reaction_request(reaction),
+        )
+
+
+def test_codex_positive_reaction_requires_exact_pr_reference_and_one_live_id() -> None:
+    reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    reaction = _codex_positive_reaction()
+
+    with pytest.raises(CommitIdentityError, match="ambiguous"):
+        verify_codex_connector_advisory_reaction_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=_codex_positive_reaction_request([reaction, reaction]),
+        )
+
+    with pytest.raises(CommitIdentityError, match="canonical reaction URL"):
+        verify_codex_connector_advisory_reaction_reference(
+            "https://github.com/owner/repo/pull/43#reaction-456",
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=lambda *_a, **_k: pytest.fail("cross-PR reaction must not fetch"),
+        )
+
+
 def _review_credit_quota_comment(
     reference: str,
     *,
@@ -986,6 +1807,7 @@ def _review_credit_request_json(
                 "commits": [{"sha": HEAD_SHA}],
                 "merge_base_commit": {"sha": FIX_SHA},
                 "status": "ahead",
+                "total_commits": 1,
             }
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
@@ -1498,10 +2320,72 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
         (
             "owner/repo",
             42,
+            ("scripts/orchestration/review_source_status.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
             (".github/actions/python-setup/action.yml",),
             False,
         ),
+        (
+            "owner/repo",
+            42,
+            (
+                "AGENTS.md",
+                "RUNBOOK_AGENT.md",
+                "docs/orchestration/AGENTS.md",
+                "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+                "scripts/orchestration/qoder_dispatch_bridge.py",
+                "scripts/orchestration/render_codex_start_prompt.py",
+                "scripts/orchestration/role_dispatch_bridge.py",
+                "scripts/orchestration/task_bootstrap.py",
+            ),
+            False,
+        ),
         ("owner/repo", 42, ("scripts/ci_pip_audit.sh",), False),
+        ("owner/repo", 42, (".pre-commit-config.yaml",), False),
+        ("owner/repo", 42, (".secrets.baseline",), False),
+        ("owner/repo", 42, ("scripts/hooks/repo_python.sh",), False),
+        ("owner/repo", 42, ("tests/guards/test_nosec_policy_guard.py",), False),
+        ("owner/repo", 42, ("tests/test_repo_policy_guards.py",), False),
+        (
+            "owner/repo",
+            42,
+            ("scripts/run-backend-tests-pre-commit.sh",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/check_review_threads_disposition.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/review_mapping_artifact.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/orchestration/requested_agents.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("docs/orchestration/contracts/review_source_status.v1.json",),
+            False,
+        ),
         ("owner/repo", 42, (".bandit",), False),
         ("owner/repo", 42, (".bandit.yaml",), False),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
@@ -1557,7 +2441,12 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
             PurePosixPath(path).name,
         )
     }
-    protected_paths = tracked_dependency_paths | {"constraints.txt"}
+    protected_paths = tracked_dependency_paths | {
+        "Makefile",
+        "constraints.txt",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
+    }
 
     assert audited_manifests
     assert audited_manifests | audited_inputs <= protected_paths
@@ -1580,6 +2469,9 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
         "requirements-dev.txt",
         "requirements-lock.txt",
         "requirements-all.txt",
+        "Makefile",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
     } <= protected_paths
     for path in sorted(protected_paths):
         with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
@@ -1794,6 +2686,26 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     assert str(tmp_path) not in json.dumps(receipt)
 
 
+def test_scan_receipt_accepts_coverage_without_optional_open_questions(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    coverage_path = manifest_path.parent / "coverage.json"
+    coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+    del coverage["openQuestions"]
+    coverage_raw = _write_json(coverage_path, coverage)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["scan"]["artifacts"]:
+        if artifact["path"] == "coverage.json":
+            artifact["sha256"] = hashlib.sha256(coverage_raw).hexdigest()
+    _write_json(manifest_path, manifest)
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
+
+
 def test_scan_receipt_accepts_v011_remote_hardening_and_supplemental_artifacts(
     tmp_path: Path,
 ) -> None:
@@ -1821,6 +2733,52 @@ def test_scan_receipt_accepts_v011_remote_hardening_and_supplemental_artifacts(
         "findings_sha256",
         "work_ledger_sha256",
     }
+
+
+def test_scan_receipt_accepts_exact_redundant_diff_revision(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["target"].update(
+        remote="https://github.com/Katsiarynakavaleuskaya/PulsePlate",
+        revision=HEAD_SHA,
+    )
+    _write_json(manifest_path, manifest)
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["head_revision"] == HEAD_SHA
+
+
+@pytest.mark.parametrize("revision", [None, True, 1, "f" * 40])
+def test_scan_receipt_rejects_non_exact_redundant_diff_revision(
+    tmp_path: Path,
+    revision: Any,
+) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["target"]["revision"] = revision
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="revision must exactly match"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_revision_cannot_override_expected_head(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["target"]["revision"] = HEAD_SHA
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="expected Git diff"):
+        ingest_codex_security_receipt(
+            manifest_path,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha="f" * 40,
+        )
 
 
 @pytest.mark.parametrize(
@@ -2230,6 +3188,95 @@ def test_review_source_unavailability_receipt_is_tagged_and_material_bound() -> 
     }
 
 
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_review_source_positive_response_receipt_is_nonblocking_without_review_claim(
+    reaction_content: str,
+) -> None:
+    receipt = build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference="https://github.com/owner/repo/pull/42#reaction-456",
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"] = receipt
+
+    parsed = parse_embedded_review_seal(render_embedded_review_seal(seal))
+
+    assert is_review_source_positive_response_receipt(parsed["code_review"])
+    assert parsed["code_review"] == {
+        "authority": "trusted_codex_review_source_positive_response",
+        "binding_kind": "seal_context_only",
+        "blocking": False,
+        "fallback_required": False,
+        "material_digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "response_content": reaction_content,
+        "response_created_at": "2026-07-15T11:00:00Z",
+        "response_reference": "https://github.com/owner/repo/pull/42#reaction-456",
+        "review_claim": "none",
+        "schema_version": "pulseplate.codex-review-source-positive-response/v1",
+        "source": "codex_review",
+        "source_degraded": False,
+        "source_status": "positive_response",
+        "status": "completed",
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (lambda receipt: receipt.update(review_claim="approved"), "malformed or stale"),
+        (lambda receipt: receipt.update(source_degraded=True), "malformed or stale"),
+        (lambda receipt: receipt.update(response_content="eyes"), "malformed or stale"),
+        (lambda receipt: receipt.update(response_content=[]), "malformed or stale"),
+        (
+            lambda receipt: receipt.update(authority="trusted_codex_review_source_unavailability"),
+            "tagged-union identity is ambiguous",
+        ),
+    ],
+)
+def test_review_source_positive_response_receipt_rejects_authority_escalation(
+    mutation: Any, error: str
+) -> None:
+    receipt = build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference="https://github.com/owner/repo/pull/42#reaction-456",
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content="+1",
+    )
+    mutation(receipt)
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"] = receipt
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        render_embedded_review_seal(seal)
+
+
 @pytest.mark.parametrize(
     ("mutation", "error"),
     [
@@ -2379,10 +3426,24 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
         "verify_codex_review_reference",
         lambda *_a, **_k: pytest.fail("normal review path must not run"),
     )
+
+    def unavailable_advisory_reaction(*_args: Any, **_kwargs: Any) -> Any:
+        raise CommitIdentityError("GitHub reaction not found")
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_connector_advisory_reaction_reference",
+        unavailable_advisory_reaction,
+    )
     monkeypatch.setattr(
         closeout_module,
         "ingest_codex_security_receipt",
         lambda *_a, **_k: security_receipt,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_completed_final_security_preparation",
+        lambda **_kwargs: None,
     )
     monkeypatch.setattr(
         closeout_module,
@@ -2397,6 +3458,9 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
         repo="owner/repo",
         review_ref=None,
         review_source_unavailable_ref=source_evidence.reference,
+        connector_advisory_reaction=[
+            "https://github.com/owner/repo/pull/42#reaction-456",
+        ],
         scan_manifest="/tmp/scan-manifest.json",
         security_outage_override_ref=None,
     )
@@ -2406,10 +3470,124 @@ def test_closeout_seal_authors_terminal_review_source_receipt(
     parsed = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
     assert parsed["code_review"]["authority"] == ("trusted_codex_review_source_unavailability")
     assert parsed["code_review"]["review_claim"] == "none"
-    assert "CONTENT_BOUND_RECEIPT_VALID" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "CONTENT_BOUND_RECEIPT_VALID" in captured.out
+    assert "WARNING: Connector advisory reaction omitted: GitHub reaction not found" in captured.err
 
 
-def test_authenticated_closeout_validation_rejects_nonexistent_review(
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_closeout_seal_records_connector_reaction_as_positive_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reaction_content: str,
+) -> None:
+    repo = tmp_path / "repo"
+    target = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    freeze = {
+        "base_ref_oid": BASE_SHA,
+        "digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "merge_base_sha": BASE_SHA,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "freeze": freeze,
+        "packet": None,
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+    }
+    security_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    review_calls: list[tuple[str, str | None]] = []
+    snapshot_rechecks: list[PrSnapshot] = []
+
+    def verify_reaction_review(
+        reference: str, **kwargs: Any
+    ) -> identity_module.CodexConnectorAdvisoryReactionEvidence:
+        review_calls.append((reference, kwargs.get("expected_commit_ref")))
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reaction_reference,
+            created_at="2026-07-15T11:00:00Z",
+            content=reaction_content,
+        )
+
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "_load_state", lambda _pr: state)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_require_clean_live_head", lambda _head: None)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", verify_reaction_review)
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "ingest_codex_security_receipt",
+        lambda *_a, **_k: security_receipt,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_completed_final_security_preparation",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_render_mapping",
+        lambda _state, seal: _mapping_artifact_with_seal(seal),
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: target)
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        closeout_module,
+        "assert_snapshot_unchanged",
+        lambda snapshot, **_k: snapshot_rechecks.append(snapshot),
+    )
+
+    closeout_module._cmd_seal(
+        Namespace(
+            pr_number=42,
+            repo="owner/repo",
+            review_ref=reaction_reference,
+            review_source_unavailable_ref=None,
+            connector_advisory_reaction=[],
+            scan_manifest="/tmp/scan-manifest.json",
+            security_outage_override_ref=None,
+        )
+    )
+
+    seal = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
+    assert review_calls == [(reaction_reference, HEAD_SHA)]
+    assert seal["code_review"] == build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference=reaction_reference,
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
+    assert seal["codex_security"] == security_receipt
+    assert snapshot_rechecks == [_snapshot()]
+
+
+def test_authenticated_closeout_rejects_reaction_in_exact_review_receipt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     receipt = ingest_codex_security_receipt(
@@ -2417,8 +3595,11 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         expected_base_sha=BASE_SHA,
         expected_head_sha=HEAD_SHA,
     )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    seal = _seal(receipt)
+    seal["code_review"]["review_reference"] = reaction_reference
     mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
-    mapping.write_text(_mapping_artifact_with_seal(_seal(receipt)), encoding="utf-8")
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
     manifest = MaterialManifest(
         base_ref_oid=BASE_SHA,
         head_ref_oid=HEAD_SHA,
@@ -2427,11 +3608,21 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         entries=(),
         digest=DIGEST,
     )
-    verifier_expected_commits: list[str | None] = []
+    verifier_calls: list[tuple[str, str | None, str | None]] = []
 
-    def reject_review(*_args: Any, **kwargs: Any) -> Any:
-        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
-        raise CommitIdentityError("GitHub review not found")
+    def return_positive_response(reference: str, **kwargs: Any) -> Any:
+        verifier_calls.append(
+            (
+                reference,
+                kwargs.get("expected_commit_ref"),
+                kwargs.get("expected_live_pr_head_ref"),
+            )
+        )
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reference,
+            created_at="2026-07-15T11:00:00Z",
+            content="+1",
+        )
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
     monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
@@ -2446,18 +3637,140 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         "classify_commit_ref",
         lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
     )
-    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", reject_review)
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        return_positive_response,
+    )
     monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
     monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
 
-    with pytest.raises(CommitIdentityError, match="review not found"):
+    with pytest.raises(closeout_module.CloseoutError, match="not exact-head review evidence"):
         closeout_module.validate_live_mapping(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
         )
 
-    assert verifier_expected_commits == [HEAD_SHA]
+    assert verifier_calls == [(reaction_reference, HEAD_SHA, HEAD_SHA)]
+
+
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_authenticated_closeout_revalidates_reaction_after_mapping_only_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reaction_content: str
+) -> None:
+    receipt = ingest_codex_security_receipt(
+        _build_scan_bundle(tmp_path / "scan"),
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+    )
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    seal = _seal(receipt)
+    seal["code_review"] = build_review_source_positive_response_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        response_reference=reaction_reference,
+        response_created_at="2026-07-15T11:00:00Z",
+        response_content=reaction_content,
+    )
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+    closeout_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=BASE_SHA,
+        head_sha=OUTSIDE_SHA,
+        commits=(
+            PrCommitEvidence(HEAD_SHA, "2026-07-15T11:00:00Z"),
+            PrCommitEvidence(OUTSIDE_SHA, "2026-07-15T12:00:00Z"),
+        ),
+    )
+    successor_reference = "https://github.com/owner/repo/pull/42#reaction-789"
+    verifier_calls: list[tuple[str, str | None, str | None]] = []
+
+    def verify_reaction(reference: str, **kwargs: Any) -> Any:
+        verifier_calls.append(
+            (
+                reference,
+                kwargs.get("expected_commit_ref"),
+                kwargs.get("expected_live_pr_head_ref"),
+            )
+        )
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=successor_reference,
+            created_at="2026-07-15T12:00:00Z",
+            content=reaction_content,
+        )
+
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(
+        closeout_module,
+        "fetch_pr_snapshot",
+        lambda *_a, **_k: closeout_snapshot,
+    )
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: OUTSIDE_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **kwargs: _material_manifest(kwargs["head_ref_oid"]),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == OUTSIDE_SHA else CommitRefKind.PR_COMMIT,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", verify_reaction)
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    validated = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert validated["code_review"]["response_reference"] == reaction_reference
+    assert verifier_calls == [(reaction_reference, HEAD_SHA, OUTSIDE_SHA)]
+
+    stale_seal = parse_embedded_review_seal(mapping.read_text(encoding="utf-8"))
+    stale_seal["code_review"]["response_content"] = "heart" if reaction_content != "heart" else "+1"
+    mapping.write_text(_mapping_artifact_with_seal(stale_seal), encoding="utf-8")
+    with pytest.raises(closeout_module.CloseoutError, match="positive response receipt is stale"):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+
+    def manifest_for_head(
+        _root: Path,
+        *,
+        base_ref_oid: str,
+        head_ref_oid: str,
+        pr_number: int,
+    ) -> MaterialManifest:
+        assert base_ref_oid == BASE_SHA
+        assert pr_number == 42
+        if head_ref_oid == OUTSIDE_SHA:
+            return _material_manifest(OUTSIDE_SHA, digest=DIGEST)
+        assert head_ref_oid == HEAD_SHA
+        return _material_manifest(HEAD_SHA, digest="sha256:" + "d" * 64)
+
+    monkeypatch.setattr(closeout_module, "compute_material_manifest", manifest_for_head)
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="positive response material head has a different material digest",
+    ):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
 
 
 def test_authenticated_closeout_revalidates_operator_outage_override(
@@ -3981,6 +5294,988 @@ def test_closeout_init_is_atomic_and_idempotent(
     assert closeout_module._state_path(42).read_bytes() == first
 
 
+def _prepare_final_security_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Namespace, list[datetime]]:
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path / "state")
+    closeout_module._cmd_init(
+        Namespace(
+            repo="owner/repo",
+            pr_number=42,
+            packet=None,
+            experiment_result=None,
+        )
+    )
+    draft = closeout_module._load_state(42)
+    draft["freeze"] = {
+        "base_ref_oid": BASE_SHA,
+        "digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "merge_base_sha": BASE_SHA,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    closeout_module._write_state(draft)
+    clock = [datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)]
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(
+        closeout_module,
+        "fetch_pr_snapshot",
+        lambda *_args, **_kwargs: _snapshot(),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_clean_live_head",
+        lambda _head: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_args, **_kwargs: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "assert_snapshot_unchanged",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda reference, **_kwargs: CodexReviewEvidence(
+            reference=reference,
+            submitted_at="2026-07-15T11:59:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_args, **_kwargs: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "_utc_now", lambda: clock[0])
+    return (
+        Namespace(
+            repo="owner/repo",
+            pr_number=42,
+            review_ref="https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            review_source_unavailable_ref=None,
+            operator_approval_ref=None,
+        ),
+        clock,
+    )
+
+
+@pytest.mark.parametrize(
+    "state, error",
+    [
+        (None, "prepare and record final security"),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": "completed",
+                        "attempt_status": "completed",
+                        "material_digest": DIGEST,
+                        "material_head_sha": FIX_SHA,
+                    }
+                ]
+            },
+            "does not match frozen material",
+        ),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": None,
+                        "attempt_status": "reserved",
+                        "material_digest": DIGEST,
+                        "material_head_sha": HEAD_SHA,
+                    }
+                ]
+            },
+            "lacks a completed scan outcome",
+        ),
+        (
+            {
+                "preparations": [
+                    {
+                        "attempt_outcome": "timeout",
+                        "attempt_status": "completed",
+                        "material_digest": DIGEST,
+                        "material_head_sha": HEAD_SHA,
+                    }
+                ]
+            },
+            "lacks a completed scan outcome",
+        ),
+    ],
+)
+def test_seal_requires_completed_exact_material_final_security_preparation(
+    state: dict[str, Any] | None,
+    error: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: state,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match=error):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+
+def test_seal_binds_completed_scan_and_review_to_prepared_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded_manifest = tmp_path / "recorded" / "scan-manifest.json"
+    supplied_manifest = tmp_path / "supplied" / "scan-manifest.json"
+    recorded_manifest.parent.mkdir()
+    supplied_manifest.parent.mkdir()
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    supplied_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    review_evidence = {
+        "kind": "completed_review",
+        "review_commit_sha": HEAD_SHA,
+        "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+        "review_submitted_at": "2026-07-15T11:59:00Z",
+    }
+    state = {
+        "preparations": [
+            {
+                "attempt_completed_at": "2026-07-15T12:00:03Z",
+                "attempt_outcome": "completed",
+                "attempt_status": "completed",
+                "material_digest": DIGEST,
+                "material_head_sha": HEAD_SHA,
+                "outcome_evidence_ref": str(recorded_manifest),
+                "prepared_at": "2026-07-15T12:00:00Z",
+                "review_evidence": review_evidence,
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: state,
+    )
+
+    closeout_module._require_completed_final_security_preparation(
+        repository="owner/repo",
+        pr_number=42,
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        expected_review_evidence=review_evidence,
+        scan_manifest=recorded_manifest,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="does not match the recorded"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=supplied_manifest,
+        )
+    with pytest.raises(closeout_module.CloseoutError, match="review evidence does not match"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence={**review_evidence, "review_reference": "different"},
+            scan_manifest=recorded_manifest,
+        )
+
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:04Z",' '"startedAt":"2026-07-15T12:00:01Z"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="predates the scan completion"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=recorded_manifest,
+        )
+
+    recorded_manifest.write_text(
+        '{"scan":{"completedAt":"2026-07-15T12:00:02Z",' '"startedAt":"2026-07-15T11:59:59Z"}}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="predates its preparation"):
+        closeout_module._require_completed_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+            scan_manifest=recorded_manifest,
+        )
+
+
+def test_outage_seal_requires_matching_prepared_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    review_evidence = {
+        "kind": "completed_review",
+        "review_commit_sha": HEAD_SHA,
+        "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+        "review_submitted_at": "2026-07-15T11:59:00Z",
+    }
+    record = {
+        "attempt_completed_at": "2026-07-15T12:00:00Z",
+        "attempt_outcome": "incomplete",
+        "attempt_status": "completed",
+        "material_digest": DIGEST,
+        "material_head_sha": HEAD_SHA,
+        "review_evidence": review_evidence,
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_load_final_security_state",
+        lambda **_kwargs: {"preparations": [record]},
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="recorded timeout"):
+        closeout_module._require_terminal_outage_final_security_preparation(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            expected_review_evidence=review_evidence,
+        )
+
+    record["attempt_outcome"] = "timeout"
+    completed_at = closeout_module._require_terminal_outage_final_security_preparation(
+        repository="owner/repo",
+        pr_number=42,
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        expected_review_evidence=review_evidence,
+    )
+    assert completed_at == datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    ("override_created_at", "should_pass"),
+    [
+        ("2026-07-15T12:00:00Z", False),
+        ("2026-07-15T12:00:01Z", True),
+    ],
+)
+def test_closeout_outage_override_must_follow_recorded_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    override_created_at: str,
+    should_pass: bool,
+) -> None:
+    repo = tmp_path / "repo"
+    target = repo / "docs/review/PR_42_FIXED_MAPPING.md"
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "freeze": {
+            "base_ref_oid": BASE_SHA,
+            "digest": DIGEST,
+            "material_head_sha": HEAD_SHA,
+            "merge_base_sha": BASE_SHA,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "packet": None,
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+    }
+    review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-456"
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "_load_state", lambda _pr: state)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_require_clean_live_head", lambda _head: None)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: CodexReviewEvidence(
+            reference=review_reference,
+            submitted_at="2026-07-15T11:59:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_terminal_outage_final_security_preparation",
+        lambda **_kwargs: datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "validate_security_outage_override_scope",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        lambda *_a, **_k: SecurityOutageOverrideEvidence(
+            reference=override_reference,
+            created_at=override_created_at,
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "_render_mapping",
+        lambda _state, seal: _mapping_artifact_with_seal(seal),
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: target)
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: "")
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    args = Namespace(
+        pr_number=42,
+        repo="owner/repo",
+        review_ref=review_reference,
+        review_source_unavailable_ref=None,
+        connector_advisory_reaction=[],
+        scan_manifest=None,
+        security_outage_override_ref=override_reference,
+    )
+
+    if not should_pass:
+        with pytest.raises(closeout_module.CloseoutError, match="after the recorded timeout"):
+            closeout_module._cmd_seal(args)
+        assert not target.exists()
+        return
+
+    closeout_module._cmd_seal(args)
+    seal = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
+    assert seal["codex_security"]["created_at"] == override_created_at
+
+
+def _final_security_approval_response(
+    reference: str,
+    *,
+    created_at: str = "2026-07-15T12:01:00Z",
+    updated_at: str | None = None,
+    association: str = "OWNER",
+    body: str | None = None,
+) -> dict[str, Any]:
+    comment_id = int(reference.rsplit("-", maxsplit=1)[1])
+    return {
+        "author_association": association,
+        "body": body
+        or closeout_module.render_final_security_approval_comment(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "id": comment_id,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": None,
+        "updated_at": updated_at or created_at,
+        "url": f"https://api.github.com/repos/owner/repo/issues/comments/{comment_id}",
+        "user": {"id": 1234, "login": "trusted-owner", "type": "User"},
+    }
+
+
+def _record_final_security_outcome(
+    clock: list[datetime],
+    *,
+    outcome: str = "completed",
+    when: datetime | None = None,
+) -> None:
+    clock[0] = when or datetime(2026, 7, 15, 12, 0, 30, tzinfo=timezone.utc)
+    closeout_module._cmd_record_final_security_outcome(
+        Namespace(
+            repo="owner/repo",
+            pr_number=42,
+            outcome=outcome,
+            evidence_ref=f"artifact:{outcome}:attempt-1",
+        )
+    )
+
+
+def test_final_security_lock_fails_closed_without_posix_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path)
+
+    def missing_backend(name: str) -> Any:
+        assert name == "fcntl"
+        raise ImportError("fcntl unavailable")
+
+    monkeypatch.setattr(closeout_module.importlib, "import_module", missing_backend)
+    backend = closeout_module._load_posix_locking_backend()
+    assert backend is None
+    monkeypatch.setattr(closeout_module, "_FCNTL", backend)
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match=r"requires POSIX fcntl\.flock support",
+    ):
+        with closeout_module._final_security_lock(42):
+            pytest.fail("missing locking backend must not enter the critical section")
+
+    assert not closeout_module._state_dir(42).exists()
+    assert not closeout_module._final_security_lock_path(42).exists()
+
+
+def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_guarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    draft_before = closeout_module._state_path(42).read_bytes()
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: pytest.fail("first preparation must not fetch a comment"),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    output = capsys.readouterr().out
+    assert "FINAL_SECURITY_PREPARED" in output
+    assert "no Codex Security plugin call or GitHub mutation was made" in output
+    assert "cannot prove cross-machine request consumption" in output
+    assert "automatic_retries=0" in output
+    assert closeout_module._state_path(42).read_bytes() == draft_before
+    preparation = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert preparation is not None
+    assert preparation["preparations"] == [
+        {
+            "attempt_completed_at": None,
+            "attempt_outcome": None,
+            "attempt_status": "reserved",
+            "material_digest": DIGEST,
+            "material_head_sha": HEAD_SHA,
+            "operator_approval": None,
+            "outcome_evidence_ref": None,
+            "pr_number": 42,
+            "prepared_at": "2026-07-15T12:00:00Z",
+            "repository": "owner/repo",
+            "review_evidence": {
+                "kind": "completed_review",
+                "review_commit_sha": HEAD_SHA,
+                "review_reference": args.review_ref,
+                "review_submitted_at": "2026-07-15T11:59:00Z",
+            },
+        }
+    ]
+
+    state_before_duplicate = closeout_module._final_security_state_path(42).read_bytes()
+    with pytest.raises(closeout_module.CloseoutError, match="already prepared"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert closeout_module._final_security_state_path(42).read_bytes() == state_before_duplicate
+
+
+@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
+def test_prepare_final_security_accepts_connector_positive_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reaction_content: str,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    args.review_ref = reaction_reference
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reaction_reference,
+            created_at="2026-07-15T11:59:00Z",
+            content=reaction_content,
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    assert state["preparations"][0]["review_evidence"] == (
+        build_review_source_positive_response_receipt(
+            material_digest=DIGEST,
+            material_head_sha=HEAD_SHA,
+            response_reference=reaction_reference,
+            response_created_at="2026-07-15T11:59:00Z",
+            response_content=reaction_content,
+        )
+    )
+
+
+def test_prepare_final_security_accepts_terminal_review_source_unavailability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    source_evidence = CodexReviewSourceUnavailabilityEvidence(
+        reference="https://github.com/owner/repo/pull/42#issuecomment-456",
+        created_at="2020-01-01T00:00:00Z",
+        source_status="usage_limit_reached",
+        body_sha256="sha256:" + "c" * 64,
+    )
+    args.review_ref = None
+    args.review_source_unavailable_ref = source_evidence.reference
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_source_unavailability_reference",
+        lambda *_args, **_kwargs: source_evidence,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: pytest.fail(
+            "terminal source evidence must not claim a completed review"
+        ),
+    )
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    receipt = state["preparations"][0]["review_evidence"]
+    assert receipt == build_review_source_unavailability_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        quota_reference=source_evidence.reference,
+        quota_created_at=source_evidence.created_at,
+        quota_body_sha256=source_evidence.body_sha256,
+        source_status=source_evidence.source_status,
+    )
+    assert receipt["review_claim"] == "none"
+    assert "review_commit_sha" not in receipt
+
+
+@pytest.mark.parametrize(
+    ("review_ref", "source_ref"),
+    [
+        (None, None),
+        (
+            "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ),
+    ],
+    ids=["missing", "ambiguous"],
+)
+def test_prepare_final_security_rejects_nonexclusive_review_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    review_ref: str | None,
+    source_ref: str | None,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    args.review_ref = review_ref
+    args.review_source_unavailable_ref = source_ref
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="provide exactly one of --review-ref or --review-source-unavailable-ref",
+    ):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+def test_prepare_final_security_rejects_unfrozen_material(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    draft = closeout_module._load_state(42)
+    draft["freeze"] = None
+    closeout_module._write_state(draft)
+
+    with pytest.raises(closeout_module.CloseoutError, match="run freeze"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+@pytest.mark.parametrize(
+    ("failure", "match"),
+    [
+        ("freeze/seal requires a clean worktree", "clean worktree"),
+        (
+            f"local HEAD {OUTSIDE_SHA} does not match live PR head {HEAD_SHA}",
+            "does not match live PR head",
+        ),
+    ],
+    ids=["dirty", "stale-head"],
+)
+def test_prepare_final_security_rejects_dirty_or_stale_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    match: str,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+
+    def reject_checkout(_head: str) -> None:
+        raise closeout_module.CloseoutError(failure)
+
+    monkeypatch.setattr(
+        closeout_module,
+        "_require_clean_live_head",
+        reject_checkout,
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match=match):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+def test_prepare_final_security_rejects_material_digest_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_args, **_kwargs: _material_manifest(
+            HEAD_SHA,
+            digest="sha256:" + "b" * 64,
+        ),
+    )
+
+    with pytest.raises(closeout_module.CloseoutError, match="material state changed"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+def test_prepare_final_security_rejects_missing_exact_head_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, _clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            CommitIdentityError("expected material commit does not match")
+        ),
+    )
+
+    with pytest.raises(CommitIdentityError, match="expected material commit"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert not closeout_module._final_security_state_path(42).exists()
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    sorted(closeout_module.FINAL_SECURITY_ATTEMPT_OUTCOMES),
+)
+def test_record_final_security_outcome_consumes_reserved_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+
+    _record_final_security_outcome(clock, outcome=outcome)
+
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    record = state["preparations"][0]
+    assert record["attempt_status"] == "completed"
+    assert record["attempt_outcome"] == outcome
+    assert record["attempt_completed_at"] == "2026-07-15T12:00:30Z"
+    assert record["outcome_evidence_ref"] == f"artifact:{outcome}:attempt-1"
+
+
+def test_prepare_final_security_rejects_preapproved_rerun_before_terminal_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    args.operator_approval_ref = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+
+    with pytest.raises(closeout_module.CloseoutError, match="still reserved"):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+def test_prepare_final_security_accepts_one_fresh_exact_operator_approval_read_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    draft_before = closeout_module._state_path(42).read_bytes()
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    requests: list[tuple[str, str, str, object]] = []
+
+    def request(
+        url: str,
+        *,
+        token: str,
+        method: str = "GET",
+        payload: object = None,
+    ) -> dict[str, Any]:
+        requests.append((url, token, method, payload))
+        return _final_security_approval_response(reference)
+
+    monkeypatch.setattr(closeout_module, "github_api_request", request)
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+
+    closeout_module._cmd_prepare_final_security(args)
+
+    assert requests == [
+        (
+            "https://api.github.com/repos/owner/repo/issues/comments/456",
+            "opaque",
+            "GET",
+            None,
+        )
+    ]
+    assert closeout_module._state_path(42).read_bytes() == draft_before
+    state = closeout_module._load_final_security_state(
+        repository="owner/repo",
+        pr_number=42,
+    )
+    assert state is not None
+    assert len(state["preparations"]) == 2
+    assert state["preparations"][1]["operator_approval"] == {
+        "author_association": "OWNER",
+        "author_login": "trusted-owner",
+        "author_user_id": 1234,
+        "comment_id": 456,
+        "created_at": "2026-07-15T12:01:00Z",
+        "reference": reference,
+    }
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "approve another request",
+        closeout_module.render_final_security_approval_comment(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=OUTSIDE_SHA,
+            material_digest=DIGEST,
+        ),
+        closeout_module.render_final_security_approval_comment(
+            repository="owner/repo",
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest="sha256:" + "b" * 64,
+        ),
+    ],
+    ids=["wrong-body", "wrong-head", "wrong-digest"],
+)
+def test_prepare_final_security_rejects_non_exact_operator_approval_body(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    body: str,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: _final_security_approval_response(
+            reference,
+            body=body,
+        ),
+    )
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+
+    with pytest.raises(closeout_module.CloseoutError, match="exactly match"):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+@pytest.mark.parametrize(
+    ("response_changes", "error"),
+    [
+        ({"association": "COLLABORATOR"}, "trusted operator"),
+        ({"updated_at": "2026-07-15T12:01:30Z"}, "edited"),
+        ({"created_at": "2026-07-15T12:00:00Z"}, "newer than"),
+    ],
+    ids=["nonmember", "edited", "stale"],
+)
+def test_prepare_final_security_rejects_untrusted_or_stale_operator_approval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response_changes: dict[str, str],
+    error: str,
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: _final_security_approval_response(
+            reference,
+            **response_changes,
+        ),
+    )
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+
+    with pytest.raises(closeout_module.CloseoutError, match=error):
+        closeout_module._cmd_prepare_final_security(args)
+
+
+def test_prepare_final_security_rejects_reused_operator_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args, clock = _prepare_final_security_fixture(tmp_path, monkeypatch)
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(clock)
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    monkeypatch.setattr(
+        closeout_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: _final_security_approval_response(reference),
+    )
+    clock[0] = datetime(2026, 7, 15, 12, 2, tzinfo=timezone.utc)
+    args.operator_approval_ref = reference
+    closeout_module._cmd_prepare_final_security(args)
+    _record_final_security_outcome(
+        clock,
+        when=datetime(2026, 7, 15, 12, 2, 30, tzinfo=timezone.utc),
+    )
+    state_before_reuse = closeout_module._final_security_state_path(42).read_bytes()
+    clock[0] = datetime(2026, 7, 15, 12, 3, tzinfo=timezone.utc)
+
+    with pytest.raises(closeout_module.CloseoutError, match="already consumed"):
+        closeout_module._cmd_prepare_final_security(args)
+    assert closeout_module._final_security_state_path(42).read_bytes() == state_before_reuse
+
+
+def test_prepare_final_security_parser_keeps_seal_contract_separate() -> None:
+    parser = closeout_module._parser()
+    args = parser.parse_args(
+        [
+            "prepare-final-security",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--review-ref",
+            "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+            "--operator-approval-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ]
+    )
+
+    assert args.handler is closeout_module._cmd_prepare_final_security
+    assert args.review_ref.endswith("pullrequestreview-789")
+    assert args.review_source_unavailable_ref is None
+    assert args.operator_approval_ref.endswith("issuecomment-456")
+    assert not hasattr(args, "review_credit_outage_ref")
+    assert not hasattr(args, "review_credit_quota_ref")
+    assert not hasattr(args, "prior_codex_review_ref")
+    assert not hasattr(args, "scan_manifest")
+    assert not hasattr(args, "security_outage_override_ref")
+
+    source_args = parser.parse_args(
+        [
+            "prepare-final-security",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--review-source-unavailable-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-456",
+        ]
+    )
+    assert source_args.review_ref is None
+    assert source_args.review_source_unavailable_ref.endswith("issuecomment-456")
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "prepare-final-security",
+                "--repo",
+                "owner/repo",
+                "--pr-number",
+                "42",
+            ]
+        )
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "prepare-final-security",
+                "--repo",
+                "owner/repo",
+                "--pr-number",
+                "42",
+                "--review-ref",
+                "https://github.com/owner/repo/pull/42#pullrequestreview-789",
+                "--review-source-unavailable-ref",
+                "https://github.com/owner/repo/pull/42#issuecomment-456",
+            ]
+        )
+
+    outcome_args = parser.parse_args(
+        [
+            "record-final-security-outcome",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--outcome",
+            "timeout",
+            "--evidence-ref",
+            "artifact:timeout:attempt-1",
+        ]
+    )
+    assert outcome_args.handler is closeout_module._cmd_record_final_security_outcome
+
+
 def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
     parser = closeout_module._parser()
     base = [
@@ -4034,6 +6329,17 @@ def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
             "/tmp/scan-manifest.json",
         ]
     )
+    advisory_args = parser.parse_args(
+        [
+            *common,
+            "--scan-manifest",
+            "/tmp/scan-manifest.json",
+            "--connector-advisory-reaction",
+            "https://github.com/owner/repo/pull/42#reaction-456",
+            "--connector-advisory-reaction",
+            "https://github.com/owner/repo/pull/42#reaction-457",
+        ]
+    )
     with pytest.raises(SystemExit):
         parser.parse_args(
             [
@@ -4047,3 +6353,117 @@ def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
     assert scan_args.security_outage_override_ref is None
     assert override_args.scan_manifest is None
     assert source_args.review_ref is None
+    assert advisory_args.connector_advisory_reaction == [
+        "https://github.com/owner/repo/pull/42#reaction-456",
+        "https://github.com/owner/repo/pull/42#reaction-457",
+    ]
+
+
+def test_closeout_renders_connector_reactions_as_advisory_without_mutating_seal() -> None:
+    security_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    seal = _seal(security_receipt)
+    reaction = identity_module.CodexConnectorAdvisoryReactionEvidence(
+        reference="https://github.com/owner/repo/pull/42#reaction-456",
+        created_at="2026-07-15T11:05:00Z",
+        content="+1",
+    )
+    rendered = closeout_module._render_mapping(
+        {
+            "dispositions": [],
+            "experiment_result": None,
+            "packet": None,
+            "pr_number": 42,
+        },
+        seal,
+        connector_advisory_reactions=(reaction,),
+    )
+
+    assert "## Connector Advisory Signals" in rendered
+    assert reaction.reference in rendered
+    assert "not a review, exact-head proof, GitHub approval, security receipt" in rendered
+    assert parse_embedded_review_seal(rendered) == seal
+    assert validate_mapping_artifact_text(rendered) == []
+
+
+def test_closeout_verifies_unique_bounded_connector_advisory_reactions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verified: list[str] = []
+
+    def verify(
+        reference: str, **_kwargs: Any
+    ) -> identity_module.CodexConnectorAdvisoryReactionEvidence:
+        verified.append(reference)
+        return identity_module.CodexConnectorAdvisoryReactionEvidence(
+            reference=reference,
+            created_at="2026-07-15T11:05:00Z",
+            content="+1",
+        )
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_connector_advisory_reaction_reference",
+        verify,
+    )
+    reactions = closeout_module._verify_connector_advisory_reactions(
+        [
+            "https://github.com/owner/repo/pull/42#reaction-457",
+            "https://github.com/owner/repo/pull/42#reaction-456",
+        ],
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert verified == [
+        "https://github.com/owner/repo/pull/42#reaction-457",
+        "https://github.com/owner/repo/pull/42#reaction-456",
+    ]
+    assert [reaction.reference for reaction in reactions] == [
+        "https://github.com/owner/repo/pull/42#reaction-456",
+        "https://github.com/owner/repo/pull/42#reaction-457",
+    ]
+
+    with pytest.raises(closeout_module.CloseoutError, match="must be unique"):
+        closeout_module._verify_connector_advisory_reactions(
+            ["https://github.com/owner/repo/pull/42#reaction-456"] * 2,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+
+def test_closeout_omits_connector_advisory_transport_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def transport_failure(*_args: Any, **_kwargs: Any) -> Any:
+        raise http.client.HTTPException("truncated response")
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_connector_advisory_reaction_reference",
+        transport_failure,
+    )
+
+    reactions = closeout_module._optional_connector_advisory_reactions(
+        ["https://github.com/owner/repo/pull/42#reaction-456"],
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert reactions == ()
+    assert (
+        "WARNING: Connector advisory reaction omitted: truncated response"
+        in capsys.readouterr().err
+    )

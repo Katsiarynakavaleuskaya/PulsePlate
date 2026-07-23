@@ -707,6 +707,20 @@ def test_server_commit_times_fail_closed_without_immutable_push_evidence(
         raise AssertionError(command)
 
     monkeypatch.setattr(_disposition_mod, "_run", run)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_graphql",
+        lambda _query, _variables: {
+            "repository": {
+                "pullRequest": {
+                    "timelineItems": {
+                        "nodes": [],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        },
+    )
 
     assert _disposition_mod._fetch_server_commit_times(
         snapshot=snapshot,
@@ -714,6 +728,391 @@ def test_server_commit_times_fail_closed_without_immutable_push_evidence(
         pr_number=1,
         mapped_shas=frozenset({sha}),
     ) == {sha: None}
+
+
+def test_server_commit_times_force_push_event_timestamps_only_exact_head(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    first_sha = "a" * 40
+    head_sha = "b" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="c" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(first_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint in {
+            "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
+            "repos/org/repo/events?per_page=100",
+        }:
+            return json.dumps([[]])
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_graphql",
+        lambda _query, _variables: {
+            "repository": {
+                "pullRequest": {
+                    "timelineItems": {
+                        "nodes": [
+                            {
+                                "createdAt": "2026-02-27T13:00:00Z",
+                                "beforeCommit": None,
+                                "afterCommit": {"oid": head_sha},
+                            }
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        },
+    )
+
+    commit_times = _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({first_sha, head_sha}),
+    )
+    assert commit_times == {
+        first_sha: None,
+        head_sha: "2026-02-27T13:00:00Z",
+    }
+
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:30:00Z",
+    )
+    section = f"- {thread.url} -> {first_sha}\nDisposition: FIXED\nCommit: {first_sha}\n"
+
+    violations = _check_commit_after_comment(
+        [thread],
+        section,
+        commit_time_by_sha=commit_times,
+    )
+    assert len(violations) == 1
+    assert f"commit {first_sha} lacks server-side pushedDate" in violations[0]
+
+
+def test_server_commit_times_use_proven_force_push_boundary(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    first_sha = "a" * 40
+    second_sha = "b" * 40
+    head_sha = "c" * 40
+    before_sha = "d" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="e" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(first_sha, None),
+            PrCommitEvidence(second_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint in {
+            "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
+            "repos/org/repo/events?per_page=100",
+        }:
+            return json.dumps([[]])
+        if endpoint == f"repos/org/repo/compare/{before_sha}...{head_sha}?per_page=100":
+            return json.dumps(
+                [
+                    {
+                        "commits": [
+                            {"sha": first_sha},
+                            {"sha": second_sha},
+                            {"sha": head_sha},
+                            {"sha": "f" * 40},
+                        ]
+                    }
+                ]
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_graphql",
+        lambda _query, _variables: {
+            "repository": {
+                "pullRequest": {
+                    "timelineItems": {
+                        "nodes": [
+                            {
+                                "createdAt": "2026-02-27T13:00:00Z",
+                                "beforeCommit": {"oid": before_sha},
+                                "afterCommit": {"oid": head_sha},
+                            }
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        },
+    )
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({first_sha, second_sha, head_sha}),
+    ) == {
+        first_sha: "2026-02-27T13:00:00Z",
+        second_sha: "2026-02-27T13:00:00Z",
+        head_sha: "2026-02-27T13:00:00Z",
+    }
+
+
+def test_force_push_boundaries_paginate_and_skip_missing_after_commit(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    first_after = "a" * 40
+    first_before = "b" * 40
+    second_after = "c" * 40
+    cursors: list[str | None] = []
+
+    def graphql(_query: str, variables: dict[str, object]) -> dict[str, object]:
+        cursor = variables["after"]
+        assert cursor is None or isinstance(cursor, str)
+        cursors.append(cursor)
+        if cursor is None:
+            return {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {
+                            "nodes": [
+                                {
+                                    "createdAt": "2026-02-27T12:00:00Z",
+                                    "beforeCommit": None,
+                                    "afterCommit": None,
+                                },
+                                {
+                                    "createdAt": "2026-02-27T13:00:00Z",
+                                    "beforeCommit": {"oid": first_before},
+                                    "afterCommit": {"oid": first_after},
+                                },
+                            ],
+                            "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
+                        }
+                    }
+                }
+            }
+        return {
+            "repository": {
+                "pullRequest": {
+                    "timelineItems": {
+                        "nodes": [
+                            {
+                                "createdAt": "2026-02-27T14:00:00Z",
+                                "beforeCommit": None,
+                                "afterCommit": {"oid": second_after},
+                            }
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(_disposition_mod, "_graphql", graphql)
+
+    assert _disposition_mod._fetch_pr_force_push_boundaries(
+        repository="org/repo",
+        pr_number=1,
+    ) == [
+        (first_before, first_after, "2026-02-27T13:00:00Z"),
+        (None, second_after, "2026-02-27T14:00:00Z"),
+    ]
+    assert cursors == [None, "cursor-1"]
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    (
+        ({"repository": None}, "timeline response"),
+        (
+            {"repository": {"pullRequest": {"timelineItems": {"nodes": {}, "pageInfo": {}}}}},
+            "timeline page",
+        ),
+        (
+            {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {
+                            "nodes": [None],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            },
+            "timeline node",
+        ),
+        (
+            {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {
+                            "nodes": [
+                                {
+                                    "createdAt": "2026-02-27T13:00:00Z",
+                                    "beforeCommit": {"oid": "invalid"},
+                                    "afterCommit": {"oid": "a" * 40},
+                                }
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            },
+            "beforeCommit",
+        ),
+        (
+            {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {
+                            "nodes": [],
+                            "pageInfo": {"hasNextPage": "yes", "endCursor": None},
+                        }
+                    }
+                }
+            },
+            "pagination",
+        ),
+        (
+            {
+                "repository": {
+                    "pullRequest": {
+                        "timelineItems": {
+                            "nodes": [],
+                            "pageInfo": {"hasNextPage": True, "endCursor": None},
+                        }
+                    }
+                }
+            },
+            "cursor",
+        ),
+    ),
+)
+def test_force_push_boundaries_reject_malformed_graphql(
+    monkeypatch: "MonkeyPatch",
+    payload: dict[str, object],
+    message: str,
+) -> None:
+    monkeypatch.setattr(_disposition_mod, "_graphql", lambda _query, _variables: payload)
+
+    with pytest.raises(RuntimeError, match=message):
+        _disposition_mod._fetch_pr_force_push_boundaries(
+            repository="org/repo",
+            pr_number=1,
+        )
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    (
+        ({}, "compare response"),
+        ([{"commits": {}}], "compare page"),
+        ([{"commits": [{"sha": "invalid"}]}], "commit identity"),
+    ),
+)
+def test_force_push_compare_rejects_malformed_payload(
+    monkeypatch: "MonkeyPatch",
+    payload: object,
+    message: str,
+) -> None:
+    monkeypatch.setattr(_disposition_mod, "_run", lambda _command: json.dumps(payload))
+
+    with pytest.raises(RuntimeError, match=message):
+        _disposition_mod._fetch_compare_commit_shas(
+            repository="org/repo",
+            before_sha="a" * 40,
+            after_sha="b" * 40,
+        )
+
+
+def test_server_commit_times_compare_failure_keeps_exact_head_only(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    old_sha = "a" * 40
+    head_sha = "b" * 40
+    before_sha = "c" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="d" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(old_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint in {
+            "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
+            "repos/org/repo/events?per_page=100",
+        }:
+            return json.dumps([[]])
+        if endpoint == f"repos/org/repo/compare/{before_sha}...{head_sha}?per_page=100":
+            return "{"
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+    monkeypatch.setattr(
+        _disposition_mod,
+        "_graphql",
+        lambda _query, _variables: {
+            "repository": {
+                "pullRequest": {
+                    "timelineItems": {
+                        "nodes": [
+                            {
+                                "createdAt": "2026-02-27T13:00:00Z",
+                                "beforeCommit": {"oid": before_sha},
+                                "afterCommit": {"oid": head_sha},
+                            }
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        },
+    )
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({old_sha, head_sha}),
+    ) == {
+        old_sha: None,
+        head_sha: "2026-02-27T13:00:00Z",
+    }
 
 
 def test_real_commit_proof_caches_ancestry(
@@ -813,6 +1212,7 @@ def test_real_commit_proof_never_uses_unavailable_original_for_ancestry(
         source="comment",
         is_resolved=True,
         created_at="2026-02-27T12:00:00Z",
+        author_login="chatgpt-codex-connector",
         original_commit_sha=original_sha,
     )
     ancestry_calls: list[tuple[str, str]] = []
@@ -844,6 +1244,106 @@ def test_real_commit_proof_never_uses_unavailable_original_for_ancestry(
         assert violations == []
     else:
         assert expected_violation in violations[0]
+
+
+@pytest.mark.parametrize(
+    "author_login",
+    [
+        "chatgpt-codex-connector",
+        "coderabbitai",
+        "human-reviewer",
+    ],
+)
+def test_repository_backed_historical_original_is_review_context(
+    monkeypatch: "MonkeyPatch",
+    author_login: str,
+) -> None:
+    fix_sha = "b" * 40
+    original_sha = "c" * 40
+    head_sha = "d" * 40
+    url = "https://github.com/org/repo/pull/1#discussion_r1"
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="e" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(fix_sha, "2026-02-27T13:00:00Z"),
+            PrCommitEvidence(head_sha, "2026-02-27T14:00:00Z"),
+        ),
+    )
+    thread = ResolvedThreadRef(
+        url=url,
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+        author_login=author_login,
+        original_commit_sha=original_sha,
+    )
+
+    def classify(value: str, *_args: object, **_kwargs: object) -> RepositoryCommitRef:
+        if value == original_sha:
+            return RepositoryCommitRef(value, CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+        return RepositoryCommitRef(value, CommitRefKind.PR_COMMIT)
+
+    monkeypatch.setattr(_disposition_mod, "classify_commit_ref", classify)
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", lambda *_a, **_k: True)
+
+    violations = _check_real_commit_proofs(
+        [thread],
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n",
+        snapshot=snapshot,
+        repository="org/repo",
+        token="opaque",
+    )
+
+    assert violations == []
+
+
+def test_unavailable_original_from_arbitrary_bot_fails_closed(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    fix_sha = "b" * 40
+    original_sha = "c" * 40
+    head_sha = "d" * 40
+    url = "https://github.com/org/repo/pull/1#discussion_r1"
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="e" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(fix_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+    thread = ResolvedThreadRef(
+        url=url,
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+        author_login="arbitrary-reviewer[bot]",
+        original_commit_sha=original_sha,
+    )
+
+    monkeypatch.setattr(
+        _disposition_mod,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: ReviewExecutionRef(
+            value, CommitRefKind.REVIEW_REF_UNAVAILABLE, "unavailable"
+        ),
+    )
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", lambda *_a, **_k: True)
+
+    violations = _check_real_commit_proofs(
+        [thread],
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n",
+        snapshot=snapshot,
+        repository="org/repo",
+        token="opaque",
+    )
+
+    assert "trusted only for chatgpt-codex-connector" in violations[0]
 
 
 def test_env_diagnostic_returns_set_or_missing() -> None:

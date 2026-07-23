@@ -263,6 +263,126 @@ def test_pipeline_preserves_relative_promotion_output(
     )
 
 
+def test_pipeline_promotes_valid_rejected_result_to_backlog(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+    packet = _packet()
+    packet["promotion_target"] = "backlog_entry"
+    packet_path = _write_json(tmp_path / "packet.json", packet)
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("rejected patch\n", encoding="utf-8")
+    promotion_called = False
+
+    def fake_runner_main(argv: list[str]) -> int:
+        result = _result()
+        result.update(
+            {
+                "status": "rejected",
+                "failure_class": "metric_regression",
+                "promotion_ready": False,
+            }
+        )
+        oracle_results = result["oracle_results"]
+        assert isinstance(oracle_results, list)
+        terminal_oracle = oracle_results[0]
+        assert isinstance(terminal_oracle, dict)
+        terminal_oracle["returncode"] = 1
+        output_path = Path(argv[argv.index("--output") + 1])
+        _write_json(output_path, result)
+        print(json.dumps({"output": str(output_path), "status": "rejected"}))
+        return experiment_runner.RUNNER_REJECTED_EXIT_CODE
+
+    def fake_promote_main(argv: list[str]) -> int:
+        nonlocal promotion_called
+        promotion_called = True
+        result_path = Path(argv[argv.index("--result") + 1])
+        assert json.loads(result_path.read_text(encoding="utf-8"))["status"] == "rejected"
+        output_path = Path(argv[argv.index("--output") + 1])
+        _write_json(
+            output_path,
+            {
+                "disposition": "deferred",
+                "experiment_id": "exp-pipeline",
+                "promotion_target": "backlog_entry",
+            },
+        )
+        print(json.dumps({"output": str(output_path), "disposition": "deferred"}))
+        return 0
+
+    def fake_notify_main(_argv: list[str]) -> int:
+        print(json.dumps({"output": "notification.md"}))
+        return 0
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", fake_runner_main)
+    monkeypatch.setattr(experiment_pipeline.experiment_promote, "main", fake_promote_main)
+    monkeypatch.setattr(experiment_pipeline.experiment_notify, "main", fake_notify_main)
+
+    exit_code = experiment_pipeline.main(
+        ["--packet", str(packet_path), "--candidate-patch", str(patch_path)]
+    )
+
+    assert exit_code == 0
+    assert promotion_called is True
+    assert json.loads(capsys.readouterr().out)["promotion"].endswith("exp-pipeline.json")
+
+
+def test_pipeline_stops_policy_violation_before_promotion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+    packet = _packet()
+    packet["promotion_target"] = "backlog_entry"
+    packet_path = _write_json(tmp_path / "packet.json", packet)
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("rejected patch\n", encoding="utf-8")
+    promotion_called = False
+
+    def fake_runner_main(argv: list[str]) -> int:
+        result = _result()
+        result.update(
+            {
+                "status": "rejected",
+                "failure_class": "policy_violation",
+                "mutated_paths": [],
+                "oracle_results": [],
+                "promotion_ready": False,
+                "budget_observations": {
+                    "attempts": 0,
+                    "retries_consumed": 0,
+                    "runner_error": "terminal policy violation",
+                },
+            }
+        )
+        output_path = Path(argv[argv.index("--output") + 1])
+        _write_json(output_path, result)
+        print(json.dumps({"output": str(output_path), "status": "rejected"}))
+        return experiment_runner.RUNNER_REJECTED_EXIT_CODE
+
+    def fake_promote_main(argv: list[str]) -> int:
+        nonlocal promotion_called
+        promotion_called = True
+        return experiment_promote.main(argv)
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", fake_runner_main)
+    monkeypatch.setattr(experiment_pipeline.experiment_promote, "main", fake_promote_main)
+
+    exit_code = experiment_pipeline.main(
+        ["--packet", str(packet_path), "--candidate-patch", str(patch_path)]
+    )
+
+    assert exit_code == 1
+    assert promotion_called is True
+    assert "promotion stage failed" in capsys.readouterr().out
+    assert not (repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md").exists()
+
+
 @pytest.mark.parametrize(
     "raw_output",
     [

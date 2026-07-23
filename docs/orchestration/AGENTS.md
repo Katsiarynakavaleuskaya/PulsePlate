@@ -8,8 +8,16 @@ Scope: `docs/orchestration/**`
 - PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
 - Repo-global post-open review gates supersede historical scoped lane shorthand:
   every current non-trivial PR must run
-  `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`
+  `qa-engineer-agent -> bug-hunter -> security-auditor`
   unless the coordinator records an explicit evidence-backed disposition.
+
+The repo-global final-material scan budget is owned by root `AGENTS.md`; do not
+duplicate or weaken it in scoped orchestration docs. Local packets and schemas
+must project the role-only post-open pass separately from the final
+review-evidence slot and the single operator-issued final security request.
+
+After final material freeze, run the repo-native exact-head `pulseplate-pr-review` as the local self-review; it does not itself satisfy the trusted review-evidence slot. Satisfy that slot with exactly one of a completed trusted exact-head GitHub Codex Connector review or an unedited trusted terminal Connector rate/usage-limit receipt with `review_claim=none`; the terminal unavailable path requires no retry or substitute review. GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final review-evidence validation, with no automatic retry.
+
 - For the design-agent runtime realignment bridge:
   - primary: `agent-coordinator`
   - secondary: `cursor-specialist-agent`

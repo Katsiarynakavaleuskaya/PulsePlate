@@ -94,6 +94,10 @@ python -m scripts.orchestration.creative_code_patch_generation validate-run-plan
 
 python -m scripts.orchestration.creative_code_patch_generation generate-candidate \
   --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json
+
+python -m scripts.orchestration.creative_code_patch_generation finalize-dispatched-result \
+  --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json \
+  --dispatch-result artifacts/orchestration/experiments/results/<experiment-result>.json
 ```
 
 `validate-run-plan` writes `generation_gate.json` only after it revalidates:
@@ -128,6 +132,63 @@ The receipt stores named pass/fail checks and `passed_checks` /
 `CreativeCodePatchResult` may still produce a receipt, but `promotion_ready`
 remains `false`. Builder or wrapper failures exit non-zero and must not emit a
 success receipt.
+
+On hosts where direct candidate evaluation raises the bounded Runner capability
+signal after generation, `finalize-dispatched-result` is the only supported
+resume seam. The operator runs the existing trusted Experiment Runner dispatcher
+against the already-generated `experiment_packet.json` and `candidate.patch`,
+then passes its sanitized result artifact to this command. The command does not
+generate, modify, rebase, or retry the candidate.
+
+Before publishing the canonical `result.json` and `generation_receipt.json`, the
+resume seam revalidates:
+
+- the stored generation gate and its admission, request, source-bundle, selected
+  variant, budget, path, oracle, metric, and immutable-oracle bindings;
+- derivation of the current generated state from the gate-bound prepared-state
+  fingerprint;
+- current `origin/main`, a clean shared tree, destroyed generation checkout, and
+  removed checkout origin;
+- exact current patch bytes, metadata, changed paths, experiment packet, and
+  selected variant; the selected variant must equal the complete canonical
+  variant from the validated source bundle, not merely repeat its stored ID and
+  fingerprint fields;
+- a dispatch result contained under
+  `artifacts/orchestration/experiments/results/`, with no symlink traversal;
+- normal candidate runner mode, exact experiment ID, packet-identical budgets
+  and oracle commands, bounded mutated paths, no promotion/material-attribution
+  claim, and an untouched shared tree; failed-preflight capability evidence uses
+  the stable preflight marker `candidate.patch`, while results that reached the
+  container runner use `.experiment-runner-input/candidate.patch`, require
+  passed container-backend preflight provenance with a supported guest, and
+  record one attempt; a supported failed-preflight
+  `capability_mismatch` requires failed backend provenance, zero attempts, zero
+  mutations, and zero oracle executions; a pre-oracle `policy_violation` may
+  record zero or one attempt, but its zero-attempt form likewise forbids mutation
+  and oracle evidence; terminal pre-oracle failures always require zero retries;
+  the packet, dispatch result, and canonical creative-code result must carry one
+  recomputed patch fingerprint;
+- every configured oracle passing before an accepted result can be published.
+- every oracle-derived rejection binding the candidate paths and retaining the
+  terminal first-failing oracle evidence required by its failure class.
+
+The resume seam acquires a cooperative fd-backed per-run lock before final
+revalidation and publication. A concurrent finalizer fails closed before it can
+publish or roll back another invocation's result, state, or receipt artifacts;
+process termination releases ownership without leaving a stale sentinel.
+
+Rejected trusted results remain valid terminal evidence when their failure class
+and observations satisfy the Experiment Runner contract. The seam persists only
+the existing sanitized creative-code result and receipt projections; raw oracle
+stdout/stderr, local paths, prompts, patches, provider payloads, and reasoning do
+not enter those projections. A pre-existing result or receipt, stale base,
+tampered sidecar, missing backend provenance, partial publication, or divergent
+replay fails closed. It does not authorize a second generation attempt.
+If bounded publication fails, receipt removal, state restoration, and result
+removal are attempted independently so one cleanup error cannot suppress the
+remaining rollback actions. Receipt rollback removes only content matching the
+current invocation, preserving a colliding foreign artifact; any incomplete
+rollback remains an explicit terminal error.
 
 `validate-artifacts` must re-read the linked local sidecars before reporting
 success. It recomputes the current `candidate.patch` summary, validates

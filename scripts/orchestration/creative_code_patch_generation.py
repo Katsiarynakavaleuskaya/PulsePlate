@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from contextlib import contextmanager
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import sys
-from typing import Any, cast
+import tempfile
+from typing import Any, Iterator, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -22,6 +26,8 @@ from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
     FAILURE_CLASSES,
+    HARD_MAX_PATCH_BYTES,
+    build_creative_code_patch_result,
     classify_failure_class_coherence,
     classify_terminal_outcome_coherence,
     read_creative_code_patch_build_request,
@@ -31,11 +37,14 @@ from scripts.orchestration.creative_code_patch_contract import (
     validate_creative_code_patch_run_sidecars,
 )
 from scripts.orchestration.creative_code_patch_workspace import (
+    CHECKOUT_DIRNAME,
     CreativeCodePatchWorkspaceError,
+    exclusive_patch_run_lock,
     read_json,
     resolve_existing_run_dir,
     resolve_run_dir,
     resolve_run_file,
+    run_git,
     shared_tree_status,
     verify_origin_main_base,
     write_json_atomic,
@@ -45,12 +54,21 @@ from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_contract import (
+    DEFAULT_RUNNER_MODE,
     DEFAULT_STOP_CONDITION,
+    has_oom_evidence,
     validate_budget_payload,
     validate_capability_zero_attempt_observations,
     validate_experiment_packet,
+    validate_experiment_result,
     validate_failure_retry_observations,
     validate_metrics,
+)
+from scripts.orchestration.experiment_runner_dispatch import (
+    BLOCKER_CODES as TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS,
+    CONTAINER_BACKENDS as TRUSTED_DISPATCH_BACKENDS,
+    MAX_RESULT_BYTES as TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+    RUNNER_CAPABILITY_ERROR as TRUSTED_DISPATCH_CAPABILITY_ERROR,
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
@@ -69,9 +87,19 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 PATCH_GENERATION_ROOT = CREATIVE_CODE_ROOT / "patch_generation"
 GATE_FILENAME = "generation_gate.json"
 RECEIPT_FILENAME = "generation_receipt.json"
+TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF = "candidate.patch"
+TRUSTED_DISPATCH_RUNNER_CANDIDATE_PATCH_REF = ".experiment-runner-input/candidate.patch"
+GENERATED_SIDECAR_JSON_MAX_BYTES = TRUSTED_DISPATCH_RESULT_MAX_BYTES
+ORACLE_REQUIRED_FAILURE_CLASSES = frozenset(
+    {"timeout", "oom", "metric_regression", "guard_failure"}
+)
+FAILING_ORACLE_REQUIRED_FAILURE_CLASSES = frozenset({"timeout", "oom", "guard_failure"})
 
 VALIDATE_RUN_PLAN_SUCCESS_OUTPUT = "PASS: creative-code patch generation gate passed"
 GENERATE_CANDIDATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate/evaluate complete"
+FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT = (
+    "PASS: trusted dispatch result finalized into creative-code patch receipt"
+)
 VALIDATE_ARTIFACTS_SUCCESS_OUTPUT = "PASS: creative-code patch generation artifacts valid"
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -434,10 +462,200 @@ def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
     return payload
 
 
+def _read_pinned_bytes(
+    path: Path,
+    *,
+    trusted_root: Path,
+    label: str,
+    max_bytes: int,
+) -> bytes:
+    """Read one bounded file through root-relative no-follow descriptors."""
+
+    try:
+        root_relative = trusted_root.relative_to(REPO_ROOT)
+        relative = path.relative_to(trusted_root)
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(
+            f"{label} must stay under its trusted root."
+        ) from exc
+    parts = relative.parts
+    if (
+        not parts
+        or any(part in {"", ".", ".."} for part in parts)
+        or any(part in {"", ".", ".."} for part in root_relative.parts)
+    ):
+        raise CreativeCodePatchGenerationError(f"{label} must use a safe relative path.")
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if not isinstance(nofollow, int) or not isinstance(directory, int):
+        raise CreativeCodePatchGenerationError(
+            f"{label} no-follow reads are unavailable on this platform."
+        )
+    directory_flags = os.O_RDONLY | directory | nofollow | getattr(os, "O_CLOEXEC", 0)
+    file_flags = os.O_RDONLY | os.O_NONBLOCK | nofollow | getattr(os, "O_CLOEXEC", 0)
+    descriptor = -1
+    file_descriptor = -1
+    try:
+        descriptor = os.open(REPO_ROOT, directory_flags)
+        for component in (*root_relative.parts, *parts[:-1]):
+            child = os.open(component, directory_flags, dir_fd=descriptor)
+            previous = descriptor
+            descriptor = child
+            try:
+                os.close(previous)
+            except OSError:
+                os.close(child)
+                descriptor = -1
+                raise
+        file_descriptor = os.open(parts[-1], file_flags, dir_fd=descriptor)
+        file_info = os.fstat(file_descriptor)
+        if not stat.S_ISREG(file_info.st_mode):
+            raise CreativeCodePatchGenerationError(f"{label} must be a regular file.")
+        if file_info.st_size > max_bytes:
+            raise CreativeCodePatchGenerationError(f"{label} exceeds the maximum size.")
+        with os.fdopen(file_descriptor, "rb") as handle:
+            file_descriptor = -1
+            raw_bytes = handle.read(max_bytes + 1)
+        if len(raw_bytes) > max_bytes:
+            raise CreativeCodePatchGenerationError(f"{label} exceeds the maximum size.")
+    except CreativeCodePatchGenerationError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativeCodePatchGenerationError(f"unable to read {label} safely.") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        close_error: OSError | None = None
+        for active_descriptor in (file_descriptor, descriptor):
+            if active_descriptor >= 0:
+                try:
+                    os.close(active_descriptor)
+                except OSError as exc:
+                    if close_error is None:
+                        close_error = exc
+        if active_error is None and close_error is not None:
+            raise CreativeCodePatchGenerationError(
+                f"{label} descriptor cleanup failed."
+            ) from close_error
+    return raw_bytes
+
+
+def _read_pinned_json_object(
+    path: Path,
+    *,
+    trusted_root: Path,
+    label: str,
+    max_bytes: int,
+) -> dict[str, Any]:
+    """Read one contained JSON object through root-relative no-follow descriptors."""
+
+    try:
+        payload = json.loads(
+            _read_pinned_bytes(
+                path,
+                trusted_root=trusted_root,
+                label=label,
+                max_bytes=max_bytes,
+            ).decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except CreativeCodePatchGenerationError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CreativeCodePatchGenerationError(f"unable to read {label} safely.") from exc
+    if not isinstance(payload, dict):
+        raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
+    return payload
+
+
+def _regular_file_identity(path: Path, *, label: str) -> tuple[int, int, int, int, int]:
+    """Return a no-follow identity for one regular publication artifact."""
+
+    try:
+        file_info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise CreativeCodePatchGenerationError(f"unable to inspect {label}.") from exc
+    if not stat.S_ISREG(file_info.st_mode):
+        raise CreativeCodePatchGenerationError(f"{label} must be a regular file.")
+    return (
+        file_info.st_dev,
+        file_info.st_ino,
+        file_info.st_size,
+        file_info.st_mtime_ns,
+        file_info.st_ctime_ns,
+    )
+
+
+def _has_runner_oom_evidence(output: str) -> bool:
+    """Match OOM evidence without importing the heavyweight runner module."""
+
+    return bool(has_oom_evidence(output))
+
+
+def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
+    """Read a trusted dispatch result through a no-follow, root-relative descriptor."""
+
+    result_root = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
+    try:
+        path.relative_to(result_root)
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must stay under experiment results."
+        ) from exc
+    return _read_pinned_json_object(
+        path,
+        trusted_root=result_root,
+        label="trusted dispatch result",
+        max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+    )
+
+
 def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
-    if path.exists() or path.is_symlink():
-        raise CreativeCodePatchGenerationError("output artifact already exists.")
-    write_json_atomic(path, dict(payload))
+    """Publish one JSON artifact without replacing a concurrent writer."""
+
+    temp_path: Path | None = None
+    published = False
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+            json.dump(dict(payload), temp_file, sort_keys=True, indent=2)
+            temp_file.write("\n")
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        try:
+            os.link(temp_path, path, follow_symlinks=False)
+            published = True
+        except FileExistsError as exc:
+            raise CreativeCodePatchGenerationError("output artifact already exists.") from exc
+        except OSError as exc:
+            raise CreativeCodePatchGenerationError(
+                "output artifact could not be published without replacement."
+            ) from exc
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError:
+                if not published:
+                    raise
+
+
+@contextmanager
+def _exclusive_finalize_lock(run_dir: Path) -> Iterator[None]:
+    """Serialize cooperative finalizers for one generated patch run."""
+
+    try:
+        with exclusive_patch_run_lock(run_dir, label="trusted dispatch finalization"):
+            yield
+    except CreativeCodePatchWorkspaceError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
 
 
 def _resolve_existing_receipt_ref(ref: str, *, label: str) -> Path:
@@ -685,8 +903,52 @@ def _require_no_preexisting_candidate_artifacts(run_dir: Path) -> None:
 def _read_admission_context(
     admission_path: Path,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    admission, request, bundle, _finalize_receipt, _human_admission = (
-        admission_cli._read_admission_with_sources(admission_path)
+    def read_source(path: Path, *, label: str) -> dict[str, Any]:
+        resolved = admission_cli._resolve_repo_json_file(path, label=label)
+        return _read_pinned_json_object(
+            resolved,
+            trusted_root=REPO_ROOT,
+            label=label,
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
+
+    admission = admission_cli.validate_creative_spec_patch_admission(
+        read_source(admission_path, label="creative spec patch admission")
+    )
+    request = read_source(
+        admission_cli._resolve_ref(
+            admission["patch_request"]["request_ref"],
+            label="patch request",
+        ),
+        label="patch request",
+    )
+    bundle = read_source(
+        admission_cli._resolve_ref(
+            admission["patch_request"]["source_bundle_ref"],
+            label="source bundle",
+        ),
+        label="source bundle",
+    )
+    finalize_receipt = read_source(
+        admission_cli._resolve_ref(
+            admission["source"]["finalize_receipt_ref"],
+            label="finalize receipt",
+        ),
+        label="finalize receipt",
+    )
+    human_admission = read_source(
+        admission_cli._resolve_ref(
+            admission["human_admission"]["human_admission_ref"],
+            label="human admission",
+        ),
+        label="human admission",
+    )
+    admission_cli.validate_admission_bindings(
+        admission,
+        request=request,
+        source_bundle=bundle,
+        finalize_receipt=finalize_receipt,
+        human_admission=human_admission,
     )
     normalized_request = validate_creative_code_patch_build_request(request, source_bundle=bundle)
     normalized_bundle = validate_creative_code_specification_bundle(bundle)
@@ -696,10 +958,16 @@ def _read_admission_context(
 def _read_hints(path: Path | None) -> tuple[str | None, str | None]:
     if path is None:
         return None, None
+    resolved = admission_cli._resolve_repo_json_file(path, label="coordinator hints")
     hints = validate_coordinator_advisory_hints(
-        _read_json_object(path, label="coordinator advisory hints")
+        _read_pinned_json_object(
+            resolved,
+            trusted_root=REPO_ROOT,
+            label="coordinator advisory hints",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
     )
-    hints_ref = _repo_ref(admission_cli._resolve_repo_json_file(path, label="coordinator hints"))
+    hints_ref = _repo_ref(resolved)
     return hints_ref, fingerprint_payload(hints)
 
 
@@ -716,13 +984,25 @@ def _load_prepared_run(
     if builder_prepare["run_id"] != run_id:
         raise CreativeCodePatchGenerationError("run_id does not match prepared admission.")
     run_dir = resolve_run_dir(run_id, create=False)
-    state = read_json(resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE))
-    run_request = read_json(resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE))
-    run_bundle = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE)
+    state = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE),
+        run_dir=run_dir,
+        label="generated run state",
     )
-    selected_variant = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE)
+    run_request = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE),
+        run_dir=run_dir,
+        label="generated run request",
+    )
+    run_bundle = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE),
+        run_dir=run_dir,
+        label="generated source bundle",
+    )
+    selected_variant = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE),
+        run_dir=run_dir,
+        label="generated selected variant",
     )
     if (
         not isinstance(state, dict)
@@ -1000,7 +1280,7 @@ def _normalize_const(value: Any, expected: str, *, label: str) -> str:
 
 def _validate_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
     resolved_gate = admission_cli._resolve_repo_json_file(gate_path, label="generation gate")
-    gate = validate_generation_gate(_read_json_object(resolved_gate, label="generation gate"))
+    gate = _read_generation_gate(resolved_gate)
     expected_gate = build_generation_gate(
         admission_path=REPO_ROOT / gate["admission_ref"],
         run_id=gate["run_id"],
@@ -1015,32 +1295,70 @@ def _validate_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
     return resolved_gate, gate
 
 
+def _read_generation_gate(gate_path: Path) -> dict[str, Any]:
+    """Read one generation gate through a bounded no-follow descriptor."""
+
+    return validate_generation_gate(
+        _read_pinned_json_object(
+            gate_path,
+            trusted_root=gate_path.parent,
+            label="generation gate",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
+    )
+
+
 def _require_base_and_tree_for_step(base_commit_sha: str) -> None:
     verify_origin_main_base(base_commit_sha)
+    shared_head = run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if shared_head != base_commit_sha:
+        raise CreativeCodePatchGenerationError(
+            "shared checkout HEAD must match candidate base before generation."
+        )
     _require_clean_shared_tree()
 
 
 def _build_receipt(
-    *, gate_path: Path, gate: Mapping[str, Any], result: Mapping[str, Any]
+    *,
+    gate_path: Path,
+    gate: Mapping[str, Any],
+    result: Mapping[str, Any],
+    require_result_file: bool = True,
 ) -> dict[str, Any]:
     run_dir = resolve_run_dir(str(gate["run_id"]), create=False)
     candidate_patch, patch_metadata, experiment_packet, result_path = _candidate_artifact_paths(
         run_dir
     )
-    for artifact in (candidate_patch, patch_metadata, experiment_packet, result_path):
+    required_artifacts = [candidate_patch, patch_metadata, experiment_packet]
+    if require_result_file:
+        required_artifacts.append(result_path)
+    for artifact in required_artifacts:
         if not artifact.exists() or not artifact.is_file():
             raise CreativeCodePatchGenerationError(f"missing generated artifact: {artifact.name}")
     source_bundle = validate_creative_code_specification_bundle(
-        read_json(resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE))
+        _read_generated_sidecar_json_object(
+            resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE),
+            run_dir=run_dir,
+            label="receipt source bundle",
+        )
     )
     request = validate_creative_code_patch_build_request(
-        read_creative_code_patch_build_request(
-            str(resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE))
+        _read_generated_sidecar_json_object(
+            resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE),
+            run_dir=run_dir,
+            label="receipt request",
         ),
         source_bundle=source_bundle,
     )
-    metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
-    experiment_packet_payload = _read_experiment_packet(experiment_packet)
+    metadata = _normalize_patch_metadata(
+        _read_generated_sidecar_json_object(
+            patch_metadata,
+            run_dir=run_dir,
+            label="patch metadata",
+        ),
+        label="patch metadata",
+    )
+    experiment_packet_payload = _read_experiment_packet(experiment_packet, trusted_root=run_dir)
     _validate_experiment_packet_matches_result(
         experiment_packet_payload=experiment_packet_payload,
         request=request,
@@ -1263,9 +1581,9 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
-    if coherence_violation == "rejected_capability_without_runner_proof":
+    if coherence_violation == "rejected_pre_oracle_without_runner_proof":
         raise CreativeCodePatchGenerationError(
-            "capability_mismatch receipts require a rejected runner summary."
+            "terminal pre-oracle rejected receipts require a rejected runner summary."
         )
     if coherence_violation == "rejected_failure_mismatch":
         raise CreativeCodePatchGenerationError(
@@ -1280,10 +1598,15 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
                 failure_class=observed_failure,
                 attempts=runner_summary["attempts"],
                 retries_consumed=runner_summary["retries_consumed"],
+                runner_error_present=runner_summary["runner_error_present"],
                 label=failure_label,
             )
         except ValueError as exc:
             raise CreativeCodePatchGenerationError(str(exc)) from exc
+    if failure_class == "policy_violation" and runner_summary["runner_error_fingerprint"] is None:
+        raise CreativeCodePatchGenerationError(
+            "policy_violation requires a bound runner_error_fingerprint."
+        )
     try:
         validate_capability_zero_attempt_observations(
             failure_class=runner_summary["failure_class"],
@@ -1589,6 +1912,17 @@ def _validate_experiment_packet_matches_result(
         raise CreativeCodePatchGenerationError(
             "generation receipt runner oracle executions exceed configured packet oracles."
         )
+    packet_patch_fingerprint = experiment_packet_payload.get("candidate_patch_fingerprint")
+    result_patch_summary = result.get("patch_summary")
+    result_patch_fingerprint = (
+        result_patch_summary.get("patch_fingerprint")
+        if isinstance(result_patch_summary, Mapping)
+        else None
+    )
+    if packet_patch_fingerprint != result_patch_fingerprint:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet candidate patch fingerprint is stale."
+        )
 
     if experiment_packet_payload["budgets"] != _expected_experiment_budgets(request):
         raise CreativeCodePatchGenerationError(
@@ -1609,6 +1943,7 @@ def _validate_experiment_packet_matches_result(
         request=request,
         source_bundle=source_bundle,
         changed_paths=list(result["changed_paths"]),
+        patch_fingerprint=str(experiment_packet_payload["candidate_patch_fingerprint"]),
     )
     if _stable_experiment_packet_semantics(
         experiment_packet_payload
@@ -1632,8 +1967,16 @@ def _validate_receipt_matches_gate(
             raise CreativeCodePatchGenerationError(f"generation receipt {key} does not match gate.")
 
 
-def _read_experiment_packet(path: Path) -> dict[str, Any]:
-    raw_packet = read_json(path)
+def _read_experiment_packet(path: Path, *, trusted_root: Path | None = None) -> dict[str, Any]:
+    if trusted_root is None:
+        raw_packet = read_json(path)
+    else:
+        raw_packet = _read_pinned_json_object(
+            path,
+            trusted_root=trusted_root,
+            label="experiment packet",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
     if not isinstance(raw_packet, dict):
         raise CreativeCodePatchGenerationError("experiment packet must be a JSON object.")
     try:
@@ -1642,6 +1985,30 @@ def _read_experiment_packet(path: Path) -> dict[str, Any]:
         raise CreativeCodePatchGenerationError(str(exc)) from exc
     _reject_payload_safety(packet, label="experiment_packet")
     return cast(dict[str, Any], packet)
+
+
+def _read_generated_sidecar_json_object(path: Path, *, run_dir: Path, label: str) -> dict[str, Any]:
+    return _read_pinned_json_object(
+        path,
+        trusted_root=run_dir,
+        label=label,
+        max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+    )
+
+
+def _budget_observations_match_packet(
+    observed: Any,
+    expected: Mapping[str, Any],
+) -> bool:
+    if not isinstance(observed, dict) or set(observed) != set(expected):
+        return False
+    for key, expected_value in expected.items():
+        observed_value = observed.get(key)
+        if type(observed_value) is not type(expected_value):
+            return False
+        if observed_value != expected_value:
+            return False
+    return True
 
 
 def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
@@ -1701,9 +2068,14 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
     if result_path.name != creative_code_patch_builder.RESULT_FILE:
         raise CreativeCodePatchGenerationError("result_ref must point to result.json.")
     try:
-        patch_text = candidate_patch.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise CreativeCodePatchGenerationError("candidate patch could not be read.") from exc
+        patch_text = _read_pinned_bytes(
+            candidate_patch,
+            trusted_root=run_dir,
+            label="candidate patch",
+            max_bytes=HARD_MAX_PATCH_BYTES,
+        ).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CreativeCodePatchGenerationError("candidate patch must use valid UTF-8.") from exc
     actual_patch_summary = {
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
@@ -1786,6 +2158,758 @@ def validate_generation_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> 
     """Validate that a generation receipt still binds to its local PR-2 sidecars."""
 
     _validate_receipt_linked_artifacts(receipt)
+
+
+def _resolve_dispatch_result(path: Path) -> Path:
+    """Resolve one trusted dispatcher result under the local experiment result rail."""
+
+    canonical_result_root = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
+    _reject_symlink_components(canonical_result_root, label="trusted dispatch result root")
+    candidate = path if path.is_absolute() else REPO_ROOT / path
+    _reject_symlink_components(candidate, label="trusted dispatch result")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise CreativeCodePatchGenerationError("trusted dispatch result must exist.") from exc
+    result_root = canonical_result_root.resolve(strict=False)
+    if not _is_relative_to(resolved, result_root) or not resolved.is_file():
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must be a file under experiment results."
+        )
+    if resolved.suffix != ".json":
+        raise CreativeCodePatchGenerationError("trusted dispatch result must be JSON.")
+    return resolved
+
+
+def _reconstruct_pre_generation_state(state: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the prepared-state projection originally bound by the generation gate."""
+
+    prepared = dict(state)
+    prepared["candidate_patch_generated"] = False
+    prepared["candidate_patch_evaluated"] = False
+    prepared.pop("patch_metadata", None)
+    prepared.pop("checkout_destroyed", None)
+    return prepared
+
+
+def _validate_stored_gate_sources_after_generation(
+    gate: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Revalidate immutable gate sources without pretending the run is still ungenerated."""
+
+    admission_path = REPO_ROOT / str(gate["admission_ref"])
+    admission, request, bundle = _read_admission_context(admission_path)
+    expected_bindings: dict[str, Any] = {
+        "admission_id": admission["admission_id"],
+        "admission_fingerprint": fingerprint_payload(admission),
+        "admission_ref": _repo_ref(admission_path),
+        "request_id": request["request_id"],
+        "request_fingerprint": fingerprint_payload(request),
+        "request_ref": admission["patch_request"]["request_ref"],
+        "source_bundle_id": request["source_bundle_id"],
+        "source_bundle_fingerprint": request["source_bundle_fingerprint"],
+        "source_bundle_ref": admission["patch_request"]["source_bundle_ref"],
+        "selected_variant_id": request["selected_variant_id"],
+        "selected_variant_fingerprint": request["selected_variant_fingerprint"],
+        "base_commit_sha": request["base_commit_sha"],
+        "budget_limits": dict(request["budgets"]),
+        "allowed_paths_fingerprint": fingerprint_payload(
+            {
+                "allowed_paths": sorted(
+                    set(request["allowed_existing_paths"]) | set(request["allowed_new_paths"])
+                )
+            }
+        ),
+        "oracle_commands_fingerprint": fingerprint_payload(
+            {"oracle_commands": request["oracle_commands"]}
+        ),
+        "metrics_fingerprint": fingerprint_payload({"metrics": request["metrics"]}),
+        "immutable_oracles_fingerprint": fingerprint_payload(
+            {"immutable_oracles": bundle["immutable_oracles"]}
+        ),
+        "oracle_command_count": len(request["oracle_commands"]),
+        "metric_count": len(request["metrics"]),
+        "immutable_oracle_count": len(bundle["immutable_oracles"]),
+    }
+    for key, expected in expected_bindings.items():
+        if gate[key] != expected:
+            raise CreativeCodePatchGenerationError(
+                f"generation gate {key} no longer matches its source."
+            )
+    hints_ref = gate["coordinator_advisory_hints_ref"]
+    if hints_ref:
+        actual_hints_ref, actual_hints_fingerprint = _read_hints(REPO_ROOT / hints_ref)
+        if (
+            actual_hints_ref != hints_ref
+            or actual_hints_fingerprint != gate["coordinator_advisory_hints_fingerprint"]
+        ):
+            raise CreativeCodePatchGenerationError(
+                "generation gate coordinator advisory hints are stale."
+            )
+    return request, bundle
+
+
+def _load_generated_dispatch_context(
+    gate: Mapping[str, Any],
+    *,
+    allow_partial_publication: bool = False,
+) -> tuple[
+    Path,
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    str,
+]:
+    """Load and validate the exact generated run awaiting trusted dispatch intake."""
+
+    request, bundle = _validate_stored_gate_sources_after_generation(gate)
+    run_dir = resolve_existing_run_dir(str(gate["run_id"]))
+    state = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE),
+        run_dir=run_dir,
+        label="generated run state",
+    )
+    run_request = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE),
+        run_dir=run_dir,
+        label="generated run request",
+    )
+    run_bundle = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE),
+        run_dir=run_dir,
+        label="generated source bundle",
+    )
+    selected_variant = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE),
+        run_dir=run_dir,
+        label="generated selected variant",
+    )
+    if not all(
+        isinstance(payload, dict) for payload in (state, run_request, run_bundle, selected_variant)
+    ):
+        raise CreativeCodePatchGenerationError("generated run artifacts must be JSON objects.")
+    normalized_run_request = validate_creative_code_patch_build_request(
+        run_request,
+        source_bundle=run_bundle,
+    )
+    normalized_run_bundle = validate_creative_code_specification_bundle(run_bundle)
+    if normalized_run_request != request or normalized_run_bundle != bundle:
+        raise CreativeCodePatchGenerationError(
+            "generated run request or source bundle no longer matches the gate."
+        )
+    expected_state_fields = {
+        "run_id": gate["run_id"],
+        "request_id": gate["request_id"],
+        "source_bundle_id": gate["source_bundle_id"],
+        "selected_variant_id": gate["selected_variant_id"],
+        "base_commit_sha": gate["base_commit_sha"],
+    }
+    for key, expected in expected_state_fields.items():
+        if state.get(key) != expected:
+            raise CreativeCodePatchGenerationError(f"generated run state {key} is stale.")
+    if state.get("candidate_patch_generated") is not True:
+        raise CreativeCodePatchGenerationError("candidate patch has not been generated.")
+    candidate_patch_evaluated = state.get("candidate_patch_evaluated")
+    if not isinstance(candidate_patch_evaluated, bool):
+        raise CreativeCodePatchGenerationError("candidate patch evaluated state must be boolean.")
+    if candidate_patch_evaluated and not allow_partial_publication:
+        raise CreativeCodePatchGenerationError("candidate patch is already evaluated.")
+    if state.get("checkout_destroyed") is not True:
+        raise CreativeCodePatchGenerationError("generation checkout destruction is not proven.")
+    checkout_path = run_dir / CHECKOUT_DIRNAME
+    if checkout_path.exists() or checkout_path.is_symlink():
+        raise CreativeCodePatchGenerationError(
+            "generation checkout still exists despite destruction proof."
+        )
+    workspace = state.get("workspace")
+    if not isinstance(workspace, dict) or workspace.get("origin_removed") is not True:
+        raise CreativeCodePatchGenerationError("generation checkout origin removal is not proven.")
+    if fingerprint_payload(_reconstruct_pre_generation_state(state)) != gate["state_fingerprint"]:
+        raise CreativeCodePatchGenerationError(
+            "generated run state no longer derives from the gate-bound prepared state."
+        )
+    if (
+        selected_variant.get("variant_id") != gate["selected_variant_id"]
+        or selected_variant.get("variant_fingerprint") != gate["selected_variant_fingerprint"]
+    ):
+        raise CreativeCodePatchGenerationError("selected variant no longer matches the gate.")
+    if selected_variant != creative_code_patch_builder._selected_variant(normalized_run_bundle):
+        raise CreativeCodePatchGenerationError(
+            "selected variant no longer matches the validated source bundle."
+        )
+    candidate_patch, metadata_path, packet_path, result_path = _candidate_artifact_paths(run_dir)
+    if (result_path.exists() or result_path.is_symlink()) and not allow_partial_publication:
+        raise CreativeCodePatchGenerationError("creative-code patch result already exists.")
+    if allow_partial_publication and result_path.is_symlink():
+        raise CreativeCodePatchGenerationError(
+            "partial creative-code patch result must be a regular file."
+        )
+    if allow_partial_publication and candidate_patch_evaluated and not result_path.exists():
+        raise CreativeCodePatchGenerationError(
+            "evaluated candidate state requires a published result."
+        )
+    for artifact in (candidate_patch, metadata_path, packet_path):
+        if not artifact.exists() or not artifact.is_file():
+            raise CreativeCodePatchGenerationError(
+                f"generated dispatch intake is missing {artifact.name}."
+            )
+    try:
+        patch_text = _read_pinned_bytes(
+            candidate_patch,
+            trusted_root=run_dir,
+            label="candidate patch",
+            max_bytes=request["budgets"]["max_patch_bytes"],
+        ).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CreativeCodePatchGenerationError("candidate patch must use valid UTF-8.") from exc
+    metadata = _normalize_patch_metadata(
+        _read_generated_sidecar_json_object(
+            metadata_path,
+            run_dir=run_dir,
+            label="patch metadata",
+        ),
+        label="patch metadata",
+    )
+    actual_summary = {
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    if any(metadata[key] != value for key, value in actual_summary.items()):
+        raise CreativeCodePatchGenerationError("candidate patch metadata is stale.")
+    if state.get("patch_metadata") != metadata:
+        raise CreativeCodePatchGenerationError("generated run state patch metadata is stale.")
+    packet = _read_experiment_packet(packet_path, trusted_root=run_dir)
+    if packet.get("candidate_patch_fingerprint") != actual_summary["patch_fingerprint"]:
+        raise CreativeCodePatchGenerationError(
+            "experiment packet candidate patch fingerprint is stale."
+        )
+    return run_dir, state, request, bundle, packet, patch_text
+
+
+def _validate_dispatch_result_binding(
+    *,
+    dispatch_result: dict[str, Any],
+    packet: Mapping[str, Any],
+    changed_paths: list[str],
+    patch_fingerprint: str,
+) -> dict[str, Any]:
+    """Require trusted, one-attempt dispatcher evidence for the exact PR-2 packet."""
+
+    try:
+        result = cast(dict[str, Any], validate_experiment_result(dispatch_result))
+    except (TypeError, ValueError) as exc:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result failed Experiment Runner validation."
+        ) from exc
+    if result["runner_mode"] != DEFAULT_RUNNER_MODE:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must use candidate_patch runner mode."
+        )
+    if (
+        result["promotion_ready"] is not False
+        or result["contribution_kind"] != "none"
+        or result["coauthor_required"] is not False
+        or result["coauthor_reason"] != ""
+    ):
+        raise CreativeCodePatchGenerationError(
+            "trusted candidate dispatch result must not claim promotion or material attribution."
+        )
+    if (
+        packet.get("candidate_patch_fingerprint") != patch_fingerprint
+        or result.get("candidate_patch_fingerprint") != patch_fingerprint
+    ):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result candidate patch fingerprint does not match."
+        )
+    failure_class = result["failure_class"]
+    runner_emitted_result = (
+        result["status"] == "accepted"
+        or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+        or failure_class == "policy_violation"
+    )
+    if (
+        failure_class == "capability_mismatch"
+        and result["candidate_patch"] != TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
+    ):
+        raise CreativeCodePatchGenerationError(
+            "capability dispatch evidence requires the preflight candidate marker."
+        )
+    if (
+        runner_emitted_result
+        and result["candidate_patch"] != TRUSTED_DISPATCH_RUNNER_CANDIDATE_PATCH_REF
+    ):
+        raise CreativeCodePatchGenerationError(
+            "executed dispatch evidence requires the runner-emitted candidate marker."
+        )
+    backend = result.get("execution_backend")
+    preflight_status = backend.get("preflight_status") if isinstance(backend, dict) else None
+    if (
+        isinstance(backend, dict)
+        and preflight_status == "passed"
+        and backend.get("guest_platform") == "linux_unsupported"
+    ):
+        raise CreativeCodePatchGenerationError(
+            "passed-preflight dispatch evidence requires a supported guest platform."
+        )
+    preflight_passed_container = (
+        isinstance(backend, dict)
+        and backend.get("name") in TRUSTED_DISPATCH_BACKENDS
+        and preflight_status == "passed"
+    )
+    failed_preflight_capability = (
+        failure_class == "capability_mismatch" and preflight_status == "failed"
+    )
+    if not isinstance(backend, dict) or not (
+        preflight_passed_container or failed_preflight_capability
+    ):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result requires valid backend provenance."
+        )
+    if result["experiment_id"] != packet["experiment_id"]:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result experiment_id does not match the generated packet."
+        )
+    mutated_paths = sorted(result["mutated_paths"])
+    if mutated_paths not in ([], sorted(changed_paths)):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result mutated paths do not match the generated candidate."
+        )
+    if failure_class == "unchanged_result":
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization does not support unchanged_result for a generated patch."
+        )
+    if failure_class == "infra_flake":
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization does not publish transient infra_flake results."
+        )
+    if failure_class == "metric_regression":
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization does not support metric_regression "
+            "without structured metric evidence."
+        )
+    if (
+        result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+    ) and mutated_paths != sorted(changed_paths):
+        raise CreativeCodePatchGenerationError(
+            "oracle-evaluated trusted dispatch result must bind every candidate path."
+        )
+    observations = result["budget_observations"]
+    if not _budget_observations_match_packet(
+        observations.get("configured_budgets"),
+        packet["budgets"],
+    ):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result configured budgets do not match the packet."
+        )
+    if observations.get("oracle_commands_configured") != len(packet["immutable_oracles"]):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result configured oracle count does not match the packet."
+        )
+    checkout_proof_required = runner_emitted_result or (
+        failure_class == "capability_mismatch" and preflight_status == "passed"
+    )
+    if checkout_proof_required:
+        if (
+            observations.get("source_checkout_head_sha") != packet["base_commit_sha"]
+            or observations.get("source_checkout_clean") is not True
+        ):
+            raise CreativeCodePatchGenerationError(
+                "executed dispatch evidence must bind the clean candidate base checkout."
+            )
+        candidate_changed_files = observations.get("candidate_changed_files")
+        if (
+            not isinstance(candidate_changed_files, int)
+            or isinstance(candidate_changed_files, bool)
+            or candidate_changed_files != len(changed_paths)
+        ):
+            raise CreativeCodePatchGenerationError(
+                "executed dispatch evidence candidate changed-file count must match "
+                "the finalized candidate."
+            )
+        if observations.get("oracle_commands_executed") != len(result["oracle_results"]):
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result executed oracle count must match oracle evidence."
+            )
+    attempts = observations.get("attempts")
+    allowed_attempts = (
+        {0, 1} if failure_class in {"capability_mismatch", "policy_violation"} else {1}
+    )
+    if attempts not in allowed_attempts or observations.get("retries_consumed") != 0:
+        if allowed_attempts == {1}:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result must record one attempt and zero retries."
+            )
+        raise CreativeCodePatchGenerationError(
+            "pre-oracle trusted dispatch result must record zero or one attempt and zero retries."
+        )
+    if (
+        result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+    ) and "runner_error" in observations:
+        raise CreativeCodePatchGenerationError(
+            "accepted and oracle-derived trusted dispatch results must not carry runner_error."
+        )
+    if failure_class in {"capability_mismatch", "policy_violation"} and (
+        mutated_paths
+        or result["oracle_results"]
+        or observations.get("oracle_commands_executed") != 0
+    ):
+        raise CreativeCodePatchGenerationError(
+            "pre-oracle trusted dispatch rejection must not claim mutation or oracle evidence."
+        )
+    if failure_class == "capability_mismatch":
+        runner_error = observations.get("runner_error")
+        if preflight_status == "failed":
+            if (
+                runner_error == "strict_network_budget_required"
+                and packet["budgets"].get("network_budget") == 0
+            ):
+                raise CreativeCodePatchGenerationError(
+                    "strict-network capability evidence is inconsistent with "
+                    "the configured zero network budget."
+                )
+            if (
+                not isinstance(runner_error, str)
+                or runner_error not in TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS
+            ):
+                raise CreativeCodePatchGenerationError(
+                    "failed-preflight capability_mismatch requires a supported blocker code."
+                )
+        elif runner_error != TRUSTED_DISPATCH_CAPABILITY_ERROR:
+            raise CreativeCodePatchGenerationError(
+                "post-preflight capability_mismatch requires the canonical runner signal."
+            )
+    if failure_class == "policy_violation":
+        runner_error = observations.get("runner_error")
+        if not isinstance(runner_error, str) or not runner_error.strip():
+            raise CreativeCodePatchGenerationError(
+                "policy_violation trusted dispatch rejection requires explanatory runner evidence."
+            )
+    oracle_commands = [item["command"] for item in result["oracle_results"]]
+    configured_commands = [item["command"] for item in packet["immutable_oracles"]]
+    if oracle_commands != configured_commands[: len(oracle_commands)]:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result oracle commands do not match the packet."
+        )
+    if result["status"] == "accepted":
+        if oracle_commands != configured_commands or any(
+            item["returncode"] != 0 or item["timed_out"] for item in result["oracle_results"]
+        ):
+            raise CreativeCodePatchGenerationError(
+                "accepted trusted dispatch result requires every configured oracle to pass."
+            )
+    elif failure_class in ORACLE_REQUIRED_FAILURE_CLASSES:
+        if not result["oracle_results"]:
+            raise CreativeCodePatchGenerationError(
+                "oracle-derived trusted dispatch rejection requires executed oracle evidence."
+            )
+        prior_oracles = result["oracle_results"][:-1]
+        terminal_oracle = result["oracle_results"][-1]
+        if any(item["returncode"] != 0 or item["timed_out"] for item in prior_oracles):
+            raise CreativeCodePatchGenerationError(
+                "oracle-derived trusted dispatch rejection must stop at the first failing oracle."
+            )
+        if failure_class == "timeout":
+            if not terminal_oracle["timed_out"]:
+                raise CreativeCodePatchGenerationError(
+                    "timeout trusted dispatch rejection requires terminal timed-out oracle evidence."
+                )
+            if terminal_oracle["returncode"] == 0:
+                raise CreativeCodePatchGenerationError(
+                    "timeout trusted dispatch rejection requires a nonzero terminal return code."
+                )
+        elif failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES:
+            if terminal_oracle["timed_out"]:
+                raise CreativeCodePatchGenerationError(
+                    "timed-out oracle evidence must use the timeout failure class."
+                )
+            if terminal_oracle["returncode"] == 0:
+                raise CreativeCodePatchGenerationError(
+                    "oracle-derived trusted dispatch rejection requires failing terminal oracle "
+                    "evidence."
+                )
+            terminal_oracle_output = f"{terminal_oracle['stdout']}\n{terminal_oracle['stderr']}"
+            terminal_oracle_has_oom_evidence = _has_runner_oom_evidence(terminal_oracle_output)
+            if failure_class == "oom":
+                if not terminal_oracle_has_oom_evidence:
+                    raise CreativeCodePatchGenerationError(
+                        "oom trusted dispatch rejection requires OOM-specific evidence "
+                        "from the terminal failing oracle."
+                    )
+            elif failure_class == "guard_failure" and terminal_oracle_has_oom_evidence:
+                raise CreativeCodePatchGenerationError(
+                    "OOM terminal evidence must use the oom failure class."
+                )
+    if result["shared_tree_untouched"] is not True:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must prove the shared tree was untouched."
+        )
+    return result
+
+
+def _finalize_dispatched_result_locked(
+    args: argparse.Namespace,
+    *,
+    gate_path: Path,
+    gate: dict[str, Any],
+) -> int:
+    receipt_path = gate_path.parent / RECEIPT_FILENAME
+    if receipt_path.exists() or receipt_path.is_symlink():
+        raise CreativeCodePatchGenerationError("generation receipt already exists.")
+    _require_base_and_tree_for_step(gate["base_commit_sha"])
+    run_dir, state, request, bundle, packet, patch_text = _load_generated_dispatch_context(
+        gate,
+        allow_partial_publication=True,
+    )
+    metadata_path = resolve_run_file(run_dir, creative_code_patch_builder.PATCH_METADATA_FILE)
+    metadata = _normalize_patch_metadata(
+        _read_generated_sidecar_json_object(
+            metadata_path,
+            run_dir=run_dir,
+            label="patch metadata",
+        ),
+        label="patch metadata",
+    )
+    selected_variant = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE),
+        run_dir=run_dir,
+        label="selected variant",
+    )
+    if not isinstance(selected_variant, dict):
+        raise CreativeCodePatchGenerationError("selected variant must be a JSON object.")
+    dispatch_path = _resolve_dispatch_result(args.dispatch_result)
+    dispatch_result = _validate_dispatch_result_binding(
+        dispatch_result=_read_pinned_dispatch_json_object(dispatch_path),
+        packet=packet,
+        changed_paths=list(metadata["changed_paths"]),
+        patch_fingerprint=str(metadata["patch_fingerprint"]),
+    )
+    result = build_creative_code_patch_result(
+        request=request,
+        changed_paths=list(metadata["changed_paths"]),
+        patch_fingerprint=str(metadata["patch_fingerprint"]),
+        patch_bytes=int(metadata["patch_bytes"]),
+        diff_lines=int(metadata["diff_lines"]),
+        runner_result=dispatch_result,
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+    )
+    try:
+        validate_creative_code_patch_run_sidecars(
+            request=request,
+            result=result,
+            patch_text=patch_text,
+            selected_variant=selected_variant,
+            patch_metadata=metadata,
+            require_accepted=result["status"] == "accepted",
+        )
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
+    _validate_result_matches_gate(result, gate)
+    _validate_experiment_packet_matches_result(
+        experiment_packet_payload=packet,
+        request=request,
+        source_bundle=bundle,
+        result=result,
+    )
+    receipt = _build_receipt(
+        gate_path=gate_path,
+        gate=gate,
+        result=result,
+        require_result_file=False,
+    )
+    result_path = resolve_run_file(run_dir, creative_code_patch_builder.RESULT_FILE, for_write=True)
+    partial_result_exists = result_path.exists()
+    if partial_result_exists:
+        partial_result = _read_pinned_json_object(
+            result_path,
+            trusted_root=run_dir,
+            label="partial creative-code patch result",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if partial_result != result:
+            raise CreativeCodePatchGenerationError(
+                "partial creative-code patch result does not match trusted dispatch evidence."
+            )
+    _require_base_and_tree_for_step(gate["base_commit_sha"])
+    (
+        current_run_dir,
+        current_state,
+        current_request,
+        current_bundle,
+        current_packet,
+        current_patch_text,
+    ) = _load_generated_dispatch_context(
+        gate,
+        allow_partial_publication=True,
+    )
+    if (
+        current_run_dir != run_dir
+        or current_state != state
+        or current_request != request
+        or current_bundle != bundle
+        or current_packet != packet
+        or current_patch_text != patch_text
+    ):
+        raise CreativeCodePatchGenerationError(
+            "generated dispatch context changed before result publication."
+        )
+    current_dispatch_result = _validate_dispatch_result_binding(
+        dispatch_result=_read_pinned_dispatch_json_object(dispatch_path),
+        packet=current_packet,
+        changed_paths=list(metadata["changed_paths"]),
+        patch_fingerprint=str(metadata["patch_fingerprint"]),
+    )
+    if current_dispatch_result != dispatch_result:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result changed before result publication."
+        )
+    current_partial_result_exists = result_path.exists()
+    if current_partial_result_exists != partial_result_exists:
+        raise CreativeCodePatchGenerationError(
+            "partial creative-code patch result changed before publication."
+        )
+    if current_partial_result_exists:
+        current_partial_result = _read_pinned_json_object(
+            result_path,
+            trusted_root=run_dir,
+            label="partial creative-code patch result",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if current_partial_result != result:
+            raise CreativeCodePatchGenerationError(
+                "partial creative-code patch result changed before publication."
+            )
+    if _read_generation_gate(gate_path) != gate:
+        raise CreativeCodePatchGenerationError(
+            "generation gate changed during trusted dispatch finalization."
+        )
+    original_state = dict(state)
+    result_written = False
+    receipt_written = False
+    state_written = False
+    published_state_identity: tuple[int, int, int, int, int] | None = None
+    state_path = resolve_run_file(
+        run_dir,
+        creative_code_patch_builder.STATE_FILE,
+        for_write=True,
+    )
+
+    def remove_matching_receipt() -> None:
+        if not receipt_written or not receipt_path.exists() or receipt_path.is_symlink():
+            return
+        current_receipt = _read_pinned_json_object(
+            receipt_path,
+            trusted_root=receipt_path.parent,
+            label="rollback generation receipt",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if current_receipt == receipt:
+            receipt_path.unlink()
+
+    def remove_matching_result() -> None:
+        if not result_written or not result_path.exists() or result_path.is_symlink():
+            return
+        current_result = _read_pinned_json_object(
+            result_path,
+            trusted_root=run_dir,
+            label="rollback creative-code patch result",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if current_result == result:
+            result_path.unlink()
+
+    def restore_matching_state() -> None:
+        if not state_written or not state_path.exists() or state_path.is_symlink():
+            return
+        if (
+            published_state_identity is not None
+            and _regular_file_identity(state_path, label="rollback state")
+            != published_state_identity
+        ):
+            return
+        current_state = _read_pinned_json_object(
+            state_path,
+            trusted_root=run_dir,
+            label="rollback state",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if current_state != state:
+            return
+        if (
+            published_state_identity is not None
+            and _regular_file_identity(state_path, label="rollback state")
+            != published_state_identity
+        ):
+            return
+        write_json_atomic(state_path, original_state)
+
+    try:
+        if not partial_result_exists:
+            _write_json_new(result_path, result)
+            result_written = True
+        if state["candidate_patch_evaluated"] is not True:
+            state["candidate_patch_evaluated"] = True
+            write_json_atomic(state_path, state)
+            state_written = True
+            published_state_identity = _regular_file_identity(
+                state_path,
+                label="published state",
+            )
+        _write_json_new(receipt_path, receipt)
+        receipt_written = True
+    except Exception as publication_error:
+        rollback_errors: list[str] = []
+        rollback_actions = (
+            (
+                "receipt removal",
+                remove_matching_receipt,
+            ),
+            (
+                "state restoration",
+                restore_matching_state,
+            ),
+            (
+                "result removal",
+                remove_matching_result,
+            ),
+        )
+        for label, rollback in rollback_actions:
+            try:
+                rollback()
+            except Exception as rollback_error:
+                rollback_errors.append(f"{label}: {rollback_error.__class__.__name__}")
+        if rollback_errors:
+            raise CreativeCodePatchGenerationError(
+                "dispatch result publication failed and rollback was incomplete: "
+                + "; ".join(rollback_errors)
+            ) from publication_error
+        if isinstance(publication_error, CreativeCodePatchGenerationError):
+            raise publication_error
+        raise CreativeCodePatchGenerationError(
+            "dispatch result publication failed after complete rollback."
+        ) from publication_error
+    print(FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT)
+    print(_repo_ref(receipt_path))
+    return 0
+
+
+def _finalize_dispatched_result(args: argparse.Namespace) -> int:
+    gate_path = admission_cli._resolve_repo_json_file(args.gate, label="generation gate")
+    gate = _read_generation_gate(gate_path)
+    run_dir = resolve_existing_run_dir(str(gate["run_id"]))
+    with _exclusive_finalize_lock(run_dir):
+        if _read_generation_gate(gate_path) != gate:
+            raise CreativeCodePatchGenerationError(
+                "generation gate changed before trusted dispatch finalization."
+            )
+        return _finalize_dispatched_result_locked(
+            args,
+            gate_path=gate_path,
+            gate=gate,
+        )
 
 
 def _validate_run_plan(args: argparse.Namespace) -> int:
@@ -1884,6 +3008,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     generate = subparsers.add_parser("generate-candidate")
     generate.add_argument("--gate", type=Path, required=True)
     generate.set_defaults(func=_generate_candidate)
+
+    finalize_dispatch = subparsers.add_parser("finalize-dispatched-result")
+    finalize_dispatch.add_argument("--gate", type=Path, required=True)
+    finalize_dispatch.add_argument("--dispatch-result", type=Path, required=True)
+    finalize_dispatch.set_defaults(func=_finalize_dispatched_result)
 
     validate = subparsers.add_parser("validate-artifacts")
     validate.add_argument("--gate", type=Path, required=True)

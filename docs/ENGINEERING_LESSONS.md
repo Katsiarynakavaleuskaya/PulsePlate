@@ -780,6 +780,37 @@ If any patch lands in the wrong tree, stop immediately, report the containment
 failure, and restore only with explicit ownership evidence. Never compensate by
 editing another checkout or sibling worktree.
 
+## 30) Validate the complete live review inventory before the one closeout commit
+
+### Problem
+Checking only discussion threads before the final mapping commit misses two
+independent contracts: actionable top-level bot reviews also need explicit
+mapping, and a plain-text artifact path is not the required Markdown link in the
+live PR body. Discovering either omission after push creates an avoidable CI and
+bot-review cycle.
+
+### Rule
+After the closeout tool writes the local canonical artifact and after the live
+PR body is updated, run `python scripts/orchestration/check_merge_ready.py
+--pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout
+--require-auth` before creating the sole mapping commit. Export both `GH_TOKEN`
+and `GITHUB_TOKEN`. The canonical mapping artifact must be the only dirty path.
+The pass must compare the uncommitted artifact with all live actionable bot
+issue comments, bot inline comments, and top-level bot reviews, and must
+find exactly one rendered same-repository
+`blob/<exact-live-head-ref>/...` Markdown link to the canonical artifact. The
+ref path must equal the authenticated PR `head.ref`, which avoids treating an
+extra file-path segment as part of a slash-containing branch name. The link must
+be a standalone bullet, and the decoded canonical URL may occur only once; raw
+HTML/code examples and repo-relative links do not count. The gate must re-read the body, content-bound
+actionable inventory, and local dirty-path set before PASS so async bot activity
+or a concurrent local edit cannot create a false-green snapshot. An actionable
+review summary needs its own mapping even when all child comments are mapped.
+
+This is a commit-ordering gate, not a merge verdict: unresolved threads,
+current-head CI, and the mandatory wait cycle remain for the normal strict
+post-push wrapper.
+
 ---
 
 ## Repo Commands Reference

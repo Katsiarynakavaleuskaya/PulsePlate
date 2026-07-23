@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import ipaddress
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import re
 import shutil
@@ -31,6 +31,7 @@ DISPATCH_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(DISPATCH_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(DISPATCH_REPO_ROOT))
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack import REPO_ROOT
 from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state as _sanitized_git_env_without_parent_state,
@@ -39,6 +40,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     IMAGE_DIGEST_RE,
+    MAX_CANDIDATE_PATCH_BYTES,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     validate_contribution_attribution,
     validate_experiment_packet,
@@ -68,6 +70,7 @@ MAX_RESULT_BYTES = 2 * 1024 * 1024
 PUBLIC_STATUS_ACCEPTED = "accepted"
 PUBLIC_STATUS_REJECTED = "rejected"
 RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_REJECTED_EXIT_CODE = 4
 RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
@@ -1309,6 +1312,81 @@ def _resolve_local_output(raw: str, *, root: Path, suffix: str = ".json") -> Pat
     return resolved
 
 
+def _read_candidate_patch_for_fingerprint(path: Path) -> str:
+    """Read a bounded patch only when the packet requires fingerprint verification."""
+
+    try:
+        with path.open("rb") as handle:
+            raw_patch = handle.read(MAX_CANDIDATE_PATCH_BYTES + 1)
+    except OSError as exc:
+        raise ValueError("Candidate patch could not be read.") from exc
+    if len(raw_patch) > MAX_CANDIDATE_PATCH_BYTES:
+        raise ValueError("Candidate patch exceeds the host fingerprint limit.")
+    try:
+        return raw_patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Candidate patch could not be read.") from exc
+
+
+def _normalize_candidate_patch_target(raw_path: str) -> str:
+    """Normalize one diff target without importing runner application dependencies."""
+
+    stripped = raw_path.strip()
+    if stripped in {"", "/dev/null"}:
+        return ""
+    if stripped.startswith(("a/", "b/")):
+        stripped = stripped[2:]
+    pure_path = PurePosixPath(stripped)
+    if pure_path.is_absolute() or any(part == ".." for part in pure_path.parts):
+        raise DispatchError("result_validation_failed")
+    normalized_parts = [part for part in pure_path.parts if part not in {"", "."}]
+    if not normalized_parts:
+        raise DispatchError("result_validation_failed")
+    return PurePosixPath(*normalized_parts).as_posix()
+
+
+def _extract_candidate_mutated_paths(patch_text: str) -> list[str]:
+    """Extract changed paths on dispatcher-only hosts without loading the runner app."""
+
+    if patch_text.strip() == "":
+        return []
+
+    mutated_paths: set[str] = set()
+    saw_diff_marker = False
+    for raw_line in patch_text.splitlines():
+        if raw_line.startswith("diff --git "):
+            saw_diff_marker = True
+            parts = raw_line.split()
+            if len(parts) >= 4:
+                target = _normalize_candidate_patch_target(parts[3])
+                if target:
+                    mutated_paths.add(target)
+            continue
+        if raw_line.startswith(("rename to ", "copy to ")):
+            saw_diff_marker = True
+            target = _normalize_candidate_patch_target(raw_line.split(" ", 2)[2])
+            if target:
+                mutated_paths.add(target)
+            continue
+        if raw_line.startswith("rename from "):
+            saw_diff_marker = True
+            source = _normalize_candidate_patch_target(raw_line.split(" ", 2)[2])
+            if source:
+                mutated_paths.add(source)
+            continue
+        if raw_line.startswith("+++ "):
+            saw_diff_marker = True
+            target = _normalize_candidate_patch_target(raw_line[4:])
+            if target:
+                mutated_paths.add(target)
+
+    if not mutated_paths and saw_diff_marker:
+        return []
+    if not mutated_paths:
+        raise DispatchError("result_validation_failed")
+    return sorted(mutated_paths)
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     _reject_symlink_components(path.parent)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1427,6 +1505,49 @@ def _create_snapshot(root: Path, destination: Path) -> str:
     return tracked_diff
 
 
+def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
+    """Bind candidate dispatch to the packet's clean base checkout."""
+
+    if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        return
+    expected_base = packet.get("base_commit_sha")
+    patch_fingerprint = packet.get("candidate_patch_fingerprint")
+    if (expected_base is None) != (patch_fingerprint is None):
+        raise DispatchError("result_validation_failed")
+    if expected_base is None:
+        return
+    tracked_status = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
+    if tracked_status:
+        raise DispatchError("result_validation_failed")
+    head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
+    if not isinstance(expected_base, str) or head != expected_base:
+        raise DispatchError("result_validation_failed")
+
+
+def _candidate_checkout_proof(
+    packet: dict[str, Any],
+    *,
+    root: Path,
+    candidate_patch_text: str | None = None,
+) -> dict[str, Any]:
+    """Return sanitized checkout proof for fingerprinted candidate dispatch."""
+
+    if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        return {}
+    expected_base = packet.get("base_commit_sha")
+    if expected_base is None:
+        return {}
+    proof = {
+        "source_checkout_head_sha": expected_base,
+        "source_checkout_clean": True,
+    }
+    if candidate_patch_text is not None:
+        proof["candidate_changed_files"] = len(
+            _extract_candidate_mutated_paths(candidate_patch_text)
+        )
+    return proof
+
+
 def _execution_backend_payload(probe: BackendProbe, *, passed: bool) -> dict[str, str]:
     if probe.image_digest is None:
         raise ValueError("Execution backend provenance requires an image digest.")
@@ -1468,6 +1589,7 @@ def _capability_mismatch_result(
         "oracle_results": [],
         "budget_observations": {
             "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(packet["immutable_oracles"]),
             "oracle_commands_executed": 0,
             "attempts": 0,
             "retries_consumed": 0,
@@ -1492,6 +1614,8 @@ def _capability_mismatch_result(
             passed=False,
         ),
     }
+    if "candidate_patch_fingerprint" in packet:
+        result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
     return _validated_experiment_result(result)
 
 
@@ -1518,6 +1642,7 @@ def _infra_flake_result(
         "oracle_results": [],
         "budget_observations": {
             "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(packet["immutable_oracles"]),
             "oracle_commands_executed": 0,
             "attempts": 1,
             "retries_consumed": 0,
@@ -1530,6 +1655,8 @@ def _infra_flake_result(
         "coauthor_reason": "",
         "execution_backend": _execution_backend_payload(probe, passed=True),
     }
+    if "candidate_patch_fingerprint" in packet:
+        result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
     return _validated_experiment_result(_redact_result_value(result))
 
 
@@ -1537,6 +1664,8 @@ def _post_preflight_capability_mismatch_result(
     packet: dict[str, Any],
     image: ImageReference,
     probe: BackendProbe,
+    *,
+    candidate_checkout_proof: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the sole publishable result for the runner's owned capability signal."""
 
@@ -1557,6 +1686,7 @@ def _post_preflight_capability_mismatch_result(
         "oracle_results": [],
         "budget_observations": {
             "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(packet["immutable_oracles"]),
             "oracle_commands_executed": 0,
             "attempts": 1,
             "retries_consumed": 0,
@@ -1569,6 +1699,10 @@ def _post_preflight_capability_mismatch_result(
         "coauthor_reason": "",
         "execution_backend": _execution_backend_payload(probe, passed=True),
     }
+    if "candidate_patch_fingerprint" in packet:
+        result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
+    if candidate_checkout_proof:
+        result["budget_observations"].update(candidate_checkout_proof)
     return _validated_experiment_result(result)
 
 
@@ -1607,6 +1741,8 @@ def _sanitize_result(
     result: dict[str, Any],
     probe: BackendProbe,
     *,
+    expected_candidate_patch_fingerprint: str | None = None,
+    candidate_checkout_proof: dict[str, Any] | None = None,
     requested_contribution_kind: str = "none",
     requested_coauthor_required: bool = False,
     requested_coauthor_reason: str = "",
@@ -1614,13 +1750,26 @@ def _sanitize_result(
     trusted_backend = _execution_backend_payload(probe, passed=True)
     result_with_trusted_backend = {**result, "execution_backend": trusted_backend}
     try:
+        if candidate_checkout_proof:
+            budget_observations = dict(result_with_trusted_backend.get("budget_observations", {}))
+            budget_observations.update(candidate_checkout_proof)
+            result_with_trusted_backend["budget_observations"] = budget_observations
         validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
         raise DispatchError("result_validation_failed") from exc
+    if (
+        expected_candidate_patch_fingerprint is not None
+        and validated.get("candidate_patch_fingerprint") != expected_candidate_patch_fingerprint
+    ):
+        raise DispatchError("result_validation_failed")
     sanitized = _redact_result_value(validated)
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
     sanitized["execution_backend"] = trusted_backend
+    if candidate_checkout_proof:
+        budget_observations = dict(sanitized.get("budget_observations", {}))
+        budget_observations.update(candidate_checkout_proof)
+        sanitized["budget_observations"] = budget_observations
     oracle_results = []
     for raw_oracle in sanitized.get("oracle_results", []):
         oracle = dict(raw_oracle)
@@ -1647,6 +1796,16 @@ def _sanitize_result(
     if actual_attribution != expected_attribution:
         raise DispatchError("result_validation_failed")
     return sanitized
+
+
+def _require_result_status_matches_runner_exit(
+    result: dict[str, Any], runner_returncode: int
+) -> None:
+    """Bind lower-trust result status to the container runtime's exit evidence."""
+
+    expected_returncode = 0 if result["status"] == "accepted" else RUNNER_REJECTED_EXIT_CODE
+    if runner_returncode != expected_returncode:
+        raise DispatchError("result_validation_failed")
 
 
 def _collect_result_volume(
@@ -1713,6 +1872,7 @@ def _invoke_container_runner(
     packet_path: Path,
     candidate_patch: Path | None,
     output_name: str,
+    expected_packet: dict[str, Any] | None = None,
     contribution_kind: str = "none",
     coauthor_required: bool = False,
     coauthor_reason: str = "",
@@ -1721,18 +1881,50 @@ def _invoke_container_runner(
     cli = _resolve_cli(cli_name)
     if cli is None:
         raise PreRunCapabilityError("runtime_cli_missing")
+    packet = validate_experiment_packet(_read_packet(packet_path))
+    if expected_packet is not None and packet != expected_packet:
+        raise DispatchError("result_validation_failed")
+    _require_candidate_checkout(packet, root=REPO_ROOT)
+    candidate_patch_text: str | None = None
+    if candidate_patch is not None:
+        expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+        if expected_patch_fingerprint is not None:
+            candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
+            if expected_patch_fingerprint != fingerprint_payload(
+                {"candidate_patch": candidate_patch_text}
+            ):
+                raise DispatchError("result_validation_failed")
+    candidate_checkout_proof = _candidate_checkout_proof(
+        packet,
+        root=REPO_ROOT,
+    )
     with tempfile.TemporaryDirectory(prefix="pp-er-run-") as raw_temp:
         temp_root = Path(raw_temp)
         snapshot = temp_root / "repo"
         input_dir = temp_root / "input"
         input_dir.mkdir()
-        _create_snapshot(REPO_ROOT, snapshot)
+        tracked_diff = _create_snapshot(REPO_ROOT, snapshot)
+        _require_candidate_checkout(packet, root=REPO_ROOT)
+        if (
+            packet["runner_mode"] != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+            and packet.get("base_commit_sha") is not None
+            and tracked_diff
+        ):
+            raise DispatchError("result_validation_failed")
         (snapshot / CONTAINER_INPUT.removeprefix(f"{CONTAINER_REPO}/")).mkdir()
         (snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
             parents=True, exist_ok=True
         )
-        shutil.copyfile(packet_path, input_dir / "packet.json")
-        if candidate_patch is not None:
+        (input_dir / "packet.json").write_text(
+            json.dumps(packet, sort_keys=True),
+            encoding="utf-8",
+        )
+        if candidate_patch_text is not None:
+            (input_dir / "candidate.patch").write_text(
+                candidate_patch_text,
+                encoding="utf-8",
+            )
+        elif candidate_patch is not None:
             shutil.copyfile(candidate_patch, input_dir / "candidate.patch")
         command = [
             CONTAINER_PYTHON,
@@ -1775,7 +1967,6 @@ def _invoke_container_runner(
                     raise DispatchError("result_volume_failed")
             except DispatchError as exc:
                 raise PreRunCapabilityError(exc.code) from exc
-            packet = validate_experiment_packet(json.loads(packet_path.read_text(encoding="utf-8")))
             timeout = int(packet["budgets"]["wall_clock_seconds"]) + 60
             try:
                 completed = _run(
@@ -1800,7 +1991,11 @@ def _invoke_container_runner(
             if not cleanup_completed:
                 raise DispatchError("container_cleanup_failed")
             runner_capability_signal = completed.returncode == RUNNER_CAPABILITY_EXIT_CODE
-            if completed.returncode not in {0, 1, RUNNER_CAPABILITY_EXIT_CODE}:
+            if completed.returncode not in {
+                0,
+                RUNNER_CAPABILITY_EXIT_CODE,
+                RUNNER_REJECTED_EXIT_CODE,
+            }:
                 raise DispatchError("runner_execution_failed")
             payload = None
             if not runner_capability_signal:
@@ -1833,16 +2028,30 @@ def _invoke_container_runner(
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
         if runner_capability_signal:
-            return _post_preflight_capability_mismatch_result(packet, image, probe)
+            capability_checkout_proof = _candidate_checkout_proof(
+                packet,
+                root=REPO_ROOT,
+                candidate_patch_text=candidate_patch_text,
+            )
+            return _post_preflight_capability_mismatch_result(
+                packet,
+                image,
+                probe,
+                candidate_checkout_proof=capability_checkout_proof,
+            )
         if payload is None:
             raise DispatchError("result_extraction_failed")
-        return _sanitize_result(
+        sanitized = _sanitize_result(
             payload,
             probe,
+            expected_candidate_patch_fingerprint=packet.get("candidate_patch_fingerprint"),
+            candidate_checkout_proof=candidate_checkout_proof,
             requested_contribution_kind=contribution_kind,
             requested_coauthor_required=coauthor_required,
             requested_coauthor_reason=coauthor_reason,
         )
+        _require_result_status_matches_runner_exit(sanitized, completed.returncode)
+        return sanitized
 
 
 def _build_image(backend: str, tag: str) -> dict[str, str]:
@@ -2032,6 +2241,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if candidate_patch is None:
                 raise ValueError("Candidate-patch packets require --candidate-patch.")
+            expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+            if expected_patch_fingerprint is not None:
+                candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
+                if expected_patch_fingerprint != fingerprint_payload(
+                    {"candidate_patch": candidate_patch_text}
+                ):
+                    raise ValueError("Candidate patch fingerprint does not match the packet.")
         if (
             platform.system() == "Darwin"
             and packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
@@ -2051,7 +2267,7 @@ def main(argv: list[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
-            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
+            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else RUNNER_REJECTED_EXIT_CODE
         selected, attempts = select_backend(args.backend, image)
         if selected is None:
             result = _capability_mismatch_result(packet, image, attempts[-1])
@@ -2065,6 +2281,7 @@ def main(argv: list[str] | None = None) -> int:
                     packet_path=packet_path,
                     candidate_patch=candidate_patch,
                     output_name=output_path.name,
+                    expected_packet=packet,
                     contribution_kind=contribution_kind,
                     coauthor_required=coauthor_required,
                     coauthor_reason=coauthor_reason,
@@ -2082,7 +2299,7 @@ def main(argv: list[str] | None = None) -> int:
         public_status = _public_result_status(result)
         _atomic_write_json(output_path, result)
         print(json.dumps({"artifact": output_path.name, "status": public_status}, sort_keys=True))
-        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
+        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else RUNNER_REJECTED_EXIT_CODE
     except (DispatchError, OSError, ValueError) as exc:
         print(f"experiment_runner_dispatch: {exc}", file=sys.stderr)
         return 2

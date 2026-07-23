@@ -81,7 +81,7 @@ TerminalOutcomeCoherenceViolation = Literal[
     "accepted_with_nonaccepted_runner",
     "accepted_without_runner_proof",
     "accepted_without_workspace_proof",
-    "rejected_capability_without_runner_proof",
+    "rejected_pre_oracle_without_runner_proof",
     "rejected_failure_mismatch",
 ]
 LEAK_TEXT_RE = re.compile(
@@ -142,10 +142,10 @@ def classify_terminal_outcome_coherence(
         return "accepted_without_workspace_proof"
     if (
         status == "rejected"
-        and failure_class == "capability_mismatch"
+        and failure_class in {"capability_mismatch", "policy_violation"}
         and runner_status != "rejected"
     ):
-        return "rejected_capability_without_runner_proof"
+        return "rejected_pre_oracle_without_runner_proof"
     if (
         status == "rejected"
         and runner_status == "rejected"
@@ -1203,9 +1203,9 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchContractError("accepted results require full workspace proof.")
-    if coherence_violation == "rejected_capability_without_runner_proof":
+    if coherence_violation == "rejected_pre_oracle_without_runner_proof":
         raise CreativeCodePatchContractError(
-            "capability_mismatch results require a rejected runner summary."
+            "terminal pre-oracle rejected results require a rejected runner summary."
         )
     if coherence_violation == "rejected_failure_mismatch":
         raise CreativeCodePatchContractError(
@@ -1220,6 +1220,7 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
                 failure_class=observed_failure,
                 attempts=runner_summary["attempts"],
                 retries_consumed=runner_summary["retries_consumed"],
+                runner_error_present=runner_summary["runner_error_present"],
                 label=failure_label,
             )
         except ValueError as exc:

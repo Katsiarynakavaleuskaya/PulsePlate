@@ -26,12 +26,14 @@ from scripts.orchestration.context_pack import (
 )
 from scripts.orchestration.experiment_contract import (
     ALLOWED_MUTABLE_PREFIXES,
+    CANDIDATE_PATCH_FINGERPRINT_RE,
     CV_UNCERTAINTY_BANDS,
     DEFAULT_BUDGETS,
     DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
     DEFAULT_METRIC_BASELINE_REF,
     DEFAULT_RUNNER_MODE,
     DEFAULT_STOP_CONDITION,
+    GIT_COMMIT_SHA_RE,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     PRIMARY_AGENT,
     REVIEWER,
@@ -220,6 +222,8 @@ def compute_experiment_id(
     runner_mode: str = DEFAULT_RUNNER_MODE,
     cv_context: dict[str, Any] | None = None,
     creative_research_origin: dict[str, str] | None = None,
+    candidate_patch_fingerprint: str | None = None,
+    base_commit_sha: str | None = None,
 ) -> str:
     """Return deterministic short experiment id."""
 
@@ -241,6 +245,14 @@ def compute_experiment_id(
         payload_data["cv_context"] = cv_context
     if validated_creative_research_origin is not None:
         payload_data["creative_research_origin"] = validated_creative_research_origin
+    if candidate_patch_fingerprint is not None:
+        if not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(candidate_patch_fingerprint):
+            raise ValueError("candidate_patch_fingerprint must be a sha256 digest.")
+        payload_data["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    if base_commit_sha is not None:
+        if not GIT_COMMIT_SHA_RE.fullmatch(base_commit_sha):
+            raise ValueError("base_commit_sha must be a 40-char git SHA.")
+        payload_data["base_commit_sha"] = base_commit_sha
 
     payload = json.dumps(
         payload_data,
@@ -267,6 +279,8 @@ def build_experiment_packet(
     runner_mode: str = DEFAULT_RUNNER_MODE,
     cv_context: dict[str, Any] | None = None,
     creative_research_origin: dict[str, Any] | None = None,
+    candidate_patch_fingerprint: str | None = None,
+    base_commit_sha: str | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic experiment packet for PR2 bootstrap tooling."""
 
@@ -287,6 +301,18 @@ def build_experiment_packet(
     cv_intent = is_cv_experiment(decision_question, task_class, *validated_paths)
     validated_cv_context = validate_cv_context(cv_context) if cv_context is not None else None
     validated_creative_research_origin = validate_creative_research_origin(creative_research_origin)
+    if candidate_patch_fingerprint is not None and not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(
+        candidate_patch_fingerprint
+    ):
+        raise ValueError("candidate_patch_fingerprint must be a sha256 digest.")
+    if base_commit_sha is not None and not GIT_COMMIT_SHA_RE.fullmatch(base_commit_sha):
+        raise ValueError("base_commit_sha must be a 40-char git SHA.")
+    if validated_runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE and (
+        candidate_patch_fingerprint is not None or base_commit_sha is not None
+    ):
+        raise ValueError(
+            "Oracle-only experiment packets must not bind a candidate patch or base commit."
+        )
     if cv_intent and validated_cv_context is None:
         raise ValueError(
             "CV-oriented experiment packets must include cv_context "
@@ -324,6 +350,8 @@ def build_experiment_packet(
         runner_mode=validated_runner_mode,
         cv_context=validated_cv_context,
         creative_research_origin=validated_creative_research_origin,
+        candidate_patch_fingerprint=candidate_patch_fingerprint,
+        base_commit_sha=base_commit_sha,
     )
 
     recommended_agents = [PRIMARY_AGENT, routing_decision.primary]
@@ -373,6 +401,10 @@ def build_experiment_packet(
         packet["cv_context"] = validated_cv_context
     if validated_creative_research_origin is not None:
         packet["creative_research_origin"] = validated_creative_research_origin
+    if candidate_patch_fingerprint is not None:
+        packet["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    if base_commit_sha is not None:
+        packet["base_commit_sha"] = base_commit_sha
     validated_packet: dict[str, Any] = validate_experiment_packet(packet)
     return validated_packet
 

@@ -153,6 +153,27 @@
     },
     {
       "if": {
+        "required": ["failure_class"],
+        "properties": { "failure_class": { "const": "policy_violation" } }
+      },
+      "then": {
+        "properties": {
+          "runner_summary": {
+            "required": ["status", "failure_class"],
+            "properties": {
+              "status": { "const": "rejected" },
+              "failure_class": { "const": "policy_violation" },
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 },
+              "runner_error_present": { "const": true },
+              "runner_error_fingerprint": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
         "required": ["status", "runner_summary"],
         "properties": {
           "status": { "const": "rejected" },
@@ -383,11 +404,33 @@
         },
         {
           "if": {
-            "required": ["failure_class", "attempts"],
+            "required": ["failure_class"],
+            "properties": { "failure_class": { "const": "policy_violation" } }
+          },
+          "then": {
             "properties": {
-              "failure_class": { "const": "capability_mismatch" },
-              "attempts": { "const": 0 }
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 },
+              "runner_error_present": { "const": true },
+              "runner_error_fingerprint": { "$ref": "#/$defs/sha256" }
             }
+          }
+        },
+        {
+          "if": {
+            "required": ["failure_class", "attempts"],
+            "anyOf": [
+              {
+                "properties": {
+                  "failure_class": { "const": "capability_mismatch" }
+                }
+              },
+              {
+                "properties": {
+                  "failure_class": { "const": "policy_violation" }
+                }
+              }
+            ]
           },
           "then": {
             "properties": {

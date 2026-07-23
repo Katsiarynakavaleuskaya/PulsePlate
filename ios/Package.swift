@@ -15,7 +15,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/airbnb/lottie-ios.git", from: "4.5.2")
+        .package(url: "https://github.com/airbnb/lottie-ios", exact: "4.6.1")
     ],
     targets: [
         .target(
@@ -28,9 +28,8 @@ let package = Package(
                 .process("Assets.xcassets"),
                 .process("Resources")
             ]
-            // Note: Assets loaded via SPM require Bundle.module
-            // In UI code, use: Image("FitChef", bundle: .module)
-            // instead of: Image("FitChef")
+            // The Xcode app runtime resolves local Lottie resources from Bundle.main.
+            // Package-only Bundle.module semantics must not rewrite the app UI contract.
         ),
     ]
 )

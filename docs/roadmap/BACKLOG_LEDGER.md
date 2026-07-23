@@ -24,6 +24,52 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p0-experiment-runner-container-cve-remediation"></a>
+- [ ] P0: Remediate Experiment Runner container HIGH/CRITICAL vulnerabilities
+  - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)
+  - Priority: P0 prerequisite for mandatory Experiment Runner oracle evidence
+  - Target PR: `codex/fix-experiment-runner-container-cves`
+  - Status: Implementation and exact-image admission complete locally; final
+    oracle, current-head PR, and merge evidence pending
+  - Area: Experiment Runner / container security / supply chain
+  - Reason (EN): The immutable bookworm runner baseline reports 61
+    HIGH/CRITICAL occurrences across 27 unique vulnerability IDs. Mandatory
+    Apple Container oracle evidence must not execute on that image. An exact
+    slim-trixie candidate remained blocked with 60 occurrences across 25 unique
+    IDs, and Alpine 3.24 could not satisfy the existing exact binary-wheel lock
+    for `matplotlib==3.10.8`. The admitted candidate instead uses the exact UBI
+    10 minimal digest, verifies exact EPEL sources and RPM signatures, pins the
+    complete transitive RPM inventories, and overlays the checksum-pinned
+    official CPython 3.13 backport for `CVE-2026-15308`. It preserves the
+    private-index locked install and non-root boundary without a vulnerability
+    suppression.
+  - Links: `deploy/experiment-runner/Containerfile`,
+    `tests/test_experiment_runner_dispatch.py`,
+    `docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md`,
+    `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`
+  - DoD: Build the exact candidate with Apple Container; preserve its immutable
+    name-and-digest reference; verify the exported top index, exactly one
+    `linux/arm64` manifest, every referenced layer blob, and the manifest-bound
+    config by descriptor digest and size; require each layer to be a regular
+    file with exact descriptor size and SHA-256; reject proxy-secret names and
+    values in config/history; verify the official Trivy 0.72.0 asset against
+    its release checksum, refresh its database, and scan the exact OCI layout
+    without package-type filtering, with ambient Trivy configuration disabled,
+    external ignore-policy, ignore-status, and VEX inputs explicitly empty,
+    `/dev/null` ignore file, unfixed findings included, and zero HIGH/CRITICAL
+    OS or language-package findings; fail closed unless the report proves Trivy
+    schema v2, the exact container/Red Hat 10.2 identity, one 129-package OS
+    result, and one 136-package Python result; verify exact RPM versions and the
+    CPython patch inside the same digest; verify the complete 107/108/129
+    package inventories over NEVRA, header SHA-256, payload digest, and payload
+    digest algorithm; preserve sanitized runtime, probe, scanner, and
+    success-only exit-status receipts; pass the strict Apple Container probe;
+    and accept an oracle-only result with
+    `network_budget=0`,
+    `shared_tree_untouched: true`, expected backend provenance, and no host path
+    or secret. Any retained vulnerable package blocks admission and requires a
+    separately authorized remediation decision before oracle execution.
+
 <a id="ledger-p1-pr2133-docker-manifest-prerequisite-consolidation"></a>
 - [ ] P1: Consolidate the Docker source-manifest prerequisite into PR #2133
   - Owner: @katsiaryna_kavaleuskaya (Security / CI)
@@ -12371,6 +12417,43 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS release tooling and current-head CI pass without App Store mutation
     - rollback and operator migration instructions are documented
 
-**Last updated:** 2026-07-13 (Ruby 3.4.10 Fastlane runtime migration open; implementation and review in progress)
+<a id="ledger-p1-legacy-guard-final-security-carryover"></a>
+- [ ] P1: Consolidate legacy-growth guard hardening and final-security budget governance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: this PR (`codex/legacy-guard-final-security-hardening`)
+  - Status: In progress on 19 July 2026; replaces the incomplete PRs #2158,
+    #2159, #2160, and #2161 without cherry-picking their implementations.
+  - Reason: Twelve unresolved review findings across the four superseded lanes
+    show false-green variadic replay, non-terminating or false-safe provenance,
+    over-broad or non-propagating `object()` poisoning, and deferred-lambda
+    bypasses. The same consolidated lane separates repeatable role review from
+    exact-head review and the single operator-issued final Codex Security
+    request so paid scans do not run once per diff.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610033430`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610039977`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610039980`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2159#discussion_r3610033136`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2159#discussion_r3610040544`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041147`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041148`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041149`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2160#discussion_r3610041150`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2161#discussion_r3610042941`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2161#discussion_r3610042945`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2161#discussion_r3610042946`
+  - DoD:
+    - all twelve findings have deterministic positive/negative regression
+      coverage and the legacy-growth analysis remains terminating, idempotent,
+      and fail-closed at its provenance bound
+    - Qoder manifests remain role-only while the versioned lifecycle packet and
+      start prompt own exact-head review and final-security gates
+    - repository code makes no Codex Security plugin call or automatic retry;
+      every additional operator request requires fresh exact-material approval
+    - the replacement PR records the carryover, supersedes and closes
+      #2158-#2161 without merge, and is handed to the owner without merging
+
+**Last updated:** 2026-07-19 (legacy guard and final-security budget carryover in progress)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

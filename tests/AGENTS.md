@@ -434,6 +434,15 @@ pytest -q tests/test_agent_docs_registry_guard.py
     - If an agent spec is added/renamed in `.cursor/agents/`, update the index and context map in the same PR.
     - Keep the agent table under the `## Available Agents` heading in `docs/agents/index.md`.
 
+- **CodeQL action pin guard**: `tests/test_ci_workflow_pr_size_governance_contract.py`
+  - **What it enforces**:
+    - Every active `github/codeql-action/{init,analyze,upload-sarif}` reference uses the verified full commit pin at the exact expected workflow location and version annotation.
+  - **How to run**:
+
+```bash
+pytest -q tests/test_ci_workflow_pr_size_governance_contract.py
+```
+
 ## Guard tests (repo policy scanner stability)
 
 - **Repo policy guard**: `tests/test_repo_policy_guards.py`

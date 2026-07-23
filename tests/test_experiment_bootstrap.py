@@ -1001,6 +1001,58 @@ def test_compute_experiment_id_keeps_legacy_non_cv_shape() -> None:
     assert compute_experiment_id(cv_context=None, **base_kwargs) == legacy_id
 
 
+def test_compute_experiment_id_binds_candidate_patch_and_base() -> None:
+    """Different candidate bytes or base commits must produce distinct ids."""
+
+    base_kwargs = {
+        "decision_question": "Evaluate a bounded candidate patch",
+        "task_class": "Experimentation",
+        "mutable_paths": ["core/rag/orchestration.py"],
+        "immutable_oracles": [
+            {
+                "command": "pytest -q tests/test_rag_orchestration.py",
+                "expected_signal": "must pass",
+            }
+        ],
+        "metrics": {
+            "primary": "oracle_pass",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
+        "negative_controls": ["oracle file unchanged", "no forbidden path mutation"],
+        "promotion_target": "audit_artifact",
+        "budgets": {
+            "wall_clock_seconds": 300,
+            "retry_budget": 1,
+            "max_changed_files": 1,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 1,
+        },
+        "stop_condition": "Stop on timeout.",
+    }
+
+    first = compute_experiment_id(
+        candidate_patch_fingerprint="sha256:" + ("a" * 64),
+        base_commit_sha="1" * 40,
+        **base_kwargs,
+    )
+    patch_variant = compute_experiment_id(
+        candidate_patch_fingerprint="sha256:" + ("b" * 64),
+        base_commit_sha="1" * 40,
+        **base_kwargs,
+    )
+    base_variant = compute_experiment_id(
+        candidate_patch_fingerprint="sha256:" + ("a" * 64),
+        base_commit_sha="2" * 40,
+        **base_kwargs,
+    )
+
+    assert first != patch_variant
+    assert first != base_variant
+
+
 def test_compute_experiment_id_changes_with_oracle_only_runner_mode() -> None:
     """Non-default runner behavior must participate in deterministic ids."""
 

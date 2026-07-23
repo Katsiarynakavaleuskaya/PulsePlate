@@ -154,6 +154,7 @@ def test_known_codex_quota_bodies_remain_exact_terminal_evidence() -> None:
 def test_closeout_exposes_only_current_review_authoring_modes() -> None:
     options = _seal_option_strings()
     assert {"--review-ref", "--review-source-unavailable-ref"} <= options
+    assert "--connector-advisory-reaction" in options
     assert not options.intersection(LEGACY_AUTHORING_OPTIONS)
     closeout_source = (REPO_ROOT / "scripts/orchestration/pr_review_closeout.py").read_text(
         encoding="utf-8"

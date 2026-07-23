@@ -30,12 +30,23 @@ Evidence:
 | ------- | ----------------------- | ---------------------------------------------------------------- | ------------ |
 | Phase 1 | CI hygiene              | workflows/checks                                                 | yes          |
 | Phase 2 | artifact-first contract | canonical artifact (authoritative) + PR body link                | yes          |
+| Phase 2b | pre-closeout validation | uncommitted artifact + live bot inventory + true Markdown link | blocks closeout commit |
 | Phase 3 | Merge readiness         | unresolved threads + actionable mapping                          | yes          |
 | Phase 4 | Disposition proof       | script semantics                                                 | yes          |
 
 Canonical operator entrypoint:
 
 - `scripts/orchestration/check_merge_ready.py` runs Phase 2, merge-readiness, and disposition proof as one verdict.
+- Before the sole mapping commit, its local-only `--pre-closeout --require-auth`
+  mode reads the uncommitted canonical artifact, requires both `GH_TOKEN` and
+  `GITHUB_TOKEN`, requires the mapping artifact to be the only dirty path,
+  explicitly maps every live actionable bot issue comment, bot inline comment,
+  and top-level bot review, and requires exactly one true
+  same-repository `blob/<exact-live-head-ref>/docs/review/...` Markdown link to
+  that artifact in the live PR body. The ref path must equal the authenticated
+  PR `head.ref`; the standalone link's decoded URL may occur only once, and
+  repo-relative or raw HTML/code examples do not count. It skips thread-resolution,
+  current-head-CI, and wait-window gates and is never merge-readiness evidence.
 - Underlying gate scripts remain authoritative for their own contract semantics.
 
 ## 4. Phase 2 Contract (Canonical Artifact)
@@ -55,6 +66,16 @@ in the canonical artifact:
 Canonical runtime behavior is artifact-first when `pr_number` is available.
 PR-body parsing is a temporary compatibility seam for legacy local/body-only
 checks. It is not authority and must not cause agents to copy mapping blocks.
+
+Before the single final-material scan, an open PR may declare the exact
+non-mergeable marker `<!-- phase2-pre-closeout: final-security-pending -->`
+and the matching pending mapping-status line. This lets the Phase 2 body gate
+validate the truthful pre-closeout state without fabricating an artifact. The
+marker requires both Phase 2 boxes to remain unchecked and forbids mapping
+entries; `check_merge_ready.py` still requires the canonical artifact and
+therefore cannot treat this state as merge-ready. Once the canonical
+mapping/seal is published, the marker must be removed; a stale marker is a
+Phase 2 body-gate error even when the artifact exists.
 
 Temporary seam tracking:
 
@@ -121,6 +142,21 @@ JSON block `PULSEPLATE_PR_REVIEW_SEAL_V1`. The activation boundary is the
 governance PR number + 1; the governance PR may opt in with
 `Review-Seal-Version: v1`.
 
+Root `AGENTS.md` owns the global final-material scan budget. This matrix owns
+the field-level projection: `scope=per_pr`, `automatic_budget=1`,
+`automatic_retries=0`, `requires_frozen_material=true`,
+`additional_invocation=trusted_operator_approval`, and
+`repository_invokes_plugin=false`. After final material freeze, run the
+repo-native exact-head `pulseplate-pr-review` as the local self-review; it does
+not itself satisfy the trusted review-evidence slot. Satisfy that slot with
+exactly one of a completed trusted exact-head GitHub Codex Connector review or
+an unedited trusted terminal Connector
+rate/usage-limit receipt with `review_claim=none`; the terminal unavailable
+path requires no retry or substitute review. One operator-issued scan follows;
+the local preparation state is advisory and cannot prove global consumption.
+
+GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final review-evidence validation, with no automatic retry.
+
 ### Material review seal v1
 
 - The gate snapshots live base/head, fully paginates the PR commit connection,
@@ -133,8 +169,28 @@ governance PR number + 1; the governance PR may opt in with
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
 - The trusted submitted Codex review object's real GitHub `commit_id` must be
-  the frozen material head. An official unedited no-findings issue comment is
-  accepted only when the trusted Codex GitHub App identity and its short
+  the frozen material head. A direct PR-root reaction from the official Codex
+  Connector may instead use the normal `seal --review-ref` path as a nonblocking
+  terminal source response only for `+1`,
+  `heart`, `hooray`, or `rocket`, after live verification of its immutable
+  GitHub account identity, exact PR-root URL, a live PR head equal to the caller's
+  full snapshotted material head at seal time, and a server-timestamped GitHub Actions
+  `pull_request` run linked to that same PR and head strictly preceding the
+  reaction, with no later force-push or head-restoration event. This chronology
+  proves only that GitHub observed the material head before the response; it is
+  not Connector-owned reviewed-commit provenance. Authenticated
+  validation after the one canonical mapping-only closeout commit may accept the
+  descendant live head only after material-digest equality is re-established.
+  When that automatic mapping-only cycle replaces the sealed reaction, the
+  validator may accept only a newer live positive reaction from the same trusted
+  Connector with the same content; the sealed receipt remains unchanged and the
+  completed security scan is not restarted.
+  The receipt uses `binding_kind=seal_context_only`, `review_claim=none`, and
+  `blocking=false`. This is a verified positive Connector response, not exact-head
+  review proof, a native GitHub approval, Codex Security evidence, or
+  thread-resolution authority. The optional advisory rendering path remains
+  non-authoritative and may be omitted with a warning. An official unedited no-findings issue comment
+  is accepted only when the trusted Codex GitHub App identity and its short
   reviewed-commit marker resolve through the Commit API to that same full head;
   reviewer-execution/synthetic refs never satisfy this proof. The selected
   review-evidence variant and one completed final Codex Security diff scan bind
@@ -178,8 +234,27 @@ governance PR number + 1; the governance PR may opt in with
   accepted only when Git proves both the base and the previously sealed material
   head advanced by ancestry and the replacement preserves every disposition
   proof block.
+- Before publishing the one closeout commit, the pre-closeout gate must require
+  the mapping artifact to be the only dirty path and validate the local sealed
+  artifact against the complete live actionable bot inventory.
+  In this pre-commit mode an actionable top-level review requires its own
+  mapping even when all actionable child comments are mapped. The PR body must
+  contain exactly one rendered same-repository blob Markdown link whose ref is
+  the authenticated PR `head.ref` and whose destination is
+  `docs/review/PR_<N>_FIXED_MAPPING.md`; its decoded canonical URL may occur
+  only once, and plain text, repo-relative links, inline/fenced/raw-HTML
+  examples do not count.
+  Before PASS, the gate re-reads the live body, content-bound actionable
+  inventory, and local dirty-path set and fails closed on new, removed, or
+  edited concurrent bot activity or local worktree drift.
 
 Evidence:
+- `scripts/orchestration/check_merge_ready.py:383`
+- `scripts/orchestration/check_merge_ready.py:409`
+- `scripts/ci/check_pr_merge_readiness.py:1157`
+- `scripts/ci/check_pr_merge_readiness.py:1239`
+- `scripts/ci/check_pr_merge_readiness.py:1291`
+- `scripts/ci/check_pr_merge_readiness.py:1342`
 - `scripts/orchestration/review_mapping_artifact.py:44`
 - `scripts/orchestration/review_mapping_artifact.py:84`
 - `scripts/orchestration/review_mapping_artifact.py:110`
@@ -201,11 +276,13 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 - PR lifecycle packets may distinguish `post_open_review` from `merge_ready`,
   but both phases still use current-head truth and the canonical artifact
   `docs/review/PR_<N>_FIXED_MAPPING.md`
-- `post_open_review` is the packet-level phase where the canonical
-  `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized,
-  with Codex Security diff scan / finding discovery as the plugin scan that
-  follows role review plus `pulseplate-pr-review`; `merge_ready` keeps the
-  current-head merge-wrapper contract explicit without widening the review lane
+- `post_open_review` is the packet-level phase where the canonical role-only
+  `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized.
+  Final-material gates remain outside role dispatch: the exact-head
+  `pulseplate-pr-review` self-review, then a trusted exact-head GitHub Codex
+  Connector review or trusted terminal source-unavailable receipt, precede the
+  one operator-issued Codex Security scan; `merge_ready` keeps the
+  current-head merge-wrapper contract explicit without widening either lane.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -224,6 +301,13 @@ Evidence:
   reachable from live head
 - Commit must not be trigger-only
 - Commit-after-comment applies
+- An off-live-PR original comment commit/ref is reviewer-execution context only
+  when the root comment author is exactly
+  `chatgpt-codex-connector` (the authenticated GraphQL login). It never supplies
+  FIX proof: the mapped FIX
+  must still be a real live-PR commit reachable from the live head.
+  `API_UNKNOWN` remains terminal, and off-graph refs from any other bot or
+  human remain untrusted.
 
 ### NOT-A-BUG
 
@@ -294,7 +378,8 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings are creative future-state risk forecasts for user/business/project/security/governance impact, but require FIXED / NOT-A-BUG / DEFERRED evidence; FIXED for code/runtime/schema/security/workflow/orchestration/CI/governance risks requires enforceable closure in the PR, not docs-only risk recording |
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
-| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security plus `pulseplate-pr-review` | Hard gate | After material freeze, role passes, one final Codex Security diff scan / finding discovery, and `pulseplate-pr-review` must complete for that digest; rerun only after material change, failed/incomplete run, coordinator reroute, or explicit operator override |
+| Post-open role review | `qa-engineer-agent -> bug-hunter -> security-auditor` | Hard gate | Run once after PR open; every actionable must be fixed or dispositioned before final material freeze |
+| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, then a trusted exact-head GitHub Codex Connector review or trusted terminal source-unavailable receipt, then one operator-issued manual Codex Security request | Hard gate | The local self-review is advisory and does not replace the trusted review receipt; trusted review evidence and scan bind to the frozen final digest; source unavailability claims no review and requires no retry/substitute, repository code makes no plugin call or automatic retry, and every additional request requires fresh exact-material `OWNER`/`MEMBER` approval |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
@@ -383,6 +468,9 @@ Evidence:
 - **CI strict:** `CI=true` requires `GH_TOKEN` and `gh auth status` before any GraphQL.
 - `GITHUB_TOKEN` remains the merge-readiness sub-gate token; `GH_TOKEN` is the canonical disposition/GraphQL token.
 - Advisory `SKIP` is not merge evidence; operators must use enforced mode before claiming strict local parity.
+- Local `--pre-closeout` is valid only with `--require-auth` and both
+  `GH_TOKEN` and `GITHUB_TOKEN`; it fails before network validation when either
+  is absent.
 
 Evidence:
 - `AGENTS.md:120`

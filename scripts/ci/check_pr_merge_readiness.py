@@ -8,6 +8,7 @@ required-check truth lives in `check_current_head_pr_checks.py` and the
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.client
 import json
 import os
@@ -40,6 +41,7 @@ from scripts.orchestration.review_mapping_artifact import (
 from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     CommitIdentityError,
     CommitRefKind,
+    CodexConnectorAdvisoryReactionEvidence,
     PrSnapshot,
     RepositoryCommitRef,
     ReviewThreadEvidence,
@@ -56,10 +58,13 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     is_review_credit_outage_receipt,
+    is_mapping_only_positive_response_successor,
+    is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
@@ -112,6 +117,35 @@ NON_ACTIONABLE_MARKERS = (
 MAPPING_HEADING_RE = re.compile(r"(?im)^\s*###\s+Fixed\s+in\s+Commit\s+Mapping\s*$")
 MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-9a-f]{7,40}`?\s*$")
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
+CANONICAL_ARTIFACT_LINK_LINE_RE = re.compile(
+    r"^ {0,3}-[ \t]+\[[^\]\n]+\]\(\s*"
+    r"(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))\s*\)"
+    r"[ \t]*$",
+    re.IGNORECASE,
+)
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+RAW_HTML_BLOCK_OPEN_RE = re.compile(
+    r"^ {0,3}<(?P<tag>[A-Za-z][A-Za-z0-9-]*)(?:[\t />]|$)",
+    re.IGNORECASE,
+)
+RAW_HTML_VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
@@ -134,6 +168,8 @@ class ActionableItem:
     created_at: str
     kind: str
     review_id: int | None = None
+    updated_at: str = ""
+    body_digest: str = ""
 
 
 class _OutageSecurityChecksPending(ReviewEvidenceError):
@@ -163,6 +199,204 @@ def _mapped_urls(pr_body: str) -> tuple[set[str], bool]:
     section = _extract_mapping_section(pr_body)
     urls = {m.group(1).strip() for m in MAPPING_ENTRY_RE.finditer(section)}
     return urls, bool(MAPPING_NO_ACTIONABLE_RE.search(section))
+
+
+def _canonical_artifact_markdown_link_count(
+    pr_body: str,
+    pr_number: int,
+    repository: str,
+    head_ref: str,
+) -> int:
+    """Count canonical standalone Markdown links outside non-rendered block regions."""
+
+    artifact_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    expected_path = f"/{repository}/blob/{head_ref}/{artifact_path}"
+    expected_url = f"https://github.com{expected_path}"
+
+    def is_canonical_destination(destination: str) -> bool:
+        parsed = urllib.parse.urlsplit(destination)
+        return (
+            bool(head_ref)
+            and parsed.scheme == "https"
+            and parsed.netloc.lower() == "github.com"
+            and not parsed.query
+            and not parsed.fragment
+            and urllib.parse.unquote(parsed.path) == expected_path
+        )
+
+    canonical_url_occurrences = urllib.parse.unquote(pr_body).count(expected_url)
+    count = 0
+    in_html_comment = False
+    fence_char = ""
+    fence_length = 0
+    raw_html_tag = ""
+    raw_html_depth = 0
+    for raw_line in pr_body.splitlines():
+        line = raw_line
+        visible_parts: list[str] = []
+        cursor = 0
+        while cursor < len(line):
+            if in_html_comment:
+                comment_end = line.find("-->", cursor)
+                if comment_end < 0:
+                    cursor = len(line)
+                    break
+                in_html_comment = False
+                cursor = comment_end + 3
+                continue
+            comment_start = line.find("<!--", cursor)
+            if comment_start < 0:
+                visible_parts.append(line[cursor:])
+                break
+            visible_parts.append(line[cursor:comment_start])
+            visible_parts.append(" ")
+            in_html_comment = True
+            cursor = comment_start + 4
+        visible_line = "".join(visible_parts)
+
+        if fence_char:
+            closing_fence = re.fullmatch(
+                rf" {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
+                visible_line,
+            )
+            if closing_fence:
+                fence_char = ""
+                fence_length = 0
+            continue
+        fence_open = FENCE_OPEN_RE.match(visible_line)
+        if fence_open:
+            fence = fence_open.group("fence")
+            fence_char = fence[0]
+            fence_length = len(fence)
+            continue
+        if raw_html_tag:
+            raw_html_depth += len(
+                re.findall(
+                    rf"<{re.escape(raw_html_tag)}(?:[\t />]|$)",
+                    visible_line,
+                    re.IGNORECASE,
+                )
+            )
+            raw_html_depth -= len(
+                re.findall(
+                    rf"</{re.escape(raw_html_tag)}\s*>",
+                    visible_line,
+                    re.IGNORECASE,
+                )
+            )
+            if raw_html_depth <= 0:
+                raw_html_tag = ""
+                raw_html_depth = 0
+            continue
+        raw_html_open = RAW_HTML_BLOCK_OPEN_RE.search(visible_line)
+        if raw_html_open:
+            tag = raw_html_open.group("tag").lower()
+            remainder = visible_line[raw_html_open.end() :]
+            if (
+                tag not in RAW_HTML_VOID_TAGS
+                and not re.search(r"/\s*>\s*$", visible_line)
+                and not re.search(rf"</{re.escape(tag)}\s*>", remainder, re.IGNORECASE)
+            ):
+                raw_html_tag = tag
+                raw_html_depth = 1
+            continue
+        if raw_line.startswith(("\t", "    ")):
+            continue
+        match = CANONICAL_ARTIFACT_LINK_LINE_RE.fullmatch(visible_line)
+        if match is None:
+            continue
+        raw_destination = match.group("angle") or match.group("plain") or ""
+        destination = raw_destination or ""
+        parsed = urllib.parse.urlsplit(destination)
+        if parsed.query or parsed.fragment:
+            continue
+        if is_canonical_destination(destination):
+            count += 1
+    if count == 1:
+        return canonical_url_occurrences
+    return count
+
+
+def _actionable_inventory(
+    items: list[ActionableItem],
+) -> tuple[tuple[str, str, str, str, int, str, str], ...]:
+    """Return a deterministic identity for the live actionable review inventory."""
+
+    return tuple(
+        sorted(
+            (
+                item.author,
+                item.url,
+                item.created_at,
+                item.kind,
+                item.review_id or 0,
+                item.updated_at,
+                item.body_digest,
+            )
+            for item in items
+        )
+    )
+
+
+def _comment_body_digest(body: str) -> str:
+    """Bind review inventory to content without retaining or logging bot bodies."""
+
+    normalized = body.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _review_thread_inventory(
+    threads: tuple[ReviewThreadEvidence, ...],
+) -> tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...]:
+    """Bind the complete review-thread state without depending on API ordering."""
+
+    return tuple(
+        sorted(
+            (
+                thread.node_id,
+                thread.is_resolved,
+                tuple(
+                    sorted(
+                        (
+                            comment.url,
+                            comment.created_at,
+                            comment.author_login,
+                            comment.author_association,
+                            comment.original_commit_sha or "",
+                            _comment_body_digest(comment.body),
+                        )
+                        for comment in thread.comments
+                    )
+                ),
+            )
+            for thread in threads
+        )
+    )
+
+
+def _pre_closeout_dirty_paths() -> set[str]:
+    """Return all tracked, staged, or untracked paths visible to a closeout commit."""
+
+    git = shutil.which("git")
+    if not git:
+        raise ValueError("git not found in PATH")
+    try:
+        completed = subprocess.run(  # nosec B603: absolute git with fixed status argv only (remove-by: 2026-09-30, ref: PR-strict-closeout-precommit-guard)
+            [git, "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError("git status timed out during pre-closeout cleanliness check") from exc
+    if completed.returncode != 0:
+        raise ValueError("git status failed during pre-closeout cleanliness check")
+    status_lines = [line for line in completed.stdout.splitlines() if len(line) >= 4]
+    if any(line[0] not in {" ", "?"} for line in status_lines):
+        raise ValueError("staged changes are forbidden during pre-closeout validation")
+    return {line[3:] for line in status_lines}
 
 
 def _is_actionable(body: str) -> bool:
@@ -351,6 +585,7 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
                 continue
             url = str(row.get("html_url") or "")
             created_at = str(row.get("created_at") or row.get("submitted_at") or "")
+            updated_at = str(row.get("updated_at") or created_at)
             if not url:
                 continue
             raw_review_id = row.get("id") if kind == "review" else row.get("pull_request_review_id")
@@ -368,6 +603,8 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
                     created_at=created_at,
                     kind=kind,
                     review_id=review_id,
+                    updated_at=updated_at,
+                    body_digest=_comment_body_digest(body),
                 )
             )
 
@@ -396,25 +633,27 @@ def _covered_review_summary_urls(
     return covered
 
 
-def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str]:
-    """Read GitHub event JSON; return (pr_number, repo, is_draft, pr_body)."""
+def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str, str]:
+    """Read GitHub event JSON; return PR identity, body, and exact head ref."""
     payload = json.loads(event_path.read_text(encoding="utf-8"))
     pr = payload.get("pull_request") or {}
     number = int(pr.get("number", 0))
     repo = str((payload.get("repository") or {}).get("full_name", ""))
     is_draft = bool(pr.get("draft", False))
     body = str(pr.get("body") or "")
-    return number, repo, is_draft, body
+    head_ref = str((pr.get("head") or {}).get("ref") or "")
+    return number, repo, is_draft, body, head_ref
 
 
-def _fetch_pr_context(pr_number: int, repo: str, token: str) -> tuple[int, str, bool, str]:
-    """Fetch PR via REST API; return (pr_number, repo, is_draft, pr_body). For local/agent use."""
+def _fetch_pr_context(pr_number: int, repo: str, token: str) -> tuple[int, str, bool, str, str]:
+    """Fetch PR identity, body, and exact head ref via REST for local/agent use."""
     owner, name = repo.split("/", maxsplit=1)
     url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
     data = _api_request(url, token=token)
     body = str(data.get("body") or "")
     is_draft = bool(data.get("draft", False))
-    return pr_number, repo, is_draft, body
+    head_ref = str((data.get("head") or {}).get("ref") or "")
+    return pr_number, repo, is_draft, body, head_ref
 
 
 def _event_head_sha(event_path: Path) -> str:
@@ -601,6 +840,7 @@ def _validate_v1_seal(
     snapshot: PrSnapshot,
     token: str,
     outage_security_wait_seconds: int = 0,
+    enforce_outage_security_checks: bool = True,
 ) -> dict[str, Any]:
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
@@ -632,7 +872,46 @@ def _validate_v1_seal(
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
-    if is_review_source_unavailability_receipt(code_review):
+    if is_review_source_positive_response_receipt(code_review):
+        response_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if response_manifest.digest != material["digest"]:
+            raise ReviewEvidenceError(
+                "positive response material head has a different material digest"
+            )
+        response_evidence = verify_codex_review_reference(
+            code_review["response_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material_head.sha,
+            expected_live_pr_head_ref=snapshot.head_sha,
+        )
+        if not isinstance(response_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise ReviewEvidenceError("Codex positive response reference changed evidence type")
+        expected_code_review = build_review_source_positive_response_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            response_reference=response_evidence.reference,
+            response_created_at=response_evidence.created_at,
+            response_content=response_evidence.content,
+        )
+        successor_response = (
+            snapshot.head_sha != material_head.sha
+            and is_mapping_only_positive_response_successor(
+                code_review,
+                response_reference=response_evidence.reference,
+                response_created_at=response_evidence.created_at,
+                response_content=response_evidence.content,
+            )
+        )
+        if code_review != expected_code_review and not successor_response:
+            raise ReviewEvidenceError("Codex positive response receipt is stale")
+    elif is_review_source_unavailability_receipt(code_review):
         unavailable_manifest = compute_material_manifest(
             REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
@@ -708,7 +987,12 @@ def _validate_v1_seal(
             pr_number=pr_number,
             token=token,
             expected_commit_ref=material["material_head_sha"],
+            # The digest check above permits only the canonical mapping artifact
+            # to separate the sealed material head from the live PR head.
+            expected_live_pr_head_ref=snapshot.head_sha,
         )
+        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
+            raise ReviewEvidenceError("Codex positive response is not exact-head review evidence")
         if (
             review_evidence.commit_ref != code_review["review_commit_ref"]
             or code_review["review_commit_ref_kind"] != "repository_commit"
@@ -769,16 +1053,17 @@ def _validate_v1_seal(
         )
         if security_receipt != expected_receipt:
             raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        _wait_for_operator_outage_security_checks(
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            expected_head_sha=snapshot.head_sha,
-            security_required=_operator_outage_security_required(
-                entry.path for entry in manifest.entries
-            ),
-            timeout_seconds=outage_security_wait_seconds,
-        )
+        if enforce_outage_security_checks:
+            _wait_for_operator_outage_security_checks(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                expected_head_sha=snapshot.head_sha,
+                security_required=_operator_outage_security_required(
+                    entry.path for entry in manifest.entries
+                ),
+                timeout_seconds=outage_security_wait_seconds,
+            )
     return seal
 
 
@@ -873,24 +1158,54 @@ def main() -> int:
             "Failed or untrusted checks are never retried."
         ),
     )
+    parser.add_argument(
+        "--pre-closeout",
+        action="store_true",
+        help=(
+            "Validate the local uncommitted canonical mapping and live PR-body link "
+            "before its sole closeout commit. Does not require resolved threads or CI."
+        ),
+    )
     args = parser.parse_args()
     if args.outage_security_wait_seconds < 0:
         parser.error("--outage-security-wait-seconds must be non-negative")
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
+    if args.pre_closeout and args.event_path:
+        parser.error("--pre-closeout is local-only; use --pr-number and --repo.")
     if (args.pr_number is not None) != bool((args.repo or "").strip()):
         parser.error("For local/agent mode provide both --pr-number and --repo.")
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
         print("ERROR: GITHUB_TOKEN is required for merge-readiness gate.")
         return 1
+    if args.pre_closeout and not os.getenv("GH_TOKEN", "").strip():
+        print("ERROR: GH_TOKEN is also required for strict pre-closeout validation.")
+        return 1
+    expected_mapping_path: str | None = None
+    if args.pre_closeout and args.pr_number is not None:
+        expected_mapping_path = f"docs/review/PR_{args.pr_number}_FIXED_MAPPING.md"
+        try:
+            dirty_paths = _pre_closeout_dirty_paths()
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: pre-closeout cleanliness check failed: {exc}")
+            return 1
+        if dirty_paths != {expected_mapping_path}:
+            rendered = ", ".join(sorted(dirty_paths)) or "none"
+            print(
+                "ERROR: pre-closeout requires the canonical mapping artifact to be the "
+                f"only dirty path; found: {rendered}"
+            )
+            return 1
 
     if args.event_path:
         try:
-            pr_number, repo, is_draft, pr_body = _extract_pr_context(Path(args.event_path))
+            pr_number, repo, is_draft, pr_body, head_ref = _extract_pr_context(
+                Path(args.event_path)
+            )
             if pr_number and repo:
-                pr_number, repo, is_draft, pr_body = _fetch_pr_context(
+                pr_number, repo, is_draft, pr_body, head_ref = _fetch_pr_context(
                     pr_number=pr_number, repo=repo, token=token
                 )
         except Exception as exc:  # noqa: BLE001 - fail closed for CI gate script
@@ -902,7 +1217,7 @@ def main() -> int:
             print("ERROR: --repo must be owner/name (e.g. Katsiarynakavaleuskaya/PulsePlate).")
             return 1
         try:
-            pr_number, repo, is_draft, pr_body = _fetch_pr_context(
+            pr_number, repo, is_draft, pr_body, head_ref = _fetch_pr_context(
                 pr_number=args.pr_number, repo=repo, token=token
             )
         except ValueError as exc:
@@ -916,10 +1231,13 @@ def main() -> int:
         return 1
 
     if not pr_number or not repo:
+        if args.pre_closeout:
+            print("ERROR: pre-closeout validation requires a live PR context.")
+            return 1
         print("merge-readiness-gate: no PR context found; skipping.")
         return 0
 
-    if is_draft:
+    if is_draft and not args.pre_closeout:
         print("merge-readiness-gate: PR is draft; skipping strict checks.")
         return 0
 
@@ -942,7 +1260,7 @@ def main() -> int:
     unresolved_threads = sum(
         1 for thread in review_threads if not thread.is_resolved and not _is_ghas_thread(thread)
     )
-    if unresolved_threads > 0:
+    if unresolved_threads > 0 and not args.pre_closeout:
         errors.append(
             f"Unresolved review threads: {unresolved_threads}. Resolve all threads before merge."
         )
@@ -989,6 +1307,7 @@ def main() -> int:
                     snapshot=snapshot,
                     token=token,
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
+                    enforce_outage_security_checks=not args.pre_closeout,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
@@ -998,13 +1317,12 @@ def main() -> int:
                 )
             except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
                 errors.append(f"Material review seal validation failed: {exc}")
-        artifact_reference = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
-        body_without_fences = _strip_fenced_code_blocks(pr_body)
-        if body_without_fences.count(artifact_reference) != 1:
-            errors.append(
-                "PR body must contain exactly one canonical review artifact link "
-                f"to `{artifact_reference}`."
-            )
+    artifact_reference = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    if _canonical_artifact_markdown_link_count(pr_body, pr_number, repo, head_ref) != 1:
+        errors.append(
+            "PR body must contain exactly one true Markdown link whose destination is "
+            f"`{artifact_reference}` (plain text and fenced examples do not count)."
+        )
 
     duplicate_covered_urls: set[str] = set()
     if seal is not None:
@@ -1038,7 +1356,7 @@ def main() -> int:
             for item in actionable_items
             if item.url not in mapped_urls
             and item.url not in duplicate_covered_urls
-            and item.url not in review_summary_covered_urls
+            and (args.pre_closeout or item.url not in review_summary_covered_urls)
         ]
         if unmapped:
             errors.append(
@@ -1051,25 +1369,73 @@ def main() -> int:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")
 
     try:
+        final_pr_context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
+        final_actionable_items = _collect_actionable_items(
+            repo=repo, pr_number=pr_number, token=token
+        )
+        final_review_threads = fetch_review_threads(repo, pr_number, token=token)
+        if final_pr_context != (pr_number, repo, is_draft, pr_body, head_ref):
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: live PR body or draft state changed during validation"
+            )
+        if _actionable_inventory(final_actionable_items) != _actionable_inventory(actionable_items):
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: actionable bot review inventory changed during validation"
+            )
+        if _review_thread_inventory(final_review_threads) != _review_thread_inventory(
+            review_threads
+        ):
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: review-thread inventory changed during validation"
+            )
+        if args.pre_closeout and expected_mapping_path is not None:
+            if _local_head_sha() != snapshot.head_sha:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: local HEAD changed during pre-closeout validation"
+                )
+            if _pre_closeout_dirty_paths() != {expected_mapping_path}:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: local working tree changed during pre-closeout validation"
+                )
+            if read_mapping_artifact(pr_number) != artifact_text:
+                raise CommitIdentityError(
+                    "SNAPSHOT_CHANGED: canonical mapping artifact changed during "
+                    "pre-closeout validation"
+                )
         assert_snapshot_unchanged(snapshot, token=token)
-    except (CommitIdentityError, OSError) as exc:
+    except (CommitIdentityError, OSError, ValueError, urllib.error.HTTPError) as exc:
         errors.append(str(exc))
 
     if errors:
-        print("ERROR: review-governance merge gate failed:")
+        gate_label = (
+            "pre-closeout review-governance check"
+            if args.pre_closeout
+            else "review-governance merge gate"
+        )
+        print(f"ERROR: {gate_label} failed:")
         for line in errors:
             print(f"- {line}")
         return 1
 
+    if args.pre_closeout:
+        print(
+            "pre-closeout-review-governance: passed; all live actionable bot issue comments, "
+            "bot inline comments, and top-level bot reviews are explicitly mapped."
+        )
+        print("pre-closeout-review-governance: not merge-readiness evidence.")
+        return 0
+
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
-        if is_review_source_unavailability_receipt(seal["code_review"]):
-            print("REVIEW_SOURCE_UNAVAILABLE_VALID " f"{seal['code_review']['source_status']}")
-        elif is_review_credit_outage_receipt(seal["code_review"]):
+        if is_review_source_positive_response_receipt(seal["code_review"]):
             print(
-                "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID " f"{seal['code_review']['review_commit_ref']}"
+                f"REVIEW_SOURCE_POSITIVE_RESPONSE_VALID {seal['code_review']['response_content']}"
             )
+        elif is_review_source_unavailability_receipt(seal["code_review"]):
+            print(f"REVIEW_SOURCE_UNAVAILABLE_VALID {seal['code_review']['source_status']}")
+        elif is_review_credit_outage_receipt(seal["code_review"]):
+            print(f"REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID {seal['code_review']['review_commit_ref']}")
         else:
             print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
     if duplicate_covered_urls:

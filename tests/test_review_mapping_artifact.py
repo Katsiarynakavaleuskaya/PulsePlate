@@ -33,14 +33,37 @@ def test_render_phase2_body_mirror_is_stable(
 ) -> None:
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
     monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
-    body = artifact.render_phase2_body_mirror(998)
+    body = artifact.render_phase2_body_mirror(
+        998, repository="org/repo", ref="codex/review-closeout"
+    )
     assert body == (
         "## Discussion Thread Pass\n"
         "- [x] Discussion-thread pass completed\n"
         "- [x] Fixed in commit mapping completed\n\n"
         "### Fixed in Commit Mapping\n"
-        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`"
+        "- [canonical artifact](https://github.com/org/repo/blob/"
+        "codex/review-closeout/docs/review/PR_998_FIXED_MAPPING.md)"
     )
+    assert body.count("docs/review/PR_998_FIXED_MAPPING.md") == 1
+    assert "`docs/review/PR_998_FIXED_MAPPING.md`" not in body
+
+
+@pytest.mark.parametrize(
+    ("ref", "encoded_ref"),
+    [("feature#x", "feature%23x"), ("feature+test", "feature%2Btest")],
+)
+def test_render_phase2_body_mirror_encodes_valid_git_ref_characters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    ref: str,
+    encoded_ref: str,
+) -> None:
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
+    monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+
+    body = artifact.render_phase2_body_mirror(998, repository="org/repo", ref=ref)
+
+    assert f"/blob/{encoded_ref}/docs/review/PR_998_FIXED_MAPPING.md" in body
 
 
 def test_render_phase2_body_mirror_fails_for_invalid_artifact(
@@ -53,7 +76,29 @@ def test_render_phase2_body_mirror_fails_for_invalid_artifact(
     monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
 
     with pytest.raises(RuntimeError, match="Cannot render PR body mirror for PR #998"):
-        artifact.render_phase2_body_mirror(998)
+        artifact.render_phase2_body_mirror(998, repository="org/repo", ref="main")
+
+
+@pytest.mark.parametrize(
+    ("repository", "ref"),
+    [
+        ("foreign", "main"),
+        ("org/repo", ""),
+        ("org/repo", "../main"),
+        ("org/repo", "bad?ref"),
+    ],
+)
+def test_render_phase2_body_mirror_rejects_unsafe_link_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    repository: str,
+    ref: str,
+) -> None:
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
+    monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+
+    with pytest.raises(ValueError):
+        artifact.render_phase2_body_mirror(998, repository=repository, ref=ref)
 
 
 def test_read_mapping_artifact_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

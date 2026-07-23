@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+import importlib
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess  # nosec B404: fixed git subprocess wrappers only (remove-by: 2026-07-31, ref: PR-2)
+import sys
 import tempfile
-from typing import Any
+from typing import Any, Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "patch_runs"
@@ -51,6 +54,48 @@ SAFE_GIT_CONFIG_PAIRS = (
 
 class CreativeCodePatchWorkspaceError(ValueError):
     """Raised when PR-2 workspace/artifact containment fails."""
+
+
+@contextmanager
+def exclusive_patch_run_lock(run_dir: Path, *, label: str) -> Iterator[None]:
+    """Hold the shared non-blocking file lock for one patch run."""
+
+    try:
+        fcntl_module = importlib.import_module("fcntl")
+    except ModuleNotFoundError as exc:
+        raise CreativeCodePatchWorkspaceError(
+            f"{label} locking is unavailable on this platform."
+        ) from exc
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    lock_fd = -1
+    try:
+        try:
+            lock_fd = os.open(run_dir, flags)
+        except OSError as exc:
+            raise CreativeCodePatchWorkspaceError(f"{label} lock could not be acquired.") from exc
+        try:
+            fcntl_module.flock(
+                lock_fd,
+                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
+            )
+        except BlockingIOError as exc:
+            raise CreativeCodePatchWorkspaceError(f"{label} is already in progress.") from exc
+        except OSError as exc:
+            raise CreativeCodePatchWorkspaceError(f"{label} lock could not be acquired.") from exc
+        yield
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error: OSError | None = None
+        if lock_fd >= 0:
+            try:
+                os.close(lock_fd)
+            except OSError as exc:
+                cleanup_error = exc
+        if active_error is None and cleanup_error is not None:
+            raise CreativeCodePatchWorkspaceError(
+                f"{label} lock cleanup failed."
+            ) from cleanup_error
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:

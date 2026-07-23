@@ -205,8 +205,26 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
 9. **Material identity:** one completed Codex review or one trusted terminal
-   review-source unavailability receipt, plus one completed final Codex Security
-   diff scan, bind to one material digest. When Codex Security is systemically
+   Connector response/unavailability receipt, plus one completed final Codex
+   Security diff scan, bind to one material digest. A verified official Codex
+   Connector PR-root reaction (`+1`, `heart`, `hooray`, or `rocket`) may satisfy
+   the normal `--review-ref` path as a nonblocking terminal source response only
+   when its canonical reaction ID, immutable
+   Connector account id/login, the live PR head equal to the exact caller material
+   head at seal time, and a server-timestamped GitHub Actions `pull_request` run linked to that
+   same PR and head strictly preceding the reaction all verify, with no later
+   force-push or head-restoration event. That workflow-run chronology establishes
+   only that GitHub observed the material state before the response; it is not
+   Connector-owned proof of a reviewed commit. Authenticated validation after the one
+   canonical closeout commit may instead accept that mapping-only descendant as
+   the live head only after the material digest is proven unchanged. If that
+   automatic cycle replaces the sealed reaction, validation may use only a newer
+   live positive reaction from the same trusted Connector with the same content;
+   it does not rewrite the sealed receipt or restart the security scan. The receipt
+   uses `binding_kind=seal_context_only`, `review_claim=none`, and `blocking=false`;
+   it is a trusted positive Connector response, never an exact-head review claim,
+   native GitHub approval, Codex Security result, or review-thread disposition authority.
+   Optional advisory rendering remains non-authoritative. When Codex Security is systemically
    unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
    operator-outage override may replace only the plugin receipt: it must be an
    unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
@@ -232,12 +250,25 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    `#2142` review-credit override receipts remain
    readable everywhere but are live-authenticated only for PR `#2142`; the
    legacy override path is not an active authoring contract for later PRs.
-   The trusted submitted review object's
-   real GitHub `commit_id` must equal the frozen material head. When the official
-   Codex connector emits an unedited no-findings issue comment instead, its
-   trusted GitHub App identity and reviewed-commit prefix must resolve through
-   the Commit API to that same full frozen head. A synthetic execution ref is
-   never review proof. Every path is material except the exact
+   The trusted submitted review object's real GitHub `commit_id` must equal the
+   frozen material head. A direct PR-root reaction from the official Connector
+   may be passed to `seal --review-ref <canonical-reaction-url>` only for `+1`,
+   `heart`, `hooray`, or `rocket`, after live verification of its immutable GitHub
+   account id/login, a live PR head equal to the caller's full current material
+   head at seal time, and a server-timestamped GitHub Actions `pull_request` run linked to that
+   same PR and head strictly preceding the reaction, with no later force-push or
+   head-restoration event. The chronology is freshness evidence only and must not
+   be projected into a Connector-owned reviewed commit. After the one canonical mapping-only closeout commit,
+   authenticated validation may accept its live descendant head only after
+   material-digest equality is re-established. Its terminal receipt is nonblocking
+   and explicitly carries `review_claim=none`; it is not exact-head review proof,
+   a native GitHub approval, Codex Security result, or thread-resolution authority.
+   The optional `--connector-advisory-reaction` rendering path remains
+   non-authoritative and may be omitted with a warning. When
+   the official Codex connector emits an unedited no-findings
+   issue comment instead, its trusted GitHub App identity and reviewed-commit
+   prefix must resolve through the Commit API to that same full frozen head. A
+   synthetic execution ref is never review proof. Every path is material except the exact
    current-PR mapping artifact. PR-body edits are outside Git. Any later code,
    test, workflow, dependency, policy, contract, or other docs change invalidates
    the seal and reopens review/final scan.
@@ -246,6 +277,27 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     once. A repeated trusted Codex unavailable-ref ancestry finding on the same
     digest is handled by an authorized structured reply in the resolved thread;
     it does not create another docs commit or restart review/security scans.
+11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
+    mapping and after the live PR body contains its canonical link, but before
+    the sole mapping commit, run
+    `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER>
+    --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth`
+    with both `GH_TOKEN` and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
+    every live actionable bot issue comment, bot inline comment, and top-level
+    bot review in the local artifact and require exactly one real same-repository
+    Markdown link through
+    `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
+    PR body. The ref path must exactly match the PR's authenticated `head.ref`;
+    the link must occupy its own bullet line, the decoded canonical URL must
+    occur exactly once, and repo-relative or non-rendered HTML/code examples are
+    invalid in PR-body context.
+    The canonical mapping artifact must be the only dirty path both before and
+    after the live validation calls. Child inline mappings do not substitute
+    for an actionable top-level review in this pre-commit pass. A PASS
+    authorizes only the one closeout commit: it does not
+    require thread resolution, current-head CI, or the review wait window, and
+    it must never be presented as merge-readiness evidence. After push, the
+    unchanged full strict wrapper remains mandatory.
 
 **Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
 
@@ -548,17 +600,22 @@ Rules:
   push, or claim readiness until the role has run in order or the coordinator
   records an explicit disposition with evidence in the packet/runbook.
 - Coordinator-owned PR lanes must include the canonical mandatory post-open
-  `qa-engineer-agent -> bug-hunter -> security-auditor` pass, followed by a
-  Codex Security diff scan / finding discovery when the Codex Security plugin is
-  available and `pulseplate-pr-review`. These post-open passes do not replace
-  pre-open role agents. This post-open chain is a single required pass for the
-  lane, not an unbounded loop. Later review or bot comments must be handled by
-  fixing or dispositioning the specific finding in `docs/review/PR_<N>_FIXED_MAPPING.md`
-  and rerunning targeted gates. Request Codex review manually after material
-  freeze and run the final Codex Security diff scan only after all material
-  fixes. Do not restart the full role/review/scan chain unless the material
-  digest changed, a run failed or was incomplete, the coordinator records a
-  new evidence-backed routing update, or the operator explicitly overrides it.
+  `qa-engineer-agent -> bug-hunter -> security-auditor` role pass. These role
+  agents do not replace pre-open roles or the separate final-material gates.
+  This post-open role chain is a single required pass, not an unbounded loop.
+  Later review or bot comments must be handled by fixing or dispositioning the
+  specific finding in `docs/review/PR_<N>_FIXED_MAPPING.md` and rerunning
+  targeted gates. Do not restart the full role chain unless the coordinator
+  records a new evidence-backed routing update or the operator explicitly
+  overrides it.
+
+**Final-material Codex Security budget invariant (hard):**
+- The repeatable post-open pass is role-only: `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- After fixes, required local gates, current-head CI, and material freeze, run the repo-native exact-head `pulseplate-pr-review` as the local self-review. It does not itself satisfy the trusted review-evidence slot. Satisfy that slot with exactly one of a completed trusted exact-head GitHub Codex Connector review or an unedited trusted terminal Connector rate/usage-limit receipt with `review_claim=none`; the terminal unavailable path requires no retry or substitute review. Then request exactly one final manual Codex Security scan for that frozen material.
+- Lifecycle metadata records `scope=per_pr`, `automatic_budget=1`, `automatic_retries=0`, `requires_frozen_material=true`, and `additional_invocation=trusted_operator_approval`. Because `repository_invokes_plugin=false`, `automatic_budget=1` is the single operational request ceiling, not repository dispatch authority.
+- `pr_review_closeout.py prepare-final-security` requires exactly one matching evidence input: `--review-ref <exact-head-review-URL>` or `--review-source-unavailable-ref <trusted-terminal-comment-URL>`. It persists the tagged evidence without turning source unavailability into a review claim and performs no plugin call or GitHub mutation. Its atomic state is checkout-local advisory duplicate prevention only; it cannot grant authority or prove global cross-machine consumption. After the operator-issued request, `record-final-security-outcome` records `completed`, `timeout`, `safety_block`, or `incomplete`; every outcome consumes the operational request. Every additional preparation or request requires a fresh, unedited GitHub comment from an `OWNER` or `MEMBER`, created after the prior terminal outcome and bound to the exact repository, PR, full head SHA, and material digest.
+- Any material change invalidates the freeze, exact-head review, and scan evidence; merge evidence still requires one real completed scan on the exact final digest. A PR that changes security-governance, seal, merge-gate, current-head authority, CI/security workflow or action authority, or substitute-security policy inputs must not use the outage override to authorize itself.
+- GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. A trusted terminal rate/usage-limit receipt follows the non-review evidence mode above. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and final review-evidence validation, with no automatic retry.
 
 ### Mandatory PR Orchestration Gates
 
@@ -587,13 +644,10 @@ For every non-trivial PR:
   blockers, not a valid `Not applicable` reason. If the result materially shapes
   code, tests, docs, mapping, or commit decisions, use the governed co-author
   trailer.
-- After PR open, execute the declared post-open role agents, Codex Security diff
-  scan / finding discovery, and `pulseplate-pr-review` once for the lane. Fix or
-  disposition every finding before updating fixed mapping or claiming readiness.
-  Do not treat later review comments as permission to restart the full
-  scan/review chain automatically; use fixed-mapping disposition plus targeted
-  validation unless a new security-relevant diff or explicit coordinator/operator
-  override reopens that loop.
+- After PR open, execute the declared role-only post-open pass. Fix or
+  disposition every finding before material freeze, then follow the
+  final-material budget invariant above; do not automatically restart either
+  final gate.
 
 ### PR Handling Lifecycle (Coordinator-Owned)
 
@@ -602,8 +656,8 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
-4. **Review cycle**: freeze the material state, request one Codex review, apply
-   any material fix and refreeze, then run one final security scan. A systemic
+4. **Review cycle**: freeze the material state, observe one automatic Codex
+   response, apply any material fix and refreeze, then run one final security scan. A systemic
    MCP `-32001` outage may use only the authenticated, expiring operator-outage
    evidence variant described above; do not fabricate or relabel a scan receipt. Keep
    dispositions in the gitignored closeout draft and publish one generated

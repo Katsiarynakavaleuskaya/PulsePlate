@@ -1,18 +1,70 @@
 # syntax=docker/dockerfile:1.7
 
-ARG PYTHON_BASE="python:3.13.13-slim-bookworm@sha256:355bfa66770995d7e9a0da4b3473b44d0cb451f6b56f5615ad9c39e3c4eca03f"
+ARG RUNNER_BASE="registry.access.redhat.com/ubi10/ubi-minimal@sha256:04140c8d78c6c6915b5c1fdad2f16d10eac3630c3339999ccdf659d8c903be50"
 
-FROM ${PYTHON_BASE} AS builder
+FROM scratch AS verified-sources
+
+ADD --checksum=sha256:de390fc168eae5ab2852e9e93d34a0b9ddf05cf9ce90ee28d97de26a4b1f6b93 \
+    https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-10 \
+    /verified/RPM-GPG-KEY-EPEL-10
+ADD --checksum=sha256:8ff46bb59651203a801759627c8c1829c6fe610e031f93c83747ba0832bb97ed \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
+    /verified/epel-release-latest-10.noarch.rpm
+ADD --checksum=sha256:4274e9112adf3fa57c7f9afa7c9b5c631456b18b7403cc627cc5027d02cdd2ae \
+    https://raw.githubusercontent.com/python/cpython/7933f4bf7131aa4140750f9404f5de0aa2969ced/Lib/html/parser.py \
+    /verified/html-parser.py
+
+FROM ${RUNNER_BASE} AS python-runtime
+
+RUN --mount=type=bind,from=verified-sources,source=/verified,target=/run/verified \
+    set -eu; \
+    rpm --import /run/verified/RPM-GPG-KEY-EPEL-10; \
+    signature_output="$(rpm -Kv /run/verified/epel-release-latest-10.noarch.rpm)"; \
+    printf '%s\n' "${signature_output}" | grep -Fq 'key ID e37ed158: OK'; \
+    rpm -i /run/verified/epel-release-latest-10.noarch.rpm; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' epel-release)" = \
+      'epel-release-10-8.el10_2.noarch'; \
+    microdnf install -y --setopt=install_weak_deps=0 \
+      python3.13-3.13.14-1.el10_2; \
+    microdnf clean all; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13)" = \
+      'python3.13-3.13.14-1.el10_2'; \
+    install -m 0644 /run/verified/html-parser.py \
+      /usr/lib64/python3.13/html/parser.py; \
+    rm -rf /usr/lib64/python3.13/html/__pycache__; \
+    python3.13 -c 'from pathlib import Path; assert Path("/run/verified/html-parser.py").read_bytes() == Path("/usr/lib64/python3.13/html/parser.py").read_bytes()'; \
+    python3.13 -c 'from html.parser import HTMLParser; parser = HTMLParser(); assert parser._pending == []; assert parser._pending_len == 0; assert parser._parse_threshold == 1'; \
+    expected_rpm_package_count='107'; \
+    expected_rpm_inventory_sha256='89d2a8bb:1a6216d5:63f194d6:c65b556d:c5a1672c:9b126afe:d5d1b677:5a9c0125'; \
+    expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
+      "${expected_rpm_package_count}"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
+      "${expected_rpm_inventory_sha256}"
+
+FROM python-runtime AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_PYTHON_VERSION_WARNING=1 \
     PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL=1 \
     PULSEPLATE_DOCKER_PIP_LAYER_CACHE=1
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && python -m venv /opt/venv
+RUN set -eu; \
+    microdnf install -y --setopt=install_weak_deps=0 \
+      python3.13-pip-25.1.1-1.el10_1; \
+    microdnf clean all; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' python3.13-pip)" = \
+      'python3.13-pip-25.1.1-1.el10_1'; \
+    expected_rpm_package_count='108'; \
+    expected_rpm_inventory_sha256='877f449d:91c786a5:353d0f25:d95423fa:cc1cf06e:b6e748c6:c0be04f6:ced7c26b'; \
+    expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
+      "${expected_rpm_package_count}"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
+      "${expected_rpm_inventory_sha256}"; \
+    python3.13 -m venv /opt/venv
 
 COPY requirements-lock.txt constraints.txt /build/
 COPY scripts/ci/check_python_startup_hooks.py \
@@ -58,19 +110,44 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi; \
     /opt/venv/bin/pip uninstall -y setuptools wheel
 
-FROM ${PYTHON_BASE} AS runner
+FROM python-runtime AS runner
 
 LABEL org.opencontainers.image.title="PulsePlate Experiment Runner" \
       org.opencontainers.image.description="Strict local oracle execution image" \
       org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       ca-certificates git libgnutls30 libssl3 make openssl util-linux \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --uid 65532 --user-group --no-create-home runner \
-    && mkdir -p /repo/artifacts/orchestration/experiments/results \
-    && chown -R 65532:65532 /repo
+RUN set -eu; \
+    microdnf install -y --setopt=install_weak_deps=0 \
+      git-core-2.52.0-1.el10 \
+      make-4.4.1-9.el10 \
+      shadow-utils-4.15.0-11.el10 \
+      util-linux-core-2.40.2-18.el10; \
+    microdnf clean all; \
+    rpm -e epel-release; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' git-core)" = \
+      'git-core-2.52.0-1.el10'; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' make)" = \
+      'make-4.4.1-9.el10'; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' shadow-utils)" = \
+      'shadow-utils-4.15.0-11.el10'; \
+    test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' util-linux-core)" = \
+      'util-linux-core-2.40.2-18.el10'; \
+    expected_rpm_package_count='129'; \
+    expected_rpm_inventory_sha256='bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2'; \
+    expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
+    rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \
+      "${expected_rpm_package_count}"; \
+    test "$(printf '%s\n' "${rpm_inventory}" | sha256sum | cut -d ' ' -f 1)" = \
+      "${expected_rpm_inventory_sha256}"; \
+    test -x /usr/bin/git; \
+    test -x /usr/bin/make; \
+    test -x /usr/bin/unshare; \
+    groupadd --gid 65532 runner; \
+    useradd --uid 65532 --gid 65532 --no-create-home \
+      --home-dir /tmp --shell /sbin/nologin runner; \
+    mkdir -p /repo/artifacts/orchestration/experiments/results; \
+    chown -R 65532:65532 /repo
 
 COPY --from=builder /opt/venv /opt/venv
 
