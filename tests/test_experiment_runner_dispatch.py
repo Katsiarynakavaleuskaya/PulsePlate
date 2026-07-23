@@ -178,6 +178,187 @@ def _accepted_oracle_result() -> dict[str, Any]:
     }
 
 
+def _trivy_packages(prefix: str, count: int) -> list[dict[str, str]]:
+    return [{"Name": f"{prefix}-{index:03d}", "Version": "1.0.0"} for index in range(1, count + 1)]
+
+
+def _clean_trivy_admission_report() -> dict[str, Any]:
+    return {
+        "SchemaVersion": 2,
+        "ArtifactType": "container_image",
+        "Metadata": {"OS": {"Family": "redhat", "Name": "10.2"}},
+        "Results": [
+            {
+                "Target": "runner (redhat 10.2)",
+                "Class": "os-pkgs",
+                "Type": "redhat",
+                "Packages": _trivy_packages("rpm", 129),
+            },
+            {
+                "Target": "Python",
+                "Class": "lang-pkgs",
+                "Type": "python-pkg",
+                "Packages": _trivy_packages("python", 136),
+            },
+        ],
+    }
+
+
+def _invalid_trivy_admission_report(case: str) -> Any:
+    report = _clean_trivy_admission_report()
+    if case == "report_not_object":
+        return []
+    if case == "empty_object":
+        return {}
+    if case == "wrong_schema":
+        report["SchemaVersion"] = 1
+    elif case == "missing_metadata":
+        report.pop("Metadata")
+    elif case == "missing_os_metadata":
+        report["Metadata"] = {}
+    elif case == "missing_results":
+        report.pop("Results")
+    elif case == "empty_results":
+        report["Results"] = []
+    elif case == "os_only":
+        report["Results"] = report["Results"][:1]
+    elif case == "python_only":
+        report["Results"] = report["Results"][1:]
+    elif case == "duplicate_os_result":
+        report["Results"].append(dict(report["Results"][0]))
+    elif case == "duplicate_python_result":
+        report["Results"].append(dict(report["Results"][1]))
+    elif case == "results_not_list":
+        report["Results"] = {}
+    elif case == "wrong_artifact_type":
+        report["ArtifactType"] = "filesystem"
+    elif case == "wrong_os_identity":
+        report["Metadata"]["OS"] = {"Family": "debian", "Name": "13.6"}
+    elif case == "result_not_object":
+        report["Results"][0] = []
+    elif case == "missing_result_identity":
+        report["Results"][0].pop("Target")
+    elif case == "wrong_os_package_count":
+        report["Results"][0]["Packages"].pop()
+    elif case == "wrong_python_package_count":
+        report["Results"][1]["Packages"].pop()
+    elif case == "packages_not_list":
+        report["Results"][0]["Packages"] = {}
+    elif case == "package_not_object":
+        report["Results"][0]["Packages"][0] = []
+    elif case == "malformed_package":
+        report["Results"][1]["Packages"][0] = {"Name": "", "Version": "1.0.0"}
+    elif case == "duplicate_package":
+        report["Results"][1]["Packages"][-1] = dict(report["Results"][1]["Packages"][0])
+    elif case == "vulnerabilities_not_list":
+        report["Results"][0]["Vulnerabilities"] = {}
+    elif case == "malformed_vulnerability":
+        report["Results"][0]["Vulnerabilities"] = ["CVE-2099-0001"]
+    elif case == "selected_finding":
+        report["Results"][0]["Vulnerabilities"] = [{"VulnerabilityID": "CVE-2099-0001"}]
+    else:
+        raise AssertionError(f"unknown test case: {case}")
+    return report
+
+
+def _trivy_coverage_validator_source() -> str:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    start = (
+        'TRIVY_COVERAGE_RECEIPT="$('
+        "\n"
+        '  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'\n'
+    )
+    end = '\nPY\n)"'
+    assert runbook.count(start) == 1
+    validator_and_rest = runbook.split(start, maxsplit=1)[1]
+    assert validator_and_rest.count(end) == 1
+    return validator_and_rest.split(end, maxsplit=1)[0]
+
+
+def _run_trivy_coverage_validator(
+    report_text: str,
+    *,
+    tmp_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    report_path = tmp_path / "trivy.json"
+    report_path.write_text(report_text, encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, "-", str(report_path)],
+        check=False,
+        capture_output=True,
+        input=_trivy_coverage_validator_source(),
+        text=True,
+    )
+
+
+def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: Path) -> None:
+    completed = _run_trivy_coverage_validator(
+        json.dumps(_clean_trivy_admission_report()),
+        tmp_path=tmp_path,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == [
+        "trivy_artifact_type=container_image",
+        "trivy_os_family=redhat",
+        "trivy_os_version=10.2",
+        "trivy_os_package_count=129",
+        "trivy_python_package_count=136",
+        "trivy_high_critical_findings=0",
+    ]
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "report_not_object",
+        "empty_object",
+        "wrong_schema",
+        "missing_metadata",
+        "missing_os_metadata",
+        "missing_results",
+        "empty_results",
+        "os_only",
+        "python_only",
+        "duplicate_os_result",
+        "duplicate_python_result",
+        "results_not_list",
+        "wrong_artifact_type",
+        "wrong_os_identity",
+        "result_not_object",
+        "missing_result_identity",
+        "wrong_os_package_count",
+        "wrong_python_package_count",
+        "packages_not_list",
+        "package_not_object",
+        "malformed_package",
+        "duplicate_package",
+        "vulnerabilities_not_list",
+        "malformed_vulnerability",
+        "selected_finding",
+    ),
+)
+def test_trivy_admission_report_rejects_incomplete_or_unsafe_shapes(
+    case: str,
+    tmp_path: Path,
+) -> None:
+    completed = _run_trivy_coverage_validator(
+        json.dumps(_invalid_trivy_admission_report(case)),
+        tmp_path=tmp_path,
+    )
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+
+
+def test_trivy_admission_report_rejects_invalid_json(tmp_path: Path) -> None:
+    completed = _run_trivy_coverage_validator("not-json\n", tmp_path=tmp_path)
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+
+
 def test_runner_containerfile_pins_exact_base_and_shared_python_runtime() -> None:
     containerfile = _runner_containerfile_text()
     from_lines = [line.strip() for line in containerfile.splitlines() if line.startswith("FROM ")]
@@ -369,11 +550,17 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         "--ignorefile /dev/null",
         "--ignore-unfixed=false",
         "--exit-code 1",
-        "TRIVY_FINDING_COUNT=",
-        "test \"${TRIVY_FINDING_COUNT}\" = '0'",
+        'TRIVY_COVERAGE_RECEIPT="$(',
+        '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'',
+        "def package_count(result):",
+        'report.get("SchemaVersion") != 2',
+        'report.get("ArtifactType") != "container_image"',
+        "if os_package_counts[0] != 129:",
+        "if python_package_counts[0] != 136:",
+        'fail("selected_findings")',
         '"${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"',
         "'runtime_contract_exit=0'",
-        '"trivy_high_critical_findings=${TRIVY_FINDING_COUNT}"',
+        '"${TRIVY_COVERAGE_RECEIPT}"',
         "'apple_probe_exit=0'",
         '"${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe',
     )
@@ -385,6 +572,9 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert runtime_hash_assignment.group(1).replace(":", "") == _EXPECTED_HTML_PARSER_SHA256
     assert "trivy image --scanners vuln" not in runbook
     assert "--pkg-types" not in admission
+    assert "[.Results[]?.Vulnerabilities[]?] | length" not in admission
+    assert "TRIVY_FINDING_COUNT" not in admission
+    assert 'TRIVY_COVERAGE_RECEIPT="$("${JQ_BIN}"' not in admission
     assert admission.index('image --input "${RUNNER_OCI_LAYOUT}"') < admission.index(
         "experiment_runner_dispatch.py probe"
     )
@@ -394,6 +584,8 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert "## Sanitized command receipts" in security_note
     assert "`admission-exit-statuses.txt`" in security_note
     assert "rpm_inventory_sha256=bf2426b194df76bf" in security_note
+    assert "trivy_os_package_count=129" in security_note
+    assert "trivy_python_package_count=136" in security_note
     assert "trivy_high_critical_findings=0" in security_note
     assert "Exit status: `1`" in security_note
     assert "explicitly not used as audit proof" in " ".join(security_note.split())
@@ -407,20 +599,15 @@ def test_runner_admission_docs_limit_candidate_rollback_scope() -> None:
     normalized_runbook_rollback = " ".join(runbook_rollback.split())
     normalized_security_rollback = " ".join(security_rollback.split())
 
-    assert "revert of the dispatcher" not in normalized_runbook_rollback
+    assert "fail-closed Trivy coverage guard must remain" in normalized_runbook_rollback
     assert (
-        "base/package/CPython patch pin plus its tests and evidence documentation"
+        "base/package/CPython patch pin plus its image-specific tests and evidence documentation"
         in normalized_runbook_rollback
     )
-    assert (
-        "dispatcher, result contract, and capability schema are unchanged"
-        in normalized_runbook_rollback
-    )
+    assert "result contract and capability schema are unchanged" in normalized_runbook_rollback
     assert "revert only the UBI" in normalized_security_rollback
-    assert (
-        "dispatcher, result contract, and capability schema are unchanged"
-        in normalized_security_rollback
-    )
+    assert "coverage guard must not be removed" in normalized_security_rollback
+    assert "result contract and capability schema are unchanged" in normalized_security_rollback
 
 
 def test_image_reference_requires_immutable_digest() -> None:

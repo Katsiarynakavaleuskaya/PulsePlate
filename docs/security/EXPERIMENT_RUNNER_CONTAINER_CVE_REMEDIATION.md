@@ -125,8 +125,11 @@ Exit status: `0`. Sanitized dispatcher output:
 ```
 
 The runbook admission block was executed against that immutable reference with
-the official checksum-verified Trivy 0.72.0 binary. Exit status: `0`. The
-digest-bound `admission-exit-statuses.txt` receipt was:
+the official checksum-verified Trivy 0.72.0 binary. The scan exited `0`. After
+the first security diff review identified an incomplete-report fail-open in the
+old jq count, the exact retained report was admitted through the new
+fail-closed self-contained Python coverage guard. Guard exit status: `0`. The
+refreshed digest-bound `admission-exit-statuses.txt` receipt was:
 
 ```text
 trivy_checksum_exit=0
@@ -135,6 +138,11 @@ oci_descriptor_validation_exit=0
 config_history_validation_exit=0
 runtime_contract_exit=0
 trivy_exit=0
+trivy_artifact_type=container_image
+trivy_os_family=redhat
+trivy_os_version=10.2
+trivy_os_package_count=129
+trivy_python_package_count=136
 trivy_high_critical_findings=0
 apple_probe_exit=0
 ```
@@ -150,11 +158,16 @@ runtime_contract=passed
 {"artifact": "mac-strict-capability-5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70.json", "strict_isolation": true}
 ```
 
-The retained Trivy JSON identifies `redhat` `10.2`, a container-image
-artifact, and an empty vulnerability count for the selected HIGH/CRITICAL
-severities. Because the command uses `--exit-code 1`, its recorded exit status
-of `0` independently confirms that the unsuppressed scan found zero selected
-findings.
+The retained Trivy JSON has SHA-256
+`ef20092f8b16fae56b457c2984be4f7ab8082b34ca5cd97c39b4cba042ba80f1`.
+It identifies `redhat` `10.2`, a `container_image` artifact, 129 OS packages,
+and 136 packages in the Python manifest. The guard requires all four
+coverage facts, Trivy schema v2, unique non-empty package identities, and
+well-formed vulnerability arrays before accepting zero selected findings.
+Missing `Results`, OS-only, Python-only, malformed, ambiguous, or non-zero
+finding reports fail closed. Because the scan command also uses `--exit-code
+1`, its recorded exit status of `0` independently confirms that the
+unsuppressed scan found zero selected findings.
 
 The rejected exact trixie admission used the same unfiltered Trivy flags.
 Exit status: `1`. Its sanitized summary was:
@@ -197,15 +210,22 @@ complete, digest-bound build and admission receipt.
   inventory checks; `deploy/experiment-runner/Containerfile:75` preserves the
   private-index installer; and `deploy/experiment-runner/Containerfile:119`
   defines the exact non-root runtime package contract.
-- `tests/test_experiment_runner_dispatch.py:181` guards stage/base identity;
-  `tests/test_experiment_runner_dispatch.py:195` guards source and patch
-  verification; `tests/test_experiment_runner_dispatch.py:225` enumerates exact
+- `tests/test_experiment_runner_dispatch.py:294` proves the complete clean
+  report; `tests/test_experiment_runner_dispatch.py:342` rejects incomplete,
+  malformed, and non-zero-finding reports; and
+  `tests/test_experiment_runner_dispatch.py:498` guards the executable runbook
+  admission contract.
+- `tests/test_experiment_runner_dispatch.py:362` guards stage/base identity;
+  `tests/test_experiment_runner_dispatch.py:376` guards source and patch
+  verification; `tests/test_experiment_runner_dispatch.py:406` enumerates exact
   packages and inventories; and
-  `tests/test_experiment_runner_dispatch.py:264` rejects
-  suppression and dependency-policy weakening.
+  `tests/test_experiment_runner_dispatch.py:445` rejects suppression and
+  dependency-policy weakening.
 - `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:230` records the
   negative candidates; its executable digest-bound admission sequence starts
-  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`.
+  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`, and its
+  fail-closed Trivy coverage call is at
+  `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:504`.
 - `docs/roadmap/BACKLOG_LEDGER.md:27` keeps the prerequisite open until its PR is
   merged; ledger closure remains a later docs-only action.
 
@@ -219,7 +239,10 @@ Admission requires all of the following:
    cryptographically bind to the Apple-returned digest.
 2. The verified official Trivy 0.72.0 binary reports zero HIGH/CRITICAL OS or
    language-package findings without package-type filtering, ignore policy,
-   unfixed filtering, or severity reduction.
+   unfixed filtering, or severity reduction. The executable runbook Python
+   guard must additionally prove the exact schema, artifact/OS identity, one
+   129-package Red Hat result, and one 136-package Python result before the
+   zero-finding receipt is written.
 3. Exact Python/RPM/CPython patch and non-root assertions pass inside that same
    image, including the complete 107/108/129 package inventories over NEVRA,
    header SHA-256, payload digest, and payload digest algorithm.
@@ -236,9 +259,11 @@ reason to retry with weaker controls.
 
 If a later current-head or runtime regression appears, preserve the failed
 evidence, keep the vulnerable runner blocked, and revert only the UBI
-base/package/CPython patch candidate plus its tests and evidence documentation.
-The dispatcher, result contract, and capability schema are unchanged and are
-outside this rollback. Neither the failed trixie image, incompatible Alpine
-recipe, nor blocked bookworm baseline is a fallback. Restore only a separately
-admitted immutable runner reference; never downgrade, suppress, or use a
-mutable tag to restore execution.
+base/package/CPython patch candidate plus its image-specific tests and evidence
+documentation. The fail-closed Trivy coverage guard must not be removed to
+restore execution; a guard regression requires a fix-forward while the runner
+remains blocked. The result contract and capability schema are
+unchanged. Neither the failed trixie image, incompatible Alpine recipe, nor
+blocked bookworm baseline is a fallback. Restore only a separately admitted
+immutable runner reference; never downgrade, suppress, or use a mutable tag to
+restore execution.

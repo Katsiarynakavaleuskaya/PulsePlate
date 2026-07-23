@@ -501,9 +501,118 @@ printf "%s\n" \
   --exit-code 1 \
   --format json \
   --output "${RUNNER_TRIVY_REPORT}"
-TRIVY_FINDING_COUNT="$("${JQ_BIN}" \
-  '[.Results[]?.Vulnerabilities[]?] | length' "${RUNNER_TRIVY_REPORT}")"
-test "${TRIVY_FINDING_COUNT}" = '0'
+TRIVY_COVERAGE_RECEIPT="$(
+  "${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+
+def fail(reason):
+    raise SystemExit(f"trivy_admission_report_invalid:{reason}")
+
+
+def package_count(result):
+    packages = result.get("Packages")
+    if not isinstance(packages, list) or not packages:
+        fail("packages")
+    identities = set()
+    for package in packages:
+        if not isinstance(package, dict):
+            fail("package_shape")
+        name = package.get("Name")
+        version = package.get("Version")
+        if not isinstance(name, str) or not name:
+            fail("package_identity")
+        if not isinstance(version, str) or not version:
+            fail("package_identity")
+        identity = (name, version)
+        if identity in identities:
+            fail("duplicate_package")
+        identities.add(identity)
+    return len(packages)
+
+
+if len(sys.argv) != 2:
+    fail("arguments")
+try:
+    report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    fail("json")
+if not isinstance(report, dict):
+    fail("report_shape")
+if report.get("SchemaVersion") != 2:
+    fail("schema_version")
+if report.get("ArtifactType") != "container_image":
+    fail("artifact_type")
+metadata = report.get("Metadata")
+if not isinstance(metadata, dict):
+    fail("metadata")
+operating_system = metadata.get("OS")
+if not isinstance(operating_system, dict):
+    fail("os_metadata")
+if operating_system.get("Family") != "redhat" or operating_system.get("Name") != "10.2":
+    fail("os_identity")
+results = report.get("Results")
+if not isinstance(results, list) or not results:
+    fail("results")
+
+os_package_counts = []
+python_package_counts = []
+finding_count = 0
+for result in results:
+    if not isinstance(result, dict):
+        fail("result_shape")
+    target = result.get("Target")
+    result_class = result.get("Class")
+    result_type = result.get("Type")
+    if not all(
+        isinstance(value, str) and value
+        for value in (target, result_class, result_type)
+    ):
+        fail("result_identity")
+    current_package_count = package_count(result)
+    if "Vulnerabilities" in result:
+        vulnerabilities = result["Vulnerabilities"]
+        if not isinstance(vulnerabilities, list):
+            fail("vulnerabilities")
+        if any(not isinstance(vulnerability, dict) for vulnerability in vulnerabilities):
+            fail("vulnerability_shape")
+        finding_count += len(vulnerabilities)
+    if result_class == "os-pkgs" and result_type == "redhat":
+        os_package_counts.append(current_package_count)
+    if (
+        result_class == "lang-pkgs"
+        and result_type == "python-pkg"
+        and target == "Python"
+    ):
+        python_package_counts.append(current_package_count)
+
+if len(os_package_counts) != 1:
+    fail("os_coverage")
+if len(python_package_counts) != 1:
+    fail("python_coverage")
+if os_package_counts[0] != 129:
+    fail("os_package_count")
+if python_package_counts[0] != 136:
+    fail("python_package_count")
+if finding_count:
+    fail("selected_findings")
+
+print(
+    "\n".join(
+        (
+            "trivy_artifact_type=container_image",
+            "trivy_os_family=redhat",
+            "trivy_os_version=10.2",
+            "trivy_os_package_count=129",
+            "trivy_python_package_count=136",
+            "trivy_high_critical_findings=0",
+        )
+    )
+)
+PY
+)"
 "${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe \
   --backend apple-container \
   --image "${RUNNER_IMAGE_REF}" \
@@ -516,7 +625,7 @@ printf '%s\n' \
   'config_history_validation_exit=0' \
   'runtime_contract_exit=0' \
   'trivy_exit=0' \
-  "trivy_high_critical_findings=${TRIVY_FINDING_COUNT}" \
+  "${TRIVY_COVERAGE_RECEIPT}" \
   'apple_probe_exit=0' \
   >"${RUNNER_STATUS_REPORT}"
 ```
@@ -529,18 +638,22 @@ non-empty current secret value without printing those values. Runtime checks
 bind UID/GID 65532, Python 3.13.14, the exact CPython patch content, exact RPM
 versions, and required executables to the same digest. The downloaded official
 Trivy asset must pass its official release checksum before it scans the exact
-OCI layout. The command writes sanitized runtime output, probe output, scanner
-JSON, and one success-only exit-status receipt beneath the digest-bound local
-evidence directory. Because `set -euo pipefail` is active, a failed producer
-cannot be hidden by `tee`, and the all-zero status receipt is never written
-after a failed admission step.
+OCI layout. The self-contained Python coverage guard then requires Trivy schema
+v2, a `container_image` artifact, exact Red Hat 10.2 metadata, exactly one
+129-package OS result, and exactly one 136-package Python result before it
+accepts the absence of selected findings. The command writes sanitized runtime
+output, probe output, scanner JSON, and one success-only exit-status receipt
+beneath the digest-bound local evidence directory. Because `set -euo pipefail`
+is active, a failed producer or coverage guard cannot be hidden, and the
+all-zero status receipt is never written after a failed admission step.
 
-The admitted UBI image reported Red Hat 10.2 with 125 OS packages and one
-Python dependency manifest. The unfiltered OS-and-language scan reported zero
-HIGH/CRITICAL findings under the explicit `/dev/null` ignore policy with
-unfixed findings included. The strict Apple 1.1.0 probe passed every required
-network, mount, digest, cleanup, and non-root control for the same digest. The
-sanitized build, runtime, scanner, and probe receipts are recorded in
+The admitted UBI image reported Red Hat 10.2 with 129 OS packages and 136
+packages in one Python dependency manifest. The unfiltered OS-and-language scan
+reported zero HIGH/CRITICAL findings under the explicit `/dev/null` ignore
+policy with unfixed findings included. The strict Apple 1.1.0 probe passed
+every required network, mount, digest, cleanup, and non-root control for the
+same digest. The sanitized build, runtime, scanner, and probe receipts are
+recorded in
 `docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md`. Run the final
 immutable-oracle review only after material freeze and do not edit tracked
 material afterward. A failed inspection, digest check, checksum, scan, or
@@ -549,9 +662,10 @@ suppression policy to force admission.
 
 Rollback this candidate only by preserving any failed UBI admission evidence,
 deleting the candidate image by its exact digest, and reverting the UBI
-base/package/CPython patch pin plus its tests and evidence documentation. The
-dispatcher, result contract, and capability schema are unchanged and are
-outside this rollback. Neither the failed slim-trixie image, incompatible
-Alpine recipe, nor blocked bookworm baseline becomes a fallback; only a
-separately and explicitly admitted immutable runner is eligible, and a mutable
-tag is never eligible.
+base/package/CPython patch pin plus its image-specific tests and evidence
+documentation. The fail-closed Trivy coverage guard must remain in the
+admission path; a guard regression keeps the runner blocked and requires a
+fix-forward. The runner result contract and capability schema are unchanged.
+Neither the failed slim-trixie image, incompatible Alpine recipe, nor blocked
+bookworm baseline becomes a fallback; only a separately and explicitly
+admitted immutable runner is eligible, and a mutable tag is never eligible.

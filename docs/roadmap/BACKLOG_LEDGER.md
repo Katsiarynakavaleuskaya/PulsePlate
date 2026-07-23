@@ -54,8 +54,10 @@ If it is not recorded here — it does not exist.
     official Trivy 0.72.0 asset against its release checksum, refresh its
     database, and scan the exact OCI layout without package-type filtering,
     with `/dev/null` ignore policy, unfixed findings included, and zero
-    HIGH/CRITICAL OS or language-package findings; verify exact RPM versions
-    and the CPython patch inside the same digest; verify the complete
+    HIGH/CRITICAL OS or language-package findings; fail closed unless the report
+    proves Trivy schema v2, the exact container/Red Hat 10.2 identity, one
+    129-package OS result, and one 136-package Python result; verify exact RPM
+    versions and the CPython patch inside the same digest; verify the complete
     107/108/129 package inventories over NEVRA, header SHA-256, payload digest,
     and payload digest algorithm; preserve sanitized runtime, probe, scanner,
     and success-only exit-status receipts; pass the strict Apple Container
