@@ -4542,6 +4542,23 @@ def test_legacy_growth_guard_preserves_islice_mapping_values() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    ["0", "0, 0", "1, 1"],
+    ids=["zero-stop", "zero-range", "equal-range"],
+)
+def test_legacy_growth_guard_keeps_proven_empty_islice_clean(arguments: str) -> None:
+    source = textwrap.dedent(f"""
+        from itertools import islice
+
+        routes = {{"route": app.get}}
+        for route in islice(routes.values(), {arguments}):
+            route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_preserves_chain_from_iterable_mapping_values() -> None:
     source = textwrap.dedent("""
         from itertools import chain
@@ -7972,6 +7989,19 @@ def test_legacy_growth_guard_replays_consumed_filter_predicate() -> None:
         "legacy_app.py: unexpected legacy route growth: "
         "registration:dynamic:/api/v1/filter-callback"
     ]
+
+
+def test_legacy_growth_guard_skips_filter_callback_for_proven_empty_input() -> None:
+    source = textwrap.dedent("""
+        list(
+            filter(
+                lambda route: route("/api/v1/not-a-route")(handler),
+                [],
+            )
+        )
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 @pytest.mark.parametrize("wrapper_name", ["filter", "map"])
@@ -11436,6 +11466,20 @@ def test_legacy_growth_guard_preserves_empty_mapping_after_singleton_popitem() -
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_setdefault_insertion_in_mapping_state() -> None:
+    source = textwrap.dedent("""
+        routes = {}
+        routes.setdefault("route", app.get)
+        route = routes["route"]
+        route("/api/v1/setdefault-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/setdefault-route"
+    ]
 
 
 def test_legacy_growth_guard_uses_mapping_state_after_default_clear() -> None:

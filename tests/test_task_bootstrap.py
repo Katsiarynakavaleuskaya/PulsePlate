@@ -3054,6 +3054,7 @@ def test_active_orchestration_surfaces_forbid_per_diff_security_reruns() -> None
         REPO_ROOT / "AGENTS.md",
         REPO_ROOT / "RUNBOOK_AGENT.md",
         REPO_ROOT / "docs/orchestration/AGENTS.md",
+        REPO_ROOT / "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
         REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
     )
     forbidden = (

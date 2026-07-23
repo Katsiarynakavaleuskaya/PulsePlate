@@ -7084,6 +7084,38 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             mapping_site=synthetic_site,
         )
 
+    def _mapping_after_known_setdefault(
+        self,
+        mapping: _StaticMapping,
+        key_node: ast.AST,
+        default: ast.AST | None,
+        site: ast.AST,
+    ) -> _ResolvedBinding | None:
+        key = _literal_value(key_node)
+        if key is _UNRESOLVED_LITERAL_VALUE:
+            return None
+        selected, unresolved = _static_mapping_binding(mapping, key)
+        if unresolved:
+            return None
+        if selected is not None:
+            return self._copied_mapping_binding(mapping, site)
+        default_binding = (
+            self._capture_argument_binding(default)
+            if default is not None
+            else _ResolvedBinding(reference=_KNOWN_NON_APP_REFERENCE, string=None)
+        )
+        entries = [
+            *mapping.entries,
+            _StaticMappingEntry(key=key_node, binding=default_binding),
+        ]
+        effective = _effective_static_mapping_entries(entries)
+        synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), site)
+        return self._variadic_mapping_binding(
+            [entry.binding for entry in effective],
+            mapping_entries=effective,
+            mapping_site=synthetic_site,
+        )
+
     def _dict_constructor_binding(
         self,
         node: ast.Call,
@@ -7243,6 +7275,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and len(positional_arguments) == 1
             and self._is_proven_empty_iterable(positional_arguments[0])
         )
+
+    def _is_proven_empty_islice(
+        self,
+        arguments: Sequence[ast.expr],
+        unresolved_sources: Sequence[ast.expr],
+    ) -> bool:
+        if unresolved_sources or not 2 <= len(arguments) <= 4:
+            return False
+        if self._is_proven_empty_iterable(arguments[0]):
+            return True
+        stop = _literal_value(arguments[1] if len(arguments) == 2 else arguments[2])
+        if not isinstance(stop, int):
+            return False
+        if len(arguments) == 2:
+            return stop <= 0
+        start = _literal_value(arguments[1])
+        return isinstance(start, int) and stop <= start
 
     def _zip_result_binding(
         self,
@@ -8076,10 +8125,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             else None
         )
-        known_pop_mapping = mutated_mapping
-        known_pop_receiver = mapping_lookup_receiver
-        known_pop_key = positional_arguments[0] if positional_arguments else None
-        known_pop_has_default = len(positional_arguments) >= 2
+        known_pop_mapping = (
+            mutated_mapping
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "pop"
+            else None
+        )
+        known_pop_receiver = mapping_lookup_receiver if known_pop_mapping is not None else None
+        known_pop_key = (
+            positional_arguments[0]
+            if known_pop_mapping is not None and positional_arguments
+            else None
+        )
+        known_pop_has_default = known_pop_mapping is not None and len(positional_arguments) >= 2
         if wrapper_reference == "builtins.dict.pop" and unbound_mapping_receiver is not None:
             known_pop_mapping = unbound_mapping_receiver.mapping
             known_pop_receiver = unbound_mapping_receiver
@@ -8093,6 +8150,46 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         known_update_invalidation_count = (
             self._mapping_invalidation_counts.get(known_update_mapping, 0)
             if known_update_mapping is not None
+            else None
+        )
+        known_setdefault_mapping = (
+            mutated_mapping
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "setdefault"
+            else None
+        )
+        known_setdefault_receiver = (
+            mapping_lookup_receiver if known_setdefault_mapping is not None else None
+        )
+        known_setdefault_key = positional_arguments[0] if positional_arguments else None
+        known_setdefault_default = (
+            positional_arguments[1] if len(positional_arguments) >= 2 else None
+        )
+        if (
+            wrapper_reference == "builtins.dict.setdefault"
+            and unbound_mapping_receiver is not None
+            and unbound_mapping_receiver.mapping is not None
+            and len(positional_arguments) >= 2
+        ):
+            known_setdefault_mapping = unbound_mapping_receiver.mapping
+            known_setdefault_receiver = unbound_mapping_receiver
+            known_setdefault_key = positional_arguments[1]
+            known_setdefault_default = (
+                positional_arguments[2] if len(positional_arguments) >= 3 else None
+            )
+        elif (
+            wrapper_reference == "builtins.dict.setdefault"
+            and bound_mapping_alias_receiver is not None
+            and bound_mapping_alias_receiver.mapping is not None
+        ):
+            known_setdefault_mapping = bound_mapping_alias_receiver.mapping
+            known_setdefault_receiver = bound_mapping_alias_receiver
+            known_setdefault_key = positional_arguments[0] if positional_arguments else None
+            known_setdefault_default = (
+                positional_arguments[1] if len(positional_arguments) >= 2 else None
+            )
+        known_setdefault_invalidation_count = (
+            self._mapping_invalidation_counts.get(known_setdefault_mapping, 0)
+            if known_setdefault_mapping is not None
             else None
         )
         unbound_iterator_method = (
@@ -8332,13 +8429,20 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         elif (
             projected_result is None and wrapper_reference in _ITERABLE_FILTERING_BUILTIN_REFERENCES
         ):
-            element = (
-                self._conservative_argument_binding()
-                if unresolved_positional_sources or len(positional_arguments) != 2
-                else self._resolve_iterable_element_binding(positional_arguments[1])
-            )
-            if element is not None:
-                projected_result = self._variadic_iterable_binding([element])
+            if (
+                not unresolved_positional_sources
+                and len(positional_arguments) == 2
+                and self._is_proven_empty_iterable(positional_arguments[1])
+            ):
+                projected_result = self._variadic_iterable_binding([])
+            else:
+                element = (
+                    self._conservative_argument_binding()
+                    if unresolved_positional_sources or len(positional_arguments) != 2
+                    else self._resolve_iterable_element_binding(positional_arguments[1])
+                )
+                if element is not None:
+                    projected_result = self._variadic_iterable_binding([element])
         elif projected_result is None and wrapper_reference in _ITERABLE_CONCATENATING_REFERENCES:
             elements = [
                 self._resolve_iterable_element_binding(argument)
@@ -8382,13 +8486,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and (positional_arguments or unresolved_positional_sources)
             and wrapper_reference in _ITERABLE_PRESERVING_WRAPPER_REFERENCES
         ):
-            element = (
-                self._conservative_argument_binding()
-                if unresolved_positional_sources
-                else self._resolve_iterable_element_binding(positional_arguments[0])
-            )
-            if element is not None:
-                projected_result = self._variadic_iterable_binding([element])
+            if wrapper_reference == "itertools.islice" and self._is_proven_empty_islice(
+                positional_arguments,
+                unresolved_positional_sources,
+            ):
+                projected_result = self._variadic_iterable_binding([])
+            else:
+                element = (
+                    self._conservative_argument_binding()
+                    if unresolved_positional_sources
+                    else self._resolve_iterable_element_binding(positional_arguments[0])
+                )
+                if element is not None:
+                    projected_result = self._variadic_iterable_binding([element])
         elif (
             projected_result is None
             and (positional_arguments or unresolved_positional_sources)
@@ -8540,7 +8650,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         filters_callback = (
             id(node) in self._iterated_call_ids and wrapper_reference == "builtins.filter"
         )
-        if filters_callback and len(node.args) == 2 and not isinstance(node.args[0], ast.Constant):
+        if (
+            filters_callback
+            and len(node.args) == 2
+            and not isinstance(node.args[0], ast.Constant)
+            and not self._is_proven_empty_iterable(node.args[1])
+        ):
             iterable_binding = (
                 self._resolve_iterable_element_binding(node.args[1])
                 or self._conservative_argument_binding()
@@ -8710,6 +8825,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if replacement is not None:
                 self._replace_mapping_aliases(known_update_mapping, replacement)
                 rewritten_mappings.add(known_update_mapping)
+        if (
+            known_setdefault_mapping is not None
+            and known_setdefault_key is not None
+            and known_setdefault_invalidation_count is not None
+            and not unresolved_positional_sources
+            and not node.keywords
+            and known_setdefault_receiver is not None
+            and known_setdefault_receiver.mapping is known_setdefault_mapping
+            and self._mapping_invalidation_counts.get(known_setdefault_mapping, 0)
+            == known_setdefault_invalidation_count
+        ):
+            replacement = self._mapping_after_known_setdefault(
+                known_setdefault_mapping,
+                known_setdefault_key,
+                known_setdefault_default,
+                node,
+            )
+            if replacement is not None:
+                self._replace_mapping_aliases(known_setdefault_mapping, replacement)
+                rewritten_mappings.add(known_setdefault_mapping)
         for mapping in set(escaped_mappings):
             if mapping in rewritten_mappings:
                 continue

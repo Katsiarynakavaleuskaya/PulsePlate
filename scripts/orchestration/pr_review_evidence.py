@@ -58,6 +58,7 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         ".secrets.baseline",
         ".trivyignore",
         "AGENTS.md",
+        "Makefile",
         "RUNBOOK_AGENT.md",
         "constraints.txt",
         "docs/orchestration/AGENTS.md",
@@ -80,6 +81,8 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "scripts/orchestration/render_codex_start_prompt.py",
         "scripts/orchestration/role_dispatch_bridge.py",
         "scripts/orchestration/task_bootstrap.py",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
         "tests/test_repo_policy_guards.py",
     }
 )

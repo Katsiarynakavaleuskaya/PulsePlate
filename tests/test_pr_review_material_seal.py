@@ -2194,7 +2194,12 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
             PurePosixPath(path).name,
         )
     }
-    protected_paths = tracked_dependency_paths | {"constraints.txt"}
+    protected_paths = tracked_dependency_paths | {
+        "Makefile",
+        "constraints.txt",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
+    }
 
     assert audited_manifests
     assert audited_manifests | audited_inputs <= protected_paths
@@ -2217,6 +2222,9 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
         "requirements-dev.txt",
         "requirements-lock.txt",
         "requirements-all.txt",
+        "Makefile",
+        "tests/fixtures/dependency_security_schema.json",
+        "tests/test_dependency_security_guard.py",
     } <= protected_paths
     for path in sorted(protected_paths):
         with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
