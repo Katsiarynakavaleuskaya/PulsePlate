@@ -697,10 +697,13 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert runtime_hash_assignment is not None
     assert runtime_hash_assignment.group(1).replace(":", "") == _EXPECTED_HTML_PARSER_SHA256
     assert "trivy image --scanners vuln" not in runbook
-    assert admission.count("--config /dev/null") == 2
-    assert admission.count("--ignore-policy=") == 1
-    assert admission.count("--ignore-status=") == 1
-    assert admission.count("--vex=") == 1
+    admission_lines = [line.strip() for line in admission.splitlines()]
+    assert [line for line in admission_lines if line.startswith('"${TRIVY_BIN}" --config')] == [
+        '"${TRIVY_BIN}" --config /dev/null image --download-db-only --no-progress',
+        '"${TRIVY_BIN}" --config /dev/null image --input "${RUNNER_OCI_LAYOUT}" \\',
+    ]
+    for option in ("--ignore-policy=", "--ignore-status=", "--vex="):
+        assert [line for line in admission_lines if line.startswith(option)] == [f"{option} \\"]
     assert "--pkg-types" not in admission
     assert "[.Results[]?.Vulnerabilities[]?] | length" not in admission
     assert "TRIVY_FINDING_COUNT" not in admission
