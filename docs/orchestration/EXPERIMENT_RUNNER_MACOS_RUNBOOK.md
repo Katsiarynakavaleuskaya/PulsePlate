@@ -386,6 +386,74 @@ RUNNER_PLATFORM_MANIFEST_SHA="sha256:$("${SHASUM_BIN}" -a 256 \
   "${RUNNER_PLATFORM_MANIFEST_BLOB}" | "${AWK_BIN}" '{print $1}')"
 test "${RUNNER_PLATFORM_MANIFEST_SHA}" = "${RUNNER_PLATFORM_MANIFEST_DIGEST}"
 
+OCI_LAYER_RECEIPT="$(
+  "${RUNNER_PYTHON}" - \
+    "${RUNNER_PLATFORM_MANIFEST_BLOB}" "${RUNNER_OCI_LAYOUT}" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import re
+import stat
+import sys
+
+
+def fail(reason):
+    raise SystemExit(f"oci_layer_validation_invalid:{reason}")
+
+
+if len(sys.argv) != 3:
+    fail("arguments")
+manifest_path = Path(sys.argv[1])
+layout_path = Path(sys.argv[2])
+try:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    fail("manifest_json")
+if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 2:
+    fail("manifest_shape")
+layers = manifest.get("layers")
+if not isinstance(layers, list) or len(layers) != 5:
+    fail("layer_count")
+
+seen_digests = set()
+for descriptor in layers:
+    if not isinstance(descriptor, dict):
+        fail("descriptor_shape")
+    if descriptor.get("mediaType") != "application/vnd.oci.image.layer.v1.tar+gzip":
+        fail("media_type")
+    digest = descriptor.get("digest")
+    size = descriptor.get("size")
+    if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        fail("digest")
+    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        fail("size")
+    if digest in seen_digests:
+        fail("duplicate_digest")
+    seen_digests.add(digest)
+
+    blob_path = layout_path / "blobs" / "sha256" / digest.removeprefix("sha256:")
+    try:
+        blob_stat = blob_path.lstat()
+    except OSError:
+        fail("blob_missing")
+    if not stat.S_ISREG(blob_stat.st_mode):
+        fail("blob_not_regular")
+    if blob_stat.st_size != size:
+        fail("blob_size")
+    actual_digest = hashlib.sha256()
+    try:
+        with blob_path.open("rb") as blob:
+            for chunk in iter(lambda: blob.read(1024 * 1024), b""):
+                actual_digest.update(chunk)
+    except OSError:
+        fail("blob_read")
+    if actual_digest.hexdigest() != digest.removeprefix("sha256:"):
+        fail("blob_digest")
+
+print(f"oci_layer_count={len(layers)}")
+PY
+)"
+
 RUNNER_CONFIG_DIGEST="$("${JQ_BIN}" -er \
   'if .schemaVersion == 2 and
       .config.mediaType == "application/vnd.oci.image.config.v1+json"
@@ -492,12 +560,15 @@ printf "%s\n" \
   "runtime_contract=passed"
 ' | "${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"
 
-"${TRIVY_BIN}" image --download-db-only --no-progress
-"${TRIVY_BIN}" image --input "${RUNNER_OCI_LAYOUT}" \
+"${TRIVY_BIN}" --config /dev/null image --download-db-only --no-progress
+"${TRIVY_BIN}" --config /dev/null image --input "${RUNNER_OCI_LAYOUT}" \
   --scanners vuln \
   --severity HIGH,CRITICAL \
   --ignorefile /dev/null \
+  --ignore-policy= \
+  --ignore-status= \
   --ignore-unfixed=false \
+  --vex= \
   --exit-code 1 \
   --format json \
   --output "${RUNNER_TRIVY_REPORT}"
@@ -622,6 +693,7 @@ printf '%s\n' \
   'trivy_checksum_exit=0' \
   'image_inspect_exit=0' \
   'oci_descriptor_validation_exit=0' \
+  "${OCI_LAYER_RECEIPT}" \
   'config_history_validation_exit=0' \
   'runtime_contract_exit=0' \
   'trivy_exit=0' \
@@ -632,28 +704,34 @@ printf '%s\n' \
 
 The inspection and export must agree on the Apple-returned top index digest.
 Admission then hashes that top-index blob, requires and hashes exactly one
-`linux/arm64` manifest, resolves and hashes its config blob, and inspects only
-that manifest-bound config/history for configured proxy-secret names and every
-non-empty current secret value without printing those values. Runtime checks
-bind UID/GID 65532, Python 3.13.14, the exact CPython patch content, exact RPM
-versions, and required executables to the same digest. The downloaded official
-Trivy asset must pass its official release checksum before it scans the exact
-OCI layout. The self-contained Python coverage guard then requires Trivy schema
-v2, a `container_image` artifact, exact Red Hat 10.2 metadata, exactly one
-129-package OS result, and exactly one 136-package Python result before it
-accepts the absence of selected findings. The command writes sanitized runtime
-output, probe output, scanner JSON, and one success-only exit-status receipt
-beneath the digest-bound local evidence directory. Because `set -euo pipefail`
-is active, a failed producer or coverage guard cannot be hidden, and the
-all-zero status receipt is never written after a failed admission step.
+`linux/arm64` manifest, verifies every one of its five referenced layer blobs
+as a regular file with the descriptor's exact byte length and SHA-256, resolves
+and hashes its config blob, and inspects only that manifest-bound
+config/history for configured proxy-secret names and every non-empty current
+secret value without printing those values. Runtime checks bind UID/GID 65532,
+Python 3.13.14, the exact CPython patch content, exact RPM versions, and
+required executables to the same digest. The downloaded official Trivy asset
+must pass its official release checksum before it scans the exact OCI layout.
+Both database acquisition and image scanning ignore ambient Trivy
+configuration, while the image scan explicitly clears external ignore-policy,
+ignore-status, and VEX inputs. The self-contained Python coverage guard then
+requires Trivy schema v2, a `container_image` artifact, exact Red Hat 10.2
+metadata, exactly one 129-package OS result, and exactly one 136-package Python
+result before it accepts the absence of selected findings. The command writes
+sanitized runtime output, probe output, scanner JSON, and one success-only
+exit-status receipt beneath the digest-bound local evidence directory. Because
+`set -euo pipefail` is active, a failed producer or coverage guard cannot be
+hidden, and the all-zero status receipt is never written after a failed
+admission step.
 
 The admitted UBI image reported Red Hat 10.2 with 129 OS packages and 136
 packages in one Python dependency manifest. The unfiltered OS-and-language scan
-reported zero HIGH/CRITICAL findings under the explicit `/dev/null` ignore
-policy with unfixed findings included. The strict Apple 1.1.0 probe passed
-every required network, mount, digest, cleanup, and non-root control for the
-same digest. The sanitized build, runtime, scanner, and probe receipts are
-recorded in
+reported zero HIGH/CRITICAL findings with ambient Trivy configuration disabled,
+all external suppression inputs explicitly empty, `/dev/null` as the ignore
+file, and unfixed findings included. The strict Apple 1.1.0 probe passed every
+required network, mount, digest, cleanup, and non-root control for the same
+digest. The sanitized build, runtime, scanner, and probe receipts are recorded
+in
 `docs/security/EXPERIMENT_RUNNER_CONTAINER_CVE_REMEDIATION.md`. Run the final
 immutable-oracle review only after material freeze and do not edit tracked
 material afterward. A failed inspection, digest check, checksum, scan, or
@@ -663,9 +741,10 @@ suppression policy to force admission.
 Rollback this candidate only by preserving any failed UBI admission evidence,
 deleting the candidate image by its exact digest, and reverting the UBI
 base/package/CPython patch pin plus its image-specific tests and evidence
-documentation. The fail-closed Trivy coverage guard must remain in the
-admission path; a guard regression keeps the runner blocked and requires a
-fix-forward. The runner result contract and capability schema are unchanged.
+documentation. The fail-closed OCI layer, isolated Trivy invocation, and Trivy
+coverage guards must remain in the admission path; a guard regression keeps the
+runner blocked and requires a fix-forward. The runner result contract and
+capability schema are unchanged.
 Neither the failed slim-trixie image, incompatible Alpine recipe, nor blocked
 bookworm baseline becomes a fallback; only a separately and explicitly
 admitted immutable runner is eligible, and a mutable tag is never eligible.

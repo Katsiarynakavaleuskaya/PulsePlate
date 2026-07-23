@@ -49,19 +49,22 @@ If it is not recorded here — it does not exist.
     `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`
   - DoD: Build the exact candidate with Apple Container; preserve its immutable
     name-and-digest reference; verify the exported top index, exactly one
-    `linux/arm64` manifest, and the manifest-bound config by descriptor digest
-    and size; reject proxy-secret names and values in config/history; verify the
-    official Trivy 0.72.0 asset against its release checksum, refresh its
-    database, and scan the exact OCI layout without package-type filtering,
-    with `/dev/null` ignore policy, unfixed findings included, and zero
-    HIGH/CRITICAL OS or language-package findings; fail closed unless the report
-    proves Trivy schema v2, the exact container/Red Hat 10.2 identity, one
-    129-package OS result, and one 136-package Python result; verify exact RPM
-    versions and the CPython patch inside the same digest; verify the complete
-    107/108/129 package inventories over NEVRA, header SHA-256, payload digest,
-    and payload digest algorithm; preserve sanitized runtime, probe, scanner,
-    and success-only exit-status receipts; pass the strict Apple Container
-    probe; and accept an oracle-only result with
+    `linux/arm64` manifest, every referenced layer blob, and the manifest-bound
+    config by descriptor digest and size; require each layer to be a regular
+    file with exact descriptor size and SHA-256; reject proxy-secret names and
+    values in config/history; verify the official Trivy 0.72.0 asset against
+    its release checksum, refresh its database, and scan the exact OCI layout
+    without package-type filtering, with ambient Trivy configuration disabled,
+    external ignore-policy, ignore-status, and VEX inputs explicitly empty,
+    `/dev/null` ignore file, unfixed findings included, and zero HIGH/CRITICAL
+    OS or language-package findings; fail closed unless the report proves Trivy
+    schema v2, the exact container/Red Hat 10.2 identity, one 129-package OS
+    result, and one 136-package Python result; verify exact RPM versions and the
+    CPython patch inside the same digest; verify the complete 107/108/129
+    package inventories over NEVRA, header SHA-256, payload digest, and payload
+    digest algorithm; preserve sanitized runtime, probe, scanner, and
+    success-only exit-status receipts; pass the strict Apple Container probe;
+    and accept an oracle-only result with
     `network_budget=0`,
     `shared_tree_untouched: true`, expected backend provenance, and no host path
     or secret. Any retained vulnerable package blocks admission and requires a

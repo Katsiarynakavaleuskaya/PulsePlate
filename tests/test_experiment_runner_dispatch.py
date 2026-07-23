@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -291,6 +292,120 @@ def _run_trivy_coverage_validator(
     )
 
 
+def _oci_layer_validator_source() -> str:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    start = (
+        'OCI_LAYER_RECEIPT="$('
+        "\n"
+        '  "${RUNNER_PYTHON}" - \\\n'
+        '    "${RUNNER_PLATFORM_MANIFEST_BLOB}" "${RUNNER_OCI_LAYOUT}" <<\'PY\'\n'
+    )
+    end = '\nPY\n)"'
+    assert runbook.count(start) == 1
+    validator_and_rest = runbook.split(start, maxsplit=1)[1]
+    assert end in validator_and_rest
+    return validator_and_rest.split(end, maxsplit=1)[0]
+
+
+def _write_valid_oci_layer_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, Any]]:
+    layout_path = tmp_path / "oci-layout"
+    blobs_path = layout_path / "blobs" / "sha256"
+    blobs_path.mkdir(parents=True)
+    descriptors = []
+    for index in range(5):
+        content = f"layer-{index}".encode()
+        digest = hashlib.sha256(content).hexdigest()
+        (blobs_path / digest).write_bytes(content)
+        descriptors.append(
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": f"sha256:{digest}",
+                "size": len(content),
+            }
+        )
+    manifest = {"schemaVersion": 2, "layers": descriptors}
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest_path, layout_path, manifest
+
+
+def _run_oci_layer_validator(
+    manifest_path: Path,
+    layout_path: Path,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-", str(manifest_path), str(layout_path)],
+        check=False,
+        capture_output=True,
+        input=_oci_layer_validator_source(),
+        text=True,
+    )
+
+
+def test_oci_layer_admission_verifies_every_manifest_descriptor(tmp_path: Path) -> None:
+    manifest_path, layout_path, _manifest = _write_valid_oci_layer_fixture(tmp_path)
+
+    completed = _run_oci_layer_validator(manifest_path, layout_path)
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout == "oci_layer_count=5\n"
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "wrong_layer_count",
+        "descriptor_not_object",
+        "wrong_media_type",
+        "invalid_digest",
+        "invalid_size",
+        "duplicate_digest",
+        "missing_blob",
+        "blob_not_regular",
+        "blob_size",
+        "blob_digest",
+    ),
+)
+def test_oci_layer_admission_rejects_incomplete_or_changed_blobs(
+    case: str,
+    tmp_path: Path,
+) -> None:
+    manifest_path, layout_path, manifest = _write_valid_oci_layer_fixture(tmp_path)
+    first = manifest["layers"][0]
+    first_blob = layout_path / "blobs" / "sha256" / first["digest"].removeprefix("sha256:")
+
+    if case == "wrong_layer_count":
+        manifest["layers"].pop()
+    elif case == "descriptor_not_object":
+        manifest["layers"][0] = []
+    elif case == "wrong_media_type":
+        first["mediaType"] = "application/octet-stream"
+    elif case == "invalid_digest":
+        first["digest"] = "sha256:not-a-digest"
+    elif case == "invalid_size":
+        first["size"] = True
+    elif case == "duplicate_digest":
+        manifest["layers"][1] = dict(first)
+    elif case == "missing_blob":
+        first_blob.unlink()
+    elif case == "blob_not_regular":
+        first_blob.unlink()
+        first_blob.mkdir()
+    elif case == "blob_size":
+        first_blob.write_bytes(first_blob.read_bytes() + b"x")
+    elif case == "blob_digest":
+        first_blob.write_bytes(b"x" * first["size"])
+    else:
+        raise AssertionError(f"unknown test case: {case}")
+
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    completed = _run_oci_layer_validator(manifest_path, layout_path)
+
+    assert completed.returncode != 0
+    assert completed.stdout == ""
+
+
 def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: Path) -> None:
     completed = _run_trivy_coverage_validator(
         json.dumps(_clean_trivy_admission_report()),
@@ -511,6 +626,13 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'error("expected one linux/arm64 manifest")',
         'test "${RUNNER_PLATFORM_MANIFEST_SHA}" = "${RUNNER_PLATFORM_MANIFEST_DIGEST}"',
         '"${RUNNER_PLATFORM_MANIFEST_SIZE}"',
+        'OCI_LAYER_RECEIPT="$(',
+        '"${RUNNER_PLATFORM_MANIFEST_BLOB}" "${RUNNER_OCI_LAYOUT}" <<\'PY\'',
+        "oci_layer_validation_invalid:",
+        "len(layers) != 5",
+        "stat.S_ISREG(blob_stat.st_mode)",
+        "blob_stat.st_size != size",
+        "actual_digest.hexdigest()",
         'error("expected OCI config")',
         'test "${RUNNER_CONFIG_SHA}" = "${RUNNER_CONFIG_DIGEST}"',
         'test "${RUNNER_CONFIG_ACTUAL_SIZE}" = "${RUNNER_CONFIG_SIZE}"',
@@ -543,12 +665,15 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         '"${SHASUM_BIN}" -a 256 -c selected-checksum.txt',
         '"${TRIVY_BIN}" --version',
         "Version: 0.72.0",
-        "image --download-db-only --no-progress",
-        'image --input "${RUNNER_OCI_LAYOUT}"',
+        "--config /dev/null image --download-db-only --no-progress",
+        '--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"',
         "--scanners vuln",
         "--severity HIGH,CRITICAL",
         "--ignorefile /dev/null",
+        "--ignore-policy=",
+        "--ignore-status=",
         "--ignore-unfixed=false",
+        "--vex=",
         "--exit-code 1",
         'TRIVY_COVERAGE_RECEIPT="$(',
         '"${RUNNER_PYTHON}" - "${RUNNER_TRIVY_REPORT}" <<\'PY\'',
@@ -560,6 +685,7 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'fail("selected_findings")',
         '"${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"',
         "'runtime_contract_exit=0'",
+        '"${OCI_LAYER_RECEIPT}"',
         '"${TRIVY_COVERAGE_RECEIPT}"',
         "'apple_probe_exit=0'",
         '"${RUNNER_PYTHON}" scripts/orchestration/experiment_runner_dispatch.py probe',
@@ -571,16 +697,29 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert runtime_hash_assignment is not None
     assert runtime_hash_assignment.group(1).replace(":", "") == _EXPECTED_HTML_PARSER_SHA256
     assert "trivy image --scanners vuln" not in runbook
+    assert admission.count("--config /dev/null") == 2
+    assert admission.count("--ignore-policy=") == 1
+    assert admission.count("--ignore-status=") == 1
+    assert admission.count("--vex=") == 1
     assert "--pkg-types" not in admission
     assert "[.Results[]?.Vulnerabilities[]?] | length" not in admission
     assert "TRIVY_FINDING_COUNT" not in admission
     assert 'TRIVY_COVERAGE_RECEIPT="$("${JQ_BIN}"' not in admission
-    assert admission.index('image --input "${RUNNER_OCI_LAYOUT}"') < admission.index(
-        "experiment_runner_dispatch.py probe"
-    )
+    scan_index = admission.index('--config /dev/null image --input "${RUNNER_OCI_LAYOUT}"')
+    layer_guard_index = admission.index('OCI_LAYER_RECEIPT="$(')
+    coverage_guard_index = admission.index('TRIVY_COVERAGE_RECEIPT="$(')
+    probe_index = admission.index("experiment_runner_dispatch.py probe")
+    status_receipt_index = admission.index('>"${RUNNER_STATUS_REPORT}"')
+    assert layer_guard_index < scan_index
+    assert scan_index < coverage_guard_index < probe_index < status_receipt_index
     assert "consumes only the manifest-bound OCI layout" in security_note
+    assert "oci_layer_count=5" in security_note
+    assert "`--config /dev/null`" in security_note
     assert "`--ignorefile /dev/null`" in security_note
+    assert "`--ignore-policy=`" in security_note
+    assert "`--ignore-status=`" in security_note
     assert "`--ignore-unfixed=false`" in security_note
+    assert "`--vex=`" in security_note
     assert "## Sanitized command receipts" in security_note
     assert "`admission-exit-statuses.txt`" in security_note
     assert "rpm_inventory_sha256=bf2426b194df76bf" in security_note
@@ -599,7 +738,10 @@ def test_runner_admission_docs_limit_candidate_rollback_scope() -> None:
     normalized_runbook_rollback = " ".join(runbook_rollback.split())
     normalized_security_rollback = " ".join(security_rollback.split())
 
-    assert "fail-closed Trivy coverage guard must remain" in normalized_runbook_rollback
+    assert (
+        "fail-closed OCI layer, isolated Trivy invocation, and Trivy coverage guards must remain"
+        in normalized_runbook_rollback
+    )
     assert (
         "base/package/CPython patch pin plus its image-specific tests and evidence documentation"
         in normalized_runbook_rollback

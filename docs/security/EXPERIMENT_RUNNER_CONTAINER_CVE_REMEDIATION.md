@@ -89,15 +89,19 @@ The admission chain verified:
   `sha256:c46d2bd8a174b6b10b9ed06c1c145eeb1ca131d326c67b4c72589ea84e6d1750`;
 - manifest-bound config/history:
   `sha256:b96621e97fd78527a93f9853970d1f17baffa46e8d188e5341899fc6a1efaa1d`;
+- all five manifest-referenced OCI layer blobs as regular files with exact
+  descriptor byte lengths and SHA-256 digests;
 - no configured proxy-secret name or current secret value in config/history;
 - UID/GID `65532:65532`, Python `3.13.14`, exact patched parser checksum, and
   exact RPM/runtime tool versions;
 - exactly 129 runtime RPMs with complete inventory SHA-256
   `bf2426b194df76bfc9f26642a23b7b94f208ee11692510707d737476368a34b2`;
-- Red Hat 10.2 with 125 OS packages and one Python dependency manifest, with
+- Red Hat 10.2 with 129 OS packages and one Python dependency manifest, with
   zero HIGH/CRITICAL findings from the official checksum-verified Trivy 0.72.0
   binary across the unfiltered OS-and-language scan, using
-  `--ignorefile /dev/null`, `--ignore-unfixed=false`, and `--exit-code 1`;
+  `--config /dev/null`, `--ignorefile /dev/null`, empty `--ignore-policy=`,
+  `--ignore-status=`, and `--vex=` inputs, `--ignore-unfixed=false`, and
+  `--exit-code 1`;
 - strict Apple Container 1.1.0 isolation with every required digest, network,
   mount, root-read-only, result-volume, and cleanup control true.
 
@@ -129,12 +133,17 @@ the official checksum-verified Trivy 0.72.0 binary. The scan exited `0`. After
 the first security diff review identified an incomplete-report fail-open in the
 old jq count, the exact retained report was admitted through the new
 fail-closed self-contained Python coverage guard. Guard exit status: `0`. The
-refreshed digest-bound `admission-exit-statuses.txt` receipt was:
+subsequent exact-head diff review also required byte-level verification of
+every referenced OCI layer and explicit isolation from ambient Trivy
+configuration and suppression inputs. Those controls now run before the
+coverage guard and strict probe. The refreshed digest-bound
+`admission-exit-statuses.txt` receipt was:
 
 ```text
 trivy_checksum_exit=0
 image_inspect_exit=0
 oci_descriptor_validation_exit=0
+oci_layer_count=5
 config_history_validation_exit=0
 runtime_contract_exit=0
 trivy_exit=0
@@ -158,16 +167,18 @@ runtime_contract=passed
 {"artifact": "mac-strict-capability-5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70.json", "strict_isolation": true}
 ```
 
-The retained Trivy JSON has SHA-256
-`ef20092f8b16fae56b457c2984be4f7ab8082b34ca5cd97c39b4cba042ba80f1`.
+The retained isolated-policy Trivy JSON has SHA-256
+`a6dbec30f4cb29ade7a782ff72e470071e35622c0eaa2fbf86c36d6a052f794b`.
 It identifies `redhat` `10.2`, a `container_image` artifact, 129 OS packages,
-and 136 packages in the Python manifest. The guard requires all four
-coverage facts, Trivy schema v2, unique non-empty package identities, and
-well-formed vulnerability arrays before accepting zero selected findings.
-Missing `Results`, OS-only, Python-only, malformed, ambiguous, or non-zero
-finding reports fail closed. Because the scan command also uses `--exit-code
-1`, its recorded exit status of `0` independently confirms that the
-unsuppressed scan found zero selected findings.
+and 136 packages in the Python manifest. The layer guard rejects missing,
+duplicate, non-regular, wrong-size, or digest-mismatched blobs before Trivy
+runs. The report guard requires all four coverage facts, Trivy schema v2,
+unique non-empty package identities, and well-formed vulnerability arrays
+before accepting zero selected findings. Missing `Results`, OS-only,
+Python-only, malformed, ambiguous, or non-zero finding reports fail closed.
+Because the isolated scan command also uses `--exit-code 1`, its recorded exit
+status of `0` independently confirms that the unsuppressed scan found zero
+selected findings.
 
 The rejected exact trixie admission used the same unfiltered Trivy flags.
 Exit status: `1`. Its sanitized summary was:
@@ -210,22 +221,26 @@ complete, digest-bound build and admission receipt.
   inventory checks; `deploy/experiment-runner/Containerfile:75` preserves the
   private-index installer; and `deploy/experiment-runner/Containerfile:119`
   defines the exact non-root runtime package contract.
-- `tests/test_experiment_runner_dispatch.py:294` proves the complete clean
-  report; `tests/test_experiment_runner_dispatch.py:342` rejects incomplete,
-  malformed, and non-zero-finding reports; and
-  `tests/test_experiment_runner_dispatch.py:498` guards the executable runbook
-  admission contract.
-- `tests/test_experiment_runner_dispatch.py:362` guards stage/base identity;
-  `tests/test_experiment_runner_dispatch.py:376` guards source and patch
-  verification; `tests/test_experiment_runner_dispatch.py:406` enumerates exact
-  packages and inventories; and
-  `tests/test_experiment_runner_dispatch.py:445` rejects suppression and
+- `tests/test_experiment_runner_dispatch.py:345` proves complete layer
+  verification; `tests/test_experiment_runner_dispatch.py:370` rejects
+  incomplete or changed blobs; `tests/test_experiment_runner_dispatch.py:409`
+  proves the complete clean scanner report; and
+  `tests/test_experiment_runner_dispatch.py:457` rejects incomplete,
+  malformed, and non-zero-finding reports.
+- `tests/test_experiment_runner_dispatch.py:477` guards stage/base identity;
+  `tests/test_experiment_runner_dispatch.py:491` guards source and patch
+  verification; `tests/test_experiment_runner_dispatch.py:521` enumerates exact
+  packages and inventories; `tests/test_experiment_runner_dispatch.py:560`
+  rejects suppression and dependency-policy weakening; and
+  `tests/test_experiment_runner_dispatch.py:613` guards the complete executable
+  runbook admission order.
   dependency-policy weakening.
 - `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:230` records the
   negative candidates; its executable digest-bound admission sequence starts
-  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`, and its
-  fail-closed Trivy coverage call is at
-  `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:504`.
+  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`, its layer
+  verifier is at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:389`,
+  and its fail-closed Trivy coverage call is at
+  `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:575`.
 - `docs/roadmap/BACKLOG_LEDGER.md:27` keeps the prerequisite open until its PR is
   merged; ledger closure remains a later docs-only action.
 
@@ -235,12 +250,16 @@ Do not use the source diff as scan evidence. A material rebuild requires a new
 canonical Apple `build-image` result and the complete runbook admission chain.
 Admission requires all of the following:
 
-1. The image index, one `linux/arm64` manifest, config, and runtime metadata
-   cryptographically bind to the Apple-returned digest.
+1. The image index, one `linux/arm64` manifest, all five referenced layer
+   blobs, config, and runtime metadata cryptographically bind to the
+   Apple-returned digest; every layer is a regular file whose size and SHA-256
+   match its descriptor.
 2. The verified official Trivy 0.72.0 binary reports zero HIGH/CRITICAL OS or
    language-package findings without package-type filtering, ignore policy,
-   unfixed filtering, or severity reduction. The executable runbook Python
-   guard must additionally prove the exact schema, artifact/OS identity, one
+   unfixed filtering, or severity reduction. Both database and scan commands
+   ignore ambient configuration; all external ignore-policy, ignore-status,
+   and VEX inputs are explicitly empty. The executable runbook Python guard
+   must additionally prove the exact schema, artifact/OS identity, one
    129-package Red Hat result, and one 136-package Python result before the
    zero-finding receipt is written.
 3. Exact Python/RPM/CPython patch and non-root assertions pass inside that same
@@ -260,10 +279,10 @@ reason to retry with weaker controls.
 If a later current-head or runtime regression appears, preserve the failed
 evidence, keep the vulnerable runner blocked, and revert only the UBI
 base/package/CPython patch candidate plus its image-specific tests and evidence
-documentation. The fail-closed Trivy coverage guard must not be removed to
-restore execution; a guard regression requires a fix-forward while the runner
-remains blocked. The result contract and capability schema are
-unchanged. Neither the failed trixie image, incompatible Alpine recipe, nor
-blocked bookworm baseline is a fallback. Restore only a separately admitted
-immutable runner reference; never downgrade, suppress, or use a mutable tag to
-restore execution.
+documentation. The fail-closed OCI layer guard, isolated Trivy invocation, and
+Trivy coverage guard must not be removed to restore execution; a guard
+regression requires a fix-forward while the runner remains blocked. The result
+contract and capability schema are unchanged. Neither the failed trixie image,
+incompatible Alpine recipe, nor blocked bookworm baseline is a fallback.
+Restore only a separately admitted immutable runner reference; never
+downgrade, suppress, or use a mutable tag to restore execution.
