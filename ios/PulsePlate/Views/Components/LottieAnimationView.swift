@@ -1,98 +1,89 @@
 import SwiftUI
 import Lottie
-import OSLog
+
+enum FitChefLottieAsset: String, CaseIterable {
+    case blink = "fitchef_blink"
+}
+
+enum FitChefLottiePlaybackPolicy: Equatable {
+    case animated
+    case staticFallback(FitChefLottieFallbackReason)
+
+    static func resolve(reduceMotion: Bool, animationLoaded: Bool) -> Self {
+        if reduceMotion {
+            return .staticFallback(.reduceMotion)
+        }
+        guard animationLoaded else {
+            return .staticFallback(.assetUnavailable)
+        }
+        return .animated
+    }
+
+    var statusText: String {
+        switch self {
+        case .animated:
+            return "Animated"
+        case .staticFallback(.reduceMotion):
+            return "Static image: Reduce Motion is enabled"
+        case .staticFallback(.assetUnavailable):
+            return "Static image: animation unavailable"
+        }
+    }
+}
+
+enum FitChefLottieFallbackReason: Equatable {
+    case reduceMotion
+    case assetUnavailable
+}
 
 /// RU: Компонент для Lottie анимаций FitChef
 /// EN: Component for FitChef Lottie animations
 struct LottieAnimationView: View {
-    let animationName: String
-    @State private var animation: LottieAnimation?
-    @State private var isPlaying = false
+    let asset: FitChefLottieAsset
+    var showsPlaybackStatus = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let logger = Logger(subsystem: "PulsePlate", category: "LottieAnimationView")
+    private let animation: LottieAnimation?
+
+    init(asset: FitChefLottieAsset, showsPlaybackStatus: Bool = false) {
+        self.asset = asset
+        self.showsPlaybackStatus = showsPlaybackStatus
+        animation = LottieAnimation.named(asset.rawValue, bundle: .main)
+    }
 
     var body: some View {
-        Group {
-            if let animation = animation {
-                LottieView(animation: animation)
-                    .playing(loopMode: .loop)
-                    .onAppear {
-                        isPlaying = true
-                    }
-                    .onDisappear {
-                        isPlaying = false
-                    }
-            } else {
-                // Fallback image if animation fails to load
-                Image("FitChef")
-                    .resizable()
-                    .scaledToFit()
+        VStack(spacing: 8) {
+            Group {
+                if playbackPolicy == .animated, let animation {
+                    LottieView(animation: animation)
+                        .playing(loopMode: .loop)
+                } else {
+                    Image("FitChef")
+                        .resizable()
+                        .scaledToFit()
+                }
             }
-        }
-        .onAppear {
-            loadAnimation(named: animationName)
-        }
-        .onChange(of: animationName) { newValue in
-            loadAnimation(named: newValue)
+            .accessibilityLabel("FitChef blink animation")
+            .accessibilityValue(playbackPolicy.statusText)
+
+            if showsPlaybackStatus {
+                Text(playbackPolicy.statusText)
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
         }
     }
 
-    private func loadAnimation(named name: String) {
-        guard !name.isEmpty else {
-            animation = nil
-            Self.logger.warning("Empty Lottie animation name; clearing animation.")
-            return
-        }
-
-        // NOTE: if Lottie JSON is packaged in a module bundle (SPM), .main will fail.
-        let loaded = LottieAnimation.named(name, bundle: .main)
-        animation = loaded
-
-        if loaded != nil {
-            Self.logger.debug("Lottie animation loaded: \(name, privacy: .public)")
-        } else {
-            Self.logger.error("Failed to load Lottie animation: \(name, privacy: .public)")
-        }
+    private var playbackPolicy: FitChefLottiePlaybackPolicy {
+        .resolve(reduceMotion: reduceMotion, animationLoaded: animation != nil)
     }
 }
 
 /// RU: Анимированный FitChef с Lottie анимацией
 /// EN: Animated FitChef with Lottie animation
 struct AnimatedFitChefLottie: View {
-    @State private var currentAnimation = 0
-    @State private var animationTimer: Timer?
-
-    private let animations = [
-        "fitchef_blink",      // Моргание
-        "fitchef_wave",       // Махание лапкой
-        "fitchef_heartbeat",  // Слежение за пульсом
-        "fitchef_idle"        // Простая анимация
-    ]
-
     var body: some View {
-        LottieAnimationView(animationName: animations[currentAnimation])
-            .onAppear {
-                startAnimation()
-            }
-            .onDisappear {
-                stopAnimation()
-            }
-    }
-
-    private func startAnimation() {
-        // Stop any existing timer first
-        stopAnimation()
-
-        animationTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            withAnimation(.easeInOut(duration: 0.3)) {
-                currentAnimation = (currentAnimation + 1) % animations.count
-            }
-        }
-    }
-
-    private func stopAnimation() {
-        animationTimer?.invalidate()
-        animationTimer = nil
+        LottieAnimationView(asset: .blink)
     }
 }
 
@@ -100,23 +91,13 @@ struct AnimatedFitChefLottie: View {
 /// EN: Animated speech bubble with Lottie FitChef
 struct AnimatedMascotBubbleLottie: View {
     var textKey: LocalizedStringKey
-    @State private var showAnimation = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            if showAnimation {
-                AnimatedFitChefLottie()
-                    .frame(width: 48, height: 48)
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
-            } else {
-                Image("FitChef")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
-            }
+            AnimatedFitChefLottie()
+                .frame(width: 48, height: 48)
+                .clipShape(Circle())
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(textKey)
@@ -137,29 +118,12 @@ struct AnimatedMascotBubbleLottie: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("FitChef, ") + Text(textKey))
-        .onAppear {
-            // Show animation after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    showAnimation = true
-                }
-            }
-        }
     }
 }
 
 /// RU: Тестовый экран для Lottie анимаций
 /// EN: Test screen for Lottie animations
 struct LottieTestView: View {
-    @State private var currentAnimation = 0
-
-    private let animations = [
-        "fitchef_blink",
-        "fitchef_wave",
-        "fitchef_heartbeat",
-        "fitchef_idle"
-    ]
-
     var body: some View {
         VStack(spacing: 20) {
             Text("Lottie Animation Test")
@@ -167,39 +131,13 @@ struct LottieTestView: View {
                 .bold()
                 .foregroundStyle(.white)
 
-            // Animation Player
-            LottieAnimationView(animationName: animations[currentAnimation])
+            LottieAnimationView(asset: .blink, showsPlaybackStatus: true)
                 .frame(width: 200, height: 200)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
 
-            // Controls
-            HStack(spacing: 20) {
-                Button("Previous") {
-                    currentAnimation = (currentAnimation - 1 + animations.count) % animations.count
-                }
-                .buttonStyle(.bordered)
-                .foregroundStyle(.white)
-
-                Button("Next") {
-                    currentAnimation = (currentAnimation + 1) % animations.count
-                }
-                .buttonStyle(.bordered)
-                .foregroundStyle(.white)
-            }
-
-            // Animation Info
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Current Animation: \(currentAnimation + 1)/\(animations.count)")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-
-                Text("File: \(animations[currentAnimation])")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-            }
-            .padding()
-            .background(Color.white.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            Text("File: \(FitChefLottieAsset.blink.rawValue)")
+                .font(.caption)
+                .foregroundStyle(.gray)
 
             Spacer()
         }
@@ -212,7 +150,7 @@ struct LottieTestView: View {
 
 #Preview {
     VStack(spacing: 20) {
-        LottieAnimationView(animationName: "fitchef_blink")
+        LottieAnimationView(asset: .blink)
             .frame(width: 100, height: 100)
 
         AnimatedMascotBubbleLottie(textKey: "Добро пожаловать в PulsePlate!")

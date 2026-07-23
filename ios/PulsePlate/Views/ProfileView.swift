@@ -69,8 +69,8 @@ struct ProfileView: View {
                         Button("Test Bundle Files") {
                             showBundleTest = true
                         }
-                        Button("Test Lottie Animation") {
-                            // TODO: Add Lottie test
+                        NavigationLink("Test Lottie Animation") {
+                            LottieTestView()
                         }
                     }
                 }
