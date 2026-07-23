@@ -7,7 +7,7 @@ import asyncio
 from decimal import Decimal
 from numbers import Number
 from pathlib import Path
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1088,6 +1088,59 @@ def test_generate_plate_response_rejects_non_numeric_response_bound_output(
     assert "fiber" not in str(exc_info.value.detail).casefold()
 
 
+@pytest.mark.parametrize(
+    "container_case",
+    [
+        pytest.param("mappingproxy-macros", id="mappingproxy-macros"),
+        pytest.param("mappingproxy-portions", id="mappingproxy-portions"),
+        pytest.param("tuple-layout", id="tuple-layout"),
+        pytest.param("tuple-meals", id="tuple-meals"),
+    ],
+)
+def test_generate_plate_response_rejects_coercible_numeric_containers(
+    monkeypatch: pytest.MonkeyPatch,
+    container_case: str,
+) -> None:
+    """Pydantic-coercible containers cannot bypass raw dependency validation."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _coercible_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate_with_meal()
+        if container_case == "mappingproxy-macros":
+            macros = dict(payload["macros"])
+            macros["fiber_g"] = True
+            payload["macros"] = MappingProxyType(macros)
+        elif container_case == "mappingproxy-portions":
+            portions = dict(payload["portions"])
+            portions["protein_palm"] = "3.2"
+            payload["portions"] = MappingProxyType(portions)
+        elif container_case == "tuple-layout":
+            layout = [dict(item) for item in payload["layout"]]
+            layout[0]["fraction"] = "0.35"
+            payload["layout"] = tuple(layout)
+        else:
+            meals = [dict(meal) for meal in payload["meals"]]
+            meals[0]["kcal"] = "500"
+            payload["meals"] = tuple(meals)
+        return payload
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_coercible_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert container_case not in str(exc_info.value.detail)
+
+
 @pytest.mark.parametrize("response_field", ["portions", "layout"])
 @pytest.mark.parametrize(
     "numeric_token",
@@ -1296,8 +1349,12 @@ def test_numeric_dependency_helpers_reject_conversion_and_shape_failures() -> No
         pro_nutrition_plate._ensure_finite_numeric_value(None)
     with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
         pro_nutrition_plate._ensure_finite_numeric_value(object())
-    pro_nutrition_plate._ensure_finite_plate_response_output("not a mapping")
-    pro_nutrition_plate._ensure_finite_plate_response_output({"meals": ["not a meal mapping"]})
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._ensure_finite_plate_response_output("not a mapping")
+    malformed_meals = _valid_generated_plate()
+    malformed_meals["meals"] = ["not a meal mapping"]
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._ensure_finite_plate_response_output(malformed_meals)
 
 
 def test_micronutrient_helpers_reject_malformed_provider_values() -> None:

@@ -157,7 +157,9 @@ def _ensure_finite_numeric_mapping(value: Any) -> None:
     """Validate values in a schema-defined numeric mapping."""
 
     if not isinstance(value, dict):
-        return
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned unsafe numeric output"
+        )
     for nested_value in value.values():
         _ensure_finite_numeric_value(nested_value)
 
@@ -199,29 +201,46 @@ def _ensure_finite_plate_response_output(value: Any) -> None:
 
     _ensure_finite_dependency_output(value)
     if not isinstance(value, dict):
-        return
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned malformed response output"
+        )
 
     for key in ("kcal", "meals_per_day"):
         if key in value:
             _ensure_finite_numeric_value(value[key])
-    for key in ("macros", "portions", "day_micros"):
+    for key in ("macros", "portions"):
         _ensure_finite_numeric_mapping(value.get(key))
+    if "day_micros" in value:
+        _ensure_finite_numeric_mapping(value["day_micros"])
 
     layout = value.get("layout")
-    if isinstance(layout, list):
-        for item in layout:
-            if isinstance(item, dict) and "fraction" in item:
-                _ensure_finite_numeric_value(item["fraction"])
+    if not isinstance(layout, list):
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned malformed response output"
+        )
+    for item in layout:
+        if not isinstance(item, dict):
+            raise _NonFinitePlateDependencyOutputError(
+                "Plate dependency returned malformed response output"
+            )
+        if "fraction" in item:
+            _ensure_finite_numeric_value(item["fraction"])
 
     meals = value.get("meals")
-    if isinstance(meals, list):
-        for meal in meals:
-            if not isinstance(meal, dict):
-                continue
-            for key in ("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g"):
-                if key in meal:
-                    _ensure_finite_numeric_value(meal[key])
-            _ensure_finite_numeric_mapping(meal.get("micros"))
+    if not isinstance(meals, list):
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned malformed response output"
+        )
+    for meal in meals:
+        if not isinstance(meal, dict):
+            raise _NonFinitePlateDependencyOutputError(
+                "Plate dependency returned malformed response output"
+            )
+        for key in ("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g"):
+            if key in meal:
+                _ensure_finite_numeric_value(meal[key])
+        if meal.get("micros") is not None:
+            _ensure_finite_numeric_mapping(meal["micros"])
 
 
 PlateGenerator = Callable[..., dict[str, Any]]
