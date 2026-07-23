@@ -345,6 +345,35 @@ def _comment_body_digest(body: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _review_thread_inventory(
+    threads: tuple[ReviewThreadEvidence, ...],
+) -> tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...]:
+    """Bind the complete review-thread state without depending on API ordering."""
+
+    return tuple(
+        sorted(
+            (
+                thread.node_id,
+                thread.is_resolved,
+                tuple(
+                    sorted(
+                        (
+                            comment.url,
+                            comment.created_at,
+                            comment.author_login,
+                            comment.author_association,
+                            comment.original_commit_sha or "",
+                            _comment_body_digest(comment.body),
+                        )
+                        for comment in thread.comments
+                    )
+                ),
+            )
+            for thread in threads
+        )
+    )
+
+
 def _pre_closeout_dirty_paths() -> set[str]:
     """Return all tracked, staged, or untracked paths visible to a closeout commit."""
 
@@ -1344,6 +1373,7 @@ def main() -> int:
         final_actionable_items = _collect_actionable_items(
             repo=repo, pr_number=pr_number, token=token
         )
+        final_review_threads = fetch_review_threads(repo, pr_number, token=token)
         if final_pr_context != (pr_number, repo, is_draft, pr_body, head_ref):
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: live PR body or draft state changed during validation"
@@ -1351,6 +1381,12 @@ def main() -> int:
         if _actionable_inventory(final_actionable_items) != _actionable_inventory(actionable_items):
             raise CommitIdentityError(
                 "SNAPSHOT_CHANGED: actionable bot review inventory changed during validation"
+            )
+        if _review_thread_inventory(final_review_threads) != _review_thread_inventory(
+            review_threads
+        ):
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: review-thread inventory changed during validation"
             )
         if args.pre_closeout and expected_mapping_path is not None:
             if _local_head_sha() != snapshot.head_sha:

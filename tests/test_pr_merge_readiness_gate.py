@@ -27,7 +27,9 @@ from scripts.orchestration.pr_commit_identity import (
     PrCommitEvidence,
     PrSnapshot,
     RepositoryCommitRef,
+    ReviewCommentEvidence,
     ReviewCreditOutageEvidence,
+    ReviewThreadEvidence,
     SecurityOutageOverrideEvidence,
 )
 from scripts.orchestration.pr_review_evidence import (
@@ -522,6 +524,99 @@ def test_pre_closeout_fails_when_actionable_inventory_changes_during_validation(
 
     assert merge_gate.main() == 1
     assert "actionable bot review inventory changed" in capsys.readouterr().out
+
+
+def _review_thread(*, resolved: bool = False) -> ReviewThreadEvidence:
+    return ReviewThreadEvidence(
+        node_id="PRRT_thread",
+        is_resolved=resolved,
+        comments=(
+            ReviewCommentEvidence(
+                url="https://github.com/owner/repo/pull/42#discussion_r1",
+                body="Please keep this invariant fail closed.",
+                created_at="2026-07-16T00:43:26Z",
+                author_login="reviewer",
+                author_association="MEMBER",
+                original_commit_sha="a" * 40,
+            ),
+        ),
+    )
+
+
+def test_pre_closeout_fails_when_review_thread_inventory_changes_during_validation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(
+            "https://github.com/owner/repo/pull/42#issuecomment-previous"
+        ),
+        actionable_items=[],
+    )
+    thread_snapshots = iter(((), (_review_thread(),)))
+    monkeypatch.setattr(
+        merge_gate,
+        "fetch_review_threads",
+        lambda *_a, **_k: next(thread_snapshots),
+    )
+
+    assert merge_gate.main() == 1
+    assert "review-thread inventory changed during validation" in capsys.readouterr().out
+
+
+def test_pre_closeout_accepts_stable_review_thread_inventory(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _configure_pre_closeout_main(
+        monkeypatch,
+        artifact=_pre_closeout_artifact(
+            "https://github.com/owner/repo/pull/42#issuecomment-previous"
+        ),
+        actionable_items=[],
+    )
+    stable_thread = _review_thread(resolved=True)
+    fetch_count = 0
+
+    def fetch_threads(*_args: Any, **_kwargs: Any) -> tuple[ReviewThreadEvidence, ...]:
+        nonlocal fetch_count
+        fetch_count += 1
+        return (stable_thread,)
+
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", fetch_threads)
+
+    assert merge_gate.main() == 0
+    assert fetch_count == 2
+    assert "pre-closeout-review-governance: passed" in capsys.readouterr().out
+
+
+def test_review_thread_inventory_is_order_independent_and_content_bound() -> None:
+    first = _review_thread()
+    second = ReviewThreadEvidence(
+        node_id="PRRT_other",
+        is_resolved=True,
+        comments=first.comments,
+    )
+
+    assert merge_gate._review_thread_inventory(
+        (first, second)
+    ) == merge_gate._review_thread_inventory((second, first))
+
+    edited_comment = ReviewCommentEvidence(
+        url=first.comments[0].url,
+        body="Changed review content.",
+        created_at=first.comments[0].created_at,
+        author_login=first.comments[0].author_login,
+        author_association=first.comments[0].author_association,
+        original_commit_sha=first.comments[0].original_commit_sha,
+    )
+    edited = ReviewThreadEvidence(
+        node_id=first.node_id,
+        is_resolved=first.is_resolved,
+        comments=(edited_comment,),
+    )
+    assert merge_gate._review_thread_inventory((edited,)) != merge_gate._review_thread_inventory(
+        (first,)
+    )
 
 
 def test_pre_closeout_fails_when_bot_edits_existing_actionable_body(
