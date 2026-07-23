@@ -734,9 +734,39 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    Historical PR `#2142` review-credit override receipts remain readable
    everywhere but are live-authenticated only for PR `#2142`; their old
    multi-reference authoring flags are not active CLI options for later PRs.
-6. Commit that artifact once, update the PR body link without a Git commit, and
-   run the authenticated strict wrapper.
-7. A later validated duplicate uses the exact structured reply contract and an
+6. Update the live PR body with exactly one real same-repository Markdown link
+   through
+   `https://github.com/<owner>/<repo>/blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`.
+   The path must use the authenticated PR `head.ref` exactly; this supports
+   slash-containing branch names without accepting extra file-path segments.
+   The link must be a standalone bullet, and the decoded canonical URL may
+   occur only once in the body; raw HTML/code examples and a plain repo-relative
+   `docs/review/...` href do not count. Then validate the still-uncommitted
+   mapping before its sole closeout commit:
+
+   ```bash
+   export GH_TOKEN="..."
+   export GITHUB_TOKEN="..."
+   python scripts/orchestration/check_merge_ready.py \
+     --pr-number <PR_NUMBER> \
+     --repo Katsiarynakavaleuskaya/PulsePlate \
+     --pre-closeout \
+     --require-auth
+   ```
+
+   The canonical mapping artifact must be the only dirty path. This pass must
+   cover every live actionable bot issue comment, bot inline comment, and
+   top-level bot review explicitly; a child-comment mapping does not cover its
+   actionable top-level review. The validator re-reads the live body,
+   content-bound actionable inventory, and local dirty-path set before PASS and
+   fails closed if any changes during validation. It intentionally does not require resolved
+   threads, current-head CI, or the review wait window and is not
+   merge-readiness evidence.
+7. Only after that pass, commit the artifact once and push it. Then run the
+   unchanged authenticated strict wrapper without `--pre-closeout`; this
+   post-push pass owns thread resolution, current-head CI, and the final merge
+   verdict.
+8. A later validated duplicate uses the exact structured reply contract and an
    explicit thread resolution, followed by one status-check cycle only.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.

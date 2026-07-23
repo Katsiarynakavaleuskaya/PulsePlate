@@ -2735,6 +2735,52 @@ def test_scan_receipt_accepts_v011_remote_hardening_and_supplemental_artifacts(
     }
 
 
+def test_scan_receipt_accepts_exact_redundant_diff_revision(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["target"].update(
+        remote="https://github.com/Katsiarynakavaleuskaya/PulsePlate",
+        revision=HEAD_SHA,
+    )
+    _write_json(manifest_path, manifest)
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["head_revision"] == HEAD_SHA
+
+
+@pytest.mark.parametrize("revision", [None, True, 1, "f" * 40])
+def test_scan_receipt_rejects_non_exact_redundant_diff_revision(
+    tmp_path: Path,
+    revision: Any,
+) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["target"]["revision"] = revision
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="revision must exactly match"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_revision_cannot_override_expected_head(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["target"]["revision"] = HEAD_SHA
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="expected Git diff"):
+        ingest_codex_security_receipt(
+            manifest_path,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha="f" * 40,
+        )
+
+
 @pytest.mark.parametrize(
     ("mutate", "error"),
     [

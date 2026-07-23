@@ -277,6 +277,27 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     once. A repeated trusted Codex unavailable-ref ancestry finding on the same
     digest is handled by an authorized structured reply in the resolved thread;
     it does not create another docs commit or restart review/security scans.
+11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
+    mapping and after the live PR body contains its canonical link, but before
+    the sole mapping commit, run
+    `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER>
+    --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth`
+    with both `GH_TOKEN` and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
+    every live actionable bot issue comment, bot inline comment, and top-level
+    bot review in the local artifact and require exactly one real same-repository
+    Markdown link through
+    `blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md` in the live
+    PR body. The ref path must exactly match the PR's authenticated `head.ref`;
+    the link must occupy its own bullet line, the decoded canonical URL must
+    occur exactly once, and repo-relative or non-rendered HTML/code examples are
+    invalid in PR-body context.
+    The canonical mapping artifact must be the only dirty path both before and
+    after the live validation calls. Child inline mappings do not substitute
+    for an actionable top-level review in this pre-commit pass. A PASS
+    authorizes only the one closeout commit: it does not
+    require thread resolution, current-head CI, or the review wait window, and
+    it must never be presented as merge-readiness evidence. After push, the
+    unchanged full strict wrapper remains mandatory.
 
 **Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
 
