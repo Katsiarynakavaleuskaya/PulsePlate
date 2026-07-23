@@ -280,8 +280,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before
     the sole mapping commit, run
-    `check_merge_ready.py --pre-closeout --require-auth` with both `GH_TOKEN`
-    and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
+    `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER>
+    --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth`
+    with both `GH_TOKEN` and `GITHUB_TOKEN` exported. This fail-closed pass must explicitly cover
     every live actionable bot issue comment, bot inline comment, and top-level
     bot review in the local artifact and require exactly one real same-repository
     Markdown link through

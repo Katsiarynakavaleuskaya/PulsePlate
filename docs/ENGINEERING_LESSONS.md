@@ -791,7 +791,8 @@ bot-review cycle.
 
 ### Rule
 After the closeout tool writes the local canonical artifact and after the live
-PR body is updated, run the local strict wrapper with `--pre-closeout
+PR body is updated, run `python scripts/orchestration/check_merge_ready.py
+--pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout
 --require-auth` before creating the sole mapping commit. Export both `GH_TOKEN`
 and `GITHUB_TOKEN`. The canonical mapping artifact must be the only dirty path.
 The pass must compare the uncommitted artifact with all live actionable bot

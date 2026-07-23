@@ -536,6 +536,17 @@ def test_wrapper_requires_complete_local_context() -> None:
         merge_ready.main(["--pr-number", "1005"])
 
 
+@pytest.mark.parametrize("guidance_path", ["AGENTS.md", "docs/ENGINEERING_LESSONS.md"])
+def test_pre_closeout_guidance_includes_complete_local_context(guidance_path: str) -> None:
+    guidance = (Path(__file__).resolve().parents[1] / guidance_path).read_text(encoding="utf-8")
+    normalized = " ".join(guidance.split())
+
+    assert (
+        "python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> "
+        "--repo Katsiarynakavaleuskaya/PulsePlate --pre-closeout --require-auth" in normalized
+    )
+
+
 def test_wrapper_rejects_mixed_event_and_local_modes() -> None:
     with pytest.raises(SystemExit):
         merge_ready.main(
