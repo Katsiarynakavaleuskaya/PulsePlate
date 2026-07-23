@@ -234,7 +234,6 @@ complete, digest-bound build and admission receipt.
   rejects suppression and dependency-policy weakening; and
   `tests/test_experiment_runner_dispatch.py:613` guards the complete executable
   runbook admission order.
-  dependency-policy weakening.
 - `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:230` records the
   negative candidates; its executable digest-bound admission sequence starts
   at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`, its layer
