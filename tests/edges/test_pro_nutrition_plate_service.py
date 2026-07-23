@@ -1051,6 +1051,43 @@ def test_generate_plate_response_rejects_boolean_response_bound_output(
     assert response_field not in str(exc_info.value.detail)
 
 
+@pytest.mark.parametrize(
+    "invalid_numeric",
+    [
+        pytest.param(None, id="none"),
+        pytest.param(object(), id="object"),
+        pytest.param([], id="list"),
+    ],
+)
+def test_generate_plate_response_rejects_non_numeric_response_bound_output(
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_numeric: object,
+) -> None:
+    """Malformed provider values cannot be replaced by a fabricated fiber minimum."""
+
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+    def _invalid_plate(**_kwargs: object) -> dict[str, Any]:
+        payload = _valid_generated_plate()
+        payload["macros"]["fiber_g"] = invalid_numeric
+        return payload
+
+    dependencies = PlateServiceDependencies(
+        make_plate=_invalid_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(generate_plate_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == ENHANCED_PLATE_GENERATION_FAILED_DETAIL
+    assert "fiber" not in str(exc_info.value.detail).casefold()
+
+
 @pytest.mark.parametrize("response_field", ["portions", "layout"])
 @pytest.mark.parametrize(
     "numeric_token",
@@ -1255,6 +1292,10 @@ def test_numeric_dependency_helpers_reject_conversion_and_shape_failures() -> No
         pro_nutrition_plate._ensure_finite_dependency_output(_ExplodingNumber())
     with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
         pro_nutrition_plate._ensure_finite_numeric_value("12.5")
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._ensure_finite_numeric_value(None)
+    with pytest.raises(pro_nutrition_plate._NonFinitePlateDependencyOutputError):
+        pro_nutrition_plate._ensure_finite_numeric_value(object())
     pro_nutrition_plate._ensure_finite_plate_response_output("not a mapping")
     pro_nutrition_plate._ensure_finite_plate_response_output({"meals": ["not a meal mapping"]})
 

@@ -146,6 +146,10 @@ def _ensure_finite_numeric_value(value: Any) -> None:
         raise _NonFinitePlateDependencyOutputError(
             "Plate dependency returned unsafe numeric output"
         )
+    if not isinstance(value, Number):
+        raise _NonFinitePlateDependencyOutputError(
+            "Plate dependency returned unsafe numeric output"
+        )
     _ensure_finite_dependency_output(value)
 
 
