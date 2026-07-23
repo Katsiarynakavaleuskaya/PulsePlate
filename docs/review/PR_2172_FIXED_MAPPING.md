@@ -34,6 +34,16 @@ Evidence: tests/test_ios_lottie_contract.py and ios/PulsePlateTests/LottieAssetC
 Reason: The docstring-percentage warning is not applicable to Swift XCTest methods or descriptive pytest contract tests and is advisory rather than a repository contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2172#issuecomment-5051674761
 
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/pr_review_closeout.py:527-593 generates the canonical concise packet, experiment, disposition, and seal fields; docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:41-75 defines those fields; authenticated closeout validation passed.
+Reason: Raw command logs and exit-code transcripts are not part of the canonical mapping schema. Replacing generated proof fields with unbounded raw logs would create a second evidence authority and invalidate deterministic artifact generation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2172#discussion_r3635357584
+
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:27-39 separates Phase 2 artifact evidence from Phase 3 merge readiness; lines 70-75 require exactly the discussion-pass checkbox contract rendered by scripts/orchestration/pr_review_closeout.py:546-550.
+Reason: A second merge-readiness checklist inside the mapping is not a repository contract. Current-head readiness remains fail-closed in check_merge_ready.py and must not be represented as mutable mapping checkboxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2172#discussion_r3635357589
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
