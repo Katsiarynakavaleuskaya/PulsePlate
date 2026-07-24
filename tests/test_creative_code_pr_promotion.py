@@ -8,7 +8,12 @@ from typing import Any, cast
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
-from scripts.orchestration import creative_code_patch_workspace, creative_code_pr_promotion
+from scripts.orchestration import (
+    creative_code_patch_builder,
+    creative_code_patch_generation,
+    creative_code_patch_workspace,
+    creative_code_pr_promotion,
+)
 from scripts.orchestration.creative_code_patch_contract import (
     build_creative_code_patch_build_request,
     build_creative_code_patch_result,
@@ -112,8 +117,16 @@ def _write_json(path: Path, payload: Any) -> None:
 def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
     patch_root = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs"
     promotion_root = repo / "artifacts" / "orchestration" / "creative_code" / "promotions"
+    creative_root = repo / "artifacts" / "orchestration" / "creative_code"
     monkeypatch.setattr(creative_code_patch_workspace, "REPO_ROOT", repo)
     monkeypatch.setattr(creative_code_patch_workspace, "ARTIFACT_ROOT", patch_root)
+    monkeypatch.setattr(creative_code_patch_generation, "REPO_ROOT", repo)
+    monkeypatch.setattr(creative_code_patch_generation, "CREATIVE_CODE_ROOT", creative_root)
+    monkeypatch.setattr(
+        creative_code_patch_generation,
+        "PATCH_GENERATION_ROOT",
+        creative_root / "patch_generation",
+    )
     monkeypatch.setattr(creative_code_pr_promotion, "REPO_ROOT", repo)
     monkeypatch.setattr(creative_code_pr_promotion, "PROMOTION_ROOT", promotion_root)
 
@@ -138,19 +151,29 @@ def _make_patch_run(
     variant = _reference_variant(bundle)
     patch_text = _candidate_patch()
     patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
-    runner_result = {
-        "experiment_id": "exp-pr3-reference",
-        "status": "accepted" if accepted else "rejected",
-        "failure_class": None if accepted else "guard_failure",
-        "mutated_paths": ["core/rag/orchestration.py"],
-        "budget_observations": {
-            "oracle_commands_configured": 1,
-            "attempts": 1,
-            "retries_consumed": 0,
-        },
-        "oracle_results": [{"status": "passed"}] if accepted else [],
-        "shared_tree_untouched": True,
-    }
+    experiment_packet = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint=patch_fingerprint,
+    )
+    runner_result = (
+        _trusted_dispatch_result(experiment_packet)
+        if accepted
+        else {
+            "experiment_id": experiment_packet["experiment_id"],
+            "status": "rejected",
+            "failure_class": "guard_failure",
+            "mutated_paths": ["core/rag/orchestration.py"],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "oracle_results": [],
+            "shared_tree_untouched": True,
+        }
+    )
     result = build_creative_code_patch_result(
         request=request,
         changed_paths=["core/rag/orchestration.py"],
@@ -177,18 +200,103 @@ def _make_patch_run(
         },
     )
     _write_json(run_dir / RESULT_FILE, result)
-    _write_json(
-        run_dir / EXPERIMENT_PACKET_FILE,
-        {
-            "experiment_id": "exp-pr3-reference",
-            "runner_mode": "candidate_patch",
-            "immutable_oracles": ["pytest -q tests/test_creative_code_patch_builder.py"],
-            "mutable_candidate_surface": ["core/rag/orchestration.py"],
-            "budgets": {"retry_budget": 0, "stop_condition": "all_oracles_pass"},
-        },
-    )
+    _write_json(run_dir / EXPERIMENT_PACKET_FILE, experiment_packet)
     (run_dir / CANDIDATE_PATCH_FILE).write_text(patch_text, encoding="utf-8")
+    if accepted:
+        generation_dir = creative_code_patch_generation._default_output_dir(run_id)
+        gate_path = generation_dir / creative_code_patch_generation.GATE_FILENAME
+        run_ref = run_dir.relative_to(repo).as_posix()
+        gate = {
+            "gate_id": f"generation-gate:{run_id}",
+            "admission_id": f"admission:{run_id}",
+            "admission_fingerprint": fingerprint_payload({"admission": run_id}),
+            "admission_ref": f"{run_ref}/admission.json",
+            "request_id": request["request_id"],
+            "request_fingerprint": fingerprint_payload(request),
+            "request_ref": f"{run_ref}/{REQUEST_FILE}",
+            "source_bundle_id": request["source_bundle_id"],
+            "source_bundle_fingerprint": request["source_bundle_fingerprint"],
+            "source_bundle_ref": f"{run_ref}/{SOURCE_BUNDLE_FILE}",
+            "selected_variant_id": request["selected_variant_id"],
+            "selected_variant_fingerprint": request["selected_variant_fingerprint"],
+            "base_commit_sha": request["base_commit_sha"],
+            "run_id": run_id,
+        }
+        receipt = creative_code_patch_generation._build_receipt(
+            gate_path=gate_path,
+            gate=gate,
+            result=result,
+        )
+        _write_json(
+            generation_dir / creative_code_patch_generation.RECEIPT_FILENAME,
+            receipt,
+        )
     return repo, run_id, result
+
+
+def _trusted_dispatch_result(packet: dict[str, Any]) -> dict[str, Any]:
+    commands = [oracle["command"] for oracle in packet["immutable_oracles"]]
+    return {
+        "schema_version": "1.0",
+        "experiment_id": packet["experiment_id"],
+        "runner_mode": "candidate_patch",
+        "candidate_patch": ".experiment-runner-input/candidate.patch",
+        "candidate_patch_fingerprint": packet["candidate_patch_fingerprint"],
+        "status": "accepted",
+        "failure_class": None,
+        "mutated_paths": list(packet["mutable_candidate_surface"]),
+        "oracle_results": [
+            {
+                "command": command,
+                "returncode": 0,
+                "timed_out": False,
+                "truncated": False,
+                "stdout": "",
+                "stderr": "",
+                "cwd": "/workspace",
+            }
+            for command in commands
+        ],
+        "budget_observations": {
+            "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(commands),
+            "oracle_commands_executed": len(commands),
+            "candidate_changed_files": len(packet["mutable_candidate_surface"]),
+            "source_checkout_head_sha": packet["base_commit_sha"],
+            "source_checkout_clean": True,
+            "attempts": 1,
+            "retries_consumed": 0,
+        },
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
+        "execution_backend": {
+            "name": "apple-container",
+            "guest_platform": "linux_arm64",
+            "runtime_version": "1.1.0",
+            "image_digest": "sha256:" + ("a" * 64),
+            "network_isolation": "apple_internal_no_dns_plus_linux_unshare",
+            "preflight_status": "passed",
+        },
+    }
+
+
+def _write_trusted_dispatch_result(
+    repo: Path,
+    run_id: str,
+    *,
+    result: dict[str, Any] | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    packet = json.loads((run_dir / EXPERIMENT_PACKET_FILE).read_text(encoding="utf-8"))
+    dispatch_result = result or _trusted_dispatch_result(packet)
+    result_path = (
+        repo / "artifacts" / "orchestration" / "experiments" / "results" / f"{run_id}.json"
+    )
+    _write_json(result_path, dispatch_result)
+    return result_path, packet
 
 
 class FakeGit:
@@ -304,6 +412,29 @@ class FakeGates:
 
     def run_validate_changed(self, *, cwd: Path) -> None:
         self.calls.append("validate_changed")
+
+
+def _stub_validation_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+    promotion_dir: Path,
+) -> Path:
+    def fake_prepare(**kwargs: Any) -> Path:
+        checkout = promotion_dir / kwargs["dirname"]
+        checkout.mkdir()
+        return checkout
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
+    monkeypatch.setattr(
+        creative_code_pr_promotion,
+        "_apply_patch_and_verify",
+        lambda **_: None,
+    )
+    monkeypatch.setattr(
+        creative_code_pr_promotion,
+        "_ensure_patch_unchanged_after_gates",
+        lambda **_: None,
+    )
+    return promotion_dir / creative_code_pr_promotion.VALIDATION_CHECKOUT
 
 
 class FakeTTY:
@@ -921,20 +1052,321 @@ def test_validation_uses_isolated_checkout_and_destroyed_on_success(
     )
     monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", fake_destroy)
 
+    gates = FakeGates()
     validation = creative_code_pr_promotion.validate(
         promotion_id="promotion-pr3-validate",
         git=FakeGit(),
-        gate_runner=FakeGates(),
+        gate_runner=gates,
     )
 
     assert validation["preopen_gates"]["pre_commit"] == "passed"
     assert validation["validation_checkout"]["used_throwaway_commit"] is True
+    assert gates.calls == ["fresh_oracle", "pre_commit", "validate_changed"]
     assert calls == [
         "prepare:validation_checkout",
         "apply",
         "patch_unchanged",
         "destroy:validation_checkout",
     ]
+
+
+def test_validation_accepts_exact_trusted_apple_dispatch_without_direct_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-trusted-apple",
+        git=FakeGit(),
+    )
+    result_path, packet = _write_trusted_dispatch_result(repo, run_id)
+    _stub_validation_checkout(monkeypatch, Path(planned["promotion_dir"]))
+    gates = FakeGates()
+
+    validation = creative_code_pr_promotion.validate(
+        promotion_id="promotion-pr3-trusted-apple",
+        trusted_dispatch_result=result_path.relative_to(repo),
+        git=FakeGit(),
+        gate_runner=gates,
+    )
+
+    assert validation["fresh_oracle"]["oracle_commands_configured"] == len(
+        packet["immutable_oracles"]
+    )
+    assert validation["fresh_oracle"]["oracle_commands_executed"] == len(
+        packet["immutable_oracles"]
+    )
+    assert gates.calls == ["pre_commit", "validate_changed"]
+
+
+def test_main_forwards_trusted_dispatch_result_as_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_validate(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(creative_code_pr_promotion, "validate", fake_validate)
+
+    exit_code = creative_code_pr_promotion.main(
+        [
+            "validate",
+            "--promotion-id",
+            "promotion-pr3-cli-forwarding",
+            "--trusted-dispatch-result",
+            "artifacts/orchestration/experiments/results/result.json",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "promotion_id": "promotion-pr3-cli-forwarding",
+        "trusted_dispatch_result": Path("artifacts/orchestration/experiments/results/result.json"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("experiment_id", "failed Experiment Runner validation"),
+        ("candidate_fingerprint", "candidate patch fingerprint does not match"),
+        ("mutated_paths", "mutated paths do not match"),
+        ("rejected", "must be accepted"),
+        ("docker_backend", "passed Apple Container provenance"),
+        ("attempts", "one attempt and zero retries"),
+        ("retry", "one attempt and zero retries"),
+        ("oracle_failure", "every configured oracle to pass"),
+        ("shared_tree", "shared tree was untouched"),
+    ],
+)
+def test_validation_rejects_unbound_trusted_dispatch_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id=f"patch-run-{mutation}",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id=f"promotion-pr3-{mutation}",
+        git=FakeGit(),
+    )
+    result_path, packet = _write_trusted_dispatch_result(repo, run_id)
+    dispatch_result = json.loads(result_path.read_text(encoding="utf-8"))
+    if mutation == "experiment_id":
+        dispatch_result["experiment_id"] = "experiment:other"
+    elif mutation == "candidate_fingerprint":
+        dispatch_result["candidate_patch_fingerprint"] = "sha256:" + ("f" * 64)
+    elif mutation == "mutated_paths":
+        dispatch_result["mutated_paths"] = ["core/rag/other.py"]
+    elif mutation == "rejected":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "guard_failure"
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "docker_backend":
+        dispatch_result["execution_backend"].update(
+            {
+                "name": "docker",
+                "runtime_version": "29.6.1",
+                "network_isolation": "docker_network_none_plus_linux_unshare",
+            }
+        )
+    elif mutation == "attempts":
+        dispatch_result["budget_observations"]["attempts"] = 2
+    elif mutation == "retry":
+        dispatch_result["budget_observations"]["retries_consumed"] = 1
+    elif mutation == "oracle_failure":
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "shared_tree":
+        dispatch_result["shared_tree_untouched"] = False
+    else:  # pragma: no cover - parametrization is closed above.
+        raise AssertionError(mutation)
+    _write_json(result_path, dispatch_result)
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(CreativeCodePRPromotionError, match=message):
+        creative_code_pr_promotion.validate(
+            promotion_id=f"promotion-pr3-{mutation}",
+            trusted_dispatch_result=result_path.relative_to(repo),
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+    assert len(packet["immutable_oracles"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("path_case", "message"),
+    [
+        ("outside", "under experiment results"),
+        ("symlink", "must not traverse symlinks"),
+        ("malformed", "unable to read trusted dispatch result safely"),
+    ],
+)
+def test_validation_rejects_unsafe_trusted_dispatch_result_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path_case: str,
+    message: str,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id=f"patch-run-{path_case}",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id=f"promotion-pr3-{path_case}",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    if path_case == "outside":
+        supplied_path = tmp_path / "outside.json"
+        supplied_path.write_text(result_path.read_text(encoding="utf-8"), encoding="utf-8")
+    elif path_case == "symlink":
+        supplied_path = result_path.with_name("linked-result.json")
+        supplied_path.symlink_to(result_path.name)
+    elif path_case == "malformed":
+        supplied_path = result_path
+        supplied_path.write_text("{not-json", encoding="utf-8")
+    else:  # pragma: no cover - parametrization is closed above.
+        raise AssertionError(path_case)
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(CreativeCodePRPromotionError, match=message):
+        creative_code_pr_promotion.validate(
+            promotion_id=f"promotion-pr3-{path_case}",
+            trusted_dispatch_result=supplied_path,
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_forged_packet_and_matching_dispatch_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-forged-packet",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-forged-packet",
+        git=FakeGit(),
+    )
+    result_path, packet = _write_trusted_dispatch_result(repo, run_id)
+    packet["immutable_oracles"][0]["command"] = "pytest -q tests/test_forged_oracle.py"
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    _write_json(run_dir / EXPERIMENT_PACKET_FILE, packet)
+    _write_json(result_path, _trusted_dispatch_result(packet))
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="generation receipt experiment packet fingerprint is stale",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-forged-packet",
+            trusted_dispatch_result=result_path.relative_to(repo),
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_dispatch_result_not_finalized_into_pr2(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-unfinalized-result",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-unfinalized-result",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    dispatch_result = json.loads(result_path.read_text(encoding="utf-8"))
+    dispatch_result["execution_backend"]["runtime_version"] = "1.1.1"
+    _write_json(result_path, dispatch_result)
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="does not match the result finalized into PR-2",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-unfinalized-result",
+            trusted_dispatch_result=result_path.relative_to(repo),
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-fingerprint-drift",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-fingerprint-drift",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    class MutatingGates(FakeGates):
+        def run_pre_commit(self, *, cwd: Path) -> None:
+            super().run_pre_commit(cwd=cwd)
+            current = json.loads(result_path.read_text(encoding="utf-8"))
+            current["execution_backend"]["runtime_version"] = "1.1.1"
+            _write_json(result_path, current)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="does not match the result finalized into PR-2",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-fingerprint-drift",
+            trusted_dispatch_result=result_path.relative_to(repo),
+            git=FakeGit(),
+            gate_runner=MutatingGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
 def test_validation_capability_signal_cleans_checkout_without_artifact_or_leak(
