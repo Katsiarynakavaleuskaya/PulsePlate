@@ -237,6 +237,7 @@ def test_mode_a_rejects_update_suppression_and_external_code_execution(
     config = _load_config(repo)
     update = _pip_update(config)
     update["allow"] = [{"dependency-name": "fastapi"}]
+    update["ignore"] = [{"dependency-name": "starlette"}]
     update["exclude-paths"] = ["requirements-test.in"]
     update["insecure-external-code-execution"] = "allow"
     _write_config(repo, config)
@@ -244,9 +245,25 @@ def test_mode_a_rejects_update_suppression_and_external_code_execution(
     errors = policy.validate_repo(repo)
 
     assert any("updates[0].allow:key is forbidden" in error for error in errors)
+    assert any("updates[0].ignore:key is forbidden" in error for error in errors)
     assert any("updates[0].exclude-paths:key is forbidden" in error for error in errors)
     assert any(
         "updates[0].insecure-external-code-execution:key is forbidden" in error for error in errors
+    )
+
+
+def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    updates.append(_pip_update(config).copy())
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        ".github/dependabot.yml:updates:must contain exactly one pip update block; got 2" in errors
     )
 
 
