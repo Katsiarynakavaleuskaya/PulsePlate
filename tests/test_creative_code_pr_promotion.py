@@ -159,7 +159,7 @@ def _make_patch_run(
         patch_fingerprint=patch_fingerprint,
     )
     runner_result = (
-        _trusted_dispatch_result(experiment_packet)
+        _accepted_dispatch_fixture(experiment_packet)
         if accepted
         else {
             "experiment_id": experiment_packet["experiment_id"],
@@ -254,7 +254,7 @@ def _generation_receipt_path(
     )
 
 
-def _trusted_dispatch_result(packet: dict[str, Any]) -> dict[str, Any]:
+def _accepted_dispatch_fixture(packet: dict[str, Any]) -> dict[str, Any]:
     commands = [oracle["command"] for oracle in packet["immutable_oracles"]]
     return {
         "schema_version": "1.0",
@@ -303,7 +303,7 @@ def _trusted_dispatch_result(packet: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _write_trusted_dispatch_result(
+def _write_dispatch_fixture(
     repo: Path,
     run_id: str,
     *,
@@ -311,7 +311,7 @@ def _write_trusted_dispatch_result(
 ) -> tuple[Path, dict[str, Any]]:
     run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
     packet = json.loads((run_dir / EXPERIMENT_PACKET_FILE).read_text(encoding="utf-8"))
-    dispatch_result = result or _trusted_dispatch_result(packet)
+    dispatch_result = result or _accepted_dispatch_fixture(packet)
     result_path = (
         repo / "artifacts" / "orchestration" / "experiments" / "results" / f"{run_id}.json"
     )
@@ -1100,7 +1100,7 @@ def test_validation_accepts_exact_trusted_apple_dispatch_without_direct_evaluati
         promotion_id="promotion-pr3-trusted-apple",
         git=FakeGit(),
     )
-    result_path, packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, packet = _write_dispatch_fixture(repo, run_id)
     _stub_validation_checkout(monkeypatch, Path(planned["promotion_dir"]))
     gates = FakeGates()
 
@@ -1137,7 +1137,7 @@ def test_validation_accepts_explicit_custom_generation_receipt_directory(
         promotion_id="promotion-pr3-custom-generation",
         git=FakeGit(),
     )
-    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     receipt_path = _generation_receipt_path(
         repo,
         run_id,
@@ -1174,7 +1174,7 @@ def test_validation_rejects_unpaired_trusted_evidence_before_checkout(
         promotion_id=f"promotion-pr3-unpaired-{provided_argument}",
         git=FakeGit(),
     )
-    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     kwargs: dict[str, Any] = {
         (
             "trusted_dispatch_result"
@@ -1266,7 +1266,7 @@ def test_validation_rejects_unsafe_generation_receipt_path(
         promotion_id=f"promotion-pr3-receipt-{path_case}",
         git=FakeGit(),
     )
-    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     valid_receipt = _generation_receipt_path(repo, run_id)
     if path_case == "outside":
         supplied_receipt = tmp_path / "outside" / creative_code_patch_generation.RECEIPT_FILENAME
@@ -1337,7 +1337,7 @@ def test_validation_rejects_unbound_trusted_dispatch_result(
         promotion_id=f"promotion-pr3-{mutation}",
         git=FakeGit(),
     )
-    result_path, packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, packet = _write_dispatch_fixture(repo, run_id)
     dispatch_result = json.loads(result_path.read_text(encoding="utf-8"))
     if mutation == "experiment_id":
         dispatch_result["experiment_id"] = "experiment:other"
@@ -1412,7 +1412,7 @@ def test_validation_rejects_unsafe_trusted_dispatch_result_path(
         promotion_id=f"promotion-pr3-{path_case}",
         git=FakeGit(),
     )
-    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     if path_case == "outside":
         supplied_path = tmp_path / "outside.json"
         supplied_path.write_text(result_path.read_text(encoding="utf-8"), encoding="utf-8")
@@ -1454,11 +1454,11 @@ def test_validation_rejects_forged_packet_and_matching_dispatch_result(
         promotion_id="promotion-pr3-forged-packet",
         git=FakeGit(),
     )
-    result_path, packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, packet = _write_dispatch_fixture(repo, run_id)
     packet["immutable_oracles"][0]["command"] = "pytest -q tests/test_forged_oracle.py"
     run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
     _write_json(run_dir / EXPERIMENT_PACKET_FILE, packet)
-    _write_json(result_path, _trusted_dispatch_result(packet))
+    _write_json(result_path, _accepted_dispatch_fixture(packet))
     promotion_dir = Path(planned["promotion_dir"])
     checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
 
@@ -1492,7 +1492,7 @@ def test_validation_rejects_dispatch_result_not_finalized_into_pr2(
         promotion_id="promotion-pr3-unfinalized-result",
         git=FakeGit(),
     )
-    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     dispatch_result = json.loads(result_path.read_text(encoding="utf-8"))
     dispatch_result["execution_backend"]["runtime_version"] = "1.1.1"
     _write_json(result_path, dispatch_result)
@@ -1529,7 +1529,7 @@ def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
         promotion_id="promotion-pr3-fingerprint-drift",
         git=FakeGit(),
     )
-    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
     run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
     receipt_path = _generation_receipt_path(repo, run_id)
     promotion_dir = Path(planned["promotion_dir"])
