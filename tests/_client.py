@@ -8,11 +8,18 @@ from __future__ import annotations
 
 import inspect
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from httpx2 import Request, Response
+
+if TYPE_CHECKING:
+    from httpx2 import Request, Response
+else:
+    try:
+        from httpx2 import Request, Response
+    except ModuleNotFoundError:
+        from httpx import Request, Response
 
 from app.effective_routes import (
     is_api_route_candidate,
