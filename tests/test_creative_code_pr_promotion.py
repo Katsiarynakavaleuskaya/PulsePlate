@@ -1530,24 +1530,71 @@ def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
         git=FakeGit(),
     )
     result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    receipt_path = _generation_receipt_path(repo, run_id)
     promotion_dir = Path(planned["promotion_dir"])
     checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
 
     class MutatingGates(FakeGates):
         def run_pre_commit(self, *, cwd: Path) -> None:
             super().run_pre_commit(cwd=cwd)
-            current = json.loads(result_path.read_text(encoding="utf-8"))
-            current["execution_backend"]["runtime_version"] = "1.1.1"
-            _write_json(result_path, current)
+            dispatch_result = json.loads(result_path.read_text(encoding="utf-8"))
+            dispatch_result["oracle_results"][0]["stdout"] = "post-gate evidence changed"
+            _write_json(result_path, dispatch_result)
+
+            request = json.loads((run_dir / REQUEST_FILE).read_text(encoding="utf-8"))
+            patch_text = (run_dir / CANDIDATE_PATCH_FILE).read_text(encoding="utf-8")
+            pr2_result = build_creative_code_patch_result(
+                request=request,
+                changed_paths=["core/rag/orchestration.py"],
+                patch_fingerprint=fingerprint_payload({"candidate_patch": patch_text}),
+                patch_bytes=len(patch_text.encode("utf-8")),
+                diff_lines=len(patch_text.splitlines()),
+                runner_result=dispatch_result,
+                checkout_destroyed=True,
+                origin_removed=True,
+                shared_tree_untouched=True,
+                failure_class=None,
+            )
+            _write_json(run_dir / RESULT_FILE, pr2_result)
+
+            old_receipt = creative_code_patch_generation.validate_generation_receipt(
+                json.loads(receipt_path.read_text(encoding="utf-8"))
+            )
+            gate_keys = (
+                "gate_id",
+                "admission_id",
+                "admission_fingerprint",
+                "admission_ref",
+                "request_id",
+                "request_fingerprint",
+                "request_ref",
+                "source_bundle_id",
+                "source_bundle_fingerprint",
+                "source_bundle_ref",
+                "selected_variant_id",
+                "selected_variant_fingerprint",
+                "base_commit_sha",
+                "run_id",
+            )
+            gate = {key: old_receipt[key] for key in gate_keys}
+            _write_json(
+                receipt_path,
+                creative_code_patch_generation._build_receipt(
+                    gate_path=receipt_path.parent / creative_code_patch_generation.GATE_FILENAME,
+                    gate=gate,
+                    result=pr2_result,
+                ),
+            )
 
     with pytest.raises(
         CreativeCodePRPromotionError,
-        match="does not match the result finalized into PR-2",
+        match="trusted dispatch packet or result fingerprint changed during validation",
     ):
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-fingerprint-drift",
             trusted_dispatch_result=result_path.relative_to(repo),
-            trusted_generation_receipt=_generation_receipt_path(repo, run_id),
+            trusted_generation_receipt=receipt_path,
             git=FakeGit(),
             gate_runner=MutatingGates(),
         )
