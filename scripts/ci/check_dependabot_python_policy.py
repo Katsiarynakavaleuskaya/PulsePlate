@@ -137,6 +137,16 @@ FORBIDDEN_UPDATE_KEYS = {
     "target-branch",
     "insecure-external-code-execution",
 }
+EXPECTED_UPDATE_KEYS = {
+    "package-ecosystem",
+    "directory",
+    "registries",
+    "schedule",
+    "open-pull-requests-limit",
+    "cooldown",
+    "commit-message",
+    "groups",
+}
 
 
 class UniqueKeyLoader(yaml.SafeLoader):
@@ -455,6 +465,14 @@ def validate_repo(repo_root: Path) -> list[str]:
         return errors
     update_index, update = pip_updates[0]
     update_path = f"updates[{update_index}]"
+    if set(update) != EXPECTED_UPDATE_KEYS:
+        errors.append(
+            _error(
+                update_path,
+                f"keys must be exactly {_sorted_keys(EXPECTED_UPDATE_KEYS)!r}; "
+                f"got {_sorted_keys(update)!r}",
+            )
+        )
     if update.get("directory") != "/":
         errors.append(
             _error(

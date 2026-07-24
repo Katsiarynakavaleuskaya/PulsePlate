@@ -310,6 +310,33 @@ def test_mode_a_rejects_update_suppression_and_external_code_execution(
     )
 
 
+@pytest.mark.parametrize(
+    ("unexpected_key", "unexpected_value"),
+    [
+        ("directories", ["/", "/nested"]),
+        ("versioning-strategy", "increase"),
+        ("vendor", True),
+    ],
+)
+def test_update_block_rejects_behavior_and_scope_keys_outside_policy(
+    tmp_path: Path,
+    unexpected_key: str,
+    unexpected_value: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _pip_update(config)[unexpected_key] = unexpected_value
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.startswith(".github/dependabot.yml:updates[0]:keys must be exactly")
+        and unexpected_key in error
+        for error in errors
+    )
+
+
 def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
