@@ -155,6 +155,44 @@ def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
     assert sentinel not in captured.err
 
 
+@pytest.mark.parametrize("credential_key", ["username", "password"])
+@pytest.mark.parametrize("malformation", ["unterminated", "duplicate"])
+def test_malformed_registry_credentials_are_redacted_from_yaml_errors(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    credential_key: str,
+    malformation: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config_path = repo / policy.CONFIG_PATH
+    config_text = config_path.read_text(encoding="utf-8")
+    original_line = next(
+        line for line in config_text.splitlines() if line.lstrip().startswith(f"{credential_key}:")
+    )
+    sentinel = f"yaml-{malformation}-{credential_key}-must-not-leak"
+    if malformation == "unterminated":
+        replacement = f'    {credential_key}: "{sentinel}'
+    else:
+        replacement = f'{original_line}\n    {credential_key}: "{sentinel}"'
+    config_path.write_text(
+        config_text.replace(original_line, replacement, 1),
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert len(errors) == 1
+    assert errors[0].startswith(".github/dependabot.yml:$:invalid YAML:")
+    assert sentinel not in errors[0]
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert sentinel not in captured.out
+    assert sentinel not in captured.err
+
+
 def test_mode_a_rejects_update_suppression_and_external_code_execution(
     tmp_path: Path,
 ) -> None:

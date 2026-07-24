@@ -178,6 +178,22 @@ def _sorted_keys(keys: Iterable[object]) -> list[object]:
     return sorted(keys, key=lambda key: (type(key).__name__, repr(key)))
 
 
+def _safe_yaml_error_message(exc: yaml.YAMLError) -> str:
+    """Describe YAML failures without rendering source buffers or scalar values."""
+
+    problem = getattr(exc, "problem", None)
+    if isinstance(exc, yaml.constructor.ConstructorError) and isinstance(problem, str):
+        category = "duplicate key" if problem.startswith("duplicate key:") else "constructor error"
+    else:
+        category = exc.__class__.__name__
+    mark = getattr(exc, "problem_mark", None)
+    line = getattr(mark, "line", None)
+    column = getattr(mark, "column", None)
+    if isinstance(line, int) and isinstance(column, int):
+        return f"{category} at line {line + 1}, column {column + 1}"
+    return category
+
+
 def _walk_mapping(
     value: object,
     path: str,
@@ -366,8 +382,14 @@ def validate_repo(repo_root: Path) -> list[str]:
             config = loader.get_single_data()
         finally:
             loader.dispose()
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
-        errors.append(_error("$", f"invalid YAML: {exc}"))
+    except yaml.YAMLError as exc:
+        errors.append(_error("$", f"invalid YAML: {_safe_yaml_error_message(exc)}"))
+        return errors
+    except UnicodeError:
+        errors.append(_error("$", "invalid YAML: config must be UTF-8"))
+        return errors
+    except OSError:
+        errors.append(_error("$", "invalid YAML: config could not be read"))
         return errors
     if not isinstance(config, Mapping):
         errors.append(_error("$", "root must be a mapping"))
