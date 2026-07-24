@@ -217,6 +217,20 @@ UPLOAD_ARTIFACT_NODE24_SHA = "".join(
         "6a0a",
     )
 )
+SBOM_ACTION_NODE24_SHA = "".join(
+    (
+        "e22c",
+        "3899",
+        "0414",
+        "9dbc",
+        "22b5",
+        "8101",
+        "8060",
+        "40fa",
+        "8d37",
+        "a610",
+    )
+)
 PYTHON_TEST_JOB_NAMES = ("test-pr", "test-feature", "test-main")
 OLD_CHECKOUT_NODE20_SHA = "".join(
     (
@@ -398,6 +412,20 @@ OLD_UPLOAD_ARTIFACT_V7_SHA = "".join(
         "ad77",
         "386f",
         "024f",
+    )
+)
+OLD_SBOM_ACTION_SHA = "".join(
+    (
+        "da16",
+        "7eac",
+        "915b",
+        "4e86",
+        "f08b",
+        "264d",
+        "bdbc",
+        "867b",
+        "61be",
+        "6f0c",
     )
 )
 GITHUB_SCRIPT_V9_TAG_OBJECT_SHA = "".join(
@@ -1387,6 +1415,159 @@ def test_active_upload_artifact_refs_all_use_node24_sha() -> None:
             assert workflow_text.count(expected_line) == workflow_upload_count
 
     assert observed_upload_steps
+
+
+def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts() -> None:
+    """Guard every active SBOM action use and its fail-closed generation contract."""
+
+    def iter_uses_source_mappings(node: Node) -> Iterator[tuple[ScalarNode, ScalarNode]]:
+        if isinstance(node, MappingNode):
+            for key_node, value_node in node.value:
+                if isinstance(key_node, ScalarNode) and key_node.value == "uses":
+                    if isinstance(value_node, ScalarNode):
+                        yield key_node, value_node
+                yield from iter_uses_source_mappings(value_node)
+        elif isinstance(node, SequenceNode):
+            for value_node in node.value:
+                yield from iter_uses_source_mappings(value_node)
+
+    expected_uses = f"anchore/sbom-action@{SBOM_ACTION_NODE24_SHA}"
+    expected_line = f"{expected_uses} # v0.24.0"
+    expected_counts = {
+        ".github/workflows/build.yml": 1,
+        ".github/workflows/cd.yml": 3,
+    }
+    observed_counts: dict[str, int] = {}
+    observed_contracts: list[
+        tuple[str, str, object, str, object, object, object, object, object]
+    ] = []
+
+    for workflow_path in _active_workflow_paths():
+        workflow_relative_path = str(workflow_path.relative_to(REPO_ROOT))
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        workflow_lines = workflow_text.splitlines()
+        workflow = _load_workflow(workflow_path)
+        jobs = workflow["jobs"]
+        assert isinstance(jobs, dict)
+        assert OLD_SBOM_ACTION_SHA not in workflow_text
+        workflow_document = yaml.compose(workflow_text)
+        assert isinstance(workflow_document, Node)
+        sbom_source_node_count = 0
+        for uses_key_node, uses_value_node in iter_uses_source_mappings(workflow_document):
+            uses = uses_value_node.value
+            if not uses.casefold().startswith("anchore/sbom-action@"):
+                continue
+
+            sbom_source_node_count += 1
+            assert uses == expected_uses
+            assert workflow_lines[uses_key_node.start_mark.line].strip() == (
+                f"uses: {expected_line}"
+            )
+
+        workflow_sbom_count = 0
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if not isinstance(uses, str) or not uses.casefold().startswith("anchore/sbom-action@"):
+                continue
+
+            job = jobs[job_id]
+            assert isinstance(job, dict)
+            workflow_sbom_count += 1
+            assert uses == expected_uses
+            assert "continue-on-error" not in job
+            assert "if" not in step
+            assert "continue-on-error" not in step
+            observed_contracts.append(
+                (
+                    workflow_relative_path,
+                    job_id,
+                    step.get("name"),
+                    uses,
+                    step.get("with"),
+                    job.get("if"),
+                    job.get("continue-on-error"),
+                    step.get("if"),
+                    step.get("continue-on-error"),
+                )
+            )
+
+        assert sbom_source_node_count == workflow_sbom_count
+        if workflow_sbom_count:
+            assert workflow_relative_path in expected_counts
+            observed_counts[workflow_relative_path] = workflow_sbom_count
+
+    assert observed_counts == expected_counts
+    assert observed_contracts == [
+        (
+            ".github/workflows/build.yml",
+            "publish",
+            "Generate SBOM",
+            expected_uses,
+            {
+                "image": "${{ steps.image-ref.outputs.ref }}",
+                "format": "spdx-json",
+                "output-file": "sbom.spdx.json",
+            },
+            "github.event_name != 'pull_request'",
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build",
+            "Generate staged backend image SBOM",
+            expected_uses,
+            {
+                "image": (
+                    "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}"
+                    "@${{ steps.build.outputs.digest }}"
+                ),
+                "format": "spdx-json",
+                "output-file": "backend-image-sbom.spdx.json",
+            },
+            "github.ref == 'refs/heads/main'",
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build",
+            "Generate staged Caddy image SBOM",
+            expected_uses,
+            {
+                "image": (
+                    "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}"
+                    "@${{ steps.build-caddy.outputs.digest }}"
+                ),
+                "format": "spdx-json",
+                "output-file": "caddy-image-sbom.spdx.json",
+            },
+            "github.ref == 'refs/heads/main'",
+            None,
+            None,
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build-production",
+            "Generate production image SBOM",
+            expected_uses,
+            {
+                "image": (
+                    "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}"
+                    "@${{ steps.build.outputs.digest }}"
+                ),
+                "format": "spdx-json",
+                "output-file": "docker-image-sbom.spdx.json",
+            },
+            "startsWith(github.ref, 'refs/tags/v')",
+            None,
+            None,
+            None,
+        ),
+    ]
 
 
 def test_active_codeql_action_refs_use_verified_v4_37_1_sha() -> None:
