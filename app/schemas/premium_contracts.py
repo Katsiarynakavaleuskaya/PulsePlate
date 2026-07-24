@@ -11,6 +11,7 @@ and deprecated premium aliases.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -50,6 +51,21 @@ class PlateRequest(BaseModel):
     diet_flags: Optional[Set[DietFlag]] = None
     life_stage: LifeStage = "adult"
     lang: str = "en"
+
+    @field_validator("height_cm", "weight_kg", mode="before")
+    @classmethod
+    def _reject_non_finite_measurement(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError("measurement must be numeric")
+        try:
+            numeric_value = float(value)
+        except OverflowError:
+            return "non-finite measurement"
+        except (TypeError, ValueError):
+            return value
+        if not math.isfinite(numeric_value):
+            return "non-finite measurement"
+        return value
 
 
 class VisualShape(BaseModel):
@@ -93,6 +109,8 @@ class WHOTargetsRequest(BaseModel):
     @field_validator("height_cm", "weight_kg", mode="before")
     @classmethod
     def _reject_non_finite_measurement(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError("measurement must be numeric")
         try:
             numeric_value = float(value)
         except OverflowError:
@@ -207,6 +225,19 @@ class WHOTargetsResponse(BaseModel):
     warnings: List[Dict[str, str]] = Field(default_factory=list)
     ui_labels: WHOTargetsUiLabels
     next_best_action: NextBestAction | None = None
+
+    @field_validator("macros", mode="before")
+    @classmethod
+    def _reject_coercible_macro_values(cls, value: Any) -> Any:
+        """Require actual integer macro outputs before Pydantic coercion."""
+
+        if not isinstance(value, Mapping):
+            return value
+        if any(
+            isinstance(amount, bool) or not isinstance(amount, int) for amount in value.values()
+        ):
+            raise ValueError("WHO target macro values must be integers")
+        return value
 
 
 class NutrientGapsResponse(BaseModel):

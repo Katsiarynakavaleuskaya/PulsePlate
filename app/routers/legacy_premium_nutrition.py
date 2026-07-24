@@ -23,6 +23,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
+from app.services.pro_nutrition_plate import generate_plate_response
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
     generate_who_targets_response,
@@ -52,10 +53,7 @@ router = APIRouter()
 )
 async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`."""
-    from legacy_app import api_premium_plate as _legacy_api_premium_plate
-
-    resp: PlateResponse = await _legacy_api_premium_plate(req)
-    return resp
+    return await generate_plate_response(req)
 
 
 @router.post(
@@ -98,13 +96,18 @@ async def api_who_targets(payload: dict[str, Any] = Body(...)) -> WHOTargetsResp
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
 
-    return generate_who_targets_response(req)
+    response: WHOTargetsResponse = generate_who_targets_response(req)
+    return response
 
 
 @router.post("/premium_targets", dependencies=[Depends(_get_api_key_dynamic)])
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy WHO targets alias."""
-    return generate_who_targets_response(req, allow_backend_fallback=False)
+    response: WHOTargetsResponse = generate_who_targets_response(
+        req,
+        allow_backend_fallback=False,
+    )
+    return response
 
 
 @router.post(
@@ -114,4 +117,5 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 )
 async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
     """Legacy-compatible nutrient gap analysis endpoint."""
-    return analyze_nutrient_gaps_response(req)
+    response: NutrientGapsResponse = analyze_nutrient_gaps_response(req)
+    return response

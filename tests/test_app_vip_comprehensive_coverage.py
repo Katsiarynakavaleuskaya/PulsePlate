@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
+from app.services import pro_nutrition_plate
+
 
 class TestAppVipComprehensiveCoverage:
     """Comprehensive tests for app.py VIP functionality."""
@@ -310,26 +312,39 @@ class TestAppVipComprehensiveCoverage:
             # Should still work with fallback or return 503
             assert response.status_code in [200, 503, 500]
 
-    def test_make_plate_unavailable(self, test_client):
+    def test_make_plate_unavailable(
+        self,
+        test_client,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
         """Test when make_plate function is unavailable."""
         client = test_client
 
-        # Mock make_plate to be None
-        with patch("app.make_plate", None):
-            response = client.post(
-                "/api/v1/premium/plate",
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175.0,
-                    "weight_kg": 70.0,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should still work with fallback or return 503
-            assert response.status_code in [200, 503, 500]
+        monkeypatch.setattr(pro_nutrition_plate.nutrition_plate, "make_plate", None)
+        response = client.post(
+            "/api/v1/premium/plate",
+            json={
+                "sex": "male",
+                "age": 30,
+                "height_cm": 175.0,
+                "weight_kg": 70.0,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert set(response.json()) == {
+            "kcal",
+            "macros",
+            "portions",
+            "layout",
+            "meals",
+            "day_micros",
+            "meals_per_day",
+        }
 
     def test_analyze_nutrient_gaps_unavailable(self, test_client):
         """Test when analyze_nutrient_gaps function is unavailable."""

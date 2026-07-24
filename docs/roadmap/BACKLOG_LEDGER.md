@@ -6776,9 +6776,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
-  - Status: In progress. Route, middleware, lifespan, app-client API-key dependency, application metadata, OpenAPI policy, and admin scheduler-access ownership are canonical; PR #2114 merged at `e3825306d`, and PR #2121 merged at `83aeeec77c7454047683405d9b4d47bc1c2166aa`. PR #2140 merged at `84b8a14d777d9d85df3c894960330928563939a7`, completing canonical weekly-menu builder access, and governance PR #2141 merged at `82e18cff74da7f6fd33e76080ae6dd2450cde2ed`. PR #2145 merged at `f1c5f8988b91c140f5fa8cf25a669947a2168693`, completing canonical BMI visualization access. Active PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) removes targets/gaps facade and module-table resolver authority while preserving public routes, tier/API-key guards, wire shapes, fallback formulas, and OpenAPI. Plate, insight compatibility, app-factory inversion, and final compatibility inventory/deletion remain separate lanes.
+  - Status: In progress. Route, middleware, lifespan, app-client API-key dependency, application metadata, OpenAPI policy, and admin scheduler-access ownership are canonical; PR #2114 merged at `e3825306d`, and PR #2121 merged at `83aeeec77c7454047683405d9b4d47bc1c2166aa`. PR #2140 merged at `84b8a14d777d9d85df3c894960330928563939a7`, completing canonical weekly-menu builder access, and governance PR #2141 merged at `82e18cff74da7f6fd33e76080ae6dd2450cde2ed`. PR #2145 merged at `f1c5f8988b91c140f5fa8cf25a669947a2168693`, completing canonical BMI visualization access. PR #2163 merged at `880753ee3d1db61c7fc8593798ade03cdb2177c2`, removing targets/gaps facade and module-table resolver authority while preserving public routes, tier/API-key guards, wire shapes, fallback formulas, and OpenAPI. PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) moves Plate orchestration to a direct-core canonical service while retaining route and compatibility contracts. Insight compatibility, app-factory inversion, and final compatibility inventory/deletion remain separate lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -6787,6 +6787,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - app/services/scheduler_access.py
     - app/services/legacy_premium_weekly_plan.py
     - app/services/pro_nutrition_targets.py
+    - app/services/pro_nutrition_plate.py
     - app/schemas/premium_contracts.py
     - core/nutrition_utils.py
     - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md

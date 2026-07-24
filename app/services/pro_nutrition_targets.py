@@ -222,10 +222,10 @@ def fallback_targets_response(
     )
 
 
-def _validated_safety_warnings(
+def validate_targets_safety_warnings(
     targets: nutrition_targets.NutritionTargets,
 ) -> list[str]:
-    """Run the required safety validator and reject broken validator behavior."""
+    """Run the shared required safety validator and fail closed on invalid behavior."""
 
     try:
         warnings = nutrition_recommendations.validate_targets_safety(targets)
@@ -321,7 +321,7 @@ def generate_who_targets_response(
             life_stage=req.life_stage,
             lang=normalized_lang,
         )
-        for warning in _validated_safety_warnings(targets):
+        for warning in validate_targets_safety_warnings(targets):
             life_stage_warnings.append({"code": "safety", "message": warning})
 
         kcal_daily = clamp_daily_kcal(targets.kcal_daily)

@@ -1,5 +1,5 @@
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from tests._client import get_client
 
 import pytest
@@ -91,11 +91,21 @@ class TestAppMissingLinesExtra:
             assert "teapot" in r.json().get("detail", "")
 
     def test_premium_plate_value_error_is_sanitized(self) -> None:
+        from app.services import pro_nutrition_plate as plate_service
+
         with (
-            patch.object(app_mod, "calculate_all_bmr", return_value={"mifflin": 1600}),
-            patch.object(app_mod, "calculate_all_tdee", return_value={"mifflin": 2200}),
             patch.object(
-                app_mod,
+                plate_service.nutrition_bmr,
+                "calculate_all_bmr",
+                return_value={"mifflin": 1600},
+            ),
+            patch.object(
+                plate_service.nutrition_bmr,
+                "calculate_all_tdee",
+                return_value={"mifflin": 2200},
+            ),
+            patch.object(
+                plate_service.nutrition_plate,
                 "make_plate",
                 side_effect=ValueError("goal maintain failed at /tmp/internal/plate"),
             ),
@@ -117,11 +127,14 @@ class TestAppMissingLinesExtra:
             assert "/tmp/internal/plate" not in r.json()["detail"]
 
     def test_premium_plate_missing_bmr_tdee_check(self):
-        # Force the early 503 guard (974)
+        from app.services import pro_nutrition_plate as plate_service
+
+        # Force the documented canonical backend fallback.
+        make_plate = MagicMock(return_value={})
         with (
-            patch.object(app_mod, "calculate_all_bmr", None),
-            patch.object(app_mod, "calculate_all_tdee", None),
-            patch.object(app_mod, "make_plate", lambda **k: {}),
+            patch.object(plate_service.nutrition_bmr, "calculate_all_bmr", None),
+            patch.object(plate_service.nutrition_bmr, "calculate_all_tdee", None),
+            patch.object(plate_service.nutrition_plate, "make_plate", make_plate),
         ):
             payload = {
                 "sex": "male",
@@ -135,6 +148,7 @@ class TestAppMissingLinesExtra:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code == 200
+            make_plate.assert_not_called()
 
     def test_nutrient_gaps_value_error(self):
         # Hit 1275 by raising ValueError from build_nutrition_targets

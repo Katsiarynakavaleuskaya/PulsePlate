@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any, Dict, List, Literal, Optional, Protocol, Set, cast
 
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
@@ -44,6 +46,15 @@ MAX_STRING_LENGTH = 500
 MAX_MEALS = 10
 MAX_LAYOUT_ITEMS = 20
 MAX_MICRO_NUTRIENTS = 100
+
+PLATE_MACRO_RANGES: Mapping[str, tuple[int, int]] = MappingProxyType(
+    {
+        "protein_g": (0, 500),
+        "fat_g": (0, 300),
+        "carbs_g": (0, 1000),
+        "fiber_g": (0, 100),
+    }
+)
 
 # nh3 configuration: Allows basic formatting tags for rich text display
 # nh3 strips all dangerous HTML/JS/XSS (event handlers, javascript: URIs, data: URIs, etc.)
@@ -354,29 +365,22 @@ class PlateDataSchema(BaseModel):
             missing = required_keys - v.keys()
             raise ValueError(f"Missing required macro keys: {missing}")
 
-        # Validate ranges
-        ranges = {
-            "protein_g": (0, 500),
-            "fat_g": (0, 300),
-            "carbs_g": (0, 1000),
-            "fiber_g": (0, 100),
-        }
-
         sanitized = {}
         for key, value in v.items():
             if not isinstance(key, str):
                 raise ValueError("Macro keys must be strings")
             # Only allow expected macro keys
-            if key not in ranges:
+            if key not in PLATE_MACRO_RANGES:
                 raise ValueError(
-                    f"Unexpected macro key '{key}' - only {list(ranges.keys())} are allowed"
+                    f"Unexpected macro key '{key}' - "
+                    f"only {list(PLATE_MACRO_RANGES.keys())} are allowed"
                 )
             # Allow integer-equivalent floats (e.g., 50.0) from JSON deserialization
             if isinstance(value, float) and value.is_integer():
                 value = int(value)
             elif not isinstance(value, int):
                 raise ValueError(f"Macro value for {key} must be an integer")
-            min_val, max_val = ranges[key]
+            min_val, max_val = PLATE_MACRO_RANGES[key]
             if not (min_val <= value <= max_val):
                 raise ValueError(f"Macro {key}={value} out of range [{min_val}, {max_val}]")
             sanitized[key] = value

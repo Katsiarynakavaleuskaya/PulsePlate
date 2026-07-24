@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 import asyncio
 from collections.abc import Callable, Iterator
+from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
@@ -21,7 +23,10 @@ from app.schemas.premium_contracts import (
     NutrientGapsResponse,
     PlateRequest,
     WHOTargetsRequest,
+    WHOTargetsResponse,
+    build_who_targets_ui_labels,
 )
+from app.services import pro_nutrition_plate as plate_service
 from app.services import pro_nutrition_targets as service
 from core.nutrition_utils import alias_micros, clamp_daily_kcal, ensure_priority_micros
 
@@ -176,6 +181,7 @@ def test_legacy_target_and_gaps_routes_execute_canonical_services(
         pytest.param(10**4000, id="overflowing-integer"),
         pytest.param(object(), id="non-numeric-object"),
         pytest.param(float("inf"), id="non-finite-float"),
+        pytest.param(True, id="boolean"),
     ],
 )
 def test_target_schema_rejects_unsafe_measurements(
@@ -183,6 +189,71 @@ def test_target_schema_rejects_unsafe_measurements(
 ) -> None:
     with pytest.raises(ValidationError):
         WHOTargetsRequest.model_validate(_payload(height_cm=invalid_measurement))
+
+
+@pytest.mark.parametrize(
+    "invalid_macro",
+    [
+        pytest.param(True, id="boolean"),
+        pytest.param("120", id="numeric-string"),
+        pytest.param(120.5, id="fractional-float"),
+        pytest.param(120.0, id="integral-float"),
+        pytest.param(Decimal("120"), id="decimal"),
+    ],
+)
+def test_targets_response_rejects_coercible_macro_values(invalid_macro: object) -> None:
+    with pytest.raises(ValidationError, match="WHO target macro values must be integers"):
+        WHOTargetsResponse(
+            kcal_daily=2000,
+            macros={
+                "protein_g": cast(int, invalid_macro),
+                "fat_g": 70,
+                "carbs_g": 250,
+                "fiber_g": 30,
+            },
+            water_ml=2100,
+            priority_micros={},
+            activity_weekly={
+                "moderate_aerobic_min": 150,
+                "strength_sessions": 2,
+                "steps_daily": 8000,
+            },
+            calculation_date="2026-07-22",
+            ui_labels=build_who_targets_ui_labels("en"),
+        )
+
+
+def test_targets_generate_path_rejects_coercible_macro_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canonical_builder = service.nutrition_recommendations.build_nutrition_targets
+
+    def _builder_with_numeric_string(
+        profile: service.nutrition_targets.UserProfile,
+    ) -> service.nutrition_targets.NutritionTargets:
+        targets = canonical_builder(profile)
+        return replace(
+            targets,
+            macros=replace(
+                targets.macros,
+                protein_g=cast(int, "120"),
+            ),
+        )
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "validate_targets_safety",
+        lambda _targets: [],
+    )
+
+    _assert_http_exception(
+        lambda: service.generate_who_targets_response(
+            _request(),
+            targets_builder=_builder_with_numeric_string,
+        ),
+        status_code=500,
+        detail=service.WHO_TARGETS_CALCULATION_FAILED_DETAIL,
+    )
 
 
 def test_fallback_targets_cover_goal_and_warning_boundaries(
@@ -466,9 +537,7 @@ def test_nutrition_helpers_reject_bad_shapes_and_sync_present_aliases() -> None:
     assert micros == {"iodine_ug": 150.0, "iodine": 150.0}
 
 
-def test_plate_alignment_uses_resolved_builder_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_plate_alignment_uses_resolved_builder_override() -> None:
     canonical_builder = service.nutrition_recommendations.build_nutrition_targets
     calls: list[object] = []
 
@@ -476,12 +545,6 @@ def test_plate_alignment_uses_resolved_builder_override(
         calls.append(profile)
         return canonical_builder(profile)
 
-    monkeypatch.setattr(legacy_app, "targets_disabled", lambda: False)
-    monkeypatch.setattr(
-        legacy_app,
-        "_resolve_build_targets_callable",
-        lambda: _resolved_builder,
-    )
     request = PlateRequest(
         sex="female",
         age=34,
@@ -493,7 +556,7 @@ def test_plate_alignment_uses_resolved_builder_override(
         lang="en",
     )
 
-    macros, kcal, aligned = legacy_app.align_macros_with_targets(
+    macros, kcal, aligned = plate_service.align_macros_with_targets(
         request,
         {
             "macros": {
@@ -503,7 +566,7 @@ def test_plate_alignment_uses_resolved_builder_override(
                 "fiber_g": 20,
             }
         },
-        [],
+        targets_builder=_resolved_builder,
     )
 
     assert len(calls) == 1

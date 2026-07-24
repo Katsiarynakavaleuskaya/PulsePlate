@@ -25,6 +25,7 @@ from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
 import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
+from app.services import pro_nutrition_plate as plate_service
 import legacy_app
 
 
@@ -327,14 +328,15 @@ def test_export_daily_csv_preserves_503_when_helper_missing(
 
 
 def test_aggregate_day_micros_accepts_sync_callable() -> None:
-    async def _run() -> None:
-        """Support sync callable result per contract comment in aggregate_day_micros."""
-        sync_mod = ModuleType("sync_candidate")
-        setattr(sync_mod, "_aggregate_day_micronutrients", lambda _meals: {"iron_mg": 1.0})
-        res = await legacy_app.aggregate_day_micros(meals=[], candidates=[sync_mod])
-        assert res == {"iron_mg": 1.0}
+    """Canonical Plate aggregation supports an explicit synchronous dependency."""
+    result = asyncio.run(
+        plate_service.aggregate_day_micros(
+            meals=[],
+            aggregator=lambda _meals: {"iron_mg": 1.0},
+        )
+    )
 
-    asyncio.run(_run())
+    assert result == {"iron_mg": 1.0}
 
 
 def test_legacy_scheduler_stop_wrapper_executes() -> None:
@@ -1192,34 +1194,66 @@ def test_rollback_database_coroutine_callable_path(monkeypatch: pytest.MonkeyPat
     asyncio.run(_run())
 
 
-def test_targets_disabled_detects_explicit_none_on_app_and_alias(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover explicit build_nutrition_targets=None checks (lines ~2339, ~2341)."""
-    # Reset cache so we don't short-circuit before reaching the explicit-none checks.
-    monkeypatch.setattr(legacy_app, "_targets_disabled_cache", None, raising=False)
-    monkeypatch.setattr(legacy_app, "_targets_disabled_cache_time", 0.0, raising=False)
-
-    # Ensure pkg_explicit_none does not short-circuit.
-    dummy_pkg = ModuleType("dummy_pkg")
-    monkeypatch.setattr(legacy_app, "_APP_PACKAGE_REF", dummy_pkg, raising=False)
-
-    import app as app_pkg
-
-    # primary app module case (line ~2339)
-    monkeypatch.setattr(app_pkg, "build_nutrition_targets", None, raising=False)
-    assert legacy_app.targets_disabled() is True
-
-    # alias module case (line ~2341)
-    alias = ModuleType("app_module")
-    alias.build_nutrition_targets = None  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "app_module", alias)
-    monkeypatch.setattr(legacy_app, "_targets_disabled_cache", None, raising=False)
-    assert legacy_app.targets_disabled() is True
+def test_legacy_plate_entrypoints_are_exact_canonical_aliases() -> None:
+    """Legacy Plate execution cannot diverge from canonical service ownership."""
+    assert legacy_app._compute_premium_plate is plate_service.generate_plate_response
+    assert legacy_app.api_premium_plate is plate_service.generate_plate_response
+    assert not hasattr(legacy_app, "_plate_deps")
 
 
-def test_build_fallback_plate_invalid_fiber_uses_fiber_min(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover invalid fiber_g conversion branch (line ~3263)."""
+def test_legacy_plate_dependencies_preserve_direct_import_shape() -> None:
+    """Legacy Python callers retain the pre-extraction dependency container API."""
+
+    def _make_plate(**_kwargs: Any) -> dict[str, Any]:
+        return {}
+
+    def _build_targets(_profile: object) -> object:
+        return object()
+
+    def _calculate_bmr(*_args: object) -> dict[str, float]:
+        return {}
+
+    def _calculate_tdee(*_args: object) -> dict[str, float]:
+        return {}
+
+    def _aggregate_micros(_meals: list[dict[str, Any]]) -> dict[str, float]:
+        return {}
+
+    empty = legacy_app.PlateDependencies()
+    assert empty.make_plate_fn is None
+    assert empty.make_plate is None
+    assert empty.build_nutrition_targets_fn is None
+    assert empty.build_nutrition_targets is None
+    assert empty.calculate_all_bmr_fn is None
+    assert empty.calculate_all_bmr is None
+    assert empty.calculate_all_tdee_fn is None
+    assert empty.calculate_all_tdee is None
+    assert empty.aggregate_day_micronutrients_fn is None
+    assert empty._aggregate_day_micronutrients is None
+
+    dependencies = legacy_app.PlateDependencies(
+        make_plate_fn=_make_plate,
+        build_nutrition_targets_fn=_build_targets,
+        calculate_all_bmr_fn=_calculate_bmr,
+        calculate_all_tdee_fn=_calculate_tdee,
+        aggregate_day_micronutrients_fn=_aggregate_micros,
+    )
+
+    assert dependencies.make_plate_fn is _make_plate
+    assert dependencies.make_plate is _make_plate
+    assert dependencies.build_nutrition_targets_fn is _build_targets
+    assert dependencies.build_nutrition_targets is _build_targets
+    assert dependencies.calculate_all_bmr_fn is _calculate_bmr
+    assert dependencies.calculate_all_bmr is _calculate_bmr
+    assert dependencies.calculate_all_tdee_fn is _calculate_tdee
+    assert dependencies.calculate_all_tdee is _calculate_tdee
+    assert dependencies.aggregate_day_micronutrients_fn is _aggregate_micros
+    assert dependencies._aggregate_day_micronutrients is _aggregate_micros
+    assert legacy_app.PlateServiceDependencies is plate_service.PlateServiceDependencies
+
+
+def test_build_fallback_plate_invalid_fiber_uses_fiber_min() -> None:
+    """Canonical fallback replaces an invalid target fiber with the minimum."""
 
     class _Macros:
         protein_g = 120
@@ -1230,11 +1264,11 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min(monkeypatch: pytest.M
     class _Targets:
         kcal_daily = 2000
         macros = _Macros()
+        water_ml_daily = 2500
 
-    monkeypatch.setattr(legacy_app, "_evaluate_targets_disabled", lambda: False, raising=False)
-    monkeypatch.setattr(
-        legacy_app, "_resolve_build_targets_callable", lambda: lambda _p: _Targets()
-    )
+        @staticmethod
+        def validate_consistency() -> bool:
+            return True
 
     req = legacy_app.PlateRequest(
         sex="male",
@@ -1250,89 +1284,110 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min(monkeypatch: pytest.M
         life_stage="adult",
         lang="en",
     )
-    out = legacy_app.build_fallback_plate(req, candidates=[])
-    assert out.macros["fiber_g"] >= int(round(legacy_app.FIBER_MIN_G))
+    out = plate_service.build_fallback_plate(
+        req,
+        targets_builder=lambda _profile: _Targets(),
+    )
+
+    assert out.macros["fiber_g"] == int(round(legacy_app.FIBER_MIN_G))
 
 
-def test_aggregate_day_micros_awaits_resolved_callable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        """Cover await path in aggregate_day_micros (line ~3565)."""
+def test_aggregate_day_micros_awaits_resolved_callable() -> None:
+    """Canonical Plate aggregation awaits an explicit asynchronous dependency."""
 
-        async def _agg(_meals: Any) -> dict[str, float]:
-            return {"iron_mg": 1.0}
+    async def _agg(_meals: list[dict[str, Any]]) -> dict[str, float]:
+        return {"iron_mg": 1.0}
 
-        monkeypatch.setattr(legacy_app.core_utils, "resolve_attr", lambda *_a, **_k: _agg)
-        out = await legacy_app.aggregate_day_micros(meals=[{"x": 1}], candidates=[])
-        assert out["iron_mg"] == 1.0
+    result = asyncio.run(
+        plate_service.aggregate_day_micros(
+            meals=[{"x": 1}],
+            aggregator=_agg,
+        )
+    )
 
-    asyncio.run(_run())
+    assert result == {"iron_mg": 1.0}
 
 
 def test_premium_plate_calls_bmr_tdee_and_make_plate(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover BMR/TDEE + make_plate call path in api_premium_plate (lines ~3684-3690)."""
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    """Canonical Plate calls each explicit core dependency exactly once."""
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    calls: list[str] = []
 
-        monkeypatch.setattr(legacy_app, "sanitize_plate_data", lambda x: x, raising=False)
+    def _calculate_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
+        calls.append("bmr")
+        return {"mifflin": 1500.0}
 
-        async def _empty_micros(*_a: Any, **_k: Any) -> dict[str, float]:
-            return {}
+    def _calculate_tdee(
+        _bmr_results: dict[str, float],
+        _activity: str,
+    ) -> dict[str, float]:
+        calls.append("tdee")
+        return {"mifflin": 2000.0}
 
-        monkeypatch.setattr(legacy_app, "aggregate_day_micros", _empty_micros, raising=False)
-        monkeypatch.setattr(
-            legacy_app,
-            "align_macros_with_targets",
-            lambda *_a, **_k: (
-                {"protein_g": 100, "fat_g": 50, "carbs_g": 200, "fiber_g": 25},
-                None,
-                False,
-            ),
-            raising=False,
+    def _make_plate(**_kwargs: Any) -> dict[str, Any]:
+        calls.append("plate")
+        return {
+            "kcal": 2000,
+            "macros": {
+                "protein_g": 120,
+                "fat_g": 50,
+                "carbs_g": 200,
+                "fiber_g": 25,
+            },
+            "portions": {
+                "protein_palm": 1.0,
+                "fat_thumbs": 1.0,
+                "carb_cups": 1.0,
+                "veg_cups": 1.0,
+            },
+            "layout": [
+                {
+                    "kind": "plate_sector",
+                    "fraction": 1.0,
+                    "label": "x",
+                    "tooltip": "x",
+                }
+            ],
+            "meals": [],
+        }
+
+    def _empty_micros(
+        _meals: list[dict[str, Any]],
+    ) -> dict[str, float]:
+        calls.append("micros")
+        return {}
+
+    dependencies = plate_service.PlateServiceDependencies(
+        make_plate=_make_plate,
+        calculate_all_bmr=_calculate_bmr,
+        calculate_all_tdee=_calculate_tdee,
+        build_nutrition_targets=None,
+        aggregate_day_micronutrients=_empty_micros,
+    )
+    request = legacy_app.PlateRequest(
+        sex="male",
+        age=30,
+        height_cm=175.0,
+        weight_kg=70.0,
+        activity="moderate",
+        goal="maintain",
+        deficit_pct=None,
+        surplus_pct=None,
+        bodyfat=None,
+        diet_flags=set(),
+        life_stage="adult",
+        lang="en",
+    )
+
+    response = asyncio.run(
+        plate_service.generate_plate_response(
+            request,
+            dependencies=dependencies,
         )
+    )
 
-        monkeypatch.setattr(
-            legacy_app, "calculate_all_bmr", lambda *_a, **_k: {"mifflin": 1500.0}, raising=False
-        )
-        monkeypatch.setattr(
-            legacy_app, "calculate_all_tdee", lambda *_a, **_k: {"mifflin": 2000.0}, raising=False
-        )
-
-        def _make_plate(**_kw: Any) -> dict[str, Any]:
-            return {
-                "kcal": 2000,
-                "macros": {"protein_g": 120, "fat_g": 50, "carbs_g": 200, "fiber_g": 25},
-                "portions": {
-                    "protein_palm": 1.0,
-                    "fat_thumbs": 1.0,
-                    "carb_cups": 1.0,
-                    "veg_cups": 1.0,
-                },
-                "layout": [{"kind": "plate_sector", "fraction": 1.0, "label": "x", "tooltip": "x"}],
-                "meals": [{"title": "m", "kcal": 500, "protein_g": 30, "fat_g": 10, "carbs_g": 60}],
-            }
-
-        monkeypatch.setattr(legacy_app, "make_plate", _make_plate, raising=False)
-
-        req = legacy_app.PlateRequest(
-            sex="male",
-            age=30,
-            height_cm=175.0,
-            weight_kg=70.0,
-            activity="moderate",
-            goal="maintain",
-            deficit_pct=None,
-            surplus_pct=None,
-            bodyfat=None,
-            diet_flags=set(),
-            life_stage="adult",
-            lang="en",
-        )
-        out = await legacy_app.api_premium_plate(req)
-        assert out.kcal >= 0
-
-    asyncio.run(_run())
+    assert response.kcal == 2000
+    assert calls == ["bmr", "tdee", "plate", "micros"]
 
 
 def test_premium_bmr_legacy_hits_globals_fallback_path(

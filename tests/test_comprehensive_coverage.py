@@ -5,7 +5,7 @@ Comprehensive tests to improve coverage to 97%+.
 import asyncio
 import os
 from types import SimpleNamespace
-from typing import Any, Dict, cast
+from typing import Any, Dict, Iterator, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,7 +15,7 @@ from starlette.types import ASGIApp
 
 import app as app_mod
 from app import app
-from app.services import admin_operations
+from app.services import admin_operations, pro_nutrition_plate
 from tests.helpers.fast_update_stubs import (
     make_scheduler_stub,
     patch_admin_get_update_scheduler,
@@ -25,22 +25,18 @@ from tests.helpers.fast_update_stubs import (
 class TestComprehensiveCoverage:
     """Comprehensive tests to improve coverage."""
 
-    def setup_method(self) -> None:
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    @pytest.fixture(autouse=True)
+    def _configure_test_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> Iterator[None]:
+        """Provide per-test environment state without leaking caller values."""
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        # Explicitly close TestClient to clean up resources
-        if hasattr(self, "client"):
-            self.client.close()
-
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
-        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-            del os.environ["FEATURE_PREMIUM_NUTRITION"]
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        with TestClient(cast(ASGIApp, app)) as client:
+            self.client = client
+            yield
 
     def test_debug_env_endpoint(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test debug_env endpoint with deterministic response."""
@@ -348,19 +344,31 @@ class TestComprehensiveCoverage:
         assert "usda" in data["detail"]
         assert "1.0" in data["detail"]
 
-    def test_premium_plate_endpoint_success(self) -> None:
+    def test_premium_plate_endpoint_success(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test premium plate endpoint success case."""
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        try:
-            with (
-                patch("app.make_plate") as mock_make_plate,
-                patch("app.calculate_all_bmr") as mock_calc_bmr,
-                patch("app.calculate_all_tdee") as mock_calc_tdee,
-            ):
-                self._assert_premium_plate_success(mock_calc_bmr, mock_calc_tdee, mock_make_plate)
-        finally:
-            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-                del os.environ["FEATURE_PREMIUM_NUTRITION"]
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        mock_make_plate = MagicMock()
+        mock_calc_bmr = MagicMock()
+        mock_calc_tdee = MagicMock()
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_plate,
+            "make_plate",
+            mock_make_plate,
+        )
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_bmr,
+            "calculate_all_bmr",
+            mock_calc_bmr,
+        )
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_bmr,
+            "calculate_all_tdee",
+            mock_calc_tdee,
+        )
+        self._assert_premium_plate_success(mock_calc_bmr, mock_calc_tdee, mock_make_plate)
 
     def _create_premium_plate_mock_data(self) -> Dict[str, Any]:
         """Create mock plate data for premium plate endpoint tests.
@@ -475,50 +483,60 @@ class TestComprehensiveCoverage:
         assert "macros" in data
         assert "portions" in data
 
-    def test_premium_plate_endpoint_value_error(self) -> None:
+    def test_premium_plate_endpoint_value_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test premium plate endpoint with ValueError."""
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        try:
-            with patch("app.make_plate") as mock_make_plate:
-                mock_make_plate.side_effect = ValueError("Invalid input")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        mock_make_plate = MagicMock(side_effect=ValueError("Invalid input"))
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_plate,
+            "make_plate",
+            mock_make_plate,
+        )
 
-                payload = {
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175,
-                    "weight_kg": 70,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                }
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175,
+            "weight_kg": 70,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
 
-                response = self.client.post(
-                    "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-                )
-                # ValueError is caught and returns 400 (not 422 which is for schema validation)
-                assert response.status_code == 400
-        finally:
-            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-                del os.environ["FEATURE_PREMIUM_NUTRITION"]
+        response = self.client.post(
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+        )
+        # ValueError is caught and returns 400 (not 422 which is for schema validation)
+        assert response.status_code == 400
 
-    def test_premium_plate_endpoint_general_exception(self) -> None:
+    def test_premium_plate_endpoint_general_exception(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test premium plate endpoint with general exception."""
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        with patch("app.make_plate") as mock_make_plate:
-            mock_make_plate.side_effect = Exception("Test error")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        mock_make_plate = MagicMock(side_effect=Exception("Test error"))
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_plate,
+            "make_plate",
+            mock_make_plate,
+        )
 
-            payload = {
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175,
-                "weight_kg": 70,
-                "activity": "moderate",
-                "goal": "maintain",
-            }
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175,
+            "weight_kg": 70,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
 
-            response = self.client.post(
-                "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
-            )
-            assert response.status_code == 500
+        response = self.client.post(
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+        )
+        assert response.status_code == 500
 
     def test_premium_plate_missing_nh3_returns_424(self) -> None:
         """Test premium plate endpoint returns 424 when nh3 dependency is missing."""

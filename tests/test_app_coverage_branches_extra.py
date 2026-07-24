@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import FrozenInstanceError
 import sys
 import types
 from typing import Any
@@ -7,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 import app
+from app.services import pro_nutrition_plate as plate_service
 from tests.helpers.fast_update_stubs import patch_background_update_scheduler_targets
 from app.utils import nutrition_wrappers as nw
 
@@ -228,26 +230,26 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
         nw._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
 
 
-def test_targets_disabled_container_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    """targets_disabled returns True when build_nutrition_targets_fn is unset."""
-    # Use monkeypatch to safely set and automatically restore the function
-    monkeypatch.setattr(app._plate_deps, "build_nutrition_targets_fn", None, raising=False)
-    app.reset_targets_cache()
-    assert app.targets_disabled() is True
+def test_plate_dependencies_are_resolved_per_call() -> None:
+    """Production dependency sets are fresh and bound to canonical modules."""
+    first = plate_service._default_dependencies()
+    second = plate_service._default_dependencies()
+
+    assert first is not second
+    assert first.make_plate is plate_service.nutrition_plate.make_plate
+    assert first.calculate_all_bmr is plate_service.nutrition_bmr.calculate_all_bmr
+    assert first.calculate_all_tdee is plate_service.nutrition_bmr.calculate_all_tdee
 
 
-def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
-    """targets_disabled detects None on primary app module attribute.
+def test_plate_dependencies_are_immutable_without_facade_registry() -> None:
+    """Dependency overrides cannot mutate process-global Plate behavior."""
+    dependencies = plate_service._default_dependencies()
 
-    The container remains configured (function not None), but an explicit
-    None on the primary `app` module signals that targets are disabled.
-    """
-    # Keep container configured but null out the primary module attribute
-    original_fn = app._plate_deps.build_nutrition_targets_fn
-    monkeypatch.setattr(app._plate_deps, "build_nutrition_targets_fn", original_fn)
-    monkeypatch.setattr(app, "build_nutrition_targets", None, raising=False)
-    app.reset_targets_cache()
-    assert app.targets_disabled() is True
+    with pytest.raises(FrozenInstanceError):
+        setattr(dependencies, "make_plate", None)
+
+    assert not hasattr(plate_service, "_plate_deps")
+    assert not hasattr(plate_service, "_targets_disabled_cache")
 
 
 def test_calculate_all_bmr_wrapper_happy_path_nutrition_core(

@@ -1,6 +1,8 @@
-"""Tests for PRO contract routes bootstrap registration (idempotency, partial state detection)."""
+"""Critical PRO route bootstrap registration contract tests."""
 
 from __future__ import annotations
+
+import asyncio
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -12,6 +14,7 @@ from app.effective_routes import (
     route_matches_path_method,
     route_path,
 )
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 def _post_route_count(routes: list[object], path: str) -> int:
@@ -105,3 +108,73 @@ def test_register_pro_contract_routes_rejects_existing_handlers_without_pro_depe
         ),
     ):
         register_pro_contract_routes(app)
+
+
+def test_pro_plate_handler_delegates_to_canonical_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The canonical route owns no compatibility-layer call path."""
+
+    from app.routers import pro_nutrition_contracts
+    from app.schemas.premium_contracts import PlateRequest, PlateResponse
+
+    request = PlateRequest(
+        sex="female",
+        age=34,
+        height_cm=168,
+        weight_kg=62,
+        activity="light",
+        goal="maintain",
+    )
+    expected = PlateResponse(
+        kcal=1900,
+        macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238},
+        portions={"protein_palm": 1.3},
+        layout=[],
+        meals=[],
+    )
+    captured: dict[str, object] = {}
+
+    async def _fake_service(received: PlateRequest) -> PlateResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(
+        pro_nutrition_contracts,
+        "generate_plate_response",
+        _fake_service,
+    )
+
+    response = asyncio.run(pro_nutrition_contracts.pro_nutrition_plate(request))
+
+    assert response is expected
+    assert captured["request"] is request
+
+
+@pytest.mark.parametrize("field_name", ["height_cm", "weight_kg"])
+def test_pro_plate_rejects_raw_non_finite_measurement_with_exact_422(
+    client: TestClient,
+    field_name: str,
+) -> None:
+    height_cm = "1e309" if field_name == "height_cm" else "168"
+    weight_kg = "1e309" if field_name == "weight_kg" else "62"
+    raw_payload = (
+        '{"sex":"female","age":34,'
+        f'"height_cm":{height_cm},"weight_kg":{weight_kg},'
+        '"activity":"light","goal":"maintain"}'
+    )
+
+    response = client.post(
+        "/api/v1/pro/nutrition/plate",
+        content=raw_payload,
+        headers={
+            "X-API-Key": TEST_KEY_PRO,
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert len(detail) == 1
+    assert detail[0]["loc"] == ["body", field_name]
+    assert detail[0]["type"] == "float_parsing"

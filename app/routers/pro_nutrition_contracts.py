@@ -15,6 +15,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
+from app.services.pro_nutrition_plate import generate_plate_response
 from app.services.pro_nutrition_targets import generate_who_targets_response
 
 router = APIRouter(
@@ -31,7 +32,8 @@ router = APIRouter(
 )
 async def pro_nutrition_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Canonical targets endpoint for PRO tier."""
-    return generate_who_targets_response(req)
+    response: WHOTargetsResponse = generate_who_targets_response(req)
+    return response
 
 
 @router.post(
@@ -41,7 +43,4 @@ async def pro_nutrition_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
 )
 async def pro_nutrition_plate(req: PlateRequest) -> PlateResponse:
     """Canonical plate endpoint for PRO tier (PlateRequest → PlateResponse)."""
-    from legacy_app import _compute_premium_plate
-
-    resp: PlateResponse = await _compute_premium_plate(req)
-    return resp
+    return await generate_plate_response(req)
