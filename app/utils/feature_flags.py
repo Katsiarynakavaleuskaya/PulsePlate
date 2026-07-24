@@ -39,6 +39,12 @@ def is_vip_module_enabled() -> bool:
     return _is_truthy(os.getenv("VIP_MODULE_ENABLED", "true"))
 
 
+def is_premium_nutrition_enabled() -> bool:
+    """Check if premium nutrition behavior is explicitly enabled."""
+
+    return is_explicit_truthy_env_var("FEATURE_PREMIUM_NUTRITION")
+
+
 def is_rag_vector_enabled() -> bool:
     """Check if vector-based RAG retrieval is enabled.
 
@@ -106,6 +112,7 @@ __all__ = [
     "is_business_module_enabled",
     "is_creative_research_pilot_enabled",
     "is_explicit_truthy_env_var",
+    "is_premium_nutrition_enabled",
     "is_vip_module_enabled",
     "is_rag_vector_enabled",
     "is_philosophy_validation_enabled",

@@ -277,7 +277,7 @@ def test_retained_plate_rejects_raw_non_finite_measurement_with_exact_422(
     assert detail[0]["type"] == "float_parsing"
 
 
-def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
+def test_legacy_premium_api_bmr_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     legacy_module = resolve_legacy_app()
@@ -302,13 +302,17 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
     )
     captured: dict[str, object] = {}
 
-    async def _fake_legacy_handler(
+    async def _fake_canonical_service(
         received: app_main._legacy_module.BMRRequest,
     ) -> app_main._legacy_module.BMRResponse:
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(resolve_legacy_app(), "api_premium_bmr", _fake_legacy_handler)
+    monkeypatch.setattr(
+        legacy_premium_nutrition,
+        "calculate_bmr_response",
+        _fake_canonical_service,
+    )
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_bmr(req))
 
@@ -316,7 +320,7 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
     assert captured["request"] is req
 
 
-def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
+def test_public_premium_bmr_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     legacy_module = resolve_legacy_app()
@@ -341,13 +345,17 @@ def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
     )
     captured: dict[str, object] = {}
 
-    async def _fake_legacy_handler(
+    async def _fake_canonical_service(
         received: app_main._legacy_module.BMRRequestLegacy,
     ) -> app_main._legacy_module.BMRResponse:
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(resolve_legacy_app(), "premium_bmr_legacy", _fake_legacy_handler)
+    monkeypatch.setattr(
+        legacy_premium_nutrition,
+        "calculate_bmr_response",
+        _fake_canonical_service,
+    )
 
     response = asyncio.run(legacy_premium_nutrition.premium_bmr_legacy(req))
 

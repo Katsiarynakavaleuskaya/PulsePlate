@@ -40,15 +40,6 @@ class TestAppHelperFunctions:
         val = app_module._is_rate_limiting_available()
         assert isinstance(val, bool)
 
-    def test_bmr_wrapper_and_tdee_wrapper(self):
-        # BMR wrapper should produce a dict of numeric values
-        bmr = app_module._calculate_all_bmr_wrapper(70, 175, 30, "male", bodyfat=15)
-        assert isinstance(bmr, dict) and bmr
-        # TDEE wrapper should map BMR dict to TDEE dict with same keys
-        tdee = app_module._calculate_all_tdee_wrapper(bmr, "moderate")
-        assert isinstance(tdee, dict) and set(tdee.keys()) == set(bmr.keys())
-        assert all(isinstance(v, (int, float)) for v in tdee.values())
-
     def test_resolve_attr_utility(self):
         # resolve_attr should pick attribute from candidates or return default
         mock_mod = Mock()

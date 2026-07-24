@@ -55,6 +55,12 @@
   Route tests assert exact `403`/`400`/`422`/`500`/`503` contracts and prove
   builder/executor non-calls on short-circuit paths; broad allowed-status
   assertions are not evidence.
+- Premium BMR service tests inject an immutable `BMRDependencies` value directly
+  into `app.services.pro_nutrition_bmr.calculate_bmr_response`. Do not restore
+  patches against `legacy_app`, the `app` facade, module tables, or deleted
+  nutrition-wrapper symbols. Assert exact feature/auth ordering, finite input
+  and dependency-output boundaries, sanitized errors/logs, and response parity
+  for both retained routes.
 - For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
   behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
   are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or

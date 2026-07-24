@@ -6,23 +6,59 @@ RU: Схемы для расчета BMR (базового метаболизм�
 EN: Schemas for BMR (basal metabolic rate) and TDEE calculations.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+import math
+
+from pydantic import BaseModel, Field, field_validator
 
 from core.i18n import Language
 
 
-class BMRRequest(BaseModel):
-    """Request model for BMR calculation"""
+class _BMRRequestBase(BaseModel):
+    """Shared validation contract for canonical and compatibility BMR routes."""
 
     weight_kg: float = Field(..., gt=0)
     height_cm: float = Field(..., gt=0)
-    age: int = Field(..., ge=0, le=120)
+    age: int = Field(..., ge=1, le=120)
     sex: str = Field(..., pattern="^(male|female)$")
     activity: str = Field(..., pattern="^(sedentary|light|moderate|active|very_active)$")
-    bodyfat: Optional[float] = Field(None, gt=0, le=60)
+    bodyfat: Optional[float] = Field(None, gt=0, le=50)
     lang: Language = "en"
+
+    @field_validator("weight_kg", "height_cm", "bodyfat", mode="before")
+    @classmethod
+    def reject_invalid_measurements(cls, value: Any) -> Any:
+        """Reject booleans and non-finite/non-positive numeric inputs before coercion."""
+
+        if value is None:
+            return value
+        if isinstance(value, bool):
+            raise ValueError("measurement must be a positive finite number")
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return value
+        if not math.isfinite(numeric_value) or numeric_value <= 0:
+            raise ValueError("measurement must be a positive finite number")
+        return value
+
+    @field_validator("age", mode="before")
+    @classmethod
+    def reject_boolean_age(cls, value: Any) -> Any:
+        """Keep numeric-string compatibility without accepting bool as an integer."""
+
+        if isinstance(value, bool):
+            raise ValueError("age must be an integer between 1 and 120")
+        return value
+
+
+class BMRRequest(_BMRRequestBase):
+    """Request model for BMR calculation."""
+
+
+class BMRRequestLegacy(_BMRRequestBase):
+    """Compatibility request model with the same effective safety invariants."""
 
 
 class BMRResponse(BaseModel):
@@ -52,20 +88,3 @@ class BMRResponse(BaseModel):
         ...,
         description="Informational messages about the calculation (e.g., notes about body fat usage, warnings, or fallback explanations).",
     )
-
-
-class BMRRequestLegacy(BaseModel):
-    """
-    Lenient legacy request model to allow testing error paths without 422.
-
-    RU: Более мягкая модель для обратной совместимости.
-    EN: Lenient model for backward compatibility.
-    """
-
-    weight_kg: float
-    height_cm: float
-    age: int
-    sex: str
-    activity: str
-    bodyfat: Optional[float] = None
-    lang: Language = "en"
