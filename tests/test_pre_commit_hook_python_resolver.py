@@ -1528,6 +1528,12 @@ def _prepare_dependabot_policy_hook_repo(tmp_path: Path) -> Path:
         REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
         repo / "scripts" / "run-backend-tests-pre-commit.sh",
     )
+    (repo / "scripts" / "ci").mkdir()
+    (repo / "scripts" / "ci" / "check_python_dependency_surfaces.py").write_text(
+        "DEPENDENCY_SURFACES = ()\n",
+        encoding="utf-8",
+    )
+    (repo / "tests").mkdir()
     (repo / ".github").mkdir()
     (repo / ".github" / "dependabot.yml").write_text(
         "version: 2\n",
@@ -1551,6 +1557,30 @@ def test_backend_hook_maps_staged_dependabot_config_to_policy_test(
     _git(repo, "add", ".github/dependabot.yml")
     calls_file = tmp_path / "pytest-dependabot-staged-args.txt"
     fake_python = tmp_path / "fake-python-dependabot-staged"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def test_backend_hook_maps_staged_dependency_surface_registry_to_policy_test(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    registry = repo / "scripts" / "ci" / "check_python_dependency_surfaces.py"
+    registry.write_text(
+        "DEPENDENCY_SURFACES = ('requirements.in',)\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "scripts/ci/check_python_dependency_surfaces.py")
+    calls_file = tmp_path / "pytest-dependabot-surface-registry-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-surface-registry"
     _write_fake_pytest_python(fake_python, calls_file)
     env = _clean_hook_env()
     env["VENV_PYTHON"] = str(fake_python)

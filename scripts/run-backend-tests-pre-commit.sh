@@ -204,7 +204,7 @@ add_extra_tests_for_changed_files() {
             .github/dependabot.yml | .github/dependabot.yaml | constraints.txt | requirements*.in | requirements*.txt)
                 EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
                 ;;
-            scripts/ci/check_dependabot_python_policy.py | tests/test_check_dependabot_python_policy.py | docs/DEPENDENCY_MANAGEMENT.md | docs/contracts/PYTHON_DEPENDENCY_SURFACES.md)
+            scripts/ci/check_dependabot_python_policy.py | scripts/ci/check_python_dependency_surfaces.py | tests/test_check_dependabot_python_policy.py | docs/DEPENDENCY_MANAGEMENT.md | docs/contracts/PYTHON_DEPENDENCY_SURFACES.md)
                 EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
                 ;;
         esac
@@ -334,7 +334,9 @@ if [ -n "$PYTHON_CHANGES" ]; then
             # Fallback: search recursively if no test files found
             if [ ${#FOUND_FOR_FILE[@]} -eq 0 ]; then
                 test_file=$(find tests -maxdepth 4 -type f -name "test_${basename}.py" -print -quit 2>/dev/null)
-                [ -n "$test_file" ] && [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
+                if [ -n "$test_file" ] && [ -f "$test_file" ]; then
+                    FOUND_FOR_FILE+=("$test_file")
+                fi
             fi
         fi
 
