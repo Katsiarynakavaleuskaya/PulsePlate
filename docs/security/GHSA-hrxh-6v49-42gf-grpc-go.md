@@ -18,8 +18,9 @@ Official sources:
 
 - `frontend/Dockerfile.caddy-spa:15` creates a temporary Go module, resolves only the exact
   Caddy and grpc-go versions, verifies the module graph, and builds with `-mod=readonly`.
-- `frontend/Dockerfile.caddy-spa:32` verifies the embedded Caddy and grpc-go module identities
-  from the completed binary before it can enter the runtime image.
+- `frontend/Dockerfile.caddy-spa:33` and `frontend/Dockerfile.caddy-spa:35` verify the
+  embedded Caddy and grpc-go module identities from the completed binary before it can enter
+  the runtime image.
 - `.github/workflows/cd.yml:324`, `.github/workflows/cd.yml:343`,
   `.github/workflows/build.yml:386`, `.github/workflows/build.yml:592`, and
   `.github/workflows/trivy.yml:206` pin the five active Trivy inputs to `v0.72.0` while the
