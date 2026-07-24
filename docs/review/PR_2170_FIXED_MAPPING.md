@@ -100,6 +100,11 @@ Evidence: tests/edges/test_app_micros_additional.py passes the invalid fixture t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#discussion_r3630517636 -> 51680df365a75ff0089b3f61b1ec43a21688222e
 
 Disposition: FIXED
+Commit: 2160b5ae214263013b35f3f82bee6c85d92b4c6b
+Evidence: app/services/pro_nutrition_plate.py requires Number for response-bound numeric values before sanitization; tests/edges/test_pro_nutrition_plate_service.py proves None, object, and list produce the stable fail-closed 500 response.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#discussion_r3631052907 -> 2160b5ae214263013b35f3f82bee6c85d92b4c6b
+
+Disposition: FIXED
 Commit: 6d0d6d37777db9fcf6cc7f16de49e30aaa9ce099
 Evidence: tests/test_comprehensive_coverage.py uses monkeypatch.setenv for Plate feature-state isolation in the reviewed scenarios.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#pullrequestreview-4743941150 -> 6d0d6d37777db9fcf6cc7f16de49e30aaa9ce099
@@ -204,8 +209,23 @@ Evidence: GitHub Commit API returns HTTP 422 for synthetic 8ee1aecc; FIXED proof
 Reason: Strict disposition proof uses the repository-addressable live PR graph, not an unavailable synthetic squash preview.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#discussion_r3630726137
 
+Disposition: NOT-A-BUG
+Evidence: GitHub Commit API returns HTTP 422 for d8fd5dc76aee5c328953f3ce5e384ba0fbb82853; real FIX proof 0fa730e511f400e90ee2a57c157b34751f1590d5 is reachable from live head 5ae6a822db4214879c663c22b95b733ee0448615.
+Reason: The finding applies ancestry to an unavailable reviewer execution ref rather than the repository-addressable live PR graph.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#discussion_r3631052885
+
+Disposition: NOT-A-BUG
+Evidence: Principal implementation commit 48a1c8607b01d24059baee516442a90b977f244c is a live PR commit and git log --format=%(trailers) records Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>; d8fd5dc76aee5c328953f3ce5e384ba0fbb82853 is unavailable to the Commit API.
+Reason: Attribution is carried by the repository-addressable material contribution and will be preserved in the squash merge message, not by an unavailable reviewer execution ref.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#discussion_r3631052891
+
+Disposition: NOT-A-BUG
+Evidence: The frozen closeout is bound to live material head 5ae6a822db4214879c663c22b95b733ee0448615, digest sha256:2a7d86f188951478a96674a31c5da9bef35889d932f26640779c0a7b90a6d2e7, and completed Codex Security scan 3a6d286a-bc32-4cb2-a8c2-ea0763c77af1; d8fd5dc76aee5c328953f3ce5e384ba0fbb82853 is unavailable to the Commit API.
+Reason: The comment inspected the intentionally historical pre-closeout seal; repository governance requires and this atomic closeout regenerates the seal only after final exact-material evidence exists.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#discussion_r3631052896
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"review_commit_ref":"51680df365a75ff0089b3f61b1ec43a21688222e","review_commit_ref_kind":"repository_commit","review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#pullrequestreview-4754992767","reviewed_material_digest":"sha256:160d1cc320f29ed6bdc97494d1608037c537bcaaa7440305850ef0d29cc77c32","status":"completed"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:61ca23dc6c4315bf23bd6f02fd97872e7fa2cec49de60f00d12ddd9e156cdb43","findings_sha256":"sha256:b1285bd18ea209802305982389ec718f7b02f761b9e3a44fd26a1250ad4bc01c","work_ledger_sha256":"sha256:a8ccc36146f69024582b2b226422598f2cd7c7e62df416a4ba4f9d4c0ab36484"},"authority":"human_asserted_content_receipt","base_revision":"880753ee3d1db61c7fc8593798ade03cdb2177c2","coverage_completeness":"complete","findings_count":0,"head_revision":"51680df365a75ff0089b3f61b1ec43a21688222e","manifest_sha256":"sha256:6b81fa0c56a99a24001c44bf94529bbe4072472e85c83ee04a3a03ea361c89c5","producer":{"name":"codex-security-plugin","version":"0.1.11"},"scan_id":"6d5b5cce-0064-4b3f-afc2-85296aa04f67","snapshot_digest":"codex-security-snapshot/v1:sha256:74a6c89104f0e28504fb524016eda04d48d4a0ac931348365896d2f052060712"},"material":{"base_ref_oid":"880753ee3d1db61c7fc8593798ade03cdb2177c2","digest":"sha256:160d1cc320f29ed6bdc97494d1608037c537bcaaa7440305850ef0d29cc77c32","material_head_sha":"51680df365a75ff0089b3f61b1ec43a21688222e","merge_base_sha":"880753ee3d1db61c7fc8593798ade03cdb2177c2","policy_version":"pulseplate.material-classification/v1"},"pr_number":2170,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"authority":"trusted_codex_review_source_unavailability","binding_kind":"seal_context_only","blocking":false,"fallback_required":false,"material_digest":"sha256:2a7d86f188951478a96674a31c5da9bef35889d932f26640779c0a7b90a6d2e7","material_head_sha":"5ae6a822db4214879c663c22b95b733ee0448615","quota_body_sha256":"sha256:619c9f9f66a93f7e7ea60049aa147d2cf183fb706a71e11a710216ed2ba19d92","quota_created_at":"2026-07-23T20:59:17Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2170#issuecomment-5063374726","review_claim":"none","schema_version":"pulseplate.codex-review-source-unavailability/v1","source":"codex_review","source_degraded":true,"source_status":"usage_limit_reached","status":"tooling_unavailable"},"codex_security":{"artifacts":{"coverage_sha256":"sha256:50e9a09581b060312adde87aa19fcde4c6a1efdc67e71196aa780cb387cf93e6","findings_sha256":"sha256:3de373a563cf37e8946e28e26e4b4ec8df940e4eb072a17038083d2c6cab3401","work_ledger_sha256":"sha256:0ee0738068d46d96349237ac9b22466953e46adcceaad98f2b3c5e5b9bad25cb"},"authority":"human_asserted_content_receipt","base_revision":"21ebb448f8cba5afb1c38e581c2928f57a844a3e","coverage_completeness":"complete","findings_count":0,"head_revision":"5ae6a822db4214879c663c22b95b733ee0448615","manifest_sha256":"sha256:ce4340e4d6ae1f5a2894037d7a2639fce7bae9c59a42d021561a264ed7dd6019","producer":{"name":"codex-security-plugin","version":"0.1.12"},"scan_id":"3a6d286a-bc32-4cb2-a8c2-ea0763c77af1","snapshot_digest":"codex-security-snapshot/v1:sha256:bc3a6282be7654a1334349a5c4e00688393324fb2df83e382c398be4585fa6f8"},"material":{"base_ref_oid":"21ebb448f8cba5afb1c38e581c2928f57a844a3e","digest":"sha256:2a7d86f188951478a96674a31c5da9bef35889d932f26640779c0a7b90a6d2e7","material_head_sha":"5ae6a822db4214879c663c22b95b733ee0448615","merge_base_sha":"21ebb448f8cba5afb1c38e581c2928f57a844a3e","policy_version":"pulseplate.material-classification/v1"},"pr_number":2170,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
