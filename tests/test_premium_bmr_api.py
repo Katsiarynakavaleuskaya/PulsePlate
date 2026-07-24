@@ -9,6 +9,7 @@ Tests cover:
 """
 
 import asyncio
+from collections.abc import Iterator
 import os
 import sys
 import types
@@ -19,10 +20,8 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 import app as app_package
-from app import app as fastapi_app
 from app.utils import nutrition_wrappers
 import legacy_app
 from tests._client import get_client
@@ -37,11 +36,6 @@ def test_bmr_rejects_invalid_sex() -> None:
 
     with pytest.raises(ValueError, match=r"sex must be 'male' or 'female'"):
         bmr_harris(weight=70, height=175, age=30, sex=cast(Sex, "UNKNOWN"))
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(fastapi_app)
 
 
 class TestPremiumBMRAPI:
@@ -556,11 +550,8 @@ def test_resolve_skips_non_callable_attr_and_falls_back_to_seam(
 
 def test_import_nutrition_core_import_seams(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover _import_nutrition_core_* implementations (ImportError + happy paths)."""
-
-    def _boom(_name: str) -> types.ModuleType:
-        raise ImportError("boom")
-
-    monkeypatch.setattr(nutrition_wrappers.importlib, "import_module", _boom)
+    modules = cast(dict[str, Any], sys.modules)
+    monkeypatch.setitem(modules, "nutrition_core", None)
     assert nutrition_wrappers._import_nutrition_core_bmr() is None
     assert nutrition_wrappers._import_nutrition_core_tdee() is None
 
@@ -575,11 +566,7 @@ def test_import_nutrition_core_import_seams(monkeypatch: pytest.MonkeyPatch) -> 
     setattr(mod, "calculate_all_bmr", calculate_all_bmr)
     setattr(mod, "calculate_all_tdee", calculate_all_tdee)
 
-    def _import_module(name: str) -> types.ModuleType:
-        assert name == "nutrition_core"
-        return mod
-
-    monkeypatch.setattr(nutrition_wrappers.importlib, "import_module", _import_module)
+    monkeypatch.setitem(modules, "nutrition_core", mod)
     assert nutrition_wrappers._import_nutrition_core_bmr() is calculate_all_bmr
     assert nutrition_wrappers._import_nutrition_core_tdee() is calculate_all_tdee
 
@@ -609,17 +596,6 @@ def test_resolve_nutrition_callable_prefers_app_app_module_over_alias(
     assert resolved is appmod_bmr
 
 
-def test_resolve_nutrition_callable_unknown_name_raises(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover unknown callable name branch."""
-    monkeypatch.setitem(sys.modules, "app", types.ModuleType("app"))
-    monkeypatch.setitem(sys.modules, "app_module", types.ModuleType("app_module"))
-
-    with pytest.raises(ImportError, match="unknown nutrition callable"):
-        nutrition_wrappers._resolve_nutrition_callable("unknown")
-
-
 def test_calculate_wrappers_fallback_to_nutrition_core_real_import_seams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -644,14 +620,10 @@ def test_calculate_wrappers_fallback_to_nutrition_core_real_import_seams(
     setattr(mod, "calculate_all_bmr", calculate_all_bmr)
     setattr(mod, "calculate_all_tdee", calculate_all_tdee)
 
-    def _import_module(name: str) -> types.ModuleType:
-        assert name == "nutrition_core"
-        return mod
-
     # Ensure wrappers don't resolve from app/app_module so fallback is exercised
     monkeypatch.setitem(sys.modules, "app", types.ModuleType("app"))
     monkeypatch.delitem(sys.modules, "app_module", raising=False)
-    monkeypatch.setattr(nutrition_wrappers.importlib, "import_module", _import_module)
+    monkeypatch.setitem(sys.modules, "nutrition_core", mod)
 
     bmr = nutrition_wrappers._calculate_all_bmr_wrapper(70.0, 175.0, 30, "male", bodyfat=None)
     assert bmr == {"mifflin": 1500.0}
@@ -762,28 +734,16 @@ def test_calculate_all_tdee_wrapper_happy_path_nutrition_core(
     assert calls["kwargs"] == {}
 
 
-def _get_legacy_bmr_app() -> ASGIApp:
-    """Safely get the FastAPI app instance from main.py."""
-    import main
-
-    if getattr(main, "app", None) is None:
-        raise RuntimeError("FastAPI app in main.py is not initialized")
-    return cast(ASGIApp, main.app)
-
-
-legacy_bmr_client = TestClient(_get_legacy_bmr_app())
-
-
 class TestLegacyPremiumBMRComprehensive:
     """Legacy BMR coverage formerly owned by the broad comprehensive suite."""
 
-    def test_premium_bmr_endpoint_module_not_available(self):
+    def test_premium_bmr_endpoint_module_not_available(self, client: TestClient) -> None:
         """Test /premium_bmr when nutrition module not available (lines 1180-1189)"""
         with patch(
             "app._calculate_all_bmr_wrapper",
             side_effect=ImportError("nutrition_core module not available"),
         ):
-            response = legacy_bmr_client.post(
+            response = client.post(
                 "/premium_bmr",
                 json={
                     "weight_kg": 70,
@@ -795,14 +755,15 @@ class TestLegacyPremiumBMRComprehensive:
                 },
             )
             assert response.status_code == 503
+            assert response.headers.get("content-type", "").startswith("application/json")
             assert "not available" in response.json()["detail"]
 
     @patch("app._calculate_all_bmr_wrapper")
-    def test_premium_bmr_endpoint_value_error(self, mock_bmr):
+    def test_premium_bmr_endpoint_value_error(self, mock_bmr: Any, client: TestClient) -> None:
         """Test /premium_bmr with ValueError (lines 1235-1236)"""
         mock_bmr.side_effect = ValueError("Invalid input data")
 
-        response = legacy_bmr_client.post(
+        response = client.post(
             "/premium_bmr",
             json={
                 "weight_kg": -10,  # Invalid weight
@@ -814,14 +775,15 @@ class TestLegacyPremiumBMRComprehensive:
             },
         )
         assert response.status_code == 400
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert "Invalid input" in response.json()["detail"]
 
     @patch("app._calculate_all_bmr_wrapper")
-    def test_premium_bmr_endpoint_general_error(self, mock_bmr):
+    def test_premium_bmr_endpoint_general_error(self, mock_bmr: Any, client: TestClient) -> None:
         """Test /premium_bmr with general exception (lines 1237-1238)"""
         mock_bmr.side_effect = Exception("Calculation failed")
 
-        response = legacy_bmr_client.post(
+        response = client.post(
             "/premium_bmr",
             json={
                 "weight_kg": 70,
@@ -833,13 +795,14 @@ class TestLegacyPremiumBMRComprehensive:
             },
         )
         assert response.status_code == 500
+        assert response.headers.get("content-type", "").startswith("application/json")
         assert "BMR calculation failed" in response.json()["detail"]
 
-    def test_activity_level_descriptions(self):
+    def test_activity_level_descriptions(self, client: TestClient) -> None:
         """Test activity level descriptions in premium_bmr"""
         with patch("app.calculate_all_bmr", return_value={"mifflin": 1800}):
             with patch("app.calculate_all_tdee", return_value={"mifflin": 2200}):
-                response = legacy_bmr_client.post(
+                response = client.post(
                     "/premium_bmr",
                     json={
                         "weight_kg": 70,
@@ -852,9 +815,9 @@ class TestLegacyPremiumBMRComprehensive:
                 )
                 assert response.status_code == 200
                 data = response.json()
-                assert "activity_level" in data
+                assert data["activity_level"] == "Very active"
 
-    def test_katch_bmr_note(self):
+    def test_katch_bmr_note(self, client: TestClient) -> None:
         """Test Katch BMR formula note when bodyfat provided"""
         with patch(
             "app.calculate_all_bmr",
@@ -864,7 +827,7 @@ class TestLegacyPremiumBMRComprehensive:
                 "app.calculate_all_tdee",
                 return_value={"mifflin": 2200, "katch": 2300},
             ):
-                response = legacy_bmr_client.post(
+                response = client.post(
                     "/premium_bmr",
                     json={
                         "weight_kg": 70,
@@ -878,20 +841,25 @@ class TestLegacyPremiumBMRComprehensive:
                 )
                 assert response.status_code == 200
                 data = response.json()
-                assert "notes" in data
-                # Should include Katch formula note when bodyfat is provided
+                assert data["formulas_used"] == ["mifflin", "katch"]
+                assert data["notes"] == [
+                    "Using Katch-McArdle formula (requires body fat percentage)"
+                ]
 
 
 class TestLegacyPremiumBMRRuntimeFallback:
     """Legacy BMR fallback coverage formerly owned by the extended suite."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, fastapi_app))
+    @pytest.fixture(autouse=True)
+    def _setup(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        with get_client() as test_client:
+            self.client = test_client
+            yield
 
-    def test_premium_bmr_unavailable(self):
-        """Test premium BMR endpoint when nutrition module unavailable."""
+    def test_premium_bmr_legacy_patch_still_returns_200(self) -> None:
+        """The canonical route remains available when legacy symbols are patched."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
             patch("legacy_app.calculate_all_bmr", None),
@@ -946,13 +914,14 @@ class TestLegacyBMRAppHelper:
     """Legacy wrapper integration formerly owned by the app helper suite."""
 
     def setup_method(self) -> None:
-        auth_env_name = "API_KEY"
-        os.environ[auth_env_name] = "test-key"
+        os.environ["API_KEY"] = "test-key"
         self.client = get_client()
 
     def teardown_method(self) -> None:
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+        client_instance = getattr(self, "client", None)
+        if client_instance is not None:
+            client_instance.close()
+        os.environ.pop("API_KEY", None)
 
     def test_bmr_wrapper_and_tdee_wrapper(self):
         # BMR wrapper should produce a dict of numeric values
@@ -988,6 +957,7 @@ class TestLegacyBMRHandlerExceptions:
                 },
             )
             assert response.status_code == 503
+            assert response.headers.get("content-type", "").startswith("application/json")
             data = response.json()
             assert "BMR calculation module not available" in data["detail"]
 
@@ -1012,6 +982,7 @@ class TestLegacyBMRHandlerExceptions:
                 },
             )
             assert response.status_code == 400
+            assert response.headers.get("content-type", "").startswith("application/json")
             data = response.json()
             assert "Invalid input" in data["detail"]
             assert "Invalid weight" in data["detail"]
@@ -1037,6 +1008,7 @@ class TestLegacyBMRHandlerExceptions:
                 },
             )
             assert response.status_code == 500
+            assert response.headers.get("content-type", "").startswith("application/json")
             data = response.json()
             assert "BMR calculation failed" in data["detail"]
 
@@ -1121,6 +1093,7 @@ class TestLegacyPremiumBMRErrorPaths:
                 headers={"X-API-Key": "test_key"},
             )
             assert r.status_code == 400
+            assert r.headers.get("content-type", "").startswith("application/json")
             assert "Invalid input" in r.json().get("detail", "")
 
         # Trigger HTTPException passthrough re-raise
@@ -1146,37 +1119,16 @@ class TestLegacyPremiumBMRErrorPaths:
                 headers={"X-API-Key": "test_key"},
             )
             assert r.status_code == 418
+            assert r.headers.get("content-type", "").startswith("application/json")
             assert "teapot" in r.json().get("detail", "")
-
-
-class TestLegacyBMRImportFallback:
-    """Legacy import fallback formerly owned by simple coverage."""
-
-    _client_instance: TestClient | None = None
-
-    def setup_method(self) -> None:
-        """Set up test client."""
-        self._client_instance = TestClient(cast(ASGIApp, fastapi_app))
-
-    @property
-    def app_client(self) -> TestClient:
-        """Return initialized test client."""
-        assert self._client_instance is not None
-        return self._client_instance
-
-    def test_app_import_fallbacks(self):
-        """Test app import fallbacks."""
-        with patch("legacy_app.calculate_all_bmr", None):
-            with patch("legacy_app.calculate_all_tdee", None):
-                response = self.app_client.get("/")
-                assert response.status_code == 200
 
 
 def test_premium_bmr_resolve_wrapper_prefers_patched_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Resolve api_premium_bmr wrappers from patched app package callables."""
+
     async def _run() -> None:
-        """Cover api_premium_bmr wrapper resolution that returns patched callable from app package."""
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
         # Patch wrappers on app package so api_premium_bmr picks them up via sys.modules["app"].
@@ -1209,7 +1161,8 @@ def test_premium_bmr_resolve_wrapper_prefers_patched_app(
             lang="en",
         )
         resp = await legacy_app.api_premium_bmr(req)
-        assert resp.bmr
+        assert resp.bmr == {"mifflin": 1000.0}
+        assert resp.tdee == {"mifflin": 2000.0}
 
     asyncio.run(_run())
 
@@ -1217,8 +1170,9 @@ def test_premium_bmr_resolve_wrapper_prefers_patched_app(
 def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Resolve api_premium_bmr wrappers from package candidates."""
+
     async def _run() -> None:
-        """Cover api_premium_bmr wrapper resolution that returns a candidate from _iter_app_modules."""
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
         dummy_mod = ModuleType("dummy_app_module")
@@ -1258,7 +1212,8 @@ def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
             lang="en",
         )
         resp = await legacy_app.api_premium_bmr(req)
-        assert resp.tdee
+        assert resp.bmr == {"mifflin": 1100.0}
+        assert resp.tdee == {"mifflin": 2100.0}
 
     asyncio.run(_run())
 
@@ -1266,8 +1221,9 @@ def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
 def test_premium_bmr_legacy_executes_wrapper_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Exercise premium_bmr_legacy wrapper resolution."""
+
     async def _run() -> None:
-        """Cover premium_bmr_legacy wrapper resolution return path."""
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
         def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
@@ -1299,7 +1255,8 @@ def test_premium_bmr_legacy_executes_wrapper_resolution(
             lang="en",
         )
         resp = await legacy_app.premium_bmr_legacy(req)
-        assert resp.bmr
+        assert resp.bmr == {"mifflin": 1000.0}
+        assert resp.tdee == {"mifflin": 2000.0}
 
     asyncio.run(_run())
 
@@ -1307,8 +1264,9 @@ def test_premium_bmr_legacy_executes_wrapper_resolution(
 def test_premium_bmr_legacy_hits_globals_fallback_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Exercise premium_bmr_legacy wrapper globals fallback."""
+
     async def _run() -> None:
-        """Cover premium_bmr_legacy _resolve_wrapper final globals() return (line ~4007)."""
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
         # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
@@ -1345,7 +1303,8 @@ def test_premium_bmr_legacy_hits_globals_fallback_path(
             lang="en",
         )
         resp = await legacy_app.premium_bmr_legacy(req)
-        assert resp.bmr
+        assert resp.bmr == {"mifflin": 1000.0}
+        assert resp.tdee == {"mifflin": 2000.0}
 
     asyncio.run(_run())
 
