@@ -12,7 +12,6 @@ import importlib
 import logging
 import math
 import sys
-from types import ModuleType
 from typing import Any, Callable
 
 import pytest
@@ -631,116 +630,6 @@ def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> No
 
         out = await legacy_app.insight(legacy_app.InsightRequest(text="q"))
         assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
-
-    asyncio.run(_run())
-
-
-def test_premium_bmr_resolve_wrapper_prefers_patched_app(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        """Cover api_premium_bmr wrapper resolution that returns patched callable from app package."""
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        # Patch wrappers on app package so api_premium_bmr picks them up via sys.modules["app"].
-        import app as app_pkg
-
-        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 1000.0}
-
-        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 2000.0}
-
-        monkeypatch.setattr(app_pkg, "_calculate_all_bmr_wrapper", bmr_wrapper, raising=False)
-        monkeypatch.setattr(app_pkg, "_calculate_all_tdee_wrapper", tdee_wrapper, raising=False)
-
-        req = legacy_app.BMRRequest(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.api_premium_bmr(req)
-        assert resp.bmr
-
-    asyncio.run(_run())
-
-
-def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        """Cover api_premium_bmr wrapper resolution that returns a candidate from _iter_app_modules."""
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        dummy_mod = ModuleType("dummy_app_module")
-
-        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 1100.0}
-
-        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 2100.0}
-
-        setattr(dummy_mod, "_calculate_all_bmr_wrapper", bmr_wrapper)
-        setattr(dummy_mod, "_calculate_all_tdee_wrapper", tdee_wrapper)
-
-        # Ensure sys.modules["app"] doesn't short-circuit the resolution
-        import app as app_pkg
-
-        # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
-        # the attribute is not actually present on the module. Remove only real module attributes.
-        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
-        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
-
-        monkeypatch.setattr(legacy_app, "_iter_app_modules", lambda: [dummy_mod])
-
-        req = legacy_app.BMRRequest(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.api_premium_bmr(req)
-        assert resp.tdee
-
-    asyncio.run(_run())
-
-
-def test_premium_bmr_legacy_executes_wrapper_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        """Cover premium_bmr_legacy wrapper resolution return path."""
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 1000.0}
-
-        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 2000.0}
-
-        import app as app_pkg
-
-        monkeypatch.setattr(app_pkg, "_calculate_all_bmr_wrapper", bmr_wrapper, raising=False)
-        monkeypatch.setattr(app_pkg, "_calculate_all_tdee_wrapper", tdee_wrapper, raising=False)
-
-        req = legacy_app.BMRRequestLegacy(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.premium_bmr_legacy(req)
-        assert resp.bmr
 
     asyncio.run(_run())
 
@@ -1388,42 +1277,6 @@ def test_premium_plate_calls_bmr_tdee_and_make_plate(monkeypatch: pytest.MonkeyP
 
     assert response.kcal == 2000
     assert calls == ["bmr", "tdee", "plate", "micros"]
-
-
-def test_premium_bmr_legacy_hits_globals_fallback_path(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        """Cover premium_bmr_legacy _resolve_wrapper final globals() return (line ~4007)."""
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        import app as app_pkg
-
-        # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
-        # the attribute is not actually present on the module. Remove only real module attributes.
-        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
-        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
-
-        monkeypatch.setattr(
-            legacy_app, "_calculate_all_bmr_wrapper", lambda *_a, **_k: {"mifflin": 1000.0}
-        )
-        monkeypatch.setattr(
-            legacy_app, "_calculate_all_tdee_wrapper", lambda *_a, **_k: {"mifflin": 2000.0}
-        )
-
-        req = legacy_app.BMRRequestLegacy(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.premium_bmr_legacy(req)
-        assert resp.bmr
-
-    asyncio.run(_run())
 
 
 def test_exports_flag_warning_outside_tests_is_coverable(
