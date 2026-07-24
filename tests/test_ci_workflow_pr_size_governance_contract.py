@@ -1438,12 +1438,17 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
         ".github/workflows/cd.yml": 3,
     }
     observed_counts: dict[str, int] = {}
-    observed_contracts: list[tuple[str, str, object, str, object, object, object]] = []
+    observed_contracts: list[
+        tuple[str, str, object, str, object, object, object, object, object]
+    ] = []
 
     for workflow_path in _active_workflow_paths():
         workflow_relative_path = str(workflow_path.relative_to(REPO_ROOT))
         workflow_text = workflow_path.read_text(encoding="utf-8")
         workflow_lines = workflow_text.splitlines()
+        workflow = _load_workflow(workflow_path)
+        jobs = workflow["jobs"]
+        assert isinstance(jobs, dict)
         assert OLD_SBOM_ACTION_SHA not in workflow_text
         workflow_document = yaml.compose(workflow_text)
         assert isinstance(workflow_document, Node)
@@ -1465,8 +1470,11 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
             if not isinstance(uses, str) or not uses.casefold().startswith("anchore/sbom-action@"):
                 continue
 
+            job = jobs[job_id]
+            assert isinstance(job, dict)
             workflow_sbom_count += 1
             assert uses == expected_uses
+            assert "continue-on-error" not in job
             assert "if" not in step
             assert "continue-on-error" not in step
             observed_contracts.append(
@@ -1476,6 +1484,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                     step.get("name"),
                     uses,
                     step.get("with"),
+                    job.get("if"),
+                    job.get("continue-on-error"),
                     step.get("if"),
                     step.get("continue-on-error"),
                 )
@@ -1498,6 +1508,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "sbom.spdx.json",
             },
+            "github.event_name != 'pull_request'",
+            None,
             None,
             None,
         ),
@@ -1514,6 +1526,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "backend-image-sbom.spdx.json",
             },
+            "github.ref == 'refs/heads/main'",
+            None,
             None,
             None,
         ),
@@ -1530,6 +1544,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "caddy-image-sbom.spdx.json",
             },
+            "github.ref == 'refs/heads/main'",
+            None,
             None,
             None,
         ),
@@ -1546,6 +1562,8 @@ def test_active_sbom_action_refs_use_verified_v0_24_0_sha_and_preserve_contracts
                 "format": "spdx-json",
                 "output-file": "docker-image-sbom.spdx.json",
             },
+            "startsWith(github.ref, 'refs/tags/v')",
+            None,
             None,
             None,
         ),
