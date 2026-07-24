@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import stat
 import subprocess
 from pathlib import Path
@@ -16,6 +17,7 @@ STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
+TRIVY_VERSION = "v0.72.0"
 
 GO_BUILDER = (
     "golang:1.26.5-alpine3.23@"
@@ -79,10 +81,32 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert f"FROM {CADDY_BASE}" in text
     assert "GOTOOLCHAIN=local" in text
     assert "CGO_ENABLED=0" in text
-    assert "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4" in text
+    assert "GOPROXY=https://proxy.golang.org,direct" in text
+    assert "GOSUMDB=sum.golang.org" in text
+    assert 'build_dir="$(mktemp -d)"' in text
+    assert "go mod init pulseplate.local/caddy-build" in text
+    caddy_get = "go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4"
+    grpc_get = "go get google.golang.org/grpc@v1.82.1"
+    assert caddy_get in text
+    assert grpc_get in text
+    assert text.index(caddy_get) < text.index(grpc_get)
+    assert "go mod download all" in text
+    assert "go mod verify" in text
+    assert (
+        "test \"$(go list -m -f '{{.Path}} {{.Version}}' "
+        'github.com/caddyserver/caddy/v2)" = \\\n'
+        '      "github.com/caddyserver/caddy/v2 v2.11.4"'
+    ) in text
+    assert (
+        "test \"$(go list -m -f '{{.Path}} {{.Version}}' "
+        'google.golang.org/grpc)" = \\\n'
+        '      "google.golang.org/grpc v1.82.1"'
+    ) in text
+    assert "go build -mod=readonly -trimpath" in text
     assert "github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4" in text
     assert "go version -m /go/bin/caddy" in text
     assert '$2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4"' in text
+    assert '$2 == "google.golang.org/grpc" && $3 == "v1.82.1"' in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
@@ -90,10 +114,22 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "caddy list-modules --packages" in text
     assert "setcap cap_net_bind_service=+ep /usr/bin/caddy" in text
     assert "getcap /usr/bin/caddy" in text
-    assert "--allow-untrusted" not in text
-    assert "GOINSECURE" not in text
-    assert "GONOSUMDB" not in text
-    assert "xcaddy" not in text
+    for forbidden in (
+        "@latest",
+        "--allow-untrusted",
+        "go install",
+        "go mod edit -replace",
+        "go mod edit --replace",
+        "GOINSECURE",
+        "GONOSUMDB",
+        "GOSUMDB=off",
+        "google.golang.org/grpc@v1.81.0",
+        "google.golang.org/grpc v1.81.0",
+        "xcaddy",
+    ):
+        assert forbidden not in text
+    assert re.search(r"(?m)^\s*replace(?:\s|=)", text) is None
+    assert 'rm -rf "$build_dir"' in text
 
 
 def test_staging_compose_requires_two_digest_references_and_preserves_caddy_state() -> None:
@@ -181,8 +217,18 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "severity": "CRITICAL,HIGH",
         "exit-code": "1",
         "timeout": "15m",
-        "version": "v0.71.2",
+        "version": TRIVY_VERSION,
     }
+    trivy_steps = [
+        step
+        for step in steps
+        if isinstance(step.get("uses"), str)
+        and str(step["uses"]).startswith("aquasecurity/trivy-action@")
+    ]
+    assert [step.get("name") for step in trivy_steps] == [
+        "Scan staged backend image",
+        "Scan staged Caddy image",
+    ]
     for name, digest_ref, cache_dir, policy_contract in (
         (
             "Scan staged backend image",
@@ -201,7 +247,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         ),
     ):
         step = _named_step(steps, name)
-        assert step.get("continue-on-error") is not True
+        assert step.get("continue-on-error") is None
         assert step["uses"] == TRIVY_ACTION
         assert step["env"] == {
             "TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db",

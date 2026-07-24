@@ -13,13 +13,28 @@ ENV CGO_ENABLED=0 \
     GOSUMDB=sum.golang.org
 
 RUN set -eux; \
-    go install \
+    build_dir="$(mktemp -d)"; \
+    cd "$build_dir"; \
+    go mod init pulseplate.local/caddy-build; \
+    go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \
+    go get google.golang.org/grpc@v1.82.1; \
+    go mod download all; \
+    go mod verify; \
+    test "$(go list -m -f '{{.Path}} {{.Version}}' github.com/caddyserver/caddy/v2)" = \
+      "github.com/caddyserver/caddy/v2 v2.11.4"; \
+    test "$(go list -m -f '{{.Path}} {{.Version}}' google.golang.org/grpc)" = \
+      "google.golang.org/grpc v1.82.1"; \
+    go build -mod=readonly -trimpath \
       -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
-      github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \
+      -o /go/bin/caddy \
+      github.com/caddyserver/caddy/v2/cmd/caddy; \
     /go/bin/caddy version; \
     go version -m /go/bin/caddy; \
     go version -m /go/bin/caddy \
-      | awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4" { found = 1 } END { exit !found }'
+      | awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4" { found = 1 } END { exit !found }'; \
+    go version -m /go/bin/caddy \
+      | awk '$1 == "dep" && $2 == "google.golang.org/grpc" && $3 == "v1.82.1" { found = 1 } END { exit !found }'; \
+    rm -rf "$build_dir"
 
 FROM node:24.16.0-bookworm-slim AS frontend-build
 
