@@ -383,7 +383,7 @@ jobs:
           limit-severities-for-sarif: true
           exit-code: '1'
           trivyignores: .trivyignore
-          version: v0.71.2
+          version: v0.72.0
 
       - name: Check Trivy filesystem SARIF output
         id: trivy_fs_sarif
@@ -589,7 +589,7 @@ jobs:
           limit-severities-for-sarif: true
           trivyignores: .trivyignore
           exit-code: '1'
-          version: v0.71.2
+          version: v0.72.0
 
       - name: Fail when Trivy image SARIF is missing
         if: ${{ always() }}

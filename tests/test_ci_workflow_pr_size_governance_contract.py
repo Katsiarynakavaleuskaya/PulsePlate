@@ -174,6 +174,7 @@ TRIVY_ACTION_NODE24_CACHE_SHA = "".join(
         "6c25",
     )
 )
+TRIVY_RUNTIME_VERSION = "v0.72.0"
 CODEQL_ACTION_V4_37_1_SHA = "".join(
     (
         "7188",
@@ -1022,6 +1023,10 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
             "# v0.36.0 / Node 24 cache path": 2,
         },
+        CD_WORKFLOW_PATH: {
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
+            "# v0.36.0 / Node 24 cache path": 2,
+        },
         TRIVY_WORKFLOW_PATH: {
             f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA} "
             "# v0.36.0 / Node 24 cache path": 1,
@@ -1169,7 +1174,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
     ]
 
     observed_trivy_contracts = []
-    for workflow_path in (BUILD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
+    for workflow_path in (BUILD_WORKFLOW_PATH, CD_WORKFLOW_PATH, TRIVY_WORKFLOW_PATH):
         for job_id, step in _iter_job_steps(workflow_path):
             uses = step.get("uses")
             if isinstance(uses, str) and uses.startswith("aquasecurity/trivy-action@"):
@@ -1205,7 +1210,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "limit-severities-for-sarif": True,
                 "exit-code": "1",
                 "trivyignores": ".trivyignore",
-                "version": "v0.71.2",
+                "version": TRIVY_RUNTIME_VERSION,
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -1228,7 +1233,52 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "limit-severities-for-sarif": True,
                 "trivyignores": ".trivyignore",
                 "exit-code": "1",
-                "version": "v0.71.2",
+                "version": TRIVY_RUNTIME_VERSION,
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build",
+            "Scan staged backend image",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "image",
+                "image-ref": "${{ steps.staging-image-refs.outputs.backend_ref }}",
+                "scanners": "vuln,secret",
+                "format": "table",
+                "vuln-type": "os,library",
+                "severity": "CRITICAL,HIGH",
+                "exit-code": "1",
+                "timeout": "15m",
+                "trivyignores": ".trivyignore",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+                "version": TRIVY_RUNTIME_VERSION,
+                "cache-dir": "/tmp/trivy-cache-staging-backend",
+            },
+            None,
+            {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
+            None,
+        ),
+        (
+            ".github/workflows/cd.yml",
+            "build",
+            "Scan staged Caddy image",
+            f"aquasecurity/trivy-action@{TRIVY_ACTION_NODE24_CACHE_SHA}",
+            {
+                "scan-type": "image",
+                "image-ref": "${{ steps.staging-image-refs.outputs.caddy_ref }}",
+                "scanners": "vuln,secret",
+                "format": "table",
+                "vuln-type": "os,library",
+                "severity": "CRITICAL,HIGH",
+                "exit-code": "1",
+                "timeout": "15m",
+                "trivyignores": ".trivyignore-caddy",
+                "version": TRIVY_RUNTIME_VERSION,
+                "cache-dir": "/tmp/trivy-cache-staging-caddy",
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
@@ -1253,13 +1303,14 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "trivyignores": ".trivyignore",
                 "ignore-policy": ".trivy-ignore-policy.rego",
                 "exit-code": "1",
-                "version": "v0.71.2",
+                "version": TRIVY_RUNTIME_VERSION,
             },
             None,
             {"TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db"},
             None,
         ),
     ]
+    assert len(observed_trivy_contracts) == 5
 
 
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:

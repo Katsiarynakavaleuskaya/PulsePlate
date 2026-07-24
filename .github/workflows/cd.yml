@@ -321,7 +321,7 @@ jobs:
           timeout: 15m
           trivyignores: .trivyignore
           ignore-policy: .trivy-ignore-policy.rego
-          version: v0.71.2
+          version: v0.72.0
           cache-dir: /tmp/trivy-cache-staging-backend
 
       - name: Scan staged Caddy image
@@ -340,7 +340,7 @@ jobs:
           # Override Trivy's default root .trivyignore: it is backend/Debian-specific,
           # while the staged Caddy runtime is Alpine and must remain suppression-free.
           trivyignores: .trivyignore-caddy
-          version: v0.71.2
+          version: v0.72.0
           cache-dir: /tmp/trivy-cache-staging-caddy
 
       - name: Enforce required staging deployment policy
