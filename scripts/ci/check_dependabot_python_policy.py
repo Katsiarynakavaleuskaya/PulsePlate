@@ -379,8 +379,11 @@ def validate_repo(repo_root: Path) -> list[str]:
     errors: list[str] = []
     config_path = repo_root / CONFIG_PATH
     shadow_path = repo_root / SHADOW_CONFIG_PATH
-    if shadow_path.exists():
+    if shadow_path.exists() or shadow_path.is_symlink():
         errors.append(f"{SHADOW_CONFIG_PATH.as_posix()}:$:shadow Dependabot config is forbidden")
+    if config_path.is_symlink():
+        errors.append(_error("$", "required config must be a regular non-symlink file"))
+        return errors
     if not config_path.is_file():
         errors.append(_error("$", "required config is missing"))
         return errors
@@ -430,7 +433,7 @@ def validate_repo(repo_root: Path) -> list[str]:
             expected=REGISTRY_CONFIG,
             key_path=f"registries.{REGISTRY_NAME}",
             errors=errors,
-            redacted_keys=frozenset({"username", "password"}),
+            redacted_keys=frozenset({"url", "username", "password"}),
         )
 
     updates = config.get("updates")

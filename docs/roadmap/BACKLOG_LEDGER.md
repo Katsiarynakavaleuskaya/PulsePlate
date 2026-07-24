@@ -2421,7 +2421,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: D0 — governed Python Dependabot intake (PR TBD)
+  - Target PR: D0 — governed Python Dependabot intake (PR #2181)
   - Status: 🟡 In progress
   - Area: dependencies / CI governance / orchestration
   - Finding Type: operating model consolidation gap
@@ -2430,6 +2430,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
     mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
   - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2181`
     - `.github/dependabot.yml`
     - `scripts/ci/check_dependabot_python_policy.py`
     - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`

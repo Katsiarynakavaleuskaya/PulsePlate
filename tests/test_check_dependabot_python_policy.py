@@ -71,6 +71,27 @@ def test_shadow_yaml_fails_closed(tmp_path: Path) -> None:
     assert ".github/dependabot.yaml:$:shadow Dependabot config is forbidden" in errors
 
 
+def test_broken_shadow_yaml_symlink_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / policy.SHADOW_CONFIG_PATH).symlink_to("missing-dependabot-config")
+
+    errors = policy.validate_repo(repo)
+
+    assert ".github/dependabot.yaml:$:shadow Dependabot config is forbidden" in errors
+
+
+def test_primary_config_symlink_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config_path = repo / policy.CONFIG_PATH
+    target_path = config_path.with_name("dependabot-target.yml")
+    config_path.replace(target_path)
+    config_path.symlink_to(target_path.name)
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [".github/dependabot.yml:$:required config must be a regular non-symlink file"]
+
+
 def test_duplicate_yaml_key_fails_closed_with_cli_shape(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     config_path = repo / policy.CONFIG_PATH
@@ -190,6 +211,43 @@ def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
     assert exit_code == 1
     assert sentinel not in captured.out
     assert sentinel not in captured.err
+
+
+def test_registry_url_userinfo_is_redacted_from_errors_and_cli_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    registries = config["registries"]
+    assert isinstance(registries, dict)
+    registry = registries[policy.REGISTRY_NAME]
+    assert isinstance(registry, dict)
+    userinfo_first = "userinfo-alpha-must-not-leak"
+    userinfo_second = "userinfo-beta-must-not-leak"
+    registry["url"] = (
+        f"https://{userinfo_first}:{userinfo_second}"
+        "@packages.pulseplate.app/root/pulseplate/+simple/"
+    )
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert userinfo_first not in "\n".join(errors)
+    assert userinfo_second not in "\n".join(errors)
+    assert any(
+        f"registries.{policy.REGISTRY_NAME}.url:must be" in error and "got <redacted>" in error
+        for error in errors
+    )
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert userinfo_first not in captured.out
+    assert userinfo_first not in captured.err
+    assert userinfo_second not in captured.out
+    assert userinfo_second not in captured.err
 
 
 @pytest.mark.parametrize("credential_key", ["username", "password"])
