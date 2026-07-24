@@ -103,6 +103,43 @@ def test_mixed_scalar_yaml_keys_return_deterministic_errors(tmp_path: Path) -> N
     )
 
 
+@pytest.mark.parametrize(
+    "complex_key",
+    [
+        "? [sequence-key-must-not-leak]\n: value",
+        "? {mapping-key-must-not-leak: true}\n: value",
+    ],
+)
+def test_unhashable_yaml_keys_return_sanitized_api_and_cli_errors(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    complex_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config_path = repo / policy.CONFIG_PATH
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + f"\n{complex_key}\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        ".github/dependabot.yml:$:invalid YAML: constructor error "
+        f"at line {len(config_path.read_text(encoding='utf-8').splitlines()) - 1}, column 3"
+    ]
+    assert "must-not-leak" not in errors[0]
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "must-not-leak" not in captured.out
+    assert "must-not-leak" not in captured.err
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
 def test_registry_contract_rejects_public_fallback_and_wildcard_binding(
     tmp_path: Path,
 ) -> None:
