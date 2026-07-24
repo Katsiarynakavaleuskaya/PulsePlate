@@ -225,6 +225,7 @@ def _validate_exact_mapping(
     expected: Mapping[str, object],
     key_path: str,
     errors: list[str],
+    redacted_keys: frozenset[str] = frozenset(),
 ) -> None:
     if not isinstance(actual, Mapping):
         errors.append(_error(key_path, "must be a mapping"))
@@ -241,10 +242,11 @@ def _validate_exact_mapping(
         )
     for key, expected_value in expected.items():
         if key in actual and actual[key] != expected_value:
+            actual_display = "<redacted>" if key in redacted_keys else repr(actual[key])
             errors.append(
                 _error(
                     f"{key_path}.{key}",
-                    f"must be {expected_value!r}; got {actual[key]!r}",
+                    f"must be {expected_value!r}; got {actual_display}",
                 )
             )
 
@@ -397,6 +399,7 @@ def validate_repo(repo_root: Path) -> list[str]:
             expected=REGISTRY_CONFIG,
             key_path=f"registries.{REGISTRY_NAME}",
             errors=errors,
+            redacted_keys=frozenset({"username", "password"}),
         )
 
     updates = config.get("updates")

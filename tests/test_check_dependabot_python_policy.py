@@ -122,6 +122,39 @@ def test_registry_contract_rejects_public_fallback_and_wildcard_binding(
     assert any("updates[0].registries:must be ['python-index']" in error for error in errors)
 
 
+@pytest.mark.parametrize("credential_key", ["username", "password"])
+def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    credential_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    registries = config["registries"]
+    assert isinstance(registries, dict)
+    registry = registries[policy.REGISTRY_NAME]
+    assert isinstance(registry, dict)
+    sentinel = f"literal-{credential_key}-must-not-leak"
+    registry[credential_key] = sentinel
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert sentinel not in "\n".join(errors)
+    assert any(
+        f"registries.{policy.REGISTRY_NAME}.{credential_key}:must be" in error
+        and "got <redacted>" in error
+        for error in errors
+    )
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert sentinel not in captured.out
+    assert sentinel not in captured.err
+
+
 def test_mode_a_rejects_update_suppression_and_external_code_execution(
     tmp_path: Path,
 ) -> None:
