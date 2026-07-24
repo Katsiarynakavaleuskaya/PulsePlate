@@ -1515,6 +1515,79 @@ def test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests(
     assert "Backend tests passed" in output
 
 
+def _prepare_dependabot_policy_hook_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    _git(repo, "branch", "-M", "main")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / ".github").mkdir()
+    (repo / ".github" / "dependabot.yml").write_text(
+        "version: 2\n",
+        encoding="utf-8",
+    )
+    (repo / "requirements.in").write_text("fastapi~=0.1\n", encoding="utf-8")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    return repo
+
+
+def test_backend_hook_maps_staged_dependabot_config_to_policy_test(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    (repo / ".github" / "dependabot.yml").write_text(
+        "version: 2\n# changed\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".github/dependabot.yml")
+    calls_file = tmp_path / "pytest-dependabot-staged-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-staged"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def test_backend_hook_maps_branch_requirement_delta_to_dependabot_policy_test(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "switch", "--quiet", "-c", "dependency-policy")
+    (repo / "requirements.in").write_text(
+        "fastapi~=0.1\nrequests~=2.0\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "requirements.in")
+    _git(repo, "commit", "--quiet", "-m", "change requirement source")
+    calls_file = tmp_path / "pytest-dependabot-branch-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-branch"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["BRANCH_DIFF_MODE"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
 def test_backend_pre_commit_maps_python_dependency_surface_to_ci_lite_safe_guards(
     tmp_path: Path,
 ) -> None:

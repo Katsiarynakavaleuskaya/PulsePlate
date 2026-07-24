@@ -38,6 +38,8 @@ ROOT_BACKEND_SHARED_MODULES: tuple[str, ...] = (
 )
 
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
+    ".github/dependabot.yaml",
+    ".github/dependabot.yml",
     "Dockerfile",
     "Makefile",
     "REQUIREMENTS.md",
@@ -175,6 +177,8 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "scripts/build_food_db.py",
     ),
     "merge_governance": (
+        ".github/dependabot.yaml",
+        ".github/dependabot.yml",
         ".github/actions/*",
         ".github/scripts/*",
         ".github/workflows/*",

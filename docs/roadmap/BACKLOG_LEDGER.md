@@ -2421,8 +2421,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DEPENDENCY-GOVERNANCE-SERIES
-  - Status: 📋 Planned
+  - Target PR: D0 — governed Python Dependabot intake (PR TBD)
+  - Status: 🟡 In progress
   - Area: dependencies / CI governance / orchestration
   - Finding Type: operating model consolidation gap
   - Reason (EN): The repo has floors, locks, and CI installers, but dependency work still risks
@@ -2430,6 +2430,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
     mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
   - Links:
+    - `.github/dependabot.yml`
+    - `scripts/ci/check_dependabot_python_policy.py`
     - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
     - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
     - `docs/DEPENDENCY_MANAGEMENT.md:62`
@@ -6701,16 +6703,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
 
 
-- [ ] P1: Fix invalid Dependabot assignee configuration warning
+- [x] P1: Fix invalid Dependabot assignee configuration warning
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (repo governance / automation hygiene)
-  - Target PR: TBD (separate config-only PR after the `#1471 -> #1474` Dependabot train)
-  - Status: 📋 Planned
-  - Reason (EN): `.github/dependabot.yml` still declares assignee `katsiarynakavaleuskaya`, and Dependabot PRs such as `#1471` emit a live bot warning because GitHub cannot add that assignee. This is a repo-wide configuration defect, not part of the narrow testing dependency remediation slice, so the active lane records it as deferred instead of hiding it under `NOT-A-BUG`. (RU: В `.github/dependabot.yml` указан `assignee`, которого GitHub не может добавить в Dependabot PR; предупреждение повторяется, поэтому это отдельный repo-wide config defect и его нужно чинить отдельным PR.)
+  - Target PR: commit `e34a357f2`
+  - Status: ✅ Completed
+  - Reason (EN): `.github/dependabot.yml` previously declared assignee `katsiarynakavaleuskaya`, and Dependabot PRs such as `#1471` emitted a bot warning because GitHub could not add that assignee. Commit `e34a357f2` removed the invalid configuration, and fresh Dependabot PR `#2168` confirmed that the warning no longer appears. (RU: Ранее `.github/dependabot.yml` указывал недопустимого `assignee`, из-за чего Dependabot публиковал предупреждение. Коммит `e34a357f2` удалил настройку, а свежий PR `#2168` подтвердил отсутствие предупреждения.)
   - Links:
     - `.github/dependabot.yml`
     - `docs/review/PR_1471_FIXED_MAPPING.md`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#issuecomment-4275076194`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2168`
+  - Evidence:
+    - commit `e34a357f2` removed the invalid Dependabot assignee configuration
+    - fresh Dependabot PR `#2168` was created without the invalid-assignee warning
   - DoD:
     - `.github/dependabot.yml` updated so Dependabot stops emitting the invalid-assignee warning
     - at least one fresh Dependabot PR lands without the warning comment

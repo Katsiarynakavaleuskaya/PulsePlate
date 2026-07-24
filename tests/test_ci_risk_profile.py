@@ -183,6 +183,23 @@ def test_python_dependency_surfaces_route_backend_blocking(changed_file: str) ->
     assert profile.run_security is True
 
 
+@pytest.mark.parametrize(
+    "changed_file",
+    (".github/dependabot.yml", ".github/dependabot.yaml"),
+)
+def test_dependabot_config_routes_bounded_backend_and_governance(
+    changed_file: str,
+) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.workflow_privileged is False
+    assert profile.backend_shared is True
+    assert profile.merge_governance is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == ("merge_governance",)
+
+
 def test_pull_request_template_is_workflow_privileged() -> None:
     profile = risk_profile.build_risk_profile(
         [".github/pull_request_template.md"],

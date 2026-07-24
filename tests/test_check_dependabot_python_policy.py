@@ -1,0 +1,227 @@
+"""Tests for the production-governed Python Dependabot policy."""
+
+from __future__ import annotations
+
+from pathlib import Path
+import shutil
+
+import pytest
+import yaml
+
+from scripts.ci import check_dependabot_python_policy as policy
+from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _copy_policy_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    (repo / ".github").mkdir(parents=True)
+    shutil.copy2(REPO_ROOT / policy.CONFIG_PATH, repo / policy.CONFIG_PATH)
+    requirement_files = {
+        relative_path
+        for surface in DEPENDENCY_SURFACES
+        for relative_path in (surface.source_file, surface.lockfile)
+        if relative_path is not None
+    }
+    for relative_path in requirement_files:
+        source = REPO_ROOT / relative_path
+        if source.is_file():
+            shutil.copy2(source, repo / relative_path)
+    return repo
+
+
+def _load_config(repo: Path) -> dict[str, object]:
+    loaded = yaml.safe_load((repo / policy.CONFIG_PATH).read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _write_config(repo: Path, config: dict[str, object]) -> None:
+    (repo / policy.CONFIG_PATH).write_text(
+        yaml.safe_dump(config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def _pip_update(config: dict[str, object]) -> dict[str, object]:
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    update = updates[0]
+    assert isinstance(update, dict)
+    return update
+
+
+def _groups(config: dict[str, object]) -> dict[str, object]:
+    groups = _pip_update(config)["groups"]
+    assert isinstance(groups, dict)
+    return groups
+
+
+def test_live_dependabot_policy_passes() -> None:
+    assert policy.validate_repo(REPO_ROOT) == []
+
+
+def test_shadow_yaml_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / policy.SHADOW_CONFIG_PATH).write_text("version: 2\n", encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert ".github/dependabot.yaml:$:shadow Dependabot config is forbidden" in errors
+
+
+def test_duplicate_yaml_key_fails_closed_with_cli_shape(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config_path = repo / policy.CONFIG_PATH
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + "\nversion: 2\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert len(errors) == 1
+    assert errors[0].startswith(".github/dependabot.yml:$:invalid YAML:")
+    assert "duplicate key" in errors[0]
+
+
+def test_mixed_scalar_yaml_keys_return_deterministic_errors(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config_path = repo / policy.CONFIG_PATH
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + "\n1: extra\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.startswith(".github/dependabot.yml:$:root keys must be exactly")
+        and "got [1, 'registries', 'updates', 'version']" in error
+        for error in errors
+    )
+
+
+def test_registry_contract_rejects_public_fallback_and_wildcard_binding(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    registries = config["registries"]
+    assert isinstance(registries, dict)
+    registry = registries[policy.REGISTRY_NAME]
+    assert isinstance(registry, dict)
+    registry["replaces-base"] = False
+    _pip_update(config)["registries"] = "*"
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any("registries.python-index.replaces-base:must be True" in error for error in errors)
+    assert any("updates[0].registries:must be ['python-index']" in error for error in errors)
+
+
+def test_mode_a_rejects_update_suppression_and_external_code_execution(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    update = _pip_update(config)
+    update["allow"] = [{"dependency-name": "fastapi"}]
+    update["exclude-paths"] = ["requirements-test.in"]
+    update["insecure-external-code-execution"] = "allow"
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any("updates[0].allow:key is forbidden" in error for error in errors)
+    assert any("updates[0].exclude-paths:key is forbidden" in error for error in errors)
+    assert any(
+        "updates[0].insecure-external-code-execution:key is forbidden" in error for error in errors
+    )
+
+
+def test_schedule_limit_and_cooldown_are_exact(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    update = _pip_update(config)
+    update["schedule"] = {"interval": "weekly", "day": "monday"}
+    update["open-pull-requests-limit"] = 5
+    update["cooldown"] = {"default-days": 7}
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any("updates[0].schedule:must be exactly" in error for error in errors)
+    assert any("updates[0].open-pull-requests-limit:must be 4" in error for error in errors)
+    assert any("updates[0].cooldown:keys must be exactly" in error for error in errors)
+
+
+def test_direct_package_must_have_exactly_one_owner_group(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    runtime_web = _groups(config)["runtime-web"]
+    assert isinstance(runtime_web, dict)
+    patterns = runtime_web["patterns"]
+    assert isinstance(patterns, list)
+    patterns.remove("fastapi")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        "groups.package-owner.fastapi:direct package must match exactly one group; got []" in error
+        for error in errors
+    )
+
+
+def test_known_package_cannot_match_multiple_groups(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    security = _groups(config)["runtime-security-sensitive"]
+    assert isinstance(security, dict)
+    patterns = security["patterns"]
+    assert isinstance(patterns, list)
+    patterns.append("fastapi")
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        "groups.package-owner.fastapi:known package matches multiple groups" in error
+        for error in errors
+    )
+
+
+def test_catch_all_and_zero_match_patterns_are_rejected(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    security = _groups(config)["runtime-security-sensitive"]
+    assert isinstance(security, dict)
+    patterns = security["patterns"]
+    assert isinstance(patterns, list)
+    patterns.extend(["*", "package-that-does-not-exist"])
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any("catch-all patterns are forbidden" in error for error in errors)
+    assert any("matches no known source or lock package" in error for error in errors)
+
+
+def test_cli_returns_one_and_prints_file_key_path_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _pip_update(config)["target-branch"] = "dependency-updates"
+    _write_config(repo, config)
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+
+    assert exit_code == 1
+    assert (
+        ".github/dependabot.yml:updates[0].target-branch:key is forbidden by Mode A intake policy"
+    ) in capsys.readouterr().out

@@ -201,6 +201,12 @@ add_extra_tests_for_changed_files() {
                 EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")
                 EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")
                 ;;
+            .github/dependabot.yml | .github/dependabot.yaml | constraints.txt | requirements*.in | requirements*.txt)
+                EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
+                ;;
+            scripts/ci/check_dependabot_python_policy.py | tests/test_check_dependabot_python_policy.py | docs/DEPENDENCY_MANAGEMENT.md | docs/contracts/PYTHON_DEPENDENCY_SURFACES.md)
+                EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
+                ;;
         esac
         for dependency_file in "${PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES[@]}"; do
             if [ "$file" = "$dependency_file" ]; then

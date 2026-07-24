@@ -446,13 +446,27 @@ For manual debugging outside the canonical shared installer path:
 
 ## Dependabot Configuration
 
-Dependabot is configured to:
+`.github/dependabot.yml` is a weekly intake surface, not dependency truth. Its
+single root `pip` block resolves exclusively through the private
+`python-index` registry, keeps automatic transitive security-update eligibility,
+and limits routine version-update traffic with owner groups, cooldowns, and a
+four-PR cap. Security updates are not grouped, suppressed, or counted against
+that version-update cap.
 
-- Run weekly
-- Create max 10 PRs at a time
-- Group related dependencies together (production, testing, quality, security)
+Run `python scripts/ci/check_dependabot_python_policy.py --repo-root .` after
+changing the config, any `requirements*.in`/`requirements*.txt` surface,
+constraints, or this policy. The guard reuses the canonical dependency-surface
+registry and fails closed on public fallback, shadow config, suppression keys,
+unowned direct packages, overlapping owners, and patterns that match nothing.
 
-See `.github/dependabot.yml` for details.
+A bot-authored PR is non-authoritative intake. It may be merged directly only
+when its generated artifacts are byte-equivalent to a clean run of the governed
+compiler, the no-raw-`pip` and dependency-graph contracts remain satisfied, and
+all required local, current-head CI, review, and security gates pass. Otherwise,
+close it as superseded only after opening an operator-owned replacement with the
+same intended package scope. Do not weaken `replaces-base` when private-registry
+authentication or mirror health fails; repair the principal, secrets, or mirror
+instead.
 
 Security-alert remediation must use a human-owned branch when raw Dependabot
 branches include unrelated lock drift or when GitHub's dependency graph
