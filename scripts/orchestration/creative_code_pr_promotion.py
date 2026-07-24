@@ -1035,7 +1035,7 @@ def _load_trusted_apple_dispatch_result(
     experiment_packet: Path,
     run_dir: Path,
     plan_artifact: Mapping[str, Any],
-) -> tuple[Path, dict[str, Any], dict[str, Any], str, str]:
+) -> tuple[Path, dict[str, Any], dict[str, Any], str, str, Path, str, Path, str]:
     """Load one exact accepted Apple Container result through the PR-2 trust boundary."""
 
     try:
@@ -1087,6 +1087,17 @@ def _load_trusted_apple_dispatch_result(
                 label="generation receipt",
             )
         )
+        resolved_gate = resolved_receipt.with_name(patch_generation_cli.GATE_FILENAME)
+        patch_generation_cli._reject_symlink_components(
+            resolved_gate,
+            label="trusted generation gate",
+        )
+        gate = patch_generation_cli._read_generation_gate(resolved_gate)
+        patch_generation_cli._validate_receipt_matches_gate(
+            receipt,
+            gate,
+            resolved_gate,
+        )
         patch_generation_cli.validate_generation_receipt_linked_artifacts(receipt)
     except (
         patch_generation_cli.CreativeCodePatchGenerationError,
@@ -1097,6 +1108,10 @@ def _load_trusted_apple_dispatch_result(
     if receipt["run_id"] != run_dir.name:
         raise CreativeCodePRPromotionError(
             "trusted dispatch generation receipt does not match the PR-2 run."
+        )
+    if receipt["result_id"] != plan_artifact["source_result_id"]:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch generation receipt does not match the planned PR-2 result."
         )
     if receipt["experiment_packet_fingerprint"] != fingerprint_payload(packet):
         raise CreativeCodePRPromotionError(
@@ -1137,6 +1152,10 @@ def _load_trusted_apple_dispatch_result(
         result,
         fingerprint_payload(packet),
         fingerprint_payload(result),
+        resolved_receipt,
+        fingerprint_payload(receipt),
+        resolved_gate,
+        fingerprint_payload(gate),
     )
 
 
@@ -1365,6 +1384,10 @@ def validate(
                 dict[str, Any],
                 str,
                 str,
+                Path,
+                str,
+                Path,
+                str,
             ]
             | None
         ) = None
@@ -1418,9 +1441,13 @@ def validate(
                 current_snapshot[0] != trusted_dispatch_snapshot[0]
                 or current_snapshot[3] != trusted_dispatch_snapshot[3]
                 or current_snapshot[4] != trusted_dispatch_snapshot[4]
+                or current_snapshot[5] != trusted_dispatch_snapshot[5]
+                or current_snapshot[6] != trusted_dispatch_snapshot[6]
+                or current_snapshot[7] != trusted_dispatch_snapshot[7]
+                or current_snapshot[8] != trusted_dispatch_snapshot[8]
             ):
                 raise CreativeCodePRPromotionError(
-                    "trusted dispatch packet or result fingerprint changed during validation."
+                    "trusted dispatch evidence changed during validation."
                 )
     finally:
         destroyed = _destroy_checkout(promotion_dir, VALIDATION_CHECKOUT)

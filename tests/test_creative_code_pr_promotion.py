@@ -131,6 +131,66 @@ def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
     monkeypatch.setattr(creative_code_pr_promotion, "PROMOTION_ROOT", promotion_root)
 
 
+def _generation_gate_fixture(
+    *,
+    request: dict[str, Any],
+    bundle: dict[str, Any],
+    run_id: str,
+    run_ref: str,
+) -> dict[str, Any]:
+    allowed_paths = sorted(
+        set(request["allowed_existing_paths"]) | set(request["allowed_new_paths"])
+    )
+    checks = {key: True for key in sorted(creative_code_patch_generation.GATE_CHECK_KEYS)}
+    gate: dict[str, Any] = {
+        "schema_version": creative_code_patch_generation.SCHEMA_VERSION,
+        "artifact_type": creative_code_patch_generation.GATE_ARTIFACT_TYPE,
+        "policy_version": creative_code_patch_generation.POLICY_VERSION,
+        "gate_id": "pending",
+        "idempotency_key": "pending",
+        "admission_id": f"admission:{run_id}",
+        "admission_fingerprint": fingerprint_payload({"admission": run_id}),
+        "admission_ref": f"{run_ref}/admission.json",
+        "request_id": request["request_id"],
+        "request_fingerprint": fingerprint_payload(request),
+        "request_ref": f"{run_ref}/{REQUEST_FILE}",
+        "source_bundle_id": request["source_bundle_id"],
+        "source_bundle_fingerprint": request["source_bundle_fingerprint"],
+        "source_bundle_ref": f"{run_ref}/{SOURCE_BUNDLE_FILE}",
+        "selected_variant_id": request["selected_variant_id"],
+        "selected_variant_fingerprint": request["selected_variant_fingerprint"],
+        "base_commit_sha": request["base_commit_sha"],
+        "run_id": run_id,
+        "state_fingerprint": fingerprint_payload({"run_id": run_id, "state": "prepared"}),
+        "budget_limits": dict(request["budgets"]),
+        "allowed_paths_fingerprint": fingerprint_payload({"allowed_paths": allowed_paths}),
+        "oracle_commands_fingerprint": fingerprint_payload(
+            {"oracle_commands": request["oracle_commands"]}
+        ),
+        "metrics_fingerprint": fingerprint_payload({"metrics": request["metrics"]}),
+        "immutable_oracles_fingerprint": fingerprint_payload(
+            {"immutable_oracles": bundle["immutable_oracles"]}
+        ),
+        "oracle_command_count": len(request["oracle_commands"]),
+        "metric_count": len(request["metrics"]),
+        "immutable_oracle_count": len(bundle["immutable_oracles"]),
+        "coordinator_advisory_hints_ref": None,
+        "coordinator_advisory_hints_fingerprint": None,
+        "checks": checks,
+        "passed_checks": len(checks),
+        "total_checks": len(checks),
+        "next_action": "generate_candidate_then_evaluate_candidate",
+        "authority": creative_code_patch_generation.default_generation_authority(),
+        "sanitized": True,
+    }
+    creative_code_patch_generation._set_identity(
+        gate,
+        id_key="gate_id",
+        asset_type=creative_code_patch_generation.GATE_ARTIFACT_TYPE,
+    )
+    return creative_code_patch_generation.validate_generation_gate(gate)
+
+
 def _make_patch_run(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -209,22 +269,13 @@ def _make_patch_run(
         )
         gate_path = generation_dir / creative_code_patch_generation.GATE_FILENAME
         run_ref = run_dir.relative_to(repo).as_posix()
-        gate = {
-            "gate_id": f"generation-gate:{run_id}",
-            "admission_id": f"admission:{run_id}",
-            "admission_fingerprint": fingerprint_payload({"admission": run_id}),
-            "admission_ref": f"{run_ref}/admission.json",
-            "request_id": request["request_id"],
-            "request_fingerprint": fingerprint_payload(request),
-            "request_ref": f"{run_ref}/{REQUEST_FILE}",
-            "source_bundle_id": request["source_bundle_id"],
-            "source_bundle_fingerprint": request["source_bundle_fingerprint"],
-            "source_bundle_ref": f"{run_ref}/{SOURCE_BUNDLE_FILE}",
-            "selected_variant_id": request["selected_variant_id"],
-            "selected_variant_fingerprint": request["selected_variant_fingerprint"],
-            "base_commit_sha": request["base_commit_sha"],
-            "run_id": run_id,
-        }
+        gate = _generation_gate_fixture(
+            request=request,
+            bundle=bundle,
+            run_id=run_id,
+            run_ref=run_ref,
+        )
+        _write_json(gate_path, gate)
         receipt = creative_code_patch_generation._build_receipt(
             gate_path=gate_path,
             gate=gate,
@@ -1515,7 +1566,108 @@ def test_validation_rejects_dispatch_result_not_finalized_into_pr2(
     assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
-def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
+def test_validation_rejects_generation_receipt_without_canonical_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-missing-generation-gate",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-missing-generation-gate",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
+    receipt_path = _generation_receipt_path(repo, run_id)
+    receipt_path.with_name(creative_code_patch_generation.GATE_FILENAME).unlink()
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="unable to read generation gate safely",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-missing-generation-gate",
+            trusted_dispatch_result=result_path,
+            trusted_generation_receipt=receipt_path,
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_generation_receipt_for_different_planned_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-different-planned-result",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-different-planned-result",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    dispatch_result = json.loads(result_path.read_text(encoding="utf-8"))
+    dispatch_result["oracle_results"][0]["stdout"] = "different accepted execution"
+    _write_json(result_path, dispatch_result)
+    request = json.loads((run_dir / REQUEST_FILE).read_text(encoding="utf-8"))
+    patch_text = (run_dir / CANDIDATE_PATCH_FILE).read_text(encoding="utf-8")
+    replacement_result = build_creative_code_patch_result(
+        request=request,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint=fingerprint_payload({"candidate_patch": patch_text}),
+        patch_bytes=len(patch_text.encode("utf-8")),
+        diff_lines=len(patch_text.splitlines()),
+        runner_result=dispatch_result,
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+        failure_class=None,
+    )
+    assert replacement_result["result_id"] != planned["plan"]["source_result_id"]
+    _write_json(run_dir / RESULT_FILE, replacement_result)
+    receipt_path = _generation_receipt_path(repo, run_id)
+    gate_path = receipt_path.with_name(creative_code_patch_generation.GATE_FILENAME)
+    gate = creative_code_patch_generation._read_generation_gate(gate_path)
+    _write_json(
+        receipt_path,
+        creative_code_patch_generation._build_receipt(
+            gate_path=gate_path,
+            gate=gate,
+            result=replacement_result,
+        ),
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="does not match the planned PR-2 result",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-different-planned-result",
+            trusted_dispatch_result=result_path,
+            trusted_generation_receipt=receipt_path,
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_trusted_dispatch_result_refinalization_after_plan(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1558,30 +1710,12 @@ def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
             )
             _write_json(run_dir / RESULT_FILE, pr2_result)
 
-            old_receipt = creative_code_patch_generation.validate_generation_receipt(
-                json.loads(receipt_path.read_text(encoding="utf-8"))
-            )
-            gate_keys = (
-                "gate_id",
-                "admission_id",
-                "admission_fingerprint",
-                "admission_ref",
-                "request_id",
-                "request_fingerprint",
-                "request_ref",
-                "source_bundle_id",
-                "source_bundle_fingerprint",
-                "source_bundle_ref",
-                "selected_variant_id",
-                "selected_variant_fingerprint",
-                "base_commit_sha",
-                "run_id",
-            )
-            gate = {key: old_receipt[key] for key in gate_keys}
+            gate_path = receipt_path.with_name(creative_code_patch_generation.GATE_FILENAME)
+            gate = creative_code_patch_generation._read_generation_gate(gate_path)
             _write_json(
                 receipt_path,
                 creative_code_patch_generation._build_receipt(
-                    gate_path=receipt_path.parent / creative_code_patch_generation.GATE_FILENAME,
+                    gate_path=gate_path,
                     gate=gate,
                     result=pr2_result,
                 ),
@@ -1589,7 +1723,7 @@ def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
 
     with pytest.raises(
         CreativeCodePRPromotionError,
-        match="trusted dispatch packet or result fingerprint changed during validation",
+        match="does not match the planned PR-2 result",
     ):
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-fingerprint-drift",
@@ -1597,6 +1731,142 @@ def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
             trusted_generation_receipt=receipt_path,
             git=FakeGit(),
             gate_runner=MutatingGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_trusted_generation_gate_and_receipt_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-receipt-fingerprint-drift",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-receipt-fingerprint-drift",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    result_before = fingerprint_payload(
+        json.loads((run_dir / RESULT_FILE).read_text(encoding="utf-8"))
+    )
+    receipt_path = _generation_receipt_path(repo, run_id)
+    gate_path = receipt_path.with_name(creative_code_patch_generation.GATE_FILENAME)
+    receipt_before = fingerprint_payload(json.loads(receipt_path.read_text(encoding="utf-8")))
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    class MutatingGates(FakeGates):
+        def run_pre_commit(self, *, cwd: Path) -> None:
+            super().run_pre_commit(cwd=cwd)
+            gate = creative_code_patch_generation._read_generation_gate(gate_path)
+            gate["admission_id"] = "admission:replacement"
+            gate["admission_fingerprint"] = fingerprint_payload({"admission": "replacement"})
+            gate["admission_ref"] = (
+                "artifacts/orchestration/creative_code/admissions/replacement.json"
+            )
+            creative_code_patch_generation._set_identity(
+                gate,
+                id_key="gate_id",
+                asset_type=creative_code_patch_generation.GATE_ARTIFACT_TYPE,
+            )
+            gate = creative_code_patch_generation.validate_generation_gate(gate)
+            _write_json(gate_path, gate)
+            result = json.loads((run_dir / RESULT_FILE).read_text(encoding="utf-8"))
+            _write_json(
+                receipt_path,
+                creative_code_patch_generation._build_receipt(
+                    gate_path=gate_path,
+                    gate=gate,
+                    result=result,
+                ),
+            )
+            assert fingerprint_payload(result) == result_before
+            assert (
+                fingerprint_payload(json.loads(receipt_path.read_text(encoding="utf-8")))
+                != receipt_before
+            )
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="trusted dispatch evidence changed during validation",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-receipt-fingerprint-drift",
+            trusted_dispatch_result=result_path,
+            trusted_generation_receipt=receipt_path,
+            git=FakeGit(),
+            gate_runner=MutatingGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_generation_receipt_drift_from_canonical_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-receipt-gate-drift",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-receipt-gate-drift",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    result_fingerprint = fingerprint_payload(
+        json.loads((run_dir / RESULT_FILE).read_text(encoding="utf-8"))
+    )
+    receipt_path = _generation_receipt_path(repo, run_id)
+    gate_path = receipt_path.with_name(creative_code_patch_generation.GATE_FILENAME)
+    gate_fingerprint = fingerprint_payload(
+        creative_code_patch_generation._read_generation_gate(gate_path)
+    )
+    receipt = creative_code_patch_generation.validate_generation_receipt(
+        json.loads(receipt_path.read_text(encoding="utf-8"))
+    )
+    receipt["admission_id"] = "admission:replacement"
+    creative_code_patch_generation._set_identity(
+        receipt,
+        id_key="receipt_id",
+        asset_type=creative_code_patch_generation.RECEIPT_ARTIFACT_TYPE,
+    )
+    _write_json(
+        receipt_path,
+        creative_code_patch_generation.validate_generation_receipt(receipt),
+    )
+    assert (
+        fingerprint_payload(creative_code_patch_generation._read_generation_gate(gate_path))
+        == gate_fingerprint
+    )
+    assert (
+        fingerprint_payload(json.loads((run_dir / RESULT_FILE).read_text(encoding="utf-8")))
+        == result_fingerprint
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="generation receipt admission_id does not match gate",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-receipt-gate-drift",
+            trusted_dispatch_result=result_path,
+            trusted_generation_receipt=receipt_path,
+            git=FakeGit(),
+            gate_runner=FakeGates(),
         )
 
     assert not checkout.exists()
