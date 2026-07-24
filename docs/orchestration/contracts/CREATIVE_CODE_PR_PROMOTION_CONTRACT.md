@@ -83,7 +83,9 @@ python -m scripts.orchestration.creative_code_pr_promotion plan \
 
 python -m scripts.orchestration.creative_code_pr_promotion validate \
   --promotion-id <id> \
-  [--trusted-dispatch-result artifacts/orchestration/experiments/results/<result>.json]
+  [--trusted-dispatch-result artifacts/orchestration/experiments/results/<result>.json \
+   --trusted-generation-receipt \
+     artifacts/orchestration/creative_code/patch_generation/<output>/generation_receipt.json]
 
 python -m scripts.orchestration.creative_code_pr_promotion approve \
   --promotion-id <id> \
@@ -101,12 +103,15 @@ plan and deterministic PR body, and stops.
 applies the exact patch, creates a throwaway local commit so
 `make validate-changed` has a meaningful diff, runs fresh candidate oracle
 evaluation, runs `pre-commit run --all-files`, runs `make validate-changed`,
-and fails if gates mutate the patch. When `--trusted-dispatch-result` is
+and fails if gates mutate the patch. The trusted dispatch result and explicit
+generation receipt options must be supplied together or both omitted. When
 supplied, `validate` consumes that result instead of calling the direct
 evaluator. The result must resolve without symlinks under the canonical local
-Experiment Runner result root and pass the existing PR-2 trusted-dispatch
-binding validator for the exact packet, candidate fingerprint, mutated paths,
-one attempt, zero retries, every configured oracle, and untouched shared tree.
+Experiment Runner result root, and the exactly named receipt must resolve
+without symlinks under the canonical PR-2 patch-generation root. The result
+must pass the existing PR-2 trusted-dispatch binding validator for the exact
+packet, candidate fingerprint, mutated paths, one attempt, zero retries, every
+configured oracle, and untouched shared tree.
 The canonical PR-2 generation receipt and its linked sidecars must still bind
 that packet fingerprint and the exact finalized runner-result fingerprint.
 PR-3 additionally requires accepted status with passed `apple-container`

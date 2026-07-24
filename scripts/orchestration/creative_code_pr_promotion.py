@@ -1031,6 +1031,7 @@ def _load_current_patch_text_for_plan(
 def _load_trusted_apple_dispatch_result(
     *,
     result_path: Path,
+    generation_receipt_path: Path,
     experiment_packet: Path,
     run_dir: Path,
     plan_artifact: Mapping[str, Any],
@@ -1049,11 +1050,40 @@ def _load_trusted_apple_dispatch_result(
             changed_paths=list(plan_artifact["changed_paths"]),
             patch_fingerprint=str(plan_artifact["patch_fingerprint"]),
         )
-        generation_dir = patch_generation_cli._default_output_dir(run_dir.name)
+        generation_root = patch_generation_cli.PATCH_GENERATION_ROOT
+        patch_generation_cli._reject_symlink_components(
+            generation_root,
+            label="patch generation root",
+        )
+        receipt_candidate = (
+            generation_receipt_path
+            if generation_receipt_path.is_absolute()
+            else patch_generation_cli.REPO_ROOT / generation_receipt_path
+        )
+        patch_generation_cli._reject_symlink_components(
+            receipt_candidate,
+            label="trusted generation receipt",
+        )
+        try:
+            resolved_receipt = receipt_candidate.resolve(strict=True)
+        except OSError as exc:
+            raise CreativeCodePRPromotionError("trusted generation receipt must exist.") from exc
+        resolved_generation_root = generation_root.resolve(strict=False)
+        if (
+            not _is_relative_to(resolved_receipt, resolved_generation_root)
+            or not resolved_receipt.is_file()
+        ):
+            raise CreativeCodePRPromotionError(
+                "trusted generation receipt must be a file under patch generation artifacts."
+            )
+        if resolved_receipt.name != patch_generation_cli.RECEIPT_FILENAME:
+            raise CreativeCodePRPromotionError(
+                "trusted generation receipt must be named generation_receipt.json."
+            )
         receipt = patch_generation_cli.validate_generation_receipt(
             patch_generation_cli._read_generated_sidecar_json_object(
-                generation_dir / patch_generation_cli.RECEIPT_FILENAME,
-                run_dir=generation_dir,
+                resolved_receipt,
+                run_dir=resolved_generation_root,
                 label="generation receipt",
             )
         )
@@ -1273,9 +1303,14 @@ def validate(
     *,
     promotion_id: str,
     trusted_dispatch_result: Path | None = None,
+    trusted_generation_receipt: Path | None = None,
     git: GitTransport | None = None,
     gate_runner: GateRunner | None = None,
 ) -> dict[str, Any]:
+    if (trusted_dispatch_result is None) != (trusted_generation_receipt is None):
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result and generation receipt must be supplied together."
+        )
     git = git or GitTransport()
     gate_runner = gate_runner or GateRunner()
     promotion_dir = resolve_promotion_dir(promotion_id, create=False)
@@ -1339,8 +1374,13 @@ def validate(
                 candidate_patch=patch_path,
             )
         else:
+            if trusted_generation_receipt is None:
+                raise CreativeCodePRPromotionError(
+                    "trusted generation receipt path missing during validation."
+                )
             trusted_dispatch_snapshot = _load_trusted_apple_dispatch_result(
                 result_path=trusted_dispatch_result,
+                generation_receipt_path=trusted_generation_receipt,
                 experiment_packet=experiment_packet,
                 run_dir=run_dir,
                 plan_artifact=plan_artifact,
@@ -1363,12 +1403,13 @@ def validate(
             git=git,
         )
         if trusted_dispatch_snapshot is not None:
-            if trusted_dispatch_result is None:
+            if trusted_dispatch_result is None or trusted_generation_receipt is None:
                 raise CreativeCodePRPromotionError(
-                    "trusted dispatch result path missing during snapshot verification."
+                    "trusted dispatch evidence paths missing during snapshot verification."
                 )
             current_snapshot = _load_trusted_apple_dispatch_result(
                 result_path=trusted_dispatch_result,
+                generation_receipt_path=trusted_generation_receipt,
                 experiment_packet=experiment_packet,
                 run_dir=run_dir,
                 plan_artifact=plan_artifact,
@@ -1647,6 +1688,7 @@ def main(argv: list[str] | None = None) -> int:
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--promotion-id", required=True)
     validate_parser.add_argument("--trusted-dispatch-result", type=Path)
+    validate_parser.add_argument("--trusted-generation-receipt", type=Path)
     approve_parser = subparsers.add_parser("approve")
     approve_parser.add_argument("--promotion-id", required=True)
     approve_parser.add_argument("--approved-by-login", required=True)
@@ -1662,6 +1704,7 @@ def main(argv: list[str] | None = None) -> int:
             validate(
                 promotion_id=args.promotion_id,
                 trusted_dispatch_result=args.trusted_dispatch_result,
+                trusted_generation_receipt=args.trusted_generation_receipt,
             )
             print(SUCCESS_VALIDATE_OUTPUT)
         elif args.command == "approve":

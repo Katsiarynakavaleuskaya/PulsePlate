@@ -137,6 +137,7 @@ def _make_patch_run(
     *,
     run_id: str = "patch-run",
     accepted: bool = True,
+    generation_dir_name: str | None = None,
 ) -> tuple[Path, str, dict[str, Any]]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -203,7 +204,9 @@ def _make_patch_run(
     _write_json(run_dir / EXPERIMENT_PACKET_FILE, experiment_packet)
     (run_dir / CANDIDATE_PATCH_FILE).write_text(patch_text, encoding="utf-8")
     if accepted:
-        generation_dir = creative_code_patch_generation._default_output_dir(run_id)
+        generation_dir = creative_code_patch_generation.PATCH_GENERATION_ROOT / (
+            generation_dir_name or run_id
+        )
         gate_path = generation_dir / creative_code_patch_generation.GATE_FILENAME
         run_ref = run_dir.relative_to(repo).as_posix()
         gate = {
@@ -232,6 +235,23 @@ def _make_patch_run(
             receipt,
         )
     return repo, run_id, result
+
+
+def _generation_receipt_path(
+    repo: Path,
+    run_id: str,
+    *,
+    generation_dir_name: str | None = None,
+) -> Path:
+    return (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_generation"
+        / (generation_dir_name or run_id)
+        / creative_code_patch_generation.RECEIPT_FILENAME
+    )
 
 
 def _trusted_dispatch_result(packet: dict[str, Any]) -> dict[str, Any]:
@@ -1087,6 +1107,7 @@ def test_validation_accepts_exact_trusted_apple_dispatch_without_direct_evaluati
     validation = creative_code_pr_promotion.validate(
         promotion_id="promotion-pr3-trusted-apple",
         trusted_dispatch_result=result_path.relative_to(repo),
+        trusted_generation_receipt=_generation_receipt_path(repo, run_id).relative_to(repo),
         git=FakeGit(),
         gate_runner=gates,
     )
@@ -1098,6 +1119,93 @@ def test_validation_accepts_exact_trusted_apple_dispatch_without_direct_evaluati
         packet["immutable_oracles"]
     )
     assert gates.calls == ["pre_commit", "validate_changed"]
+
+
+def test_validation_accepts_explicit_custom_generation_receipt_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    generation_dir_name = "custom-generation-output"
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-custom-generation",
+        generation_dir_name=generation_dir_name,
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-custom-generation",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    receipt_path = _generation_receipt_path(
+        repo,
+        run_id,
+        generation_dir_name=generation_dir_name,
+    )
+    assert not _generation_receipt_path(repo, run_id).exists()
+    _stub_validation_checkout(monkeypatch, Path(planned["promotion_dir"]))
+    gates = FakeGates()
+
+    creative_code_pr_promotion.validate(
+        promotion_id="promotion-pr3-custom-generation",
+        trusted_dispatch_result=result_path.relative_to(repo),
+        trusted_generation_receipt=receipt_path.relative_to(repo),
+        git=FakeGit(),
+        gate_runner=gates,
+    )
+
+    assert gates.calls == ["pre_commit", "validate_changed"]
+
+
+@pytest.mark.parametrize("provided_argument", ["dispatch", "receipt"])
+def test_validation_rejects_unpaired_trusted_evidence_before_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    provided_argument: str,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id=f"patch-run-unpaired-{provided_argument}",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id=f"promotion-pr3-unpaired-{provided_argument}",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    kwargs: dict[str, Any] = {
+        (
+            "trusted_dispatch_result"
+            if provided_argument == "dispatch"
+            else "trusted_generation_receipt"
+        ): (
+            result_path
+            if provided_argument == "dispatch"
+            else _generation_receipt_path(repo, run_id)
+        )
+    }
+    prepare_calls: list[str] = []
+
+    def fail_prepare(**_kwargs: Any) -> Path:
+        prepare_calls.append("prepare")
+        raise AssertionError("checkout must not be prepared")
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fail_prepare)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="must be supplied together"):
+        creative_code_pr_promotion.validate(
+            promotion_id=f"promotion-pr3-unpaired-{provided_argument}",
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+            **kwargs,
+        )
+
+    promotion_dir = Path(planned["promotion_dir"])
+    assert prepare_calls == []
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_CHECKOUT).exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
 def test_main_forwards_trusted_dispatch_result_as_path(
@@ -1118,6 +1226,8 @@ def test_main_forwards_trusted_dispatch_result_as_path(
             "promotion-pr3-cli-forwarding",
             "--trusted-dispatch-result",
             "artifacts/orchestration/experiments/results/result.json",
+            "--trusted-generation-receipt",
+            "artifacts/orchestration/creative_code/patch_generation/custom/generation_receipt.json",
         ]
     )
 
@@ -1125,7 +1235,76 @@ def test_main_forwards_trusted_dispatch_result_as_path(
     assert captured == {
         "promotion_id": "promotion-pr3-cli-forwarding",
         "trusted_dispatch_result": Path("artifacts/orchestration/experiments/results/result.json"),
+        "trusted_generation_receipt": Path(
+            "artifacts/orchestration/creative_code/patch_generation/custom/"
+            "generation_receipt.json"
+        ),
     }
+
+
+@pytest.mark.parametrize(
+    ("path_case", "message"),
+    [
+        ("outside", "under patch generation artifacts"),
+        ("symlink", "must not traverse symlinks"),
+        ("wrong_name", "must be named generation_receipt.json"),
+    ],
+)
+def test_validation_rejects_unsafe_generation_receipt_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    path_case: str,
+    message: str,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id=f"patch-run-receipt-{path_case}",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id=f"promotion-pr3-receipt-{path_case}",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_trusted_dispatch_result(repo, run_id)
+    valid_receipt = _generation_receipt_path(repo, run_id)
+    if path_case == "outside":
+        supplied_receipt = tmp_path / "outside" / creative_code_patch_generation.RECEIPT_FILENAME
+        supplied_receipt.parent.mkdir()
+        supplied_receipt.write_text(
+            valid_receipt.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    elif path_case == "symlink":
+        supplied_receipt = (
+            creative_code_patch_generation.PATCH_GENERATION_ROOT
+            / "linked"
+            / creative_code_patch_generation.RECEIPT_FILENAME
+        )
+        supplied_receipt.parent.mkdir()
+        supplied_receipt.symlink_to(valid_receipt)
+    elif path_case == "wrong_name":
+        supplied_receipt = valid_receipt.with_name("receipt.json")
+        supplied_receipt.write_text(
+            valid_receipt.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    else:  # pragma: no cover - parametrization is closed above.
+        raise AssertionError(path_case)
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(CreativeCodePRPromotionError, match=message):
+        creative_code_pr_promotion.validate(
+            promotion_id=f"promotion-pr3-receipt-{path_case}",
+            trusted_dispatch_result=result_path,
+            trusted_generation_receipt=supplied_receipt,
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
 @pytest.mark.parametrize(
@@ -1196,6 +1375,10 @@ def test_validation_rejects_unbound_trusted_dispatch_result(
         creative_code_pr_promotion.validate(
             promotion_id=f"promotion-pr3-{mutation}",
             trusted_dispatch_result=result_path.relative_to(repo),
+            trusted_generation_receipt=_generation_receipt_path(
+                repo,
+                run_id,
+            ).relative_to(repo),
             git=FakeGit(),
             gate_runner=FakeGates(),
         )
@@ -1248,6 +1431,7 @@ def test_validation_rejects_unsafe_trusted_dispatch_result_path(
         creative_code_pr_promotion.validate(
             promotion_id=f"promotion-pr3-{path_case}",
             trusted_dispatch_result=supplied_path,
+            trusted_generation_receipt=_generation_receipt_path(repo, run_id),
             git=FakeGit(),
             gate_runner=FakeGates(),
         )
@@ -1285,6 +1469,7 @@ def test_validation_rejects_forged_packet_and_matching_dispatch_result(
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-forged-packet",
             trusted_dispatch_result=result_path.relative_to(repo),
+            trusted_generation_receipt=_generation_receipt_path(repo, run_id),
             git=FakeGit(),
             gate_runner=FakeGates(),
         )
@@ -1321,6 +1506,7 @@ def test_validation_rejects_dispatch_result_not_finalized_into_pr2(
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-unfinalized-result",
             trusted_dispatch_result=result_path.relative_to(repo),
+            trusted_generation_receipt=_generation_receipt_path(repo, run_id),
             git=FakeGit(),
             gate_runner=FakeGates(),
         )
@@ -1361,6 +1547,7 @@ def test_validation_rejects_trusted_dispatch_result_fingerprint_drift(
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-fingerprint-drift",
             trusted_dispatch_result=result_path.relative_to(repo),
+            trusted_generation_receipt=_generation_receipt_path(repo, run_id),
             git=FakeGit(),
             gate_runner=MutatingGates(),
         )

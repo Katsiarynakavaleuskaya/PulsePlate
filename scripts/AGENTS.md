@@ -163,10 +163,12 @@
   `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and
   promote one accepted PR-2 patch into a new non-draft `experiment/*` PR. It
   may optionally consume one exact accepted Apple Container dispatch result
-  during `validate` from the canonical Experiment Runner result root, using the
-  existing PR-2 trusted binding validator instead of direct re-evaluation; it
-  must re-read the result after local gates and must never regenerate or
-  finalize PR-2 artifacts through this intake. It must not open drafts, update
+  plus its explicitly supplied canonical PR-2 generation receipt during
+  `validate`; both paths are required together and must remain under their
+  canonical local artifact roots. This intake uses the existing PR-2 trusted
+  binding validator instead of direct re-evaluation, must re-read the result
+  after local gates, and must never regenerate or finalize PR-2 artifacts
+  through this intake. It must not open drafts, update
   existing branches, force-push, request reviews, submit reviews, resolve review
   threads, edit fixed mappings, claim merge readiness, merge, release, call
   Slack/GitHub App authority paths, or call
