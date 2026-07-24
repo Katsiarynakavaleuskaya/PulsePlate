@@ -1363,6 +1363,10 @@ def validate(
             git=git,
         )
         if trusted_dispatch_snapshot is not None:
+            if trusted_dispatch_result is None:
+                raise CreativeCodePRPromotionError(
+                    "trusted dispatch result path missing during snapshot verification."
+                )
             current_snapshot = _load_trusted_apple_dispatch_result(
                 result_path=trusted_dispatch_result,
                 experiment_packet=experiment_packet,
