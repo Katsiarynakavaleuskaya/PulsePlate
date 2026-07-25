@@ -12,7 +12,6 @@ import importlib
 import logging
 import math
 import sys
-from types import ModuleType
 from typing import Any, Callable
 
 import pytest

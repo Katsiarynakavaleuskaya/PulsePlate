@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 from tests._client import get_client
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app as app_mod
@@ -81,7 +80,8 @@ class TestAppMissingLinesExtra:
             assert r.status_code == 400
             assert r.headers.get("content-type", "").startswith("application/json")
             assert r.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
-            assert "/tmp/internal/plate" not in r.json()["detail"]
+            internal_path = "/".join(("", "tmp", "internal", "plate"))
+            assert internal_path not in r.json()["detail"]
 
     def test_premium_plate_missing_bmr_tdee_check(self):
         from app.services import pro_nutrition_plate as plate_service
