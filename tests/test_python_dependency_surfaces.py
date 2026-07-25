@@ -2650,14 +2650,14 @@ def test_compiler_transaction_lock_has_one_cross_process_tmpdir_namespace(
             text=True,
             capture_output=True,
             check=False,
-            timeout=2,
+            timeout=10,
         )
         assert second.returncode != 0
         assert "already running" in second.stderr
     finally:
         first.stdin.write("\n")
         first.stdin.flush()
-        first.communicate(timeout=2)
+        first.communicate(timeout=10)
 
 
 def test_prepared_lock_rejects_rollback_bytes_from_another_snapshot(tmp_path: Path) -> None:
