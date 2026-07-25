@@ -37,7 +37,7 @@ class _BMRRequestBase(BaseModel):
             raise ValueError("measurement must be a positive finite number")
         try:
             numeric_value = float(value)
-        except (TypeError, ValueError):
+        except (OverflowError, TypeError, ValueError):
             return value
         if not math.isfinite(numeric_value) or numeric_value <= 0:
             raise ValueError("measurement must be a positive finite number")

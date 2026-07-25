@@ -111,6 +111,8 @@ def _dependencies(
         ("weight_kg", float("inf")),
         ("weight_kg", float("-inf")),
         ("weight_kg", True),
+        ("weight_kg", 10**400),
+        ("weight_kg", "1e400"),
         ("height_cm", 0),
         ("height_cm", -1),
         ("height_cm", float("nan")),
@@ -614,6 +616,27 @@ def test_protected_route_auth_precedes_feature_availability(
 
     assert missing.status_code == 403
     assert invalid.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+def test_bmr_routes_reject_overflowing_json_integer_as_schema_error(
+    client: TestClient,
+    path: str,
+    headers: dict[str, str],
+) -> None:
+    response = client.post(
+        path,
+        json={**_VALID_PAYLOAD, "weight_kg": 10**400},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
 
 
 def test_public_alias_remains_public(client: TestClient) -> None:
