@@ -166,13 +166,13 @@ async def calculate_bmr_response(
             detail=INVALID_BMR_INPUT_DETAIL,
         ) from None
     except _MalformedBMRCalculationError:
-        logger.exception("Premium BMR calculation returned malformed data")
+        logger.error("Premium BMR calculation returned malformed data")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=BMR_CALCULATION_FAILED_DETAIL,
         ) from None
     except Exception:
-        logger.exception("Premium BMR calculation failed")
+        logger.error("Premium BMR calculation failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=BMR_CALCULATION_FAILED_DETAIL,

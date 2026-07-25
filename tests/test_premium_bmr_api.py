@@ -444,6 +444,39 @@ def test_malformed_tdee_maps_fail_closed_with_generic_500(
     assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
 
 
+def test_malformed_output_log_is_sanitized(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    internal_detail = "private-calculator-key-detail"
+    caplog.set_level(logging.ERROR, logger=bmr_service.__name__)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            calculate_bmr_response(
+                _request(),
+                dependencies=_dependencies(
+                    bmr_results={
+                        "mifflin": 1648.8,
+                        "harris": 1701.9,
+                        internal_detail: object(),
+                    }
+                ),
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
+    assert internal_detail not in caplog.text
+    error_records = [
+        record
+        for record in caplog.records
+        if record.name == bmr_service.__name__ and record.levelno == logging.ERROR
+    ]
+    assert len(error_records) == 1
+    assert error_records[0].getMessage() == "Premium BMR calculation returned malformed data"
+    assert error_records[0].exc_info is None
+
+
 @pytest.mark.parametrize(
     ("bmr_request", "dependencies"),
     [
@@ -551,6 +584,7 @@ def test_unexpected_error_is_logged_and_sanitized_to_generic_500(
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
     assert internal_detail not in str(exc_info.value.detail)
+    assert internal_detail not in caplog.text
     error_records = [
         record
         for record in caplog.records
@@ -558,7 +592,7 @@ def test_unexpected_error_is_logged_and_sanitized_to_generic_500(
     ]
     assert len(error_records) == 1
     assert error_records[0].getMessage() == "Premium BMR calculation failed"
-    assert error_records[0].exc_info is not None
+    assert error_records[0].exc_info is None
 
 
 @pytest.mark.parametrize(
