@@ -21,15 +21,18 @@ temporarily suppressed instead of taking an unrelated major-version migration.
 - The frontend has no `unstable_matchRSCServerRequest` or
   `unstable_routeRSCServerRequest` use.
 - The frontend has no `react-router/internal/react-server` import,
-  `@vitejs/plugin-rsc` dependency, `react-server-dom-*` dependency, or
-  `react-server` build condition.
+  `@vitejs/plugin-rsc` dependency, `react-server-dom-*` dependency or lockfile
+  resolution/alias, or `react-server` build condition.
 - `tests/test_trivy_ignore_policy_expiry.py` fails closed if one of those
-  affected RSC markers is introduced while the suppression remains.
+  affected RSC markers is introduced while the suppression remains. The guard
+  recursively inspects package-lock keys and string values and scans every
+  source-like file, including test, spec, and story paths that a bundler could
+  import.
 - `trivy/ignore-policy.rego` matches only the observed GHSA, package, installed
   version, package ID, and fixed version tuple.
 - Repository evidence anchors:
-  `tests/test_trivy_ignore_policy_expiry.py:634`,
-  `tests/test_trivy_ignore_policy_expiry.py:649`, and
+  `tests/test_trivy_ignore_policy_expiry.py:220`,
+  `tests/test_trivy_ignore_policy_expiry.py:232`, and
   `trivy/ignore-policy.rego:212`.
 
 ## Threat and bounded decision
