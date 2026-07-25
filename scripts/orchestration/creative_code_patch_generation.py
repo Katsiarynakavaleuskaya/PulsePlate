@@ -2388,6 +2388,31 @@ def _load_generated_dispatch_context(
     return run_dir, state, request, bundle, packet, patch_text
 
 
+def validate_finalized_dispatch_context(
+    gate: Mapping[str, Any],
+) -> tuple[Path, dict[str, Any]]:
+    """Reconstruct one finalized PR-2 dispatch context from canonical sources."""
+
+    try:
+        run_dir, state, _request, _bundle, packet, _patch_text = _load_generated_dispatch_context(
+            gate, allow_partial_publication=True
+        )
+    except (
+        CreativeCodePatchContractError,
+        CreativeCodePatchWorkspaceError,
+        CreativeSpecPatchAdmissionError,
+        CreativeSpecLearningRollupError,
+        admission_cli.CreativeSpecPatchAdmissionCliError,
+        creative_code_patch_builder.CreativeCodePatchBuilderError,
+    ) as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
+    if state.get("candidate_patch_evaluated") is not True:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch context must be finalized and evaluated."
+        )
+    return run_dir, packet
+
+
 def _validate_dispatch_result_binding(
     *,
     dispatch_result: dict[str, Any],

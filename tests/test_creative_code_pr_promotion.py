@@ -33,7 +33,7 @@ from scripts.orchestration.creative_code_pr_promotion_contract import (
     build_creative_code_pr_promotion_approval,
     build_creative_code_pr_promotion_plan,
     build_creative_code_pr_promotion_receipt,
-    build_creative_code_pr_promotion_validation,
+    build_creative_code_pr_promotion_validation as _build_validation_contract,
     promotion_plan_fingerprint,
     read_json_object,
     validate_creative_code_pr_promotion_approval,
@@ -114,6 +114,20 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
+def build_creative_code_pr_promotion_validation(**kwargs: Any) -> dict[str, Any]:
+    """Build direct-evaluation validation evidence for synthetic contract fixtures."""
+
+    return _build_validation_contract(
+        **kwargs,
+        oracle_evidence_source="direct_evaluation",
+        oracle_executed_during_validation=True,
+        oracle_result_fingerprint="sha256:" + ("a" * 64),
+        experiment_packet_fingerprint="sha256:" + ("b" * 64),
+        generation_gate_fingerprint=None,
+        generation_receipt_fingerprint=None,
+    )
+
+
 def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
     patch_root = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs"
     promotion_root = repo / "artifacts" / "orchestration" / "creative_code" / "promotions"
@@ -129,6 +143,19 @@ def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
     )
     monkeypatch.setattr(creative_code_pr_promotion, "REPO_ROOT", repo)
     monkeypatch.setattr(creative_code_pr_promotion, "PROMOTION_ROOT", promotion_root)
+
+    def fake_validate_finalized_dispatch_context(
+        gate: dict[str, Any],
+    ) -> tuple[Path, dict[str, Any]]:
+        run_dir = patch_root / str(gate["run_id"])
+        packet = json.loads((run_dir / EXPERIMENT_PACKET_FILE).read_text(encoding="utf-8"))
+        return run_dir, packet
+
+    monkeypatch.setattr(
+        creative_code_patch_generation,
+        "validate_finalized_dispatch_context",
+        fake_validate_finalized_dispatch_context,
+    )
 
 
 def _generation_gate_fixture(
@@ -659,6 +686,12 @@ def test_pr3_schemas_are_closed() -> None:
     assert open_receipt_properties["pull_request_number"]["minimum"] == 1
     assert open_receipt_properties["review_cycle_started"]["const"] is True
     assert open_receipt_properties["partial_failure"]["type"] == "null"
+    validation_schema = json.loads(VALIDATION_SCHEMA.read_text(encoding="utf-8"))
+    oracle_evidence = validation_schema["$defs"]["oracle_evidence"]
+    assert oracle_evidence["properties"]["source"]["enum"] == [
+        "direct_evaluation",
+        "trusted_apple_dispatch",
+    ]
 
 
 def test_open_promotion_receipt_requires_pr_identity() -> None:
@@ -739,6 +772,33 @@ def test_valid_artifacts_round_trip_and_identity_drifts() -> None:
         approved_by_login="Katsiarynakavaleuskaya",
     )
     assert validate_creative_code_pr_promotion_receipt(receipt) == receipt
+
+
+def test_validation_contract_distinguishes_trusted_apple_dispatch() -> None:
+    validation = _build_validation_contract(
+        promotion_id="promotion-pr3-trusted-contract",
+        plan_fingerprint="sha256:" + ("1" * 64),
+        patch_fingerprint="sha256:" + ("2" * 64),
+        base_commit_sha="a" * 40,
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+        oracle_evidence_source="trusted_apple_dispatch",
+        oracle_executed_during_validation=False,
+        oracle_result_fingerprint="sha256:" + ("3" * 64),
+        experiment_packet_fingerprint="sha256:" + ("4" * 64),
+        generation_gate_fingerprint="sha256:" + ("5" * 64),
+        generation_receipt_fingerprint="sha256:" + ("6" * 64),
+    )
+
+    assert validation["oracle_evidence"]["source"] == "trusted_apple_dispatch"
+    assert validation["oracle_evidence"]["executed_during_validation"] is False
+    forged = json.loads(json.dumps(validation))
+    forged["oracle_evidence"]["executed_during_validation"] = True
+    with pytest.raises(
+        CreativeCodePRPromotionContractError,
+        match="without claiming execution during validation",
+    ):
+        validate_creative_code_pr_promotion_validation(forged)
 
 
 def test_duplicate_json_keys_rejected(tmp_path: Path) -> None:
@@ -1132,6 +1192,8 @@ def test_validation_uses_isolated_checkout_and_destroyed_on_success(
 
     assert validation["preopen_gates"]["pre_commit"] == "passed"
     assert validation["validation_checkout"]["used_throwaway_commit"] is True
+    assert validation["oracle_evidence"]["source"] == "direct_evaluation"
+    assert validation["oracle_evidence"]["executed_during_validation"] is True
     assert gates.calls == ["fresh_oracle", "pre_commit", "validate_changed"]
     assert calls == [
         "prepare:validation_checkout",
@@ -1163,13 +1225,59 @@ def test_validation_accepts_exact_trusted_apple_dispatch_without_direct_evaluati
         gate_runner=gates,
     )
 
-    assert validation["fresh_oracle"]["oracle_commands_configured"] == len(
+    assert validation["oracle_evidence"]["oracle_commands_configured"] == len(
         packet["immutable_oracles"]
     )
-    assert validation["fresh_oracle"]["oracle_commands_executed"] == len(
+    assert validation["oracle_evidence"]["oracle_commands_executed"] == len(
         packet["immutable_oracles"]
     )
+    assert validation["oracle_evidence"]["source"] == "trusted_apple_dispatch"
+    assert validation["oracle_evidence"]["executed_during_validation"] is False
+    assert validation["oracle_evidence"]["generation_gate_fingerprint"] is not None
+    assert validation["oracle_evidence"]["generation_receipt_fingerprint"] is not None
     assert gates.calls == ["pre_commit", "validate_changed"]
+
+
+def test_validation_rejects_direct_packet_drift_during_gates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-direct-packet-drift",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-direct-packet-drift",
+        git=FakeGit(),
+    )
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    packet_path = run_dir / EXPERIMENT_PACKET_FILE
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    class MutatingGates(FakeGates):
+        def run_pre_commit(self, *, cwd: Path) -> None:
+            super().run_pre_commit(cwd=cwd)
+            packet = json.loads(packet_path.read_text(encoding="utf-8"))
+            packet["immutable_oracles"][0][
+                "command"
+            ] = "pytest -q tests/test_creative_code_patch_generation.py"
+            _write_json(packet_path, packet)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="direct oracle experiment packet changed during validation",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-direct-packet-drift",
+            git=FakeGit(),
+            gate_runner=MutatingGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
 def test_validation_accepts_explicit_custom_generation_receipt_directory(
@@ -1592,6 +1700,76 @@ def test_validation_rejects_generation_receipt_without_canonical_gate(
     ):
         creative_code_pr_promotion.validate(
             promotion_id="promotion-pr3-missing-generation-gate",
+            trusted_dispatch_result=result_path,
+            trusted_generation_receipt=receipt_path,
+            git=FakeGit(),
+            gate_runner=FakeGates(),
+        )
+
+    assert not checkout.exists()
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
+
+
+def test_validation_rejects_coherently_forged_gate_and_receipt_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(
+        monkeypatch,
+        tmp_path,
+        run_id="patch-run-forged-gate-sources",
+    )
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-forged-gate-sources",
+        git=FakeGit(),
+    )
+    result_path, _packet = _write_dispatch_fixture(repo, run_id)
+    receipt_path = _generation_receipt_path(repo, run_id)
+    gate_path = receipt_path.with_name(creative_code_patch_generation.GATE_FILENAME)
+    gate = creative_code_patch_generation._read_generation_gate(gate_path)
+    gate["admission_id"] = "admission:forged"
+    gate["admission_fingerprint"] = fingerprint_payload({"admission": "forged"})
+    gate["admission_ref"] = "artifacts/orchestration/creative_code/admissions/forged.json"
+    gate["state_fingerprint"] = fingerprint_payload({"state": "forged"})
+    creative_code_patch_generation._set_identity(
+        gate,
+        id_key="gate_id",
+        asset_type=creative_code_patch_generation.GATE_ARTIFACT_TYPE,
+    )
+    gate = creative_code_patch_generation.validate_generation_gate(gate)
+    _write_json(gate_path, gate)
+    _write_json(
+        receipt_path,
+        creative_code_patch_generation._build_receipt(
+            gate_path=gate_path,
+            gate=gate,
+            result=result,
+        ),
+    )
+
+    def reject_forged_context(
+        supplied_gate: dict[str, Any],
+    ) -> tuple[Path, dict[str, Any]]:
+        assert supplied_gate["admission_id"] == "admission:forged"
+        raise creative_code_patch_generation.CreativeCodePatchGenerationError(
+            "generation gate admission_id no longer matches its source."
+        )
+
+    monkeypatch.setattr(
+        creative_code_patch_generation,
+        "validate_finalized_dispatch_context",
+        reject_forged_context,
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    checkout = _stub_validation_checkout(monkeypatch, promotion_dir)
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="generation gate admission_id no longer matches its source",
+    ):
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-forged-gate-sources",
             trusted_dispatch_result=result_path,
             trusted_generation_receipt=receipt_path,
             git=FakeGit(),

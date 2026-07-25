@@ -813,7 +813,7 @@ Manual patch copying remains possible but loses structured provenance. Autonomou
 Patch fingerprint: `{result["patch_summary"]["patch_fingerprint"]}`. Candidate evaluation is not merge-readiness evidence.
 
 ## Oracle Evidence
-Fresh candidate oracle validation is required before promotion. A separate oracle-only governance review of the actual PR diff remains required.
+Candidate oracle evidence is required before promotion. Validation records whether it executed the direct evaluator or consumed exact trusted Apple Container dispatch evidence. A separate oracle-only governance review of the actual PR diff remains required.
 
 ## Pre-Open Validation
 Validation artifact: `{validation_ref}`.
@@ -1098,6 +1098,17 @@ def _load_trusted_apple_dispatch_result(
             gate,
             resolved_gate,
         )
+        canonical_run_dir, canonical_packet = (
+            patch_generation_cli.validate_finalized_dispatch_context(gate)
+        )
+        if canonical_run_dir != run_dir:
+            raise CreativeCodePRPromotionError(
+                "trusted generation gate does not match the planned PR-2 run directory."
+            )
+        if fingerprint_payload(canonical_packet) != fingerprint_payload(packet):
+            raise CreativeCodePRPromotionError(
+                "trusted generation gate does not match the planned experiment packet."
+            )
         patch_generation_cli.validate_generation_receipt_linked_artifacts(receipt)
     except (
         patch_generation_cli.CreativeCodePatchGenerationError,
@@ -1391,7 +1402,13 @@ def validate(
             ]
             | None
         ) = None
+        direct_packet_fingerprint: str | None = None
         if trusted_dispatch_result is None:
+            direct_packet = patch_generation_cli._read_experiment_packet(
+                experiment_packet,
+                trusted_root=run_dir,
+            )
+            direct_packet_fingerprint = fingerprint_payload(direct_packet)
             oracle_result = gate_runner.run_fresh_oracle(
                 experiment_packet=experiment_packet,
                 candidate_patch=patch_path,
@@ -1449,13 +1466,44 @@ def validate(
                 raise CreativeCodePRPromotionError(
                     "trusted dispatch evidence changed during validation."
                 )
+        else:
+            if direct_packet_fingerprint is None:
+                raise CreativeCodePRPromotionError(
+                    "direct oracle experiment packet snapshot is missing."
+                )
+            current_direct_packet = patch_generation_cli._read_experiment_packet(
+                experiment_packet,
+                trusted_root=run_dir,
+            )
+            if fingerprint_payload(current_direct_packet) != direct_packet_fingerprint:
+                raise CreativeCodePRPromotionError(
+                    "direct oracle experiment packet changed during validation."
+                )
     finally:
         destroyed = _destroy_checkout(promotion_dir, VALIDATION_CHECKOUT)
     if not checkout_created or not destroyed:
         raise CreativeCodePRPromotionError("validation checkout cleanup failed.")
     budget_observations = oracle_result.get("budget_observations", {})
     if not isinstance(budget_observations, dict):
-        raise CreativeCodePRPromotionError("fresh oracle budget observations missing.")
+        raise CreativeCodePRPromotionError("oracle evidence budget observations missing.")
+    if trusted_dispatch_snapshot is None:
+        oracle_evidence_source = "direct_evaluation"
+        oracle_executed_during_validation = True
+        oracle_result_fingerprint = fingerprint_payload(oracle_result)
+        if direct_packet_fingerprint is None:
+            raise CreativeCodePRPromotionError(
+                "direct oracle experiment packet snapshot is missing."
+            )
+        experiment_packet_fingerprint = direct_packet_fingerprint
+        generation_gate_fingerprint = None
+        generation_receipt_fingerprint = None
+    else:
+        oracle_evidence_source = "trusted_apple_dispatch"
+        oracle_executed_during_validation = False
+        oracle_result_fingerprint = trusted_dispatch_snapshot[4]
+        experiment_packet_fingerprint = trusted_dispatch_snapshot[3]
+        generation_gate_fingerprint = trusted_dispatch_snapshot[8]
+        generation_receipt_fingerprint = trusted_dispatch_snapshot[6]
     validation_artifact: dict[str, Any] = build_creative_code_pr_promotion_validation(
         promotion_id=promotion_id,
         plan_fingerprint=promotion_plan_fingerprint(plan_artifact),
@@ -1463,6 +1511,12 @@ def validate(
         base_commit_sha=plan_artifact["base_commit_sha"],
         oracle_commands_configured=int(budget_observations["oracle_commands_configured"]),
         oracle_commands_executed=int(budget_observations["oracle_commands_executed"]),
+        oracle_evidence_source=oracle_evidence_source,
+        oracle_executed_during_validation=oracle_executed_during_validation,
+        oracle_result_fingerprint=oracle_result_fingerprint,
+        experiment_packet_fingerprint=experiment_packet_fingerprint,
+        generation_gate_fingerprint=generation_gate_fingerprint,
+        generation_receipt_fingerprint=generation_receipt_fingerprint,
     )
     write_json_atomic(
         resolve_promotion_file(promotion_dir, VALIDATION_FILE, for_write=True),

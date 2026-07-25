@@ -331,7 +331,7 @@ def event_from_promotion_plan(plan: dict[str, Any]) -> dict[str, Any]:
 
 def event_from_promotion_validation(validation: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_validation(validation)
-    fresh_oracle = normalized["fresh_oracle"]
+    oracle_evidence = normalized["oracle_evidence"]
     return cast(
         dict[str, Any],
         build_creative_code_telemetry_event(
@@ -342,8 +342,8 @@ def event_from_promotion_validation(validation: dict[str, Any]) -> dict[str, Any
             candidate_ids=_candidate_ids(promotion_id=normalized["promotion_id"]),
             status="accepted",
             metrics=default_metrics(
-                oracle_commands_configured=fresh_oracle["oracle_commands_configured"],
-                oracle_commands_executed=fresh_oracle["oracle_commands_executed"],
+                oracle_commands_configured=oracle_evidence["oracle_commands_configured"],
+                oracle_commands_executed=oracle_evidence["oracle_commands_executed"],
                 promotion_validation_passed=1,
             ),
         ),
