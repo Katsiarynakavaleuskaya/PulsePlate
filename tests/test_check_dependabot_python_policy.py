@@ -272,6 +272,8 @@ def test_registry_url_userinfo_is_redacted_from_errors_and_cli_output(
     captured = capsys.readouterr()
 
     assert exit_code == 1
+    assert f"registries.{policy.REGISTRY_NAME}.url:must be" in captured.out
+    assert "got <redacted>" in captured.out
     assert userinfo_first not in captured.out
     assert userinfo_first not in captured.err
     assert userinfo_second not in captured.out
