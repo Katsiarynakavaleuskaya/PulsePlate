@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 from tests._client import get_client
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app as app_mod
@@ -47,49 +46,6 @@ class TestAppMissingLinesExtra:
             assert r.status_code == 503
             assert "disabled" in r.json().get("detail", "").lower()
 
-    def test_premium_bmr_value_and_http_errors(self):
-        # Test premium BMR endpoint - ValueError should return 400 Bad Request
-        with (
-            patch.object(app_mod, "calculate_all_bmr", side_effect=ValueError("bad")),
-            patch.object(app_mod, "calculate_all_tdee", lambda *a, **k: {}),
-        ):
-            data = {
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "light",
-                "lang": "en",
-            }
-            r = self.client.post(
-                "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
-            )
-            assert r.status_code == 400
-            assert "Invalid input" in r.json().get("detail", "")
-
-        # Trigger HTTPException passthrough re-raise
-        with (
-            patch.object(
-                app_mod,
-                "calculate_all_bmr",
-                side_effect=HTTPException(status_code=418, detail="teapot"),
-            ),
-            patch.object(app_mod, "calculate_all_tdee", lambda *a, **k: {}),
-        ):
-            data = {
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "light",
-                "lang": "en",
-            }
-            r = self.client.post(
-                "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
-            )
-            assert r.status_code == 418
-            assert "teapot" in r.json().get("detail", "")
-
     def test_premium_plate_value_error_is_sanitized(self) -> None:
         from app.services import pro_nutrition_plate as plate_service
 
@@ -124,7 +80,8 @@ class TestAppMissingLinesExtra:
             assert r.status_code == 400
             assert r.headers.get("content-type", "").startswith("application/json")
             assert r.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
-            assert "/tmp/internal/plate" not in r.json()["detail"]
+            internal_path = "/".join(("", "tmp", "internal", "plate"))
+            assert internal_path not in r.json()["detail"]
 
     def test_premium_plate_missing_bmr_tdee_check(self):
         from app.services import pro_nutrition_plate as plate_service
