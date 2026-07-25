@@ -138,6 +138,14 @@ async def calculate_bmr_response(
             if "katch" in bmr_results and req.bodyfat is not None
             else []
         )
+        recommended_intake = _validated_calculation_map(
+            {
+                "maintenance": primary_tdee,
+                "weight_loss": primary_tdee * nutrition_bmr.WEIGHT_LOSS_MULTIPLIER,
+                "weight_gain": primary_tdee * nutrition_bmr.WEIGHT_GAIN_MULTIPLIER,
+            },
+            name="Recommended intake",
+        )
         return BMRResponse(
             bmr=bmr_results,
             tdee=tdee_results,
@@ -145,11 +153,7 @@ async def calculate_bmr_response(
                 req.lang,
                 f"activity_{req.activity}",
             ),
-            recommended_intake={
-                "maintenance": primary_tdee,
-                "weight_loss": primary_tdee * nutrition_bmr.WEIGHT_LOSS_MULTIPLIER,
-                "weight_gain": primary_tdee * nutrition_bmr.WEIGHT_GAIN_MULTIPLIER,
-            },
+            recommended_intake=recommended_intake,
             formulas_used=list(bmr_results),
             notes=notes,
         )

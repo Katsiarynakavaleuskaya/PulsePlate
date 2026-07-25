@@ -789,6 +789,29 @@ def test_bmr_routes_accept_numeric_strings(
     assert set(body["bmr"]) == {"mifflin", "harris", "katch"}
 
 
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+def test_bmr_routes_reject_non_finite_derived_recommendations(
+    client: TestClient,
+    path: str,
+    headers: dict[str, str],
+) -> None:
+    response = client.post(
+        path,
+        json={**_VALID_PAYLOAD, "height_cm": 1.8e307},
+        headers=headers,
+    )
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": BMR_CALCULATION_FAILED_DETAIL}
+
+
 def test_public_alias_remains_public(client: TestClient) -> None:
     response = client.post("/premium_bmr", json=_VALID_PAYLOAD)
 
