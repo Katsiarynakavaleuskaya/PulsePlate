@@ -35,12 +35,15 @@ GLOBAL_EXCLUDED_DIRECTORIES = {
 }
 ROOT_OUTPUT_DIRECTORIES = {"build", "dist"}
 DEPENDENCY_SECTIONS = ("dependencies", "devDependencies", "optionalDependencies")
+_PACKAGE_MARKER_LABELS = {
+    "@vitejs/plugin-rsc": "@vitejs/plugin-rsc",
+    "react-server-dom-": "react-server-dom-*",
+}
 RUNTIME_MARKERS = (
     "unstable_matchRSCServerRequest",
     "unstable_routeRSCServerRequest",
     "react-router/internal/react-server",
-    "@vitejs/plugin-rsc",
-    "react-server-dom-",
+    *_PACKAGE_MARKER_LABELS,
 )
 _REACT_SERVER_CONDITION_RE = re.compile(r"(?<![A-Za-z0-9_-])react-server(?![A-Za-z0-9_-])")
 _REGEX_PREFIX_CHARACTERS = frozenset("([{=,:;!?&|+-*%^~")
@@ -52,6 +55,8 @@ class PremiseScanError(RuntimeError):
 
 
 def _relative_label(path: Path, root: Path) -> str:
+    """Return a stable root-relative diagnostic label when possible."""
+
     try:
         return path.relative_to(root).as_posix()
     except ValueError:
@@ -59,6 +64,8 @@ def _relative_label(path: Path, root: Path) -> str:
 
 
 def _canonical_root(root: Path) -> Path:
+    """Resolve and validate the non-symlink frontend scan root."""
+
     try:
         metadata = root.lstat()
     except OSError as exc:
@@ -74,6 +81,8 @@ def _canonical_root(root: Path) -> Path:
 
 
 def _validate_candidate(path: Path, root: Path) -> str:
+    """Read a regular in-root candidate file without following symlinks."""
+
     label = _relative_label(path, root)
     try:
         metadata = path.lstat()
@@ -95,6 +104,8 @@ def _validate_candidate(path: Path, root: Path) -> str:
 
 
 def _load_json_object(path: Path, root: Path, *, required: bool) -> dict[str, object] | None:
+    """Load a metadata file as a JSON object or fail closed."""
+
     label = _relative_label(path, root)
     try:
         path.lstat()
@@ -121,6 +132,8 @@ def _json_strings(
     value: object,
     path: tuple[str, ...] = (),
 ) -> Iterator[tuple[tuple[str, ...], str]]:
+    """Yield JSON keys and string values with deterministic structural paths."""
+
     if isinstance(value, dict):
         for key in sorted(value, key=str):
             key_path = (*path, str(key))
@@ -139,15 +152,18 @@ def _append_package_markers(
     filename: str,
     entries: Iterator[tuple[tuple[str, ...], str]],
 ) -> None:
+    """Append package marker diagnostics from JSON metadata entries."""
+
     for path, value in entries:
         location = ".".join(path) or "<root>"
-        if "@vitejs/plugin-rsc" in value:
-            violations.append(f"{filename}:{location}:@vitejs/plugin-rsc")
-        if "react-server-dom-" in value:
-            violations.append(f"{filename}:{location}:react-server-dom-*")
+        for marker, diagnostic_label in _PACKAGE_MARKER_LABELS.items():
+            if marker in value:
+                violations.append(f"{filename}:{location}:{diagnostic_label}")
 
 
 def _scan_package_metadata(root: Path) -> list[str]:
+    """Return RSC markers found in package metadata and scripts."""
+
     violations: list[str] = []
     package_json = _load_json_object(root / "package.json", root, required=True)
     if package_json is None:
@@ -194,10 +210,14 @@ def _scan_package_metadata(root: Path) -> list[str]:
 
 
 def _ends_with_regex_prefix_keyword(prefix: str) -> bool:
+    """Return whether a source prefix permits a following regex literal."""
+
     return any(re.search(rf"\b{keyword}$", prefix) for keyword in _REGEX_PREFIX_KEYWORDS)
 
 
 def _starts_regex_literal(visible: list[str]) -> bool:
+    """Distinguish a regex literal slash from division using bounded context."""
+
     prefix = "".join(visible).rstrip()
     if not prefix:
         return True
@@ -213,6 +233,8 @@ def _consume_regex_literal(
     visible: list[str],
     label: str,
 ) -> int:
+    """Consume a JavaScript regex literal while preserving source offsets."""
+
     index = start
     in_character_class = False
     while index < len(text):
@@ -242,6 +264,8 @@ def _consume_regex_literal(
 
 
 def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[str], str]:
+    """Return exact string literals plus source text with comments and regexes elided."""
+
     literals: list[str] = []
     visible: list[str] = []
     index = 0
@@ -326,6 +350,8 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
 
 
 def _scan_source_file(path: Path, root: Path) -> list[str]:
+    """Return fixed RSC marker diagnostics for one approved source file."""
+
     label = _relative_label(path, root)
     text = _validate_candidate(path, root)
     literals, visible = _source_literals_and_visible_text(text, label=label)
@@ -336,7 +362,11 @@ def _scan_source_file(path: Path, root: Path) -> list[str]:
 
 
 def _walk_source_files(root: Path) -> Iterator[Path]:
+    """Yield approved source files with fail-closed traversal containment."""
+
     def raise_traversal_error(error: OSError) -> None:
+        """Promote os.walk traversal errors to stable guard failures."""
+
         raise PremiseScanError(f"unable to traverse frontend root: {error}") from error
 
     for current_raw, dirnames, filenames in os.walk(
@@ -392,6 +422,8 @@ def scan_repository(root: Path) -> list[str]:
 
 
 def _argument_parser() -> argparse.ArgumentParser:
+    """Build the command-line interface for the premise guard."""
+
     parser = argparse.ArgumentParser(
         description="Verify that the suppressed React Router RSC surface is absent."
     )
@@ -405,6 +437,8 @@ def _argument_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the premise guard and return a stable process exit code."""
+
     args = _argument_parser().parse_args(argv)
     frontend_root = args.frontend_root
     if not frontend_root.is_absolute():

@@ -32,7 +32,7 @@ temporarily suppressed instead of taking an unrelated major-version migration.
 - `trivy/ignore-policy.rego` matches only the observed GHSA, package, installed
   version, package ID, and fixed version tuple.
 - Repository evidence anchors:
-  `scripts/ci/check_react_router_rsc_premise.py:384`,
+  `scripts/ci/check_react_router_rsc_premise.py:414`,
   `tests/test_check_react_router_rsc_premise.py:157`,
   `tests/test_check_react_router_rsc_premise.py:258`,
   `tests/test_ci_workflow_pr_size_governance_contract.py:529`, and
