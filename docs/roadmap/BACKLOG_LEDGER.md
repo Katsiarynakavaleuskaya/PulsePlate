@@ -5216,6 +5216,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
 
+<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>
+- [ ] P1: Monitor and remove React Router unstable RSC advisory suppression
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #2184
+  - Status: In progress since 2026-07-25
+  - Area: security / frontend dependency / Trivy policy
+  - Finding Type: application dependency vulnerability applicability
+  - Reason: Trivy reports `GHSA-qwww-vcr4-c8h2` for `react-router@7.18.1` with
+    fixed version `8.3.0`. The advisory affects unstable RSC server APIs, while
+    PulsePlate uses the stable declarative SPA surface and has none of the
+    affected RSC entrypoints or tooling. The exact scanner tuple is temporarily
+    suppressed; a deterministic guard makes the applicability premise fail
+    closed.
+  - Links:
+    - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
+    - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
+    - `trivy/ignore-policy.rego`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+  - DoD:
+    - Review the advisory and Dependabot alert #241 weekly
+    - Remove the suppression if an affected RSC marker is introduced, the
+      dependency or scanner tuple changes, or a compatible fixed line is
+      approved
+    - Keep the no-RSC applicability guard and exact Rego negative controls green
+    - Close the tracker only after the suppression is removed and current-head
+      Trivy evidence passes without it
+
 - [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1

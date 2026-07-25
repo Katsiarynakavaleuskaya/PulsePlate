@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import json
 import os
 from pathlib import Path
 import re
@@ -23,6 +24,9 @@ SECURITY_DOC_GPGV_24882_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24882
 SECURITY_DOC_GPGV_24883_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24883-gpgv.md"
 SECURITY_DOC_GZIP_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-41992-gzip.md"
 SECURITY_DOC_FARADAY_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-54297-faraday-fastlane.md"
+SECURITY_DOC_REACT_ROUTER_RSC_PATH = (
+    REPO_ROOT / "docs" / "security" / "GHSA-qwww-vcr4-c8h2-react-router.md"
+)
 BACKLOG_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
 LOCAL_ONLY_SCAN_DIRS = {
     ".git",
@@ -73,6 +77,25 @@ REMOVED_ACL_ATTR_PACKAGES = (
     "libacl1",
     "libattr1",
 )
+REACT_ROUTER_RSC_RUNTIME_MARKERS = (
+    "unstable_matchRSCServerRequest",
+    "unstable_routeRSCServerRequest",
+    "react-router/internal/react-server",
+    "@vitejs/plugin-rsc",
+    "react-server-dom-",
+)
+REACT_ROUTER_RSC_PACKAGE_MARKERS = ("@vitejs/plugin-rsc",)
+FRONTEND_SOURCE_SUFFIXES = {
+    ".cjs",
+    ".cts",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".mts",
+    ".ts",
+    ".tsx",
+}
+NON_RUNTIME_FRONTEND_FILENAME_PATTERN = re.compile(r"\.(?:spec|stories|test)\.[^.]+$")
 
 
 def _policy_text() -> str:
@@ -128,6 +151,54 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
         if "Gemfile.lock" in filenames:
             lockfiles.append(Path(root) / "Gemfile.lock")
     return sorted(lockfiles)
+
+
+def _is_non_runtime_frontend_source(path: Path) -> bool:
+    return "__tests__" in path.parts or bool(
+        NON_RUNTIME_FRONTEND_FILENAME_PATTERN.search(path.name)
+    )
+
+
+def _react_router_rsc_markers(frontend_root: Path) -> list[str]:
+    """Return exact RSC markers from implemented frontend files only."""
+
+    violations: list[str] = []
+    package_json_path = frontend_root / "package.json"
+    package_json = json.loads(package_json_path.read_text(encoding="utf-8"))
+    dependency_names = {
+        name
+        for section in ("dependencies", "devDependencies", "optionalDependencies")
+        for name in package_json.get(section, {})
+    }
+    for package_name in sorted(dependency_names):
+        if package_name in REACT_ROUTER_RSC_PACKAGE_MARKERS or package_name.startswith(
+            "react-server-dom-"
+        ):
+            violations.append(f"package.json:{package_name}")
+    for script_name, command in sorted(package_json.get("scripts", {}).items()):
+        if isinstance(command, str) and "react-server" in command:
+            violations.append(f"package.json:scripts.{script_name}:react-server condition")
+
+    def raise_traversal_error(error: OSError) -> None:
+        raise error
+
+    for root, dirnames, filenames in os.walk(frontend_root, onerror=raise_traversal_error):
+        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in LOCAL_ONLY_SCAN_DIRS)
+        for filename in sorted(filenames):
+            path = Path(root) / filename
+            if path.suffix not in FRONTEND_SOURCE_SUFFIXES:
+                continue
+            if _is_non_runtime_frontend_source(path):
+                continue
+            text = path.read_text(encoding="utf-8")
+            relative = path.relative_to(frontend_root).as_posix()
+            for marker in REACT_ROUTER_RSC_RUNTIME_MARKERS:
+                if marker in text:
+                    violations.append(f"{relative}:{marker}")
+            if path.name.startswith("vite.config.") and "react-server" in text:
+                violations.append(f"{relative}:react-server condition")
+
+    return violations
 
 
 def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: Path) -> None:
@@ -558,3 +629,115 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     # Negative mismatches: prefix/wildcard forms must not appear for this CVE.
     assert 'input.PkgID == "util-linux@2.38.1-5+deb12u30"' not in helper_region
     assert 'startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")' not in helper_region
+
+
+def test_react_router_rsc_suppression_requires_exact_scanner_tuple() -> None:
+    policy = _policy_text()
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"')
+    next_ignore = policy.find("\nignore if {", start + 1)
+    rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
+
+    assert 'input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"' in rule
+    assert 'input.PkgName == "react-router"' in rule
+    assert 'input.InstalledVersion == "7.18.1"' in rule
+    assert 'input.PkgID == "react-router@7.18.1"' in rule
+    assert 'input.FixedVersion == "8.3.0"' in rule
+    assert "startswith(" not in rule
+    assert "contains(" not in rule
+
+
+def test_react_router_rsc_suppression_premise_holds_for_frontend() -> None:
+    assert _react_router_rsc_markers(REPO_ROOT / "frontend") == []
+
+
+@pytest.mark.parametrize(
+    ("dependencies", "scripts", "source_path", "source_text", "expected_marker"),
+    [
+        (
+            {"@vitejs/plugin-rsc": "0.4.0"},
+            {},
+            None,
+            "",
+            "package.json:@vitejs/plugin-rsc",
+        ),
+        (
+            {},
+            {},
+            "src/server.ts",
+            'import { unstable_routeRSCServerRequest } from "react-router";\n',
+            "src/server.ts:unstable_routeRSCServerRequest",
+        ),
+        (
+            {},
+            {},
+            "src/server.ts",
+            'import handler from "react-router/internal/react-server";\n',
+            "src/server.ts:react-router/internal/react-server",
+        ),
+        (
+            {},
+            {},
+            "vite.config.ts",
+            'export default { resolve: { conditions: ["react-server"] } };\n',
+            "vite.config.ts:react-server condition",
+        ),
+        (
+            {},
+            {"build:rsc": "NODE_OPTIONS=--conditions=react-server vite build"},
+            None,
+            "",
+            "package.json:scripts.build:rsc:react-server condition",
+        ),
+    ],
+)
+def test_react_router_rsc_suppression_premise_fails_closed(
+    tmp_path: Path,
+    dependencies: dict[str, str],
+    scripts: dict[str, str],
+    source_path: str | None,
+    source_text: str,
+    expected_marker: str,
+) -> None:
+    frontend_root = tmp_path / "frontend"
+    frontend_root.mkdir()
+    (frontend_root / "package.json").write_text(
+        json.dumps({"dependencies": dependencies, "scripts": scripts}),
+        encoding="utf-8",
+    )
+    if source_path is not None:
+        source = frontend_root / source_path
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(source_text, encoding="utf-8")
+
+    assert expected_marker in _react_router_rsc_markers(frontend_root)
+
+
+def test_react_router_rsc_suppression_premise_ignores_test_sources(
+    tmp_path: Path,
+) -> None:
+    frontend_root = tmp_path / "frontend"
+    source = frontend_root / "src" / "__tests__" / "rsc.test.ts"
+    source.parent.mkdir(parents=True)
+    (frontend_root / "package.json").write_text("{}", encoding="utf-8")
+    source.write_text(
+        'import { unstable_matchRSCServerRequest } from "react-router-dom";\n',
+        encoding="utf-8",
+    )
+
+    assert _react_router_rsc_markers(frontend_root) == []
+
+
+def test_react_router_rsc_suppression_policy_doc_and_backlog_are_coupled() -> None:
+    policy = _policy_text()
+    security_doc = SECURITY_DOC_REACT_ROUTER_RSC_PATH.read_text(encoding="utf-8")
+    backlog = BACKLOG_PATH.read_text(encoding="utf-8")
+
+    assert "# Monitor: https://github.com/advisories/GHSA-qwww-vcr4-c8h2" in policy
+    assert "# Documented in: docs/security/GHSA-qwww-vcr4-c8h2-react-router.md" in policy
+    assert "GHSA-qwww-vcr4-c8h2" in security_doc
+    assert "Installed version: `7.18.1`" in security_doc
+    assert "Trivy fixed version: `8.3.0`" in security_doc
+    assert "Review the GitHub advisory and Dependabot alert #241 weekly" in security_doc
+    assert '<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>' in backlog
+    assert "Target PR: PR #2184" in backlog
+    assert "Remove the suppression if an affected RSC marker is introduced" in backlog
