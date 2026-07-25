@@ -200,3 +200,17 @@ ignore if {
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
 }
+
+# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate
+# Review-by: 2026-08-24 (manual removal)
+# Rationale: PulsePlate uses react-router 7.18.1 without the unstable RSC API surface affected by this advisory; suppress only the exact scanner record while the stable non-RSC dependency line remains in use.
+# Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
+# Removal condition: Remove on upgrade to a non-affected release, any scanner record change, or introduction of unstable React Server Components APIs.
+
+ignore if {
+	input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"
+	input.PkgName == "react-router"
+	input.InstalledVersion == "7.18.1"
+	input.PkgID == "react-router@7.18.1"
+	input.FixedVersion == "8.3.0"
+}
