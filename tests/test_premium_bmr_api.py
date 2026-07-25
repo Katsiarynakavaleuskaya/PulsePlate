@@ -119,6 +119,8 @@ def _dependencies(
         ("height_cm", float("inf")),
         ("height_cm", float("-inf")),
         ("height_cm", False),
+        ("height_cm", 10**400),
+        ("height_cm", "1e400"),
         ("age", 0),
         ("age", 121),
         ("age", float("nan")),
@@ -132,6 +134,8 @@ def _dependencies(
         ("bodyfat", float("inf")),
         ("bodyfat", float("-inf")),
         ("bodyfat", True),
+        ("bodyfat", 10**400),
+        ("bodyfat", "1e400"),
     ],
 )
 def test_bmr_request_models_reject_invalid_numeric_values(
@@ -147,23 +151,26 @@ def test_bmr_request_models_reject_invalid_numeric_values(
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [
-        ({"age": 1, "bodyfat": None}, (1, None)),
-        ({"age": 120, "bodyfat": 50}, (120, 50.0)),
-        ({"age": "30", "weight_kg": "70.5", "height_cm": "175.5"}, (30, None)),
-        ({"bodyfat": "0.000001"}, (30, 0.000001)),
+        ({"age": 1, "bodyfat": None}, (1, None, 70.0, 175.0)),
+        ({"age": 120, "bodyfat": 50}, (120, 50.0, 70.0, 175.0)),
+        (
+            {"age": "30", "weight_kg": "70.5", "height_cm": "175.5"},
+            (30, None, 70.5, 175.5),
+        ),
+        ({"bodyfat": "0.000001"}, (30, 0.000001, 70.0, 175.0)),
     ],
 )
 def test_bmr_request_models_preserve_valid_boundaries_and_numeric_strings(
     model: type[BMRRequest] | type[BMRRequestLegacy],
     overrides: dict[str, object],
-    expected: tuple[int, float | None],
+    expected: tuple[int, float | None, float, float],
 ) -> None:
     request = model.model_validate({**_VALID_PAYLOAD, **overrides})
 
     assert request.age == expected[0]
     assert request.bodyfat == expected[1]
-    assert isinstance(request.weight_kg, float)
-    assert isinstance(request.height_cm, float)
+    assert request.weight_kg == expected[2]
+    assert request.height_cm == expected[3]
 
 
 @pytest.mark.parametrize("model", [BMRRequest, BMRRequestLegacy])
@@ -254,7 +261,7 @@ def test_service_resolves_direct_core_calculators_per_call(
         _sex: str,
         _bodyfat: float | None,
     ) -> dict[str, float]:
-        return {"mifflin": 1000.0}
+        return {"mifflin": 1000.0, "harris": 1100.0}
 
     def _second_bmr(
         _weight: float,
@@ -263,14 +270,14 @@ def test_service_resolves_direct_core_calculators_per_call(
         _sex: str,
         _bodyfat: float | None,
     ) -> dict[str, float]:
-        return {"mifflin": 1200.0}
+        return {"mifflin": 1200.0, "harris": 1300.0}
 
     def _calculate_tdee(
         bmr_results: dict[str, float],
         _activity: str,
     ) -> dict[str, float]:
         tdee_inputs.append(bmr_results)
-        return {"mifflin": bmr_results["mifflin"] * 1.2}
+        return {formula: value * 1.2 for formula, value in bmr_results.items()}
 
     monkeypatch.setattr(bmr_service.nutrition_bmr, "calculate_all_bmr", _first_bmr)
     monkeypatch.setattr(
@@ -283,9 +290,12 @@ def test_service_resolves_direct_core_calculators_per_call(
     monkeypatch.setattr(bmr_service.nutrition_bmr, "calculate_all_bmr", _second_bmr)
     second = asyncio.run(calculate_bmr_response(_request()))
 
-    assert first.bmr == {"mifflin": 1000.0}
-    assert second.bmr == {"mifflin": 1200.0}
-    assert tdee_inputs == [{"mifflin": 1000.0}, {"mifflin": 1200.0}]
+    assert first.bmr == {"mifflin": 1000.0, "harris": 1100.0}
+    assert second.bmr == {"mifflin": 1200.0, "harris": 1300.0}
+    assert tdee_inputs == [
+        {"mifflin": 1000.0, "harris": 1100.0},
+        {"mifflin": 1200.0, "harris": 1300.0},
+    ]
 
 
 def test_feature_flag_short_circuits_before_calculators(
@@ -452,6 +462,27 @@ def test_malformed_tdee_maps_fail_closed_with_generic_500(
             _request(),
             _dependencies(tdee_results={"mifflin": 2556.0}),
         ),
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"mifflin": 1648.8},
+                tdee_results={"mifflin": 2556.0},
+            ),
+        ),
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"mifflin": 1648.8, "harris": 1701.9, "extra": 1.0},
+                tdee_results={"mifflin": 2556.0, "harris": 2638.0, "extra": 2.0},
+            ),
+        ),
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"mifflin": 1648.8, "harris": 1701.9, "katch": 1655.2},
+                tdee_results={"mifflin": 2556.0, "harris": 2638.0, "katch": 2566.0},
+            ),
+        ),
     ],
 )
 def test_result_key_contract_failures_return_generic_500(
@@ -530,6 +561,88 @@ def test_unexpected_error_is_logged_and_sanitized_to_generic_500(
     assert error_records[0].exc_info is not None
 
 
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+@pytest.mark.parametrize(
+    ("failure_kind", "expected_status", "expected_detail"),
+    [
+        ("domain", 400, INVALID_BMR_INPUT_DETAIL),
+        ("malformed", 500, BMR_CALCULATION_FAILED_DETAIL),
+        ("unexpected", 500, BMR_CALCULATION_FAILED_DETAIL),
+        ("missing", 503, BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL),
+        ("import", 503, BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL),
+    ],
+)
+def test_bmr_routes_preserve_exact_calculation_error_contracts(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    headers: dict[str, str],
+    failure_kind: str,
+    expected_status: int,
+    expected_detail: str,
+) -> None:
+    def _raise_value_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise ValueError("private domain detail")
+
+    def _raise_runtime_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise RuntimeError("private runtime detail")
+
+    def _raise_import_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise ImportError("private import detail")
+
+    def _valid_tdee(
+        _results: dict[str, float],
+        _activity: str,
+    ) -> dict[str, float]:
+        return {"mifflin": 2556.0, "harris": 2638.0}
+
+    if failure_kind == "domain":
+        dependencies = BMRDependencies(_raise_value_error, _valid_tdee)
+    elif failure_kind == "malformed":
+        dependencies = BMRDependencies(
+            lambda _w, _h, _a, _s, _b: {"mifflin": True, "harris": 1701.9},
+            _valid_tdee,
+        )
+    elif failure_kind == "unexpected":
+        dependencies = BMRDependencies(_raise_runtime_error, _valid_tdee)
+    elif failure_kind == "missing":
+        dependencies = BMRDependencies(None, _valid_tdee)
+    else:
+        dependencies = BMRDependencies(_raise_import_error, _valid_tdee)
+
+    monkeypatch.setattr(bmr_service, "_resolve_dependencies", lambda: dependencies)
+
+    response = client.post(path, json=_VALID_PAYLOAD, headers=headers)
+
+    assert response.status_code == expected_status
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": expected_detail}
+
+
 def test_both_routes_preserve_the_exact_success_contract(client: TestClient) -> None:
     protected = client.post(
         "/api/v1/premium/bmr",
@@ -540,6 +653,8 @@ def test_both_routes_preserve_the_exact_success_contract(client: TestClient) -> 
 
     assert protected.status_code == 200
     assert public_alias.status_code == 200
+    assert protected.headers["content-type"].startswith("application/json")
+    assert public_alias.headers["content-type"].startswith("application/json")
     assert protected.json() == _EXPECTED_RESPONSE
     assert public_alias.json() == _EXPECTED_RESPONSE
 
@@ -580,18 +695,64 @@ def test_protected_route_auth_precedes_feature_availability(
         ("/premium_bmr", {}),
     ],
 )
-def test_bmr_routes_reject_overflowing_json_integer_as_schema_error(
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("weight_kg", 10**400),
+        ("weight_kg", "1e400"),
+        ("height_cm", 10**400),
+        ("height_cm", "1e400"),
+        ("bodyfat", 10**400),
+        ("bodyfat", "1e400"),
+    ],
+)
+def test_bmr_routes_reject_overflowing_measurements_as_schema_error(
+    client: TestClient,
+    path: str,
+    headers: dict[str, str],
+    field_name: str,
+    value: object,
+) -> None:
+    response = client.post(
+        path,
+        json={**_VALID_PAYLOAD, field_name: value},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert isinstance(response.json()["detail"], list)
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+def test_bmr_routes_accept_numeric_strings(
     client: TestClient,
     path: str,
     headers: dict[str, str],
 ) -> None:
     response = client.post(
         path,
-        json={**_VALID_PAYLOAD, "weight_kg": 10**400},
+        json={
+            **_VALID_PAYLOAD,
+            "weight_kg": "70.5",
+            "height_cm": "175.5",
+            "age": "30",
+            "bodyfat": "15",
+        },
         headers=headers,
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    body = response.json()
+    assert body["formulas_used"] == ["mifflin", "harris", "katch"]
+    assert set(body["bmr"]) == {"mifflin", "harris", "katch"}
 
 
 def test_public_alias_remains_public(client: TestClient) -> None:
@@ -618,6 +779,7 @@ def test_feature_disabled_returns_exact_503_on_both_routes(
     response = client.post(path, json=_VALID_PAYLOAD, headers=headers)
 
     assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"detail": PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL}
 
 

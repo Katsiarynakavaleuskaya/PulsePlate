@@ -85,14 +85,13 @@ def _require_result_contract(
     *,
     bodyfat_supplied: bool,
 ) -> None:
-    if "mifflin" not in bmr_results:
-        raise _MalformedBMRCalculationError("BMR results must include mifflin")
-    if bodyfat_supplied and "katch" not in bmr_results:
-        raise _MalformedBMRCalculationError(
-            "BMR results must include katch when bodyfat is supplied"
-        )
-    if bmr_results.keys() != tdee_results.keys():
-        raise _MalformedBMRCalculationError("BMR and TDEE result keys must be identical")
+    expected_keys = {"mifflin", "harris"}
+    if bodyfat_supplied:
+        expected_keys.add("katch")
+    if set(bmr_results) != expected_keys:
+        raise _MalformedBMRCalculationError("BMR result keys do not match the core contract")
+    if set(tdee_results) != expected_keys:
+        raise _MalformedBMRCalculationError("TDEE result keys do not match the core contract")
 
 
 async def calculate_bmr_response(
