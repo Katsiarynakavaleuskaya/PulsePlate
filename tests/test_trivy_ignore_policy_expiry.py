@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-import json
 import os
 from pathlib import Path
 import re
@@ -77,24 +76,6 @@ REMOVED_ACL_ATTR_PACKAGES = (
     "libacl1",
     "libattr1",
 )
-REACT_ROUTER_RSC_RUNTIME_MARKERS = (
-    "unstable_matchRSCServerRequest",
-    "unstable_routeRSCServerRequest",
-    "react-router/internal/react-server",
-    "@vitejs/plugin-rsc",
-    "react-server-dom-",
-)
-REACT_ROUTER_RSC_PACKAGE_MARKERS = ("@vitejs/plugin-rsc",)
-FRONTEND_SOURCE_SUFFIXES = {
-    ".cjs",
-    ".cts",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".mts",
-    ".ts",
-    ".tsx",
-}
 
 
 def _policy_text() -> str:
@@ -150,100 +131,6 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
         if "Gemfile.lock" in filenames:
             lockfiles.append(Path(root) / "Gemfile.lock")
     return sorted(lockfiles)
-
-
-def _iter_json_strings(
-    value: object,
-    path: tuple[str, ...] = (),
-) -> list[tuple[tuple[str, ...], str]]:
-    """Return JSON object keys and string values with their structural paths."""
-
-    entries: list[tuple[tuple[str, ...], str]] = []
-    if isinstance(value, dict):
-        for key, nested_value in value.items():
-            key_path = (*path, str(key))
-            entries.append((key_path, str(key)))
-            entries.extend(_iter_json_strings(nested_value, key_path))
-    elif isinstance(value, list):
-        for index, nested_value in enumerate(value):
-            entries.extend(_iter_json_strings(nested_value, (*path, str(index))))
-    elif isinstance(value, str):
-        entries.append((path, value))
-    return entries
-
-
-def _append_rsc_package_markers(
-    violations: list[str],
-    *,
-    filename: str,
-    entries: list[tuple[tuple[str, ...], str]],
-) -> None:
-    """Record package metadata that can enable the affected unstable RSC path."""
-
-    for path, value in entries:
-        location = ".".join(path)
-        if "@vitejs/plugin-rsc" in value:
-            violations.append(f"{filename}:{location}:@vitejs/plugin-rsc")
-        if "react-server-dom-" in value:
-            violations.append(f"{filename}:{location}:react-server-dom-*")
-
-
-def _react_router_rsc_markers(frontend_root: Path) -> list[str]:
-    """Return exact RSC markers from frontend metadata and source-like files."""
-
-    violations: list[str] = []
-    package_json_path = frontend_root / "package.json"
-    package_json = json.loads(package_json_path.read_text(encoding="utf-8"))
-    dependency_names = {
-        name
-        for section in ("dependencies", "devDependencies", "optionalDependencies")
-        for name in package_json.get(section, {})
-    }
-    for package_name in sorted(dependency_names):
-        if package_name in REACT_ROUTER_RSC_PACKAGE_MARKERS or package_name.startswith(
-            "react-server-dom-"
-        ):
-            violations.append(f"package.json:{package_name}")
-    dependency_sections = {
-        section: package_json.get(section, {})
-        for section in ("dependencies", "devDependencies", "optionalDependencies")
-    }
-    _append_rsc_package_markers(
-        violations,
-        filename="package.json",
-        entries=_iter_json_strings(dependency_sections),
-    )
-    for script_name, command in sorted(package_json.get("scripts", {}).items()):
-        if isinstance(command, str) and "react-server" in command:
-            violations.append(f"package.json:scripts.{script_name}:react-server condition")
-
-    package_lock_path = frontend_root / "package-lock.json"
-    if package_lock_path.exists():
-        package_lock = json.loads(package_lock_path.read_text(encoding="utf-8"))
-        _append_rsc_package_markers(
-            violations,
-            filename="package-lock.json",
-            entries=_iter_json_strings(package_lock),
-        )
-
-    def raise_traversal_error(error: OSError) -> None:
-        raise error
-
-    for root, dirnames, filenames in os.walk(frontend_root, onerror=raise_traversal_error):
-        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in LOCAL_ONLY_SCAN_DIRS)
-        for filename in sorted(filenames):
-            path = Path(root) / filename
-            if path.suffix not in FRONTEND_SOURCE_SUFFIXES:
-                continue
-            text = path.read_text(encoding="utf-8")
-            relative = path.relative_to(frontend_root).as_posix()
-            for marker in REACT_ROUTER_RSC_RUNTIME_MARKERS:
-                if marker in text:
-                    violations.append(f"{relative}:{marker}")
-            if path.name.startswith("vite.config.") and "react-server" in text:
-                violations.append(f"{relative}:react-server condition")
-
-    return violations
 
 
 def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: Path) -> None:
@@ -691,146 +578,6 @@ def test_react_router_rsc_suppression_requires_exact_scanner_tuple() -> None:
     assert "contains(" not in rule
 
 
-def test_react_router_rsc_suppression_premise_holds_for_frontend() -> None:
-    assert _react_router_rsc_markers(REPO_ROOT / "frontend") == []
-
-
-@pytest.mark.parametrize(
-    ("dependencies", "scripts", "source_path", "source_text", "expected_marker"),
-    [
-        (
-            {"@vitejs/plugin-rsc": "0.4.0"},
-            {},
-            None,
-            "",
-            "package.json:@vitejs/plugin-rsc",
-        ),
-        (
-            {},
-            {},
-            "src/server.ts",
-            'import { unstable_routeRSCServerRequest } from "react-router";\n',
-            "src/server.ts:unstable_routeRSCServerRequest",
-        ),
-        (
-            {},
-            {},
-            "src/server.ts",
-            'import handler from "react-router/internal/react-server";\n',
-            "src/server.ts:react-router/internal/react-server",
-        ),
-        (
-            {},
-            {},
-            "vite.config.ts",
-            'export default { resolve: { conditions: ["react-server"] } };\n',
-            "vite.config.ts:react-server condition",
-        ),
-        (
-            {},
-            {"build:rsc": "NODE_OPTIONS=--conditions=react-server vite build"},
-            None,
-            "",
-            "package.json:scripts.build:rsc:react-server condition",
-        ),
-        (
-            {},
-            {},
-            "src/__tests__/rsc.test.ts",
-            'import { unstable_matchRSCServerRequest } from "react-router-dom";\n',
-            "src/__tests__/rsc.test.ts:unstable_matchRSCServerRequest",
-        ),
-        (
-            {},
-            {},
-            "src/rsc.stories.tsx",
-            'import handler from "react-router/internal/react-server";\n',
-            "src/rsc.stories.tsx:react-router/internal/react-server",
-        ),
-    ],
-)
-def test_react_router_rsc_suppression_premise_fails_closed(
-    tmp_path: Path,
-    dependencies: dict[str, str],
-    scripts: dict[str, str],
-    source_path: str | None,
-    source_text: str,
-    expected_marker: str,
-) -> None:
-    frontend_root = tmp_path / "frontend"
-    frontend_root.mkdir()
-    (frontend_root / "package.json").write_text(
-        json.dumps({"dependencies": dependencies, "scripts": scripts}),
-        encoding="utf-8",
-    )
-    if source_path is not None:
-        source = frontend_root / source_path
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_text(source_text, encoding="utf-8")
-
-    assert expected_marker in _react_router_rsc_markers(frontend_root)
-
-
-@pytest.mark.parametrize(
-    ("package_lock", "expected_marker"),
-    [
-        (
-            {
-                "lockfileVersion": 3,
-                "packages": {
-                    "": {},
-                    "node_modules/react-server-dom-webpack": {"version": "19.1.0"},
-                },
-            },
-            "package-lock.json:packages.node_modules/react-server-dom-webpack:"
-            "react-server-dom-*",
-        ),
-        (
-            {
-                "lockfileVersion": 3,
-                "packages": {
-                    "": {},
-                    "node_modules/rsc-bridge": {
-                        "dependencies": {"rsc-runtime": "npm:react-server-dom-webpack@19.1.0"}
-                    },
-                },
-            },
-            "package-lock.json:packages.node_modules/rsc-bridge.dependencies.rsc-runtime:"
-            "react-server-dom-*",
-        ),
-        (
-            {
-                "lockfileVersion": 3,
-                "packages": {
-                    "": {},
-                    "node_modules/rsc-bridge": {
-                        "resolved": (
-                            "https://registry.npmjs.org/react-server-dom-webpack/"
-                            "-/react-server-dom-webpack-19.1.0.tgz"
-                        )
-                    },
-                },
-            },
-            "package-lock.json:packages.node_modules/rsc-bridge.resolved:" "react-server-dom-*",
-        ),
-    ],
-)
-def test_react_router_rsc_suppression_premise_fails_closed_for_package_lock(
-    tmp_path: Path,
-    package_lock: dict[str, object],
-    expected_marker: str,
-) -> None:
-    frontend_root = tmp_path / "frontend"
-    frontend_root.mkdir()
-    (frontend_root / "package.json").write_text("{}", encoding="utf-8")
-    (frontend_root / "package-lock.json").write_text(
-        json.dumps(package_lock),
-        encoding="utf-8",
-    )
-
-    assert expected_marker in _react_router_rsc_markers(frontend_root)
-
-
 def test_react_router_rsc_suppression_policy_doc_and_backlog_are_coupled() -> None:
     policy = _policy_text()
     security_doc = SECURITY_DOC_REACT_ROUTER_RSC_PATH.read_text(encoding="utf-8")
@@ -842,6 +589,11 @@ def test_react_router_rsc_suppression_policy_doc_and_backlog_are_coupled() -> No
     assert "Installed version: `7.18.1`" in security_doc
     assert "Trivy fixed version: `8.3.0`" in security_doc
     assert "Review the GitHub advisory and Dependabot alert #241 weekly" in security_doc
+    assert "scripts/ci/check_react_router_rsc_premise.py" in security_doc
+    assert "tests/test_check_react_router_rsc_premise.py" in security_doc
+    assert ".github/workflows/ci.yml" in security_doc
     assert '<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>' in backlog
     assert "Target PR: PR #2184" in backlog
     assert "Remove the suppression if an affected RSC marker is introduced" in backlog
+    assert "scripts/ci/check_react_router_rsc_premise.py" in backlog
+    assert "tests/test_check_react_router_rsc_premise.py" in backlog

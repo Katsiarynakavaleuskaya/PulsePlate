@@ -23,17 +23,19 @@ temporarily suppressed instead of taking an unrelated major-version migration.
 - The frontend has no `react-router/internal/react-server` import,
   `@vitejs/plugin-rsc` dependency, `react-server-dom-*` dependency or lockfile
   resolution/alias, or `react-server` build condition.
-- `tests/test_trivy_ignore_policy_expiry.py` fails closed if one of those
+- `scripts/ci/check_react_router_rsc_premise.py` fails closed if one of those
   affected RSC markers is introduced while the suppression remains. The guard
   recursively inspects package-lock keys and string values and scans every
   source-like file, including test, spec, and story paths that a bundler could
-  import.
+  import. `.github/workflows/ci.yml` invokes it unconditionally from the
+  blocking `trivy_ignore_policy_expiry` job.
 - `trivy/ignore-policy.rego` matches only the observed GHSA, package, installed
   version, package ID, and fixed version tuple.
-- Repository evidence anchors:
-  `tests/test_trivy_ignore_policy_expiry.py:220`,
-  `tests/test_trivy_ignore_policy_expiry.py:232`, and
-  `trivy/ignore-policy.rego:212`.
+- Repository evidence is owned by
+  `scripts/ci/check_react_router_rsc_premise.py`,
+  `tests/test_check_react_router_rsc_premise.py`,
+  `tests/test_trivy_ignore_policy_expiry.py`, and
+  `trivy/ignore-policy.rego`.
 
 ## Threat and bounded decision
 

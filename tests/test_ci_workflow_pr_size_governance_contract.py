@@ -526,6 +526,42 @@ def _job_step_by_name(
     raise AssertionError(f"missing step {step_name!r} in {job_id!r}")
 
 
+def test_react_router_rsc_premise_is_unconditional_blocking_ci() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    job = jobs["trivy_ignore_policy_expiry"]
+    assert isinstance(job, dict)
+    assert job["name"] == "Trivy ignore-policy expiry"
+    assert "if" not in job
+    assert "continue-on-error" not in job
+
+    steps = job["steps"]
+    assert isinstance(steps, list)
+    checkout_step = _job_step_by_name(
+        workflow,
+        job_id="trivy_ignore_policy_expiry",
+        step_name="Checkout",
+    )
+    premise_step = _job_step_by_name(
+        workflow,
+        job_id="trivy_ignore_policy_expiry",
+        step_name="Check React Router RSC suppression premise",
+    )
+    assert premise_step == {
+        "name": "Check React Router RSC suppression premise",
+        "run": "python3 scripts/ci/check_react_router_rsc_premise.py",
+    }
+    assert steps.index(checkout_step) < steps.index(premise_step)
+
+    merge_readiness_job = jobs["merge_readiness_gate"]
+    assert isinstance(merge_readiness_job, dict)
+    needs = merge_readiness_job["needs"]
+    assert isinstance(needs, list)
+    assert "trivy_ignore_policy_expiry" in needs
+
+
 def _contract_suite_targets_by_group(
     workflow: dict[str, object],
     *,

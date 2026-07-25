@@ -5234,6 +5234,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
     - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
     - `trivy/ignore-policy.rego`
+    - `scripts/ci/check_react_router_rsc_premise.py`
+    - `tests/test_check_react_router_rsc_premise.py`
     - `tests/test_trivy_ignore_policy_expiry.py`
   - DoD:
     - Review the advisory and Dependabot alert #241 weekly

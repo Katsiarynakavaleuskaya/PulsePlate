@@ -168,6 +168,9 @@ jobs:
         env:
           TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
+      - name: Check React Router RSC suppression premise
+        run: python3 scripts/ci/check_react_router_rsc_premise.py
+
   jwt_fastlane_unblock_guard:
     name: Ruby jwt/Fastlane unblock guard
     if: github.event_name == 'pull_request'
