@@ -107,6 +107,34 @@ def test_duplicate_yaml_key_fails_closed_with_cli_shape(tmp_path: Path) -> None:
     assert "duplicate key" in errors[0]
 
 
+def test_cyclic_yaml_alias_fails_closed_with_cli_shape(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / policy.CONFIG_PATH).write_text(
+        "version: 2\n"
+        "registries: {}\n"
+        "updates:\n"
+        "  - package-ecosystem: pip\n"
+        "    directory: /\n"
+        "    groups: &cycle [*cycle]\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [".github/dependabot.yml:$:cyclic YAML aliases are forbidden"]
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out == f"{errors[0]}\n"
+    assert captured.err == ""
+    assert "Traceback" not in captured.out
+
+
 def test_mixed_scalar_yaml_keys_return_deterministic_errors(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     config_path = repo / policy.CONFIG_PATH

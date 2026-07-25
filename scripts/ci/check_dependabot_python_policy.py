@@ -227,6 +227,37 @@ def _walk_mapping(
             yield from _walk_mapping(child, f"{path}[{index}]")
 
 
+def _contains_cyclic_yaml_alias(
+    value: object,
+    active_container_ids: set[int] | None = None,
+) -> bool:
+    """Detect cyclic aliases without rendering user-controlled YAML values."""
+
+    if not isinstance(value, (Mapping, list)):
+        return False
+    if active_container_ids is None:
+        active_container_ids = set()
+    container_id = id(value)
+    if container_id in active_container_ids:
+        return True
+
+    active_container_ids.add(container_id)
+    try:
+        if isinstance(value, Mapping):
+            children: Iterable[object] = value.values()
+        else:
+            children = value
+        for child in children:
+            if _contains_cyclic_yaml_alias(
+                child,
+                active_container_ids,
+            ):
+                return True
+    finally:
+        active_container_ids.remove(container_id)
+    return False
+
+
 def _normalized_pattern(pattern: str) -> str:
     return re.sub(r"[-_.]+", "-", pattern.lower())
 
@@ -415,6 +446,9 @@ def validate_repo(repo_root: Path) -> list[str]:
         return errors
     if not isinstance(config, Mapping):
         errors.append(_error("$", "root must be a mapping"))
+        return errors
+    if _contains_cyclic_yaml_alias(config):
+        errors.append(_error("$", "cyclic YAML aliases are forbidden"))
         return errors
 
     if config.get("version") != 2:
