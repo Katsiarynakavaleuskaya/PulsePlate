@@ -288,51 +288,7 @@ def test_service_resolves_direct_core_calculators_per_call(
     assert tdee_inputs == [{"mifflin": 1000.0}, {"mifflin": 1200.0}]
 
 
-@pytest.mark.parametrize(
-    ("field_name", "value"),
-    [
-        ("weight_kg", float("nan")),
-        ("height_cm", 0),
-        ("age", 0),
-        ("age", True),
-        ("sex", "unknown"),
-        ("activity", "unknown"),
-        ("bodyfat", 51),
-        ("lang", "unknown"),
-    ],
-)
-def test_service_revalidates_effective_invariants_for_constructed_models(
-    field_name: str,
-    value: object,
-) -> None:
-    calls: list[str] = []
-
-    def _calculate_bmr(
-        _weight: float,
-        _height: float,
-        _age: int,
-        _sex: str,
-        _bodyfat: float | None,
-    ) -> dict[str, float]:
-        calls.append("bmr")
-        return {"mifflin": 1000.0}
-
-    request_values = {**_VALID_PAYLOAD, field_name: value}
-    request = BMRRequest.model_construct(**request_values)
-    dependencies = BMRDependencies(
-        calculate_all_bmr=_calculate_bmr,
-        calculate_all_tdee=lambda _results, _activity: {"mifflin": 1200.0},
-    )
-
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(calculate_bmr_response(request, dependencies=dependencies))
-
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == INVALID_BMR_INPUT_DETAIL
-    assert calls == []
-
-
-def test_feature_flag_short_circuits_before_validation_or_calculators(
+def test_feature_flag_short_circuits_before_calculators(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
@@ -348,14 +304,13 @@ def test_feature_flag_short_circuits_before_validation_or_calculators(
         return {"mifflin": 1000.0}
 
     monkeypatch.delenv("FEATURE_PREMIUM_NUTRITION")
-    invalid_request = BMRRequest.model_construct(**{**_VALID_PAYLOAD, "age": 0})
     dependencies = BMRDependencies(
         calculate_all_bmr=_calculate_bmr,
         calculate_all_tdee=lambda _results, _activity: {"mifflin": 1200.0},
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(calculate_bmr_response(invalid_request, dependencies=dependencies))
+        asyncio.run(calculate_bmr_response(_request(), dependencies=dependencies))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL
@@ -691,6 +646,12 @@ def test_static_ownership_has_no_legacy_handler_or_dynamic_wrapper_rail() -> Non
     assert "calculate_bmr_response" in router_source
     assert not wrapper_path.exists()
     for forbidden in (
+        "_ValidatedBMRInput",
+        "_positive_finite_number",
+        "_validate_effective_request",
+        "_VALID_SEXES",
+        "_VALID_ACTIVITIES",
+        "_VALID_LANGUAGES",
         "sys.modules",
         "MagicMock",
         '"stub"',
