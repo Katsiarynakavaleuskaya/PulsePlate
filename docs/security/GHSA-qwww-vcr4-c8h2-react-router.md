@@ -31,11 +31,12 @@ temporarily suppressed instead of taking an unrelated major-version migration.
   blocking `trivy_ignore_policy_expiry` job.
 - `trivy/ignore-policy.rego` matches only the observed GHSA, package, installed
   version, package ID, and fixed version tuple.
-- Repository evidence is owned by
-  `scripts/ci/check_react_router_rsc_premise.py`,
-  `tests/test_check_react_router_rsc_premise.py`,
-  `tests/test_trivy_ignore_policy_expiry.py`, and
-  `trivy/ignore-policy.rego`.
+- Repository evidence anchors:
+  `scripts/ci/check_react_router_rsc_premise.py:384`,
+  `tests/test_check_react_router_rsc_premise.py:157`,
+  `tests/test_check_react_router_rsc_premise.py:258`,
+  `tests/test_ci_workflow_pr_size_governance_contract.py:529`, and
+  `trivy/ignore-policy.rego:213`.
 
 ## Threat and bounded decision
 
