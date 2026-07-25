@@ -27,6 +27,10 @@ temporarily suppressed instead of taking an unrelated major-version migration.
   affected RSC markers is introduced while the suppression remains.
 - `trivy/ignore-policy.rego` matches only the observed GHSA, package, installed
   version, package ID, and fixed version tuple.
+- Repository evidence anchors:
+  `tests/test_trivy_ignore_policy_expiry.py:634`,
+  `tests/test_trivy_ignore_policy_expiry.py:649`, and
+  `trivy/ignore-policy.rego:212`.
 
 ## Threat and bounded decision
 
