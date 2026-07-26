@@ -62,12 +62,15 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
+    is_advisory_capability_connector_receipt,
+    is_advisory_capability_security_receipt,
     is_review_credit_outage_receipt,
     is_mapping_only_positive_response_successor,
     is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
+    validate_live_advisory_capability_receipts,
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
@@ -841,6 +844,7 @@ def _validate_v1_seal(
     token: str,
     outage_security_wait_seconds: int = 0,
     enforce_outage_security_checks: bool = True,
+    advisory_phase: str = "final",
 ) -> dict[str, Any]:
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
@@ -872,7 +876,20 @@ def _validate_v1_seal(
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
-    if is_review_source_positive_response_receipt(code_review):
+    if is_advisory_capability_connector_receipt(code_review):
+        validate_live_advisory_capability_receipts(
+            REPO_ROOT,
+            connector_receipt=code_review,
+            security_receipt=seal["codex_security"],
+            base_ref_oid=snapshot.base_sha,
+            material_head_sha=material_head.sha,
+            live_head_sha=snapshot.head_sha,
+            material_digest=material["digest"],
+            pr_number=pr_number,
+            live_material_paths=(entry.path for entry in manifest.entries),
+            phase=advisory_phase,
+        )
+    elif is_review_source_positive_response_receipt(code_review):
         response_manifest = compute_material_manifest(
             REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
@@ -1053,6 +1070,18 @@ def _validate_v1_seal(
         )
         if security_receipt != expected_receipt:
             raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
+        if enforce_outage_security_checks:
+            _wait_for_operator_outage_security_checks(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                expected_head_sha=snapshot.head_sha,
+                security_required=_operator_outage_security_required(
+                    entry.path for entry in manifest.entries
+                ),
+                timeout_seconds=outage_security_wait_seconds,
+            )
+    elif is_advisory_capability_security_receipt(security_receipt):
         if enforce_outage_security_checks:
             _wait_for_operator_outage_security_checks(
                 repository=repository,
@@ -1308,6 +1337,7 @@ def main() -> int:
                     token=token,
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
                     enforce_outage_security_checks=not args.pre_closeout,
+                    advisory_phase="pre_closeout" if args.pre_closeout else "final",
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
@@ -1436,6 +1466,8 @@ def main() -> int:
             print(f"REVIEW_SOURCE_UNAVAILABLE_VALID {seal['code_review']['source_status']}")
         elif is_review_credit_outage_receipt(seal["code_review"]):
             print(f"REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID {seal['code_review']['review_commit_ref']}")
+        elif is_advisory_capability_connector_receipt(seal["code_review"]):
+            print("ADVISORY_CAPABILITY_SOURCES_VALID claims=none")
         else:
             print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
     if duplicate_covered_urls:

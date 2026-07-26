@@ -59,12 +59,14 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    build_advisory_capability_receipts,
     build_review_credit_outage_receipt,
     build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_advisory_capability_connector_receipt,
     is_review_credit_outage_receipt,
     is_mapping_only_positive_response_successor,
     is_review_source_positive_response_receipt,
@@ -73,6 +75,8 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_advisory_capability_activation,
+    validate_live_advisory_capability_receipts,
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
 )
@@ -1411,7 +1415,39 @@ def _validate_reseal_transition(
     return str(existing_material["material_head_sha"])
 
 
+def _validate_seal_evidence_mode(args: argparse.Namespace) -> bool:
+    """Return advisory mode after enforcing its closed CLI tagged union."""
+
+    advisory = bool(getattr(args, "capability_sources_advisory", False))
+    review_ref = getattr(args, "review_ref", None)
+    unavailable_ref = getattr(args, "review_source_unavailable_ref", None)
+    scan_manifest = getattr(args, "scan_manifest", None)
+    outage_ref = getattr(args, "security_outage_override_ref", None)
+    reactions = getattr(args, "connector_advisory_reaction", None)
+    if advisory:
+        scalar_legacy_evidence_present = any(
+            value is not None for value in (review_ref, unavailable_ref, scan_manifest, outage_ref)
+        )
+        if scalar_legacy_evidence_present or reactions:
+            raise CloseoutError(
+                "--capability-sources-advisory is a closed no-output mode; "
+                "omit Connector and Codex Security evidence arguments"
+            )
+        return True
+    if (review_ref is None) == (unavailable_ref is None):
+        raise CloseoutError(
+            "legacy v1 seal requires exactly one --review-ref or " "--review-source-unavailable-ref"
+        )
+    if (scan_manifest is None) == (outage_ref is None):
+        raise CloseoutError(
+            "legacy v1 seal requires exactly one --scan-manifest or "
+            "--security-outage-override-ref"
+        )
+    return False
+
+
 def _cmd_seal(args: argparse.Namespace) -> None:
+    advisory_mode = _validate_seal_evidence_mode(args)
     state = _load_state(args.pr_number)
     if state["repository"] != args.repo:
         raise CloseoutError("--repo does not match local draft")
@@ -1436,16 +1472,37 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     }
     if freeze != expected_freeze:
         raise CloseoutError("material state changed after freeze; freeze and review again")
-    connector_advisory_reactions = _optional_connector_advisory_reactions(
-        getattr(args, "connector_advisory_reaction", None),
-        repository=args.repo,
-        pr_number=args.pr_number,
-        token=token,
-    )
-    if args.review_source_unavailable_ref:
+    review_ref = getattr(args, "review_ref", None)
+    unavailable_ref = getattr(args, "review_source_unavailable_ref", None)
+    scan_manifest_arg = getattr(args, "scan_manifest", None)
+    outage_ref = getattr(args, "security_outage_override_ref", None)
+    advisory_reaction_args = getattr(args, "connector_advisory_reaction", None)
+    connector_advisory_reactions: tuple[CodexConnectorAdvisoryReactionEvidence, ...] = ()
+    if advisory_mode:
+        activated_merge_base = validate_advisory_capability_activation(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=snapshot.head_sha,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        if activated_merge_base != manifest.merge_base_sha:
+            raise CloseoutError("advisory capability activation merge-base does not match material")
+        code_review_receipt, receipt = build_advisory_capability_receipts(
+            base_revision=manifest.merge_base_sha,
+            head_revision=snapshot.head_sha,
+            material_digest=manifest.digest,
+        )
+    else:
+        connector_advisory_reactions = _optional_connector_advisory_reactions(
+            advisory_reaction_args,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+        )
+    if not advisory_mode and unavailable_ref:
         source_evidence = verify_codex_review_source_unavailability_reference(
             _required_line(
-                args.review_source_unavailable_ref,
+                unavailable_ref,
                 label="review-source-unavailable-ref",
             ),
             repository=args.repo,
@@ -1461,8 +1518,8 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             source_status=source_evidence.source_status,
         )
         prepared_review_evidence = code_review_receipt
-    else:
-        review_ref = _required_line(args.review_ref, label="review-ref")
+    elif not advisory_mode:
+        review_ref = _required_line(review_ref, label="review-ref")
         review_prefix = f"https://github.com/{args.repo}/pull/{args.pr_number}#"
         if not review_ref.startswith(review_prefix):
             raise CloseoutError("review-ref must identify the requested GitHub PR")
@@ -1510,8 +1567,8 @@ def _cmd_seal(args: argparse.Namespace) -> None:
                     )
                 ),
             }
-    if args.scan_manifest:
-        scan_manifest = Path(args.scan_manifest)
+    if not advisory_mode and scan_manifest_arg:
+        scan_manifest = Path(scan_manifest_arg)
         receipt = ingest_codex_security_receipt(
             scan_manifest,
             expected_base_sha=manifest.merge_base_sha,
@@ -1525,7 +1582,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             expected_review_evidence=prepared_review_evidence,
             scan_manifest=scan_manifest,
         )
-    else:
+    elif not advisory_mode:
         timeout_completed_at = _require_terminal_outage_final_security_preparation(
             repository=args.repo,
             pr_number=args.pr_number,
@@ -1540,7 +1597,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         )
         outage_evidence = verify_security_outage_override_reference(
             _required_line(
-                args.security_outage_override_ref,
+                outage_ref,
                 label="security-outage-override-ref",
             ),
             repository=args.repo,
@@ -1667,7 +1724,20 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     }:
         raise CloseoutError("sealed material head is not a real live PR commit")
     code_review = seal["code_review"]
-    if is_review_source_positive_response_receipt(code_review):
+    if is_advisory_capability_connector_receipt(code_review):
+        validate_live_advisory_capability_receipts(
+            REPO_ROOT,
+            connector_receipt=code_review,
+            security_receipt=seal["codex_security"],
+            base_ref_oid=snapshot.base_sha,
+            material_head_sha=material_head.sha,
+            live_head_sha=snapshot.head_sha,
+            material_digest=material["digest"],
+            pr_number=pr_number,
+            live_material_paths=(entry.path for entry in manifest.entries),
+            phase="final",
+        )
+    elif is_review_source_positive_response_receipt(code_review):
         response_manifest = compute_material_manifest(
             REPO_ROOT,
             base_ref_oid=snapshot.base_sha,
@@ -1906,16 +1976,50 @@ def _parser() -> argparse.ArgumentParser:
     disposition.add_argument("--verified-fix")
     disposition.set_defaults(handler=_cmd_add_disposition)
 
-    seal = subparsers.add_parser("seal")
+    seal = subparsers.add_parser(
+        "seal",
+        help="Write a content-bound review seal.",
+        description=(
+            "Write either a legacy v1 provider-evidence seal or the closed "
+            "no-provider advisory variant."
+        ),
+    )
     seal.add_argument("--repo", required=True)
     seal.add_argument("--pr-number", required=True, type=int)
-    review_evidence = seal.add_mutually_exclusive_group(required=True)
-    review_evidence.add_argument("--review-ref")
-    review_evidence.add_argument("--review-source-unavailable-ref")
-    seal.add_argument("--connector-advisory-reaction", action="append", default=[])
-    security_evidence = seal.add_mutually_exclusive_group(required=True)
-    security_evidence.add_argument("--scan-manifest")
-    security_evidence.add_argument("--security-outage-override-ref")
+    seal.add_argument(
+        "--capability-sources-advisory",
+        action="store_true",
+        help=(
+            "Use closed no-claim advisory receipts; do not pass legacy Connector "
+            "or Security evidence."
+        ),
+    )
+    legacy_review_group = seal.add_argument_group("legacy v1 Connector evidence")
+    review_evidence = legacy_review_group.add_mutually_exclusive_group(required=False)
+    review_evidence.add_argument(
+        "--review-ref",
+        help="Legacy v1: trusted exact-head Connector review or positive-response ref.",
+    )
+    review_evidence.add_argument(
+        "--review-source-unavailable-ref",
+        help="Legacy v1: trusted terminal Connector usage/rate-limit ref.",
+    )
+    legacy_review_group.add_argument(
+        "--connector-advisory-reaction",
+        action="append",
+        default=[],
+        help="Legacy v1: optional non-authoritative Connector reaction (repeatable).",
+    )
+    legacy_security_group = seal.add_argument_group("legacy v1 Codex Security evidence")
+    security_evidence = legacy_security_group.add_mutually_exclusive_group(required=False)
+    security_evidence.add_argument(
+        "--scan-manifest",
+        help="Legacy v1: completed final Codex Security scan-manifest.json path.",
+    )
+    security_evidence.add_argument(
+        "--security-outage-override-ref",
+        help="Legacy v1: authorized Codex Security outage-override ref.",
+    )
     seal.set_defaults(handler=_cmd_seal)
 
     validate = subparsers.add_parser("validate")

@@ -8,9 +8,16 @@ import pytest
 
 from scripts.orchestration import pr_review_closeout
 from scripts.orchestration.pr_review_evidence import (
+    ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES,
+    ADVISORY_CAPABILITY_AUTHORIZING_PATHS,
+    ADVISORY_CAPABILITY_MARKER_PATH,
+    OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
+    OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES,
     REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY,
     REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION,
     ReviewEvidenceError,
+    advisory_capability_marker_bytes,
+    build_advisory_capability_receipts,
     build_review_source_unavailability_receipt,
     validate_review_credit_outage_scope,
 )
@@ -31,6 +38,7 @@ POLICY_SURFACE_FILES = {
     "RUNBOOK_AGENT.md",
     "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
     "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    "docs/orchestration/contracts/advisory_capability_sources.v1.json",
     "docs/orchestration/contracts/review_source_status.v1.json",
     "scripts/ci/check_pr_merge_readiness.py",
     "scripts/orchestration/pr_commit_identity.py",
@@ -155,6 +163,7 @@ def test_closeout_exposes_only_current_review_authoring_modes() -> None:
     options = _seal_option_strings()
     assert {"--review-ref", "--review-source-unavailable-ref"} <= options
     assert "--connector-advisory-reaction" in options
+    assert "--capability-sources-advisory" in options
     assert not options.intersection(LEGACY_AUTHORING_OPTIONS)
     closeout_source = (REPO_ROOT / "scripts/orchestration/pr_review_closeout.py").read_text(
         encoding="utf-8"
@@ -180,6 +189,27 @@ def test_quota_receipt_authority_never_claims_review_or_blocking() -> None:
     assert receipt["blocking"] is False
     assert "review_reference" not in receipt
     assert "review_commit_ref" not in receipt
+
+
+def test_advisory_capability_contract_is_exact_no_claim_and_self_protected() -> None:
+    marker = REPO_ROOT / ADVISORY_CAPABILITY_MARKER_PATH
+    assert marker.read_bytes() == advisory_capability_marker_bytes()
+    assert ADVISORY_CAPABILITY_AUTHORIZING_PATHS.issuperset(
+        OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
+    )
+    assert ADVISORY_CAPABILITY_AUTHORIZING_PATHS - OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS == {
+        "scripts/ci/check_pr_merge_readiness.py"
+    }
+    assert ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES == OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES
+    connector, security = build_advisory_capability_receipts(
+        base_revision="a" * 40,
+        head_revision="b" * 40,
+        material_digest="sha256:" + "c" * 64,
+    )
+    assert connector["review_claim"] == "none"
+    assert security["scan_claim"] == "none"
+    assert security["no_findings_claim"] is False
+    assert security["substitute_security_bundle_required"] is True
 
 
 def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
@@ -211,6 +241,9 @@ def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
             "prior_review_required=false",
             "operator_override_required=false",
             "ttl_required=false",
+            "--capability-sources-advisory",
+            "scan_claim=none",
+            "advisory_capability_sources.v1.json",
         ):
             assert anchor in document, f"{path}: missing {anchor}"
         assert any(
@@ -221,6 +254,13 @@ def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
                 "requires no retry",
             )
         ), f"{path}: missing terminal no-retry contract"
+        for anchor in (
+            "legacy-v1-only",
+            "do not invoke, restart, or retry either provider",
+            "current-head",
+            "substitute",
+        ):
+            assert anchor in normalized_casefold, f"{path}: missing final-mode split {anchor}"
     runbook = documents["RUNBOOK_AGENT.md"]
     normalized_runbook = " ".join(runbook.split())
     assert "do not trigger or retrigger it manually" in normalized_runbook

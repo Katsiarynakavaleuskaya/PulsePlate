@@ -47,12 +47,16 @@ from scripts.orchestration import pr_commit_identity as identity_module
 from scripts.orchestration import pr_review_closeout as closeout_module
 from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.orchestration.pr_review_evidence import (
+    ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES,
+    ADVISORY_CAPABILITY_AUTHORIZING_PATHS,
     MATERIAL_POLICY_VERSION,
     RECEIPT_AUTHORITY,
     SEAL_BEGIN,
     SEAL_END,
     MaterialManifest,
     ReviewEvidenceError,
+    advisory_capability_marker_bytes,
+    build_advisory_capability_receipts,
     build_review_credit_outage_receipt,
     build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
@@ -68,6 +72,8 @@ from scripts.orchestration.pr_review_evidence import (
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
     validate_review_credit_outage_scope,
+    validate_advisory_capability_activation,
+    validate_advisory_live_head_topology,
     validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
 )
@@ -6276,6 +6282,28 @@ def test_prepare_final_security_parser_keeps_seal_contract_separate() -> None:
     assert outcome_args.handler is closeout_module._cmd_record_final_security_outcome
 
 
+def test_closeout_seal_help_distinguishes_advisory_and_legacy_modes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = closeout_module._parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["seal", "--help"])
+
+    assert exc_info.value.code == 0
+    help_text = capsys.readouterr().out
+    normalized_help = " ".join(help_text.split())
+    assert "closed no-provider advisory variant" in normalized_help
+    assert "closed no-claim advisory receipts" in normalized_help
+    assert "legacy v1 Connector evidence" in normalized_help
+    assert "legacy v1 Codex Security evidence" in normalized_help
+    assert "--review-ref" in normalized_help
+    assert "--review-source-unavailable-ref" in normalized_help
+    assert "--connector-advisory-reaction" in normalized_help
+    assert "--scan-manifest" in normalized_help
+    assert "--security-outage-override-ref" in normalized_help
+
+
 def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
     parser = closeout_module._parser()
     base = [
@@ -6291,15 +6319,17 @@ def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
         "https://github.com/owner/repo/pull/42#issuecomment-456",
     ]
 
-    with pytest.raises(SystemExit):
-        parser.parse_args(common)
-    with pytest.raises(SystemExit):
-        parser.parse_args(
-            [
-                *base,
-                "--scan-manifest",
-                "/tmp/scan-manifest.json",
-            ]
+    with pytest.raises(closeout_module.CloseoutError, match="legacy v1 seal requires"):
+        closeout_module._validate_seal_evidence_mode(parser.parse_args(common))
+    with pytest.raises(closeout_module.CloseoutError, match="legacy v1 seal requires"):
+        closeout_module._validate_seal_evidence_mode(
+            parser.parse_args(
+                [
+                    *base,
+                    "--scan-manifest",
+                    "/tmp/scan-manifest.json",
+                ]
+            )
         )
     with pytest.raises(SystemExit):
         parser.parse_args(
@@ -6357,6 +6387,57 @@ def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
         "https://github.com/owner/repo/pull/42#reaction-456",
         "https://github.com/owner/repo/pull/42#reaction-457",
     ]
+    capability_args = parser.parse_args([*base, "--capability-sources-advisory"])
+    assert closeout_module._validate_seal_evidence_mode(capability_args) is True
+    with pytest.raises(closeout_module.CloseoutError, match="closed no-output mode"):
+        closeout_module._validate_seal_evidence_mode(
+            parser.parse_args(
+                [
+                    *base,
+                    "--capability-sources-advisory",
+                    "--scan-manifest",
+                    "/tmp/scan-manifest.json",
+                ]
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "review_ref",
+        "review_source_unavailable_ref",
+        "scan_manifest",
+        "security_outage_override_ref",
+    ),
+)
+@pytest.mark.parametrize("value", ("", "present"))
+def test_advisory_seal_rejects_empty_or_nonempty_legacy_scalar_before_io(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str,
+) -> None:
+    values: dict[str, Any] = {
+        "capability_sources_advisory": True,
+        "connector_advisory_reaction": [],
+        "pr_number": 42,
+        "repo": "owner/repo",
+        "review_ref": None,
+        "review_source_unavailable_ref": None,
+        "scan_manifest": None,
+        "security_outage_override_ref": None,
+    }
+    values[field] = value
+    args = Namespace(**values)
+    for name in ("_load_state", "_token", "fetch_pr_snapshot"):
+        monkeypatch.setattr(
+            closeout_module,
+            name,
+            lambda *_a, **_k: pytest.fail("invalid evidence mode must precede I/O"),
+        )
+
+    with pytest.raises(closeout_module.CloseoutError, match="closed no-output mode"):
+        closeout_module._cmd_seal(args)
 
 
 def test_closeout_renders_connector_reactions_as_advisory_without_mutating_seal() -> None:
@@ -6467,3 +6548,680 @@ def test_closeout_omits_connector_advisory_transport_failure(
         "WARNING: Connector advisory reaction omitted: truncated response"
         in capsys.readouterr().err
     )
+
+
+def _advisory_seal(
+    connector: dict[str, Any],
+    security: dict[str, Any],
+    *,
+    base_sha: str = BASE_SHA,
+    head_sha: str = HEAD_SHA,
+    digest: str = DIGEST,
+) -> dict[str, Any]:
+    return {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": connector,
+        "codex_security": security,
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": digest,
+            "material_head_sha": head_sha,
+            "merge_base_sha": base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+    }
+
+
+def _write_advisory_marker(repo: Path, raw: bytes | None = None) -> Path:
+    marker = repo / "docs/orchestration/contracts/advisory_capability_sources.v1.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_bytes(advisory_capability_marker_bytes() if raw is None else raw)
+    return marker
+
+
+def _advisory_snapshot(base_sha: str, head_sha: str, *commits: str) -> PrSnapshot:
+    return PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        commits=tuple(PrCommitEvidence(commit, None) for commit in commits),
+    )
+
+
+def test_advisory_capability_receipts_are_closed_material_bound_no_claims() -> None:
+    connector, security = build_advisory_capability_receipts(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+    )
+    seal = _advisory_seal(connector, security)
+
+    assert parse_embedded_review_seal(render_embedded_review_seal(seal)) == seal
+    assert connector["review_claim"] == "none"
+    assert connector["output_required"] is False
+    assert security["scan_claim"] == "none"
+    assert security["no_findings_claim"] is False
+    assert security["scan_id"] is None
+    assert security["substitute_security_bundle_required"] is True
+
+    tampered = json.loads(json.dumps(seal))
+    tampered["code_review"]["review_claim"] = "completed"
+    with pytest.raises(ReviewEvidenceError, match="advisory capability receipt"):
+        render_embedded_review_seal(tampered)
+
+
+def test_advisory_capability_receipts_require_linked_connector_and_security_variants() -> None:
+    connector, security = build_advisory_capability_receipts(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+    )
+    seal = _advisory_seal(connector, security)
+    legacy_security = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+
+    connector_only = json.loads(json.dumps(seal))
+    connector_only["codex_security"] = legacy_security
+    with pytest.raises(ReviewEvidenceError, match="requires linked Connector and Security"):
+        render_embedded_review_seal(connector_only)
+
+    security_only = _seal(security)
+    with pytest.raises(ReviewEvidenceError, match="requires linked Connector and Security"):
+        render_embedded_review_seal(security_only)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("security_result", "passed", "keys mismatch"),
+        ("scan_claim", "completed", "receipt is malformed"),
+        ("no_findings_claim", True, "receipt is malformed"),
+    ],
+)
+def test_advisory_security_receipt_rejects_unknown_or_claim_fields(
+    field: str,
+    value: Any,
+    error: str,
+) -> None:
+    connector, security = build_advisory_capability_receipts(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+    )
+    security[field] = value
+    seal = _advisory_seal(connector, security)
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        render_embedded_review_seal(seal)
+
+
+def test_closeout_advisory_seal_and_authenticated_mapping_successor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _write_advisory_marker(repo)
+    base_sha = _commit(repo, "activate advisory capability")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    material = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_head,
+        pr_number=42,
+    )
+    freeze = {
+        "base_ref_oid": base_sha,
+        "digest": material.digest,
+        "material_head_sha": material_head,
+        "merge_base_sha": material.merge_base_sha,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "freeze": freeze,
+        "packet": None,
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": closeout_module.DRAFT_SCHEMA_VERSION,
+    }
+    target = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    snapshots = [_advisory_snapshot(base_sha, material_head, material_head)]
+    real_closeout_git = closeout_module._git
+
+    def git_with_synthetic_live_head(*args: str) -> str:
+        if args == ("rev-parse", "HEAD"):
+            return snapshots[0].head_sha
+        return real_closeout_git(*args)
+
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "_load_state", lambda _pr: state)
+    monkeypatch.setattr(closeout_module, "_token", lambda: "opaque")
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: snapshots[0])
+    monkeypatch.setattr(closeout_module, "_require_clean_live_head", lambda _head: None)
+    monkeypatch.setattr(closeout_module, "_git", git_with_synthetic_live_head)
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: target)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: pytest.fail("advisory seal must not verify Connector output"),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "ingest_codex_security_receipt",
+        lambda *_a, **_k: pytest.fail("advisory seal must not ingest plugin output"),
+    )
+
+    closeout_module._cmd_seal(
+        Namespace(
+            capability_sources_advisory=True,
+            connector_advisory_reaction=[],
+            pr_number=42,
+            repo="owner/repo",
+            review_ref=None,
+            review_source_unavailable_ref=None,
+            scan_manifest=None,
+            security_outage_override_ref=None,
+        )
+    )
+
+    authored = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
+    assert authored["code_review"]["review_claim"] == "none"
+    assert authored["codex_security"]["scan_claim"] == "none"
+    mapping_head = _commit(repo, "mapping-only closeout")
+    snapshots[0] = _advisory_snapshot(base_sha, mapping_head, material_head, mapping_head)
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_COMMIT if value == material_head else CommitRefKind.PR_HEAD,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+
+    assert (
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+        == authored
+    )
+
+    target.write_text(target.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    second_mapping_head = _commit(repo, "second mapping-only commit")
+    snapshots[0] = _advisory_snapshot(
+        base_sha,
+        second_mapping_head,
+        material_head,
+        mapping_head,
+        second_mapping_head,
+    )
+    with pytest.raises(ReviewEvidenceError, match="one direct child"):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+    source.write_text("ENFORCED = False\n", encoding="utf-8")
+    material_descendant = _commit(repo, "material descendant")
+    snapshots[0] = _advisory_snapshot(
+        base_sha,
+        material_descendant,
+        material_head,
+        mapping_head,
+        second_mapping_head,
+        material_descendant,
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="stale for the live material state"):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+
+@pytest.mark.parametrize(
+    "authorizer_path",
+    [
+        *sorted(ADVISORY_CAPABILITY_AUTHORIZING_PATHS),
+        *(f"{prefix}authority.yml" for prefix in ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES),
+    ],
+)
+def test_advisory_capability_denies_all_authority_self_use_paths(
+    tmp_path: Path,
+    authorizer_path: str,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="SELF_USE_DENIED"):
+        validate_advisory_capability_activation(
+            tmp_path,
+            base_ref_oid=BASE_SHA,
+            head_ref_oid=HEAD_SHA,
+            material_paths=(authorizer_path,),
+        )
+
+
+@pytest.mark.parametrize(
+    "protected_path",
+    (
+        "scripts/orchestration/pr_commit_identity.py",
+        "scripts/orchestration/review_mapping_artifact.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
+        "scripts/ci/check_pr_body_phase2_gates.py",
+        "scripts/ci_bandit.sh",
+        "scripts/ci_pip_audit.sh",
+        "scripts/ci/summarize_bandit_report.py",
+        "scripts/ci/check_trivy_ignore_policy_expiry.py",
+        ".bandit",
+        ".trivyignore",
+        "trivy/ignore-policy.rego",
+    ),
+)
+def test_advisory_self_use_rejects_full_outage_boundary_examples(
+    tmp_path: Path,
+    protected_path: str,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match=re.escape(protected_path)):
+        validate_advisory_capability_activation(
+            tmp_path,
+            base_ref_oid=BASE_SHA,
+            head_ref_oid=HEAD_SHA,
+            material_paths=(protected_path,),
+        )
+
+
+@pytest.mark.parametrize(
+    ("raw_entry", "error"),
+    [
+        (b"", "marker missing"),
+        (
+            f"120000 blob {'a' * 40}\t"
+            "docs/orchestration/contracts/advisory_capability_sources.v1.json\0".encode(),
+            "exactly one 100644 blob",
+        ),
+        (
+            f"100755 blob {'a' * 40}\t"
+            "docs/orchestration/contracts/advisory_capability_sources.v1.json\0".encode(),
+            "exactly one 100644 blob",
+        ),
+        (
+            f"040000 tree {'a' * 40}\t"
+            "docs/orchestration/contracts/advisory_capability_sources.v1.json\0".encode(),
+            "exactly one 100644 blob",
+        ),
+        (
+            f"160000 commit {'a' * 40}\t"
+            "docs/orchestration/contracts/advisory_capability_sources.v1.json\0".encode(),
+            "exactly one 100644 blob",
+        ),
+        (b"malformed\0", "tree entry is malformed"),
+        (
+            f"100644 blob {'b' * 40}\t"
+            "docs/orchestration/contracts/advisory_capability_sources.v1.json\0".encode(),
+            "blob OID differs",
+        ),
+        (
+            (
+                f"100644 blob {'a' * 40}\t"
+                "docs/orchestration/contracts/advisory_capability_sources.v1.json\0"
+            ).encode()
+            * 2,
+            "exactly one 100644 blob",
+        ),
+    ],
+)
+def test_advisory_marker_rejects_noncanonical_git_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    raw_entry: bytes,
+    error: str,
+) -> None:
+    def run_git(_root: Path, args: list[str], **_kwargs: Any) -> bytes:
+        if args[0] == "ls-tree":
+            return raw_entry
+        pytest.fail(f"unexpected git command: {args}")
+
+    monkeypatch.setattr(evidence_module, "_run_git", run_git)
+    with pytest.raises(ReviewEvidenceError, match=error):
+        evidence_module._require_advisory_marker_at_revision(
+            tmp_path,
+            revision=BASE_SHA,
+            label="authenticated base",
+            expected_bytes=advisory_capability_marker_bytes(),
+            expected_oid="a" * 40,
+        )
+
+
+def test_advisory_marker_rejects_blob_bytes_that_do_not_match_oid_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = (
+        f"100644 blob {'a' * 40}\t"
+        "docs/orchestration/contracts/advisory_capability_sources.v1.json\0"
+    ).encode()
+
+    def run_git(_root: Path, args: list[str], **_kwargs: Any) -> bytes:
+        return entry if args[0] == "ls-tree" else b"{}\n"
+
+    monkeypatch.setattr(evidence_module, "_run_git", run_git)
+    with pytest.raises(ReviewEvidenceError, match="marker bytes differ"):
+        evidence_module._require_advisory_marker_at_revision(
+            tmp_path,
+            revision=BASE_SHA,
+            label="authenticated base",
+            expected_bytes=advisory_capability_marker_bytes(),
+            expected_oid="a" * 40,
+        )
+
+
+@pytest.mark.parametrize(
+    ("raw_entry", "error"),
+    [
+        (b"", "canonical mapping artifact is missing"),
+        (
+            f"040000 tree {'a' * 40}\t" "docs/review/PR_42_FIXED_MAPPING.md\0".encode(),
+            "exactly one regular 100644 blob",
+        ),
+        (b"malformed\0", "canonical mapping tree entry is malformed"),
+        (
+            (f"100644 blob {'a' * 40}\t" "docs/review/PR_42_FIXED_MAPPING.md\0").encode() * 2,
+            "exactly one regular 100644 blob",
+        ),
+    ],
+)
+def test_advisory_mapping_entry_rejects_missing_tree_malformed_or_duplicate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    raw_entry: bytes,
+    error: str,
+) -> None:
+    def run_git(_root: Path, args: list[str], **_kwargs: Any) -> bytes:
+        assert args == [
+            "ls-tree",
+            "-z",
+            "--full-tree",
+            HEAD_SHA,
+            "--",
+            "docs/review/PR_42_FIXED_MAPPING.md",
+        ]
+        return raw_entry
+
+    monkeypatch.setattr(evidence_module, "_run_git", run_git)
+    with pytest.raises(ReviewEvidenceError, match=error):
+        evidence_module._require_canonical_mapping_blob_at_revision(
+            tmp_path,
+            revision=HEAD_SHA,
+            expected_path="docs/review/PR_42_FIXED_MAPPING.md",
+        )
+
+
+@pytest.mark.parametrize(
+    ("entry_kind", "expected_entry_prefix"),
+    [
+        ("symlink", "120000 blob "),
+        ("executable", "100755 blob "),
+        ("gitlink", "160000 commit "),
+    ],
+)
+def test_advisory_live_head_rejects_nonregular_mapping_entry(
+    tmp_path: Path,
+    entry_kind: str,
+    expected_entry_prefix: str,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "policy.txt").write_text("stable\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    if entry_kind == "symlink":
+        mapping.symlink_to("noncanonical-target")
+    elif entry_kind == "executable":
+        mapping.write_text("mapping\n", encoding="utf-8")
+        mapping.chmod(0o755)
+    else:
+        mapping.mkdir()
+        _git(mapping, "init", "-q")
+        (mapping / "README.md").write_text("nested\n", encoding="utf-8")
+        _commit(mapping, "nested mapping gitlink")
+    mapping_child = _commit(repo, f"{entry_kind} mapping child")
+    mapping_path = mapping.relative_to(repo).as_posix()
+
+    assert _git(repo, "ls-tree", mapping_child, "--", mapping_path).startswith(
+        expected_entry_prefix
+    )
+    with pytest.raises(ReviewEvidenceError, match="exactly one regular 100644 blob"):
+        validate_advisory_live_head_topology(
+            repo,
+            material_head_sha=material_head,
+            live_head_sha=mapping_child,
+            pr_number=42,
+            phase="final",
+        )
+
+
+def test_advisory_live_head_requires_exact_phase_and_one_mapping_child(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("stable\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+
+    validate_advisory_live_head_topology(
+        repo,
+        material_head_sha=material_head,
+        live_head_sha=material_head,
+        pr_number=42,
+        phase="pre_closeout",
+    )
+    with pytest.raises(ReviewEvidenceError, match="final live head must be one mapping-only child"):
+        validate_advisory_live_head_topology(
+            repo,
+            material_head_sha=material_head,
+            live_head_sha=material_head,
+            pr_number=42,
+            phase="final",
+        )
+
+    mapping.write_text("mapping\n", encoding="utf-8")
+    mapping_child = _commit(repo, "mapping child")
+    validate_advisory_live_head_topology(
+        repo,
+        material_head_sha=material_head,
+        live_head_sha=mapping_child,
+        pr_number=42,
+        phase="final",
+    )
+    with pytest.raises(ReviewEvidenceError, match="pre-closeout live head must equal"):
+        validate_advisory_live_head_topology(
+            repo,
+            material_head_sha=material_head,
+            live_head_sha=mapping_child,
+            pr_number=42,
+            phase="pre_closeout",
+        )
+
+    mapping.write_text("mapping two\n", encoding="utf-8")
+    second_child = _commit(repo, "second mapping commit")
+    with pytest.raises(ReviewEvidenceError, match="one direct child"):
+        validate_advisory_live_head_topology(
+            repo,
+            material_head_sha=material_head,
+            live_head_sha=second_child,
+            pr_number=42,
+            phase="final",
+        )
+
+    _git(repo, "checkout", "-q", material_head)
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text("mapping with material\n", encoding="utf-8")
+    source.write_text("changed\n", encoding="utf-8")
+    material_child = _commit(repo, "mapping and material child")
+    with pytest.raises(ReviewEvidenceError, match="must change only"):
+        validate_advisory_live_head_topology(
+            repo,
+            material_head_sha=material_head,
+            live_head_sha=material_child,
+            pr_number=42,
+            phase="final",
+        )
+
+    source.write_text("stable\n", encoding="utf-8")
+    mapping.write_text("mapping after revert\n", encoding="utf-8")
+    reverted_head = _commit(repo, "revert material change")
+    with pytest.raises(ReviewEvidenceError, match="one direct child"):
+        validate_advisory_live_head_topology(
+            repo,
+            material_head_sha=material_head,
+            live_head_sha=reverted_head,
+            pr_number=42,
+            phase="final",
+        )
+
+
+def test_advisory_capability_checks_distinct_base_and_merge_base_marker_bytes(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    marker = _write_advisory_marker(repo)
+    merge_base = _commit(repo, "marker at shared ancestor")
+    base_branch = _git(repo, "branch", "--show-current")
+    _git(repo, "checkout", "-q", "-b", "feature", merge_base)
+    (repo / "feature.txt").write_text("material\n", encoding="utf-8")
+    head_sha = _commit(repo, "feature material")
+    _git(repo, "checkout", "-q", base_branch)
+    (repo / "base.txt").write_text("base advance\n", encoding="utf-8")
+    base_sha = _commit(repo, "authenticated base advance")
+
+    assert (
+        validate_advisory_capability_activation(
+            repo,
+            base_ref_oid=base_sha,
+            head_ref_oid=head_sha,
+            material_paths=("feature.txt",),
+        )
+        == merge_base
+    )
+
+    marker.write_text("{}\n", encoding="utf-8")
+    drifted_base = _commit(repo, "drift marker on authenticated base")
+    with pytest.raises(ReviewEvidenceError, match="blob OID differs in authenticated base"):
+        validate_advisory_capability_activation(
+            repo,
+            base_ref_oid=drifted_base,
+            head_ref_oid=head_sha,
+            material_paths=("feature.txt",),
+        )
+
+
+@pytest.mark.parametrize(
+    ("merge_marker", "error"),
+    [
+        (b"{}\n", "blob OID differs in unique merge-base"),
+        (None, "marker missing from unique merge-base"),
+    ],
+)
+def test_advisory_capability_rejects_bad_marker_at_distinct_merge_base(
+    tmp_path: Path,
+    merge_marker: bytes | None,
+    error: str,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    marker = (
+        _write_advisory_marker(repo, merge_marker)
+        if merge_marker is not None
+        else repo / "docs/orchestration/contracts/advisory_capability_sources.v1.json"
+    )
+    if merge_marker is None:
+        (repo / "README.md").write_text("base without marker\n", encoding="utf-8")
+    merge_base = _commit(repo, "drifted marker at shared ancestor")
+    base_branch = _git(repo, "branch", "--show-current")
+    _git(repo, "checkout", "-q", "-b", "feature", merge_base)
+    (repo / "feature.txt").write_text("material\n", encoding="utf-8")
+    head_sha = _commit(repo, "feature material")
+    _git(repo, "checkout", "-q", base_branch)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_bytes(advisory_capability_marker_bytes())
+    base_sha = _commit(repo, "fix marker only on authenticated base")
+
+    with pytest.raises(ReviewEvidenceError, match=error) as exc_info:
+        validate_advisory_capability_activation(
+            repo,
+            base_ref_oid=base_sha,
+            head_ref_oid=head_sha,
+            material_paths=("feature.txt",),
+        )
+    assert str(exc_info.value).startswith("ADVISORY_CAPABILITY_INACTIVE:")
+    assert "refresh the PR from that base" in str(exc_info.value)
+
+
+def test_advisory_capability_rejects_missing_marker(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base without marker")
+    (repo / "README.md").write_text("material\n", encoding="utf-8")
+    head_sha = _commit(repo, "material")
+
+    with pytest.raises(
+        ReviewEvidenceError, match="marker missing from authenticated base"
+    ) as exc_info:
+        validate_advisory_capability_activation(
+            repo,
+            base_ref_oid=base_sha,
+            head_ref_oid=head_sha,
+            material_paths=("README.md",),
+        )
+    assert "merge the prerequisite into the authenticated base" in str(exc_info.value)
+
+
+def test_advisory_capability_rejects_non_unique_merge_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        evidence_module,
+        "_run_git",
+        lambda *_a, **_k: f"{BASE_SHA}\n{HEAD_SHA}\n".encode(),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="exactly one unique merge-base"):
+        validate_advisory_capability_activation(
+            tmp_path,
+            base_ref_oid=BASE_SHA,
+            head_ref_oid=HEAD_SHA,
+            material_paths=(),
+        )
