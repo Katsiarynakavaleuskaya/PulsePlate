@@ -1265,7 +1265,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "scan-type": "fs",
                 "scan-ref": ".",
                 "cache-dir": "/tmp/trivy-cache",
-                "ignore-policy": ".trivy-ignore-policy.rego",
+                "ignore-policy": "trivy/ignore-policy.rego",
                 "scanners": "vuln",
                 "format": "sarif",
                 "output": "${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif",
@@ -1289,7 +1289,7 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
                 "scan-type": "image",
                 "image-ref": "${{ steps.image-ref.outputs.ref }}",
                 "cache-dir": "/tmp/trivy-cache",
-                "ignore-policy": ".trivy-ignore-policy.rego",
+                "ignore-policy": "trivy/ignore-policy.rego",
                 "scanners": "vuln",
                 "format": "sarif",
                 "output": "trivy-image.sarif",
@@ -1375,6 +1375,25 @@ def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> No
         ),
     ]
     assert len(observed_trivy_contracts) == 5
+
+
+def test_build_workflow_trivy_scans_use_canonical_policy_without_shadow_copy() -> None:
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    scanner_steps = (
+        _job_step_by_name(
+            workflow,
+            job_id="security-scan",
+            step_name="Run Trivy vulnerability scanner (filesystem scan)",
+        ),
+        _job_step_by_name(
+            workflow,
+            job_id="publish",
+            step_name="Run Trivy vulnerability scanner (image scan, fail-closed)",
+        ),
+    )
+
+    assert {step["with"]["ignore-policy"] for step in scanner_steps} == {"trivy/ignore-policy.rego"}
+    assert ".trivy-ignore-policy.rego" not in BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
 def test_build_workflow_trivy_fs_sarif_is_temp_isolated_before_upload() -> None:

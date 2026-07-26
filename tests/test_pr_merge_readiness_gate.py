@@ -1024,6 +1024,36 @@ def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
     )
 
 
+def test_advisory_capability_security_failure_uses_advisory_diagnostic_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes = [
+        _check_node(name)
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        if name != "security-scan"
+    ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(ReviewEvidenceError) as exc_info:
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            diagnostic_context="advisory capability seal",
+        )
+
+    message = str(exc_info.value)
+    assert message.startswith(
+        "advisory capability seal requires successful current-head security checks:"
+    )
+    assert "operator outage override" not in message
+
+
 def test_operator_outage_security_applicability_uses_material_risk_profile() -> None:
     assert merge_gate._operator_outage_security_required(("docs/README.md",)) is False
     assert (
@@ -2483,11 +2513,13 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
         ),
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    bundle_heads: list[str] = []
+    bundle_calls: list[tuple[str, str]] = []
     monkeypatch.setattr(
         merge_gate,
         "_validate_operator_outage_security_checks",
-        lambda **kwargs: bundle_heads.append(kwargs["expected_head_sha"]),
+        lambda **kwargs: bundle_calls.append(
+            (kwargs["expected_head_sha"], kwargs["diagnostic_context"])
+        ),
     )
     monkeypatch.setattr(
         merge_gate,
@@ -2529,7 +2561,7 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
     output = capsys.readouterr().out
     assert "ADVISORY_CAPABILITY_SOURCES_VALID claims=none" in output
     assert "MACHINE_BOUND_REVIEW_COMMIT" not in output
-    assert bundle_heads == [live_head]
+    assert bundle_calls == [(live_head, "advisory capability seal")]
 
     mapping.write_text(mapping.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     second_mapping_head = _commit(repo, "second mapping-only commit")

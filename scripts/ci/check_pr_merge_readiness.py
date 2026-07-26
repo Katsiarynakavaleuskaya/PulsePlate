@@ -160,6 +160,8 @@ _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] =
     "security": ("CI", 15_368, "github-actions"),
     "security-scan": ("Docker Build and Push", 15_368, "github-actions"),
 }
+_OPERATOR_OUTAGE_SECURITY_CHECK_CONTEXT = "operator outage override"
+_ADVISORY_CAPABILITY_SECURITY_CHECK_CONTEXT = "advisory capability seal"
 
 
 @dataclass
@@ -698,6 +700,7 @@ def _validate_operator_outage_security_checks(
     token: str,
     expected_head_sha: str,
     security_required: bool = True,
+    diagnostic_context: str = _OPERATOR_OUTAGE_SECURITY_CHECK_CONTEXT,
 ) -> None:
     """Require a strict successful current-head security bundle for outage overrides."""
 
@@ -708,7 +711,7 @@ def _validate_operator_outage_security_checks(
         entries = [_normalize_check_node(node) for node in nodes if node]
     except ValueError as exc:
         raise ReviewEvidenceError(
-            f"operator outage override cannot order current-head security checks: {exc}"
+            f"{diagnostic_context} cannot order current-head security checks: {exc}"
         ) from exc
     latest, superseded = _latest_check_entries(entries)
     latest, _superseded = _suppress_stale_check_entries(
@@ -777,7 +780,7 @@ def _validate_operator_outage_security_checks(
             else ReviewEvidenceError
         )
         raise error_type(
-            "operator outage override requires successful current-head security checks: "
+            f"{diagnostic_context} requires successful current-head security checks: "
             + ", ".join(failures)
             + ". Pending or not-yet-visible exact-head checks may be retried only "
             "within the bounded CI wait; failed or untrusted checks remain terminal."
@@ -792,6 +795,7 @@ def _wait_for_operator_outage_security_checks(
     expected_head_sha: str,
     security_required: bool,
     timeout_seconds: int,
+    diagnostic_context: str = _OPERATOR_OUTAGE_SECURITY_CHECK_CONTEXT,
     poll_interval_seconds: int = 15,
 ) -> None:
     """Wait only for transient exact-head substitute-check states, then fail closed."""
@@ -811,13 +815,14 @@ def _wait_for_operator_outage_security_checks(
                 token=token,
                 expected_head_sha=expected_head_sha,
                 security_required=security_required,
+                diagnostic_context=diagnostic_context,
             )
             return
         except _OutageSecurityChecksPending as exc:
             remaining = deadline - time.monotonic()
             if timeout_seconds == 0 or remaining <= 0:
                 raise ReviewEvidenceError(
-                    "operator outage override timed out waiting for exact-head "
+                    f"{diagnostic_context} timed out waiting for exact-head "
                     f"security checks after {timeout_seconds}s: {exc}"
                 ) from exc
             sleep_seconds = min(float(poll_interval_seconds), remaining)
@@ -1092,6 +1097,7 @@ def _validate_v1_seal(
                     entry.path for entry in manifest.entries
                 ),
                 timeout_seconds=outage_security_wait_seconds,
+                diagnostic_context=_ADVISORY_CAPABILITY_SECURITY_CHECK_CONTEXT,
             )
     return seal
 

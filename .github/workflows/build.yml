@@ -29,13 +29,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Prepare Trivy ignore policy
-        run: |
-          set -euo pipefail
-          test -f trivy/ignore-policy.rego
-          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
-          ls -la .trivy-ignore-policy.rego
-
       - name: Free disk space (Ubuntu hosted runner)
         continue-on-error: true
         run: |
@@ -363,8 +356,6 @@ jobs:
           rm -rf "${RUNNER_TEMP}/pulseplate-trivy"
           mkdir -p "${RUNNER_TEMP}/pulseplate-trivy"
           test -f trivy/ignore-policy.rego
-          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
-          ls -la .trivy-ignore-policy.rego
 
       - name: Run Trivy vulnerability scanner (filesystem scan)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
@@ -374,7 +365,7 @@ jobs:
           scan-type: fs
           scan-ref: .
           cache-dir: /tmp/trivy-cache
-          ignore-policy: .trivy-ignore-policy.rego
+          ignore-policy: trivy/ignore-policy.rego
           scanners: vuln
           format: sarif
           output: ${{ runner.temp }}/pulseplate-trivy/trivy-results.sarif
@@ -422,13 +413,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Prepare Trivy ignore policy
-        run: |
-          set -euo pipefail
-          test -f trivy/ignore-policy.rego
-          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
-          ls -la .trivy-ignore-policy.rego
 
       - name: Free disk space (Ubuntu hosted runner)
         continue-on-error: true
@@ -581,7 +565,7 @@ jobs:
           scan-type: image
           image-ref: ${{ steps.image-ref.outputs.ref }}
           cache-dir: /tmp/trivy-cache
-          ignore-policy: .trivy-ignore-policy.rego
+          ignore-policy: trivy/ignore-policy.rego
           scanners: vuln
           format: sarif
           output: trivy-image.sarif
