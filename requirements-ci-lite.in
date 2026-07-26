@@ -7,14 +7,14 @@
 -c requirements.txt
 
 # Runtime dependencies required by OpenAPI generation and import-time wiring.
-fastapi>=0.138.1,<1.0.0
+fastapi>=0.140.0,<1.0.0
 # Security floor: SFTY-20260615-86827/22503/83407/32787 fixed in Starlette 1.3.1.
 starlette>=1.3.1,<2.0.0
-uvicorn>=0.38.0,<1.0.0
+uvicorn>=0.51.0,<1.0.0
 # Security floor: unsafe editor invocation fixed in Click 8.3.3.
 click>=8.3.3,<9.0.0
 pydantic>=2.13.4,<3.0.0
-openai>=2.8.1,<3.0.0
+openai>=2.48.0,<3.0.0
 opentelemetry-api>=1.38.0,<2.0.0
 opentelemetry-sdk>=1.38.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.38.0,<2.0.0
@@ -30,10 +30,10 @@ slowapi>=0.1.9,<1.0.0
 tenacity>=9.1.2,<10.0.0
 matplotlib>=3.10.7,<4.0.0
 reportlab>=4.4.4,<5.0.0
-sqlalchemy>=2.0.44,<3.0.0
+sqlalchemy>=2.0.51,<3.0.0
 greenlet>=3.1.0,<4.0.0
 aiosqlite>=0.22.1,<1.0.0
-alembic>=1.17.2,<2.0.0
+alembic>=1.18.5,<2.0.0
 # Security floor: GHSA-v92g-xgxw-vvmm / GHSA-2h4p-vjrc-8xpq (transitive via alembic)
 mako>=1.3.12,<2.0.0
 psycopg[binary]>=3.2.3,<4.0.0

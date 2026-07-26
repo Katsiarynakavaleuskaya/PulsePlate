@@ -10,7 +10,7 @@ aiosqlite==0.22.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
-alembic==1.18.4
+alembic==1.18.5
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -117,7 +117,7 @@ execnet==2.1.2
     # via pytest-xdist
 faker==40.31.0
     # via -r requirements-dev.in
-fastapi==0.138.1
+fastapi==0.140.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -241,7 +241,7 @@ numpy==2.4.6
     #   -r requirements.in
     #   contourpy
     #   matplotlib
-openai==2.29.0
+openai==2.48.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -455,7 +455,7 @@ sortedcontainers==2.4.0
     # via
     #   cyclonedx-python-lib
     #   hypothesis
-sqlalchemy==2.0.48
+sqlalchemy==2.0.51
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -511,7 +511,7 @@ urllib3==2.7.0
     # via
     #   -c requirements.txt
     #   requests
-uvicorn==0.42.0
+uvicorn==0.51.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
