@@ -10,10 +10,10 @@ pytest-asyncio~=1.4.0
 pytest-xdist~=3.8.0
 pytest-picked~=0.5.0
 pytest-split~=0.11.0
-hypothesis~=6.156.6
-faker~=40.31.0  # Test data generation (40.11.1 yanked / unavailable on PyPI)
+hypothesis~=6.161.5
+faker~=40.36.0  # Test data generation (40.11.1 yanked / unavailable on PyPI)
 # coverage and diff-cover: use compatible release for stability
-coverage~=7.15.1
+coverage~=7.15.2
 diff-cover~=10.3.0
 # Code quality tools: use compatible release for stability
 flake8~=7.3.0

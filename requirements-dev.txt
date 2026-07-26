@@ -47,7 +47,7 @@ click==8.3.3
     #   -r requirements-dev.in
     #   black
     #   pip-tools
-coverage[toml]==7.15.1
+coverage[toml]==7.15.2
     # via
     #   -r requirements-dev.in
     #   pytest-cov
@@ -67,7 +67,7 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.31.0
+faker==40.36.0
     # via -r requirements-dev.in
 filelock==3.24.3
     # via
@@ -83,7 +83,7 @@ httpcore2==2.3.0
     # via httpx2
 httpx2==2.3.0
     # via -r requirements-dev.in
-hypothesis==6.156.6
+hypothesis==6.161.5
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -241,11 +241,6 @@ rich==14.3.3
     #   pip-audit
 ruff==0.15.21
     # via -r requirements-dev.in
-setuptools==83.0.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   pip-tools
 sortedcontainers==2.4.0
     # via
     #   cyclonedx-python-lib
@@ -282,4 +277,12 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
-# pip
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
+setuptools==83.0.0
+    # via
+    #   -c requirements.txt
+    #   -r requirements-dev.in
+    #   pip-tools
