@@ -73,6 +73,7 @@ from scripts.orchestration.pr_review_evidence import (
     parse_embedded_review_seal,
     render_embedded_review_seal,
     self_review_report_content_digest,
+    self_review_report_semantic_digest,
     unavailable_review_ref_fingerprint,
     validate_review_credit_outage_scope,
     validate_advisory_capability_activation,
@@ -6615,6 +6616,7 @@ def _advisory_seal(
         completed_at="2026-07-26T15:00:00Z",
         unresolved_actionables=0,
         report_content_digest="sha256:" + "7" * 64,
+        report_semantic_digest="sha256:" + "6" * 64,
     )
     return seal
 
@@ -6638,6 +6640,7 @@ def _write_self_review_report(
         completed_at=payload["generated_at_utc"],
         unresolved_actionables=0,
         report_content_digest=self_review_report_content_digest(payload),
+        report_semantic_digest=self_review_report_semantic_digest(payload),
     )
     payload["self_review_receipt"] = receipt
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -6690,6 +6693,7 @@ def test_advisory_self_review_receipt_is_closed_and_material_bound() -> None:
         completed_at="2026-07-26T15:00:00Z",
         unresolved_actionables=0,
         report_content_digest="sha256:" + "8" * 64,
+        report_semantic_digest="sha256:" + "6" * 64,
     )
 
     assert (
@@ -6697,13 +6701,21 @@ def test_advisory_self_review_receipt_is_closed_and_material_bound() -> None:
             receipt,
             material_head_sha=HEAD_SHA,
             material_digest=DIGEST,
+            report_semantic_digest="sha256:" + "6" * 64,
         )
         == receipt
     )
 
+    with pytest.raises(ReviewEvidenceError, match="canonical report semantics"):
+        validate_self_review_receipt(
+            receipt,
+            report_semantic_digest="sha256:" + "5" * 64,
+        )
+
     for field, value in (
         ("content_digest", "sha256:" + "0" * 64),
         ("report_id", "self-review-" + "0" * 64),
+        ("report_semantic_digest", "sha256:" + "0" * 64),
         ("status", "incomplete"),
         ("completed_at", "2026-07-26T15:00:00+00:00"),
         ("unresolved_actionables", True),
@@ -6754,6 +6766,7 @@ def test_self_review_report_ingestion_rejects_unresolved_or_tampered_evidence(
         completed_at=payload["generated_at_utc"],
         unresolved_actionables=0,
         report_content_digest=self_review_report_content_digest(payload),
+        report_semantic_digest=self_review_report_semantic_digest(payload),
     )
     report_path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ReviewEvidenceError, match="unresolved actionables"):

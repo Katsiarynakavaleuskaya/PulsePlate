@@ -179,6 +179,10 @@ def test_react_router_namespace_import_is_rejected_before_computed_export_access
     (
         'import * as r\\u006futer from "react-router";\n'
         'r\\u006futer["unstable_" + "routeRSCServerRequest"];\n',
+        'import * as Роутер from "react-router";\n'
+        'Роутер["unstable_" + "routeRSCServerRequest"];\n',
+        'import * as \\u0420\\u043e\\u0443\\u0442\\u0435\\u0440 from "react-router";\n'
+        '\\u0420\\u043e\\u0443\\u0442\\u0435\\u0440["unstable_" + "routeRSCServerRequest"];\n',
         'import * as router from "react\\u002drouter";\n'
         'router["unstable_" + "routeRSCServerRequest"];\n',
     ),

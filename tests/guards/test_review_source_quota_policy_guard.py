@@ -34,6 +34,7 @@ LEGACY_AUTHORING_OPTIONS = {
     "--review-credit-quota-ref",
 }
 POLICY_SURFACE_FILES = {
+    ".agents/skills/pulseplate-pr-review/SKILL.md",
     "AGENTS.md",
     "RUNBOOK_AGENT.md",
     "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
@@ -47,6 +48,7 @@ POLICY_SURFACE_FILES = {
     "scripts/orchestration/review_source_status.py",
     "scripts/run-backend-tests-pre-commit.sh",
     "tests/guards/test_review_source_quota_policy_guard.py",
+    "tools/codex_skills/pulseplate-pr-review/SKILL.md",
 }
 POLICY_SUITE_TEST_FILES = {
     "tests/guards/test_review_source_quota_policy_guard.py",
@@ -203,6 +205,7 @@ def test_advisory_capability_contract_is_exact_no_claim_and_self_protected() -> 
         "scripts/ci/check_pr_merge_readiness.py",
         "scripts/orchestration/pr_review_context.py",
         "scripts/orchestration/pr_review_report.py",
+        "tools/codex_skills/pulseplate-pr-review/SKILL.md",
     }
     assert ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES == OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES
     connector, security = build_advisory_capability_receipts(
@@ -284,3 +287,10 @@ def test_every_policy_surface_selects_this_guard_in_diff_validation() -> None:
         assert f'"{path}"' in runner
     for test_file in POLICY_SUITE_TEST_FILES:
         assert f'EXTRA_TEST_FILES+=("{test_file}")' in runner
+
+
+def test_pr_review_skill_mirror_matches_canonical_source() -> None:
+    canonical = REPO_ROOT / "tools/codex_skills/pulseplate-pr-review/SKILL.md"
+    mirror = REPO_ROOT / ".agents/skills/pulseplate-pr-review/SKILL.md"
+
+    assert mirror.read_bytes() == canonical.read_bytes()

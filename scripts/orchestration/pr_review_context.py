@@ -153,19 +153,26 @@ def _parse_mapping_entry(line: str) -> tuple[str, str] | tuple[str, None] | None
     return None
 
 
+def _missing_fixed_mapping_state(pr_number: int) -> dict[str, Any]:
+    """Return the canonical pre-closeout fixed-mapping projection."""
+
+    rel_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    return {
+        "repo_path": rel_path,
+        "exists": False,
+        "entries": {},
+        "no_actionable": False,
+        "errors": [
+            "Fixed mapping artifact is missing; PR body-only evidence is advisory-only until artifact exists."
+        ],
+    }
+
+
 def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, Any]:
     rel_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     path = repo_root / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
     if not path.exists():
-        return {
-            "repo_path": rel_path,
-            "exists": False,
-            "entries": {},
-            "no_actionable": False,
-            "errors": [
-                "Fixed mapping artifact is missing; PR body-only evidence is advisory-only until artifact exists."
-            ],
-        }
+        return _missing_fixed_mapping_state(pr_number)
 
     lines = _read_text_lines(path)
     section: list[str] = []
@@ -361,6 +368,7 @@ def collect_review_context(
     repo: str | None,
     base_ref: str | None = None,
     head_ref: str | None = None,
+    ignore_fixed_mapping: bool = False,
 ) -> dict[str, Any]:
     warnings: list[str] = []
     repo = repo or infer_repo_name(repo_root)
@@ -412,7 +420,11 @@ def collect_review_context(
         }
         fixed_mapping_degraded_reason = ""
     else:
-        fixed_mapping = collect_fixed_mapping_state(repo_root=repo_root, pr_number=pr_number)
+        fixed_mapping = (
+            _missing_fixed_mapping_state(pr_number)
+            if ignore_fixed_mapping
+            else collect_fixed_mapping_state(repo_root=repo_root, pr_number=pr_number)
+        )
         if not fixed_mapping.get("exists"):
             warnings.append("Fixed-mapping artifact is missing for this PR.")
         local_head_sha, local_head_warnings = collect_local_head_sha(repo_root)

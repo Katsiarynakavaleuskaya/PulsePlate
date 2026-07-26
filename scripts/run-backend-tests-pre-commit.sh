@@ -166,6 +166,7 @@ declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(
     "tests/test_python_supply_chain_controls.py"
 )
 declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(
+    ".agents/skills/pulseplate-pr-review/SKILL.md"
     "AGENTS.md"
     "RUNBOOK_AGENT.md"
     "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md"
@@ -179,6 +180,7 @@ declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(
     "scripts/orchestration/review_source_status.py"
     "scripts/run-backend-tests-pre-commit.sh"
     "tests/guards/test_review_source_quota_policy_guard.py"
+    "tools/codex_skills/pulseplate-pr-review/SKILL.md"
 )
 
 add_python_dependency_testclient_tests() {

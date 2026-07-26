@@ -2495,6 +2495,7 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
             completed_at="2026-07-26T15:00:00Z",
             unresolved_actionables=0,
             report_content_digest="sha256:" + "7" * 64,
+            report_semantic_digest="sha256:" + "6" * 64,
         ),
     }
     mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
@@ -2565,6 +2566,18 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
     monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
 
+    monkeypatch.setattr(merge_gate, "collect_review_context", lambda **_kwargs: {})
+    monkeypatch.setattr(
+        merge_gate,
+        "build_report",
+        lambda _context, **_kwargs: {"canonical": True},
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "self_review_report_semantic_digest",
+        lambda _report: "sha256:" + "6" * 64,
+    )
+
     assert merge_gate.main() == 0
     output = capsys.readouterr().out
     assert "ADVISORY_CAPABILITY_SOURCES_VALID claims=none" in output
@@ -2576,6 +2589,25 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
     with pytest.raises(ReviewEvidenceError, match="self_review must be an object"):
         merge_gate._validate_v1_seal(
             artifact_text=_artifact_with_seal(missing_self_review),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+        )
+
+    forged_self_review = json.loads(json.dumps(seal))
+    forged_self_review["self_review"] = build_self_review_receipt(
+        material_head_sha=material_head,
+        material_digest=material.digest,
+        completed_at="2026-07-26T15:00:00Z",
+        unresolved_actionables=0,
+        report_content_digest="sha256:" + "7" * 64,
+        report_semantic_digest="sha256:" + "5" * 64,
+    )
+    with pytest.raises(ReviewEvidenceError, match="canonical report semantics"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(forged_self_review),
             repository="owner/repo",
             pr_number=42,
             snapshot=snapshot,

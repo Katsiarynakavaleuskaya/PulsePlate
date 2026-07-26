@@ -75,6 +75,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
     render_embedded_review_seal,
+    self_review_report_semantic_digest,
     unavailable_review_ref_fingerprint,
     validate_advisory_capability_activation,
     validate_live_advisory_capability_receipts,
@@ -1507,6 +1508,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             repo=args.repo,
             base_ref=snapshot.base_sha,
             head_ref=snapshot.head_sha,
+            ignore_fixed_mapping=True,
         )
         self_review_receipt = ingest_self_review_report(
             Path(args.self_review_report),
@@ -1752,6 +1754,20 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         raise CloseoutError("sealed material head is not a real live PR commit")
     code_review = seal["code_review"]
     if is_advisory_capability_connector_receipt(code_review):
+        canonical_review_context = collect_review_context(
+            repo_root=REPO_ROOT,
+            pr_number=pr_number,
+            repo=repository,
+            base_ref=snapshot.base_sha,
+            head_ref=material_head.sha,
+            ignore_fixed_mapping=True,
+        )
+        semantic_digest = self_review_report_semantic_digest(
+            build_report(
+                canonical_review_context,
+                include_self_review_receipt=False,
+            )
+        )
         validate_live_advisory_capability_receipts(
             REPO_ROOT,
             connector_receipt=code_review,
@@ -1764,6 +1780,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
             pr_number=pr_number,
             live_material_paths=(entry.path for entry in manifest.entries),
             phase="final",
+            self_review_semantic_digest=semantic_digest,
         )
     elif is_review_source_positive_response_receipt(code_review):
         response_manifest = compute_material_manifest(

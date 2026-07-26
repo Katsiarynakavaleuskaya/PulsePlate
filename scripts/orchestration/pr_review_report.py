@@ -19,6 +19,7 @@ from scripts.orchestration.pr_review_evidence import (
     build_self_review_receipt,
     compute_material_manifest,
     self_review_report_content_digest,
+    self_review_report_semantic_digest,
 )
 from scripts.orchestration.review_source_status import summarize_degraded_sources
 
@@ -367,6 +368,7 @@ def _build_self_review_receipt(
         completed_at=str(context.get("generated_at_utc") or ""),
         unresolved_actionables=unresolved_actionables,
         report_content_digest=self_review_report_content_digest(report),
+        report_semantic_digest=self_review_report_semantic_digest(report),
     )
     return receipt
 

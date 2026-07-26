@@ -123,6 +123,7 @@ ADVISORY_CAPABILITY_ADDITIONAL_AUTHORIZING_PATHS = frozenset(
         "scripts/ci/check_pr_merge_readiness.py",
         "scripts/orchestration/pr_review_context.py",
         "scripts/orchestration/pr_review_report.py",
+        "tools/codex_skills/pulseplate-pr-review/SKILL.md",
     }
 )
 ADVISORY_CAPABILITY_AUTHORIZING_PATHS = (
@@ -1010,6 +1011,7 @@ def validate_live_advisory_capability_receipts(
     pr_number: int,
     live_material_paths: Iterable[str],
     phase: str,
+    self_review_semantic_digest: str,
 ) -> None:
     """Revalidate one linked advisory pair against live material and topology."""
 
@@ -1023,6 +1025,7 @@ def validate_live_advisory_capability_receipts(
         self_review_receipt,
         material_head_sha=material_head_sha,
         material_digest=material_digest,
+        report_semantic_digest=self_review_semantic_digest,
     )
     validate_advisory_live_head_topology(
         repo_root,
@@ -1507,6 +1510,7 @@ def build_self_review_receipt(
     completed_at: str,
     unresolved_actionables: int,
     report_content_digest: str,
+    report_semantic_digest: str,
 ) -> dict[str, Any]:
     """Build one closed exact-material repo-native self-review receipt."""
 
@@ -1531,6 +1535,10 @@ def build_self_review_receipt(
             label="self_review.material_head_sha",
         ),
         "producer": dict(SELF_REVIEW_PRODUCER),
+        "report_semantic_digest": _require_digest(
+            report_semantic_digest,
+            label="self-review report semantic digest",
+        ),
         "schema_version": SELF_REVIEW_SCHEMA_VERSION,
         "status": "completed",
         "unresolved_actionables": unresolved_actionables,
@@ -1583,6 +1591,7 @@ def validate_self_review_receipt(
     material_head_sha: str | None = None,
     material_digest: str | None = None,
     report_content_digest: str | None = None,
+    report_semantic_digest: str | None = None,
 ) -> dict[str, Any]:
     """Validate and optionally bind one closed self-review receipt."""
 
@@ -1598,6 +1607,7 @@ def validate_self_review_receipt(
             "material_head_sha",
             "producer",
             "report_id",
+            "report_semantic_digest",
             "schema_version",
             "status",
             "unresolved_actionables",
@@ -1633,6 +1643,10 @@ def validate_self_review_receipt(
     report_id = receipt["report_id"]
     if not isinstance(report_id, str) or _SELF_REVIEW_REPORT_ID_RE.fullmatch(report_id) is None:
         raise ReviewEvidenceError("self_review.report_id is malformed")
+    semantic_digest = _require_digest(
+        receipt["report_semantic_digest"],
+        label="self_review.report_semantic_digest",
+    )
     payload = {
         "authority": receipt["authority"],
         "completed_at": completed_at,
@@ -1640,6 +1654,7 @@ def validate_self_review_receipt(
         "material_head_sha": head,
         "producer": receipt["producer"],
         "report_id": report_id,
+        "report_semantic_digest": semantic_digest,
         "schema_version": receipt["schema_version"],
         "status": receipt["status"],
         "unresolved_actionables": unresolved,
@@ -1657,6 +1672,11 @@ def validate_self_review_receipt(
         expected_report_id = f"self-review-{expected_report_digest.removeprefix('sha256:')}"
         if report_id != expected_report_id:
             raise ReviewEvidenceError("self_review does not match canonical report content")
+    if report_semantic_digest is not None and semantic_digest != _require_digest(
+        report_semantic_digest,
+        label="expected self-review report semantic digest",
+    ):
+        raise ReviewEvidenceError("self_review does not match canonical report semantics")
     if material_head_sha is not None and head != _require_sha(
         material_head_sha,
         label="expected self-review material head",
@@ -1712,11 +1732,13 @@ def ingest_self_review_report(
     if report.get("schema_version") != "1.0.0" or report.get("mode") != "dry-run-report":
         raise ReviewEvidenceError("self-review report schema or mode is unsupported")
     report_digest = self_review_report_content_digest(report)
+    semantic_digest = self_review_report_semantic_digest(report)
     receipt = validate_self_review_receipt(
         report.get("self_review_receipt"),
         material_head_sha=expected_head_sha,
         material_digest=expected_material_digest,
         report_content_digest=report_digest,
+        report_semantic_digest=semantic_digest,
     )
     if report.get("generated_at_utc") != receipt["completed_at"]:
         raise ReviewEvidenceError("self-review report timestamp does not match its receipt")

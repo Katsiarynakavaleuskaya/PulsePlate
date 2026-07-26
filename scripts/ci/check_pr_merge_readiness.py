@@ -70,6 +70,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
+    self_review_report_semantic_digest,
     validate_live_advisory_capability_receipts,
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
@@ -82,6 +83,8 @@ from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
 )
 from scripts.ci.ci_risk_profile import build_risk_profile  # noqa: E402
+from scripts.orchestration.pr_review_context import collect_review_context  # noqa: E402
+from scripts.orchestration.pr_review_report import build_report  # noqa: E402
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
 # deliberately blocks CI v1 activation finalization until the PR number exists.
@@ -882,6 +885,20 @@ def _validate_v1_seal(
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
     if is_advisory_capability_connector_receipt(code_review):
+        canonical_review_context = collect_review_context(
+            repo_root=REPO_ROOT,
+            pr_number=pr_number,
+            repo=repository,
+            base_ref=snapshot.base_sha,
+            head_ref=material_head.sha,
+            ignore_fixed_mapping=True,
+        )
+        semantic_digest = self_review_report_semantic_digest(
+            build_report(
+                canonical_review_context,
+                include_self_review_receipt=False,
+            )
+        )
         validate_live_advisory_capability_receipts(
             REPO_ROOT,
             connector_receipt=code_review,
@@ -894,6 +911,7 @@ def _validate_v1_seal(
             pr_number=pr_number,
             live_material_paths=(entry.path for entry in manifest.entries),
             phase=advisory_phase,
+            self_review_semantic_digest=semantic_digest,
         )
     elif is_review_source_positive_response_receipt(code_review):
         response_manifest = compute_material_manifest(
