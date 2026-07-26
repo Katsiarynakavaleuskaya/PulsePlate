@@ -239,6 +239,52 @@ def test_jsx_text_apostrophes_do_not_start_string_literals(tmp_path: Path) -> No
     assert guard.scan_repository(frontend_root) == []
 
 
+def test_bounded_regex_context_preserves_prefix_characters_and_keywords() -> None:
+    regex_prefixes = (
+        "",
+        *sorted(guard._REGEX_PREFIX_CHARACTERS),
+        *guard._REGEX_PREFIX_KEYWORDS,
+    )
+    for prefix in regex_prefixes:
+        visible = guard._VisibleCharacters()
+        visible.extend(prefix)
+        visible.extend(" " * 10_000)
+        assert guard._starts_regex_literal(visible), prefix
+
+    for prefix in ("identifier", "returnValue"):
+        visible = guard._VisibleCharacters()
+        visible.extend(prefix)
+        visible.extend(" " * 10_000)
+        assert not guard._starts_regex_literal(visible), prefix
+
+
+def test_long_slash_and_apostrophe_prefixes_use_bounded_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_prefix_lengths: list[int] = []
+    original = guard._ends_with_regex_prefix_keyword
+
+    def record_prefix_length(prefix: str) -> bool:
+        observed_prefix_lengths.append(len(prefix))
+        return original(prefix)
+
+    monkeypatch.setattr(guard, "_ends_with_regex_prefix_keyword", record_prefix_length)
+    long_identifier = "x" * 100_000
+    source = "\n".join(
+        (
+            f"{long_identifier} / divisor;",
+            f"<p>{long_identifier}' pages</p>",
+            "export const condition = 'react-server';",
+        )
+    )
+
+    literals, _visible = guard._source_literals_and_visible_text(source, label="long-prefix.tsx")
+
+    assert "react-server" in literals
+    assert observed_prefix_lengths
+    assert max(observed_prefix_lengths) <= guard._REGEX_PREFIX_CONTEXT_LIMIT
+
+
 def test_script_condition_requires_exact_token_boundaries(tmp_path: Path) -> None:
     frontend_root = _write_frontend(
         tmp_path,

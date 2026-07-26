@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterator, Sequence
+from collections import deque
+from collections.abc import Iterable, Iterator, Sequence
 import json
 import os
 from pathlib import Path
@@ -48,6 +49,40 @@ RUNTIME_MARKERS = (
 _REACT_SERVER_CONDITION_RE = re.compile(r"(?<![A-Za-z0-9_-])react-server(?![A-Za-z0-9_-])")
 _REGEX_PREFIX_CHARACTERS = frozenset("([{=,:;!?&|+-*%^~")
 _REGEX_PREFIX_KEYWORDS = ("await", "case", "delete", "return", "throw", "typeof", "void", "yield")
+_REGEX_PREFIX_CONTEXT_LIMIT = max(len(keyword) for keyword in _REGEX_PREFIX_KEYWORDS) + 1
+
+
+class _VisibleCharacters(list[str]):
+    """Retain full visible source plus bounded context for regex disambiguation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._regex_prefix_context: deque[str] = deque(maxlen=_REGEX_PREFIX_CONTEXT_LIMIT)
+        self._has_trailing_whitespace = False
+
+    def append(self, character: str) -> None:
+        """Append one source character and update bounded non-blank context."""
+
+        super().append(character)
+        if character.isspace():
+            self._has_trailing_whitespace = True
+            return
+        if self._has_trailing_whitespace and self._regex_prefix_context:
+            self._regex_prefix_context.append(" ")
+        self._regex_prefix_context.append(character)
+        self._has_trailing_whitespace = False
+
+    def extend(self, characters: Iterable[str]) -> None:
+        """Append source characters without bypassing context tracking."""
+
+        for character in characters:
+            self.append(character)
+
+    @property
+    def regex_prefix_context(self) -> str:
+        """Return the bounded suffix of visible source with whitespace stripped."""
+
+        return "".join(self._regex_prefix_context)
 
 
 class PremiseScanError(RuntimeError):
@@ -215,10 +250,10 @@ def _ends_with_regex_prefix_keyword(prefix: str) -> bool:
     return any(re.search(rf"\b{keyword}$", prefix) for keyword in _REGEX_PREFIX_KEYWORDS)
 
 
-def _starts_regex_literal(visible: list[str]) -> bool:
+def _starts_regex_literal(visible: _VisibleCharacters) -> bool:
     """Distinguish a regex literal slash from division using bounded context."""
 
-    prefix = "".join(visible).rstrip()
+    prefix = visible.regex_prefix_context
     if not prefix:
         return True
     if prefix[-1] in _REGEX_PREFIX_CHARACTERS:
@@ -230,7 +265,7 @@ def _consume_regex_literal(
     text: str,
     *,
     start: int,
-    visible: list[str],
+    visible: _VisibleCharacters,
     label: str,
 ) -> int:
     """Consume a JavaScript regex literal while preserving source offsets."""
@@ -267,7 +302,7 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
     """Return exact string literals plus source text with comments and regexes elided."""
 
     literals: list[str] = []
-    visible: list[str] = []
+    visible = _VisibleCharacters()
     index = 0
     length = len(text)
 
@@ -308,7 +343,7 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
             continue
 
         if current == "'" and index > 0 and text[index - 1].isalnum():
-            prefix = "".join(visible).rstrip()
+            prefix = visible.regex_prefix_context
             if not _ends_with_regex_prefix_keyword(prefix):
                 visible.append(current)
                 index += 1
