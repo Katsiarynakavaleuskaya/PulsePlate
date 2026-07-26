@@ -142,7 +142,8 @@ JSON block `PULSEPLATE_PR_REVIEW_SEAL_V1`. The activation boundary is the
 governance PR number + 1; the governance PR may opt in with
 `Review-Seal-Version: v1`.
 
-Root `AGENTS.md` owns the global final-material scan budget. This matrix owns
+Root `AGENTS.md` owns the global final-material scan budget.
+**Legacy-v1-only:** this matrix owns
 the field-level projection: `scope=per_pr`, `automatic_budget=1`,
 `automatic_retries=0`, `requires_frozen_material=true`,
 `additional_invocation=trusted_operator_approval`, and
@@ -155,7 +156,29 @@ rate/usage-limit receipt with `review_claim=none`; the terminal unavailable
 path requires no retry or substitute review. One operator-issued scan follows;
 the local preparation state is advisory and cannot prove global consumption.
 
-GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final review-evidence validation, with no automatic retry.
+**Legacy-v1-only:** GitHub Codex Connector review is separate from the locally
+invoked Codex Security plugin. Leave the Connector automatic: do not disable
+or manually retrigger it, and do not wait indefinitely when silence means no
+receipt. Invoke the expensive Codex Security plugin manually exactly once
+after final review-evidence validation, with no automatic retry.
+
+The additive advisory-capability variant activates only when the canonical
+bytes and blob OID exist as exactly one regular `100644 blob` at
+`docs/orchestration/contracts/advisory_capability_sources.v1.json` in the
+authenticated base SHA and unique merge-base.
+`seal --capability-sources-advisory` then emits linked material-bound receipts
+with Connector `review_claim=none` and Codex Security `scan_claim=none`.
+Do not invoke, restart, or retry either provider. After freeze, exact-head
+self-review, and the required trusted substitute security checks, run
+`seal --capability-sources-advisory` directly. Provider outputs alone become
+optional; the trusted exact-head substitute
+security-check bundle, canonical mapping, review-thread dispositions, bot
+actionables, required checks, and live-head validation remain hard. Final live
+head must be exactly one direct mapping-only child of the material head. The
+complete operator-outage trust boundary applies without the PR `#2142`
+exception, including workflows/actions, `scripts/ci/`, security policy/config,
+dependency manifests, tests/guards, and `trivy/`, plus the advisory marker and
+merge gate. Such material is denied and uses legacy v1.
 
 ### Material review seal v1
 
@@ -168,8 +191,8 @@ GitHub Codex Connector review is separate from the locally invoked Codex Securit
 - Every path is material except the exact current-PR mapping artifact. PR-body
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
-- The trusted submitted Codex review object's real GitHub `commit_id` must be
-  the frozen material head. A direct PR-root reaction from the official Codex
+- **Legacy-v1-only:** The trusted submitted Codex review object's real GitHub
+  `commit_id` must be the frozen material head. A direct PR-root reaction from the official Codex
   Connector may instead use the normal `seal --review-ref` path as a nonblocking
   terminal source response only for `+1`,
   `heart`, `hooray`, or `rocket`, after live verification of its immutable
@@ -208,7 +231,13 @@ GitHub Codex Connector review is separate from the locally invoked Codex Securit
   The embedded scan record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
   and content binding but does not claim signed/plugin attestation.
-- If the trusted connector returns an exact known rate-limit or usage-limit
+- **Activated advisory:** Do not invoke, restart, or retry either provider.
+  After frozen exact-head self-review and the required trusted exact-head
+  substitute security checks, `seal --capability-sources-advisory` emits the
+  linked no-claim receipts directly. The substitute-security bundle,
+  mapping/thread/bot dispositions, required current-head CI/security checks,
+  and strict live-head validation remain hard.
+- **Legacy-v1-only:** If the trusted connector returns an exact known rate-limit or usage-limit
   response, the seal uses the tagged
   `pulseplate.codex-review-source-unavailability/v1` variant. The canonical
   same-PR, unedited trusted Codex GitHub App comment is terminal unavailable
@@ -278,11 +307,15 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
   `docs/review/PR_<N>_FIXED_MAPPING.md`
 - `post_open_review` is the packet-level phase where the canonical role-only
   `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized.
-  Final-material gates remain outside role dispatch: the exact-head
-  `pulseplate-pr-review` self-review, then a trusted exact-head GitHub Codex
-  Connector review or trusted terminal source-unavailable receipt, precede the
-  one operator-issued Codex Security scan; `merge_ready` keeps the
-  current-head merge-wrapper contract explicit without widening either lane.
+  Final-material gates remain outside role dispatch. After the exact-head
+  `pulseplate-pr-review` self-review, **Legacy-v1-only** requires a trusted
+  exact-head GitHub Codex Connector review or trusted terminal
+  source-unavailable receipt followed by one operator-issued Codex Security
+  scan. **Activated advisory** instead forbids invoking, restarting, or
+  retrying either provider and runs `seal --capability-sources-advisory`
+  directly after the required trusted exact-head substitute security checks.
+  Both paths retain actionable-finding closure and the current-head
+  merge-wrapper contract; advisory makes only provider outputs optional.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -379,7 +412,7 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
 | Post-open role review | `qa-engineer-agent -> bug-hunter -> security-auditor` | Hard gate | Run once after PR open; every actionable must be fixed or dispositioned before final material freeze |
-| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, then a trusted exact-head GitHub Codex Connector review or trusted terminal source-unavailable receipt, then one operator-issued manual Codex Security request | Hard gate | The local self-review is advisory and does not replace the trusted review receipt; trusted review evidence and scan bind to the frozen final digest; source unavailability claims no review and requires no retry/substitute, repository code makes no plugin call or automatic retry, and every additional request requires fresh exact-material `OWNER`/`MEMBER` approval |
+| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, then either Legacy-v1-only provider evidence or the activated `seal --capability-sources-advisory` path | Hard gate | Legacy v1 requires the trusted exact-head Connector review/source-unavailable receipt followed by one manual Codex Security request. Activated advisory must not invoke, restart, or retry either provider and makes only those outputs optional. Both paths retain frozen-material identity, actionable-finding closure, mapping/thread/bot dispositions, the applicable substitute-security bundle, required current-head CI/security checks, and strict current-head merge validation |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |

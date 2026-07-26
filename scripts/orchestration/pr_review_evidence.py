@@ -50,6 +50,23 @@ REVIEW_SOURCE_POSITIVE_RESPONSE_SCHEMA_VERSION = (
 )
 REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY = "trusted_codex_review_source_positive_response"
 REVIEW_SOURCE_POSITIVE_RESPONSE_SOURCE = "codex_review"
+ADVISORY_CAPABILITY_SCHEMA_VERSION = "pulseplate.advisory-capability-source/v1"
+ADVISORY_CAPABILITY_AUTHORITY = "advisory_capability_source"
+ADVISORY_CAPABILITY_MARKER_PATH = "docs/orchestration/contracts/advisory_capability_sources.v1.json"
+ADVISORY_CAPABILITY_MARKER = {
+    "activation": "authenticated_base_and_unique_merge_base",
+    "authority": "advisory_only_no_claim",
+    "connector": {
+        "outputRequired": False,
+        "reviewClaim": "none",
+    },
+    "policyVersion": "pulseplate.advisory-capability-sources/v1",
+    "security": {
+        "outputRequired": False,
+        "scanClaim": "none",
+        "substituteSecurityBundleRequired": True,
+    },
+}
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
@@ -64,6 +81,7 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "docs/orchestration/AGENTS.md",
         "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
         "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+        ADVISORY_CAPABILITY_MARKER_PATH,
         "docs/orchestration/contracts/review_source_status.v1.json",
         "scripts/ci_bandit.sh",
         "scripts/ci_pip_audit.sh",
@@ -93,6 +111,16 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     "tests/guards/",
     "trivy/",
 )
+ADVISORY_CAPABILITY_ADDITIONAL_AUTHORIZING_PATHS = frozenset(
+    {
+        ADVISORY_CAPABILITY_MARKER_PATH,
+        "scripts/ci/check_pr_merge_readiness.py",
+    }
+)
+ADVISORY_CAPABILITY_AUTHORIZING_PATHS = (
+    OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS | ADVISORY_CAPABILITY_ADDITIONAL_AUTHORIZING_PATHS
+)
+ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES = OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES
 REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         "AGENTS.md",
@@ -499,12 +527,19 @@ def _git_environment() -> dict[str, str]:
     return env
 
 
-def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
+def _run_git(
+    repo_root: Path,
+    args: list[str],
+    *,
+    timeout: int = 30,
+    input_bytes: bytes | None = None,
+) -> bytes:
     git = _git_path()
     result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
         [git, *args],
         cwd=repo_root,
         env=_git_environment(),
+        input=input_bytes,
         capture_output=True,
         timeout=timeout,
         check=False,
@@ -529,6 +564,34 @@ def _validate_material_path(path_bytes: bytes) -> str:
     ):
         raise ReviewEvidenceError(f"Git diff contains unsafe path {path!r}")
     return path
+
+
+def _protected_material_paths(
+    material_paths: Iterable[str],
+    *,
+    exact_paths: frozenset[str],
+    prefixes: tuple[str, ...],
+    include_dependency_manifests: bool = False,
+) -> tuple[str, ...]:
+    """Return the deterministic protected subset for one authority boundary."""
+
+    return tuple(
+        sorted(
+            {
+                path
+                for path in material_paths
+                if path in exact_paths
+                or path.startswith(prefixes)
+                or (
+                    include_dependency_manifests
+                    and (
+                        PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
+                        or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
+                    )
+                )
+            }
+        )
+    )
 
 
 def _parse_raw_diff(raw: bytes, *, excluded_path: str) -> tuple[MaterialEntry, ...]:
@@ -659,6 +722,322 @@ def compute_material_manifest(
         entries=entries,
         digest=digest,
     )
+
+
+def advisory_capability_marker_bytes() -> bytes:
+    """Return the one byte-exact activation marker accepted by strict gates."""
+
+    return (
+        json.dumps(
+            ADVISORY_CAPABILITY_MARKER,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _advisory_capability_inactive(detail: str) -> ReviewEvidenceError:
+    return ReviewEvidenceError(
+        "ADVISORY_CAPABILITY_INACTIVE: "
+        f"{detail}; recovery: merge the prerequisite into the authenticated base, "
+        "refresh the PR from that base so the marker is in the unique merge-base, "
+        "then freeze and seal again"
+    )
+
+
+def _require_advisory_marker_at_revision(
+    repo_root: Path,
+    *,
+    revision: str,
+    label: str,
+    expected_bytes: bytes,
+    expected_oid: str,
+) -> None:
+    raw_entry = _run_git(
+        repo_root,
+        [
+            "ls-tree",
+            "-z",
+            "--full-tree",
+            revision,
+            "--",
+            ADVISORY_CAPABILITY_MARKER_PATH,
+        ],
+    )
+    if not raw_entry:
+        raise _advisory_capability_inactive(f"marker missing from {label}")
+    if not raw_entry.endswith(b"\0"):
+        raise _advisory_capability_inactive(f"marker tree entry is malformed in {label}")
+    records = raw_entry[:-1].split(b"\0")
+    if len(records) != 1:
+        raise _advisory_capability_inactive(f"marker must be exactly one 100644 blob in {label}")
+    try:
+        metadata, path = records[0].split(b"\t", 1)
+        mode, object_type, raw_oid = metadata.split(b" ")
+        oid = raw_oid.decode("ascii")
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise _advisory_capability_inactive(f"marker tree entry is malformed in {label}") from exc
+    if (
+        path != ADVISORY_CAPABILITY_MARKER_PATH.encode()
+        or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid) is None
+    ):
+        raise _advisory_capability_inactive(f"marker tree entry is malformed in {label}")
+    if mode != b"100644" or object_type != b"blob":
+        raise _advisory_capability_inactive(f"marker must be exactly one 100644 blob in {label}")
+    if oid != expected_oid:
+        raise _advisory_capability_inactive(f"marker blob OID differs in {label}")
+    try:
+        marker = _run_git(repo_root, ["cat-file", "blob", oid])
+    except ReviewEvidenceError as exc:
+        raise _advisory_capability_inactive(f"marker blob is unavailable in {label}") from exc
+    if marker != expected_bytes:
+        raise _advisory_capability_inactive(f"marker bytes differ in {label}")
+
+
+def validate_advisory_capability_activation(
+    repo_root: Path,
+    *,
+    base_ref_oid: str,
+    head_ref_oid: str,
+    material_paths: Iterable[str],
+) -> str:
+    """Require an already-merged marker and deny changes to its authority path."""
+
+    touched = _protected_material_paths(
+        material_paths,
+        exact_paths=ADVISORY_CAPABILITY_AUTHORIZING_PATHS,
+        prefixes=ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES,
+        include_dependency_manifests=True,
+    )
+    if touched:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_SELF_USE_DENIED: current material changes "
+            "authorizing paths: " + ", ".join(touched)
+        )
+    base_sha = _require_sha(base_ref_oid, label="advisory capability base_ref_oid")
+    head_sha = _require_sha(head_ref_oid, label="advisory capability head_ref_oid")
+    root = repo_root.resolve(strict=True)
+    merge_base_raw = _run_git(root, ["merge-base", "--all", base_sha, head_sha])
+    merge_bases = [line for line in merge_base_raw.decode("ascii").splitlines() if line]
+    if len(merge_bases) != 1:
+        raise _advisory_capability_inactive("base/head must have exactly one unique merge-base")
+    merge_base_sha = _require_sha(
+        merge_bases[0],
+        label="advisory capability merge base",
+    )
+    expected = advisory_capability_marker_bytes()
+    raw_expected_oid = _run_git(
+        root,
+        ["hash-object", "--stdin"],
+        input_bytes=expected,
+    )
+    expected_oid_lines = raw_expected_oid.decode("ascii", errors="replace").splitlines()
+    if (
+        len(expected_oid_lines) != 1
+        or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", expected_oid_lines[0]) is None
+    ):
+        raise _advisory_capability_inactive("canonical marker blob OID is malformed")
+    expected_oid = expected_oid_lines[0]
+    for label, revision in (
+        ("authenticated base", base_sha),
+        ("unique merge-base", merge_base_sha),
+    ):
+        _require_advisory_marker_at_revision(
+            root,
+            revision=revision,
+            label=label,
+            expected_bytes=expected,
+            expected_oid=expected_oid,
+        )
+    return merge_base_sha
+
+
+def _require_canonical_mapping_blob_at_revision(
+    repo_root: Path,
+    *,
+    revision: str,
+    expected_path: str,
+) -> None:
+    """Require one regular canonical mapping blob at the accepted live revision."""
+
+    raw_entry = _run_git(
+        repo_root,
+        [
+            "ls-tree",
+            "-z",
+            "--full-tree",
+            revision,
+            "--",
+            expected_path,
+        ],
+    )
+    if not raw_entry:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: canonical mapping artifact is missing at "
+            f"{expected_path}"
+        )
+    if not raw_entry.endswith(b"\0"):
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: canonical mapping tree entry is malformed at "
+            f"{expected_path}"
+        )
+    records = raw_entry[:-1].split(b"\0")
+    if len(records) != 1:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: canonical mapping artifact must be "
+            f"exactly one regular 100644 blob at {expected_path}"
+        )
+    try:
+        metadata, path = records[0].split(b"\t", 1)
+        mode, object_type, raw_oid = metadata.split(b" ")
+        oid = raw_oid.decode("ascii")
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: canonical mapping tree entry is malformed at "
+            f"{expected_path}"
+        ) from exc
+    if (
+        path != expected_path.encode()
+        or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid) is None
+    ):
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: canonical mapping tree entry is malformed at "
+            f"{expected_path}"
+        )
+    if mode != b"100644" or object_type != b"blob":
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: canonical mapping artifact must be "
+            f"exactly one regular 100644 blob at {expected_path}"
+        )
+
+
+def validate_advisory_live_head_topology(
+    repo_root: Path,
+    *,
+    material_head_sha: str,
+    live_head_sha: str,
+    pr_number: int,
+    phase: str,
+) -> None:
+    """Require the exact pre-closeout head or one direct mapping-only child."""
+
+    material_head = _require_sha(material_head_sha, label="advisory material head")
+    live_head = _require_sha(live_head_sha, label="advisory live head")
+    if pr_number <= 0:
+        raise ReviewEvidenceError("pr_number must be positive")
+    if phase not in {"pre_closeout", "final"}:
+        raise ReviewEvidenceError("advisory live-head phase is unsupported")
+    if phase == "pre_closeout":
+        if live_head != material_head:
+            raise ReviewEvidenceError(
+                "ADVISORY_CAPABILITY_HEAD_INVALID: pre-closeout live head must equal material head"
+            )
+        return
+    if live_head == material_head:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: final live head must be one mapping-only child"
+        )
+
+    root = repo_root.resolve(strict=True)
+    raw_parents = _run_git(root, ["rev-list", "--parents", "-n", "1", live_head])
+    try:
+        parent_lines = raw_parents.decode("ascii").splitlines()
+    except UnicodeDecodeError as exc:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: live commit parents are malformed"
+        ) from exc
+    if len(parent_lines) != 1 or parent_lines[0].split() != [live_head, material_head]:
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: final live head must be one direct child "
+            "of material head"
+        )
+
+    expected_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    _require_canonical_mapping_blob_at_revision(
+        root,
+        revision=live_head,
+        expected_path=expected_path,
+    )
+    raw_paths = _run_git(
+        root,
+        [
+            "diff-tree",
+            "-r",
+            "--name-only",
+            "-z",
+            "--no-commit-id",
+            "--no-renames",
+            material_head,
+            live_head,
+            "--",
+        ],
+    )
+    if raw_paths and not raw_paths.endswith(b"\0"):
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: mapping successor diff is malformed"
+        )
+    paths = tuple(
+        _validate_material_path(path) for path in (raw_paths[:-1].split(b"\0") if raw_paths else ())
+    )
+    if paths != (expected_path,):
+        raise ReviewEvidenceError(
+            "ADVISORY_CAPABILITY_HEAD_INVALID: final child must change only " f"{expected_path}"
+        )
+
+
+def validate_live_advisory_capability_receipts(
+    repo_root: Path,
+    *,
+    connector_receipt: Any,
+    security_receipt: Any,
+    base_ref_oid: str,
+    material_head_sha: str,
+    live_head_sha: str,
+    material_digest: str,
+    pr_number: int,
+    live_material_paths: Iterable[str],
+    phase: str,
+) -> None:
+    """Revalidate one linked advisory pair against live material and topology."""
+
+    if not is_advisory_capability_connector_receipt(
+        connector_receipt
+    ) or not is_advisory_capability_security_receipt(security_receipt):
+        raise ReviewEvidenceError(
+            "advisory capability mode requires linked Connector and Security receipts"
+        )
+    validate_advisory_live_head_topology(
+        repo_root,
+        material_head_sha=material_head_sha,
+        live_head_sha=live_head_sha,
+        pr_number=pr_number,
+        phase=phase,
+    )
+    material_manifest = compute_material_manifest(
+        repo_root,
+        base_ref_oid=base_ref_oid,
+        head_ref_oid=material_head_sha,
+        pr_number=pr_number,
+    )
+    if material_manifest.digest != material_digest:
+        raise ReviewEvidenceError(
+            "advisory capability material head has a different material digest"
+        )
+    activated_merge_base = validate_advisory_capability_activation(
+        repo_root,
+        base_ref_oid=base_ref_oid,
+        head_ref_oid=live_head_sha,
+        material_paths=live_material_paths,
+    )
+    expected_connector, expected_security = build_advisory_capability_receipts(
+        base_revision=activated_merge_base,
+        head_revision=material_head_sha,
+        material_digest=material_digest,
+    )
+    if connector_receipt != expected_connector or security_receipt != expected_security:
+        raise ReviewEvidenceError("advisory capability receipts are stale")
 
 
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
@@ -1091,6 +1470,65 @@ def ingest_codex_security_receipt(
         os.close(root_descriptor)
 
 
+def build_advisory_capability_receipts(
+    *,
+    base_revision: str,
+    head_revision: str,
+    material_digest: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build two closed no-claim receipts for optional capability outputs."""
+
+    connector = {
+        "authority": ADVISORY_CAPABILITY_AUTHORITY,
+        "binding_kind": "seal_context_only",
+        "blocking": False,
+        "capability_source": "codex_connector",
+        "material_digest": material_digest,
+        "material_head_sha": head_revision,
+        "output_required": False,
+        "review_claim": "none",
+        "schema_version": ADVISORY_CAPABILITY_SCHEMA_VERSION,
+        "status": "advisory_optional",
+    }
+    security = {
+        "authority": ADVISORY_CAPABILITY_AUTHORITY,
+        "base_revision": base_revision,
+        "binding_kind": "seal_context_only",
+        "blocking": False,
+        "capability_source": "codex_security_plugin",
+        "head_revision": head_revision,
+        "material_digest": material_digest,
+        "no_findings_claim": False,
+        "output_required": False,
+        "scan_claim": "none",
+        "scan_id": None,
+        "schema_version": ADVISORY_CAPABILITY_SCHEMA_VERSION,
+        "status": "advisory_optional",
+        "substitute_security_bundle_required": True,
+    }
+    _validate_code_review_receipt(connector, material_digest=material_digest)
+    _validate_security_receipt(security)
+    return connector, security
+
+
+def is_advisory_capability_connector_receipt(receipt: Any) -> bool:
+    return (
+        isinstance(receipt, dict)
+        and receipt.get("schema_version") == ADVISORY_CAPABILITY_SCHEMA_VERSION
+        and receipt.get("authority") == ADVISORY_CAPABILITY_AUTHORITY
+        and receipt.get("capability_source") == "codex_connector"
+    )
+
+
+def is_advisory_capability_security_receipt(receipt: Any) -> bool:
+    return (
+        isinstance(receipt, dict)
+        and receipt.get("schema_version") == ADVISORY_CAPABILITY_SCHEMA_VERSION
+        and receipt.get("authority") == ADVISORY_CAPABILITY_AUTHORITY
+        and receipt.get("capability_source") == "codex_security_plugin"
+    )
+
+
 def build_security_outage_override_receipt(
     *,
     base_revision: str,
@@ -1294,13 +1732,10 @@ def validate_review_credit_outage_scope(
 ) -> None:
     """Keep the historical credit-outage receipt live-valid only for PR #2142."""
 
-    touched = sorted(
-        {
-            path
-            for path in material_paths
-            if path in REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
-            or path.startswith(REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES)
-        }
+    touched = _protected_material_paths(
+        material_paths,
+        exact_paths=REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
+        prefixes=REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES,
     )
     is_bootstrap = (
         repository.casefold() == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY.casefold()
@@ -1328,15 +1763,11 @@ def validate_security_outage_override_scope(
 ) -> None:
     """Deny outage self-authorization outside the one reviewed bootstrap PR."""
 
-    touched = sorted(
-        {
-            path
-            for path in material_paths
-            if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
-            or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
-            or PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
-            or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
-        }
+    touched = _protected_material_paths(
+        material_paths,
+        exact_paths=OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
+        prefixes=OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES,
+        include_dependency_manifests=True,
     )
     if not touched:
         return
@@ -1354,6 +1785,42 @@ def validate_security_outage_override_scope(
 def _validate_security_receipt(receipt: Any) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("codex_security must be an object")
+    if is_advisory_capability_security_receipt(receipt):
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "base_revision",
+                "binding_kind",
+                "blocking",
+                "capability_source",
+                "head_revision",
+                "material_digest",
+                "no_findings_claim",
+                "output_required",
+                "scan_claim",
+                "scan_id",
+                "schema_version",
+                "status",
+                "substitute_security_bundle_required",
+            },
+            label="codex_security advisory capability",
+        )
+        _require_sha(receipt["base_revision"], label="codex_security.base_revision")
+        _require_sha(receipt["head_revision"], label="codex_security.head_revision")
+        _require_digest(receipt["material_digest"], label="codex_security.material_digest")
+        if (
+            receipt["binding_kind"] != "seal_context_only"
+            or receipt["blocking"] is not False
+            or receipt["no_findings_claim"] is not False
+            or receipt["output_required"] is not False
+            or receipt["scan_claim"] != "none"
+            or receipt["scan_id"] is not None
+            or receipt["status"] != "advisory_optional"
+            or receipt["substitute_security_bundle_required"] is not True
+        ):
+            raise ReviewEvidenceError("Codex Security advisory capability receipt is malformed")
+        return
     if receipt.get("authority") == OPERATOR_OUTAGE_AUTHORITY:
         _require_exact_keys(
             receipt,
@@ -1453,6 +1920,43 @@ def _validate_security_receipt(receipt: Any) -> None:
 def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("review seal code_review must be an object")
+    if is_advisory_capability_connector_receipt(receipt):
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "binding_kind",
+                "blocking",
+                "capability_source",
+                "material_digest",
+                "material_head_sha",
+                "output_required",
+                "review_claim",
+                "schema_version",
+                "status",
+            },
+            label="review seal code_review advisory capability",
+        )
+        _require_sha(
+            receipt["material_head_sha"],
+            label="code_review.material_head_sha",
+        )
+        _require_digest(
+            receipt["material_digest"],
+            label="code_review.material_digest",
+        )
+        if (
+            receipt["material_digest"] != material_digest
+            or receipt["binding_kind"] != "seal_context_only"
+            or receipt["blocking"] is not False
+            or receipt["output_required"] is not False
+            or receipt["review_claim"] != "none"
+            or receipt["status"] != "advisory_optional"
+        ):
+            raise ReviewEvidenceError(
+                "review seal code_review advisory capability receipt is malformed"
+            )
+        return
     has_source_schema = receipt.get("schema_version") == REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION
     has_source_authority = receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
     if has_source_schema != has_source_authority:
@@ -1713,9 +2217,16 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
         raise ReviewEvidenceError("review seal material policy version is unsupported")
     code_review = seal["code_review"]
     _validate_code_review_receipt(code_review, material_digest=material_digest)
+    advisory_connector = is_advisory_capability_connector_receipt(code_review)
+    advisory_security = is_advisory_capability_security_receipt(seal["codex_security"])
+    if advisory_connector != advisory_security:
+        raise ReviewEvidenceError(
+            "advisory capability mode requires linked Connector and Security receipts"
+        )
     if (
         is_review_source_unavailability_receipt(code_review)
         or is_review_source_positive_response_receipt(code_review)
+        or advisory_connector
     ) and (code_review["material_head_sha"] != material["material_head_sha"]):
         raise ReviewEvidenceError(
             "review-source context receipt does not match sealed material head"
@@ -1731,6 +2242,10 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
     ):
         raise ReviewEvidenceError(
             "Codex Security operator outage override does not match sealed material digest"
+        )
+    if advisory_security and seal["codex_security"]["material_digest"] != material_digest:
+        raise ReviewEvidenceError(
+            "Codex Security advisory capability receipt does not match sealed material digest"
         )
     return seal
 

@@ -204,9 +204,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    PR head. Reviewer execution SHAs are opaque until the Commit API proves
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
-9. **Material identity:** one completed Codex review or one trusted terminal
-   Connector response/unavailability receipt, plus one completed final Codex
-   Security diff scan, bind to one material digest. A verified official Codex
+9. **Material identity:** Under **Legacy-v1-only**, one completed Codex review
+   or one trusted terminal Connector response/unavailability receipt, plus one
+   completed final Codex Security diff scan, bind to one material digest. A verified official Codex
    Connector PR-root reaction (`+1`, `heart`, `hooray`, or `rocket`) may satisfy
    the normal `--review-ref` path as a nonblocking terminal source response only
    when its canonical reaction ID, immutable
@@ -271,7 +271,28 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    synthetic execution ref is never review proof. Every path is material except the exact
    current-PR mapping artifact. PR-body edits are outside Git. Any later code,
    test, workflow, dependency, policy, contract, or other docs change invalidates
-   the seal and reopens review/final scan.
+   the seal and reopens the applicable Legacy-v1-only review/final scan or
+   activated advisory closeout.
+   After the canonical bytes and blob OID are stored as exactly one regular
+   `100644 blob` at
+   `docs/orchestration/contracts/advisory_capability_sources.v1.json` in both
+   the authenticated base SHA and unique merge-base,
+   `seal --capability-sources-advisory` may instead emit two closed receipts:
+   Connector `review_claim=none` and Codex Security `scan_claim=none`. This
+   makes only those two capability outputs optional. Do not invoke, restart,
+   or retry either provider; after freeze, exact-head self-review, and the
+   required trusted substitute security checks, run the advisory seal command
+   directly. It never claims review,
+   scan, approval, PASS, or no findings, and strict validation still requires
+   the existing trusted exact-head substitute security-check bundle plus every
+   mapping, thread, bot, required-check, and current-head gate. Pre-closeout
+   requires the live head to equal the material head; final validation permits
+   exactly one direct child changing only the current PR mapping artifact.
+   The complete operator-outage trust boundary applies without the PR `#2142`
+   bootstrap exception, including workflows/actions, `scripts/ci/`, security
+   policy/config, dependency manifests, tests/guards, and `trivy/`, plus the
+   advisory marker and merge gate. Such changes deny self-use and close under
+   legacy v1 evidence.
 10. **One closeout commit:** author dispositions and the content-bound human
     receipt locally with `pr_review_closeout.py`, then publish mapping and seal
     once. A repeated trusted Codex unavailable-ref ancestry finding on the same
@@ -611,11 +632,57 @@ Rules:
 
 **Final-material Codex Security budget invariant (hard):**
 - The repeatable post-open pass is role-only: `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- After fixes, required local gates, current-head CI, and material freeze, run the repo-native exact-head `pulseplate-pr-review` as the local self-review. It does not itself satisfy the trusted review-evidence slot. Satisfy that slot with exactly one of a completed trusted exact-head GitHub Codex Connector review or an unedited trusted terminal Connector rate/usage-limit receipt with `review_claim=none`; the terminal unavailable path requires no retry or substitute review. Then request exactly one final manual Codex Security scan for that frozen material.
-- Lifecycle metadata records `scope=per_pr`, `automatic_budget=1`, `automatic_retries=0`, `requires_frozen_material=true`, and `additional_invocation=trusted_operator_approval`. Because `repository_invokes_plugin=false`, `automatic_budget=1` is the single operational request ceiling, not repository dispatch authority.
-- `pr_review_closeout.py prepare-final-security` requires exactly one matching evidence input: `--review-ref <exact-head-review-URL>` or `--review-source-unavailable-ref <trusted-terminal-comment-URL>`. It persists the tagged evidence without turning source unavailability into a review claim and performs no plugin call or GitHub mutation. Its atomic state is checkout-local advisory duplicate prevention only; it cannot grant authority or prove global cross-machine consumption. After the operator-issued request, `record-final-security-outcome` records `completed`, `timeout`, `safety_block`, or `incomplete`; every outcome consumes the operational request. Every additional preparation or request requires a fresh, unedited GitHub comment from an `OWNER` or `MEMBER`, created after the prior terminal outcome and bound to the exact repository, PR, full head SHA, and material digest.
-- Any material change invalidates the freeze, exact-head review, and scan evidence; merge evidence still requires one real completed scan on the exact final digest. A PR that changes security-governance, seal, merge-gate, current-head authority, CI/security workflow or action authority, or substitute-security policy inputs must not use the outage override to authorize itself.
-- GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. A trusted terminal rate/usage-limit receipt follows the non-review evidence mode above. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and final review-evidence validation, with no automatic retry.
+- After fixes, required local gates, current-head CI, and material freeze, run
+  the repo-native exact-head `pulseplate-pr-review` as the local self-review.
+- **Legacy-v1-only:** The local self-review does not satisfy the trusted
+  review-evidence slot. Satisfy that slot with exactly one completed trusted
+  exact-head GitHub Codex Connector review or one unedited trusted terminal
+  Connector rate/usage-limit receipt with `review_claim=none`; the terminal
+  unavailable path requires no retry or substitute review. Then request
+  exactly one final manual Codex Security scan for that frozen material.
+- **Legacy-v1-only:** Lifecycle metadata records `scope=per_pr`,
+  `automatic_budget=1`, `automatic_retries=0`,
+  `requires_frozen_material=true`, and
+  `additional_invocation=trusted_operator_approval`. Because
+  `repository_invokes_plugin=false`, `automatic_budget=1` is the single
+  operational request ceiling, not repository dispatch authority.
+- **Legacy-v1-only:** `pr_review_closeout.py prepare-final-security` requires
+  exactly one matching evidence input:
+  `--review-ref <exact-head-review-URL>` or
+  `--review-source-unavailable-ref <trusted-terminal-comment-URL>`. It
+  persists the tagged evidence without
+  turning source unavailability into a review claim and performs no plugin
+  call or GitHub mutation. Its atomic state is checkout-local advisory
+  duplicate prevention only; it cannot grant authority or prove global
+  cross-machine consumption. After the operator-issued request,
+  `record-final-security-outcome` records `completed`, `timeout`,
+  `safety_block`, or `incomplete`; every outcome consumes the operational
+  request. Every additional preparation or request requires a fresh, unedited
+  GitHub comment from an `OWNER` or `MEMBER`, created after the prior terminal
+  outcome and bound to the exact repository, PR, full head SHA, and material
+  digest.
+- **Legacy-v1-only:** GitHub Codex Connector review is separate from the
+  locally invoked Codex Security plugin. Leave the Connector automatic: do not
+  disable or manually retrigger it, and do not wait indefinitely when silence
+  means no receipt. A trusted terminal rate/usage-limit receipt follows the
+  non-review evidence mode above. Invoke the expensive Codex Security plugin
+  manually exactly once only after final material freeze and final
+  review-evidence validation, with no automatic retry.
+- **Activated advisory:** Only after the canonical marker is present with
+  byte-exact identity in the authenticated base and unique merge-base, do not
+  invoke, restart, or retry either provider. After freeze, exact-head
+  self-review, and the required trusted exact-head substitute security checks,
+  run `seal --capability-sources-advisory` directly. The no-claim receipts make
+  only the provider outputs optional: actionable findings, mapping/thread/bot
+  dispositions, the substitute security bundle, required current-head
+  CI/security checks, and strict current-head merge validation remain hard.
+- Any material change invalidates the freeze and applicable seal/evidence.
+  Legacy v1 still requires one real completed scan on the exact final digest;
+  activated advisory requires resealing the new digest and rerunning its
+  substitute-security and current-head gates. A PR that changes
+  security-governance, seal, merge-gate, current-head authority, CI/security
+  workflow or action authority, or substitute-security policy inputs must not
+  use either the outage override or activated advisory to authorize itself.
 
 ### Mandatory PR Orchestration Gates
 

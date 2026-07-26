@@ -1,0 +1,14 @@
+{
+  "activation": "authenticated_base_and_unique_merge_base",
+  "authority": "advisory_only_no_claim",
+  "connector": {
+    "outputRequired": false,
+    "reviewClaim": "none"
+  },
+  "policyVersion": "pulseplate.advisory-capability-sources/v1",
+  "security": {
+    "outputRequired": false,
+    "scanClaim": "none",
+    "substituteSecurityBundleRequired": true
+  }
+}

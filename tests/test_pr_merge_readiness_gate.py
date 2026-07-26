@@ -36,6 +36,8 @@ from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
     RECEIPT_AUTHORITY,
     ReviewEvidenceError,
+    advisory_capability_marker_bytes,
+    build_advisory_capability_receipts,
     build_review_credit_outage_receipt,
     build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
@@ -2413,3 +2415,141 @@ def test_fetch_pr_context_includes_exact_head_ref(monkeypatch: pytest.MonkeyPatc
         "body",
         "codex/review",
     )
+
+
+def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    marker = repo / "docs" / "orchestration" / "contracts" / "advisory_capability_sources.v1.json"
+    marker.parent.mkdir(parents=True)
+    marker.write_bytes(advisory_capability_marker_bytes())
+    base_sha = _commit(repo, "activate advisory capability")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    material = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_head,
+        pr_number=42,
+    )
+    connector, security = build_advisory_capability_receipts(
+        base_revision=base_sha,
+        head_revision=material_head,
+        material_digest=material.digest,
+    )
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": connector,
+        "codex_security": security,
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": material.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+    }
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(_artifact_with_seal(seal), encoding="utf-8")
+    live_head = _commit(repo, "mapping-only closeout")
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=live_head,
+        commits=(
+            PrCommitEvidence(material_head, None),
+            PrCommitEvidence(live_head, None),
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_COMMIT if value == material_head else CommitRefKind.PR_HEAD,
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    bundle_heads: list[str] = []
+    monkeypatch.setattr(
+        merge_gate,
+        "_validate_operator_outage_security_checks",
+        lambda **kwargs: bundle_heads.append(kwargs["expected_head_sha"]),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: pytest.fail("advisory mode must not verify Connector output"),
+    )
+
+    artifact = _artifact_with_seal(seal)
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(merge_gate, "REVIEW_SEAL_REQUIRED_FROM_PR", 1)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
+    )
+    pr_context = (
+        42,
+        "owner/repo",
+        False,
+        "- [canonical artifact](https://github.com/owner/repo/blob/main/"
+        "docs/review/PR_42_FIXED_MAPPING.md)",
+        "main",
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda *_a, **_k: pr_context)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: live_head)
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    assert merge_gate.main() == 0
+    output = capsys.readouterr().out
+    assert "ADVISORY_CAPABILITY_SOURCES_VALID claims=none" in output
+    assert "MACHINE_BOUND_REVIEW_COMMIT" not in output
+    assert bundle_heads == [live_head]
+
+    mapping.write_text(mapping.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    second_mapping_head = _commit(repo, "second mapping-only commit")
+    two_commit_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=second_mapping_head,
+        commits=(
+            PrCommitEvidence(material_head, None),
+            PrCommitEvidence(live_head, None),
+            PrCommitEvidence(second_mapping_head, None),
+        ),
+    )
+    with pytest.raises(ReviewEvidenceError, match="one direct child"):
+        merge_gate._validate_v1_seal(
+            artifact_text=artifact,
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=two_commit_snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+        )

@@ -170,6 +170,7 @@ declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(
     "RUNBOOK_AGENT.md"
     "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md"
     "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md"
+    "docs/orchestration/contracts/advisory_capability_sources.v1.json"
     "docs/orchestration/contracts/review_source_status.v1.json"
     "scripts/ci/check_pr_merge_readiness.py"
     "scripts/orchestration/pr_commit_identity.py"
