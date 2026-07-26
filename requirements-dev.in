@@ -33,9 +33,9 @@ setuptools>=83.0.0,<84.0.0  # Security floor for CVE-2026-59890 across dev tooli
 pre-commit~=4.6.0
 pip-tools~=7.5.3
 detect-secrets~=1.5.0
-mypy==2.2.0
+mypy==2.3.0
 types-pyyaml~=6.0.12
 yamllint~=1.38.0
 black~=26.5.1
-ruff~=0.15.21
+ruff~=0.16.0
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)

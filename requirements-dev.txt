@@ -122,7 +122,7 @@ msgpack==1.2.1
     # via
     #   -r requirements-dev.in
     #   cachecontrol
-mypy==2.2.0
+mypy==2.3.0
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
     # via
@@ -239,13 +239,8 @@ rich==14.3.3
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.21
+ruff==0.16.0
     # via -r requirements-dev.in
-setuptools==83.0.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   pip-tools
 sortedcontainers==2.4.0
     # via
     #   cyclonedx-python-lib
@@ -282,4 +277,12 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
-# pip
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
+setuptools==83.0.0
+    # via
+    #   -c requirements.txt
+    #   -r requirements-dev.in
+    #   pip-tools
