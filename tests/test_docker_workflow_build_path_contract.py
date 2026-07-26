@@ -678,7 +678,7 @@ def test_publish_image_scan_fails_closed() -> None:
     assert scan_step_with["severity"] == "CRITICAL,HIGH"
     assert scan_step_with["limit-severities-for-sarif"] is True
     assert scan_step_with["trivyignores"] == ".trivyignore"
-    assert scan_step_with["ignore-policy"] == ".trivy-ignore-policy.rego"
+    assert scan_step_with["ignore-policy"] == "trivy/ignore-policy.rego"
     assert "continue-on-error" not in scan_step
     assert fail_sarif_step["if"] == "${{ always() }}"
 

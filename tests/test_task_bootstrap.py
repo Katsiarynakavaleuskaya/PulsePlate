@@ -3027,13 +3027,18 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
     assert marker not in scoped_agents
     assert marker not in matrix
     for projection in (runbook, scoped_agents, matrix):
-        assert "root `agents.md`" in projection.casefold()
-        assert "pulseplate-pr-review" in projection
+        normalized_projection = " ".join(projection.split())
+        assert "root `agents.md`" in normalized_projection.casefold()
+        assert "pulseplate-pr-review" in normalized_projection
     assert "automatic_budget=1" in matrix
     assert "repository_invokes_plugin=false" in matrix
     connector_distinction = (
         "GitHub Codex Connector review is separate from the locally invoked "
         "Codex Security plugin."
+    )
+    manual_once_invocation_forms = (
+        "invoke the expensive codex security plugin manually exactly once",
+        "the expensive codex security plugin is invoked manually exactly once",
     )
     for projection in (
         root_agents,
@@ -3041,10 +3046,15 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
         scoped_agents,
         matrix,
     ):
-        assert connector_distinction in projection
-        assert "do not disable or manually retrigger it" in projection
-        assert "do not wait indefinitely" in projection
-        assert "invoked manually exactly once" in projection
+        normalized_projection = " ".join(projection.split())
+        normalized_projection_casefold = normalized_projection.casefold()
+        assert connector_distinction in normalized_projection
+        assert "do not disable or manually retrigger it" in normalized_projection
+        assert "do not wait indefinitely" in normalized_projection
+        assert any(
+            invocation_form in normalized_projection_casefold
+            for invocation_form in manual_once_invocation_forms
+        )
     assert "external Codex Security `opened` / `synchronize` auto-triggers" not in root_agents
     assert "synchronize-triggered Codex review" not in runbook
 
