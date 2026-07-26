@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -14,6 +15,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.orchestration.pr_review_evidence import (
+    build_self_review_receipt,
+    compute_material_manifest,
+    self_review_report_content_digest,
+)
 from scripts.orchestration.review_source_status import summarize_degraded_sources
 
 SCHEMA_VERSION = "1.0.0"
@@ -36,6 +42,7 @@ FALSE_POSITIVE_CONTROLS = (
     "review-source degradation is status/warning only unless an explicit blocking source finding exists",
     "large diff risk is review-planning evidence, not a merge-readiness claim",
 )
+_FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True)
@@ -320,6 +327,48 @@ def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict
     }
 
 
+def _build_self_review_receipt(
+    context: dict[str, Any],
+    findings: list[Finding],
+    report: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Build exact-material evidence only for a complete Git-backed context."""
+
+    query = _as_dict(context.get("query"))
+    base_ref = query.get("base_ref")
+    head_ref = query.get("head_ref")
+    pr_number = query.get("pr_number")
+    if (
+        not isinstance(base_ref, str)
+        or _FULL_SHA_RE.fullmatch(base_ref) is None
+        or not isinstance(head_ref, str)
+        or _FULL_SHA_RE.fullmatch(head_ref) is None
+        or not isinstance(pr_number, int)
+        or isinstance(pr_number, bool)
+        or pr_number <= 0
+    ):
+        return None
+    unresolved_actionables = sum(
+        finding.severity in {"critical", "major", "minor"}
+        and finding.disposition_candidate == "NEEDS-HUMAN"
+        for finding in findings
+    )
+    manifest = compute_material_manifest(
+        REPO_ROOT,
+        base_ref_oid=base_ref,
+        head_ref_oid=head_ref,
+        pr_number=pr_number,
+    )
+    receipt: dict[str, Any] = build_self_review_receipt(
+        material_head_sha=head_ref,
+        material_digest=manifest.digest,
+        completed_at=str(context.get("generated_at_utc") or ""),
+        unresolved_actionables=unresolved_actionables,
+        report_content_digest=self_review_report_content_digest(report),
+    )
+    return receipt
+
+
 def build_report(
     context: dict[str, Any],
     *,
@@ -327,7 +376,7 @@ def build_report(
     packet_path: str = "",
 ) -> dict[str, Any]:
     findings = build_findings(context)
-    return {
+    report = {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": str(context.get("generated_at_utc") or "unknown"),
         "mode": "dry-run-report",
@@ -351,6 +400,8 @@ def build_report(
         ],
         "warnings": _dedupe_strings(_as_list(context.get("warnings"))),
     }
+    report["self_review_receipt"] = _build_self_review_receipt(context, findings, report)
+    return report
 
 
 def _format_value(value: Any) -> str:

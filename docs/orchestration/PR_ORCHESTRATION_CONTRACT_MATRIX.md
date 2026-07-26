@@ -169,8 +169,11 @@ authenticated base SHA and unique merge-base.
 `seal --capability-sources-advisory` then emits linked material-bound receipts
 with Connector `review_claim=none` and Codex Security `scan_claim=none`.
 Do not invoke, restart, or retry either provider. After freeze, exact-head
-self-review, and the required trusted substitute security checks, run
-`seal --capability-sources-advisory` directly. Provider outputs alone become
+self-review, and the required trusted substitute security checks, preserve the
+exact-material JSON report and run `seal --capability-sources-advisory
+--self-review-report <report.json>`. Its content-addressed
+`pulseplate.pr-self-review-receipt/v1` must bind the frozen material head and
+digest and report zero unresolved actionables. Provider outputs alone become
 optional; the trusted exact-head substitute
 security-check bundle, canonical mapping, review-thread dispositions, bot
 actionables, required checks, and live-head validation remain hard. Final live
@@ -178,7 +181,8 @@ head must be exactly one direct mapping-only child of the material head. The
 complete operator-outage trust boundary applies without the PR `#2142`
 exception, including workflows/actions, `scripts/ci/`, security policy/config,
 dependency manifests, tests/guards, and `trivy/`, plus the advisory marker and
-merge gate. Such material is denied and uses legacy v1.
+merge gate. The self-review skill, context collector, and report renderer are
+also self-use denied. Such material is denied and uses legacy v1.
 
 ### Material review seal v1
 
@@ -233,8 +237,10 @@ merge gate. Such material is denied and uses legacy v1.
   and content binding but does not claim signed/plugin attestation.
 - **Activated advisory:** Do not invoke, restart, or retry either provider.
   After frozen exact-head self-review and the required trusted exact-head
-  substitute security checks, `seal --capability-sources-advisory` emits the
-  linked no-claim receipts directly. The substitute-security bundle,
+  substitute security checks, `seal --capability-sources-advisory
+  --self-review-report <report.json>` validates and embeds the
+  content-addressed exact-material self-review receipt before emitting the
+  linked no-claim receipts. The substitute-security bundle,
   mapping/thread/bot dispositions, required current-head CI/security checks,
   and strict live-head validation remain hard.
 - **Legacy-v1-only:** If the trusted connector returns an exact known rate-limit or usage-limit
@@ -312,8 +318,9 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
   exact-head GitHub Codex Connector review or trusted terminal
   source-unavailable receipt followed by one operator-issued Codex Security
   scan. **Activated advisory** instead forbids invoking, restarting, or
-  retrying either provider and runs `seal --capability-sources-advisory`
-  directly after the required trusted exact-head substitute security checks.
+  retrying either provider and runs `seal --capability-sources-advisory
+  --self-review-report <report.json>` after the required trusted exact-head
+  substitute security checks.
   Both paths retain actionable-finding closure and the current-head
   merge-wrapper contract; advisory makes only provider outputs optional.
 
@@ -412,7 +419,7 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
 | Post-open role review | `qa-engineer-agent -> bug-hunter -> security-auditor` | Hard gate | Run once after PR open; every actionable must be fixed or dispositioned before final material freeze |
-| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, then either Legacy-v1-only provider evidence or the activated `seal --capability-sources-advisory` path | Hard gate | Legacy v1 requires the trusted exact-head Connector review/source-unavailable receipt followed by one manual Codex Security request. Activated advisory must not invoke, restart, or retry either provider and makes only those outputs optional. Both paths retain frozen-material identity, actionable-finding closure, mapping/thread/bot dispositions, the applicable substitute-security bundle, required current-head CI/security checks, and strict current-head merge validation |
+| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, then either Legacy-v1-only provider evidence or the activated `seal --capability-sources-advisory --self-review-report <report.json>` path | Hard gate | Legacy v1 requires the trusted exact-head Connector review/source-unavailable receipt followed by one manual Codex Security request. Activated advisory validates a content-addressed self-review receipt bound to frozen material with zero unresolved actionables, must not invoke, restart, or retry either provider, and makes only those outputs optional. Both paths retain frozen-material identity, actionable-finding closure, mapping/thread/bot dispositions, the applicable substitute-security bundle, required current-head CI/security checks, and strict current-head merge validation |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |

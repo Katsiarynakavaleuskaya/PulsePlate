@@ -886,6 +886,7 @@ def _validate_v1_seal(
             REPO_ROOT,
             connector_receipt=code_review,
             security_receipt=seal["codex_security"],
+            self_review_receipt=seal.get("self_review"),
             base_ref_oid=snapshot.base_sha,
             material_head_sha=material_head.sha,
             live_head_sha=snapshot.head_sha,

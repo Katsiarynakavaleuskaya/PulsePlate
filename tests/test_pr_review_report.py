@@ -81,6 +81,43 @@ def test_build_report_has_no_findings_for_complete_context() -> None:
     assert report["coordinator_packet"]["role_order"] == report_runner.DEFAULT_ROLE_ORDER
     assert report["review_source_status"][0]["source_degraded"] is False
     assert "GitHub posting" in report["scope_reviewed"]["omitted_surfaces"]
+    assert report["self_review_receipt"] is None
+
+
+def test_build_report_emits_exact_material_self_review_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _base_context()
+    context["query"] = {
+        "repo": "Katsiarynakavaleuskaya/PulsePlate",
+        "pr_number": 1539,
+        "base_ref": "1" * 40,
+        "head_ref": "2" * 40,
+    }
+    monkeypatch.setattr(
+        report_runner,
+        "compute_material_manifest",
+        lambda *_a, **_k: type(
+            "Manifest",
+            (),
+            {"digest": "sha256:" + "3" * 64},
+        )(),
+    )
+
+    report = report_runner.build_report(context)
+    receipt = report["self_review_receipt"]
+
+    assert receipt["schema_version"] == "pulseplate.pr-self-review-receipt/v1"
+    assert receipt["material_head_sha"] == "2" * 40
+    assert receipt["material_digest"] == "sha256:" + "3" * 64
+    assert receipt["completed_at"] == context["generated_at_utc"]
+    assert receipt["unresolved_actionables"] == 0
+    assert receipt["producer"] == {
+        "name": "pulseplate-pr-review",
+        "version": "1.0.0",
+    }
+    report_digest = report_runner.self_review_report_content_digest(report)
+    assert receipt["report_id"] == (f"self-review-{report_digest.removeprefix('sha256:')}")
 
 
 def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:

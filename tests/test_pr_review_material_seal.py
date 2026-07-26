@@ -61,8 +61,10 @@ from scripts.orchestration.pr_review_evidence import (
     build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
+    build_self_review_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    ingest_self_review_report,
     is_review_credit_outage_receipt,
     is_review_source_positive_response_receipt,
     is_review_source_unavailability_receipt,
@@ -70,11 +72,13 @@ from scripts.orchestration.pr_review_evidence import (
     parse_duplicate_disposition_reply,
     parse_embedded_review_seal,
     render_embedded_review_seal,
+    self_review_report_content_digest,
     unavailable_review_ref_fingerprint,
     validate_review_credit_outage_scope,
     validate_advisory_capability_activation,
     validate_advisory_live_head_topology,
     validate_security_outage_override_scope,
+    validate_self_review_receipt,
     validated_duplicate_reply_urls,
 )
 from scripts.orchestration.review_mapping_artifact import (
@@ -6387,7 +6391,14 @@ def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
         "https://github.com/owner/repo/pull/42#reaction-456",
         "https://github.com/owner/repo/pull/42#reaction-457",
     ]
-    capability_args = parser.parse_args([*base, "--capability-sources-advisory"])
+    capability_args = parser.parse_args(
+        [
+            *base,
+            "--capability-sources-advisory",
+            "--self-review-report",
+            "/tmp/self-review.json",
+        ]
+    )
     assert closeout_module._validate_seal_evidence_mode(capability_args) is True
     with pytest.raises(closeout_module.CloseoutError, match="closed no-output mode"):
         closeout_module._validate_seal_evidence_mode(
@@ -6437,6 +6448,31 @@ def test_advisory_seal_rejects_empty_or_nonempty_legacy_scalar_before_io(
         )
 
     with pytest.raises(closeout_module.CloseoutError, match="closed no-output mode"):
+        closeout_module._cmd_seal(args)
+
+
+def test_advisory_seal_rejects_missing_self_review_receipt_before_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = Namespace(
+        capability_sources_advisory=True,
+        connector_advisory_reaction=[],
+        pr_number=42,
+        repo="owner/repo",
+        review_ref=None,
+        review_source_unavailable_ref=None,
+        scan_manifest=None,
+        security_outage_override_ref=None,
+        self_review_report=None,
+    )
+    for name in ("_load_state", "_token", "fetch_pr_snapshot"):
+        monkeypatch.setattr(
+            closeout_module,
+            name,
+            lambda *_a, **_k: pytest.fail("missing self-review must precede I/O"),
+        )
+
+    with pytest.raises(closeout_module.CloseoutError, match="requires --self-review-report"):
         closeout_module._cmd_seal(args)
 
 
@@ -6558,7 +6594,7 @@ def _advisory_seal(
     head_sha: str = HEAD_SHA,
     digest: str = DIGEST,
 ) -> dict[str, Any]:
-    return {
+    seal = {
         "authority": RECEIPT_AUTHORITY,
         "code_review": connector,
         "codex_security": security,
@@ -6573,6 +6609,39 @@ def _advisory_seal(
         "repository": "owner/repo",
         "schema_version": "pulseplate.pr-review-seal/v1",
     }
+    seal["self_review"] = build_self_review_receipt(
+        material_head_sha=head_sha,
+        material_digest=digest,
+        completed_at="2026-07-26T15:00:00Z",
+        unresolved_actionables=0,
+        report_content_digest="sha256:" + "7" * 64,
+    )
+    return seal
+
+
+def _write_self_review_report(
+    path: Path,
+    *,
+    head_sha: str,
+    material_digest: str,
+    findings: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "schema_version": "1.0.0",
+        "generated_at_utc": "2026-07-26T15:00:00Z",
+        "mode": "dry-run-report",
+        "findings": [] if findings is None else findings,
+    }
+    receipt = build_self_review_receipt(
+        material_head_sha=head_sha,
+        material_digest=material_digest,
+        completed_at=payload["generated_at_utc"],
+        unresolved_actionables=0,
+        report_content_digest=self_review_report_content_digest(payload),
+    )
+    payload["self_review_receipt"] = receipt
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return receipt
 
 
 def _write_advisory_marker(repo: Path, raw: bytes | None = None) -> Path:
@@ -6612,6 +6681,99 @@ def test_advisory_capability_receipts_are_closed_material_bound_no_claims() -> N
     tampered["code_review"]["review_claim"] = "completed"
     with pytest.raises(ReviewEvidenceError, match="advisory capability receipt"):
         render_embedded_review_seal(tampered)
+
+
+def test_advisory_self_review_receipt_is_closed_and_material_bound() -> None:
+    receipt = build_self_review_receipt(
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        completed_at="2026-07-26T15:00:00Z",
+        unresolved_actionables=0,
+        report_content_digest="sha256:" + "8" * 64,
+    )
+
+    assert (
+        validate_self_review_receipt(
+            receipt,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+        == receipt
+    )
+
+    for field, value in (
+        ("content_digest", "sha256:" + "0" * 64),
+        ("report_id", "self-review-" + "0" * 64),
+        ("status", "incomplete"),
+        ("completed_at", "2026-07-26T15:00:00+00:00"),
+        ("unresolved_actionables", True),
+    ):
+        tampered = json.loads(json.dumps(receipt))
+        tampered[field] = value
+        with pytest.raises(ReviewEvidenceError):
+            validate_self_review_receipt(tampered)
+
+
+def test_self_review_report_ingestion_rejects_unresolved_or_tampered_evidence(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "self-review.json"
+    receipt = _write_self_review_report(
+        report_path,
+        head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+    )
+
+    assert (
+        ingest_self_review_report(
+            report_path,
+            expected_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+        )
+        == receipt
+    )
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    payload["findings"] = [
+        {
+            "severity": "major",
+            "disposition_candidate": "NEEDS-HUMAN",
+        }
+    ]
+    report_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ReviewEvidenceError, match="canonical report content"):
+        ingest_self_review_report(
+            report_path,
+            expected_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+        )
+
+    payload["self_review_receipt"] = build_self_review_receipt(
+        material_head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+        completed_at=payload["generated_at_utc"],
+        unresolved_actionables=0,
+        report_content_digest=self_review_report_content_digest(payload),
+    )
+    report_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ReviewEvidenceError, match="unresolved actionables"):
+        ingest_self_review_report(
+            report_path,
+            expected_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+        )
+
+
+def test_historical_advisory_seal_without_self_review_remains_parseable() -> None:
+    connector, security = build_advisory_capability_receipts(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+    )
+    historical = _advisory_seal(connector, security)
+    historical.pop("self_review")
+
+    assert parse_embedded_review_seal(render_embedded_review_seal(historical)) == historical
 
 
 def test_advisory_capability_receipts_require_linked_connector_and_security_variants() -> None:
@@ -6729,6 +6891,12 @@ def test_closeout_advisory_seal_and_authenticated_mapping_successor(
         "ingest_codex_security_receipt",
         lambda *_a, **_k: pytest.fail("advisory seal must not ingest plugin output"),
     )
+    self_review_report = tmp_path / "self-review.json"
+    expected_self_review = _write_self_review_report(
+        self_review_report,
+        head_sha=material_head,
+        material_digest=material.digest,
+    )
 
     closeout_module._cmd_seal(
         Namespace(
@@ -6740,12 +6908,14 @@ def test_closeout_advisory_seal_and_authenticated_mapping_successor(
             review_source_unavailable_ref=None,
             scan_manifest=None,
             security_outage_override_ref=None,
+            self_review_report=str(self_review_report),
         )
     )
 
     authored = parse_embedded_review_seal(target.read_text(encoding="utf-8"))
     assert authored["code_review"]["review_claim"] == "none"
     assert authored["codex_security"]["scan_claim"] == "none"
+    assert authored["self_review"] == expected_self_review
     mapping_head = _commit(repo, "mapping-only closeout")
     snapshots[0] = _advisory_snapshot(base_sha, mapping_head, material_head, mapping_head)
     monkeypatch.setattr(

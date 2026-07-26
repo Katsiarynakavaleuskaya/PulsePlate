@@ -44,8 +44,13 @@ authenticated base SHA and unique merge-base.
 with Connector `review_claim=none` and Codex Security `scan_claim=none`; it
 makes those provider outputs optional and nothing else. Do not invoke, restart,
 or retry either provider. After freeze, exact-head self-review, and the
-required trusted substitute security checks, run the advisory seal command
-directly. It is not source
+required trusted substitute security checks, preserve the exact-material JSON
+report and run `seal --capability-sources-advisory --self-review-report
+<report.json>`. The report must contain a content-addressed
+`pulseplate.pr-self-review-receipt/v1` bound to the frozen material head and
+digest with zero unresolved actionables. The seal reopens and revalidates the
+report; a caller cannot replace the receipt with a bare assertion. This local
+self-review receipt is not source
 unavailability, review, approval, scan, PASS, or no-findings evidence. Strict
 merge validation still requires the trusted exact-head substitute security
 bundle and every existing mapping/thread/bot/current-head gate. Final live head
@@ -54,6 +59,13 @@ trust boundary applies without the PR `#2142` bootstrap exception, including
 workflows/actions, `scripts/ci/`, security policy/config, dependency manifests,
 tests/guards, and `trivy/`, plus the advisory marker and merge gate. Such
 material denies self-use and uses legacy v1.
+The self-use boundary also covers the self-review authoring surface:
+`.agents/skills/pulseplate-pr-review/SKILL.md`,
+`scripts/orchestration/pr_review_context.py`, and
+`scripts/orchestration/pr_review_report.py`.
+
+Historical advisory seals without `self_review` remain parseable for audit
+compatibility but cannot satisfy current strict live readiness.
 
 Historical compatibility: the PR `#2142`
 `operator_review_credit_exhaustion_override` receipt remains parseable and

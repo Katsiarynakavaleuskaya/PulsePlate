@@ -66,6 +66,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    ingest_self_review_report,
     is_advisory_capability_connector_receipt,
     is_review_credit_outage_receipt,
     is_mapping_only_positive_response_successor,
@@ -1424,16 +1425,21 @@ def _validate_seal_evidence_mode(args: argparse.Namespace) -> bool:
     scan_manifest = getattr(args, "scan_manifest", None)
     outage_ref = getattr(args, "security_outage_override_ref", None)
     reactions = getattr(args, "connector_advisory_reaction", None)
+    self_review_report = getattr(args, "self_review_report", None)
     if advisory:
         scalar_legacy_evidence_present = any(
             value is not None for value in (review_ref, unavailable_ref, scan_manifest, outage_ref)
         )
         if scalar_legacy_evidence_present or reactions:
             raise CloseoutError(
-                "--capability-sources-advisory is a closed no-output mode; "
+                "--capability-sources-advisory is a closed no-output mode for providers; "
                 "omit Connector and Codex Security evidence arguments"
             )
+        if self_review_report is None:
+            raise CloseoutError("--capability-sources-advisory requires --self-review-report")
         return True
+    if self_review_report is not None:
+        raise CloseoutError("--self-review-report is permitted only in advisory mode")
     if (review_ref is None) == (unavailable_ref is None):
         raise CloseoutError(
             "legacy v1 seal requires exactly one --review-ref or " "--review-source-unavailable-ref"
@@ -1478,6 +1484,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     outage_ref = getattr(args, "security_outage_override_ref", None)
     advisory_reaction_args = getattr(args, "connector_advisory_reaction", None)
     connector_advisory_reactions: tuple[CodexConnectorAdvisoryReactionEvidence, ...] = ()
+    self_review_receipt: dict[str, Any] | None = None
     if advisory_mode:
         activated_merge_base = validate_advisory_capability_activation(
             REPO_ROOT,
@@ -1491,6 +1498,11 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             base_revision=manifest.merge_base_sha,
             head_revision=snapshot.head_sha,
             material_digest=manifest.digest,
+        )
+        self_review_receipt = ingest_self_review_report(
+            Path(args.self_review_report),
+            expected_head_sha=snapshot.head_sha,
+            expected_material_digest=manifest.digest,
         )
     else:
         connector_advisory_reactions = _optional_connector_advisory_reactions(
@@ -1633,6 +1645,8 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         "repository": args.repo,
         "schema_version": SEAL_SCHEMA_VERSION,
     }
+    if self_review_receipt is not None:
+        seal["self_review"] = self_review_receipt
     markdown = (
         _render_mapping(
             state,
@@ -1729,6 +1743,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
             REPO_ROOT,
             connector_receipt=code_review,
             security_receipt=seal["codex_security"],
+            self_review_receipt=seal.get("self_review"),
             base_ref_oid=snapshot.base_sha,
             material_head_sha=material_head.sha,
             live_head_sha=snapshot.head_sha,
@@ -1992,6 +2007,13 @@ def _parser() -> argparse.ArgumentParser:
         help=(
             "Use closed no-claim advisory receipts; do not pass legacy Connector "
             "or Security evidence."
+        ),
+    )
+    seal.add_argument(
+        "--self-review-report",
+        help=(
+            "Advisory mode only: exact-material JSON report emitted by "
+            "scripts/orchestration/pr_review_report.py."
         ),
     )
     legacy_review_group = seal.add_argument_group("legacy v1 Connector evidence")

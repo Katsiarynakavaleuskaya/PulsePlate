@@ -42,6 +42,7 @@ from scripts.orchestration.pr_review_evidence import (
     build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
+    build_self_review_receipt,
     compute_material_manifest,
     render_embedded_review_seal,
 )
@@ -2488,6 +2489,13 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
         "pr_number": 42,
         "repository": "owner/repo",
         "schema_version": "pulseplate.pr-review-seal/v1",
+        "self_review": build_self_review_receipt(
+            material_head_sha=material_head,
+            material_digest=material.digest,
+            completed_at="2026-07-26T15:00:00Z",
+            unresolved_actionables=0,
+            report_content_digest="sha256:" + "7" * 64,
+        ),
     }
     mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
     mapping.parent.mkdir(parents=True)
@@ -2562,6 +2570,18 @@ def test_ci_gate_advisory_capability_requires_live_exact_head_substitute_bundle(
     assert "ADVISORY_CAPABILITY_SOURCES_VALID claims=none" in output
     assert "MACHINE_BOUND_REVIEW_COMMIT" not in output
     assert bundle_calls == [(live_head, "advisory capability seal")]
+
+    missing_self_review = json.loads(json.dumps(seal))
+    missing_self_review.pop("self_review")
+    with pytest.raises(ReviewEvidenceError, match="self_review must be an object"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(missing_self_review),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+        )
 
     mapping.write_text(mapping.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     second_mapping_head = _commit(repo, "second mapping-only commit")

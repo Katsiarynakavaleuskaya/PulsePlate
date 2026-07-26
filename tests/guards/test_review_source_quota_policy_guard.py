@@ -164,6 +164,7 @@ def test_closeout_exposes_only_current_review_authoring_modes() -> None:
     assert {"--review-ref", "--review-source-unavailable-ref"} <= options
     assert "--connector-advisory-reaction" in options
     assert "--capability-sources-advisory" in options
+    assert "--self-review-report" in options
     assert not options.intersection(LEGACY_AUTHORING_OPTIONS)
     closeout_source = (REPO_ROOT / "scripts/orchestration/pr_review_closeout.py").read_text(
         encoding="utf-8"
@@ -198,7 +199,10 @@ def test_advisory_capability_contract_is_exact_no_claim_and_self_protected() -> 
         OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
     )
     assert ADVISORY_CAPABILITY_AUTHORIZING_PATHS - OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS == {
-        "scripts/ci/check_pr_merge_readiness.py"
+        ".agents/skills/pulseplate-pr-review/SKILL.md",
+        "scripts/ci/check_pr_merge_readiness.py",
+        "scripts/orchestration/pr_review_context.py",
+        "scripts/orchestration/pr_review_report.py",
     }
     assert ADVISORY_CAPABILITY_AUTHORIZING_PREFIXES == OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES
     connector, security = build_advisory_capability_receipts(

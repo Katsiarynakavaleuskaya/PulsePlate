@@ -82,7 +82,11 @@ use `seal --capability-sources-advisory`. It records Connector
 `review_claim=none` and Codex Security `scan_claim=none`; only those provider
 outputs become optional. Do not invoke, restart, or retry either provider.
 After freeze, exact-head self-review, and the required trusted substitute
-security checks, run `seal --capability-sources-advisory` directly. The strict
+security checks, preserve the exact-material JSON report and run
+`seal --capability-sources-advisory --self-review-report <report.json>`.
+The seal validates the report's content-addressed
+`pulseplate.pr-self-review-receipt/v1` against the frozen material head and
+digest and requires zero unresolved actionables. The strict
 merge validator still requires the trusted
 exact-head substitute security-check bundle and all mapping, thread, bot,
 required-check, and current-head gates. Final validation accepts only one
@@ -581,8 +585,9 @@ Use this as the canonical operating loop from branch creation to merge window:
    - **Activated advisory:** After byte-exact marker activation in the
      authenticated base and unique merge-base, do not invoke, restart, or retry
      either provider. After freeze, exact-head self-review, and the required
-     trusted exact-head substitute security checks, run
-     `seal --capability-sources-advisory` directly. Actionable findings,
+     trusted exact-head substitute security checks, preserve the JSON review
+     report and run `seal --capability-sources-advisory
+     --self-review-report <report.json>`. Actionable findings,
      mapping/thread/bot dispositions, the substitute-security bundle, required
      current-head CI/security checks, and strict current-head merge validation
      remain hard.
@@ -731,7 +736,8 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    **Activated advisory:** after the required trusted exact-head substitute
    security checks, proceed directly to the advisory disposition-and-seal step;
    do not enter, invoke, restart, or retry either legacy provider stage.
-   Actionable findings and current-head CI/security failures remain blocking.
+   Preserve the exact-material JSON self-review report for the seal. Actionable
+   findings and current-head CI/security failures remain blocking.
 5. Record dispositions with `add-disposition`. **Legacy-v1-only:** run `seal`
    with exactly one review-evidence mode: `--review-ref ...` for a completed
    trusted review or a canonical official Connector PR-root `+1`, `heart`,
@@ -774,8 +780,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    Historical PR `#2142` review-credit override receipts remain readable
    everywhere but are live-authenticated only for PR `#2142`; their old
    multi-reference authoring flags are not active CLI options for later PRs.
-   **Activated advisory:** run `seal --capability-sources-advisory` directly
-   without any Legacy-v1-only review or security evidence flags. The closed
+   **Activated advisory:** run `seal --capability-sources-advisory
+   --self-review-report <report.json>` without any Legacy-v1-only review or
+   security evidence flags. The report must contain the content-addressed
+   `pulseplate.pr-self-review-receipt/v1` for the frozen material, with zero
+   unresolved actionables. The closed
    receipts claim neither review nor scan and make only provider outputs
    optional. The trusted exact-head substitute-security bundle,
    mapping/thread/bot dispositions, required current-head CI/security checks,

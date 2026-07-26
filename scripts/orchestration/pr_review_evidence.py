@@ -52,6 +52,11 @@ REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY = "trusted_codex_review_source_positiv
 REVIEW_SOURCE_POSITIVE_RESPONSE_SOURCE = "codex_review"
 ADVISORY_CAPABILITY_SCHEMA_VERSION = "pulseplate.advisory-capability-source/v1"
 ADVISORY_CAPABILITY_AUTHORITY = "advisory_capability_source"
+SELF_REVIEW_SCHEMA_VERSION = "pulseplate.pr-self-review-receipt/v1"
+SELF_REVIEW_AUTHORITY = "advisory_only_self_review"
+SELF_REVIEW_PRODUCER = {"name": "pulseplate-pr-review", "version": "1.0.0"}
+SELF_REVIEW_REPORT_DOMAIN = b"pulseplate-pr-self-review-report/v1\0"
+SELF_REVIEW_RECEIPT_DOMAIN = b"pulseplate-pr-self-review-receipt/v1\0"
 ADVISORY_CAPABILITY_MARKER_PATH = "docs/orchestration/contracts/advisory_capability_sources.v1.json"
 ADVISORY_CAPABILITY_MARKER = {
     "activation": "authenticated_base_and_unique_merge_base",
@@ -113,8 +118,11 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
 )
 ADVISORY_CAPABILITY_ADDITIONAL_AUTHORIZING_PATHS = frozenset(
     {
+        ".agents/skills/pulseplate-pr-review/SKILL.md",
         ADVISORY_CAPABILITY_MARKER_PATH,
         "scripts/ci/check_pr_merge_readiness.py",
+        "scripts/orchestration/pr_review_context.py",
+        "scripts/orchestration/pr_review_report.py",
     }
 )
 ADVISORY_CAPABILITY_AUTHORIZING_PATHS = (
@@ -154,6 +162,8 @@ SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+_SELF_REVIEW_REPORT_ID_RE = re.compile(r"^self-review-[0-9a-f]{64}$")
+_CANONICAL_UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _ROOT_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
 _DEPENDENCY_MANIFEST_BASENAMES = frozenset(
     {
@@ -992,6 +1002,7 @@ def validate_live_advisory_capability_receipts(
     *,
     connector_receipt: Any,
     security_receipt: Any,
+    self_review_receipt: Any,
     base_ref_oid: str,
     material_head_sha: str,
     live_head_sha: str,
@@ -1008,6 +1019,11 @@ def validate_live_advisory_capability_receipts(
         raise ReviewEvidenceError(
             "advisory capability mode requires linked Connector and Security receipts"
         )
+    validate_self_review_receipt(
+        self_review_receipt,
+        material_head_sha=material_head_sha,
+        material_digest=material_digest,
+    )
     validate_advisory_live_head_topology(
         repo_root,
         material_head_sha=material_head_sha,
@@ -1468,6 +1484,231 @@ def ingest_codex_security_receipt(
         )
     finally:
         os.close(root_descriptor)
+
+
+def _require_canonical_utc(value: Any, *, label: str) -> str:
+    """Require a second-precision canonical UTC timestamp."""
+
+    if not isinstance(value, str) or _CANONICAL_UTC_RE.fullmatch(value) is None:
+        raise ReviewEvidenceError(f"{label} must use canonical YYYY-MM-DDTHH:MM:SSZ UTC")
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise ReviewEvidenceError(f"{label} must use canonical YYYY-MM-DDTHH:MM:SSZ UTC") from exc
+    if parsed.strftime("%Y-%m-%dT%H:%M:%SZ") != value:
+        raise ReviewEvidenceError(f"{label} must use canonical YYYY-MM-DDTHH:MM:SSZ UTC")
+    return value
+
+
+def build_self_review_receipt(
+    *,
+    material_head_sha: str,
+    material_digest: str,
+    completed_at: str,
+    unresolved_actionables: int,
+    report_content_digest: str,
+) -> dict[str, Any]:
+    """Build one closed exact-material repo-native self-review receipt."""
+
+    if (
+        not isinstance(unresolved_actionables, int)
+        or isinstance(unresolved_actionables, bool)
+        or unresolved_actionables != 0
+    ):
+        raise ReviewEvidenceError("self-review receipt requires zero unresolved actionables")
+    payload = {
+        "authority": SELF_REVIEW_AUTHORITY,
+        "completed_at": _require_canonical_utc(
+            completed_at,
+            label="self_review.completed_at",
+        ),
+        "material_digest": _require_digest(
+            material_digest,
+            label="self_review.material_digest",
+        ),
+        "material_head_sha": _require_sha(
+            material_head_sha,
+            label="self_review.material_head_sha",
+        ),
+        "producer": dict(SELF_REVIEW_PRODUCER),
+        "schema_version": SELF_REVIEW_SCHEMA_VERSION,
+        "status": "completed",
+        "unresolved_actionables": unresolved_actionables,
+    }
+    report_digest = _require_digest(
+        report_content_digest,
+        label="self-review report content digest",
+    )
+    report_id = f"self-review-{report_digest.removeprefix('sha256:')}"
+    receipt_digest = hashlib.sha256(
+        SELF_REVIEW_RECEIPT_DOMAIN
+        + _canonical_json({**payload, "report_id": report_id}).encode("utf-8")
+    ).hexdigest()
+    receipt = {
+        **payload,
+        "content_digest": f"sha256:{receipt_digest}",
+        "report_id": report_id,
+    }
+    validate_self_review_receipt(receipt)
+    return receipt
+
+
+def self_review_report_content_digest(report: dict[str, Any]) -> str:
+    """Hash canonical review-report content without its circular receipt field."""
+
+    report_content = dict(report)
+    report_content.pop("self_review_receipt", None)
+    digest = hashlib.sha256(
+        SELF_REVIEW_REPORT_DOMAIN + _canonical_json(report_content).encode("utf-8")
+    ).hexdigest()
+    return f"sha256:{digest}"
+
+
+def validate_self_review_receipt(
+    receipt: Any,
+    *,
+    material_head_sha: str | None = None,
+    material_digest: str | None = None,
+    report_content_digest: str | None = None,
+) -> dict[str, Any]:
+    """Validate and optionally bind one closed self-review receipt."""
+
+    if not isinstance(receipt, dict):
+        raise ReviewEvidenceError("self_review must be an object")
+    _require_exact_keys(
+        receipt,
+        {
+            "authority",
+            "completed_at",
+            "content_digest",
+            "material_digest",
+            "material_head_sha",
+            "producer",
+            "report_id",
+            "schema_version",
+            "status",
+            "unresolved_actionables",
+        },
+        label="self_review",
+    )
+    if (
+        receipt["schema_version"] != SELF_REVIEW_SCHEMA_VERSION
+        or receipt["authority"] != SELF_REVIEW_AUTHORITY
+        or receipt["status"] != "completed"
+        or receipt["producer"] != SELF_REVIEW_PRODUCER
+    ):
+        raise ReviewEvidenceError("self_review schema, authority, status, or producer is invalid")
+    completed_at = _require_canonical_utc(
+        receipt["completed_at"],
+        label="self_review.completed_at",
+    )
+    head = _require_sha(
+        receipt["material_head_sha"],
+        label="self_review.material_head_sha",
+    )
+    digest = _require_digest(
+        receipt["material_digest"],
+        label="self_review.material_digest",
+    )
+    unresolved = receipt["unresolved_actionables"]
+    if not isinstance(unresolved, int) or isinstance(unresolved, bool) or unresolved != 0:
+        raise ReviewEvidenceError("self_review requires zero unresolved actionables")
+    content_digest = _require_digest(
+        receipt["content_digest"],
+        label="self_review.content_digest",
+    )
+    report_id = receipt["report_id"]
+    if not isinstance(report_id, str) or _SELF_REVIEW_REPORT_ID_RE.fullmatch(report_id) is None:
+        raise ReviewEvidenceError("self_review.report_id is malformed")
+    payload = {
+        "authority": receipt["authority"],
+        "completed_at": completed_at,
+        "material_digest": digest,
+        "material_head_sha": head,
+        "producer": receipt["producer"],
+        "report_id": report_id,
+        "schema_version": receipt["schema_version"],
+        "status": receipt["status"],
+        "unresolved_actionables": unresolved,
+    }
+    expected_receipt_digest = hashlib.sha256(
+        SELF_REVIEW_RECEIPT_DOMAIN + _canonical_json(payload).encode("utf-8")
+    ).hexdigest()
+    if content_digest != f"sha256:{expected_receipt_digest}":
+        raise ReviewEvidenceError("self_review content digest or report id is invalid")
+    if report_content_digest is not None:
+        expected_report_digest = _require_digest(
+            report_content_digest,
+            label="expected self-review report content digest",
+        )
+        expected_report_id = f"self-review-{expected_report_digest.removeprefix('sha256:')}"
+        if report_id != expected_report_id:
+            raise ReviewEvidenceError("self_review does not match canonical report content")
+    if material_head_sha is not None and head != _require_sha(
+        material_head_sha,
+        label="expected self-review material head",
+    ):
+        raise ReviewEvidenceError("self_review does not match sealed material head")
+    if material_digest is not None and digest != _require_digest(
+        material_digest,
+        label="expected self-review material digest",
+    ):
+        raise ReviewEvidenceError("self_review does not match sealed material digest")
+    return receipt
+
+
+def _report_unresolved_actionables(findings: Any) -> int:
+    """Count unresolved actionable review findings, excluding planning notes."""
+
+    if not isinstance(findings, list):
+        raise ReviewEvidenceError("self-review report findings must be an array")
+    unresolved = 0
+    for finding in findings:
+        if not isinstance(finding, dict):
+            raise ReviewEvidenceError("self-review report finding must be an object")
+        severity = finding.get("severity")
+        disposition = finding.get("disposition_candidate")
+        if severity in {"critical", "major", "minor"} and disposition == "NEEDS-HUMAN":
+            unresolved += 1
+    return unresolved
+
+
+def ingest_self_review_report(
+    report_path: Path,
+    *,
+    expected_head_sha: str,
+    expected_material_digest: str,
+) -> dict[str, Any]:
+    """Safely ingest one repo-native self-review report and return its receipt."""
+
+    if report_path.suffix != ".json":
+        raise ReviewEvidenceError("self-review report must be a JSON file")
+    root_descriptor = _open_scan_root(report_path.parent)
+    try:
+        raw = _read_contained_artifact_from_descriptor(
+            root_descriptor,
+            _safe_relative_artifact_path(report_path.name),
+            max_bytes=_MAX_JSON_ARTIFACT_BYTES,
+        )
+    finally:
+        os.close(root_descriptor)
+    report = _load_json_bytes(raw, label="self-review report")
+    if not isinstance(report, dict):
+        raise ReviewEvidenceError("self-review report must contain an object")
+    if report.get("schema_version") != "1.0.0" or report.get("mode") != "dry-run-report":
+        raise ReviewEvidenceError("self-review report schema or mode is unsupported")
+    report_digest = self_review_report_content_digest(report)
+    receipt = validate_self_review_receipt(
+        report.get("self_review_receipt"),
+        material_head_sha=expected_head_sha,
+        material_digest=expected_material_digest,
+        report_content_digest=report_digest,
+    )
+    if report.get("generated_at_utc") != receipt["completed_at"]:
+        raise ReviewEvidenceError("self-review report timestamp does not match its receipt")
+    if _report_unresolved_actionables(report.get("findings")) != 0:
+        raise ReviewEvidenceError("self-review report contains unresolved actionables")
+    return receipt
 
 
 def build_advisory_capability_receipts(
@@ -2178,19 +2419,18 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
 
     if not isinstance(seal, dict):
         raise ReviewEvidenceError("review seal must be an object")
-    _require_exact_keys(
-        seal,
-        {
-            "authority",
-            "code_review",
-            "codex_security",
-            "material",
-            "pr_number",
-            "repository",
-            "schema_version",
-        },
-        label="review seal",
-    )
+    base_keys = {
+        "authority",
+        "code_review",
+        "codex_security",
+        "material",
+        "pr_number",
+        "repository",
+        "schema_version",
+    }
+    actual_keys = frozenset(seal)
+    if actual_keys not in {frozenset(base_keys), frozenset((*base_keys, "self_review"))}:
+        _require_exact_keys(seal, base_keys, label="review seal")
     if seal["schema_version"] != SEAL_SCHEMA_VERSION or seal["authority"] != RECEIPT_AUTHORITY:
         raise ReviewEvidenceError("unsupported review seal schema or authority")
     if (
@@ -2222,6 +2462,15 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
     if advisory_connector != advisory_security:
         raise ReviewEvidenceError(
             "advisory capability mode requires linked Connector and Security receipts"
+        )
+    self_review = seal.get("self_review")
+    if self_review is not None:
+        if not advisory_connector:
+            raise ReviewEvidenceError("self_review is permitted only for advisory capability seals")
+        validate_self_review_receipt(
+            self_review,
+            material_head_sha=material["material_head_sha"],
+            material_digest=material_digest,
         )
     if (
         is_review_source_unavailability_receipt(code_review)

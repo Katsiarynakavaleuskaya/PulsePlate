@@ -153,6 +153,69 @@ def test_existing_runtime_markers_fail_closed(
     assert expected in guard.scan_repository(frontend_root)
 
 
+@pytest.mark.parametrize(
+    "source_text",
+    (
+        'import * as router from "react-router";\n'
+        'router["unstable_" + "routeRSCServerRequest"];\n',
+        "import * as rr from 'react-router';\n" 'rr["unstable_" + "matchRSCServerRequest"];\n',
+        'import/* owner */*/* runtime */as $router\nfrom\n"react-router";\n',
+    ),
+)
+def test_react_router_namespace_import_is_rejected_before_computed_export_access(
+    tmp_path: Path,
+    source_text: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(frontend_root, "src/computed.mjs", source_text)
+
+    assert guard.scan_repository(frontend_root) == [
+        "src/computed.mjs:react-router namespace import"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source_text",
+    (
+        '// import * as router from "react-router";\n',
+        '/* import * as router from "react-router"; */\n',
+        'const example = "import * as router from \\"react-router\\";";\n',
+        'const example = `import * as router from "react-router";`;\n',
+    ),
+)
+def test_namespace_import_like_comments_and_string_literals_are_ignored(
+    tmp_path: Path,
+    source_text: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(frontend_root, "src/example.ts", source_text)
+
+    assert guard.scan_repository(frontend_root) == []
+
+
+@pytest.mark.parametrize(
+    "source_text",
+    (
+        'import * as router from "react-router-dom";\n',
+        'import type * as router from "react-router";\n',
+        'import { createBrowserRouter } from "react-router";\n',
+        'import router from "react-router";\n',
+        'import "react-router";\n',
+        'const router = import("react-router");\n',
+        'const router = require("react-router");\n',
+        'export * as router from "react-router";\n',
+    ),
+)
+def test_safe_or_out_of_scope_react_router_import_shapes_remain_allowed(
+    tmp_path: Path,
+    source_text: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(frontend_root, "src/safe.ts", source_text)
+
+    assert guard.scan_repository(frontend_root) == []
+
+
 @pytest.mark.parametrize("quote", ["'", '"', "`"])
 def test_exact_react_server_condition_is_found_in_imported_source(
     tmp_path: Path,

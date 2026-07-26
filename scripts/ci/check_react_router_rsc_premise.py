@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections import deque
 from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -50,6 +51,7 @@ _REACT_SERVER_CONDITION_RE = re.compile(r"(?<![A-Za-z0-9_-])react-server(?![A-Za
 _REGEX_PREFIX_CHARACTERS = frozenset("([{=,:;!?&|+-*%^~")
 _REGEX_PREFIX_KEYWORDS = ("await", "case", "delete", "return", "throw", "typeof", "void", "yield")
 _REGEX_PREFIX_CONTEXT_LIMIT = max(len(keyword) for keyword in _REGEX_PREFIX_KEYWORDS) + 1
+_SOURCE_IDENTIFIER_RE = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
 
 
 class _VisibleCharacters(list[str]):
@@ -87,6 +89,14 @@ class _VisibleCharacters(list[str]):
 
 class PremiseScanError(RuntimeError):
     """Raised when the guard cannot prove that the RSC premise still holds."""
+
+
+@dataclass(frozen=True)
+class _SourceToken:
+    """One bounded JavaScript token needed by the suppression premise."""
+
+    kind: str
+    value: str
 
 
 def _relative_label(path: Path, root: Path) -> str:
@@ -298,13 +308,42 @@ def _consume_regex_literal(
     raise PremiseScanError(f"unterminated regular expression literal in {label}")
 
 
-def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[str], str]:
-    """Return exact string literals plus source text with comments and regexes elided."""
+def _append_code_tokens(tokens: list[_SourceToken], code: str) -> None:
+    """Append identifiers and punctuation while discarding only whitespace."""
+
+    index = 0
+    while index < len(code):
+        character = code[index]
+        if character.isspace():
+            index += 1
+            continue
+        identifier = _SOURCE_IDENTIFIER_RE.match(code, index)
+        if identifier is not None:
+            tokens.append(_SourceToken("identifier", identifier.group(0)))
+            index = identifier.end()
+            continue
+        tokens.append(_SourceToken("punctuation", character))
+        index += 1
+
+
+def _source_analysis(
+    text: str,
+    *,
+    label: str,
+) -> tuple[list[str], str, tuple[_SourceToken, ...]]:
+    """Return literals, visible text, and bounded syntax tokens."""
 
     literals: list[str] = []
     visible = _VisibleCharacters()
+    tokens: list[_SourceToken] = []
+    code_buffer: list[str] = []
     index = 0
     length = len(text)
+
+    def flush_code_tokens() -> None:
+        if code_buffer:
+            _append_code_tokens(tokens, "".join(code_buffer))
+            code_buffer.clear()
 
     while index < length:
         current = text[index]
@@ -312,21 +351,27 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
 
         if current == "/" and following == "/":
             visible.extend((" ", " "))
+            code_buffer.extend((" ", " "))
             index += 2
             while index < length and text[index] not in "\r\n":
                 visible.append(" ")
+                code_buffer.append(" ")
                 index += 1
             continue
 
         if current == "/" and following == "*":
             visible.extend((" ", " "))
+            code_buffer.extend((" ", " "))
             index += 2
             while index < length:
                 if text[index] == "*" and index + 1 < length and text[index + 1] == "/":
                     visible.extend((" ", " "))
+                    code_buffer.extend((" ", " "))
                     index += 2
                     break
-                visible.append("\n" if text[index] == "\n" else " ")
+                replacement = "\n" if text[index] == "\n" else " "
+                visible.append(replacement)
+                code_buffer.append(replacement)
                 index += 1
             else:
                 raise PremiseScanError(f"unterminated block comment in {label}")
@@ -334,6 +379,7 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
 
         if current == "/" and _starts_regex_literal(visible):
             visible.append(" ")
+            code_buffer.append(" ")
             index = _consume_regex_literal(
                 text,
                 start=index + 1,
@@ -346,16 +392,19 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
             prefix = visible.regex_prefix_context
             if not _ends_with_regex_prefix_keyword(prefix):
                 visible.append(current)
+                code_buffer.append(current)
                 index += 1
                 continue
 
         if current not in {"'", '"', "`"}:
             visible.append(current)
+            code_buffer.append(current)
             index += 1
             continue
 
         quote = current
         literal: list[str] = []
+        flush_code_tokens()
         visible.append(current)
         index += 1
         while index < length:
@@ -371,7 +420,14 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
                 index += 1
                 continue
             if character == quote:
-                literals.append("".join(literal))
+                literal_value = "".join(literal)
+                literals.append(literal_value)
+                tokens.append(
+                    _SourceToken(
+                        "template" if quote == "`" else "string",
+                        literal_value,
+                    )
+                )
                 index += 1
                 break
             literal.append(character)
@@ -381,7 +437,32 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
         if index >= length and (not visible or visible[-1] != quote):
             raise PremiseScanError(f"unterminated string literal in {label}")
 
-    return literals, "".join(visible)
+    flush_code_tokens()
+    return literals, "".join(visible), tuple(tokens)
+
+
+def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[str], str]:
+    """Return exact string literals plus source text with comments and regexes elided."""
+
+    literals, visible, _tokens = _source_analysis(text, label=label)
+    return literals, visible
+
+
+def _has_react_router_namespace_import(tokens: Sequence[_SourceToken]) -> bool:
+    """Detect only runtime static namespace imports from exact `react-router`."""
+
+    for index in range(len(tokens) - 5):
+        candidate = tokens[index : index + 6]
+        if (
+            candidate[0] == _SourceToken("identifier", "import")
+            and candidate[1] == _SourceToken("punctuation", "*")
+            and candidate[2] == _SourceToken("identifier", "as")
+            and candidate[3].kind == "identifier"
+            and candidate[4] == _SourceToken("identifier", "from")
+            and candidate[5] == _SourceToken("string", "react-router")
+        ):
+            return True
+    return False
 
 
 def _scan_source_file(path: Path, root: Path) -> list[str]:
@@ -389,10 +470,12 @@ def _scan_source_file(path: Path, root: Path) -> list[str]:
 
     label = _relative_label(path, root)
     text = _validate_candidate(path, root)
-    literals, visible = _source_literals_and_visible_text(text, label=label)
+    literals, visible, tokens = _source_analysis(text, label=label)
     violations = [f"{label}:{marker}" for marker in RUNTIME_MARKERS if marker in visible]
     if any(_REACT_SERVER_CONDITION_RE.search(literal) for literal in literals):
         violations.append(f"{label}:react-server condition")
+    if _has_react_router_namespace_import(tokens):
+        violations.append(f"{label}:react-router namespace import")
     return violations
 
 

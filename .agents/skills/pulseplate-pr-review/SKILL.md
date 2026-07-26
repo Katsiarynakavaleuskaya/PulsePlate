@@ -72,6 +72,34 @@ Use this default order unless the active packet declares a narrower compatible s
    python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_review_context.json --format json
    ```
 
+   For activated advisory closeout, collect the final exact-material context
+   with full base/head SHAs and preserve the JSON report:
+
+   ```bash
+   python3 scripts/orchestration/pr_review_context.py \
+     --pr <PR_NUMBER> \
+     --repo <OWNER/REPO> \
+     --base <FULL_BASE_SHA> \
+     --head <FULL_MATERIAL_HEAD_SHA> \
+     --output /tmp/pulseplate_pr_review_context.json
+   python3 scripts/orchestration/pr_review_report.py \
+     --context /tmp/pulseplate_pr_review_context.json \
+     --format json \
+     --output /tmp/pulseplate_pr_self_review.json
+   python3 scripts/orchestration/pr_review_closeout.py seal \
+     --repo <OWNER/REPO> \
+     --pr-number <PR_NUMBER> \
+     --capability-sources-advisory \
+     --self-review-report /tmp/pulseplate_pr_self_review.json
+   ```
+
+   The report emits a content-addressed
+   `pulseplate.pr-self-review-receipt/v1` only for exact material with zero
+   unresolved actionable findings. The advisory seal reopens and validates
+   that report against its frozen material head and digest. The receipt proves
+   only completion of this repo-native self-review; it is not Connector review,
+   approval, Codex Security scan, PASS, or no-findings evidence.
+
 4. For calibration mode, confirm the report includes calibration metadata before
    any future dry-run-to-comment path:
 

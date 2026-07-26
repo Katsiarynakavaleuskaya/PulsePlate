@@ -281,8 +281,12 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    Connector `review_claim=none` and Codex Security `scan_claim=none`. This
    makes only those two capability outputs optional. Do not invoke, restart,
    or retry either provider; after freeze, exact-head self-review, and the
-   required trusted substitute security checks, run the advisory seal command
-   directly. It never claims review,
+   required trusted substitute security checks, preserve the exact-material
+   JSON report and run `seal --capability-sources-advisory
+   --self-review-report <report.json>`. The seal must validate and embed its
+   content-addressed `pulseplate.pr-self-review-receipt/v1`, bound to the
+   frozen material head and digest with zero unresolved actionables. It never
+   claims review,
    scan, approval, PASS, or no findings, and strict validation still requires
    the existing trusted exact-head substitute security-check bundle plus every
    mapping, thread, bot, required-check, and current-head gate. Pre-closeout
@@ -291,8 +295,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    The complete operator-outage trust boundary applies without the PR `#2142`
    bootstrap exception, including workflows/actions, `scripts/ci/`, security
    policy/config, dependency manifests, tests/guards, and `trivy/`, plus the
-   advisory marker and merge gate. Such changes deny self-use and close under
-   legacy v1 evidence.
+   advisory marker and merge gate. The self-review skill, context collector,
+   and report renderer are also self-use denied. Such changes deny self-use
+   and close under legacy v1 evidence. Historical advisory seals without the
+   self-review receipt remain parseable but cannot pass current strict live
+   readiness.
 10. **One closeout commit:** author dispositions and the content-bound human
     receipt locally with `pr_review_closeout.py`, then publish mapping and seal
     once. A repeated trusted Codex unavailable-ref ancestry finding on the same
