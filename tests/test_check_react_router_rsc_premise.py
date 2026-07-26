@@ -170,6 +170,44 @@ def test_exact_react_server_condition_is_found_in_imported_source(
     ]
 
 
+@pytest.mark.parametrize(
+    "condition_literal",
+    ("--conditions=react-server", "react-server:custom"),
+)
+def test_bounded_react_server_condition_is_found_inside_source_literal(
+    tmp_path: Path,
+    condition_literal: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "config/rsc-conditions.ts",
+        f'export const condition = "{condition_literal}";\n',
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "config/rsc-conditions.ts:react-server condition"
+    ]
+
+
+@pytest.mark.parametrize(
+    "near_match",
+    ("pre-react-server", "react-serverish"),
+)
+def test_react_server_condition_near_matches_inside_source_literals_are_ignored(
+    tmp_path: Path,
+    near_match: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "config/rsc-conditions.ts",
+        f'export const condition = "{near_match}";\n',
+    )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
 def test_all_supported_source_suffixes_are_scanned(tmp_path: Path) -> None:
     frontend_root = _write_frontend(tmp_path)
     for suffix in sorted(guard.SOURCE_SUFFIXES):

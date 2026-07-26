@@ -391,7 +391,7 @@ def _scan_source_file(path: Path, root: Path) -> list[str]:
     text = _validate_candidate(path, root)
     literals, visible = _source_literals_and_visible_text(text, label=label)
     violations = [f"{label}:{marker}" for marker in RUNTIME_MARKERS if marker in visible]
-    if "react-server" in literals:
+    if any(_REACT_SERVER_CONDITION_RE.search(literal) for literal in literals):
         violations.append(f"{label}:react-server condition")
     return violations
 
