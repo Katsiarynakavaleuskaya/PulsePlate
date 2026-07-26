@@ -175,7 +175,7 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
     for blocking_source in [item for item in review_sources if bool(item.get("blocking"))]:
         findings.append(
             Finding(
-                severity="note",
+                severity="major",
                 role_agent="agent-coordinator",
                 category="governance",
                 file="scripts/orchestration/review_source_status.py",
@@ -353,6 +353,8 @@ def _build_self_review_receipt(
         and finding.disposition_candidate == "NEEDS-HUMAN"
         for finding in findings
     )
+    if unresolved_actionables:
+        return None
     manifest = compute_material_manifest(
         REPO_ROOT,
         base_ref_oid=base_ref,
@@ -374,6 +376,7 @@ def build_report(
     *,
     packet_id: str = "",
     packet_path: str = "",
+    include_self_review_receipt: bool = True,
 ) -> dict[str, Any]:
     findings = build_findings(context)
     report = {
@@ -400,7 +403,11 @@ def build_report(
         ],
         "warnings": _dedupe_strings(_as_list(context.get("warnings"))),
     }
-    report["self_review_receipt"] = _build_self_review_receipt(context, findings, report)
+    report["self_review_receipt"] = (
+        _build_self_review_receipt(context, findings, report)
+        if include_self_review_receipt
+        else None
+    )
     return report
 
 

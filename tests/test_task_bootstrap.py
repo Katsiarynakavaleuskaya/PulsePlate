@@ -3055,6 +3055,10 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
             invocation_form in normalized_projection_casefold
             for invocation_form in manual_once_invocation_forms
         )
+        assert "activated advisory" in normalized_projection_casefold
+        assert any(
+            form in normalized_projection_casefold for form in ("do not invoke", "does not invoke")
+        )
     assert "external Codex Security `opened` / `synchronize` auto-triggers" not in root_agents
     assert "synchronize-triggered Codex review" not in runbook
 

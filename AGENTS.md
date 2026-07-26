@@ -730,13 +730,17 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
-4. **Review cycle**: freeze the material state, observe one automatic Codex
-   response, apply any material fix and refreeze, then run one final security scan. A systemic
-   MCP `-32001` outage may use only the authenticated, expiring operator-outage
-   evidence variant described above; do not fabricate or relabel a scan receipt. Keep
-   dispositions in the gitignored closeout draft and publish one generated
-   mapping/seal commit. The PR body keeps one artifact link; a validated
-   same-digest duplicate uses a structured thread reply only.
+4. **Review cycle**: freeze the material state and follow exactly one mode from
+   the final-material budget invariant above. **Legacy v1** observes one
+   automatic Codex response and then runs one final security scan; a systemic
+   MCP `-32001` outage may use only the authenticated, expiring
+   operator-outage evidence variant described above. **Activated advisory**
+   does not invoke, restart, or retry either provider and proceeds through its
+   repo-native exact-head self-review plus substitute security checks. Do not
+   fabricate or relabel any receipt. Keep dispositions in the gitignored
+   closeout draft and publish one generated mapping/seal commit. The PR body
+   keeps one artifact link; a validated same-digest duplicate uses a structured
+   thread reply only.
 5. **Merge cycle**: claim merge readiness only after the strict wrapper passes, required current-head checks are green with no pending jobs, no actionable bot comments remain, and the mandatory wait-window has elapsed.
 
 ### Next-PR Start Gate

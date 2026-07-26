@@ -81,6 +81,8 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
 )
+from scripts.orchestration.pr_review_context import collect_review_context  # noqa: E402
+from scripts.orchestration.pr_review_report import build_report  # noqa: E402
 from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
     extract_fixed_mapping_section,
@@ -1499,10 +1501,21 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             head_revision=snapshot.head_sha,
             material_digest=manifest.digest,
         )
+        canonical_review_context = collect_review_context(
+            repo_root=REPO_ROOT,
+            pr_number=args.pr_number,
+            repo=args.repo,
+            base_ref=snapshot.base_sha,
+            head_ref=snapshot.head_sha,
+        )
         self_review_receipt = ingest_self_review_report(
             Path(args.self_review_report),
             expected_head_sha=snapshot.head_sha,
             expected_material_digest=manifest.digest,
+            expected_report=build_report(
+                canonical_review_context,
+                include_self_review_receipt=False,
+            ),
         )
     else:
         connector_advisory_reactions = _optional_connector_advisory_reactions(

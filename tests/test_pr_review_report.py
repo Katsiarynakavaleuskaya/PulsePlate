@@ -178,8 +178,16 @@ def test_degraded_review_source_status_is_not_a_finding_by_itself() -> None:
     ]
 
 
-def test_blocking_review_source_status_becomes_governance_finding() -> None:
+def test_blocking_review_source_status_becomes_governance_finding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     context = _base_context()
+    context["query"] = {
+        "repo": "Katsiarynakavaleuskaya/PulsePlate",
+        "pr_number": 1539,
+        "base_ref": "1" * 40,
+        "head_ref": "2" * 40,
+    }
     context["review_source_status"] = [
         {
             "source": "coderabbit",
@@ -191,11 +199,22 @@ def test_blocking_review_source_status_becomes_governance_finding() -> None:
             "evidence": "review source summary",
         }
     ]
+    monkeypatch.setattr(
+        report_runner,
+        "compute_material_manifest",
+        lambda *_a, **_k: type(
+            "Manifest",
+            (),
+            {"digest": "sha256:" + "3" * 64},
+        )(),
+    )
 
     report = report_runner.build_report(context)
 
     assert report["findings_count"] == 1
     assert report["findings"][0]["file"] == "scripts/orchestration/review_source_status.py"
+    assert report["findings"][0]["severity"] == "major"
+    assert report["self_review_receipt"] is None
 
 
 def test_build_report_keeps_false_positive_controls_for_benign_context() -> None:

@@ -1564,6 +1564,19 @@ def self_review_report_content_digest(report: dict[str, Any]) -> str:
     return f"sha256:{digest}"
 
 
+def self_review_report_semantic_digest(report: dict[str, Any]) -> str:
+    """Hash deterministic review semantics while excluding execution metadata."""
+
+    semantic = dict(report)
+    semantic.pop("self_review_receipt", None)
+    semantic.pop("generated_at_utc", None)
+    semantic.pop("coordinator_packet", None)
+    digest = hashlib.sha256(
+        SELF_REVIEW_REPORT_DOMAIN + _canonical_json(semantic).encode("utf-8")
+    ).hexdigest()
+    return f"sha256:{digest}"
+
+
 def validate_self_review_receipt(
     receipt: Any,
     *,
@@ -1678,6 +1691,7 @@ def ingest_self_review_report(
     *,
     expected_head_sha: str,
     expected_material_digest: str,
+    expected_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Safely ingest one repo-native self-review report and return its receipt."""
 
@@ -1708,6 +1722,10 @@ def ingest_self_review_report(
         raise ReviewEvidenceError("self-review report timestamp does not match its receipt")
     if _report_unresolved_actionables(report.get("findings")) != 0:
         raise ReviewEvidenceError("self-review report contains unresolved actionables")
+    if expected_report is not None and self_review_report_semantic_digest(
+        report
+    ) != self_review_report_semantic_digest(expected_report):
+        raise ReviewEvidenceError("self-review report does not match canonical live review context")
     return receipt
 
 

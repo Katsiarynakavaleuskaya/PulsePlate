@@ -177,6 +177,25 @@ def test_react_router_namespace_import_is_rejected_before_computed_export_access
 @pytest.mark.parametrize(
     "source_text",
     (
+        'import * as r\\u006futer from "react-router";\n'
+        'r\\u006futer["unstable_" + "routeRSCServerRequest"];\n',
+        'import * as router from "react\\u002drouter";\n'
+        'router["unstable_" + "routeRSCServerRequest"];\n',
+    ),
+)
+def test_escaped_static_namespace_imports_are_rejected(
+    tmp_path: Path,
+    source_text: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(frontend_root, "src/escaped.mjs", source_text)
+
+    assert guard.scan_repository(frontend_root) == ["src/escaped.mjs:react-router namespace import"]
+
+
+@pytest.mark.parametrize(
+    "source_text",
+    (
         '// import * as router from "react-router";\n',
         '/* import * as router from "react-router"; */\n',
         'const example = "import * as router from \\"react-router\\";";\n',

@@ -52,6 +52,8 @@ _REGEX_PREFIX_CHARACTERS = frozenset("([{=,:;!?&|+-*%^~")
 _REGEX_PREFIX_KEYWORDS = ("await", "case", "delete", "return", "throw", "typeof", "void", "yield")
 _REGEX_PREFIX_CONTEXT_LIMIT = max(len(keyword) for keyword in _REGEX_PREFIX_KEYWORDS) + 1
 _SOURCE_IDENTIFIER_RE = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
+_SOURCE_IDENTIFIER_FULL_RE = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*\Z")
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
 
 
 class _VisibleCharacters(list[str]):
@@ -452,17 +454,77 @@ def _has_react_router_namespace_import(tokens: Sequence[_SourceToken]) -> bool:
     """Detect only runtime static namespace imports from exact `react-router`."""
 
     for index in range(len(tokens) - 5):
-        candidate = tokens[index : index + 6]
         if (
-            candidate[0] == _SourceToken("identifier", "import")
-            and candidate[1] == _SourceToken("punctuation", "*")
-            and candidate[2] == _SourceToken("identifier", "as")
-            and candidate[3].kind == "identifier"
-            and candidate[4] == _SourceToken("identifier", "from")
-            and candidate[5] == _SourceToken("string", "react-router")
+            tokens[index] != _SourceToken("identifier", "import")
+            or tokens[index + 1] != _SourceToken("punctuation", "*")
+            or tokens[index + 2] != _SourceToken("identifier", "as")
         ):
-            return True
+            continue
+        for from_index in range(index + 4, min(index + 9, len(tokens) - 1)):
+            if tokens[from_index] != _SourceToken("identifier", "from"):
+                continue
+            binding = _decode_identifier_tokens(tokens[index + 3 : from_index])
+            module = tokens[from_index + 1]
+            if (
+                binding is not None
+                and module.kind == "string"
+                and _decode_javascript_ascii_escapes(module.value) == "react-router"
+            ):
+                return True
+            break
     return False
+
+
+def _decode_javascript_ascii_escapes(value: str) -> str | None:
+    """Decode bounded ASCII escapes used by import specifiers and identifiers."""
+
+    decoded: list[str] = []
+    index = 0
+    while index < len(value):
+        character = value[index]
+        if character != "\\":
+            decoded.append(character)
+            index += 1
+            continue
+        if index + 1 >= len(value):
+            return None
+        kind = value[index + 1]
+        if kind == "x":
+            digits = value[index + 2 : index + 4]
+            width = 4
+        elif kind == "u" and value[index + 2 : index + 3] != "{":
+            digits = value[index + 2 : index + 6]
+            width = 6
+        elif kind == "u" and value[index + 2 : index + 3] == "{":
+            closing = value.find("}", index + 3)
+            if closing < 0:
+                return None
+            digits = value[index + 3 : closing]
+            width = closing - index + 1
+            if not 1 <= len(digits) <= 6:
+                return None
+        else:
+            return None
+        if not digits or any(digit not in _HEX_DIGITS for digit in digits):
+            return None
+        codepoint = int(digits, 16)
+        if codepoint > 0x7F:
+            return None
+        decoded.append(chr(codepoint))
+        index += width
+    return "".join(decoded)
+
+
+def _decode_identifier_tokens(tokens: Sequence[_SourceToken]) -> str | None:
+    """Return one canonical ASCII identifier from bounded lexical tokens."""
+
+    if not tokens:
+        return None
+    raw = "".join(token.value for token in tokens)
+    decoded = _decode_javascript_ascii_escapes(raw)
+    if decoded is None or _SOURCE_IDENTIFIER_FULL_RE.fullmatch(decoded) is None:
+        return None
+    return decoded
 
 
 def _scan_source_file(path: Path, root: Path) -> list[str]:

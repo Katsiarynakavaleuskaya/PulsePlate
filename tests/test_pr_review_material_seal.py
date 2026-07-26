@@ -6764,6 +6764,27 @@ def test_self_review_report_ingestion_rejects_unresolved_or_tampered_evidence(
         )
 
 
+def test_self_review_report_ingestion_rejects_noncanonical_live_context(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "self-review.json"
+    _write_self_review_report(
+        report_path,
+        head_sha=HEAD_SHA,
+        material_digest=DIGEST,
+    )
+    expected = json.loads(report_path.read_text(encoding="utf-8"))
+    expected["scope_reviewed"] = {"changed_files": ["scripts/orchestration/pr_review_evidence.py"]}
+
+    with pytest.raises(ReviewEvidenceError, match="canonical live review context"):
+        ingest_self_review_report(
+            report_path,
+            expected_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            expected_report=expected,
+        )
+
+
 def test_historical_advisory_seal_without_self_review_remains_parseable() -> None:
     connector, security = build_advisory_capability_receipts(
         base_revision=BASE_SHA,
@@ -6896,6 +6917,17 @@ def test_closeout_advisory_seal_and_authenticated_mapping_successor(
         self_review_report,
         head_sha=material_head,
         material_digest=material.digest,
+    )
+    canonical_self_review_report = json.loads(self_review_report.read_text(encoding="utf-8"))
+    monkeypatch.setattr(
+        closeout_module,
+        "collect_review_context",
+        lambda **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "build_report",
+        lambda *_args, **_kwargs: canonical_self_review_report,
     )
 
     closeout_module._cmd_seal(
