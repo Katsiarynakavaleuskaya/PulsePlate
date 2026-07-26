@@ -94,7 +94,7 @@ pygments==2.20.0
     #   rich
 pyyaml==6.0.3
     # via huggingface-hub
-requests==2.33.0
+requests==2.34.2
     # via
     #   -c requirements.txt
     #   fastembed

@@ -43,7 +43,7 @@ cachecontrol[filecache]==0.14.4
     # via
     #   cachecontrol
     #   pip-audit
-certifi==2026.1.4
+certifi==2026.7.22
     # via
     #   -c requirements.txt
     #   httpcore
@@ -78,7 +78,7 @@ coverage[toml]==7.15.1
     # via
     #   -r requirements-dev.in
     #   pytest-cov
-cryptography==48.0.1
+cryptography==49.0.0
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
@@ -418,7 +418,7 @@ reportlab==4.4.10
     # via
     #   -c requirements.txt
     #   -r requirements.in
-requests==2.33.0
+requests==2.34.2
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in

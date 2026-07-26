@@ -21,8 +21,8 @@ bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
 # safety removed: CVE-2025-14009 (nltk transitive), see docs/security/CVE-2025-14009-nltk.md
 pip-audit>=2.10.1  # Security tool - keep >= for vulnerability updates
 marshmallow>=4.1.2  # Explicit floor to keep CVE fix independent of transitive deps
-cryptography>=48.0.1,<49.0.0  # Keep explicit dependency floor for dependency-security guard
-requests>=2.33.0  # Security floor for GHSA-gc5v-m9x4-r6x2 across dev tooling surfaces
+cryptography>=49.0.0,<50.0.0  # Keep explicit dependency floor for dependency-security guard
+requests>=2.34.2  # Security floor for GHSA-gc5v-m9x4-r6x2 across dev tooling surfaces
 click>=8.3.3,<9.0.0  # Security floor for unsafe editor invocation across dev tooling surfaces
 pillow>=12.3.0,<13.0.0  # Security floor for the July 2026 Pillow advisory cluster
 python-multipart>=0.0.31,<1.0.0  # SFTY-20260615 multipart parser floor across dev tooling surfaces

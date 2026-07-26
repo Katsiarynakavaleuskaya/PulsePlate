@@ -51,7 +51,7 @@ coverage[toml]==7.15.1
     # via
     #   -r requirements-dev.in
     #   pytest-cov
-cryptography==48.0.1
+cryptography==49.0.0
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
@@ -228,7 +228,7 @@ pyyaml==6.0.3
     #   detect-secrets
     #   pre-commit
     #   yamllint
-requests==2.33.0
+requests==2.34.2
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
@@ -241,11 +241,6 @@ rich==14.3.3
     #   pip-audit
 ruff==0.15.21
     # via -r requirements-dev.in
-setuptools==83.0.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   pip-tools
 sortedcontainers==2.4.0
     # via
     #   cyclonedx-python-lib
@@ -282,4 +277,12 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
-# pip
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
+setuptools==83.0.0
+    # via
+    #   -c requirements.txt
+    #   -r requirements-dev.in
+    #   pip-tools
