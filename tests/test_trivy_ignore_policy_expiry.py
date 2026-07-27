@@ -1471,9 +1471,13 @@ def test_prefix_update_operators_preserve_real_regex_literals(
     assert guard.scan_repository(frontend_root) == []
 
 
-@pytest.mark.parametrize("operator", ("++", "--"))
+@pytest.mark.parametrize(
+    ("line_terminator", "operator"),
+    (("\n", "++"), ("\r", "--"), ("\u2028", "++"), ("\u2029", "--")),
+)
 def test_line_terminator_forces_prefix_update_before_real_regex(
     tmp_path: Path,
+    line_terminator: str,
     operator: str,
 ) -> None:
     frontend_root = _write_frontend(tmp_path)
@@ -1481,11 +1485,54 @@ def test_line_terminator_forces_prefix_update_before_real_regex(
         frontend_root,
         "src/newline-prefix.mjs",
         "let count = 0;\n"
-        f'count\n{operator} /import\\("react-router"\\).*'
+        f'count{line_terminator}{operator} /import\\("react-router"\\).*'
         "unstable_routeRSCServerRequest/.lastIndex;\n",
     )
 
     assert guard.scan_repository(frontend_root) == []
+
+
+@pytest.mark.parametrize("line_terminator", ("\r", "\n", "\u2028", "\u2029"))
+def test_line_terminator_inside_comment_preserves_javascript_semantics(
+    tmp_path: Path,
+    line_terminator: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/comment-lines.mjs",
+        f"// comment{line_terminator}"
+        'import("react-router").then('
+        "(router) => router.unstable_routeRSCServerRequest());\n",
+    )
+    _write_source(
+        frontend_root,
+        "src/comment-prefix.mjs",
+        "let count = 0;\n"
+        f'count/*{line_terminator}*/++ /import\\("react-router"\\).*'
+        "unstable_routeRSCServerRequest/.lastIndex;\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "src/comment-lines.mjs:react-router dynamic import",
+        "src/comment-lines.mjs:unstable_routeRSCServerRequest",
+    ]
+
+
+@pytest.mark.parametrize("line_terminator", ("\r", "\n", "\u2028", "\u2029"))
+def test_escaped_regex_line_terminator_fails_closed(
+    tmp_path: Path,
+    line_terminator: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/invalid-regex.mjs",
+        f'/prefix\\{line_terminator}import("react-router").' "unstable_routeRSCServerRequest/;\n",
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="unterminated regular expression literal"):
+        guard.scan_repository(frontend_root)
 
 
 def test_jsx_text_apostrophes_do_not_start_string_literals(tmp_path: Path) -> None:
@@ -1590,6 +1637,85 @@ def test_delegated_shell_build_script_ignores_comment_only_condition(
         frontend_root,
         "scripts/build.sh",
         "# NODE_OPTIONS=--conditions=react-server\nvite build\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
+@pytest.mark.parametrize(
+    "build_command",
+    (
+        "bash -euo pipefail scripts/build",
+        "./scripts/build",
+        "source scripts/build",
+    ),
+)
+def test_delegated_shell_command_forms_scan_the_local_script(
+    tmp_path: Path,
+    build_command: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": build_command}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build",
+        "export NODE_OPTIONS=--conditions=react-server\nvite build\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == ["scripts/build:react-server condition"]
+
+
+def test_delegated_shell_command_rejects_cwd_change(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "cd scripts && bash build"}},
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="unsupported compound shell command"):
+        guard.scan_repository(frontend_root)
+
+
+@pytest.mark.parametrize(
+    "build_command",
+    (
+        "echo setup\nbash scripts/build",
+        "bash -c 'bash scripts/build'",
+        "bash -lc 'source scripts/build'",
+        "command bash scripts/build",
+        "env NODE_ENV=production bash scripts/build",
+        "exec bash scripts/build",
+        "{ bash scripts/build; }",
+        "if true; then bash scripts/build; fi",
+    ),
+)
+def test_unverified_shell_compound_forms_fail_closed(
+    tmp_path: Path,
+    build_command: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": build_command}},
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="unsupported"):
+        guard.scan_repository(frontend_root)
+
+
+def test_shell_interpreter_argument_is_not_treated_as_an_executed_command(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "echo bash scripts/build"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build",
+        "export NODE_OPTIONS=--conditions=react-server\nvite build\n",
     )
 
     assert guard.scan_repository(frontend_root) == []

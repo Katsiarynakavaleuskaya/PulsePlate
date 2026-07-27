@@ -71,8 +71,13 @@ _JAVASCRIPT_SIMPLE_ESCAPES = {
     '"': '"',
     "\\": "\\",
 }
+_ECMASCRIPT_LINE_TERMINATORS = frozenset("\r\n\u2028\u2029")
 _SHELL_INTERPRETERS = frozenset({"bash", "dash", "sh", "zsh"})
 _SHELL_OPTIONS_WITH_ARGUMENT = frozenset({"--init-file", "--rcfile", "-O", "-o"})
+_SHELL_CONTROL_TOKENS = frozenset({"&", "&&", "(", ")", ";", "|", "||"})
+_SHELL_SOURCE_BUILTINS = frozenset({".", "source"})
+_SHELL_UNSUPPORTED_COMMANDS = frozenset({"{", "cd", "command", "env", "exec", "if"})
+_SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
 class _VisibleCharacters(list[str]):
@@ -91,7 +96,7 @@ class _VisibleCharacters(list[str]):
         super().append(character)
         if character.isspace():
             self._has_trailing_whitespace = True
-            if character in "\r\n":
+            if character in _ECMASCRIPT_LINE_TERMINATORS:
                 self._has_trailing_line_terminator = True
             return
         if self._has_trailing_whitespace and self._regex_prefix_context:
@@ -402,33 +407,71 @@ def _delegated_shell_script_paths(
 ) -> tuple[Path, ...]:
     """Resolve shell scripts directly delegated from one package command."""
 
+    if "\r" in command or "\n" in command:
+        raise PremiseScanError(f"{label} uses an unsupported multiline shell command")
     tokens = _shell_command_tokens(command, label=label, comments=False)
+    if _SHELL_CONTROL_TOKENS.intersection(tokens):
+        raise PremiseScanError(f"{label} uses an unsupported compound shell command")
     paths: list[Path] = []
-    for index, token in enumerate(tokens):
-        if Path(token).name not in _SHELL_INTERPRETERS:
+
+    def append_local_path(candidate: str) -> None:
+        if "$" in candidate or "\0" in candidate:
+            raise PremiseScanError(
+                f"{label} delegates to a shell script path that cannot be verified"
+            )
+        path = Path(candidate)
+        if path.is_absolute():
+            raise PremiseScanError(
+                f"{label} delegates to an external shell script that cannot be verified"
+            )
+        paths.append(root / path)
+
+    index = 0
+    while index < len(tokens) and _SHELL_ASSIGNMENT_RE.match(tokens[index]):
+        index += 1
+    if index >= len(tokens):
+        return ()
+
+    executable = tokens[index]
+    arguments = tokens[index + 1 :]
+    if executable in _SHELL_UNSUPPORTED_COMMANDS:
+        raise PremiseScanError(f"{label} uses an unsupported shell command: {executable}")
+    if executable in _SHELL_SOURCE_BUILTINS:
+        if not arguments:
+            raise PremiseScanError(f"{label} has a source command without a script path")
+        append_local_path(arguments[0])
+        return tuple(paths)
+    if Path(executable).name not in _SHELL_INTERPRETERS:
+        if "/" in executable:
+            append_local_path(executable)
+        return tuple(paths)
+
+    argument_index = 0
+    while argument_index < len(arguments):
+        candidate = arguments[argument_index]
+        if candidate in {"-c", "--command"} or (
+            candidate.startswith("-") and not candidate.startswith("--") and "c" in candidate[1:]
+        ):
+            raise PremiseScanError(f"{label} uses an unsupported shell command string")
+        if candidate in _SHELL_OPTIONS_WITH_ARGUMENT:
+            if argument_index + 1 >= len(arguments):
+                raise PremiseScanError(f"{label} has a shell option without its required argument")
+            argument_index += 2
             continue
-        candidate_index = index + 1
-        while candidate_index < len(tokens):
-            candidate = tokens[candidate_index]
-            if candidate in {"-c", "--command"}:
-                break
-            if candidate in _SHELL_OPTIONS_WITH_ARGUMENT:
-                candidate_index += 2
-                continue
-            if candidate.startswith("-"):
-                candidate_index += 1
-                continue
-            if "$" in candidate or "\0" in candidate:
-                raise PremiseScanError(
-                    f"{label} delegates to a shell script path that cannot be verified"
-                )
-            path = Path(candidate)
-            if path.is_absolute():
-                raise PremiseScanError(
-                    f"{label} delegates to an external shell script that cannot be verified"
-                )
-            paths.append(root / path)
-            break
+        if (
+            candidate.startswith("-")
+            and not candidate.startswith("--")
+            and candidate[-1:] in {"o", "O"}
+        ):
+            if argument_index + 1 >= len(arguments):
+                raise PremiseScanError(f"{label} has a shell option without its required argument")
+            argument_index += 2
+            continue
+        if candidate.startswith("-"):
+            argument_index += 1
+            continue
+        append_local_path(candidate)
+        break
     return tuple(paths)
 
 
@@ -568,12 +611,14 @@ def _consume_regex_literal(
     while index < len(text):
         character = text[index]
         visible.append("\n" if character == "\n" else " ")
-        if character in "\r\n":
+        if character in _ECMASCRIPT_LINE_TERMINATORS:
             raise PremiseScanError(f"unterminated regular expression literal in {label}")
         if character == "\\":
             index += 1
             if index >= len(text):
                 break
+            if text[index] in _ECMASCRIPT_LINE_TERMINATORS:
+                raise PremiseScanError(f"unterminated regular expression literal in {label}")
             visible.append(" ")
             index += 1
             continue
@@ -637,7 +682,7 @@ def _source_analysis(
             visible.extend((" ", " "))
             code_buffer.extend((" ", " "))
             index += 2
-            while index < length and text[index] not in "\r\n":
+            while index < length and text[index] not in _ECMASCRIPT_LINE_TERMINATORS:
                 visible.append(" ")
                 code_buffer.append(" ")
                 index += 1
@@ -653,7 +698,7 @@ def _source_analysis(
                     code_buffer.extend((" ", " "))
                     index += 2
                     break
-                replacement = "\n" if text[index] == "\n" else " "
+                replacement = "\n" if text[index] in _ECMASCRIPT_LINE_TERMINATORS else " "
                 visible.append(replacement)
                 code_buffer.append(replacement)
                 index += 1
