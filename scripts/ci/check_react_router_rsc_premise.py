@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import stat
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +71,8 @@ _JAVASCRIPT_SIMPLE_ESCAPES = {
     '"': '"',
     "\\": "\\",
 }
+_SHELL_INTERPRETERS = frozenset({"bash", "dash", "sh", "zsh"})
+_SHELL_OPTIONS_WITH_ARGUMENT = frozenset({"--init-file", "--rcfile", "-O", "-o"})
 
 
 class _VisibleCharacters(list[str]):
@@ -79,6 +82,7 @@ class _VisibleCharacters(list[str]):
         super().__init__()
         self._regex_prefix_context: deque[str] = deque(maxlen=_REGEX_PREFIX_CONTEXT_LIMIT)
         self._has_trailing_whitespace = False
+        self._has_trailing_line_terminator = False
         self._ends_with_postfix_update_operator = False
 
     def append(self, character: str) -> None:
@@ -87,11 +91,14 @@ class _VisibleCharacters(list[str]):
         super().append(character)
         if character.isspace():
             self._has_trailing_whitespace = True
+            if character in "\r\n":
+                self._has_trailing_line_terminator = True
             return
         if self._has_trailing_whitespace and self._regex_prefix_context:
             self._regex_prefix_context.append(" ")
         self._regex_prefix_context.append(character)
         self._has_trailing_whitespace = False
+        self._has_trailing_line_terminator = False
         self._ends_with_postfix_update_operator = False
 
     def extend(self, characters: Iterable[str]) -> None:
@@ -117,6 +124,12 @@ class _VisibleCharacters(list[str]):
         """Return whether the last executable token was postfix ``++`` or ``--``."""
 
         return self._ends_with_postfix_update_operator
+
+    @property
+    def has_trailing_line_terminator(self) -> bool:
+        """Return whether a line break follows the last executable token."""
+
+        return self._has_trailing_line_terminator
 
 
 class PremiseScanError(RuntimeError):
@@ -367,6 +380,69 @@ def _append_lockfile_named_alias_markers(
             )
 
 
+def _shell_command_tokens(command: str, *, label: str, comments: bool) -> tuple[str, ...]:
+    """Tokenize one bounded shell command or fail closed on malformed quoting."""
+
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
+    lexer.whitespace_split = True
+    lexer.commenters = "#" if comments else ""
+    try:
+        return tuple(lexer)
+    except ValueError as exc:
+        raise PremiseScanError(
+            f"unable to parse delegated shell command in {label}: {exc}"
+        ) from exc
+
+
+def _delegated_shell_script_paths(
+    command: str,
+    *,
+    root: Path,
+    label: str,
+) -> tuple[Path, ...]:
+    """Resolve shell scripts directly delegated from one package command."""
+
+    tokens = _shell_command_tokens(command, label=label, comments=False)
+    paths: list[Path] = []
+    for index, token in enumerate(tokens):
+        if Path(token).name not in _SHELL_INTERPRETERS:
+            continue
+        candidate_index = index + 1
+        while candidate_index < len(tokens):
+            candidate = tokens[candidate_index]
+            if candidate in {"-c", "--command"}:
+                break
+            if candidate in _SHELL_OPTIONS_WITH_ARGUMENT:
+                candidate_index += 2
+                continue
+            if candidate.startswith("-"):
+                candidate_index += 1
+                continue
+            if "$" in candidate or "\0" in candidate:
+                raise PremiseScanError(
+                    f"{label} delegates to a shell script path that cannot be verified"
+                )
+            path = Path(candidate)
+            if path.is_absolute():
+                raise PremiseScanError(
+                    f"{label} delegates to an external shell script that cannot be verified"
+                )
+            paths.append(root / path)
+            break
+    return tuple(paths)
+
+
+def _scan_shell_script_file(path: Path, root: Path) -> list[str]:
+    """Return RSC condition diagnostics from one delegated shell script."""
+
+    label = _relative_label(path, root)
+    text = _validate_candidate(path, root)
+    tokens = _shell_command_tokens(text, label=label, comments=True)
+    if any(_REACT_SERVER_CONDITION_RE.search(token) for token in tokens):
+        return [f"{label}:react-server condition"]
+    return []
+
+
 def _scan_package_metadata(root: Path) -> list[str]:
     """Return RSC markers found in package metadata and scripts."""
 
@@ -410,6 +486,13 @@ def _scan_package_metadata(root: Path) -> list[str]:
             raise PremiseScanError(f"package.json:scripts.{script_name} must be a string")
         if _REACT_SERVER_CONDITION_RE.search(command):
             violations.append(f"package.json:scripts.{script_name}:react-server condition")
+        label = f"package.json:scripts.{script_name}"
+        for delegated_path in _delegated_shell_script_paths(
+            command,
+            root=root,
+            label=label,
+        ):
+            violations.extend(_scan_shell_script_file(delegated_path, root))
 
     package_lock = _load_json_object(root / "package-lock.json", root)
     for section in ("packages", "dependencies"):
@@ -581,7 +664,9 @@ def _source_analysis(
         if current in "+-" and following == current:
             visible.append_update_operator(
                 current + following,
-                postfix=not _starts_regex_literal(visible),
+                postfix=(
+                    not visible.has_trailing_line_terminator and not _starts_regex_literal(visible)
+                ),
             )
             code_buffer.extend((current, following))
             index += 2

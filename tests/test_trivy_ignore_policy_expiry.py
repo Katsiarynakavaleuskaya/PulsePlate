@@ -1471,6 +1471,23 @@ def test_prefix_update_operators_preserve_real_regex_literals(
     assert guard.scan_repository(frontend_root) == []
 
 
+@pytest.mark.parametrize("operator", ("++", "--"))
+def test_line_terminator_forces_prefix_update_before_real_regex(
+    tmp_path: Path,
+    operator: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/newline-prefix.mjs",
+        "let count = 0;\n"
+        f'count\n{operator} /import\\("react-router"\\).*'
+        "unstable_routeRSCServerRequest/.lastIndex;\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
 def test_jsx_text_apostrophes_do_not_start_string_literals(tmp_path: Path) -> None:
     frontend_root = _write_frontend(tmp_path)
     _write_source(
@@ -1542,6 +1559,40 @@ def test_script_condition_requires_exact_token_boundaries(tmp_path: Path) -> Non
     assert guard.scan_repository(frontend_root) == [
         "package.json:scripts.build:react-server condition"
     ]
+
+
+@pytest.mark.parametrize("script_name", ("build.sh", "build"))
+def test_delegated_shell_build_script_condition_fails_closed(
+    tmp_path: Path,
+    script_name: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": f"bash -e scripts/{script_name}"}},
+    )
+    _write_source(
+        frontend_root,
+        f"scripts/{script_name}",
+        "#!/usr/bin/env bash\n" "export NODE_OPTIONS=--conditions=react-server\n" "vite build\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == [f"scripts/{script_name}:react-server condition"]
+
+
+def test_delegated_shell_build_script_ignores_comment_only_condition(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build.sh",
+        "# NODE_OPTIONS=--conditions=react-server\nvite build\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == []
 
 
 def test_root_outputs_are_pruned_but_nested_build_and_dist_are_scanned(
