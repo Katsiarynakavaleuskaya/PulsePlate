@@ -845,10 +845,21 @@ def test_react_router_npm_alias_near_matches_are_ignored(tmp_path: Path) -> None
     assert guard.scan_repository(frontend_root) == []
 
 
-def test_npmrc_node_options_react_server_condition_fails_closed(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "node_options",
+    (
+        "--conditions=react-server",
+        '--conditions="react-server"',
+        "--conditions react-server",
+    ),
+)
+def test_npmrc_node_options_react_server_condition_fails_closed(
+    tmp_path: Path,
+    node_options: str,
+) -> None:
     frontend_root = _write_frontend(tmp_path)
     (frontend_root / ".npmrc").write_text(
-        "node-options=--conditions=react-server\n",
+        f"node-options={node_options}\n",
         encoding="utf-8",
     )
 
@@ -870,6 +881,17 @@ def test_npmrc_non_condition_decoys_are_ignored(tmp_path: Path, npmrc: str) -> N
     (frontend_root / ".npmrc").write_text(npmrc, encoding="utf-8")
 
     assert guard.scan_repository(frontend_root) == []
+
+
+def test_npmrc_malformed_node_options_fail_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    (frontend_root / ".npmrc").write_text(
+        'node-options=--conditions="react-server\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="unable to parse .npmrc node-options"):
+        guard.scan_repository(frontend_root)
 
 
 @pytest.mark.parametrize(
@@ -1713,7 +1735,7 @@ def test_delegated_shell_build_script_ignores_comment_only_condition(
     _write_source(
         frontend_root,
         "scripts/build.sh",
-        "# NODE_OPTIONS=--conditions=react-server\nvite build\n",
+        "# NODE_OPTIONS=--conditions=react-server\necho source scripts/not-run.sh\nvite build\n",
     )
 
     assert guard.scan_repository(frontend_root) == []
@@ -1758,6 +1780,77 @@ def test_delegated_shell_command_forms_scan_the_local_script(
     )
 
     assert guard.scan_repository(frontend_root) == ["scripts/build:react-server condition"]
+
+
+@pytest.mark.parametrize("source_command", ("source", "."))
+def test_delegated_shell_build_recursively_scans_sourced_scripts(
+    tmp_path: Path,
+    source_command: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build.sh",
+        f"{source_command} scripts/inner.sh\nvite build\n",
+    )
+    _write_source(
+        frontend_root,
+        "scripts/inner.sh",
+        "source scripts/deep.sh\n",
+    )
+    _write_source(
+        frontend_root,
+        "scripts/deep.sh",
+        "export NODE_OPTIONS=--conditions=react-server\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == ["scripts/deep.sh:react-server condition"]
+
+
+def test_delegated_shell_source_cycle_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(frontend_root, "scripts/build.sh", "source scripts/inner.sh\n")
+    _write_source(frontend_root, "scripts/inner.sh", "source scripts/build.sh\n")
+
+    with pytest.raises(guard.PremiseScanError, match="sourced script cycle"):
+        guard.scan_repository(frontend_root)
+
+
+@pytest.mark.parametrize(
+    "source_target",
+    ("../outside.sh", "inner.sh"),
+)
+def test_delegated_shell_unverifiable_source_paths_fail_closed(
+    tmp_path: Path,
+    source_target: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(frontend_root, "scripts/build.sh", f"source {source_target}\n")
+
+    with pytest.raises(guard.PremiseScanError, match="script path that cannot be verified"):
+        guard.scan_repository(frontend_root)
+
+
+def test_delegated_shell_sourced_symlink_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(frontend_root, "scripts/build.sh", "source scripts/inner.sh\n")
+    _write_source(frontend_root, "scripts/real.sh", "vite build\n")
+    (frontend_root / "scripts" / "inner.sh").symlink_to("real.sh")
+
+    with pytest.raises(guard.PremiseScanError, match="candidate path must not be a symlink"):
+        guard.scan_repository(frontend_root)
 
 
 def test_delegated_shell_command_rejects_cwd_change(

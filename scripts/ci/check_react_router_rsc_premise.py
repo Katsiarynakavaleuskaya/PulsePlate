@@ -55,9 +55,6 @@ RUNTIME_MARKERS = (
     *_PACKAGE_MARKER_LABELS,
 )
 _REACT_SERVER_CONDITION_RE = re.compile(r"(?<![A-Za-z0-9_-])react-server(?![A-Za-z0-9_-])")
-_NPMRC_REACT_SERVER_CONDITION_RE = re.compile(
-    r"(?<![A-Za-z0-9_-])--conditions=react-server(?![A-Za-z0-9_-])"
-)
 _REGEX_PREFIX_CHARACTERS = frozenset("([{=,:;!?&|+-*%^~")
 _REGEX_PREFIX_KEYWORDS = ("await", "case", "delete", "return", "throw", "typeof", "void", "yield")
 _REGEX_PREFIX_CONTEXT_LIMIT = max(len(keyword) for keyword in _REGEX_PREFIX_KEYWORDS) + 1
@@ -500,18 +497,19 @@ def _delegated_shell_script_paths(
     *,
     root: Path,
     label: str,
+    comments: bool = False,
 ) -> tuple[Path, ...]:
     """Resolve local scripts directly delegated from one package command."""
 
     if "\r" in command or "\n" in command:
         raise PremiseScanError(f"{label} uses an unsupported multiline shell command")
-    tokens = _shell_command_tokens(command, label=label, comments=False)
+    tokens = _shell_command_tokens(command, label=label, comments=comments)
     if _SHELL_CONTROL_TOKENS.intersection(tokens):
         raise PremiseScanError(f"{label} uses an unsupported compound shell command")
     paths: list[Path] = []
 
     def append_local_path(candidate: str) -> None:
-        if "$" in candidate or "\0" in candidate:
+        if "$" in candidate or "\0" in candidate or ".." in Path(candidate).parts:
             raise PremiseScanError(
                 f"{label} delegates to a shell script path that cannot be verified"
             )
@@ -535,6 +533,10 @@ def _delegated_shell_script_paths(
     if executable in _SHELL_SOURCE_BUILTINS:
         if not arguments:
             raise PremiseScanError(f"{label} has a source command without a script path")
+        if "/" not in arguments[0]:
+            raise PremiseScanError(
+                f"{label} delegates to a shell script path that cannot be verified"
+            )
         append_local_path(arguments[0])
         return tuple(paths)
     if _PYTHON_INTERPRETER_RE.fullmatch(Path(executable).name):
@@ -583,15 +585,89 @@ def _delegated_shell_script_paths(
     return tuple(paths)
 
 
-def _scan_delegated_script_file(path: Path, root: Path) -> list[str]:
+def _sourced_shell_script_paths(text: str, *, root: Path, label: str) -> tuple[Path, ...]:
+    """Return static local scripts sourced by one delegated shell script."""
+
+    paths: list[Path] = []
+    working_directory_changed = False
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line_label = f"{label}:{line_number}"
+        tokens = _shell_command_tokens(raw_line, label=line_label, comments=True)
+        if not tokens:
+            continue
+        index = 0
+        while index < len(tokens) and _SHELL_ASSIGNMENT_RE.match(tokens[index]):
+            index += 1
+        if index >= len(tokens):
+            continue
+        command = tokens[index]
+        if command == "cd":
+            working_directory_changed = True
+        if not _SHELL_SOURCE_BUILTINS.intersection(tokens):
+            continue
+        if command not in _SHELL_SOURCE_BUILTINS:
+            if command in _SHELL_UNSUPPORTED_COMMANDS or _SHELL_CONTROL_TOKENS.intersection(tokens):
+                raise PremiseScanError(f"{line_label} uses an unsupported sourced command")
+            continue
+        if working_directory_changed:
+            raise PremiseScanError(f"{line_label} sources after an unsupported cwd change")
+        paths.extend(
+            _delegated_shell_script_paths(
+                raw_line,
+                root=root,
+                label=line_label,
+                comments=True,
+            )
+        )
+    return tuple(paths)
+
+
+def _scan_delegated_script_file(
+    path: Path,
+    root: Path,
+    *,
+    active_paths: frozenset[Path] = frozenset(),
+) -> list[str]:
     """Return RSC condition diagnostics from one delegated local script."""
 
     label = _relative_label(path, root)
     text = _validate_candidate(path, root)
+    resolved = path.resolve(strict=True)
+    if resolved in active_paths:
+        raise PremiseScanError(f"sourced script cycle detected at {label}")
+    nested_active_paths = active_paths | {resolved}
     tokens = _shell_command_tokens(text, label=label, comments=True)
+    violations: list[str] = []
     if any(_REACT_SERVER_CONDITION_RE.search(token) for token in tokens):
-        return [f"{label}:react-server condition"]
-    return []
+        violations.append(f"{label}:react-server condition")
+    for sourced_path in _sourced_shell_script_paths(text, root=root, label=label):
+        violations.extend(
+            _scan_delegated_script_file(
+                sourced_path,
+                root,
+                active_paths=nested_active_paths,
+            )
+        )
+    return violations
+
+
+def _npmrc_enables_react_server_condition(value: str) -> bool:
+    """Return whether tokenized npm ``node-options`` enables ``react-server``."""
+
+    try:
+        tokens = tuple(shlex.split(value, comments=False, posix=True))
+    except ValueError as exc:
+        raise PremiseScanError(f"unable to parse .npmrc node-options: {exc}") from exc
+    for index, option in enumerate(tokens):
+        if option == "--conditions=react-server":
+            return True
+        if (
+            option == "--conditions"
+            and index + 1 < len(tokens)
+            and tokens[index + 1] == "react-server"
+        ):
+            return True
+    return False
 
 
 def _scan_package_metadata(root: Path) -> list[str]:
@@ -679,7 +755,7 @@ def _scan_package_metadata(root: Path) -> list[str]:
             if (
                 separator
                 and key.strip().lower() == "node-options"
-                and _NPMRC_REACT_SERVER_CONDITION_RE.search(value)
+                and _npmrc_enables_react_server_condition(value)
             ):
                 violations.append(".npmrc:node-options:react-server condition")
                 break
