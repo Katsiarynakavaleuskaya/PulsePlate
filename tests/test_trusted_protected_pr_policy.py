@@ -1525,6 +1525,7 @@ def test_unchanged_trust_root_uses_automatic_path(tmp_path: Path) -> None:
         ("lint", "scripts/ci/check_python_startup_hooks.py"),
         ("lint", "requirements-ci-lite.txt"),
         ("lint", "tests/__init__.py"),
+        ("lint", "tests/**/__init__.py"),
         ("lint", "tests/conftest.py"),
         ("lint", "tests/**/conftest.py"),
         ("lint", ".yamllint"),
@@ -1689,6 +1690,7 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "core/ai/__init__.py",
         "pytest_sharding.py",
         "tests/__init__.py",
+        "tests/edges/__init__.py",
         "tests/conftest.py",
         "tests/edges/conftest.py",
         "constraints.txt",
@@ -1959,6 +1961,7 @@ def test_malformed_semantic_input_uses_terminal_rotation_token(tmp_path: Path) -
         "ruff.toml",
         "scripts/orchestration/context_pack.py",
         "tests/__init__.py",
+        "tests/edges/__init__.py",
         "tests/conftest.py",
         "tests/edges/conftest.py",
         "tests/guards/test_nosec_policy_guard.py",
@@ -2063,6 +2066,7 @@ def test_main_orders_authority_before_protected_seal_and_checks(
     (
         ".github/workflows/frontend-ci.yml",
         "tests/__init__.py",
+        "tests/edges/__init__.py",
     ),
 )
 def test_main_stops_at_authority_rotation_before_seal_or_check_polling(

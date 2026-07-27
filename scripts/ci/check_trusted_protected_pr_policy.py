@@ -252,6 +252,7 @@ _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
         "scripts/hooks/repo_python.sh",
         "scripts/run-backend-tests-pre-commit.sh",
         "tests/__init__.py",
+        "tests/**/__init__.py",
         "tests/conftest.py",
         "tests/**/conftest.py",
         "tests/fixtures/dependency_security_schema.json",
