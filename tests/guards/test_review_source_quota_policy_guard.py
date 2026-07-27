@@ -57,20 +57,17 @@ POLICY_SUITE_TEST_FILES = {
 }
 
 
-def _seal_parser() -> Any:
+def _subparsers_action() -> Any:
     parser = pr_review_closeout._parser()
-    subparsers_action = next(
-        action for action in parser._actions if isinstance(action.choices, dict)
-    )
-    return subparsers_action.choices["seal"]
+    return next(action for action in parser._actions if isinstance(action.choices, dict))
+
+
+def _seal_parser() -> Any:
+    return _subparsers_action().choices["seal"]
 
 
 def _closeout_subcommands() -> set[str]:
-    parser = pr_review_closeout._parser()
-    subparsers_action = next(
-        action for action in parser._actions if isinstance(action.choices, dict)
-    )
-    return set(subparsers_action.choices)
+    return set(_subparsers_action().choices)
 
 
 def _seal_option_strings() -> set[str]:
