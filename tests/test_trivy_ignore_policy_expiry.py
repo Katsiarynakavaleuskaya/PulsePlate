@@ -1685,6 +1685,7 @@ def test_delegated_shell_command_rejects_cwd_change(
         "echo setup\nbash scripts/build",
         "bash -c 'bash scripts/build'",
         "bash -lc 'source scripts/build'",
+        "! bash scripts/build",
         "command bash scripts/build",
         "env NODE_ENV=production bash scripts/build",
         "exec bash scripts/build",
@@ -1717,6 +1718,18 @@ def test_shell_interpreter_argument_is_not_treated_as_an_executed_command(
         "scripts/build",
         "export NODE_OPTIONS=--conditions=react-server\nvite build\n",
     )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
+def test_direct_javascript_build_script_uses_source_scanner(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "./scripts/build.mjs"}},
+    )
+    _write_source(frontend_root, "scripts/build.mjs", "const pattern = /don't/;\n")
 
     assert guard.scan_repository(frontend_root) == []
 

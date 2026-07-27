@@ -76,7 +76,7 @@ _SHELL_INTERPRETERS = frozenset({"bash", "dash", "sh", "zsh"})
 _SHELL_OPTIONS_WITH_ARGUMENT = frozenset({"--init-file", "--rcfile", "-O", "-o"})
 _SHELL_CONTROL_TOKENS = frozenset({"&", "&&", "(", ")", ";", "|", "||"})
 _SHELL_SOURCE_BUILTINS = frozenset({".", "source"})
-_SHELL_UNSUPPORTED_COMMANDS = frozenset({"{", "cd", "command", "env", "exec", "if"})
+_SHELL_UNSUPPORTED_COMMANDS = frozenset({"!", "{", "cd", "command", "env", "exec", "if"})
 _SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
@@ -443,6 +443,8 @@ def _delegated_shell_script_paths(
         return tuple(paths)
     if Path(executable).name not in _SHELL_INTERPRETERS:
         if "/" in executable:
+            if Path(executable).suffix in SOURCE_SUFFIXES | HTML_SUFFIXES:
+                return ()
             append_local_path(executable)
         return tuple(paths)
 
