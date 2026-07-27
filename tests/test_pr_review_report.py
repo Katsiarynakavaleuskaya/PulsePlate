@@ -213,6 +213,26 @@ def test_build_report_keeps_false_positive_controls_for_benign_context() -> None
     )
 
 
+def test_build_report_accepts_raw_diff_mapping_presence_with_material_only_scope() -> None:
+    context = _base_context()
+    context["fixed_mapping"] = {
+        "repo_path": "docs/review/PR_1539_FIXED_MAPPING.md",
+        "exists": True,
+        "present_in_pr_diff": True,
+        "entries": {},
+        "no_actionable": True,
+        "errors": [],
+    }
+
+    report = report_runner.build_report(context)
+
+    assert report["findings"] == []
+    assert report["scope_reviewed"]["changed_files"] == [
+        "scripts/orchestration/pr_review_context.py"
+    ]
+    assert report["calibration"]["case_labels"] == ["clean-context"]
+
+
 def test_build_report_flags_malformed_fixed_mapping_context() -> None:
     context = _base_context()
     context["fixed_mapping"] = None

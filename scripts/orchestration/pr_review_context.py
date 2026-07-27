@@ -31,7 +31,7 @@ SCHEMA_VERSION = "2.0.0"
 
 AGENTS_BASENAME = "AGENTS.md"
 
-DIFF_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$")
+DIFF_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$", re.DOTALL)
 LOCAL_PATH_RE = re.compile(
     r"(?i)(file://)?("
     r"/(?:Users|private|var|tmp|Volumes|etc|opt)/[^\s,)]+|"
@@ -286,6 +286,7 @@ def collect_scope_diff(
                 str(repo_root),
                 "diff",
                 "--numstat",
+                "-z",
                 "--no-renames",
                 "--no-ext-diff",
                 "--no-textconv",
@@ -298,10 +299,16 @@ def collect_scope_diff(
         return [], {"files": 0, "additions": 0, "deletions": 0, "changed_lines": 0}, [str(exc)]
 
     files: list[DiffStats] = []
-    for raw in completed.stdout.splitlines():
-        match = DIFF_NUMSTAT_RE.match(raw)
-        if not match:
+    for raw in completed.stdout.split("\0"):
+        if not raw:
             continue
+        match = DIFF_NUMSTAT_RE.fullmatch(raw)
+        if not match:
+            return (
+                [],
+                {"files": 0, "additions": 0, "deletions": 0, "changed_lines": 0},
+                ["Unable to parse NUL-delimited git diff --numstat output."],
+            )
         additions_raw, deletions_raw, path = match.groups()
         additions = 0 if additions_raw == "-" else int(additions_raw)
         deletions = 0 if deletions_raw == "-" else int(deletions_raw)
@@ -437,20 +444,26 @@ def collect_review_context(
                 "merge_base_sha": manifest.merge_base_sha,
             }
 
-    changed_file_stats, diff_summary, diff_warnings = collect_scope_diff(
+    raw_changed_file_stats, diff_summary, diff_warnings = collect_scope_diff(
         repo_root=repo_root,
         base_sha=manifest.merge_base_sha if manifest is not None else diff_base,
         head_sha=diff_head,
     )
     warnings.extend(diff_warnings)
+    raw_changed_files = [entry.path for entry in raw_changed_file_stats]
+    changed_file_stats = raw_changed_file_stats
     if manifest is not None and not diff_warnings:
         excluded_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
         material_paths = [entry.path for entry in manifest.entries]
         diff_stats = {
-            entry.path: entry for entry in changed_file_stats if entry.path != excluded_path
+            entry.path: entry for entry in raw_changed_file_stats if entry.path != excluded_path
         }
-        raw_paths = [entry.path for entry in changed_file_stats if entry.path != excluded_path]
-        if len(raw_paths) != len(set(raw_paths)) or set(raw_paths) != set(material_paths):
+        candidate_material_paths = [
+            entry.path for entry in raw_changed_file_stats if entry.path != excluded_path
+        ]
+        if len(candidate_material_paths) != len(set(candidate_material_paths)) or set(
+            candidate_material_paths
+        ) != set(material_paths):
             warnings.append("Canonical review diff stats do not match the exact material path set.")
         else:
             changed_file_stats = [diff_stats[path] for path in material_paths]
@@ -487,7 +500,7 @@ def collect_review_context(
                     "checkout before treating mapping evidence as current PR truth."
                 )
             if repo_path and not diff_warnings:
-                present_in_pr_diff = repo_path in changed_files
+                present_in_pr_diff = repo_path in raw_changed_files
                 fixed_mapping["present_in_pr_diff"] = present_in_pr_diff
                 if not present_in_pr_diff:
                     degraded_reasons.append(

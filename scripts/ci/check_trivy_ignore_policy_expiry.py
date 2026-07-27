@@ -214,6 +214,20 @@ def _top_level_body_token_lines(body: str) -> tuple[tuple[_RegoToken, ...], ...]
     return tuple(tuple(by_line[line]) for line in sorted(by_line))
 
 
+def _top_level_body_token_expressions(
+    body: str,
+) -> tuple[tuple[tuple[_RegoToken, ...], ...], ...]:
+    """Group following-line ``with`` modifiers with their executable expression."""
+
+    expressions: list[list[tuple[_RegoToken, ...]]] = []
+    for token_line in _top_level_body_token_lines(body):
+        if token_line[0].value == "with" and expressions:
+            expressions[-1].append(token_line)
+            continue
+        expressions.append([token_line])
+    return tuple(tuple(expression) for expression in expressions)
+
+
 def _direct_input_equality(tokens: tuple[_RegoToken, ...]) -> tuple[str, str] | None:
     if len(tokens) != 5:
         return None
@@ -238,11 +252,69 @@ def _direct_input_equality(tokens: tuple[_RegoToken, ...]) -> tuple[str, str] | 
     return None
 
 
+def _with_modifier_target(tokens: tuple[_RegoToken, ...]) -> tuple[_RegoToken, ...] | None:
+    """Return a complete following-line ``with`` target, or fail closed."""
+
+    if not tokens or tokens[0].value != "with":
+        return None
+    separator_index = next(
+        (index for index, token in enumerate(tokens[1:], start=1) if token.value == "as"),
+        None,
+    )
+    if separator_index is None or separator_index == 1 or separator_index + 1 >= len(tokens):
+        return None
+    return tokens[1:separator_index]
+
+
+def _with_target_can_affect_input_field(
+    target: tuple[_RegoToken, ...],
+    field: str,
+) -> bool:
+    """Return whether a ``with`` target can replace the referenced input field."""
+
+    if not target or target[0].value != "input":
+        return False
+    if len(target) == 1:
+        return True
+    if target[1].value == ".":
+        if len(target) < 3 or target[2].kind != "identifier":
+            return True
+        return target[2].value == field
+    if target[1].value == "[":
+        if (
+            len(target) >= 4
+            and target[2].kind == "string"
+            and target[2].literal_value is not None
+            and target[3].value == "]"
+        ):
+            return target[2].literal_value == field
+        return True
+    return True
+
+
+def _direct_input_equality_expression(
+    token_lines: tuple[tuple[_RegoToken, ...], ...],
+) -> tuple[str, str] | None:
+    """Prove a direct equality only across its complete executable expression."""
+
+    if not token_lines:
+        return None
+    equality = _direct_input_equality(token_lines[0])
+    if equality is None:
+        return None
+    field, _value = equality
+    for modifier_tokens in token_lines[1:]:
+        target = _with_modifier_target(modifier_tokens)
+        if target is None or _with_target_can_affect_input_field(target, field):
+            return None
+    return equality
+
+
 def _ignore_block_can_match_react_router_target(body: str) -> bool:
     """Conservatively reject blocks only when executable equality proves conflict."""
 
-    for token_line in _top_level_body_token_lines(body):
-        equality = _direct_input_equality(token_line)
+    for token_expression in _top_level_body_token_expressions(body):
+        equality = _direct_input_equality_expression(token_expression)
         if equality is None:
             continue
         field, value = equality

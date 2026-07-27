@@ -2056,6 +2056,44 @@ _CANONICAL_RSC_RULE_BODY = "\n".join(
             ),
             id="raw-string-conflicting-decoy",
         ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "\t# The modifier is part of the equality expression despite the newline.",
+                    '\twith input.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="following-with-overrides-same-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\t"CVE-2026-27171" == input.VulnerabilityID',
+                    '\twith input as {"VulnerabilityID": "GHSA-qwww-vcr4-c8h2"}',
+                )
+            ),
+            id="following-with-overrides-input-root",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    '\twith input["VulnerabilityID"] as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="following-with-overrides-bracket-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "\twith",
+                    '\tinput.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="split-following-with-fails-closed",
+        ),
     ],
 )
 def test_noncanonical_target_capable_rule_rejected_and_activates_premise_scan(
@@ -2108,6 +2146,54 @@ def test_unrelated_rule_with_explicit_conflicting_vulnerability_stays_valid(
         expiry_guard,
         "scan_react_router_rsc_premise",
         lambda _root: pytest.fail("explicitly unrelated rule must not activate RSC scan"),
+    )
+
+    assert not expiry_guard._contains_react_router_rsc_suppression(policy_path)
+    assert expiry_guard.main() == 0
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    [
+        pytest.param(
+            'with input.PkgName as "react-router"',
+            id="different-input-field",
+        ),
+        pytest.param(
+            'with input["PkgName"] as "react-router"',
+            id="different-bracket-input-field",
+        ),
+        pytest.param(
+            'with input.VulnerabilityIDExtra as "GHSA-qwww-vcr4-c8h2"',
+            id="input-field-prefix-near-miss",
+        ),
+        pytest.param(
+            'with data.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+            id="data-document-near-miss",
+        ),
+    ],
+)
+def test_unrelated_rule_with_non_overlapping_modifier_stays_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    modifier: str,
+) -> None:
+    policy_path = _write_expiry_wrapper_policy_with_body(
+        tmp_path,
+        "\n".join(
+            (
+                '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                f"\t{modifier}",
+                "\ttrue",
+            )
+        ),
+    )
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        expiry_guard,
+        "scan_react_router_rsc_premise",
+        lambda _root: pytest.fail("non-overlapping modifier must preserve conflict proof"),
     )
 
     assert not expiry_guard._contains_react_router_rsc_suppression(policy_path)

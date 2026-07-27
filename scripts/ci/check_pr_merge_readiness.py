@@ -137,6 +137,7 @@ RAW_HTML_VOID_TAGS = frozenset(
 )
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
+_MAX_OUTAGE_SECURITY_WAIT_SECONDS = 300
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
     "Analyze (actions)": ("CodeQL Advanced", 15_368, "github-actions"),
     "Analyze (javascript-typescript)": ("CodeQL Advanced", 15_368, "github-actions"),
@@ -685,9 +686,8 @@ def _validate_operator_outage_security_checks(
     expected_head_sha: str,
     security_required: bool = True,
     evidence_label: str = "operator outage override",
-    pending_retry_allowed: bool = True,
 ) -> None:
-    """Require a strict successful current-head security bundle for outage overrides."""
+    """Require a strict successful trusted current-head security bundle."""
 
     _is_draft, _merge_state, _base_ref, nodes = _fetch_current_head_pr_metadata(
         pr_number, repository, token, expected_head_sha
@@ -696,7 +696,7 @@ def _validate_operator_outage_security_checks(
         entries = [_normalize_check_node(node) for node in nodes if node]
     except ValueError as exc:
         raise ReviewEvidenceError(
-            f"operator outage override cannot order current-head security checks: {exc}"
+            f"{evidence_label} cannot order current-head security checks: {exc}"
         ) from exc
     latest, superseded = _latest_check_entries(entries)
     latest, _superseded = _suppress_stale_check_entries(
@@ -737,11 +737,7 @@ def _validate_operator_outage_security_checks(
             continue
         entry = latest.get(name)
         if entry is None:  # Defensive: candidates were present above.
-            failure = f"{name}=missing-latest"
-            if pending_retry_allowed:
-                pending_failures.append(failure)
-            else:
-                terminal_failures.append(failure)
+            terminal_failures.append(f"{name}=missing-latest")
             continue
         if (
             name == "security"
@@ -765,20 +761,15 @@ def _validate_operator_outage_security_checks(
     if failures:
         error_type = (
             _OutageSecurityChecksPending
-            if pending_retry_allowed and pending_failures and not terminal_failures
+            if pending_failures and not terminal_failures
             else ReviewEvidenceError
-        )
-        retry_note = (
-            ". Pending or not-yet-visible exact-head checks may be retried only "
-            "within the bounded CI wait; failed or untrusted checks remain terminal."
-            if pending_retry_allowed
-            else ". Missing, pending, failed, stale, or untrusted checks are terminal; "
-            "provider-neutral no-claim validation does not retry."
         )
         raise error_type(
             f"{evidence_label} requires successful current-head security checks: "
             + ", ".join(failures)
-            + retry_note
+            + ". Pending or not-yet-visible exact-head checks may be retried only "
+            "within the bounded CI wait; failed, stale, skipped-when-applicable, "
+            "or untrusted checks remain terminal."
         )
 
 
@@ -792,12 +783,15 @@ def _wait_for_operator_outage_security_checks(
     timeout_seconds: int,
     poll_interval_seconds: int = 15,
     evidence_label: str = "operator outage override",
-    pending_retry_allowed: bool = True,
 ) -> None:
     """Wait only for transient exact-head substitute-check states, then fail closed."""
 
     if timeout_seconds < 0:
         raise ValueError("outage security wait must be non-negative")
+    if timeout_seconds > _MAX_OUTAGE_SECURITY_WAIT_SECONDS:
+        raise ValueError(
+            f"outage security wait must not exceed {_MAX_OUTAGE_SECURITY_WAIT_SECONDS} seconds"
+        )
     if poll_interval_seconds <= 0:
         raise ValueError("outage security poll interval must be positive")
 
@@ -812,7 +806,6 @@ def _wait_for_operator_outage_security_checks(
                 expected_head_sha=expected_head_sha,
                 security_required=security_required,
                 evidence_label=evidence_label,
-                pending_retry_allowed=pending_retry_allowed,
             )
             return
         except _OutageSecurityChecksPending as exc:
@@ -934,7 +927,6 @@ def _validate_v1_seal(
             ),
             timeout_seconds=outage_security_wait_seconds,
             evidence_label="provider-neutral no-claim evidence",
-            pending_retry_allowed=False,
         )
     return seal
 
@@ -1024,7 +1016,7 @@ def main() -> int:
     parser.add_argument(
         "--outage-security-wait-seconds",
         type=int,
-        default=300,
+        default=_MAX_OUTAGE_SECURITY_WAIT_SECONDS,
         help=(
             "Bounded CI wait for transient exact-head substitute security checks. "
             "Failed or untrusted checks are never retried."
@@ -1041,6 +1033,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.outage_security_wait_seconds < 0:
         parser.error("--outage-security-wait-seconds must be non-negative")
+    if args.outage_security_wait_seconds > _MAX_OUTAGE_SECURITY_WAIT_SECONDS:
+        parser.error(
+            "--outage-security-wait-seconds must not exceed " f"{_MAX_OUTAGE_SECURITY_WAIT_SECONDS}"
+        )
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")

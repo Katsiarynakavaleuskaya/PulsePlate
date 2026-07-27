@@ -4014,9 +4014,11 @@ def _mapping_artifact_with_seal(seal: dict[str, Any]) -> str:
     )
 
 
-def test_authenticated_live_mapping_rejects_rehashed_wrong_report_paths(
+@pytest.mark.parametrize("token", (None, "opaque"), ids=("tokenless", "authenticated"))
+def test_live_mapping_rejects_rehashed_wrong_report_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    token: str | None,
 ) -> None:
     seal = _provider_no_claim_seal()
     self_review = seal["self_review"]
@@ -4045,7 +4047,7 @@ def test_authenticated_live_mapping_rejects_rehashed_wrong_report_paths(
         closeout_module.validate_live_mapping(
             repository="owner/repo",
             pr_number=42,
-            token="opaque",
+            token=token,
         )
 
 
@@ -4866,6 +4868,51 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             expected_freeze=new_seal["material"],
         )
 
+    merge_bases[(BASE_SHA, next_base)] = BASE_SHA
+    merge_bases[(HEAD_SHA, next_head)] = OUTSIDE_SHA
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+
+    merge_bases[(HEAD_SHA, next_head)] = HEAD_SHA
+    old_seal["material"]["base_ref_oid"] = FIX_SHA
+    previous_identity_mismatch = closeout_module._render_mapping(state, old_seal)
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            previous_identity_mismatch,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+
+    old_seal["material"]["base_ref_oid"] = BASE_SHA
+    new_seal["material"]["merge_base_sha"] = BASE_SHA
+    new_seal["codex_security"]["base_revision"] = BASE_SHA
+    next_identity_mismatch = closeout_module._render_mapping(state, new_seal)
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            next_identity_mismatch,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+
 
 def test_embedded_seal_rejects_duplicate_keys() -> None:
     text = f'{SEAL_BEGIN}\n{{"authority":"x","authority":"y"}}\n{SEAL_END}'
@@ -5289,6 +5336,42 @@ def test_material_digest_tracks_rename_mode_binary_and_symlink(tmp_path: Path) -
         "tool-link",
         "tool.sh",
     }
+
+
+def test_material_manifest_records_copy_only_as_exact_no_rename_addition(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    source = repo / "source.txt"
+    source.write_text("same bytes\n", encoding="utf-8")
+    base = _commit(repo, "base")
+
+    copied = repo / "copied.txt"
+    shutil.copyfile(source, copied)
+    head = _commit(repo, "copy only")
+
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base,
+        head_ref_oid=head,
+        pr_number=42,
+    )
+    source_blob = _git(repo, "rev-parse", f"{base}:source.txt")
+    copied_blob = _git(repo, "rev-parse", f"{head}:copied.txt")
+
+    assert copied_blob == source_blob
+    assert [entry.as_dict() for entry in manifest.entries] == [
+        {
+            "base_blob_oid": None,
+            "base_mode": "000000",
+            "head_blob_oid": copied_blob,
+            "head_mode": "100644",
+            "path": "copied.txt",
+            "status": "A",
+        }
+    ]
 
 
 def test_scan_receipt_rejects_path_traversal_and_incomplete_coverage(

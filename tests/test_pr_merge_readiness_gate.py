@@ -1071,16 +1071,14 @@ def test_operator_outage_override_rejects_stale_success_before_newer_workflow_jo
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(
-        merge_gate._OutageSecurityChecksPending,
-        match=rf"{target}=missing-latest",
-    ):
+    with pytest.raises(ReviewEvidenceError, match=rf"{target}=missing-latest") as exc_info:
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
+    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
 
 
 def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
@@ -1100,7 +1098,10 @@ def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="security=pending/status"):
+    with pytest.raises(
+        merge_gate._OutageSecurityChecksPending,
+        match="security=pending/status",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
@@ -1177,7 +1178,6 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
 @pytest.mark.parametrize(
     ("target", "status", "conclusion", "expected"),
     [
-        ("security", "IN_PROGRESS", "", "security=pending/status"),
         ("security", "COMPLETED", "SKIPPED", "security=failed/SKIPPED"),
         (
             "Analyze (python)",
@@ -1216,7 +1216,8 @@ def test_operator_outage_override_rejects_non_successful_security_checks(
             token="opaque",
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
-    assert "failed or untrusted checks remain terminal" in str(exc_info.value)
+    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
+    assert "skipped-when-applicable" in str(exc_info.value)
 
 
 def test_operator_outage_wait_retries_pending_checks_until_success(
@@ -1224,11 +1225,9 @@ def test_operator_outage_wait_retries_pending_checks_until_success(
 ) -> None:
     attempts: list[int] = []
     sleeps: list[float] = []
-    retry_flags: list[bool] = []
 
-    def validate(**kwargs: Any) -> None:
+    def validate(**_kwargs: Any) -> None:
         attempts.append(len(attempts) + 1)
-        retry_flags.append(kwargs["pending_retry_allowed"])
         if len(attempts) < 3:
             raise merge_gate._OutageSecurityChecksPending("security=pending/status")
 
@@ -1248,7 +1247,6 @@ def test_operator_outage_wait_retries_pending_checks_until_success(
 
     assert attempts == [1, 2, 3]
     assert sleeps == [5.0, 5.0]
-    assert retry_flags == [True, True, True]
 
 
 def test_operator_outage_wait_does_not_retry_terminal_failure(
@@ -1310,7 +1308,19 @@ def test_operator_outage_wait_times_out_fail_closed(
         )
 
 
-def test_operator_outage_override_rejects_missing_security_check(
+def test_operator_outage_wait_rejects_unbounded_timeout() -> None:
+    with pytest.raises(ValueError, match="must not exceed 300 seconds"):
+        merge_gate._wait_for_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            security_required=True,
+            timeout_seconds=301,
+        )
+
+
+def test_operator_outage_override_treats_missing_security_check_as_transient(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     nodes = [
@@ -1324,7 +1334,10 @@ def test_operator_outage_override_rejects_missing_security_check(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="Private Python proxy health=missing"):
+    with pytest.raises(
+        merge_gate._OutageSecurityChecksPending,
+        match="Private Python proxy health=missing",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
@@ -1403,19 +1416,10 @@ def test_operator_outage_override_rejects_foreign_status_context(
         )
 
 
-@pytest.mark.parametrize(
-    ("mode", "expected"),
-    [
-        ("missing", "security=missing"),
-        ("pending", "security=pending/status"),
-        ("failed", "security=failed/FAILURE"),
-        ("stale", "security=missing-latest"),
-    ],
-)
-def test_provider_no_claim_security_failures_are_terminal_without_retry(
+@pytest.mark.parametrize("mode", ("missing", "pending"))
+def test_provider_no_claim_transient_security_checks_request_bounded_settlement(
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
-    expected: str,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     if mode == "missing":
@@ -1430,40 +1434,20 @@ def test_provider_no_claim_security_failures_are_terminal_without_retry(
             )
             for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
         ]
-    elif mode == "failed":
-        nodes = [
-            _check_node(
-                name,
-                conclusion="FAILURE" if name == "security" else "SUCCESS",
-            )
-            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
-        ]
-    else:
-        newer_activity = _check_node(
-            "security",
-            suite_created_at="2026-07-16T11:01:00Z",
-        )
-        newer_activity["name"] = "pr_scope_guard"
-        newer_activity["detailsUrl"] = "https://github.com/checks/pr_scope_guard"
-        nodes.append(newer_activity)
     monkeypatch.setattr(
         merge_gate,
         "_fetch_current_head_pr_metadata",
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match=expected) as exc_info:
+    with pytest.raises(merge_gate._OutageSecurityChecksPending):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
             expected_head_sha=OUTAGE_HEAD_SHA,
             evidence_label="provider-neutral no-claim evidence",
-            pending_retry_allowed=False,
         )
-
-    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
-    assert "provider-neutral no-claim validation does not retry" in str(exc_info.value)
 
 
 def _artifact_with_seal(seal: dict[str, Any]) -> str:
@@ -1604,7 +1588,32 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
 ) -> None:
     repo, seal, snapshot, material_head = _provider_no_claim_seal_context(tmp_path)
 
-    security_calls: list[dict[str, Any]] = []
+    successful_nodes = [
+        _check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+    ]
+    missing_nodes = [node for node in successful_nodes if node["name"] != "security"]
+    pending_nodes = [
+        _check_node(
+            name,
+            status="QUEUED" if name == "security" else "COMPLETED",
+            conclusion="" if name == "security" else "SUCCESS",
+            started_at=None if name == "security" else "2026-07-16T11:00:00Z",
+        )
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+    ]
+    metadata_snapshots = iter((missing_nodes, pending_nodes, successful_nodes))
+    metadata_heads: list[str] = []
+    sleeps: list[float] = []
+
+    def fetch_metadata(
+        _pr_number: int,
+        _repository: str,
+        _token: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str, str, list[dict[str, Any]]]:
+        metadata_heads.append(expected_head_sha)
+        return False, "CLEAN", "main", next(metadata_snapshots)
+
     monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
     monkeypatch.setattr(
         merge_gate,
@@ -1612,11 +1621,9 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
         lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        merge_gate,
-        "_wait_for_operator_outage_security_checks",
-        lambda **kwargs: security_calls.append(kwargs),
-    )
+    monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
+    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(merge_gate.time, "sleep", sleeps.append)
 
     validated = merge_gate._validate_v1_seal(
         artifact_text=_artifact_with_seal(seal),
@@ -1630,11 +1637,8 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
 
     assert validated["code_review"]["review_claim"] == "none"
     assert validated["codex_security"]["scan_claim"] == "none"
-    assert len(security_calls) == 1
-    assert security_calls[0]["expected_head_sha"] == material_head
-    assert security_calls[0]["timeout_seconds"] == 120
-    assert security_calls[0]["evidence_label"] == "provider-neutral no-claim evidence"
-    assert security_calls[0]["pending_retry_allowed"] is False
+    assert metadata_heads == [material_head, material_head, material_head]
+    assert sleeps == [15.0, 15.0]
 
     wrong_paths_seal = json.loads(json.dumps(seal))
     self_review = wrong_paths_seal["self_review"]
@@ -1659,19 +1663,11 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
         )
 
 
-@pytest.mark.parametrize(
-    ("mode", "expected"),
-    [
-        ("missing", "security=missing"),
-        ("pending", "security=pending/status"),
-        ("stale", "security=missing-latest"),
-    ],
-)
-def test_ci_gate_provider_no_claim_security_settlement_is_terminal_without_retry(
+@pytest.mark.parametrize("mode", ("missing", "pending"))
+def test_ci_gate_provider_no_claim_security_settlement_times_out_bounded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
-    expected: str,
 ) -> None:
     repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(tmp_path)
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
@@ -1687,7 +1683,65 @@ def test_ci_gate_provider_no_claim_security_settlement_is_terminal_without_retry
             )
             for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
         ]
-    else:
+    metadata_calls: list[str] = []
+
+    def fetch_metadata(
+        _pr_number: int,
+        _repository: str,
+        _token: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str, str, list[dict[str, Any]]]:
+        metadata_calls.append(expected_head_sha)
+        return False, "CLEAN", "main", nodes
+
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
+    clock = iter((0.0, 121.0))
+    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(
+        merge_gate.time,
+        "sleep",
+        lambda _seconds: pytest.fail("expired bounded settlement must not sleep"),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="timed out.*after 120s"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            outage_security_wait_seconds=120,
+            require_committed_closeout=False,
+        )
+
+    assert metadata_calls == [snapshot.head_sha]
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("stale", "security=missing-latest"),
+        ("failed", "security=failed/FAILURE"),
+        ("untrusted", "security=untrusted-producer"),
+        ("skipped_applicable", r"Analyze \(python\)=failed/SKIPPED"),
+    ],
+)
+def test_ci_gate_provider_no_claim_terminal_security_checks_do_not_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    expected: str,
+) -> None:
+    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(tmp_path)
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    if mode == "stale":
         newer_activity = _check_node(
             "security",
             suite_created_at="2026-07-16T11:01:00Z",
@@ -1695,6 +1749,30 @@ def test_ci_gate_provider_no_claim_security_settlement_is_terminal_without_retry
         newer_activity["name"] = "pr_scope_guard"
         newer_activity["detailsUrl"] = "https://github.com/checks/pr_scope_guard"
         nodes.append(newer_activity)
+    elif mode == "failed":
+        nodes = [
+            _check_node(
+                name,
+                conclusion="FAILURE" if name == "security" else "SUCCESS",
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+    elif mode == "untrusted":
+        nodes = [
+            _check_node(
+                name,
+                workflow_name="foreign-workflow" if name == "security" else None,
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+    else:
+        nodes = [
+            _check_node(
+                name,
+                conclusion="SKIPPED" if name == "Analyze (python)" else "SUCCESS",
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
 
     metadata_calls: list[str] = []
 
@@ -1715,10 +1793,11 @@ def test_ci_gate_provider_no_claim_security_settlement_is_terminal_without_retry
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
     monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
+    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
     monkeypatch.setattr(
         merge_gate.time,
         "sleep",
-        lambda _seconds: pytest.fail("provider-neutral no-claim must not sleep or retry"),
+        lambda _seconds: pytest.fail("terminal current-head checks must not be retried"),
     )
 
     with pytest.raises(ReviewEvidenceError, match=expected) as exc_info:
@@ -1732,8 +1811,8 @@ def test_ci_gate_provider_no_claim_security_settlement_is_terminal_without_retry
             require_committed_closeout=False,
         )
 
+    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
     assert metadata_calls == [snapshot.head_sha]
-    assert "provider-neutral no-claim validation does not retry" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(

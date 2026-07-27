@@ -687,6 +687,22 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise CloseoutError("review seal repository/PR identity mismatch")
     if token is None:
+        material = seal["material"]
+        manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=material["base_ref_oid"],
+            head_ref_oid=material["material_head_sha"],
+            pr_number=pr_number,
+        )
+        seal = validate_review_seal(
+            seal,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        if (
+            material["merge_base_sha"] != manifest.merge_base_sha
+            or material["digest"] != manifest.digest
+        ):
+            raise CloseoutError("review seal is stale for the sealed material state")
         return seal
     snapshot = fetch_pr_snapshot(repository, pr_number, token=token)
     local_head = _git("rev-parse", "HEAD")
