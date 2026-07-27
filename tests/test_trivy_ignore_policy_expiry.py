@@ -804,8 +804,8 @@ def _write_expiry_wrapper_policy(repo_root: Path) -> None:
     lines = [
         "package trivy",
         "# Suppression expires: 2026-10-07 (manual removal)",
-        "# Review-by: 2026-08-24 (manual removal)",
         "default ignore := false",
+        "# Review-by: 2026-08-24 (manual removal)",
         "ignore if {",
         '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
         '\tinput.PkgName == "react-router"',
@@ -829,8 +829,8 @@ def _write_expiry_wrapper_policy_with_rule(repo_root: Path, rule: str) -> Path:
             (
                 "package trivy",
                 "# Suppression expires: 2099-01-01 (manual removal)",
-                "# Review-by: 2099-01-01 (manual removal)",
                 "default ignore := false",
+                "# Review-by: 2099-01-01 (manual removal)",
                 rule,
                 "",
             )
@@ -856,6 +856,73 @@ _CANONICAL_RSC_RULE_BODY = "\n".join(
         '\tinput.FixedVersion == "8.3.0"',
     )
 )
+
+
+def test_react_router_rsc_suppression_requires_its_review_by_comment() -> None:
+    policy_text = _policy_text()
+    without_rsc_review = policy_text.replace(
+        "# Review-by: 2026-08-24 (manual removal)\n",
+        "",
+        1,
+    )
+
+    failures = evaluate_policy_file(
+        POLICY_PATH,
+        today=date(2026, 7, 27),
+        text=without_rsc_review,
+    )
+
+    assert failures == [
+        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
+        "adjacent 'Review-by: YYYY-MM-DD' comment"
+    ]
+
+
+def test_react_router_rsc_suppression_rejects_separated_review_by_decoy() -> None:
+    policy_text = _policy_text()
+    without_rsc_review = policy_text.replace(
+        "# Review-by: 2026-08-24 (manual removal)\n",
+        "",
+        1,
+    )
+    with_separated_decoy = without_rsc_review.replace(
+        "# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate",
+        "# Review-by: 2099-01-01 (belongs to another note)\n\n"
+        "# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate",
+        1,
+    )
+    assert with_separated_decoy != without_rsc_review
+
+    failures = evaluate_policy_file(
+        POLICY_PATH,
+        today=date(2026, 7, 27),
+        text=with_separated_decoy,
+    )
+
+    assert failures == [
+        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
+        "adjacent 'Review-by: YYYY-MM-DD' comment"
+    ]
+
+
+def test_react_router_rsc_suppression_rejects_multiple_adjacent_review_dates() -> None:
+    policy_text = _policy_text()
+    duplicate_rsc_review = policy_text.replace(
+        "# Review-by: 2026-08-24 (manual removal)\n",
+        "# Review-by: 2026-08-24 (manual removal)\n" "# Review-by: 2099-01-01 (decoy)\n",
+        1,
+    )
+
+    failures = evaluate_policy_file(
+        POLICY_PATH,
+        today=date(2026, 7, 27),
+        text=duplicate_rsc_review,
+    )
+
+    assert failures == [
+        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
+        "adjacent 'Review-by: YYYY-MM-DD' comment"
+    ]
 
 
 @pytest.mark.parametrize(

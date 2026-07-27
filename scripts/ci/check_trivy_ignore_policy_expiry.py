@@ -42,6 +42,12 @@ class _RegoToken:
     depth: int
 
 
+@dataclass(frozen=True)
+class _IgnoreBlock:
+    body: str
+    head_line: int
+
+
 def _tokenize_rego(
     text: str,
     *,
@@ -155,12 +161,14 @@ def _tokenize_rego(
     return tuple(tokens), brace_pairs
 
 
-def _inspect_ignore_policy_source(text: str) -> tuple[tuple[str, ...], tuple[int, ...]]:
+def _inspect_ignore_policy_source(
+    text: str,
+) -> tuple[tuple[_IgnoreBlock, ...], tuple[int, ...]]:
     """Extract canonical-head bodies and identify every unsupported ignore construct."""
 
     tokens, brace_pairs = _tokenize_rego(text)
     source_lines = text.splitlines()
-    ignore_blocks: list[str] = []
+    ignore_blocks: list[_IgnoreBlock] = []
     unsupported_lines: set[int] = set()
     for index, token in enumerate(tokens):
         if token.depth != 0 or token.kind != "identifier":
@@ -190,7 +198,10 @@ def _inspect_ignore_policy_source(text: str) -> tuple[tuple[str, ...], tuple[int
                 closing_index = brace_pairs.get(opening_index)
                 if closing_index is not None:
                     ignore_blocks.append(
-                        text[tokens[opening_index].end : tokens[closing_index].start]
+                        _IgnoreBlock(
+                            body=text[tokens[opening_index].end : tokens[closing_index].start],
+                            head_line=token.line,
+                        )
                     )
                     continue
         unsupported_lines.add(token.line)
@@ -367,12 +378,12 @@ def _validate_react_router_rsc_suppression(
             "false' and balanced 'ignore if {' blocks are permitted"
         ]
     target_capable_blocks = tuple(
-        body for body in ignore_blocks if _ignore_block_can_match_react_router_target(body)
+        block for block in ignore_blocks if _ignore_block_can_match_react_router_target(block.body)
     )
     if not target_capable_blocks:
         return []
     canonical_blocks = tuple(
-        body for body in target_capable_blocks if _is_canonical_react_router_body(body)
+        block for block in target_capable_blocks if _is_canonical_react_router_body(block.body)
     )
     if len(canonical_blocks) > 1:
         return [
@@ -388,6 +399,15 @@ def _validate_react_router_rsc_suppression(
             f"React Router RSC suppression in {policy_file} has an additional ignore "
             "block capable of matching the canonical target tuple"
         ]
+    adjacent_review_by = _adjacent_review_by_dates(
+        text,
+        head_line=canonical_blocks[0].head_line,
+    )
+    if len(adjacent_review_by) != 1:
+        return [
+            f"React Router RSC suppression in {policy_file} must have exactly one "
+            "adjacent 'Review-by: YYYY-MM-DD' comment"
+        ]
     return []
 
 
@@ -395,6 +415,32 @@ def _read_rego_line_comments(text: str) -> tuple[tuple[int, str], ...]:
     comments: list[tuple[int, str]] = []
     _tokenize_rego(text, line_comments=comments)
     return tuple(comments)
+
+
+def _adjacent_review_by_dates(
+    text: str,
+    *,
+    head_line: int,
+) -> tuple[tuple[int, str], ...]:
+    """Return Review-by values from the full-line comment block owning one rule."""
+
+    source_lines = text.splitlines()
+    comments_by_line = dict(_read_rego_line_comments(text))
+    matches: list[tuple[int, str]] = []
+    line_number = head_line - 1
+    while line_number >= 1 and not source_lines[line_number - 1].strip():
+        line_number -= 1
+    while line_number >= 1:
+        source_line = source_lines[line_number - 1]
+        comment = comments_by_line.get(line_number)
+        if comment is None or not source_line.lstrip().startswith("#"):
+            break
+        found = _REVIEW_BY_RE.search(comment)
+        if found:
+            matches.append((line_number, found.group(1)))
+        line_number -= 1
+    matches.reverse()
+    return tuple(matches)
 
 
 def _parse_expiry(path: Path, *, text: str) -> date:
