@@ -2393,6 +2393,135 @@ def test_merge_gate_exposes_no_legacy_provider_verifier_or_success_marker() -> N
         assert success_marker not in source
 
 
+def _configure_post_wait_revalidation_main(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    second_error: ReviewEvidenceError | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    head_sha = "a" * 40
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="b" * 40,
+        head_sha=head_sha,
+        commits=(PrCommitEvidence(head_sha, None),),
+    )
+    pr_context = (
+        42,
+        "owner/repo",
+        False,
+        "- [canonical artifact](https://github.com/owner/repo/blob/branch/"
+        "docs/review/PR_42_FIXED_MAPPING.md)",
+        "branch",
+    )
+    validation_calls: list[dict[str, Any]] = []
+    trace: list[str] = []
+    inventory_count = 0
+
+    def validate_seal(**kwargs: Any) -> dict[str, Any]:
+        validation_calls.append(kwargs)
+        trace.append(f"seal-{kwargs['outage_security_wait_seconds']}")
+        if len(validation_calls) == 2 and second_error is not None:
+            raise second_error
+        return {"material": {"digest": "sha256:" + "c" * 64}}
+
+    def actionable_inventory(**_kwargs: Any) -> list[merge_gate.ActionableItem]:
+        nonlocal inventory_count
+        inventory_count += 1
+        trace.append(f"inventory-{inventory_count}")
+        return []
+
+    def quiet_window(**_kwargs: Any) -> tuple[int, int]:
+        trace.append("quiet")
+        return 2, 0
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
+    )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda **_kwargs: pr_context)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", actionable_inventory)
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: "artifact")
+    monkeypatch.setattr(merge_gate, "validate_mapping_artifact_text", lambda _text: [])
+    monkeypatch.setattr(merge_gate, "extract_fixed_mapping_section", lambda _text: "mapping")
+    monkeypatch.setattr(merge_gate, "parse_fixed_mapping_entries", lambda _text: {})
+    monkeypatch.setattr(merge_gate, "has_no_actionable_marker", lambda _text: True)
+    monkeypatch.setattr(merge_gate, "review_seal_version", lambda _text: "v1")
+    monkeypatch.setattr(merge_gate, "_validate_v1_seal", validate_seal)
+    monkeypatch.setattr(merge_gate, "_prove_v1_fixed_commits", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        merge_gate,
+        "_canonical_artifact_markdown_link_count",
+        lambda *_args: 1,
+    )
+    monkeypatch.setattr(merge_gate, "_duplicate_reply_coverage", lambda **_kwargs: set())
+    monkeypatch.setattr(merge_gate, "_wait_for_review_quiet_window", quiet_window)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    return validation_calls, trace
+
+
+def test_merge_readiness_revalidates_seal_once_after_stable_review_wait(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    validation_calls, trace = _configure_post_wait_revalidation_main(monkeypatch)
+
+    assert merge_gate.main() == 0
+
+    assert len(validation_calls) == 2
+    assert validation_calls[1]["outage_security_wait_seconds"] == 0
+    assert validation_calls[1]["enforce_outage_security_checks"] is True
+    assert validation_calls[1]["require_committed_closeout"] is True
+    assert trace == ["inventory-1", "seal-300", "quiet", "seal-0", "inventory-2"]
+    assert "REVIEW_WAIT_WINDOW_VALID" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "second_error",
+    (
+        ReviewEvidenceError(
+            "provider-neutral no-claim evidence timed out waiting for exact-head "
+            "security checks after 0s: security=pending/status"
+        ),
+        ReviewEvidenceError(
+            "provider-neutral no-claim evidence requires successful current-head "
+            "security checks: security=failed/FAILURE"
+        ),
+    ),
+    ids=("pending", "failed"),
+)
+def test_merge_readiness_fails_closed_when_post_wait_seal_revalidation_is_not_green(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    second_error: ReviewEvidenceError,
+) -> None:
+    validation_calls, trace = _configure_post_wait_revalidation_main(
+        monkeypatch,
+        second_error=second_error,
+    )
+
+    assert merge_gate.main() == 1
+
+    output = capsys.readouterr().out
+    assert len(validation_calls) == 2
+    assert validation_calls[1]["outage_security_wait_seconds"] == 0
+    assert trace == ["inventory-1", "seal-300", "quiet", "seal-0", "inventory-2"]
+    assert "Post-wait material review seal validation failed" in output
+    assert str(second_error) in output
+    assert "REVIEW_WAIT_WINDOW_VALID" not in output
+
+
 def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

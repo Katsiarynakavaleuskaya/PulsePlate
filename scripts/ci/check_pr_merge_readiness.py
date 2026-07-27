@@ -1661,6 +1661,21 @@ def main() -> int:
         ) as exc:
             errors.append(f"Mandatory review wait failed: {exc}")
 
+    if review_wait_result is not None and seal is not None:
+        try:
+            seal = _validate_v1_seal(
+                artifact_text=artifact_text,
+                repository=repo,
+                pr_number=pr_number,
+                snapshot=snapshot,
+                token=token,
+                outage_security_wait_seconds=0,
+                enforce_outage_security_checks=True,
+                require_committed_closeout=True,
+            )
+        except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
+            errors.append(f"Post-wait material review seal validation failed: {exc}")
+
     try:
         final_pr_context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
         final_actionable_items = _collect_actionable_items(
