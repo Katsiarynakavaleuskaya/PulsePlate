@@ -594,12 +594,15 @@ For non-trivial PRs:
    tail
 3. scoped `AGENTS.md` files must not narrow the repo-global post-open review
    gate; use a superseding repo-global reference when historical lane bullets
-   would otherwise omit `security-auditor`, Codex Security, or
+   would otherwise omit `security-auditor`, current-head security checks, or
    `pulseplate-pr-review`
 4. run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
    evidence before PR open
 5. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`,
-   Codex Security diff scan / finding discovery, and `pulseplate-pr-review`
+   exact-material `pulseplate-pr-review`, disposition every actual finding, and
+   author the provider-neutral no-claim seal without invoking or waiting for
+   Connector/Codex Security; independently available provider output stays
+   advisory and creates no PASS/no-findings claim
 6. when a recurring governance rule emerges, update the smallest authoritative
    instruction surfaces in the same PR: scoped/root `AGENTS.md`, `RUNBOOK_AGENT.md`,
    workflow/contract docs, and this lessons file

@@ -41,7 +41,6 @@ from scripts.orchestration.review_mapping_artifact import (
 from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     CommitIdentityError,
     CommitRefKind,
-    CodexConnectorAdvisoryReactionEvidence,
     PrSnapshot,
     RepositoryCommitRef,
     ReviewThreadEvidence,
@@ -50,26 +49,16 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_pr_snapshot,
     fetch_review_threads,
     is_ancestor,
-    verify_codex_review_reference,
-    verify_codex_review_source_unavailability_reference,
-    verify_review_credit_outage_references,
-    verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
-    build_review_credit_outage_receipt,
-    build_review_source_positive_response_receipt,
-    build_review_source_unavailability_receipt,
-    build_security_outage_override_receipt,
+    build_provider_no_claim_pair,
     compute_material_manifest,
-    is_review_credit_outage_receipt,
-    is_mapping_only_positive_response_successor,
-    is_review_source_positive_response_receipt,
-    is_review_source_unavailability_receipt,
-    is_security_outage_override_receipt,
+    is_provider_no_claim_review_receipt,
+    is_provider_no_claim_security_receipt,
     parse_embedded_review_seal,
-    validate_review_credit_outage_scope,
-    validate_security_outage_override_scope,
+    validate_mapping_only_closeout_successor,
+    validate_review_seal,
     validated_duplicate_reply_urls,
 )
 from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
@@ -695,6 +684,8 @@ def _validate_operator_outage_security_checks(
     token: str,
     expected_head_sha: str,
     security_required: bool = True,
+    evidence_label: str = "operator outage override",
+    pending_retry_allowed: bool = True,
 ) -> None:
     """Require a strict successful current-head security bundle for outage overrides."""
 
@@ -746,7 +737,11 @@ def _validate_operator_outage_security_checks(
             continue
         entry = latest.get(name)
         if entry is None:  # Defensive: candidates were present above.
-            pending_failures.append(f"{name}=missing-latest")
+            failure = f"{name}=missing-latest"
+            if pending_retry_allowed:
+                pending_failures.append(failure)
+            else:
+                terminal_failures.append(failure)
             continue
         if (
             name == "security"
@@ -770,14 +765,20 @@ def _validate_operator_outage_security_checks(
     if failures:
         error_type = (
             _OutageSecurityChecksPending
-            if pending_failures and not terminal_failures
+            if pending_retry_allowed and pending_failures and not terminal_failures
             else ReviewEvidenceError
         )
-        raise error_type(
-            "operator outage override requires successful current-head security checks: "
-            + ", ".join(failures)
-            + ". Pending or not-yet-visible exact-head checks may be retried only "
+        retry_note = (
+            ". Pending or not-yet-visible exact-head checks may be retried only "
             "within the bounded CI wait; failed or untrusted checks remain terminal."
+            if pending_retry_allowed
+            else ". Missing, pending, failed, stale, or untrusted checks are terminal; "
+            "provider-neutral no-claim validation does not retry."
+        )
+        raise error_type(
+            f"{evidence_label} requires successful current-head security checks: "
+            + ", ".join(failures)
+            + retry_note
         )
 
 
@@ -790,6 +791,7 @@ def _wait_for_operator_outage_security_checks(
     security_required: bool,
     timeout_seconds: int,
     poll_interval_seconds: int = 15,
+    evidence_label: str = "operator outage override",
 ) -> None:
     """Wait only for transient exact-head substitute-check states, then fail closed."""
 
@@ -808,13 +810,14 @@ def _wait_for_operator_outage_security_checks(
                 token=token,
                 expected_head_sha=expected_head_sha,
                 security_required=security_required,
+                evidence_label=evidence_label,
             )
             return
         except _OutageSecurityChecksPending as exc:
             remaining = deadline - time.monotonic()
             if timeout_seconds == 0 or remaining <= 0:
                 raise ReviewEvidenceError(
-                    "operator outage override timed out waiting for exact-head "
+                    f"{evidence_label} timed out waiting for exact-head "
                     f"security checks after {timeout_seconds}s: {exc}"
                 ) from exc
             sleep_seconds = min(float(poll_interval_seconds), remaining)
@@ -841,6 +844,7 @@ def _validate_v1_seal(
     token: str,
     outage_security_wait_seconds: int = 0,
     enforce_outage_security_checks: bool = True,
+    require_committed_closeout: bool = True,
 ) -> dict[str, Any]:
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
@@ -858,6 +862,10 @@ def _validate_v1_seal(
         head_ref_oid=snapshot.head_sha,
         pr_number=pr_number,
     )
+    seal = validate_review_seal(
+        seal,
+        material_paths=(entry.path for entry in manifest.entries),
+    )
     material = seal["material"]
     if (
         material["base_ref_oid"] != snapshot.base_sha
@@ -872,198 +880,59 @@ def _validate_v1_seal(
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
-    if is_review_source_positive_response_receipt(code_review):
-        response_manifest = compute_material_manifest(
+    if not is_provider_no_claim_review_receipt(code_review):
+        raise ReviewEvidenceError(
+            "legacy provider-backed review seals are read-only and cannot authorize "
+            "current merge readiness"
+        )
+    expected_code_review, expected_security = build_provider_no_claim_pair(
+        base_revision=manifest.merge_base_sha,
+        head_revision=material_head.sha,
+        material_digest=material["digest"],
+    )
+    if code_review != expected_code_review:
+        raise ReviewEvidenceError("provider-neutral review no-claim receipt is stale")
+    if require_committed_closeout:
+        validate_mapping_only_closeout_successor(
             REPO_ROOT,
-            base_ref_oid=snapshot.base_sha,
-            head_ref_oid=material_head.sha,
-            pr_number=pr_number,
-        )
-        if response_manifest.digest != material["digest"]:
-            raise ReviewEvidenceError(
-                "positive response material head has a different material digest"
-            )
-        response_evidence = verify_codex_review_reference(
-            code_review["response_reference"],
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            expected_commit_ref=material_head.sha,
-            expected_live_pr_head_ref=snapshot.head_sha,
-        )
-        if not isinstance(response_evidence, CodexConnectorAdvisoryReactionEvidence):
-            raise ReviewEvidenceError("Codex positive response reference changed evidence type")
-        expected_code_review = build_review_source_positive_response_receipt(
-            material_digest=material["digest"],
             material_head_sha=material_head.sha,
-            response_reference=response_evidence.reference,
-            response_created_at=response_evidence.created_at,
-            response_content=response_evidence.content,
-        )
-        successor_response = (
-            snapshot.head_sha != material_head.sha
-            and is_mapping_only_positive_response_successor(
-                code_review,
-                response_reference=response_evidence.reference,
-                response_created_at=response_evidence.created_at,
-                response_content=response_evidence.content,
-            )
-        )
-        if code_review != expected_code_review and not successor_response:
-            raise ReviewEvidenceError("Codex positive response receipt is stale")
-    elif is_review_source_unavailability_receipt(code_review):
-        unavailable_manifest = compute_material_manifest(
-            REPO_ROOT,
-            base_ref_oid=snapshot.base_sha,
-            head_ref_oid=material_head.sha,
+            live_head_sha=snapshot.head_sha,
             pr_number=pr_number,
         )
-        if unavailable_manifest.digest != material["digest"]:
-            raise ReviewEvidenceError(
-                "review-source unavailable material head has a different material digest"
-            )
-        source_evidence = verify_codex_review_source_unavailability_reference(
-            code_review["quota_reference"],
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-        )
-        expected_code_review = build_review_source_unavailability_receipt(
-            material_digest=material["digest"],
-            material_head_sha=material_head.sha,
-            quota_reference=source_evidence.reference,
-            quota_created_at=source_evidence.created_at,
-            quota_body_sha256=source_evidence.body_sha256,
-            source_status=source_evidence.source_status,
-        )
-        if code_review != expected_code_review:
-            raise ReviewEvidenceError("Codex review-source unavailability receipt is stale")
-    elif is_review_credit_outage_receipt(code_review):
-        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
-        if not code_review["review_reference"].startswith(review_prefix):
-            raise ReviewEvidenceError("code-review reference belongs to another PR")
-        validate_review_credit_outage_scope(
-            repository=repository,
-            pr_number=pr_number,
-            material_paths=(entry.path for entry in manifest.entries),
-        )
-        credit_evidence = verify_review_credit_outage_references(
-            override_reference=code_review["override_reference"],
-            quota_reference=code_review["quota_reference"],
-            prior_review_reference=code_review["prior_review_reference"],
-            operator_review_reference=code_review["review_reference"],
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            snapshot=snapshot,
-            expected_material_head_sha=material_head.sha,
-            expected_material_digest=material["digest"],
-        )
-        expected_code_review = build_review_credit_outage_receipt(
-            material_digest=material["digest"],
-            material_head_sha=material_head.sha,
-            override_reference=credit_evidence.override_reference,
-            override_created_at=credit_evidence.override_created_at,
-            quota_reference=credit_evidence.quota_reference,
-            quota_created_at=credit_evidence.quota_created_at,
-            prior_review_reference=credit_evidence.prior_review_reference,
-            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
-            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
-            operator_review_reference=credit_evidence.operator_review_reference,
-            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
-            operator_user_id=credit_evidence.operator_user_id,
-            operator_login=credit_evidence.operator_login,
-            operator_association=credit_evidence.operator_association,
-        )
-        if code_review != expected_code_review:
-            raise ReviewEvidenceError("Codex review credit-outage receipt is stale")
     else:
-        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
-        if not code_review["review_reference"].startswith(review_prefix):
-            raise ReviewEvidenceError("code-review reference belongs to another PR")
-        review_evidence = verify_codex_review_reference(
-            code_review["review_reference"],
+        live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
+        if not is_ancestor(
+            material_head,
+            live_head,
             repository=repository,
-            pr_number=pr_number,
             token=token,
-            expected_commit_ref=material["material_head_sha"],
-            # The digest check above permits only the canonical mapping artifact
-            # to separate the sealed material head from the live PR head.
-            expected_live_pr_head_ref=snapshot.head_sha,
-        )
-        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
-            raise ReviewEvidenceError("Codex positive response is not exact-head review evidence")
-        if (
-            review_evidence.commit_ref != code_review["review_commit_ref"]
-            or code_review["review_commit_ref_kind"] != "repository_commit"
-            or review_evidence.commit_ref != material["material_head_sha"]
         ):
-            raise ReviewEvidenceError("Codex review is not bound to the sealed material head")
-        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-        if not isinstance(review_commit, RepositoryCommitRef) or review_commit.kind not in {
-            CommitRefKind.PR_HEAD,
-            CommitRefKind.PR_COMMIT,
-        }:
-            raise ReviewEvidenceError("Codex review commit is not a real commit in the live PR")
-        reviewed_manifest = compute_material_manifest(
-            REPO_ROOT,
-            base_ref_oid=snapshot.base_sha,
-            head_ref_oid=review_commit.sha,
-            pr_number=pr_number,
+            raise ReviewEvidenceError("material head is not an ancestor of the live PR head")
+    security_receipt = seal["codex_security"]
+    if not is_provider_no_claim_security_receipt(security_receipt):
+        raise ReviewEvidenceError(
+            "legacy provider-backed security seals are read-only and cannot authorize "
+            "current merge readiness"
         )
-        if reviewed_manifest.digest != material["digest"]:
-            raise ReviewEvidenceError("Codex review commit has a different material digest")
-    live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
-    if not is_ancestor(
-        material_head,
-        live_head,
-        repository=repository,
-        token=token,
-    ):
-        raise ReviewEvidenceError("material head is not an ancestor of the live PR head")
     if (
-        seal["codex_security"]["base_revision"] != manifest.merge_base_sha
-        or seal["codex_security"]["head_revision"] != material_head.sha
+        security_receipt["base_revision"] != manifest.merge_base_sha
+        or security_receipt["head_revision"] != material_head.sha
     ):
         raise ReviewEvidenceError("Codex Security receipt range is stale")
-    security_receipt = seal["codex_security"]
-    if is_security_outage_override_receipt(security_receipt):
-        validate_security_outage_override_scope(
-            repository=repository,
-            pr_number=pr_number,
-            material_paths=(entry.path for entry in manifest.entries),
-        )
-        outage_evidence = verify_security_outage_override_reference(
-            security_receipt["override_reference"],
+    if security_receipt != expected_security:
+        raise ReviewEvidenceError("provider-neutral security no-claim receipt is stale")
+    if enforce_outage_security_checks:
+        _wait_for_operator_outage_security_checks(
             repository=repository,
             pr_number=pr_number,
             token=token,
-            expected_material_head_sha=material_head.sha,
-            expected_material_digest=material["digest"],
+            expected_head_sha=snapshot.head_sha,
+            security_required=_operator_outage_security_required(
+                entry.path for entry in manifest.entries
+            ),
+            timeout_seconds=outage_security_wait_seconds,
+            evidence_label="provider-neutral no-claim evidence",
         )
-        expected_receipt = build_security_outage_override_receipt(
-            base_revision=manifest.merge_base_sha,
-            head_revision=material_head.sha,
-            material_digest=material["digest"],
-            override_reference=outage_evidence.reference,
-            created_at=outage_evidence.created_at,
-            operator_user_id=outage_evidence.operator_user_id,
-            operator_login=outage_evidence.operator_login,
-            operator_association=outage_evidence.operator_association,
-        )
-        if security_receipt != expected_receipt:
-            raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        if enforce_outage_security_checks:
-            _wait_for_operator_outage_security_checks(
-                repository=repository,
-                pr_number=pr_number,
-                token=token,
-                expected_head_sha=snapshot.head_sha,
-                security_required=_operator_outage_security_required(
-                    entry.path for entry in manifest.entries
-                ),
-                timeout_seconds=outage_security_wait_seconds,
-            )
     return seal
 
 
@@ -1152,7 +1021,7 @@ def main() -> int:
     parser.add_argument(
         "--outage-security-wait-seconds",
         type=int,
-        default=0,
+        default=300,
         help=(
             "Bounded CI wait for transient exact-head substitute security checks. "
             "Failed or untrusted checks are never retried."
@@ -1308,6 +1177,7 @@ def main() -> int:
                     token=token,
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
                     enforce_outage_security_checks=not args.pre_closeout,
+                    require_committed_closeout=not args.pre_closeout,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
@@ -1428,16 +1298,7 @@ def main() -> int:
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
-        if is_review_source_positive_response_receipt(seal["code_review"]):
-            print(
-                f"REVIEW_SOURCE_POSITIVE_RESPONSE_VALID {seal['code_review']['response_content']}"
-            )
-        elif is_review_source_unavailability_receipt(seal["code_review"]):
-            print(f"REVIEW_SOURCE_UNAVAILABLE_VALID {seal['code_review']['source_status']}")
-        elif is_review_credit_outage_receipt(seal["code_review"]):
-            print(f"REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID {seal['code_review']['review_commit_ref']}")
-        else:
-            print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
+        print("PROVIDER_NO_CLAIM_VALID review_claim=none scan_claim=none")
     if duplicate_covered_urls:
         print(f"DUPLICATE_FINDING_REUSED count={len(duplicate_covered_urls)}")
     print(

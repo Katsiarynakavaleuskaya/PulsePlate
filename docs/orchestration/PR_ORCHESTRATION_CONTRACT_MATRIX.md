@@ -67,7 +67,7 @@ Canonical runtime behavior is artifact-first when `pr_number` is available.
 PR-body parsing is a temporary compatibility seam for legacy local/body-only
 checks. It is not authority and must not cause agents to copy mapping blocks.
 
-Before the single final-material scan, an open PR may declare the exact
+Before the single final-material closeout, an open PR may declare the exact
 non-mergeable marker `<!-- phase2-pre-closeout: final-security-pending -->`
 and the matching pending mapping-status line. This lets the Phase 2 body gate
 validate the truthful pre-closeout state without fabricating an artifact. The
@@ -76,6 +76,12 @@ entries; `check_merge_ready.py` still requires the canonical artifact and
 therefore cannot treat this state as merge-ready. Once the canonical
 mapping/seal is published, the marker must be removed; a stale marker is a
 Phase 2 body-gate error even when the artifact exists.
+
+The historical marker name is retained for wire compatibility only. It does
+not request, invoke, retry, wait for, or claim a Connector/Codex Security
+provider result; current closeout means exact-material self-review, applicable
+current-head security/governance checks, dispositions, and the static
+provider-neutral no-claim seal.
 
 Temporary seam tracking:
 
@@ -142,20 +148,43 @@ JSON block `PULSEPLATE_PR_REVIEW_SEAL_V1`. The activation boundary is the
 governance PR number + 1; the governance PR may opt in with
 `Review-Seal-Version: v1`.
 
-Root `AGENTS.md` owns the global final-material scan budget. This matrix owns
-the field-level projection: `scope=per_pr`, `automatic_budget=1`,
+Root `AGENTS.md` owns the global final-material provider/no-claim
+invariant. The current v1 field projection is one exact static pair:
+- review: `review_claim=none`, `output_required=false`, `blocking=false`,
+  exact material head and digest;
+- security: `scan_claim=none`, `no_findings_claim=false`,
+  `output_required=false`, `blocking=false`, exact base/head/digest.
+
+When both provider inputs are absent, `seal` authors that pair without
+invoking, starting, restarting, retrying, polling, waiting for, substituting, or
+requiring an operator override for either provider. One-sided, mixed, partial,
+arbitrary, and escalating forms fail closed. Absence is not review, scan,
+approval, PASS, or no findings.
+Provider absence requires no retry.
+
+Provider no-claim changes only provider-output availability. Current-head
+required CI and the trusted security-check bundle, actual provider findings,
+review dispositions, canonical mapping, unresolved threads, bot actionables,
+commit ancestry, the mapping-only descendant rule, and the mandatory wait
+window remain hard.
+
+Legacy provider-backed v1 receipts remain parseable/revalidatable only for
+historical artifacts and grant no current authoring authority. Historical
+metadata such as `scope=per_pr`, `automatic_budget=1`,
 `automatic_retries=0`, `requires_frozen_material=true`,
 `additional_invocation=trusted_operator_approval`, and
-`repository_invokes_plugin=false`. After final material freeze, run the
-repo-native exact-head `pulseplate-pr-review` as the local self-review; it does
-not itself satisfy the trusted review-evidence slot. Satisfy that slot with
-exactly one of a completed trusted exact-head GitHub Codex Connector review or
-an unedited trusted terminal Connector
-rate/usage-limit receipt with `review_claim=none`; the terminal unavailable
-path requires no retry or substitute review. One operator-issued scan follows;
-the local preparation state is advisory and cannot prove global consumption.
+`repository_invokes_plugin=false` is compatibility data only. The historical
+terminal projection remains `source_degraded=true`,
+`fallback_required=false`, `blocking=false`, `review_claim=none`,
+`retry_required=false`, `substitute_review_required=false`,
+`prior_review_required=false`, `operator_override_required=false`, and
+`ttl_required=false`; it is a no-retry record, not provider success.
 
-GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final review-evidence validation, with no automatic retry.
+Legacy compatibility only: GitHub Codex Connector review and Codex Security
+were separate providers. Their embedded receipts remain readable only as
+historical data; provider preparation/outcome authoring commands are not
+registered and no legacy receipt authorizes a current provider request or
+retry.
 
 ### Material review seal v1
 
@@ -168,66 +197,28 @@ GitHub Codex Connector review is separate from the locally invoked Codex Securit
 - Every path is material except the exact current-PR mapping artifact. PR-body
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
-- The trusted submitted Codex review object's real GitHub `commit_id` must be
-  the frozen material head. A direct PR-root reaction from the official Codex
-  Connector may instead use the normal `seal --review-ref` path as a nonblocking
-  terminal source response only for `+1`,
-  `heart`, `hooray`, or `rocket`, after live verification of its immutable
-  GitHub account identity, exact PR-root URL, a live PR head equal to the caller's
-  full snapshotted material head at seal time, and a server-timestamped GitHub Actions
-  `pull_request` run linked to that same PR and head strictly preceding the
-  reaction, with no later force-push or head-restoration event. This chronology
-  proves only that GitHub observed the material head before the response; it is
-  not Connector-owned reviewed-commit provenance. Authenticated
-  validation after the one canonical mapping-only closeout commit may accept the
-  descendant live head only after material-digest equality is re-established.
-  When that automatic mapping-only cycle replaces the sealed reaction, the
-  validator may accept only a newer live positive reaction from the same trusted
-  Connector with the same content; the sealed receipt remains unchanged and the
-  completed security scan is not restarted.
-  The receipt uses `binding_kind=seal_context_only`, `review_claim=none`, and
-  `blocking=false`. This is a verified positive Connector response, not exact-head
-  review proof, a native GitHub approval, Codex Security evidence, or
-  thread-resolution authority. The optional advisory rendering path remains
-  non-authoritative and may be omitted with a warning. An official unedited no-findings issue comment
-  is accepted only when the trusted Codex GitHub App identity and its short
-  reviewed-commit marker resolve through the Commit API to that same full head;
-  reviewer-execution/synthetic refs never satisfy this proof. The selected
-  review-evidence variant and one completed final Codex Security diff scan bind
-  to the same digest. A systemic MCP `-32001 Request timed out` outage may use a
-  distinct `operator_outage_override` evidence variant only when an unedited GitHub
-  comment from an `OWNER` or `MEMBER` binds the immutable GitHub user id, exact
-  PR, material head, and material digest, declares `scan_id: none`, remains
-  within its TTL, and the current-head `security`, `CodeQL`, `security-scan`,
-  private-proxy, and Trivy policy checks from their expected GitHub Apps and
-  workflows all succeed. PR `#2142` is the one-time bootstrap. Future PRs that
-  change the override verifier, merge gate, current-head check identity parser,
-  any CI/security workflow or local GitHub Action, or implementations/policy
-  inputs of the substitute security checks cannot use the override. This variant records tool
-  unavailability and must never be represented as a scan or no-findings result.
-  The embedded scan record is a
-  `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
-  and content binding but does not claim signed/plugin attestation.
-- If the trusted connector returns an exact known rate-limit or usage-limit
-  response, the seal uses the tagged
-  `pulseplate.codex-review-source-unavailability/v1` variant. The canonical
-  same-PR, unedited trusted Codex GitHub App comment is terminal unavailable
-  evidence: no retry, substitute review, prior review, operator override, or
-  TTL is required. It is recorded as `source_degraded=true`,
-  `fallback_required=false`, and `blocking=false`, and binds the current
-  material head/digest with `binding_kind=seal_context_only` and
-  `review_claim=none`; it is not review, approval, PASS, or no-findings
-  evidence. Its exact negative projection is `retry_required=false`,
-  `substitute_review_required=false`, `prior_review_required=false`,
-  `operator_override_required=false`, and `ttl_required=false`.
-  Unknown/changed bodies and identity, URL, timestamp, body-hash, PR/repository,
-  or material-binding drift fail closed. The same immutable quota reference may
-  be reverified after a later material change, but the material seal itself must
-  be regenerated.
-- Historical PR `#2142` `operator_review_credit_exhaustion_override` receipts
-  remain parseable everywhere but are live-authenticated only for PR `#2142`.
-  The legacy multi-reference override is not an active authoring mode for later
-  PRs.
+- Current authoring uses no provider flags and emits the exact symmetric
+  provider-neutral no-claim pair. Both receipts bind the frozen material digest;
+  review additionally binds the material head, while security binds the exact
+  merge-base/head range. Exact-key validation rejects unknown authority,
+  escalation, stale identity, partial receipts, and mixed legacy/no-claim forms.
+- Authenticated validation rebuilds the pair from the live material identity and
+  compares it byte-for-byte. It does not call either provider. The merge gate
+  waits at most 300 seconds for missing or pending trusted exact-head security
+  checks to settle. Failed, stale, skipped-when-applicable, or untrusted checks
+  are terminal immediately; the wait never invokes or retries a provider.
+- Existing protected-path detection blocks no-claim self-use for authority,
+  verifier, workflow, dependency, and security-policy changes. No reusable
+  in-repository exception or activation marker exists.
+- Actual provider output, when independently present, remains normal review
+  evidence: every actionable finding still needs FIXED / NOT-A-BUG / DEFERRED
+  disposition and mapping. Provider absence grants no thread-resolution,
+  approval, PASS, scan, or no-findings authority.
+- Historical completed-review, source-unavailability, positive-response,
+  content receipt, operator-outage, and PR #2142 review-credit receipt variants
+  remain parseable for legacy artifacts only. Their existing identity, scope,
+  and material checks remain read-compatible; no legacy variant becomes a
+  current fallback, activation mechanism, or self-authorization path.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
   gitignored. `seal` is the only tracked authoring step; mapping and seal publish
   in one batched governance-closeout commit. Resealing after a base sync is
@@ -278,11 +269,11 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
   `docs/review/PR_<N>_FIXED_MAPPING.md`
 - `post_open_review` is the packet-level phase where the canonical role-only
   `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized.
-  Final-material gates remain outside role dispatch: the exact-head
-  `pulseplate-pr-review` self-review, then a trusted exact-head GitHub Codex
-  Connector review or trusted terminal source-unavailable receipt, precede the
-  one operator-issued Codex Security scan; `merge_ready` keeps the
-  current-head merge-wrapper contract explicit without widening either lane.
+  Final-material gates remain outside role dispatch: exact-head
+  `pulseplate-pr-review` self-review and finding disposition precede a
+  provider-neutral `seal` invocation without provider flags. The no-claim pair
+  changes no current-head merge-wrapper requirement and does not widen either
+  lane.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -379,7 +370,7 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
 | Post-open role review | `qa-engineer-agent -> bug-hunter -> security-auditor` | Hard gate | Run once after PR open; every actionable must be fixed or dispositioned before final material freeze |
-| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, then a trusted exact-head GitHub Codex Connector review or trusted terminal source-unavailable receipt, then one operator-issued manual Codex Security request | Hard gate | The local self-review is advisory and does not replace the trusted review receipt; trusted review evidence and scan bind to the frozen final digest; source unavailability claims no review and requires no retry/substitute, repository code makes no plugin call or automatic retry, and every additional request requires fresh exact-material `OWNER`/`MEMBER` approval |
+| Final-material review | repo-native exact-head `pulseplate-pr-review` self-review, disposition actual findings, then run provider-neutral `seal` without provider flags | Hard gate | The embedded self-review report is a content-integrity-checked procedural advisory artifact, not cryptographic proof of agent execution or review/scan/approval authority. The exact static pair claims neither review nor scan and requires no provider invocation/retry/wait/substitute/override; current-head CI/security, actual findings, mapping, threads, bot actionables, ancestry, mapping-only closeout, and wait window remain blocking |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |
@@ -395,6 +386,7 @@ Current repo workflow inventory (Tier 1 post-PR2 state):
 | `.github/workflows/ci.yml` (`CI`) | Backend / shared PR lane | Hard gate | Sole canonical backend/shared PR workflow for merge claims; current-head required jobs from this lane block merge when branch protection requires them | Canonical backend/shared PR lane |
 | `.github/workflows/ci.yml` (`lint`, `security`, `diff-coverage`) | Backend / shared PR lane | Hard gate | Canonical lint, PR-time security, and diff coverage live inside `CI`; failures block merge when attached to current HEAD | Canonical enforcement surface |
 | `.github/workflows/ci.yml` (`OpenAPI sync`, docs gates, merge-readiness, review governance) | Backend / shared PR lane | Hard gate | Blocks merge when the corresponding job is required on current HEAD | Canonical governance surface |
+| `.github/workflows/trusted_protected_pr_policy.yml` (`Trusted Protected PR Policy`) | Base-owned protected-authority lane | Hard gate after bootstrap activation | Executes only default-branch validator bytes under `pull_request_target`, treats PR code as data, and emits `trusted-protected-pr-policy`; the introducing PR requires the one final-SHA-bound OWNER/admin bootstrap decision because the workflow is not yet present on the default branch | Attach the exact GitHub-Actions-owned context to `main` only after a post-merge canary; preserve strict mode, admin enforcement, and all existing required contexts |
 | `.github/workflows/pr-tests.yml` (`PR Tests (Fast)`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
 | `.github/workflows/pr-coverage.yml` (`PR Coverage Guard`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
 | `.github/workflows/security.yml` (`Security Scan`) | Scheduled / manual security audit lane | Soft gate | Advisory deep-audit lane outside ordinary PR merge truth; findings still require fix-first engineering response when the surface is in scope | Demoted out of PR-time blocking path |
@@ -411,6 +403,27 @@ Bot governance distinction (Tier 1 baseline):
 - Third-party or first-party bot **review comments** remain merge-blocking when they contain actionable items, because review governance/disposition policy is separate from status-check classification.
 - Contributors must use `CI` as the canonical backend/shared PR lane for operator decisions; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` is a scheduled/manual audit lane, and `trivy.yml` is a `main`/schedule/manual non-PR image-security lane.
 - Canonical backend/shared PR merge truth does not imply that all other PR-triggered workflows disappear. Specialized repo-level workflows such as `Frontend CI`, `CodeQL Advanced`, and Docker/image lanes may still appear on workflow/governance PRs, but they remain non-canonical unless GitHub branch protection explicitly requires them.
+- Protected-authority rollout is fail closed: merge the introducing PR only
+  under its explicit, non-reusable final-SHA OWNER/admin bootstrap decision;
+  then open a harmless canary from the merged default branch, verify the
+  `trusted-protected-pr-policy` check belongs to GitHub Actions app id `15368`
+  and the exact workflow path, and attach that context to `main` while
+  preserving `strict=true`, `enforce_admins=true`, and every pre-existing
+  required context. After this introducing bootstrap, executable control-root
+  changes terminate with `AUTHORITY_ROTATION_REQUIRED`, except that PR-A may add
+  exactly the previously absent frozen vNext workflow and a validator
+  byte-identical to the base-owned v1 checker. The old workflow/checker and
+  every other authority input remain byte/mode/type-identical. A post-merge
+  canary may support an external ruleset decision to require vNext while
+  retaining v1, but PR-A itself grants no required-check, review, security, or
+  merge claim. The admission cannot detach or retire v1 and cannot be reused
+  after either vNext path exists in base. PR-B retirement is not authorized by
+  this contract and needs a separate reviewed authority design; no provider
+  retry/wait or implicit OWNER/admin bypass follows from this admission.
+- Rollback removes only the `trusted-protected-pr-policy` required-context
+  attachment, preserves the workflow as advisory evidence, records the
+  before/after ruleset state, and re-enables the context only after a
+  default-branch fix plus a new canary.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`

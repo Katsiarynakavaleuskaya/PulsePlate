@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,6 +27,14 @@ LEGACY_AUTHORING_OPTIONS = {
     "--review-credit-outage-ref",
     "--review-credit-quota-ref",
 }
+PROVIDER_SEAL_AUTHORING_OPTIONS = {
+    "--connector-advisory-reaction",
+    "--review-ref",
+    "--review-source-unavailable-ref",
+    "--scan-manifest",
+    "--security-outage-override-ref",
+    *LEGACY_AUTHORING_OPTIONS,
+}
 POLICY_SURFACE_FILES = {
     "AGENTS.md",
     "RUNBOOK_AGENT.md",
@@ -48,12 +57,24 @@ POLICY_SUITE_TEST_FILES = {
 }
 
 
-def _seal_option_strings() -> set[str]:
+def _seal_parser() -> Any:
     parser = pr_review_closeout._parser()
     subparsers_action = next(
         action for action in parser._actions if isinstance(action.choices, dict)
     )
-    seal_parser = subparsers_action.choices["seal"]
+    return subparsers_action.choices["seal"]
+
+
+def _closeout_subcommands() -> set[str]:
+    parser = pr_review_closeout._parser()
+    subparsers_action = next(
+        action for action in parser._actions if isinstance(action.choices, dict)
+    )
+    return set(subparsers_action.choices)
+
+
+def _seal_option_strings() -> set[str]:
+    seal_parser = _seal_parser()
     return {option for action in seal_parser._actions for option in action.option_strings}
 
 
@@ -152,10 +173,28 @@ def test_known_codex_quota_bodies_remain_exact_terminal_evidence() -> None:
 
 
 def test_closeout_exposes_only_current_review_authoring_modes() -> None:
+    assert _closeout_subcommands() == {
+        "add-disposition",
+        "freeze",
+        "init",
+        "seal",
+        "validate",
+    }
     options = _seal_option_strings()
-    assert {"--review-ref", "--review-source-unavailable-ref"} <= options
-    assert "--connector-advisory-reaction" in options
-    assert not options.intersection(LEGACY_AUTHORING_OPTIONS)
+    assert options == {
+        "-h",
+        "--help",
+        "--pr-number",
+        "--repo",
+        "--self-review-report",
+    }
+    assert not options.intersection(PROVIDER_SEAL_AUTHORING_OPTIONS)
+    self_review_action = next(
+        action
+        for action in _seal_parser()._actions
+        if "--self-review-report" in action.option_strings
+    )
+    assert self_review_action.required is True
     closeout_source = (REPO_ROOT / "scripts/orchestration/pr_review_closeout.py").read_text(
         encoding="utf-8"
     )
@@ -223,8 +262,12 @@ def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
         ), f"{path}: missing terminal no-retry contract"
     runbook = documents["RUNBOOK_AGENT.md"]
     normalized_runbook = " ".join(runbook.split())
-    assert "do not trigger or retrigger it manually" in normalized_runbook
+    assert (
+        "provider preparation/outcome authoring commands are not registered" in normalized_runbook
+    )
     assert "Do not post manual bot-review commands" in normalized_runbook
+    assert "do not trigger or retrigger it manually" not in normalized_runbook
+    assert "invoked manually exactly once" not in normalized_runbook
     assert "first disable automatic" not in normalized_runbook
     assert "@codex review" not in runbook
 

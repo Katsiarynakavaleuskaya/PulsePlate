@@ -246,7 +246,12 @@ If it is not recorded here — it does not exist.
     - Semantic-cache markers remain `closed / false / false / true`; this lane adds no semantic cache, GraphRAG, cache read/write, provider activation, OpenAPI, DB, frontend, iOS, or product-serving behavior.
     - Einstein Arena or other HTTPS Slack ingress requires a separate reviewed PR with Slack signature verification, timestamp freshness, replay protection, rate limiting, runtime allowlists, and a redacted audit contract.
     - Focused tests cover schema strictness, malformed/extra fields, path traversal/symlink rejection, idempotency, redaction, command-surface stability, and runbook authority boundaries.
-    - Each implementation PR runs coordinator-first startup, explicit role passes, premortem closure, Experiment Runner oracle-only evidence, post-open QA/bug/security passes, Codex Security scan when available, and `pulseplate-pr-review`.
+    - Each implementation PR runs coordinator-first startup, explicit role
+      passes, premortem closure, Experiment Runner oracle-only evidence,
+      post-open QA/bug/security-auditor passes, exact-material
+      `pulseplate-pr-review`, applicable current-head security/governance
+      checks, finding dispositions, and the static provider-neutral no-claim
+      seal without invoking or waiting for Connector/Codex Security.
 
 <a id="ledger-p1-container-perl-cve-remediation"></a>
 - [ ] P1: Container image Perl / IO::Compress / Archive::Tar CVE remediation (CVE-2026-9538, CVE-2026-42497, CVE-2026-8376, CVE-2026-42496, CVE-2026-48959, CVE-2026-48962)
@@ -5216,6 +5221,75 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
 
+<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>
+- [ ] P1: Monitor and remove React Router unstable RSC advisory suppression
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: this combined bootstrap PR (carryover from closed PRs #2184 and
+    #2187)
+  - Status: In progress since 2026-07-25
+  - Area: security / frontend dependency / Trivy policy
+  - Finding Type: application dependency vulnerability applicability
+  - Reason: Trivy reports `GHSA-qwww-vcr4-c8h2` for `react-router@7.18.1` with
+    fixed version `8.3.0`. The advisory affects unstable RSC server APIs, while
+    PulsePlate uses the stable declarative SPA surface and has none of the
+    affected RSC entrypoints or tooling. The exact scanner tuple is temporarily
+    suppressed; a deterministic guard makes the applicability premise fail
+    closed.
+  - Links:
+    - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
+    - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
+    - `trivy/ignore-policy.rego`
+    - `scripts/ci/check_react_router_rsc_premise.py`
+    - `scripts/ci/check_trivy_ignore_policy_expiry.py`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+  - DoD:
+    - Review the advisory and Dependabot alert #241 weekly
+    - Remove the suppression if an affected RSC marker is introduced, the
+      dependency or scanner tuple changes, or a compatible fixed line is
+      approved
+    - Keep the no-RSC applicability guard and exact Rego negative controls green
+    - Close the tracker only after the suppression is removed and current-head
+      Trivy evidence passes without it
+
+<a id="ledger-p1-trusted-protected-pr-policy-rollout"></a>
+- [ ] P1: Activate and audit the base-owned protected-PR policy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: this combined bootstrap PR plus its immediate post-merge
+    branch-protection activation
+  - Status: In progress since 2026-07-27
+  - Area: CI governance / branch protection / security authority
+  - Finding Type: trust-root bootstrap and operational rollback
+  - Reason: A `pull_request_target` policy can evaluate protected PR material
+    from default-branch-owned code without depending on Connector/Codex Security
+    availability, but the introducing PR cannot execute that workflow from
+    `main`. It therefore needs one explicit, final-SHA-bound OWNER/admin
+    bootstrap decision that grants no review, scan, PASS, or no-findings claim.
+  - DoD:
+    - Merge the introducing PR only after every non-bootstrap local, CI,
+      review, mapping, thread, security, ancestry, and wait-window gate passes
+    - Run a harmless post-merge canary and verify
+      `trusted-protected-pr-policy` belongs to GitHub Actions app id `15368`
+      and the exact default-branch workflow path
+    - Add only that exact context to `main` branch protection while preserving
+      `strict=true`, `enforce_admins=true`, and all existing required contexts
+    - Record the ruleset id, actor, timestamp, default-branch SHA, prior state,
+      resulting state, and canary evidence in the bootstrap PR closeout
+    - Lock future executable control changes to the exact additive vNext
+      admission: add only the frozen, previously absent vNext workflow plus a
+      validator byte-identical to the base-owned v1 checker while every
+      v1/other authority input remains byte/mode/type-identical; canary it and,
+      only through a separate external ruleset decision, require it while
+      retaining v1
+    - Treat the admission as exhausted once either vNext path exists in base;
+      it grants no review, scan, required-check, merge, detach, or retirement
+      authority. Track any v1 retirement as a separate reviewed authority
+      design rather than reusing this admission or implying an OWNER/admin
+      bypass
+    - Roll back by removing only the new context attachment; keep the workflow
+      advisory until a default-branch fix and a new canary justify reactivation
+
 - [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -5635,7 +5709,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (MVP value delivery after Slack/operator closeout)
   - Target PR: PR-TBD-GUIDED-PLANNING-MVP-ROADCUT (`feat(frontend): carry guided planning roadcut through setup and progress`)
-  - Status: Selected next active product lane after PR #1853 closeout. Execution requires a fresh synced-main startup, preflight, task bootstrap, mandatory role-agent passes, premortem risk review, Experiment Runner oracle evidence, and post-open QA / bug-hunter / security / Codex Security / `pulseplate-pr-review` passes before readiness claims.
+  - Status: Selected next active product lane after PR #1853 closeout. Execution requires a fresh synced-main startup, preflight, task bootstrap, mandatory role-agent passes, premortem risk review, Experiment Runner oracle evidence, post-open QA / bug-hunter / security-auditor, exact-material `pulseplate-pr-review`, finding disposition, and the provider-neutral no-claim seal before readiness claims; Connector/Codex Security output is never invoked or awaited.
   - Area: frontend / Guided Planning MVP / product roadcut
   - Finding Type: MVP value-delivery gap
   - Reason: PR #1842 through PR #1844 delivered the Guided Planning Preview, frontend-only observability/accessibility hooks, and save/progress flow. The next bounded product PR should carry the selected intent/time preview through the existing setup and result/progress route affordances so the user sees one coherent MVP roadcut, without turning frontend, Slack, Drive, or local evidence snapshots into product/runtime authority.
@@ -12418,7 +12492,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - rollback and operator migration instructions are documented
 
 <a id="ledger-p1-legacy-guard-final-security-carryover"></a>
-- [ ] P1: Consolidate legacy-growth guard hardening and final-security budget governance
+- [ ] P1: Consolidate legacy-growth guard hardening
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: this PR (`codex/legacy-guard-final-security-hardening`)
@@ -12427,9 +12501,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: Twelve unresolved review findings across the four superseded lanes
     show false-green variadic replay, non-terminating or false-safe provenance,
     over-broad or non-propagating `object()` poisoning, and deferred-lambda
-    bypasses. The same consolidated lane separates repeatable role review from
-    exact-head review and the single operator-issued final Codex Security
-    request so paid scans do not run once per diff.
+    bypasses. This lane owns only those legacy-growth findings. Retirement of
+    legacy final-security provider request/preparation/outcome authoring moved
+    to the combined provider-neutral bootstrap lane (carryover from closed
+    PRs #2184 and #2187), avoiding duplicate implementation ownership.
   - Links:
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610033430`
     - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2158#discussion_r3610039977`
@@ -12448,12 +12523,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       coverage and the legacy-growth analysis remains terminating, idempotent,
       and fail-closed at its provenance bound
     - Qoder manifests remain role-only while the versioned lifecycle packet and
-      start prompt own exact-head review and final-security gates
-    - repository code makes no Codex Security plugin call or automatic retry;
-      every additional operator request requires fresh exact-material approval
+      start prompt own exact-head review gates
     - the replacement PR records the carryover, supersedes and closes
       #2158-#2161 without merge, and is handed to the owner without merging
 
-**Last updated:** 2026-07-19 (legacy guard and final-security budget carryover in progress)
+**Last updated:** 2026-07-27 (legacy guard remains; provider retirement ownership transferred)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

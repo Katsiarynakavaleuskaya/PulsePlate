@@ -146,9 +146,9 @@ derivable from existing inputs:
 - `pr_phase = "none"`
 - `pr_lifecycle_contract` is additive lifecycle metadata derived from the
   explicit `pr_phase`; `post_open_review` must surface the canonical
-  `qa-engineer-agent -> bug-hunter -> security-auditor` lane, Codex Security
-  diff scan / finding discovery, `pulseplate-pr-review`, and current-head
-  preparation contract
+  `qa-engineer-agent -> bug-hunter -> security-auditor` lane,
+  exact-material `pulseplate-pr-review`, the closed provider no-claim policy,
+  and current-head preparation contract
 - `design_lane_mode = "disabled"` only when the task has no explicit design
   trigger; otherwise the packet must resolve to one of:
   - `read_only`

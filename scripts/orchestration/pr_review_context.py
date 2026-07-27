@@ -21,8 +21,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.orchestration.review_source_status import build_review_source_status
+from scripts.orchestration.pr_review_evidence import (
+    ReviewEvidenceError,
+    compute_material_manifest,
+)
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.0.0"
 
 AGENTS_BASENAME = "AGENTS.md"
 
@@ -68,9 +72,23 @@ def _run_command(
     cwd: Path,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    run_env = os.environ.copy()
+    if args and Path(args[0]).name == "git":
+        # Git exports repository-local variables while running hooks. They
+        # override `git -C <repo>` and can silently redirect read-only review
+        # collection to the caller repository instead of the requested one.
+        run_env = {key: value for key, value in run_env.items() if not key.startswith("GIT_")}
+        run_env.update(
+            {
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "LC_ALL": "C",
+            }
+        )
     completed = subprocess.run(  # nosec B603: fixed argv flow via helper + absolute binaries only (remove-by: 2026-12-31, ref: ledger-p2-pulseplate-pr-review-context-collector)
         args,
         cwd=str(cwd),
+        env=run_env,
         text=True,
         check=False,
         capture_output=True,
@@ -399,6 +417,29 @@ def collect_review_context(
         head_sha=diff_head,
     )
     warnings.extend(diff_warnings)
+    material: dict[str, str] = {
+        "base_ref_oid": "",
+        "material_head_sha": "",
+        "material_digest": "",
+        "merge_base_sha": "",
+    }
+    if pr_number is not None and diff_base and diff_head:
+        try:
+            manifest = compute_material_manifest(
+                repo_root,
+                base_ref_oid=diff_base,
+                head_ref_oid=diff_head,
+                pr_number=pr_number,
+            )
+        except ReviewEvidenceError as exc:
+            warnings.append(f"Unable to compute canonical review material: {exc}")
+        else:
+            material = {
+                "base_ref_oid": manifest.base_ref_oid,
+                "material_head_sha": manifest.head_ref_oid,
+                "material_digest": manifest.digest,
+                "merge_base_sha": manifest.merge_base_sha,
+            }
 
     changed_files = [entry.path for entry in changed_file_stats]
     scoped_agents = discover_scoped_agents(repo_root=repo_root, changed_files=changed_files)
@@ -413,8 +454,6 @@ def collect_review_context(
         fixed_mapping_degraded_reason = ""
     else:
         fixed_mapping = collect_fixed_mapping_state(repo_root=repo_root, pr_number=pr_number)
-        if not fixed_mapping.get("exists"):
-            warnings.append("Fixed-mapping artifact is missing for this PR.")
         local_head_sha, local_head_warnings = collect_local_head_sha(repo_root)
         warnings.extend(local_head_warnings)
         fixed_mapping_degraded_reason = ""
@@ -485,6 +524,7 @@ def collect_review_context(
             "head_ref": diff_head,
         },
         "pr": pr_metadata,
+        "material": material,
         "diff": {
             "summary": diff_summary,
             "files": [entry.__dict__ for entry in changed_file_stats],

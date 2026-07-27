@@ -122,7 +122,9 @@ def test_collect_review_context_missing_pr_metadata_and_mapping(
 
     assert context["pr"] is None
     assert any("Cannot read PR metadata" in warning for warning in context["warnings"])
-    assert any("Fixed-mapping artifact is missing" in warning for warning in context["warnings"])
+    assert not any(
+        "Fixed-mapping artifact is missing" in warning for warning in context["warnings"]
+    )
     assert context["fixed_mapping"]["exists"] is False
     by_source = {item["source"]: item for item in context["review_source_status"]}
     assert by_source["github_pr_metadata"]["status"] == "unavailable"
@@ -403,7 +405,7 @@ def test_main_writes_json_to_stdout_and_warnings_to_stderr(
     def fake_context(**kwargs: object) -> dict[str, object]:
         del kwargs
         return {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "warnings": ["degraded source"],
         }
 

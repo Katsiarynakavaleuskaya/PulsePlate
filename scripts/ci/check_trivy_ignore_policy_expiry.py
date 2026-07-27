@@ -1,20 +1,330 @@
 from __future__ import annotations
 
 import glob
+import json
 import os
 import re
+import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime, date
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.ci.check_react_router_rsc_premise import (  # noqa: E402
+    PremiseScanError,
+    scan_repository as scan_react_router_rsc_premise,
+)
 
 # Allow trailing content after the date (e.g. "(manual removal)").
 _EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 _REVIEW_BY_RE = re.compile(r"Review-by:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
+_CANONICAL_IGNORE_HEAD_LINE_RE = re.compile(r"[ \t]*ignore[ \t]+if[ \t]*\{[ \t]*(?:#.*)?")
+_DEFAULT_IGNORE_LINE_RE = re.compile(r"[ \t]*default[ \t]+ignore[ \t]*:=[ \t]*false[ \t]*(?:#.*)?")
+_REACT_ROUTER_RSC_CANONICAL_PREDICATES = (
+    'input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+    'input.PkgName == "react-router"',
+    'input.InstalledVersion == "7.18.1"',
+    'input.PkgID == "react-router@7.18.1"',
+    'input.FixedVersion == "8.3.0"',
+)
+_REACT_ROUTER_RSC_TARGET = {
+    "VulnerabilityID": "GHSA-qwww-vcr4-c8h2",
+    "PkgName": "react-router",
+    "InstalledVersion": "7.18.1",
+    "PkgID": "react-router@7.18.1",
+    "FixedVersion": "8.3.0",
+}
+
+
+@dataclass(frozen=True)
+class _RegoToken:
+    kind: str
+    value: str
+    literal_value: str | None
+    start: int
+    end: int
+    line: int
+    depth: int
+
+
+def _tokenize_rego(
+    text: str,
+    *,
+    line_comments: list[tuple[int, str]] | None = None,
+) -> tuple[tuple[_RegoToken, ...], dict[int, int]]:
+    """Tokenize executable Rego while excluding comments and quoted/raw contents."""
+
+    tokens: list[_RegoToken] = []
+    brace_stack: list[int] = []
+    brace_pairs: dict[int, int] = {}
+    depth = 0
+    index = 0
+    line = 1
+    while index < len(text):
+        character = text[index]
+        if character in " \t\r":
+            index += 1
+            continue
+        if character == "\n":
+            line += 1
+            index += 1
+            continue
+        if character == "#":
+            newline = text.find("\n", index)
+            comment_end = len(text) if newline < 0 else newline
+            if line_comments is not None:
+                line_comments.append((line, text[index + 1 : comment_end]))
+            index = comment_end
+            continue
+        if character in {'"', "`"}:
+            quote = character
+            start = index
+            start_line = line
+            index += 1
+            escaped = False
+            while index < len(text):
+                character = text[index]
+                if quote == '"' and escaped:
+                    escaped = False
+                elif quote == '"' and character == "\\":
+                    escaped = True
+                elif character == quote:
+                    index += 1
+                    break
+                if character == "\n":
+                    line += 1
+                index += 1
+            else:
+                raise ValueError(f"unterminated string literal at line {start_line}")
+            raw_literal = text[start:index]
+            if quote == '"':
+                try:
+                    literal_value = json.loads(raw_literal)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"invalid quoted string at line {start_line}: {exc.msg}"
+                    ) from exc
+            else:
+                literal_value = raw_literal[1:-1]
+            tokens.append(
+                _RegoToken(
+                    kind="string",
+                    value=raw_literal,
+                    literal_value=literal_value,
+                    start=start,
+                    end=index,
+                    line=start_line,
+                    depth=depth,
+                )
+            )
+            continue
+        start = index
+        if character.isalpha() or character == "_":
+            index += 1
+            while index < len(text) and (text[index].isalnum() or text[index] == "_"):
+                index += 1
+            kind = "identifier"
+            value = text[start:index]
+        elif text.startswith(":=", index) or text.startswith("==", index):
+            index += 2
+            kind = "operator"
+            value = text[start:index]
+        else:
+            index += 1
+            kind = "symbol"
+            value = character
+        if value == "}" and not brace_stack:
+            raise ValueError(f"unexpected closing brace at line {line}")
+        token_index = len(tokens)
+        tokens.append(
+            _RegoToken(
+                kind=kind,
+                value=value,
+                literal_value=None,
+                start=start,
+                end=index,
+                line=line,
+                depth=depth,
+            )
+        )
+        if value == "{":
+            brace_stack.append(token_index)
+            depth += 1
+        elif value == "}":
+            opening_index = brace_stack.pop()
+            brace_pairs[opening_index] = token_index
+            depth -= 1
+    if brace_stack:
+        opening = tokens[brace_stack[-1]]
+        raise ValueError(f"unterminated block opened at line {opening.line}")
+    return tuple(tokens), brace_pairs
+
+
+def _inspect_ignore_policy_source(text: str) -> tuple[tuple[str, ...], tuple[int, ...]]:
+    """Extract canonical-head bodies and identify every unsupported ignore construct."""
+
+    tokens, brace_pairs = _tokenize_rego(text)
+    source_lines = text.splitlines()
+    ignore_blocks: list[str] = []
+    unsupported_lines: set[int] = set()
+    for index, token in enumerate(tokens):
+        if token.depth != 0 or token.kind != "identifier":
+            continue
+        previous = tokens[index - 1] if index else None
+        if token.value == "else" and not (
+            previous is not None and previous.value == "." and previous.line == token.line
+        ):
+            unsupported_lines.add(token.line)
+            continue
+        if token.value != "ignore":
+            continue
+        if previous is not None and previous.value == "." and previous.line == token.line:
+            continue
+        source_line = source_lines[token.line - 1]
+        if _DEFAULT_IGNORE_LINE_RE.fullmatch(source_line):
+            continue
+        if _CANONICAL_IGNORE_HEAD_LINE_RE.fullmatch(source_line):
+            if (
+                index + 2 < len(tokens)
+                and tokens[index + 1].value == "if"
+                and tokens[index + 1].line == token.line
+                and tokens[index + 2].value == "{"
+                and tokens[index + 2].line == token.line
+            ):
+                opening_index = index + 2
+                closing_index = brace_pairs.get(opening_index)
+                if closing_index is not None:
+                    ignore_blocks.append(
+                        text[tokens[opening_index].end : tokens[closing_index].start]
+                    )
+                    continue
+        unsupported_lines.add(token.line)
+    return tuple(ignore_blocks), tuple(sorted(unsupported_lines))
+
+
+def _top_level_body_token_lines(body: str) -> tuple[tuple[_RegoToken, ...], ...]:
+    tokens, _brace_pairs = _tokenize_rego(body)
+    by_line: dict[int, list[_RegoToken]] = {}
+    for token in tokens:
+        if token.depth == 0:
+            by_line.setdefault(token.line, []).append(token)
+    return tuple(tuple(by_line[line]) for line in sorted(by_line))
+
+
+def _direct_input_equality(tokens: tuple[_RegoToken, ...]) -> tuple[str, str] | None:
+    if len(tokens) != 5:
+        return None
+    if (
+        tokens[0].value == "input"
+        and tokens[1].value == "."
+        and tokens[2].kind == "identifier"
+        and tokens[3].value == "=="
+        and tokens[4].kind == "string"
+        and tokens[4].literal_value is not None
+    ):
+        return tokens[2].value, tokens[4].literal_value
+    if (
+        tokens[0].kind == "string"
+        and tokens[0].literal_value is not None
+        and tokens[1].value == "=="
+        and tokens[2].value == "input"
+        and tokens[3].value == "."
+        and tokens[4].kind == "identifier"
+    ):
+        return tokens[4].value, tokens[0].literal_value
+    return None
+
+
+def _ignore_block_can_match_react_router_target(body: str) -> bool:
+    """Conservatively reject blocks only when executable equality proves conflict."""
+
+    for token_line in _top_level_body_token_lines(body):
+        equality = _direct_input_equality(token_line)
+        if equality is None:
+            continue
+        field, value = equality
+        if field in _REACT_ROUTER_RSC_TARGET and value != _REACT_ROUTER_RSC_TARGET[field]:
+            return False
+    return True
+
+
+def _ignore_block_predicates(body: str) -> tuple[str, ...]:
+    return tuple(
+        line.strip()
+        for line in body.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+
+
+def _is_canonical_react_router_body(body: str) -> bool:
+    if _ignore_block_predicates(body) != _REACT_ROUTER_RSC_CANONICAL_PREDICATES:
+        return False
+    token_lines = _top_level_body_token_lines(body)
+    if len(token_lines) != len(_REACT_ROUTER_RSC_TARGET):
+        return False
+    return all(
+        _direct_input_equality(token_line) == expected
+        for token_line, expected in zip(
+            token_lines,
+            _REACT_ROUTER_RSC_TARGET.items(),
+            strict=True,
+        )
+    )
+
+
+def _validate_react_router_rsc_suppression(policy_file: Path) -> list[str]:
+    """Require one and only one exact five-predicate GHSA ignore block."""
+
+    text = policy_file.read_text(encoding="utf-8")
+    try:
+        ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(text)
+    except ValueError as exc:
+        return [f"React Router RSC suppression parsing failed in {policy_file}: {exc}"]
+    if unsupported_lines:
+        rendered_lines = ", ".join(str(line) for line in unsupported_lines)
+        return [
+            f"React Router RSC suppression in {policy_file} has unsupported top-level "
+            f"ignore rule syntax at line(s) {rendered_lines}; only 'default ignore := "
+            "false' and balanced 'ignore if {' blocks are permitted"
+        ]
+    target_capable_blocks = tuple(
+        body for body in ignore_blocks if _ignore_block_can_match_react_router_target(body)
+    )
+    if not target_capable_blocks:
+        return []
+    canonical_blocks = tuple(
+        body for body in target_capable_blocks if _is_canonical_react_router_body(body)
+    )
+    if len(canonical_blocks) > 1:
+        return [
+            f"React Router RSC suppression in {policy_file} must use exactly one GHSA ignore block"
+        ]
+    if not canonical_blocks:
+        return [
+            f"React Router RSC suppression in {policy_file} must contain exactly "
+            "the canonical five predicates"
+        ]
+    if len(target_capable_blocks) > 1:
+        return [
+            f"React Router RSC suppression in {policy_file} has an additional ignore "
+            "block capable of matching the canonical target tuple"
+        ]
+    return []
+
+
+def _read_rego_line_comments(path: Path) -> tuple[tuple[int, str], ...]:
+    comments: list[tuple[int, str]] = []
+    _tokenize_rego(path.read_text(encoding="utf-8"), line_comments=comments)
+    return tuple(comments)
 
 
 def _parse_expiry(path: Path) -> date:
     matches: list[date] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        found = _EXPIRY_RE.search(line)
+    for line_number, comment in _read_rego_line_comments(path):
+        found = _EXPIRY_RE.search(comment)
         if found:
             try:
                 matches.append(date.fromisoformat(found.group(1)))
@@ -35,8 +345,8 @@ def _parse_expiry(path: Path) -> date:
 
 def _parse_review_by_dates(path: Path) -> list[tuple[int, date]]:
     review_dates: list[tuple[int, date]] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        found = _REVIEW_BY_RE.search(line)
+    for line_number, comment in _read_rego_line_comments(path):
+        found = _REVIEW_BY_RE.search(comment)
         if found:
             try:
                 review_dates.append((line_number, date.fromisoformat(found.group(1))))
@@ -49,7 +359,7 @@ def _parse_review_by_dates(path: Path) -> list[tuple[int, date]]:
 
 
 def evaluate_policy_file(policy_file: Path, *, today: date) -> list[str]:
-    failures: list[str] = []
+    failures = _validate_react_router_rsc_suppression(policy_file)
     try:
         expiry = _parse_expiry(policy_file)
     except ValueError as exc:
@@ -93,8 +403,22 @@ def _resolve_policy_files(repo_root: Path) -> list[Path]:
     return sorted(trivy_dir.glob("ignore-policy*.rego"))
 
 
+def _contains_react_router_rsc_suppression(policy_file: Path) -> bool:
+    """Detect any ignore block that could match the canonical target tuple."""
+
+    try:
+        ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(
+            policy_file.read_text(encoding="utf-8")
+        )
+    except ValueError:
+        return True
+    if unsupported_lines:
+        return True
+    return any(_ignore_block_can_match_react_router_target(body) for body in ignore_blocks)
+
+
 def main() -> int:
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = REPO_ROOT
     policy_files = _resolve_policy_files(repo_root)
 
     missing_files = [p for p in policy_files if not p.exists()]
@@ -116,6 +440,17 @@ def main() -> int:
 
     for policy_file in policy_files:
         failures.extend(evaluate_policy_file(policy_file, today=today))
+
+    if any(_contains_react_router_rsc_suppression(path) for path in policy_files):
+        try:
+            violations = scan_react_router_rsc_premise(repo_root / "frontend")
+        except PremiseScanError as exc:
+            failures.append(f"React Router RSC premise scan was incomplete: {exc}")
+        else:
+            failures.extend(
+                f"React Router RSC suppression premise violated: {violation}"
+                for violation in violations
+            )
 
     if failures:
         print("ERROR: Trivy ignore policy expiry check failed:")

@@ -204,74 +204,58 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    PR head. Reviewer execution SHAs are opaque until the Commit API proves
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
-9. **Material identity:** one completed Codex review or one trusted terminal
-   Connector response/unavailability receipt, plus one completed final Codex
-   Security diff scan, bind to one material digest. A verified official Codex
-   Connector PR-root reaction (`+1`, `heart`, `hooray`, or `rocket`) may satisfy
-   the normal `--review-ref` path as a nonblocking terminal source response only
-   when its canonical reaction ID, immutable
-   Connector account id/login, the live PR head equal to the exact caller material
-   head at seal time, and a server-timestamped GitHub Actions `pull_request` run linked to that
-   same PR and head strictly preceding the reaction all verify, with no later
-   force-push or head-restoration event. That workflow-run chronology establishes
-   only that GitHub observed the material state before the response; it is not
-   Connector-owned proof of a reviewed commit. Authenticated validation after the one
-   canonical closeout commit may instead accept that mapping-only descendant as
-   the live head only after the material digest is proven unchanged. If that
-   automatic cycle replaces the sealed reaction, validation may use only a newer
-   live positive reaction from the same trusted Connector with the same content;
-   it does not rewrite the sealed receipt or restart the security scan. The receipt
-   uses `binding_kind=seal_context_only`, `review_claim=none`, and `blocking=false`;
-   it is a trusted positive Connector response, never an exact-head review claim,
-   native GitHub approval, Codex Security result, or review-thread disposition authority.
-   Optional advisory rendering remains non-authoritative. When Codex Security is systemically
-   unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
-   operator-outage override may replace only the plugin receipt: it must be an
-   unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
-   immutable GitHub user id plus PR/head/material digest, declare `scan_id: none`,
-   and be revalidated with the current-head security bundle from its trusted
-   GitHub Apps/workflows before merge. The bootstrap exception is PR `#2142`
-   only; later PRs that change the override verifier, merge gate, current-head
-   check identity parser, any CI/security workflow or local GitHub Action, or an
-   implementation/policy input of the substitute security checks cannot authorize themselves with
-   this override. It is tooling-unavailability evidence, never
-   a security scan or no-findings claim. When the official Codex connector
-   reports an exact known rate-limit or usage-limit response, its unedited
-   same-PR GitHub App comment is terminal review-source unavailability evidence:
-   `source_degraded=true`, `fallback_required=false`, and `blocking=false`.
-   Do not retry, request a substitute/prior review, require an operator
-   override, or impose a TTL. The receipt binds the unavailable source attempt
-   to the current material seal context with `review_claim=none`; it is never a
-   Codex review, approval, or no-findings result. A later material change
-   requires a new seal, but the same immutable quota comment may be reverified
-   and reused. The canonical negative projection is `retry_required=false`,
+9. **Material identity and provider-neutral no-claim:** the v1 seal binds
+   every evidence record to one frozen material digest, exact material head, and
+   exact merge-base. When `seal` receives neither review-provider input nor
+   security-provider input, it authors one closed, exact static pair inside the
+   existing v1 seal:
+   - review: `review_claim=none`, `output_required=false`,
+     `blocking=false`, exact `material_head_sha`, and exact
+     `material_digest`;
+   - security: `scan_claim=none`, `no_findings_claim=false`,
+     `output_required=false`, `blocking=false`, and the exact
+     base/head/material digest.
+   Provider output absence is not a review, scan, approval, PASS, or no-findings
+   result. It must not invoke, start, restart, retry, poll, wait for, substitute,
+   or require an operator override for either provider. One-sided, mixed,
+   partial, open-ended, or escalating no-claim shapes fail closed.
+   Provider absence requires no retry.
+   The no-claim pair alone cannot authorize any protected authority, verifier,
+   workflow, dependency, or security-policy surface. Protected declarative
+   subjects require the base-owned protected-PR gate plus every applicable
+   current-head CI, CodeQL, and Docker security family. Executable control-root
+   changes terminate as `AUTHORITY_ROTATION_REQUIRED`. The only additive
+   exception admits one exact, previously absent pair:
+   `.github/workflows/trusted_protected_pr_policy_vnext.yml` plus
+   `scripts/ci/check_trusted_protected_pr_policy_vnext.py`, where the workflow
+   has the frozen read-only bytes and the validator is byte-identical to the
+   base-owned v1 checker. Every v1 and other authority input must remain
+   byte/mode/type-identical. This admission only adds a dormant vNext canary; it
+   does not make vNext required, detach or retire v1, or authorize itself.
+   Once either vNext path exists in base, the admission cannot be reused.
+   Retirement of v1 is outside this contract and requires a separate reviewed
+   authority design; no in-repository marker or OWNER bypass is implied.
+   Current-head CI and the trusted security-check bundle remain hard. So do
+   actual provider findings, review dispositions, canonical mapping, unresolved
+   threads, bot actionables, commit ancestry, the mapping-only descendant rule,
+   and the mandatory review wait window. A no-claim pair grants no authority to
+   resolve or ignore any finding.
+   Historical v1 review, source-unavailability, positive-response, scan, and
+   outage receipts remain parseable for legacy artifacts only; they gain no new
+   authoring or merge authority. The historical terminal source-unavailability
+   projection remains `source_degraded=true`, `fallback_required=false`,
+   `blocking=false`, `review_claim=none`, `retry_required=false`,
    `substitute_review_required=false`, `prior_review_required=false`,
-   `operator_override_required=false`, and `ttl_required=false`. Historical PR
-   `#2142` review-credit override receipts remain
-   readable everywhere but are live-authenticated only for PR `#2142`; the
-   legacy override path is not an active authoring contract for later PRs.
-   The trusted submitted review object's real GitHub `commit_id` must equal the
-   frozen material head. A direct PR-root reaction from the official Connector
-   may be passed to `seal --review-ref <canonical-reaction-url>` only for `+1`,
-   `heart`, `hooray`, or `rocket`, after live verification of its immutable GitHub
-   account id/login, a live PR head equal to the caller's full current material
-   head at seal time, and a server-timestamped GitHub Actions `pull_request` run linked to that
-   same PR and head strictly preceding the reaction, with no later force-push or
-   head-restoration event. The chronology is freshness evidence only and must not
-   be projected into a Connector-owned reviewed commit. After the one canonical mapping-only closeout commit,
-   authenticated validation may accept its live descendant head only after
-   material-digest equality is re-established. Its terminal receipt is nonblocking
-   and explicitly carries `review_claim=none`; it is not exact-head review proof,
-   a native GitHub approval, Codex Security result, or thread-resolution authority.
-   The optional `--connector-advisory-reaction` rendering path remains
-   non-authoritative and may be omitted with a warning. When
-   the official Codex connector emits an unedited no-findings
-   issue comment instead, its trusted GitHub App identity and reviewed-commit
-   prefix must resolve through the Commit API to that same full frozen head. A
-   synthetic execution ref is never review proof. Every path is material except the exact
-   current-PR mapping artifact. PR-body edits are outside Git. Any later code,
-   test, workflow, dependency, policy, contract, or other docs change invalidates
-   the seal and reopens review/final scan.
+   `operator_override_required=false`, and `ttl_required=false`; it is a
+   no-retry record, never provider success.
+   GitHub Codex Connector review and Codex Security were separate legacy
+   providers. Their embedded receipts remain readable only as historical data;
+   provider preparation/outcome authoring commands are not registered and no
+   legacy receipt authorizes a current provider request or retry.
+   Every path is material except the exact current-PR mapping artifact. PR-body
+   edits are outside Git. Any later code, test, workflow, dependency, policy,
+   contract, or other docs change invalidates the seal and requires a new
+   exact-material validation cycle.
 10. **One closeout commit:** author dispositions and the content-bound human
     receipt locally with `pr_review_closeout.py`, then publish mapping and seal
     once. A repeated trusted Codex unavailable-ref ancestry finding on the same
@@ -610,12 +594,47 @@ Rules:
   overrides it.
 
 **Final-material Codex Security budget invariant (hard):**
-- The repeatable post-open pass is role-only: `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- After fixes, required local gates, current-head CI, and material freeze, run the repo-native exact-head `pulseplate-pr-review` as the local self-review. It does not itself satisfy the trusted review-evidence slot. Satisfy that slot with exactly one of a completed trusted exact-head GitHub Codex Connector review or an unedited trusted terminal Connector rate/usage-limit receipt with `review_claim=none`; the terminal unavailable path requires no retry or substitute review. Then request exactly one final manual Codex Security scan for that frozen material.
-- Lifecycle metadata records `scope=per_pr`, `automatic_budget=1`, `automatic_retries=0`, `requires_frozen_material=true`, and `additional_invocation=trusted_operator_approval`. Because `repository_invokes_plugin=false`, `automatic_budget=1` is the single operational request ceiling, not repository dispatch authority.
-- `pr_review_closeout.py prepare-final-security` requires exactly one matching evidence input: `--review-ref <exact-head-review-URL>` or `--review-source-unavailable-ref <trusted-terminal-comment-URL>`. It persists the tagged evidence without turning source unavailability into a review claim and performs no plugin call or GitHub mutation. Its atomic state is checkout-local advisory duplicate prevention only; it cannot grant authority or prove global cross-machine consumption. After the operator-issued request, `record-final-security-outcome` records `completed`, `timeout`, `safety_block`, or `incomplete`; every outcome consumes the operational request. Every additional preparation or request requires a fresh, unedited GitHub comment from an `OWNER` or `MEMBER`, created after the prior terminal outcome and bound to the exact repository, PR, full head SHA, and material digest.
-- Any material change invalidates the freeze, exact-head review, and scan evidence; merge evidence still requires one real completed scan on the exact final digest. A PR that changes security-governance, seal, merge-gate, current-head authority, CI/security workflow or action authority, or substitute-security policy inputs must not use the outage override to authorize itself.
-- GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence means no receipt. A trusted terminal rate/usage-limit receipt follows the non-review evidence mode above. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and final review-evidence validation, with no automatic retry.
+- The repeatable post-open pass is role-only:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- After fixes, the required narrow local gates, current-head CI, and material
+  freeze, run the repo-native exact-head `pulseplate-pr-review` self-review.
+  Record and disposition every actual finding before sealing.
+  Its embedded report receipt is a content-integrity-checked procedural
+  advisory artifact only; it does not cryptographically prove local agent
+  execution and has no review, scan, approval, or no-findings authority.
+- Current closeout does not require provider presence. Run
+  `pr_review_closeout.py seal --repo <owner/name> --pr-number <N>
+  --self-review-report <report.json>` without review/security provider flags to
+  author the exact static no-claim pair.
+  This path performs no Connector or Codex Security invocation and requires no
+  start, retry, polling, wait, substitute review/scan, operator override, or
+  TTL.
+- The no-claim pair makes only provider output optional. It never means review,
+  scan, approval, PASS, or no findings. Current-head required CI and the trusted
+  security-check bundle, actionable-provider findings, mapping, dispositions,
+  unresolved threads, bot actionables, ancestry, mapping-only closeout, and the
+  mandatory wait window remain hard.
+- One-sided or mixed provider inputs and partial/escalating no-claim receipts
+  fail closed. Any material change invalidates the seal and requires a fresh
+  exact-material validation cycle.
+- The protected trust-boundary detector and base-owned gate prevent no-claim
+  self-use. Declarative subjects are admitted only with their unchanged
+  semantic validator and all applicable CI, CodeQL, and Docker security
+  families. Executable control changes terminate as
+  `AUTHORITY_ROTATION_REQUIRED`. One exact, base-absent vNext workflow/checker
+  pair may be added for a dormant canary while v1 and every other authority
+  input remain byte/mode/type-identical. The admission neither changes required
+  contexts nor detaches/retires v1 and is unavailable once either vNext path
+  exists in base. Any retirement requires a separate reviewed authority design;
+  no reusable in-repo exception, activation marker, or OWNER bypass exists.
+- Historical provider-backed v1 receipts remain readable and revalidatable for
+  legacy artifacts only. They do not create current authoring authority,
+  fallback authority, or a reason to invoke a provider.
+- Legacy compatibility only: GitHub Codex Connector review and Codex Security
+  were separate providers. Their embedded receipts remain readable only as
+  historical data; provider preparation/outcome authoring commands are not
+  registered and no legacy receipt authorizes a current provider request or
+  retry.
 
 ### Mandatory PR Orchestration Gates
 
@@ -656,11 +675,10 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
-4. **Review cycle**: freeze the material state, observe one automatic Codex
-   response, apply any material fix and refreeze, then run one final security scan. A systemic
-   MCP `-32001` outage may use only the authenticated, expiring operator-outage
-   evidence variant described above; do not fabricate or relabel a scan receipt. Keep
-   dispositions in the gitignored closeout draft and publish one generated
+4. **Review cycle**: freeze the material state, complete exact-head self-review,
+   fix and disposition every actual finding, then seal without provider flags to
+   create the static no-claim pair. Do not invoke or wait for either provider.
+   Keep dispositions in the gitignored closeout draft and publish one generated
    mapping/seal commit. The PR body keeps one artifact link; a validated
    same-digest duplicate uses a structured thread reply only.
 5. **Merge cycle**: claim merge readiness only after the strict wrapper passes, required current-head checks are green with no pending jobs, no actionable bot comments remain, and the mandatory wait-window has elapsed.
