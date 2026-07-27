@@ -77,6 +77,7 @@ _ADDITIVE_VNEXT_ADMISSION = AdditiveVNextAdmissionContract(
 
 on:
   pull_request_target:
+    branches: [main]
     types: [opened, reopened, synchronize, ready_for_review, edited, labeled, unlabeled]
 
 permissions:

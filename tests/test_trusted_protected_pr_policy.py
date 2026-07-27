@@ -1380,6 +1380,7 @@ def test_additive_vnext_contract_adds_no_required_or_merge_authority() -> None:
     }
     serialized = contract.workflow_bytes.decode("utf-8")
     assert "pull_request_target" in workflow["on"]
+    assert workflow["on"]["pull_request_target"]["branches"] == ["main"]
     assert "pull_request.head" not in serialized
     assert "gh pr merge" not in serialized
     assert "branches: write" not in serialized
