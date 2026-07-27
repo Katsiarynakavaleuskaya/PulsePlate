@@ -1736,6 +1736,74 @@ def test_script_condition_requires_exact_token_boundaries(tmp_path: Path) -> Non
     ]
 
 
+@pytest.mark.parametrize(
+    ("build_command", "should_fail"),
+    (
+        ("node --env-file=.env vite", True),
+        ("node --env-file .env vite", True),
+        ("node --env-file-if-exists=.env vite", True),
+        ("node --env-file-if-exists .env vite", True),
+        ("node --env-file= vite", True),
+        ("node --env-file=$ENV_FILE vite", True),
+        ("node --env-file=.env --env-file=.env.local vite", True),
+        ("node build.mjs", False),
+        ("node build.mjs --env_file=.env", False),
+        ("echo node --env-file=.env", False),
+    ),
+)
+def test_node_package_env_file_argument_boundary(
+    tmp_path: Path,
+    build_command: str,
+    should_fail: bool,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": build_command}},
+    )
+    (frontend_root / ".env").write_text(
+        "NODE_OPTIONS=--conditions=react-server\n",
+        encoding="utf-8",
+    )
+
+    if should_fail:
+        with pytest.raises(guard.PremiseScanError, match="Node env-file arguments"):
+            guard.scan_repository(frontend_root)
+    else:
+        assert guard.scan_repository(frontend_root) == []
+
+
+def test_delegated_shell_node_env_file_argument_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build.sh",
+        "node --env-file-if-exists .env vite\n",
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="Node env-file arguments"):
+        guard.scan_repository(frontend_root)
+
+
+@pytest.mark.parametrize(
+    "build_command",
+    ('NODE_OPTIONS="$FLAGS" vite', 'node --conditions="$COND" build.mjs'),
+)
+def test_dynamic_package_condition_values_fail_closed(
+    tmp_path: Path,
+    build_command: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": build_command}},
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="value cannot be statically verified"):
+        guard.scan_repository(frontend_root)
+
+
 @pytest.mark.parametrize("script_name", ("build.sh", "build"))
 def test_delegated_shell_build_script_condition_fails_closed(
     tmp_path: Path,

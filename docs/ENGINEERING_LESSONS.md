@@ -814,6 +814,31 @@ This is a commit-ordering gate, not a merge verdict: unresolved threads,
 current-head CI, and the mandatory wait cycle remain for the normal strict
 post-push wrapper.
 
+## 31) Close bot fix loops at the invariant boundary
+
+### Problem
+Bot findings can have different reproducers yet still form one structural
+fix-loop: each push closes one carrier, parser edge, or authority path while
+leaving the same underlying invariant incomplete. These are not literal repeats
+covered by lesson 22, but fixing each example independently recreates the
+enumeration failure from lesson 24.
+
+### Rule
+Before changing code, group new reproducers by the invariant they violate:
+
+1. For a finite authority or execution graph, positively enumerate the complete
+   graph and add one completeness regression.
+2. For open-ended external-runtime semantics, enforce the smallest documented
+   fail-closed boundary; do not build a custom parser or chase adjacent,
+   unreported channels inside an urgent recovery PR.
+3. A materially novel current-surface P1 is fixed once at that class boundary
+   with targeted regression evidence.
+4. An exact repeat without a new reproducer reuses its existing disposition and
+   does not justify another material commit.
+
+Stop when the declared invariant is covered. Broader runtime modeling or
+adjacent hardening belongs in a separately scoped lane.
+
 ---
 
 ## Repo Commands Reference

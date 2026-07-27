@@ -1795,6 +1795,38 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
     )
 
 
+def test_canonical_closeout_authority_graph_is_exact() -> None:
+    assert policy._CANONICAL_CLOSEOUT_AUTHORITY_INPUTS == (
+        "scripts/orchestration/pr_review_closeout.py",
+        "scripts/orchestration/pr_commit_identity.py",
+        "scripts/orchestration/pr_review_evidence.py",
+        "scripts/orchestration/review_mapping_artifact.py",
+        "scripts/orchestration/review_source_status.py",
+    )
+
+
+@pytest.mark.parametrize(
+    "changed_path",
+    policy._CANONICAL_CLOSEOUT_AUTHORITY_INPUTS,
+)
+def test_each_canonical_closeout_authority_change_requires_rotation(
+    tmp_path: Path,
+    changed_path: str,
+) -> None:
+    assert changed_path in policy._protected_or_authority_paths((changed_path,))
+    repo, target = _trust_root_repo(tmp_path, changed_path=changed_path)
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match=rf"AUTHORITY_ROTATION_REQUIRED.*{re.escape(changed_path)}",
+    ):
+        policy.validate_trust_root_unchanged(
+            repo,
+            target,
+            material_paths=(changed_path,),
+        )
+
+
 @pytest.mark.parametrize(
     "changed_path",
     (

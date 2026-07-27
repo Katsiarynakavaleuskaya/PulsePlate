@@ -626,6 +626,7 @@ def _reject_dynamic_shell_condition_values(text: str, *, label: str) -> None:
 
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
         line_label = f"{label}:{line_number}"
+        _reject_node_env_file_arguments(raw_line, label=line_label)
         tokens = _shell_command_tokens(raw_line, label=line_label, comments=True)
         index = 0
         assignment_indexes: set[int] = set()
@@ -708,6 +709,23 @@ def _npmrc_enables_react_server_condition(value: str) -> bool:
     return False
 
 
+def _reject_node_env_file_arguments(command: str, *, label: str) -> None:
+    """Fail closed when a direct Node command loads an env file."""
+
+    tokens = _shell_command_tokens(command, label=label, comments=True)
+    index = 0
+    while index < len(tokens) and _SHELL_ASSIGNMENT_RE.match(tokens[index]):
+        index += 1
+    if index >= len(tokens) or Path(tokens[index]).name not in {"node", "nodejs"}:
+        return
+    options = ("--env-file", "--env-file-if-exists")
+    if any(
+        argument in options or any(argument.startswith(f"{option}=") for option in options)
+        for argument in tokens[index + 1 :]
+    ):
+        raise PremiseScanError(f"Node env-file arguments cannot be verified in {label}")
+
+
 def _scan_package_metadata(root: Path) -> list[str]:
     """Return RSC markers found in package metadata and scripts."""
 
@@ -752,6 +770,7 @@ def _scan_package_metadata(root: Path) -> list[str]:
         if _REACT_SERVER_CONDITION_RE.search(command):
             violations.append(f"package.json:scripts.{script_name}:react-server condition")
         label = f"package.json:scripts.{script_name}"
+        _reject_dynamic_shell_condition_values(command, label=label)
         for delegated_path in _delegated_shell_script_paths(
             command,
             root=root,

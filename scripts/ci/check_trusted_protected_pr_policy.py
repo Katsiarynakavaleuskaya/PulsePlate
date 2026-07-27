@@ -153,6 +153,13 @@ _WORKFLOW_PATHS: Mapping[str, str] = {
     "CodeQL Advanced": ".github/workflows/codeql.yml",
     "Docker Build and Push": ".github/workflows/build.yml",
 }
+_CANONICAL_CLOSEOUT_AUTHORITY_INPUTS = (
+    "scripts/orchestration/pr_review_closeout.py",
+    "scripts/orchestration/pr_commit_identity.py",
+    "scripts/orchestration/pr_review_evidence.py",
+    "scripts/orchestration/review_mapping_artifact.py",
+    "scripts/orchestration/review_source_status.py",
+)
 _TRUSTED_POLICY_ROOT_INPUTS = (
     ".github/CODEOWNERS",
     ".github/actions/**",
@@ -168,10 +175,7 @@ _TRUSTED_POLICY_ROOT_INPUTS = (
     "scripts/orchestration/check_merge_ready.py",
     "scripts/orchestration/check_review_threads_disposition.py",
     "scripts/orchestration/__init__.py",
-    "scripts/orchestration/pr_commit_identity.py",
-    "scripts/orchestration/pr_review_evidence.py",
-    "scripts/orchestration/review_mapping_artifact.py",
-    "scripts/orchestration/review_source_status.py",
+    *_CANONICAL_CLOSEOUT_AUTHORITY_INPUTS,
     "sitecustomize.py",
     "usercustomize.py",
 )
