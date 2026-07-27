@@ -1553,6 +1553,35 @@ def test_rsc_template_interpolation_fails_closed(tmp_path: Path) -> None:
         guard.scan_repository(frontend_root)
 
 
+def test_assembled_rsc_template_interpolation_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/assembled-interpolation.mjs",
+        "\n".join(
+            (
+                'const mod = ["react", "router"].join("-");',
+                'const fn = ["unstable", "routeRSCServerRequest"].join("_");',
+                "`${import(mod).then((m) => m[fn](req, routes))}`;",
+            )
+        ),
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="RSC template interpolation"):
+        guard.scan_repository(frontend_root)
+
+
+def test_benign_template_interpolations_are_allowed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/benign-interpolation.mjs",
+        'const message = `Hello ${formatName(user)}: ${formatValue("}")}`;\n',
+    )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
 @pytest.mark.parametrize(
     "source_text",
     (

@@ -94,13 +94,6 @@ _CLASSIC_JAVASCRIPT_MIME_TYPES = frozenset(
         "text/x-javascript",
     }
 )
-_TEMPLATE_INTERPOLATION_RSC_FRAGMENTS = (
-    "@vitejs/plugin-rsc",
-    "RSCServerRequest",
-    "react-router",
-    "react-server",
-    "unstable_",
-)
 
 
 class _VisibleCharacters(list[str]):
@@ -1014,15 +1007,6 @@ def _source_analysis(
                 continue
             if character == quote:
                 literal_value = "".join(literal)
-                if (
-                    quote == "`"
-                    and _has_unescaped_template_interpolation(literal_value)
-                    and any(
-                        fragment in _decode_javascript_source_escapes(literal_value)
-                        for fragment in _TEMPLATE_INTERPOLATION_RSC_FRAGMENTS
-                    )
-                ):
-                    raise PremiseScanError(f"RSC template interpolation in {label}")
                 literals.append(literal_value)
                 tokens.append(
                     _SourceToken(
@@ -1048,6 +1032,53 @@ def _source_literals_and_visible_text(text: str, *, label: str) -> tuple[list[st
 
     literals, visible, _tokens = _source_analysis(text, label=label)
     return literals, visible
+
+
+def _template_interpolation_expressions(value: str, *, label: str) -> tuple[str, ...]:
+    """Return every executable expression from one template body."""
+
+    expressions: list[str] = []
+    index = 0
+    while index < len(value) - 1:
+        if value[index] == "\\":
+            index += 2
+            continue
+        if value[index : index + 2] != "${":
+            index += 1
+            continue
+
+        expression_start = index + 2
+        closing = expression_start
+        while True:
+            closing = value.find("}", closing)
+            if closing < 0:
+                expressions.append(value[expression_start:])
+                return tuple(expressions)
+            try:
+                _, _, tokens = _source_analysis(
+                    value[expression_start : closing + 1],
+                    label=label,
+                )
+            except PremiseScanError:
+                closing += 1
+                continue
+
+            brace_depth = 0
+            closes_interpolation = False
+            for token in tokens:
+                if token == _SourceToken("punctuation", "{"):
+                    brace_depth += 1
+                elif token == _SourceToken("punctuation", "}"):
+                    if brace_depth == 0:
+                        closes_interpolation = True
+                        break
+                    brace_depth -= 1
+            if closes_interpolation:
+                expressions.append(value[expression_start:closing])
+                index = closing + 1
+                break
+            closing += 1
+    return tuple(expressions)
 
 
 def _is_react_router_module(token: _SourceToken) -> bool:
@@ -1285,6 +1316,10 @@ def _scan_source_text(text: str, *, label: str) -> list[str]:
     """Return fixed RSC marker diagnostics for one JavaScript source body."""
 
     literals, visible, tokens = _source_analysis(text, label=label)
+    for template in (token for token in tokens if token.kind == "template"):
+        for expression in _template_interpolation_expressions(template.value, label=label):
+            if _scan_source_text(expression, label=f"{label}:template interpolation"):
+                raise PremiseScanError(f"RSC template interpolation in {label}")
     _reject_dynamic_condition_values(tokens, label=label)
     decoded_visible = _decode_javascript_source_escapes(visible)
     composed_literals = _static_string_concatenations(tokens)

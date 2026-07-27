@@ -22,31 +22,32 @@ temporarily suppressed instead of taking an unrelated major-version migration.
   resolve both router packages to that exact line.
 - The frontend has no `unstable_matchRSCServerRequest` or
   `unstable_routeRSCServerRequest` use. The canonical marker inventory is at
-  `scripts/ci/check_react_router_rsc_premise.py:44`, and the current repository
-  absence proof is asserted at `tests/test_trivy_ignore_policy_expiry.py:642`.
+  `scripts/ci/check_react_router_rsc_premise.py:51`, and the default CLI's
+  canonical frontend root is asserted at
+  `tests/test_trivy_ignore_policy_expiry.py:641`.
 - The frontend has no `react-router/internal/react-server` import,
   `@vitejs/plugin-rsc` dependency, `react-server-dom-*` dependency or lockfile
   resolution/alias, or `react-server` build condition. The token-bounded build
-  condition matcher is at `scripts/ci/check_react_router_rsc_premise.py:50`.
-- `scripts/ci/check_react_router_rsc_premise.py:244` scans package metadata,
-  and `scripts/ci/check_react_router_rsc_premise.py:709` combines that scan with
+  condition matcher is at `scripts/ci/check_react_router_rsc_premise.py:57`.
+- `scripts/ci/check_react_router_rsc_premise.py:711` scans package metadata,
+  and `scripts/ci/check_react_router_rsc_premise.py:1423` combines that scan with
   every source-like file. It fails closed when an affected marker is introduced;
   metadata and runtime regressions are covered at
-  `tests/test_trivy_ignore_policy_expiry.py:645` and
-  `tests/test_trivy_ignore_policy_expiry.py:705`.
-- `scripts/ci/check_trivy_ignore_policy_expiry.py:444` detects any suppression
+  `tests/test_trivy_ignore_policy_expiry.py:705` and
+  `tests/test_trivy_ignore_policy_expiry.py:927`.
+- `scripts/ci/check_trivy_ignore_policy_expiry.py:501` detects any suppression
   capable of matching the canonical tuple, and
-  `scripts/ci/check_trivy_ignore_policy_expiry.py:446` invokes
+  `scripts/ci/check_trivy_ignore_policy_expiry.py:559` invokes
   the premise guard. The existing blocking `trivy_ignore_policy_expiry` CI job
   therefore enforces expiry and the complete premise scan together.
 - `trivy/ignore-policy.rego:212` begins the exact suppression rule, whose five
   tuple predicates occupy `trivy/ignore-policy.rego:213` through
   `trivy/ignore-policy.rego:217`. The guard's canonical predicate tuple is
   defined at `scripts/ci/check_trivy_ignore_policy_expiry.py:26` and compared
-  exactly at `scripts/ci/check_trivy_ignore_policy_expiry.py:262`.
+  exactly at `scripts/ci/check_trivy_ignore_policy_expiry.py:335`.
 - Exact-tuple and fail-closed wrapper regressions are at
-  `tests/test_trivy_ignore_policy_expiry.py:1519` and
-  `tests/test_trivy_ignore_policy_expiry.py:1915`.
+  `tests/test_trivy_ignore_policy_expiry.py:2371` and
+  `tests/test_trivy_ignore_policy_expiry.py:2981`.
 
 ## Threat and bounded decision
 

@@ -820,6 +820,37 @@ def test_current_head_checks_accept_exact_runs_and_reject_candidate_workflow(
         policy.validate_required_checks(target, token="opaque", material_paths=paths)
 
 
+@pytest.mark.parametrize(
+    "missing_context",
+    (
+        policy._OPENAPI_SYNC_REQUIRED_CONTEXT,
+        *policy._BACKEND_BLOCKING_REQUIRED_CONTEXTS,
+        *policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS,
+    ),
+)
+def test_current_head_checks_require_every_selected_risk_context(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_context: str,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/ci_risk_profile.py",)
+    monkeypatch.setattr(
+        policy,
+        "_api_request",
+        _successful_check_api(
+            target,
+            material_paths=paths,
+            omit_pull_request_run_for=missing_context,
+        ),
+    )
+
+    with pytest.raises(
+        policy._ChecksPending,
+        match=rf"{re.escape(missing_context)}=missing",
+    ):
+        policy.validate_required_checks(target, token="opaque", material_paths=paths)
+
+
 def test_current_head_checks_ignore_non_pull_request_sibling_before_exact_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1529,6 +1560,7 @@ def test_unchanged_trust_root_uses_automatic_path(tmp_path: Path) -> None:
             "scripts/ci/check_emergency_wheel_mirror_parity.py",
         ),
         ("lint", ".github/actions/python-setup/**"),
+        ("lint", ".npmrc"),
         ("lint", ".nvmrc"),
         ("lint", "conftest.py"),
         ("lint", "coverage.py"),
@@ -1544,8 +1576,13 @@ def test_unchanged_trust_root_uses_automatic_path(tmp_path: Path) -> None:
         ("lint", "requirements-ci-lite.txt"),
         ("lint", "tests/__init__.py"),
         ("lint", "tests/**/__init__.py"),
+        ("lint", "tests/coverage.py"),
         ("lint", "tests/conftest.py"),
         ("lint", "tests/**/conftest.py"),
+        ("lint", "tests/pytest.py"),
+        ("lint", "tests/scripts.py"),
+        ("lint", "tests/sitecustomize.py"),
+        ("lint", "tests/usercustomize.py"),
         ("lint", ".yamllint"),
         ("security", "app/__init__.py"),
         ("security", "bmi_visualization.py"),
@@ -1572,10 +1609,37 @@ def test_authority_graph_names_exact_transitive_controls(
     assert authority_path in policy._CONTEXT_AUTHORITY_INPUTS[context_name]
 
 
+@pytest.mark.parametrize(
+    ("module_path", "package_shadow"),
+    (
+        ("coverage.py", "coverage/__init__.py"),
+        ("pytest.py", "pytest/__init__.py"),
+        ("scripts.py", "scripts/__init__.py"),
+        ("sitecustomize.py", "sitecustomize/__init__.py"),
+        ("usercustomize.py", "usercustomize/__init__.py"),
+    ),
+)
+def test_exact_python_authority_also_protects_package_shadow(
+    module_path: str,
+    package_shadow: str,
+) -> None:
+    assert policy._matches_authority_input(package_shadow, {module_path})
+
+
+def test_python_package_shadow_equivalence_does_not_expand_wildcards() -> None:
+    assert not policy._matches_authority_input(
+        "tests/example/__init__.py",
+        {"tests/*.py"},
+    )
+
+
 def test_authority_graph_has_exact_required_context_inventory() -> None:
     expected_contexts = set(policy._BASE_REQUIRED_CONTEXTS) | set(
         policy._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
     )
+    expected_contexts.add(policy._OPENAPI_SYNC_REQUIRED_CONTEXT)
+    expected_contexts.update(policy._BACKEND_BLOCKING_REQUIRED_CONTEXTS)
+    expected_contexts.update(policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS)
     assert set(policy._CONTEXT_AUTHORITY_INPUTS) == expected_contexts
     assert set(policy._CONTEXT_AUTHORITY_PROJECTIONS) <= expected_contexts
     assert policy._CONTEXT_AUTHORITY_PROJECTIONS["lint"] == (
@@ -1644,6 +1708,52 @@ def test_authority_graph_has_exact_required_context_inventory() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "context_name",
+    (
+        policy._OPENAPI_SYNC_REQUIRED_CONTEXT,
+        *policy._BACKEND_BLOCKING_REQUIRED_CONTEXTS,
+        *policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS,
+    ),
+)
+def test_risk_selected_contexts_use_base_owned_ci_router(context_name: str) -> None:
+    assert policy._CONTEXT_AUTHORITY_INPUTS[context_name] == (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
+    )
+
+
+def test_required_contexts_follow_existing_ci_risk_profile() -> None:
+    backend_names = {
+        policy._OPENAPI_SYNC_REQUIRED_CONTEXT,
+        *policy._BACKEND_BLOCKING_REQUIRED_CONTEXTS,
+    }
+    backend_contexts = {
+        context.name: context for context in policy._required_contexts(("AGENTS.md",))
+    }
+    assert backend_names <= set(backend_contexts)
+    assert "coverage-pr" not in backend_contexts
+    assert set(policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS).isdisjoint(backend_contexts)
+
+    diagnostic_contexts = {
+        context.name: context
+        for context in policy._required_contexts(("scripts/ci/ci_risk_profile.py",))
+    }
+    assert backend_names <= set(diagnostic_contexts)
+    assert "coverage-pr" not in diagnostic_contexts
+    assert set(policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS) <= set(diagnostic_contexts)
+
+    docs_context_names = {
+        context.name for context in policy._required_contexts(("docs/README.md",))
+    }
+    assert backend_names.isdisjoint(docs_context_names)
+    assert set(policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS).isdisjoint(docs_context_names)
+
+    for name in backend_names | set(policy._MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS):
+        assert diagnostic_contexts[name].workflow_name == "CI"
+        assert diagnostic_contexts[name].workflow_path == ".github/workflows/ci.yml"
+
+
 def test_codeowners_is_protected_authority_and_routes_privileged_security() -> None:
     path = ".github/CODEOWNERS"
     material_paths = (path,)
@@ -1698,12 +1808,14 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "docs/telemetry/docker_image_budget.production.json",
         "Dockerfile",
         ".dockerignore",
+        ".npmrc",
         "trivy/ignore-policy.rego",
         ".trivyignore",
         "app/__init__.py",
         "bmi_visualization.py",
         "conftest.py",
         "coverage.py",
+        "coverage/__init__.py",
         "core/bmi/__init__.py",
         "core/ai/__init__.py",
         "frontend/package-lock.json",
@@ -1712,17 +1824,30 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "package.json",
         "pytest_sharding.py",
         "pytest.py",
+        "pytest/__init__.py",
         "scripts.py",
+        "scripts/__init__.py",
+        "scripts/ci/__init__.py",
         "scripts/ci/run_main_test_shards.py",
+        "scripts/orchestration/__init__.py",
+        "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
         "tests/__init__.py",
         "tests/edges/__init__.py",
+        "tests/coverage.py",
         "tests/conftest.py",
         "tests/edges/conftest.py",
+        "tests/pytest.py",
+        "tests/scripts.py",
+        "tests/sitecustomize.py",
+        "tests/usercustomize.py",
         "constraints.txt",
         "requirements-ci-lite.txt",
         "binding.gyp",
         "sitecustomize.py",
+        "sitecustomize/__init__.py",
         "usercustomize.py",
+        "usercustomize/__init__.py",
         ".github/CODEOWNERS",
         ".github/workflows/trusted_protected_pr_policy.yml",
     ),
@@ -1991,26 +2116,41 @@ def test_malformed_semantic_input_uses_terminal_rotation_token(tmp_path: Path) -
     (
         ".github/workflows/frontend-ci.yml",
         ".github/CODEOWNERS",
+        ".npmrc",
         ".nvmrc",
         "app/__init__.py",
         "conftest.py",
         "coverage.py",
+        "coverage/__init__.py",
         "frontend/package-lock.json",
         "frontend/package.json",
         "package-lock.json",
         "package.json",
         "pytest_sharding.py",
         "pytest.py",
+        "pytest/__init__.py",
         "ruff.toml",
         "scripts.py",
+        "scripts/__init__.py",
+        "scripts/ci/__init__.py",
         "scripts/ci/run_main_test_shards.py",
+        "scripts/orchestration/__init__.py",
+        "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
         "scripts/orchestration/context_pack.py",
         "tests/__init__.py",
         "tests/edges/__init__.py",
+        "tests/coverage.py",
         "tests/conftest.py",
         "tests/edges/conftest.py",
+        "tests/pytest.py",
+        "tests/scripts.py",
+        "tests/sitecustomize.py",
+        "tests/usercustomize.py",
         "tests/guards/test_nosec_policy_guard.py",
         "docs/telemetry/docker_image_budget.production.json",
+        "sitecustomize/__init__.py",
+        "usercustomize/__init__.py",
     ),
 )
 def test_authority_path_cannot_take_unprotected_skip_branch(changed_path: str) -> None:

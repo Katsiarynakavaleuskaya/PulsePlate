@@ -138,6 +138,16 @@ _BASE_REQUIRED_CONTEXTS = (
     "Private Python proxy health",
     "lint",
 )
+_OPENAPI_SYNC_REQUIRED_CONTEXT = "OpenAPI sync (backend -> frontend artifacts)"
+_BACKEND_BLOCKING_REQUIRED_CONTEXTS = (
+    "test-pr (3.13)",
+    "diff-coverage",
+)
+_MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS = (
+    "test-main (3.11, 60)",
+    "test-main (3.12, 90)",
+    "test-main (3.13, 90)",
+)
 _WORKFLOW_PATHS: Mapping[str, str] = {
     "CI": ".github/workflows/ci.yml",
     "CodeQL Advanced": ".github/workflows/codeql.yml",
@@ -154,6 +164,10 @@ _TRUSTED_POLICY_ROOT_INPUTS = (
     "scripts/ci/check_trusted_protected_pr_policy.py",
     "scripts/ci/check_trusted_protected_pr_policy_vnext.py",
     "scripts/ci/ci_risk_profile.py",
+    "scripts/ci/__init__.py",
+    "scripts/orchestration/check_merge_ready.py",
+    "scripts/orchestration/check_review_threads_disposition.py",
+    "scripts/orchestration/__init__.py",
     "scripts/orchestration/pr_commit_identity.py",
     "scripts/orchestration/pr_review_evidence.py",
     "scripts/orchestration/review_mapping_artifact.py",
@@ -231,6 +245,7 @@ _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
         "coverage.py",
         ".flake8",
         ".markdownlint.json",
+        ".npmrc",
         ".nvmrc",
         ".pre-commit-config.yaml",
         ".ruff.toml",
@@ -261,12 +276,41 @@ _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
         "scripts/run-backend-tests-pre-commit.sh",
         "tests/__init__.py",
         "tests/**/__init__.py",
+        "tests/coverage.py",
         "tests/conftest.py",
         "tests/**/conftest.py",
+        "tests/pytest.py",
+        "tests/scripts.py",
+        "tests/sitecustomize.py",
+        "tests/usercustomize.py",
         "tests/fixtures/dependency_security_schema.json",
         "tests/guards/**",
         "tests/test_dependency_security_guard.py",
         "tests/test_repo_policy_guards.py",
+    ),
+    "OpenAPI sync (backend -> frontend artifacts)": (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
+    ),
+    "test-pr (3.13)": (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
+    ),
+    "diff-coverage": (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
+    ),
+    "test-main (3.11, 60)": (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
+    ),
+    "test-main (3.12, 90)": (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
+    ),
+    "test-main (3.13, 90)": (
+        ".github/workflows/ci.yml",
+        "scripts/ci/ci_risk_profile.py",
     ),
     "security": (
         ".github/workflows/ci.yml",
@@ -716,6 +760,14 @@ def _required_contexts(material_paths: Sequence[str]) -> tuple[RequiredContext, 
             return tuple(sorted(set(inputs) | set(_PGVECTOR_AUTHORITY_INPUTS)))
         return inputs
 
+    risk_profile = build_risk_profile(tuple(material_paths))
+    selected_ci_contexts = set(_BASE_REQUIRED_CONTEXTS)
+    if risk_profile.run_openapi_sync:
+        selected_ci_contexts.add(_OPENAPI_SYNC_REQUIRED_CONTEXT)
+    if risk_profile.run_backend_blocking:
+        selected_ci_contexts.update(_BACKEND_BLOCKING_REQUIRED_CONTEXTS)
+    if risk_profile.run_main_ci_diagnostic:
+        selected_ci_contexts.update(_MAIN_CI_DIAGNOSTIC_REQUIRED_CONTEXTS)
     contexts = {
         name: RequiredContext(
             name,
@@ -724,12 +776,10 @@ def _required_contexts(material_paths: Sequence[str]) -> tuple[RequiredContext, 
             authority_inputs(name),
             _CONTEXT_AUTHORITY_PROJECTIONS.get(name, ()),
         )
-        for name in _BASE_REQUIRED_CONTEXTS
+        for name in selected_ci_contexts
     }
     protected_inventory = _protected_or_authority_paths(material_paths)
-    run_security = build_risk_profile(tuple(material_paths)).run_security or bool(
-        protected_inventory
-    )
+    run_security = risk_profile.run_security or bool(protected_inventory)
     for name, (
         workflow_name,
         app_id,
@@ -786,7 +836,11 @@ def _matches_authority_input(path: str, patterns: set[str]) -> bool:
         elif pattern.endswith("/**"):
             if path.startswith(pattern[:-2]):
                 return True
-        elif path == pattern:
+        elif path == pattern or (
+            pattern.endswith(".py")
+            and not any(character in pattern for character in "*?[")
+            and path == f"{pattern[:-3]}/__init__.py"
+        ):
             return True
     return False
 
