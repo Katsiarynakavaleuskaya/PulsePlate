@@ -215,6 +215,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    - security: `scan_claim=none`, `no_findings_claim=false`,
      `output_required=false`, `blocking=false`, and the exact
      base/head/material digest.
+   - self-review: one repo-native `pulseplate-pr-review` advisory artifact,
+     reserved for this provider-neutral seal shape and bound to the exact
+     base/merge-base/material-head/digest plus its canonical report hash. It
+     carries no provider review, scan, approval, PASS, or no-findings claim.
    Provider output absence is not a review, scan, approval, PASS, or no-findings
    result. It must not invoke, start, restart, retry, poll, wait for, substitute,
    or require an operator override for either provider. One-sided, mixed,

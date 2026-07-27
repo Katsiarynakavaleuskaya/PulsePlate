@@ -11,13 +11,10 @@ Scope: `docs/orchestration/**`
   `qa-engineer-agent -> bug-hunter -> security-auditor`
   unless the coordinator records an explicit evidence-backed disposition.
 
-After final material freeze, run the repo-native exact-head
-`pulseplate-pr-review`, disposition every finding, and seal with its exact-material
-report. Connector and Codex Security output are provider-neutral no-claims:
-do not invoke, retry, wait for, substitute, or override either provider.
-Absence is not a PASS, review, scan, approval, or no-findings result; current-head
-CI/security, mapping, threads, bot actionables, ancestry, and wait-window gates
-remain hard.
+- Final-material closeout is repo-global and owned by root
+  [`AGENTS.md`](../../AGENTS.md). Follow its exact-material
+  `pulseplate-pr-review` self-review, provider-neutral no-claim, and hard-gate
+  contract without adding a scoped orchestration variant here.
 
 - For the design-agent runtime realignment bridge:
   - primary: `agent-coordinator`

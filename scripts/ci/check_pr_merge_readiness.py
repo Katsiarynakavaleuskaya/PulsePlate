@@ -792,6 +792,7 @@ def _wait_for_operator_outage_security_checks(
     timeout_seconds: int,
     poll_interval_seconds: int = 15,
     evidence_label: str = "operator outage override",
+    pending_retry_allowed: bool = True,
 ) -> None:
     """Wait only for transient exact-head substitute-check states, then fail closed."""
 
@@ -811,6 +812,7 @@ def _wait_for_operator_outage_security_checks(
                 expected_head_sha=expected_head_sha,
                 security_required=security_required,
                 evidence_label=evidence_label,
+                pending_retry_allowed=pending_retry_allowed,
             )
             return
         except _OutageSecurityChecksPending as exc:
@@ -932,6 +934,7 @@ def _validate_v1_seal(
             ),
             timeout_seconds=outage_security_wait_seconds,
             evidence_label="provider-neutral no-claim evidence",
+            pending_retry_allowed=False,
         )
     return seal
 

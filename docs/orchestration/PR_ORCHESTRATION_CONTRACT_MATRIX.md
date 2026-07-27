@@ -198,10 +198,14 @@ retry.
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
 - Current authoring uses no provider flags and emits the exact symmetric
-  provider-neutral no-claim pair. Both receipts bind the frozen material digest;
-  review additionally binds the material head, while security binds the exact
-  merge-base/head range. Exact-key validation rejects unknown authority,
-  escalation, stale identity, partial receipts, and mixed legacy/no-claim forms.
+  provider-neutral no-claim pair plus one repo-native `self_review` advisory
+  artifact reserved for that pair. Both provider receipts bind the frozen
+  material digest; review additionally binds the material head, security binds
+  the exact merge-base/head range, and `self_review` binds the exact
+  base/merge-base/material-head/digest and canonical report hash without
+  claiming provider review or scan. Exact-key validation rejects unknown
+  authority, escalation, stale identity, partial receipts, mixed
+  legacy/no-claim forms, and `self_review` on any other seal shape.
 - Authenticated validation rebuilds the pair from the live material identity and
   compares it byte-for-byte. It does not call either provider. The merge gate
   waits at most 300 seconds for missing or pending trusted exact-head security

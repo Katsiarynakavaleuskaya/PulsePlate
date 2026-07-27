@@ -10,6 +10,7 @@ executed.
 from __future__ import annotations
 
 import argparse
+import email.utils
 import http.client
 import json
 import os
@@ -118,8 +119,13 @@ _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _ACTIONS_APP_ID = 15_368
 _ACTIONS_APP_SLUG = "github-actions"
 _MAX_API_PAGES = 100
+_MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
+_API_RETRY_BACKOFF_SECONDS = (1.0, 2.0)
+_API_REQUEST_ATTEMPTS = len(_API_RETRY_BACKOFF_SECONDS) + 1
+_API_MAX_RETRY_AFTER_SECONDS = 60.0
 _DEFAULT_POLL_SECONDS = 2700
 _POLL_INTERVAL_SECONDS = 15
+_POLL_MAX_INTERVAL_SECONDS = 60
 _BASE_REQUIRED_CONTEXTS = (
     "Determine changed paths (for conditional jobs)",
     "pr_scope_guard",
@@ -538,37 +544,93 @@ def _github_token() -> str:
     return gh_token
 
 
+def _bounded_retry_after_seconds(value: object) -> float | None:
+    """Parse a bounded Retry-After delta or HTTP date from an untrusted header."""
+
+    if not isinstance(value, str):
+        return None
+    header = value.strip()
+    if re.fullmatch(r"[0-9]+", header):
+        try:
+            delay = float(int(header))
+        except (OverflowError, ValueError):
+            return None
+    else:
+        try:
+            retry_at = email.utils.parsedate_to_datetime(header)
+            if retry_at.tzinfo is None:
+                return None
+            delay = max(0.0, retry_at.timestamp() - time.time())
+        except (OSError, OverflowError, TypeError, ValueError):
+            return None
+    if not 0.0 <= delay <= _API_MAX_RETRY_AFTER_SECONDS:
+        return None
+    return delay
+
+
 def _api_request(url: str, *, token: str) -> Any:
-    """Read one bounded GitHub API JSON response without exposing the token."""
+    """Read one bounded GitHub API JSON response with bounded transient retries."""
 
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or parsed.netloc != "api.github.com":
         raise ReviewEvidenceError("unsupported GitHub API URL")
     path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
-    connection = http.client.HTTPSConnection("api.github.com", timeout=30)
-    try:
-        connection.request(
-            "GET",
-            path,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {token}",
-                "User-Agent": "pulseplate-trusted-protected-pr-policy",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
-        response = connection.getresponse()
-        raw = response.read()
-    finally:
-        connection.close()
-    if response.status >= 400:
-        raise ReviewEvidenceError(f"GitHub API request failed with HTTP {response.status}")
-    if len(raw) > 8 * 1024 * 1024:
-        raise ReviewEvidenceError("GitHub API response exceeds size limit")
-    try:
-        return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ReviewEvidenceError("GitHub API returned malformed JSON") from exc
+    for attempt in range(_API_REQUEST_ATTEMPTS):
+        connection: http.client.HTTPSConnection | None = None
+        transport_failed = False
+        try:
+            connection = http.client.HTTPSConnection("api.github.com", timeout=30)
+            connection.request(
+                "GET",
+                path,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {token}",
+                    "User-Agent": "pulseplate-trusted-protected-pr-policy",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response = connection.getresponse()
+            raw = response.read(_MAX_API_RESPONSE_BYTES + 1)
+            retry_after = response.getheader("Retry-After")
+        except (OSError, http.client.HTTPException):
+            transport_failed = True
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except (OSError, http.client.HTTPException):
+                    transport_failed = True
+
+        if transport_failed:
+            if attempt + 1 >= _API_REQUEST_ATTEMPTS:
+                break
+            time.sleep(_API_RETRY_BACKOFF_SECONDS[attempt])
+            continue
+
+        if response.status >= 400:
+            bounded_retry_after = _bounded_retry_after_seconds(retry_after)
+            retryable = (
+                response.status == 429
+                or response.status >= 500
+                or (response.status == 403 and bounded_retry_after is not None)
+            )
+            if retryable and attempt + 1 < _API_REQUEST_ATTEMPTS:
+                delay = (
+                    bounded_retry_after
+                    if response.status in {403, 429} and bounded_retry_after is not None
+                    else _API_RETRY_BACKOFF_SECONDS[attempt]
+                )
+                time.sleep(delay)
+                continue
+            raise ReviewEvidenceError(f"GitHub API request failed with HTTP {response.status}")
+        if len(raw) > _MAX_API_RESPONSE_BYTES:
+            raise ReviewEvidenceError("GitHub API response exceeds size limit")
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ReviewEvidenceError("GitHub API returned malformed JSON") from exc
+    raise ReviewEvidenceError(f"GitHub API transport failed after {_API_REQUEST_ATTEMPTS} attempts")
 
 
 def _repo_api(target: PullRequestTarget, suffix: str) -> str:
@@ -995,6 +1057,7 @@ def validate_required_checks(
     *,
     token: str,
     material_paths: Sequence[str],
+    actions_run_cache: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """Require trusted, unambiguous current-head GitHub Actions successes."""
 
@@ -1026,7 +1089,7 @@ def validate_required_checks(
         )
 
     pending: list[str] = []
-    run_cache: dict[int, dict[str, Any]] = {}
+    run_cache = actions_run_cache if actions_run_cache is not None else {}
     for required in required_contexts:
         candidates = [check for check in checks if check.get("name") == required.name]
         if not candidates:
@@ -1081,12 +1144,15 @@ def poll_required_checks(
         raise ReviewEvidenceError("check settlement timeout must be non-negative")
     validate_live_identity(repo_root, target, token=token)
     deadline = time.monotonic() + timeout_seconds
+    actions_run_cache: dict[int, dict[str, Any]] = {}
+    poll_interval = float(_POLL_INTERVAL_SECONDS)
     while True:
         try:
             validate_required_checks(
                 target,
                 token=token,
                 material_paths=material_paths,
+                actions_run_cache=actions_run_cache,
             )
             break
         except _ChecksPending as exc:
@@ -1095,7 +1161,8 @@ def poll_required_checks(
                 raise ReviewEvidenceError(
                     f"trusted current-head checks did not settle within {timeout_seconds}s: {exc}"
                 ) from exc
-            time.sleep(min(float(_POLL_INTERVAL_SECONDS), remaining))
+            time.sleep(min(poll_interval, remaining))
+            poll_interval = min(poll_interval * 2.0, float(_POLL_MAX_INTERVAL_SECONDS))
     validate_live_identity(repo_root, target, token=token)
 
 

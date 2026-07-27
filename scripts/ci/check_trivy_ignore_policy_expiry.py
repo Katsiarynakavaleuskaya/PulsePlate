@@ -275,10 +275,22 @@ def _is_canonical_react_router_body(body: str) -> bool:
     )
 
 
-def _validate_react_router_rsc_suppression(policy_file: Path) -> list[str]:
+def _read_rego_text(policy_file: Path) -> str:
+    """Read one Rego policy or raise a stable validation failure."""
+
+    try:
+        return policy_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Unable to read Trivy ignore policy {policy_file}: {exc}") from exc
+
+
+def _validate_react_router_rsc_suppression(
+    policy_file: Path,
+    *,
+    text: str,
+) -> list[str]:
     """Require one and only one exact five-predicate GHSA ignore block."""
 
-    text = policy_file.read_text(encoding="utf-8")
     try:
         ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(text)
     except ValueError as exc:
@@ -315,15 +327,15 @@ def _validate_react_router_rsc_suppression(policy_file: Path) -> list[str]:
     return []
 
 
-def _read_rego_line_comments(path: Path) -> tuple[tuple[int, str], ...]:
+def _read_rego_line_comments(text: str) -> tuple[tuple[int, str], ...]:
     comments: list[tuple[int, str]] = []
-    _tokenize_rego(path.read_text(encoding="utf-8"), line_comments=comments)
+    _tokenize_rego(text, line_comments=comments)
     return tuple(comments)
 
 
-def _parse_expiry(path: Path) -> date:
+def _parse_expiry(path: Path, *, text: str) -> date:
     matches: list[date] = []
-    for line_number, comment in _read_rego_line_comments(path):
+    for line_number, comment in _read_rego_line_comments(text):
         found = _EXPIRY_RE.search(comment)
         if found:
             try:
@@ -343,9 +355,9 @@ def _parse_expiry(path: Path) -> date:
     return matches[0]
 
 
-def _parse_review_by_dates(path: Path) -> list[tuple[int, date]]:
+def _parse_review_by_dates(path: Path, *, text: str) -> list[tuple[int, date]]:
     review_dates: list[tuple[int, date]] = []
-    for line_number, comment in _read_rego_line_comments(path):
+    for line_number, comment in _read_rego_line_comments(text):
         found = _REVIEW_BY_RE.search(comment)
         if found:
             try:
@@ -358,10 +370,21 @@ def _parse_review_by_dates(path: Path) -> list[tuple[int, date]]:
     return review_dates
 
 
-def evaluate_policy_file(policy_file: Path, *, today: date) -> list[str]:
-    failures = _validate_react_router_rsc_suppression(policy_file)
+def evaluate_policy_file(
+    policy_file: Path,
+    *,
+    today: date,
+    text: str | None = None,
+) -> list[str]:
+    if text is None:
+        try:
+            text = _read_rego_text(policy_file)
+        except ValueError as exc:
+            return [str(exc)]
+
+    failures = _validate_react_router_rsc_suppression(policy_file, text=text)
     try:
-        expiry = _parse_expiry(policy_file)
+        expiry = _parse_expiry(policy_file, text=text)
     except ValueError as exc:
         failures.append(str(exc))
         return failures
@@ -372,7 +395,7 @@ def evaluate_policy_file(policy_file: Path, *, today: date) -> list[str]:
         )
 
     try:
-        review_by_dates = _parse_review_by_dates(policy_file)
+        review_by_dates = _parse_review_by_dates(policy_file, text=text)
     except ValueError as exc:
         failures.append(str(exc))
         return failures
@@ -403,13 +426,20 @@ def _resolve_policy_files(repo_root: Path) -> list[Path]:
     return sorted(trivy_dir.glob("ignore-policy*.rego"))
 
 
-def _contains_react_router_rsc_suppression(policy_file: Path) -> bool:
+def _contains_react_router_rsc_suppression(
+    policy_file: Path,
+    *,
+    text: str | None = None,
+) -> bool:
     """Detect any ignore block that could match the canonical target tuple."""
 
+    if text is None:
+        try:
+            text = _read_rego_text(policy_file)
+        except ValueError:
+            return True
     try:
-        ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(
-            policy_file.read_text(encoding="utf-8")
-        )
+        ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(text)
     except ValueError:
         return True
     if unsupported_lines:
@@ -437,11 +467,22 @@ def main() -> int:
 
     today = datetime.now(UTC).date()
     failures: list[str] = []
+    suppression_present = False
 
     for policy_file in policy_files:
-        failures.extend(evaluate_policy_file(policy_file, today=today))
+        try:
+            text = _read_rego_text(policy_file)
+        except ValueError as exc:
+            failures.append(str(exc))
+            suppression_present = True
+            continue
+        failures.extend(evaluate_policy_file(policy_file, today=today, text=text))
+        suppression_present = suppression_present or _contains_react_router_rsc_suppression(
+            policy_file,
+            text=text,
+        )
 
-    if any(_contains_react_router_rsc_suppression(path) for path in policy_files):
+    if suppression_present:
         try:
             violations = scan_react_router_rsc_premise(repo_root / "frontend")
         except PremiseScanError as exc:

@@ -1377,6 +1377,7 @@ def _validate_self_review_report_payload(
     material_digest: str,
     material_paths: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    expected_material_paths = None if material_paths is None else tuple(material_paths)
     if not isinstance(report, dict):
         raise ReviewEvidenceError("pulseplate-pr-review report must be an object")
     _require_exact_keys(
@@ -1621,7 +1622,9 @@ def _validate_self_review_report_payload(
         or len(changed_files) != len(set(changed_files))
     ):
         raise ReviewEvidenceError("pulseplate-pr-review report changed-file coverage is malformed")
-    if material_paths is not None and sorted(changed_files) != sorted(set(material_paths)):
+    if expected_material_paths is not None and sorted(changed_files) != sorted(
+        set(expected_material_paths)
+    ):
         raise ReviewEvidenceError(
             "pulseplate-pr-review report does not cover the exact material path set"
         )

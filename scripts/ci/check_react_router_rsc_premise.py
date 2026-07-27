@@ -6,6 +6,7 @@ import argparse
 from collections import deque
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,7 @@ SOURCE_SUFFIXES = {
     ".ts",
     ".tsx",
 }
+HTML_SUFFIXES = {".html"}
 GLOBAL_EXCLUDED_DIRECTORIES = {
     ".git",
     ".mypy_cache",
@@ -56,10 +58,18 @@ _REGEX_PREFIX_KEYWORDS = ("await", "case", "delete", "return", "throw", "typeof"
 _REGEX_PREFIX_CONTEXT_LIMIT = max(len(keyword) for keyword in _REGEX_PREFIX_KEYWORDS) + 1
 _SOURCE_IDENTIFIER_RE = re.compile(r"(?:[$_]|[^\W\d])(?:[$\w\u200c\u200d])*")
 _HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
-_JAVASCRIPT_UNICODE_ESCAPE_RE = re.compile(
-    r"\\(?:x(?P<hex>[0-9A-Fa-f]{2})|u(?P<unicode>[0-9A-Fa-f]{4})|"
-    r"u\{(?P<braced>[0-9A-Fa-f]{1,6})\})"
-)
+_JAVASCRIPT_SIMPLE_ESCAPES = {
+    "0": "\0",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+    "'": "'",
+    '"': '"',
+    "\\": "\\",
+}
 
 
 class _VisibleCharacters(list[str]):
@@ -105,6 +115,66 @@ class _SourceToken:
 
     kind: str
     value: str
+
+
+class _InlineModuleScriptParser(HTMLParser):
+    """Collect executable inline module bodies from one HTML document."""
+
+    def __init__(self, *, label: str) -> None:
+        super().__init__(convert_charrefs=False)
+        self._label = label
+        self._inside_script = False
+        self._is_module = False
+        self._body: list[str] = []
+        self.module_scripts: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag.lower() != "script":
+            return
+        if self._inside_script:
+            raise PremiseScanError(f"nested script element in {self._label}")
+        self._inside_script = True
+        has_module_type = any(
+            name.lower() == "type" and value is not None and value.strip().lower() == "module"
+            for name, value in attrs
+        )
+        has_source = any(name.lower() == "src" for name, _value in attrs)
+        self._is_module = has_module_type and not has_source
+        self._body = []
+
+    def handle_startendtag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag.lower() == "script":
+            self.handle_starttag(tag, attrs)
+            self.set_cdata_mode("script")
+
+    def handle_data(self, data: str) -> None:
+        if self._inside_script and self._is_module:
+            self._body.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "script" or not self._inside_script:
+            return
+        if self._is_module:
+            self.module_scripts.append("".join(self._body))
+        self._inside_script = False
+        self._is_module = False
+        self._body = []
+
+    def finish(self) -> tuple[str, ...]:
+        """Finish parsing and reject an unterminated script element."""
+
+        self.close()
+        if self._inside_script:
+            raise PremiseScanError(f"unterminated script element in {self._label}")
+        return tuple(self.module_scripts)
 
 
 def _relative_label(path: Path, root: Path) -> str:
@@ -156,16 +226,14 @@ def _validate_candidate(path: Path, root: Path) -> str:
         raise PremiseScanError(f"unable to read {label}: {exc}") from exc
 
 
-def _load_json_object(path: Path, root: Path, *, required: bool) -> dict[str, object] | None:
+def _load_json_object(path: Path, root: Path) -> dict[str, object]:
     """Load a metadata file as a JSON object or fail closed."""
 
     label = _relative_label(path, root)
     try:
         path.lstat()
     except FileNotFoundError:
-        if required:
-            raise PremiseScanError(f"required metadata file is missing: {label}") from None
-        return None
+        raise PremiseScanError(f"required metadata file is missing: {label}") from None
     except OSError as exc:
         raise PremiseScanError(f"unable to inspect {label}: {exc}") from exc
 
@@ -226,6 +294,13 @@ def _is_react_router_package_target(value: str) -> bool:
     return value == "react-router" or value.startswith("react-router/")
 
 
+def _is_react_router_npm_alias(value: str) -> bool:
+    """Return whether an npm alias installs React Router under another name."""
+
+    normalized = value.strip()
+    return normalized == "npm:react-router" or normalized.startswith("npm:react-router@")
+
+
 def _append_package_markers(
     violations: list[str],
     *,
@@ -241,13 +316,48 @@ def _append_package_markers(
                 violations.append(f"{filename}:{location}:{diagnostic_label}")
 
 
+def _append_react_router_alias_markers(
+    violations: list[str],
+    *,
+    filename: str,
+    entries: Iterator[tuple[tuple[str, ...], str]],
+) -> None:
+    """Append diagnostics for npm aliases targeting the React Router package."""
+
+    for path, value in entries:
+        if _is_react_router_npm_alias(value):
+            location = ".".join(path) or "<root>"
+            violations.append(f"{filename}:{location}:react-router npm alias")
+
+
+def _append_lockfile_named_alias_markers(
+    violations: list[str],
+    package_lock: dict[str, object],
+) -> None:
+    """Detect normalized lock entries whose install name hides React Router."""
+
+    packages = package_lock.get("packages")
+    if not isinstance(packages, dict):
+        return
+    for package_path, metadata in packages.items():
+        if (
+            not package_path
+            or "node_modules/" not in str(package_path)
+            or not isinstance(metadata, dict)
+        ):
+            continue
+        installed_name = str(package_path).rsplit("node_modules/", maxsplit=1)[-1]
+        if metadata.get("name") == "react-router" and installed_name != "react-router":
+            violations.append(
+                "package-lock.json:packages." f"{package_path}.name:react-router npm alias"
+            )
+
+
 def _scan_package_metadata(root: Path) -> list[str]:
     """Return RSC markers found in package metadata and scripts."""
 
     violations: list[str] = []
-    package_json = _load_json_object(root / "package.json", root, required=True)
-    if package_json is None:
-        raise PremiseScanError("required metadata file is missing: package.json")
+    package_json = _load_json_object(root / "package.json", root)
 
     dependency_sections: dict[str, object] = {}
     for section in DEPENDENCY_SECTIONS:
@@ -259,6 +369,11 @@ def _scan_package_metadata(root: Path) -> list[str]:
                 raise PremiseScanError(f"package.json:{section}.{package_name} must be a string")
         dependency_sections[section] = section_value
     _append_package_markers(
+        violations,
+        filename="package.json",
+        entries=_json_strings(dependency_sections),
+    )
+    _append_react_router_alias_markers(
         violations,
         filename="package.json",
         entries=_json_strings(dependency_sections),
@@ -282,9 +397,7 @@ def _scan_package_metadata(root: Path) -> list[str]:
         if _REACT_SERVER_CONDITION_RE.search(command):
             violations.append(f"package.json:scripts.{script_name}:react-server condition")
 
-    package_lock = _load_json_object(root / "package-lock.json", root, required=True)
-    if package_lock is None:
-        raise PremiseScanError("required metadata file is missing: package-lock.json")
+    package_lock = _load_json_object(root / "package-lock.json", root)
     for section in ("packages", "dependencies"):
         section_value = package_lock.get(section)
         if section_value is not None and not isinstance(section_value, dict):
@@ -294,6 +407,12 @@ def _scan_package_metadata(root: Path) -> list[str]:
         filename="package-lock.json",
         entries=_json_strings(package_lock),
     )
+    _append_react_router_alias_markers(
+        violations,
+        filename="package-lock.json",
+        entries=_json_strings(package_lock),
+    )
+    _append_lockfile_named_alias_markers(violations, package_lock)
 
     npmrc_path = root / ".npmrc"
     try:
@@ -568,7 +687,7 @@ def _react_router_namespace_surfaces(tokens: Sequence[_SourceToken]) -> tuple[st
             if token != _SourceToken("identifier", "from"):
                 continue
             module = tokens[from_index + 1]
-            if from_index > index + 3 and _is_react_router_module(module):
+            if _is_react_router_module(module):
                 surfaces.add("react-router namespace import")
             break
 
@@ -621,23 +740,71 @@ def _react_router_namespace_surfaces(tokens: Sequence[_SourceToken]) -> tuple[st
 
 
 def _decode_javascript_source_escapes(value: str) -> str:
-    """Decode ``\\xNN``, ``\\uXXXX`` and ``\\u{...}`` before comparisons."""
+    """Decode ECMAScript string/source escapes before security comparisons."""
 
-    def replace(match: re.Match[str]) -> str:
-        digits = match.group("hex") or match.group("unicode") or match.group("braced")
-        codepoint = int(digits, 16)
-        if codepoint > 0x10FFFF or 0xD800 <= codepoint <= 0xDFFF:
-            raise PremiseScanError("invalid Unicode escape in JavaScript source")
-        return chr(codepoint)
+    decoded: list[str] = []
+    index = 0
+    while index < len(value):
+        character = value[index]
+        if character != "\\":
+            decoded.append(character)
+            index += 1
+            continue
+        if index + 1 >= len(value):
+            raise PremiseScanError("dangling escape in JavaScript source")
 
-    return _JAVASCRIPT_UNICODE_ESCAPE_RE.sub(replace, value)
+        escaped = value[index + 1]
+        if escaped == "\r":
+            index += 2
+            if index < len(value) and value[index] == "\n":
+                index += 1
+            continue
+        if escaped in {"\n", "\u2028", "\u2029"}:
+            index += 2
+            continue
+        if escaped in "0123456789" and (
+            escaped != "0" or (index + 2 < len(value) and value[index + 2].isdigit())
+        ):
+            raise PremiseScanError("legacy decimal escape in JavaScript source")
+        if escaped in _JAVASCRIPT_SIMPLE_ESCAPES:
+            decoded.append(_JAVASCRIPT_SIMPLE_ESCAPES[escaped])
+            index += 2
+            continue
+        if escaped == "x":
+            digits = value[index + 2 : index + 4]
+            if len(digits) != 2 or any(digit not in _HEX_DIGITS for digit in digits):
+                raise PremiseScanError("invalid hexadecimal escape in JavaScript source")
+            decoded.append(chr(int(digits, 16)))
+            index += 4
+            continue
+        if escaped == "u":
+            if index + 2 < len(value) and value[index + 2] == "{":
+                closing = value.find("}", index + 3)
+                if closing < 0:
+                    raise PremiseScanError("invalid Unicode escape in JavaScript source")
+                digits = value[index + 3 : closing]
+                if not 1 <= len(digits) <= 6 or any(digit not in _HEX_DIGITS for digit in digits):
+                    raise PremiseScanError("invalid Unicode escape in JavaScript source")
+                index = closing + 1
+            else:
+                digits = value[index + 2 : index + 6]
+                if len(digits) != 4 or any(digit not in _HEX_DIGITS for digit in digits):
+                    raise PremiseScanError("invalid Unicode escape in JavaScript source")
+                index += 6
+            codepoint = int(digits, 16)
+            if codepoint > 0x10FFFF or 0xD800 <= codepoint <= 0xDFFF:
+                raise PremiseScanError("invalid Unicode escape in JavaScript source")
+            decoded.append(chr(codepoint))
+            continue
+
+        decoded.append(escaped)
+        index += 2
+    return "".join(decoded)
 
 
-def _scan_source_file(path: Path, root: Path) -> list[str]:
-    """Return fixed RSC marker diagnostics for one approved source file."""
+def _scan_source_text(text: str, *, label: str) -> list[str]:
+    """Return fixed RSC marker diagnostics for one JavaScript source body."""
 
-    label = _relative_label(path, root)
-    text = _validate_candidate(path, root)
     literals, visible, tokens = _source_analysis(text, label=label)
     decoded_visible = _decode_javascript_source_escapes(visible)
     composed_literals = _static_string_concatenations(tokens)
@@ -653,6 +820,30 @@ def _scan_source_file(path: Path, root: Path) -> list[str]:
     ):
         violations.append(f"{label}:react-server condition")
     violations.extend(f"{label}:{surface}" for surface in _react_router_namespace_surfaces(tokens))
+    return violations
+
+
+def _scan_source_file(path: Path, root: Path) -> list[str]:
+    """Return fixed RSC marker diagnostics for one approved source file."""
+
+    label = _relative_label(path, root)
+    return _scan_source_text(_validate_candidate(path, root), label=label)
+
+
+def _scan_html_file(path: Path, root: Path) -> list[str]:
+    """Return RSC diagnostics from executable inline module scripts."""
+
+    label = _relative_label(path, root)
+    parser = _InlineModuleScriptParser(label=label)
+    parser.feed(_validate_candidate(path, root))
+    violations: list[str] = []
+    for index, script in enumerate(parser.finish(), start=1):
+        violations.extend(
+            _scan_source_text(
+                script,
+                label=f"{label}:inline-module-script[{index}]",
+            )
+        )
     return violations
 
 
@@ -681,6 +872,10 @@ def _walk_source_files(root: Path) -> Iterator[Path]:
         relative_current = current.relative_to(root)
         retained_directories: list[str] = []
         for dirname in sorted(dirnames):
+            if dirname in GLOBAL_EXCLUDED_DIRECTORIES:
+                continue
+            if relative_current == Path() and dirname in ROOT_OUTPUT_DIRECTORIES:
+                continue
             directory = current / dirname
             label = _relative_label(directory, root)
             try:
@@ -693,16 +888,12 @@ def _walk_source_files(root: Path) -> Iterator[Path]:
                 directory.resolve(strict=True).relative_to(root)
             except (OSError, ValueError) as exc:
                 raise PremiseScanError(f"directory escapes frontend root: {label}") from exc
-            if dirname in GLOBAL_EXCLUDED_DIRECTORIES:
-                continue
-            if relative_current == Path() and dirname in ROOT_OUTPUT_DIRECTORIES:
-                continue
             retained_directories.append(dirname)
         dirnames[:] = retained_directories
 
         for filename in sorted(filenames):
             path = current / filename
-            if path.suffix in SOURCE_SUFFIXES:
+            if path.suffix in SOURCE_SUFFIXES or path.suffix in HTML_SUFFIXES:
                 yield path
 
 
@@ -712,7 +903,10 @@ def scan_repository(root: Path) -> list[str]:
     canonical_root = _canonical_root(root)
     violations = _scan_package_metadata(canonical_root)
     for source_path in _walk_source_files(canonical_root):
-        violations.extend(_scan_source_file(source_path, canonical_root))
+        if source_path.suffix in HTML_SUFFIXES:
+            violations.extend(_scan_html_file(source_path, canonical_root))
+        else:
+            violations.extend(_scan_source_file(source_path, canonical_root))
     return sorted(set(violations))
 
 

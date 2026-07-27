@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 import hashlib
 import http.client
 import json
@@ -3362,6 +3363,27 @@ def test_provider_no_claim_requires_exact_material_self_review(tmp_path: Path) -
         render_embedded_review_seal(stale)
 
 
+def test_self_review_material_paths_are_materialized_at_validation_entry() -> None:
+    consumed = False
+
+    def material_paths() -> Iterator[str]:
+        nonlocal consumed
+        yield "app/example.py"
+        consumed = True
+
+    with pytest.raises(ReviewEvidenceError, match="report must be an object"):
+        evidence_module._validate_self_review_report_payload(
+            None,
+            base_ref_oid=BASE_SHA,
+            merge_base_sha=BASE_SHA,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            material_paths=material_paths(),
+        )
+
+    assert consumed is True
+
+
 @pytest.mark.parametrize(
     "current_manifest",
     (
@@ -3581,6 +3603,97 @@ def test_real_large_diff_context_report_and_seal_bind_exact_material(
     parsed = parse_embedded_review_seal(render_embedded_review_seal(seal))
     assert parsed["self_review"]["findings_count"] == 1
     assert parsed["self_review"]["actionable_findings_count"] == 0
+
+
+def test_self_review_context_uses_merge_base_and_no_rename_material_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
+    source = repo / "src" / "old.py"
+    source.parent.mkdir()
+    source.write_text("FIRST = 1\nSECOND = 2\n", encoding="utf-8")
+    common_base = _commit(repo, "common base")
+
+    _git(repo, "checkout", "-q", "-b", "feature")
+    _git(repo, "mv", "src/old.py", "src/new.py")
+    material_head = _commit(repo, "rename on feature")
+
+    _git(repo, "checkout", "-q", "-b", "current-base", common_base)
+    (repo / "base-only.py").write_text("BASE_ONLY = True\n", encoding="utf-8")
+    current_base = _commit(repo, "advance current base")
+
+    monkeypatch.setattr(
+        review_context_module,
+        "collect_pr_metadata",
+        lambda **_kwargs: (
+            {
+                "number": 42,
+                "base_sha": current_base,
+                "head_sha": material_head,
+            },
+            [],
+        ),
+    )
+    context = review_context_module.collect_review_context(
+        repo_root=repo,
+        pr_number=42,
+        repo="owner/repo",
+        base_ref=current_base,
+        head_ref=material_head,
+    )
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=current_base,
+        head_ref_oid=material_head,
+        pr_number=42,
+    )
+    expected_paths = [entry.path for entry in manifest.entries]
+
+    assert manifest.merge_base_sha == common_base
+    assert context["material"]["merge_base_sha"] == common_base
+    assert (
+        [entry["path"] for entry in context["diff"]["files"]]
+        == expected_paths
+        == [
+            "src/new.py",
+            "src/old.py",
+        ]
+    )
+    assert context["diff"]["files"] == [
+        {"path": "src/new.py", "additions": 2, "deletions": 0},
+        {"path": "src/old.py", "additions": 0, "deletions": 2},
+    ]
+    assert context["diff"]["summary"] == {
+        "files": 2,
+        "additions": 2,
+        "deletions": 2,
+        "changed_lines": 4,
+    }
+    assert "base-only.py" not in expected_paths
+
+    report = review_report_module.build_report(context)
+    assert report["scope_reviewed"]["changed_files"] == expected_paths
+    report_path = tmp_path / "rename-review.json"
+    _write_json(report_path, report)
+    assert (
+        ingest_repo_native_self_review_receipt(
+            report_path,
+            material_manifest=manifest,
+        )["status"]
+        == "advisory_report_attached"
+    )
+
+    report["scope_reviewed"]["changed_files"] = ["src/new.py"]
+    _write_json(report_path, report)
+    with pytest.raises(ReviewEvidenceError, match="exact material path set"):
+        ingest_repo_native_self_review_receipt(
+            report_path,
+            material_manifest=manifest,
+        )
 
 
 @pytest.mark.parametrize(
@@ -3918,23 +4031,7 @@ def test_authenticated_live_mapping_rejects_rehashed_wrong_report_paths(
     self_review["report_sha256"] = "sha256:" + hashlib.sha256(canonical_report).hexdigest()
     mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
     mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
-    manifest = MaterialManifest(
-        base_ref_oid=BASE_SHA,
-        head_ref_oid=HEAD_SHA,
-        merge_base_sha=BASE_SHA,
-        pr_number=42,
-        entries=(
-            evidence_module.MaterialEntry(
-                status="M",
-                path="app/example.py",
-                base_mode="100644",
-                base_blob_oid="a" * 40,
-                head_mode="100644",
-                head_blob_oid="b" * 40,
-            ),
-        ),
-        digest=DIGEST,
-    )
+    manifest = _material_manifest(HEAD_SHA, paths=("app/example.py",))
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
     monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
     monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)

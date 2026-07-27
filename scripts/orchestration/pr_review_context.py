@@ -22,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.orchestration.review_source_status import build_review_source_status
 from scripts.orchestration.pr_review_evidence import (
+    MaterialManifest,
     ReviewEvidenceError,
     compute_material_manifest,
 )
@@ -52,6 +53,17 @@ class DiffStats:
     path: str
     additions: int
     deletions: int
+
+
+def _summarize_diff_stats(files: list[DiffStats]) -> dict[str, int]:
+    additions = sum(entry.additions for entry in files)
+    deletions = sum(entry.deletions for entry in files)
+    return {
+        "files": len(files),
+        "additions": additions,
+        "deletions": deletions,
+        "changed_lines": additions + deletions,
+    }
 
 
 def _binary(name: str) -> str:
@@ -274,7 +286,11 @@ def collect_scope_diff(
                 str(repo_root),
                 "diff",
                 "--numstat",
+                "--no-renames",
+                "--no-ext-diff",
+                "--no-textconv",
                 f"{base_sha}..{head_sha}",
+                "--",
             ],
             cwd=repo_root,
         )
@@ -282,9 +298,6 @@ def collect_scope_diff(
         return [], {"files": 0, "additions": 0, "deletions": 0, "changed_lines": 0}, [str(exc)]
 
     files: list[DiffStats] = []
-    lines = 0
-    additions_total = 0
-    deletions_total = 0
     for raw in completed.stdout.splitlines():
         match = DIFF_NUMSTAT_RE.match(raw)
         if not match:
@@ -293,20 +306,8 @@ def collect_scope_diff(
         additions = 0 if additions_raw == "-" else int(additions_raw)
         deletions = 0 if deletions_raw == "-" else int(deletions_raw)
         files.append(DiffStats(path=path, additions=additions, deletions=deletions))
-        additions_total += additions
-        deletions_total += deletions
-        lines += additions + deletions
 
-    return (
-        files,
-        {
-            "files": len(files),
-            "additions": additions_total,
-            "deletions": deletions_total,
-            "changed_lines": lines,
-        },
-        [],
-    )
+    return files, _summarize_diff_stats(files), []
 
 
 def collect_local_head_sha(repo_root: Path) -> tuple[str, list[str]]:
@@ -411,18 +412,13 @@ def collect_review_context(
             cwd=repo_root,
         ).stdout.strip()
 
-    changed_file_stats, diff_summary, diff_warnings = collect_scope_diff(
-        repo_root=repo_root,
-        base_sha=diff_base,
-        head_sha=diff_head,
-    )
-    warnings.extend(diff_warnings)
     material: dict[str, str] = {
         "base_ref_oid": "",
         "material_head_sha": "",
         "material_digest": "",
         "merge_base_sha": "",
     }
+    manifest: MaterialManifest | None = None
     if pr_number is not None and diff_base and diff_head:
         try:
             manifest = compute_material_manifest(
@@ -440,6 +436,25 @@ def collect_review_context(
                 "material_digest": manifest.digest,
                 "merge_base_sha": manifest.merge_base_sha,
             }
+
+    changed_file_stats, diff_summary, diff_warnings = collect_scope_diff(
+        repo_root=repo_root,
+        base_sha=manifest.merge_base_sha if manifest is not None else diff_base,
+        head_sha=diff_head,
+    )
+    warnings.extend(diff_warnings)
+    if manifest is not None and not diff_warnings:
+        excluded_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+        material_paths = [entry.path for entry in manifest.entries]
+        diff_stats = {
+            entry.path: entry for entry in changed_file_stats if entry.path != excluded_path
+        }
+        raw_paths = [entry.path for entry in changed_file_stats if entry.path != excluded_path]
+        if len(raw_paths) != len(set(raw_paths)) or set(raw_paths) != set(material_paths):
+            warnings.append("Canonical review diff stats do not match the exact material path set.")
+        else:
+            changed_file_stats = [diff_stats[path] for path in material_paths]
+            diff_summary = _summarize_diff_stats(changed_file_stats)
 
     changed_files = [entry.path for entry in changed_file_stats]
     scoped_agents = discover_scoped_agents(repo_root=repo_root, changed_files=changed_files)

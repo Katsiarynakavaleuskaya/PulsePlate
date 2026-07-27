@@ -638,8 +638,20 @@ def _write_source(frontend_root: Path, relative_path: str, text: str) -> Path:
     return source_path
 
 
-def test_repository_frontend_keeps_rsc_premise() -> None:
-    assert guard.scan_repository(REPO_ROOT / "frontend") == []
+def test_default_cli_scans_canonical_frontend_root(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    scanned_roots: list[Path] = []
+    monkeypatch.setattr(
+        guard,
+        "scan_repository",
+        lambda root: scanned_roots.append(root) or [],
+    )
+
+    assert guard.main([]) == 0
+    assert scanned_roots == [guard.DEFAULT_FRONTEND_ROOT]
+    assert capsys.readouterr().out == "PASS: React Router RSC suppression premise holds\n"
 
 
 @pytest.mark.parametrize(
@@ -745,6 +757,87 @@ def test_package_import_alias_near_matches_are_ignored(tmp_path: Path) -> None:
                 "#react-router": "./react-router",
                 "#router-dom": "react-router-dom",
                 "#scoped-router": "@example/react-router",
+            }
+        },
+    )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
+@pytest.mark.parametrize(
+    ("package_json", "package_lock", "expected"),
+    (
+        (
+            {"dependencies": {"rr-rsc": "npm:react-router@7.18.1"}},
+            None,
+            "package.json:dependencies.rr-rsc:react-router npm alias",
+        ),
+        (
+            {},
+            {
+                "packages": {
+                    "": {
+                        "dependencies": {
+                            "rr-rsc": "npm:react-router@7.18.1",
+                        }
+                    }
+                }
+            },
+            ("package-lock.json:packages..dependencies.rr-rsc:" "react-router npm alias"),
+        ),
+        (
+            {},
+            {
+                "packages": {
+                    "node_modules/rr-rsc": {
+                        "name": "react-router",
+                        "version": "7.18.1",
+                    }
+                }
+            },
+            ("package-lock.json:packages.node_modules/rr-rsc.name:" "react-router npm alias"),
+        ),
+    ),
+)
+def test_npm_alias_dependencies_targeting_react_router_fail_closed(
+    tmp_path: Path,
+    package_json: object,
+    package_lock: object | None,
+    expected: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json=package_json,
+        package_lock=package_lock,
+    )
+
+    assert guard.scan_repository(frontend_root) == [expected]
+
+
+def test_react_router_npm_alias_near_matches_are_ignored(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={
+            "dependencies": {
+                "router-dom": "npm:react-router-dom@7.18.1",
+                "scoped-router": "npm:@example/react-router@7.18.1",
+            }
+        },
+        package_lock={
+            "packages": {
+                "": {
+                    "dependencies": {
+                        "router-dom": "npm:react-router-dom@7.18.1",
+                    }
+                },
+                "node_modules/react-router": {
+                    "name": "react-router",
+                    "version": "7.18.1",
+                },
+                "workspace/react-router-source": {
+                    "name": "react-router",
+                    "version": "7.18.1",
+                },
             }
         },
     )
@@ -1061,6 +1154,69 @@ def test_javascript_escape_bypasses_are_decoded_before_comparison(
     assert guard.scan_repository(frontend_root) == [expected]
 
 
+@pytest.mark.parametrize("suffix", (".js", ".cjs", ".mjs", ".ts"))
+@pytest.mark.parametrize("line_ending", ("\n", "\r", "\r\n"))
+def test_javascript_line_continuations_are_decoded_before_module_and_api_comparisons(
+    tmp_path: Path,
+    suffix: str,
+    line_ending: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    source_text = (
+        'import * as router from "react-'
+        + "\\"
+        + line_ending
+        + 'router";\nrouter["unstable_matchRSCServer'
+        + "\\"
+        + line_ending
+        + 'Request"];\n'
+    )
+    _write_source(frontend_root, f"src/continued{suffix}", source_text)
+
+    assert guard.scan_repository(frontend_root) == [
+        f"src/continued{suffix}:react-router namespace import",
+        f"src/continued{suffix}:unstable_matchRSCServerRequest",
+    ]
+
+
+def test_identity_escapes_are_decoded_but_simple_escapes_preserve_runtime_value(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/identity.mjs",
+        'import * as router from "react\\-router";\n'
+        'router["unstable_matchRSCServer\\Request"];\n',
+    )
+    _write_source(
+        frontend_root,
+        "src/simple.mjs",
+        'const marker = "unstable_matchRSCServer\\nRequest";\n',
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "src/identity.mjs:react-router namespace import",
+        "src/identity.mjs:unstable_matchRSCServerRequest",
+    ]
+
+
+@pytest.mark.parametrize("decimal_escape", ("\\1", "\\08", "\\9"))
+def test_legacy_decimal_escapes_fail_closed(
+    tmp_path: Path,
+    decimal_escape: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/legacy-escape.js",
+        f'const value = "{decimal_escape}";\n',
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="legacy decimal escape"):
+        guard.scan_repository(frontend_root)
+
+
 @pytest.mark.parametrize(
     "source_text",
     (
@@ -1169,6 +1325,59 @@ def test_all_supported_source_suffixes_are_scanned(tmp_path: Path) -> None:
     ]
 
 
+def test_inline_module_scripts_in_html_are_scanned(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "index.html",
+        "\n".join(
+            (
+                "<!doctype html>",
+                '<script type="application/javascript">',
+                '  const ignored = "unstable_matchRSCServerRequest";',
+                "</script>",
+                '<script type="module" src="/src/entry.ts">',
+                '  const ignoredSourceBody = "unstable_matchRSCServerRequest";',
+                "</script>",
+                '<script TYPE=" module ">',
+                '  import * as router from "react-router";',
+                '  router["unstable_" + "routeRSCServerRequest"];',
+                "</script>",
+            )
+        ),
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "index.html:inline-module-script[1]:react-router namespace import",
+        "index.html:inline-module-script[1]:unstable_routeRSCServerRequest",
+    ]
+
+
+def test_html_self_closing_syntax_does_not_hide_inline_module_body(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "index.html",
+        '<script type="module"/>import("react-router");</script>',
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "index.html:inline-module-script[1]:react-router dynamic import"
+    ]
+
+
+def test_unterminated_inline_module_script_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "index.html",
+        '<script type="module">const marker = "react-server";',
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="unterminated script element"):
+        guard.scan_repository(frontend_root)
+
+
 def test_comments_near_misses_escapes_and_unsupported_files_are_ignored(
     tmp_path: Path,
 ) -> None:
@@ -1183,7 +1392,7 @@ def test_comments_near_misses_escapes_and_unsupported_files_are_ignored(
                 'const suffix = "react-serverish";',
                 'const prefix = "pre-react-server";',
                 'const caseVariant = "React-Server";',
-                'const escaped = "react\\-server";',
+                'const escaped = "react\\nserver";',
             )
         ),
     )
@@ -1321,6 +1530,26 @@ def test_global_generated_directories_are_pruned_at_every_depth(tmp_path: Path) 
             f"{relative_directory}/ignored.ts",
             'export const condition = "react-server";\n',
         )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
+def test_excluded_directory_symlinks_are_pruned_before_validation(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    external_directory = tmp_path / "external"
+    external_directory.mkdir()
+    _write_source(
+        external_directory,
+        "marker.ts",
+        'export const condition = "react-server";\n',
+    )
+    (frontend_root / "dist").symlink_to(external_directory, target_is_directory=True)
+    source_directory = frontend_root / "src"
+    source_directory.mkdir()
+    (source_directory / "node_modules").symlink_to(
+        external_directory,
+        target_is_directory=True,
+    )
 
     assert guard.scan_repository(frontend_root) == []
 
@@ -1529,6 +1758,98 @@ def test_react_router_rsc_suppression_requires_exact_scanner_tuple() -> None:
     assert 'input.FixedVersion == "8.3.0"' in rule
     assert "startswith(" not in rule
     assert "contains(" not in rule
+
+
+def test_rego_os_read_error_returns_stable_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy_path = tmp_path / "trivy" / "ignore-policy.rego"
+    policy_path.parent.mkdir()
+    policy_path.write_text("package trivy\n", encoding="utf-8")
+    (tmp_path / "frontend").mkdir()
+    original_read_text = Path.read_text
+
+    def deny_policy_read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == policy_path:
+            raise PermissionError("test denial")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", deny_policy_read)
+
+    assert evaluate_policy_file(policy_path, today=date(2026, 7, 27)) == [
+        f"Unable to read Trivy ignore policy {policy_path}: test denial"
+    ]
+    assert expiry_guard._contains_react_router_rsc_suppression(policy_path)
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(expiry_guard, "scan_react_router_rsc_premise", lambda _root: [])
+
+    assert expiry_guard.main() == 1
+    assert (
+        f"- Unable to read Trivy ignore policy {policy_path}: test denial"
+        in capsys.readouterr().out
+    )
+
+
+def test_rego_unicode_read_error_returns_stable_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy_path = tmp_path / "trivy" / "ignore-policy.rego"
+    policy_path.parent.mkdir()
+    policy_path.write_bytes(b"\xff")
+    (tmp_path / "frontend").mkdir()
+
+    failures = evaluate_policy_file(policy_path, today=date(2026, 7, 27))
+
+    assert len(failures) == 1
+    assert failures[0].startswith(f"Unable to read Trivy ignore policy {policy_path}: ")
+    assert "can't decode byte 0xff" in failures[0]
+    assert expiry_guard._contains_react_router_rsc_suppression(policy_path)
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(expiry_guard, "scan_react_router_rsc_premise", lambda _root: [])
+
+    assert expiry_guard.main() == 1
+    assert f"- Unable to read Trivy ignore policy {policy_path}: " in capsys.readouterr().out
+
+
+def test_trivy_main_reuses_one_rego_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_expiry_wrapper_policy(tmp_path, include_rsc_rule=True)
+    (tmp_path / "frontend").mkdir()
+    policy_path = tmp_path / "trivy" / "ignore-policy.rego"
+    original_read_text = Path.read_text
+    read_count = 0
+
+    def read_policy_once(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        nonlocal read_count
+        if path == policy_path:
+            read_count += 1
+            if read_count > 1:
+                raise PermissionError("second read must not occur")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(Path, "read_text", read_policy_once)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(expiry_guard, "scan_react_router_rsc_premise", lambda _root: [])
+
+    assert expiry_guard.main() == 0
+    assert read_count == 1
 
 
 def test_react_router_rsc_suppression_rejects_duplicate_or_broader_rule(

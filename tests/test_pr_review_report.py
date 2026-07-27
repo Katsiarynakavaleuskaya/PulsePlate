@@ -250,6 +250,25 @@ def test_build_report_flags_large_diff() -> None:
     ].index("make validate-changed")
 
 
+def test_calibration_keys_large_diff_only_from_diagnostic_code() -> None:
+    decoy = report_runner.Finding(
+        severity="minor",
+        diagnostic_code="invalid_changed_lines",
+        role_agent="bug-hunter",
+        category="tests",
+        file="scripts/orchestration/pr_review_context.py",
+        line=None,
+        evidence="Diff contains 905 changed lines, above review-risk threshold 800.",
+        suggested_fix="Regenerate the review context.",
+        gate_to_run="make validate-changed",
+        disposition_candidate="NEEDS-HUMAN",
+    )
+
+    calibration = report_runner._build_calibration(_base_context(), [decoy])
+
+    assert "large-diff-risk" not in calibration["case_labels"]
+
+
 def test_build_report_handles_non_numeric_changed_lines() -> None:
     context = _base_context()
     context["diff"] = {

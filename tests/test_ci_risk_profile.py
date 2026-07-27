@@ -10,6 +10,8 @@ import pytest
 
 import scripts.ci.ci_risk_profile as risk_profile
 from scripts.orchestration.pr_review_evidence import (
+    _DEPENDENCY_MANIFEST_BASENAMES as TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES,
+    _ROOT_REQUIREMENTS_MANIFEST_RE as TRUST_BOUNDARY_REQUIREMENTS_MANIFEST_RE,
     OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
     OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES,
     protected_trust_boundary_paths,
@@ -51,7 +53,7 @@ def test_docs_only_changes_skip_backend_blocking() -> None:
 
 def test_frontend_only_changes_skip_backend_blocking() -> None:
     profile = risk_profile.build_risk_profile(
-        ["frontend/src/components/Card.tsx", "frontend/package.json"],
+        ["frontend/src/components/Card.tsx"],
     )
 
     assert profile.frontend_only is True
@@ -223,6 +225,57 @@ def test_every_sampled_protected_python_manifest_routes_security(
 ) -> None:
     assert protected_trust_boundary_paths((changed_file,)) == (changed_file,)
     assert risk_profile.build_risk_profile([changed_file]).run_security is True
+
+
+def test_dependency_manifest_basename_rules_match_trust_boundary_policy() -> None:
+    assert (
+        risk_profile._DEPENDENCY_MANIFEST_BASENAMES == TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES
+    )
+    assert (
+        risk_profile._REQUIREMENTS_MANIFEST_RE.pattern
+        == TRUST_BOUNDARY_REQUIREMENTS_MANIFEST_RE.pattern
+    )
+
+
+@pytest.mark.parametrize(
+    "basename",
+    (
+        *sorted(TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES),
+        "requirements-dev.in",
+        "requirements.in",
+        "requirements-rag-vector-cpu.txt",
+    ),
+)
+def test_nested_protected_dependency_manifests_route_backend_and_security(
+    basename: str,
+) -> None:
+    changed_file = f"nested/dependencies/{basename}"
+
+    assert protected_trust_boundary_paths((changed_file,)) == (changed_file,)
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "nested/Dockerfile",
+        "nested/REQUIREMENTS.md",
+        "nested/package.json.bak",
+        "nested/pyproject.toml.bak",
+        "nested/requirements--dev.in",
+        "nested/requirements-dev.in.bak",
+        "nested/requirements.md",
+    ),
+)
+def test_nested_dependency_manifest_lookalikes_remain_unrouted(changed_file: str) -> None:
+    assert protected_trust_boundary_paths((changed_file,)) == ()
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.backend_shared is False
+    assert profile.run_backend_blocking is False
+    assert profile.run_security is False
 
 
 def test_pull_request_template_is_workflow_privileged() -> None:

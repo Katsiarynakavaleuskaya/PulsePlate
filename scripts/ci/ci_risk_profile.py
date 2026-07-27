@@ -11,7 +11,8 @@ from dataclasses import asdict, dataclass
 import fnmatch
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import re
 import subprocess  # nosec B404: subprocess is required for bounded local git diff execution (remove-by: 2026-09-30, ref: PR3-risk-topology)
 import sys
 import shutil
@@ -38,6 +39,39 @@ ROOT_BACKEND_SHARED_MODULES: tuple[str, ...] = (
     "settings.py",
     "signed_links.py",
 )
+
+# Keep dependency-manifest basename routing aligned with the protected
+# trust-boundary detector. Nested manifests are security-relevant regardless of
+# their directory, while unrelated exact-path controls remain root-scoped.
+_DEPENDENCY_MANIFEST_BASENAMES = frozenset(
+    {
+        "Cargo.lock",
+        "Cargo.toml",
+        "Gemfile",
+        "Gemfile.lock",
+        "Package.resolved",
+        "Package.swift",
+        "Pipfile",
+        "Pipfile.lock",
+        "Podfile",
+        "Podfile.lock",
+        "composer.json",
+        "composer.lock",
+        "constraints.txt",
+        "go.mod",
+        "go.sum",
+        "npm-shrinkwrap.json",
+        "package-lock.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "poetry.lock",
+        "pylock.toml",
+        "pyproject.toml",
+        "uv.lock",
+        "yarn.lock",
+    }
+)
+_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
 
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "Dockerfile",
@@ -326,8 +360,12 @@ def _is_workflow_privileged(path: str) -> bool:
 
 def _is_backend_shared(path: str) -> bool:
     normalized = _normalize_path(path)
-    return normalized in BACKEND_SHARED_EXACT or normalized.startswith(
-        BACKEND_SHARED_PREFIXES,
+    basename = PurePosixPath(normalized).name
+    return (
+        normalized in BACKEND_SHARED_EXACT
+        or normalized.startswith(BACKEND_SHARED_PREFIXES)
+        or basename in _DEPENDENCY_MANIFEST_BASENAMES
+        or _REQUIREMENTS_MANIFEST_RE.fullmatch(basename) is not None
     )
 
 

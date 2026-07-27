@@ -323,11 +323,7 @@ def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict
     categories = {finding.category for finding in findings}
     case_labels: list[str] = []
     has_large_diff_risk = any(
-        finding.category == "tests"
-        and finding.role_agent == "bug-hunter"
-        and finding.gate_to_run == "make validate-changed"
-        and "changed lines" in finding.evidence
-        for finding in findings
+        finding.diagnostic_code == "large_diff_review_risk" for finding in findings
     )
 
     if not findings:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -314,8 +315,11 @@ def test_protected_material_positive_e2e_and_mapping_tamper(
         target.base_sha,
         _git(repo, "rev-parse", "HEAD"),
     )
-    with pytest.raises(ReviewEvidenceError, match="malformed|keys mismatch"):
+    with pytest.raises(ReviewEvidenceError) as exc_info:
         policy.validate_protected_material(repo, tampered)
+    assert str(exc_info.value) == (
+        "provider-neutral review no-claim receipt is malformed, stale, or escalating"
+    )
 
 
 def test_protected_material_rejects_embedded_report_payload_tamper(
@@ -390,6 +394,224 @@ def test_live_identity_rejects_base_advance(
     monkeypatch.setattr(policy, "_api_request", api)
     with pytest.raises(ReviewEvidenceError, match="identity drifted"):
         policy.validate_live_identity(repo, target, token="opaque")
+
+
+class _FakeApiResponse:
+    def __init__(
+        self,
+        status: int,
+        body: bytes,
+        *,
+        retry_after: str | None = None,
+    ) -> None:
+        self.status = status
+        self.body = body
+        self.retry_after = retry_after
+        self.read_limits: list[int] = []
+
+    def read(self, amount: int) -> bytes:
+        self.read_limits.append(amount)
+        return self.body[:amount]
+
+    def getheader(self, name: str) -> str | None:
+        return self.retry_after if name.casefold() == "retry-after" else None
+
+
+class _FakeApiConnection:
+    def __init__(self, outcome: _FakeApiResponse | BaseException) -> None:
+        self.outcome = outcome
+        self.closed = False
+        self.headers: dict[str, str] = {}
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: dict[str, str],
+    ) -> None:
+        assert method == "GET"
+        assert path == "/repos/owner/repo"
+        self.headers = headers
+        if isinstance(self.outcome, BaseException):
+            raise self.outcome
+
+    def getresponse(self) -> _FakeApiResponse:
+        assert isinstance(self.outcome, _FakeApiResponse)
+        return self.outcome
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _install_fake_api_connections(
+    monkeypatch: pytest.MonkeyPatch,
+    outcomes: list[_FakeApiResponse | BaseException],
+) -> list[_FakeApiConnection]:
+    pending = list(outcomes)
+    connections: list[_FakeApiConnection] = []
+
+    def connection_factory(host: str, *, timeout: int) -> _FakeApiConnection:
+        assert host == "api.github.com"
+        assert timeout == 30
+        connection = _FakeApiConnection(pending.pop(0))
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(policy.http.client, "HTTPSConnection", connection_factory)
+    return connections
+
+
+def test_api_request_retries_transport_failures_with_bounded_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "opaque_transport_token"
+    success = _FakeApiResponse(200, b'{"ok":true}')
+    connections = _install_fake_api_connections(
+        monkeypatch,
+        [
+            OSError(f"socket failure containing {token}"),
+            http.client.BadStatusLine(f"bad response containing {token}"),
+            success,
+        ],
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(policy.time, "sleep", sleeps.append)
+
+    assert policy._api_request("https://api.github.com/repos/owner/repo", token=token) == {
+        "ok": True
+    }
+    assert sleeps == [1.0, 2.0]
+    assert len(connections) == policy._API_REQUEST_ATTEMPTS
+    assert all(connection.closed for connection in connections)
+    assert connections[-1].headers["Authorization"] == f"Bearer {token}"
+    assert success.read_limits == [policy._MAX_API_RESPONSE_BYTES + 1]
+
+
+def test_api_request_exhausted_transport_failure_is_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "opaque_must_not_escape"
+    connections = _install_fake_api_connections(
+        monkeypatch,
+        [
+            OSError(f"failure containing {token}"),
+            http.client.RemoteDisconnected(f"failure containing {token}"),
+            OSError(f"failure containing {token}"),
+        ],
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(policy.time, "sleep", sleeps.append)
+
+    with pytest.raises(ReviewEvidenceError) as exc_info:
+        policy._api_request("https://api.github.com/repos/owner/repo", token=token)
+
+    assert str(exc_info.value) == "GitHub API transport failed after 3 attempts"
+    assert token not in str(exc_info.value)
+    assert sleeps == [1.0, 2.0]
+    assert all(connection.closed for connection in connections)
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_after", "expected_delay"),
+    [
+        (500, None, 1.0),
+        (429, None, 1.0),
+        (429, "invalid", 1.0),
+        (429, "7", 7.0),
+        (403, "3", 3.0),
+    ],
+)
+def test_api_request_retries_transient_http_responses(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    retry_after: str | None,
+    expected_delay: float,
+) -> None:
+    connections = _install_fake_api_connections(
+        monkeypatch,
+        [
+            _FakeApiResponse(status, b'{"error":"transient"}', retry_after=retry_after),
+            _FakeApiResponse(200, b'{"ok":true}'),
+        ],
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(policy.time, "sleep", sleeps.append)
+
+    assert policy._api_request("https://api.github.com/repos/owner/repo", token="opaque") == {
+        "ok": True
+    }
+    assert sleeps == [expected_delay]
+    assert len(connections) == 2
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_after"),
+    [
+        (400, None),
+        (401, None),
+        (403, None),
+        (403, "invalid"),
+        (403, "61"),
+    ],
+)
+def test_api_request_does_not_retry_terminal_http_responses(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    retry_after: str | None,
+) -> None:
+    connections = _install_fake_api_connections(
+        monkeypatch,
+        [_FakeApiResponse(status, b'{"error":"terminal"}', retry_after=retry_after)],
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(policy.time, "sleep", sleeps.append)
+
+    with pytest.raises(ReviewEvidenceError) as exc_info:
+        policy._api_request("https://api.github.com/repos/owner/repo", token="opaque")
+
+    assert str(exc_info.value) == f"GitHub API request failed with HTTP {status}"
+    assert sleeps == []
+    assert len(connections) == 1
+
+
+def test_api_request_honors_bounded_retry_after_http_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy.time, "time", lambda: 5.0)
+
+    assert policy._bounded_retry_after_seconds("Thu, 01 Jan 1970 00:00:10 GMT") == 5.0
+    assert policy._bounded_retry_after_seconds("Thu, 01 Jan 1970 00:02:00 GMT") is None
+    assert policy._bounded_retry_after_seconds("61") is None
+
+
+@pytest.mark.parametrize(
+    ("body", "size_limit", "expected_error"),
+    [
+        (b"12345", 4, "GitHub API response exceeds size limit"),
+        (b"not-json", 8 * 1024 * 1024, "GitHub API returned malformed JSON"),
+    ],
+)
+def test_api_request_preserves_terminal_response_guards(
+    monkeypatch: pytest.MonkeyPatch,
+    body: bytes,
+    size_limit: int,
+    expected_error: str,
+) -> None:
+    connections = _install_fake_api_connections(
+        monkeypatch,
+        [_FakeApiResponse(200, body)],
+    )
+    sleeps: list[float] = []
+    monkeypatch.setattr(policy, "_MAX_API_RESPONSE_BYTES", size_limit)
+    monkeypatch.setattr(policy.time, "sleep", sleeps.append)
+
+    with pytest.raises(ReviewEvidenceError) as exc_info:
+        policy._api_request("https://api.github.com/repos/owner/repo", token="opaque")
+
+    assert str(exc_info.value) == expected_error
+    assert sleeps == []
+    assert len(connections) == 1
 
 
 def _successful_check_api(
@@ -479,7 +701,7 @@ def test_check_poll_revalidates_identity_and_settles(
 
     def validate(*_args: Any, **_kwargs: Any) -> None:
         attempts.append(1)
-        if len(attempts) == 1:
+        if len(attempts) <= 4:
             raise policy._ChecksPending("lint=missing")
 
     monkeypatch.setattr(policy, "validate_required_checks", validate)
@@ -490,9 +712,62 @@ def test_check_poll_revalidates_identity_and_settles(
         target,
         token="opaque",
         material_paths=("scripts/ci/example.py",),
+        timeout_seconds=300,
+    )
+    assert attempts == [1, 1, 1, 1, 1]
+    assert identities == [1, 1]
+    assert sleeps == [15.0, 30.0, 60.0, 60.0]
+
+
+def test_check_poll_reuses_actions_runs_but_refreshes_check_and_status_lists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/example.py",)
+    required = policy._required_contexts(paths)
+    successful_api = _successful_check_api(target, material_paths=paths)
+    api_calls: list[str] = []
+    check_list_calls = 0
+
+    def api(url: str, *, token: str) -> Any:
+        nonlocal check_list_calls
+        api_calls.append(url)
+        payload = successful_api(url, token=token)
+        if "/check-runs?" in url:
+            check_list_calls += 1
+            checks = [dict(check) for check in payload["check_runs"]]
+            if check_list_calls == 1:
+                for check in checks:
+                    check["status"] = "in_progress"
+                    check["conclusion"] = None
+            return {"check_runs": checks}
+        return payload
+
+    identities: list[int] = []
+    sleeps: list[float] = []
+    monkeypatch.setattr(policy, "_api_request", api)
+    monkeypatch.setattr(
+        policy,
+        "validate_live_identity",
+        lambda *_args, **_kwargs: identities.append(1),
+    )
+    monkeypatch.setattr(policy.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(policy.time, "sleep", sleeps.append)
+
+    policy.poll_required_checks(
+        tmp_path,
+        target,
+        token="opaque",
+        material_paths=paths,
         timeout_seconds=30,
     )
-    assert attempts == [1, 1]
+
+    assert sum("/check-runs?" in url for url in api_calls) == 2
+    assert sum("/statuses?" in url for url in api_calls) == 2
+    action_run_calls = [url for url in api_calls if "/actions/runs/" in url]
+    assert len(action_run_calls) == len(required)
+    assert len(set(action_run_calls)) == len(required)
     assert identities == [1, 1]
     assert sleeps == [15.0]
 
@@ -1527,6 +1802,7 @@ def test_poll_budget_is_45_minutes_and_final_drift_is_terminal(
 ) -> None:
     assert policy._DEFAULT_POLL_SECONDS == 45 * 60
     assert policy._POLL_INTERVAL_SECONDS == 15
+    assert policy._POLL_MAX_INTERVAL_SECONDS == 60
     target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
     identity_calls: list[int] = []
 

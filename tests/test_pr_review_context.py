@@ -41,11 +41,13 @@ def test_collect_scope_diff_parses_numstat_lines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     expected = "12\t3\tsrc/app.py\n-\t-\tlegacy.bin\n"
+    captured_args: list[str] = []
 
     def fake_run(
         args: list[str], cwd: Path, check: bool = True
     ) -> subprocess.CompletedProcess[str]:
-        del args, cwd, check
+        captured_args.extend(args)
+        del cwd, check
         return subprocess.CompletedProcess(args=[], returncode=0, stdout=expected, stderr="")
 
     monkeypatch.setattr(review_ctx, "_run_command", fake_run)
@@ -57,6 +59,10 @@ def test_collect_scope_diff_parses_numstat_lines(
     )
 
     assert not warnings
+    assert "--no-renames" in captured_args
+    assert "--no-ext-diff" in captured_args
+    assert "--no-textconv" in captured_args
+    assert captured_args[-2:] == ["base..head", "--"]
     assert len(files) == 2
     assert files[0].path == "src/app.py"
     assert files[0].additions == 12
