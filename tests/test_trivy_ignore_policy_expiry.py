@@ -1827,6 +1827,65 @@ def test_direct_javascript_build_script_uses_source_scanner(
     assert guard.scan_repository(frontend_root) == []
 
 
+def test_dynamic_node_options_join_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "./scripts/build.mjs"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build.mjs",
+        "\n".join(
+            (
+                'const nodeOptions = ["--conditions=", "react", "-", "server"].join("");',
+                "process.env.NODE_OPTIONS = nodeOptions;",
+                'spawnSync("vite", ["build"], {env: process.env});',
+            )
+        ),
+    )
+
+    with pytest.raises(
+        guard.PremiseScanError,
+        match="NODE_OPTIONS value cannot be statically verified",
+    ):
+        guard.scan_repository(frontend_root)
+
+
+def test_dynamic_node_condition_argument_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "scripts/build.mjs",
+        'spawnSync("node", ["--conditions", condition, "server.mjs"]);\n',
+    )
+
+    with pytest.raises(
+        guard.PremiseScanError,
+        match="Node condition value cannot be statically verified",
+    ):
+        guard.scan_repository(frontend_root)
+
+
+def test_static_safe_node_conditions_and_unrelated_node_options_reads_are_allowed(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "scripts/build.mjs",
+        "\n".join(
+            (
+                'process.env.NODE_OPTIONS = "--conditions=" + "browser";',
+                "const inheritedOptions = process.env.NODE_OPTIONS;",
+                'const labels = ["NODE_OPTIONS", "conditions"];',
+                'spawnSync("node", ["--conditions", "browser", "server.mjs"]);',
+            )
+        ),
+    )
+
+    assert guard.scan_repository(frontend_root) == []
+
+
 def test_root_outputs_are_pruned_but_nested_build_and_dist_are_scanned(
     tmp_path: Path,
 ) -> None:

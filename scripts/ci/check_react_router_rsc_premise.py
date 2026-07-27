@@ -904,6 +904,68 @@ def _static_string_concatenations(tokens: Sequence[_SourceToken]) -> tuple[str, 
     return tuple(composed)
 
 
+def _is_static_string_expression(tokens: Sequence[_SourceToken], start: int) -> bool:
+    """Return whether one bounded expression is only static strings joined by ``+``."""
+
+    index = start
+    while index < len(tokens):
+        token = tokens[index]
+        if token.kind == "template":
+            if _has_unescaped_template_interpolation(token.value):
+                return False
+        elif token.kind != "string":
+            return False
+        index += 1
+        if index >= len(tokens) or tokens[index] != _SourceToken("punctuation", "+"):
+            return index >= len(tokens) or tokens[index].value in ",;)]}"
+        index += 1
+    return False
+
+
+def _reject_dynamic_condition_values(tokens: Sequence[_SourceToken], *, label: str) -> None:
+    """Fail closed on dynamic ``NODE_OPTIONS`` or Node condition arguments."""
+
+    for index, token in enumerate(tokens):
+        is_node_options_property = (
+            token == _SourceToken("identifier", "NODE_OPTIONS")
+            and index > 0
+            and tokens[index - 1] == _SourceToken("punctuation", ".")
+            and index + 1 < len(tokens)
+            and tokens[index + 1] == _SourceToken("punctuation", "=")
+        )
+        is_node_options_subscript = (
+            token.kind == "string"
+            and _decode_javascript_source_escapes(token.value) == "NODE_OPTIONS"
+            and index > 0
+            and tokens[index - 1] == _SourceToken("punctuation", "[")
+            and index + 2 < len(tokens)
+            and tokens[index + 1] == _SourceToken("punctuation", "]")
+            and tokens[index + 2] == _SourceToken("punctuation", "=")
+        )
+        if is_node_options_property or is_node_options_subscript:
+            rhs_index = index + (3 if is_node_options_subscript else 2)
+            if not _is_static_string_expression(tokens, rhs_index):
+                raise PremiseScanError(
+                    f"NODE_OPTIONS value cannot be statically verified in {label}"
+                )
+
+        if token.kind not in {"string", "template"}:
+            continue
+        value = _decode_javascript_source_escapes(token.value)
+        if value == "--conditions=":
+            if not _is_static_string_expression(tokens, index):
+                raise PremiseScanError(
+                    f"Node condition value cannot be statically verified in {label}"
+                )
+        elif (
+            value == "--conditions"
+            and index + 1 < len(tokens)
+            and tokens[index + 1] == _SourceToken("punctuation", ",")
+            and not _is_static_string_expression(tokens, index + 2)
+        ):
+            raise PremiseScanError(f"Node condition value cannot be statically verified in {label}")
+
+
 def _react_router_namespace_surfaces(tokens: Sequence[_SourceToken]) -> tuple[str, ...]:
     """Detect namespace-producing runtime forms for exact ``react-router``."""
 
@@ -1041,6 +1103,7 @@ def _scan_source_text(text: str, *, label: str) -> list[str]:
     """Return fixed RSC marker diagnostics for one JavaScript source body."""
 
     literals, visible, tokens = _source_analysis(text, label=label)
+    _reject_dynamic_condition_values(tokens, label=label)
     decoded_visible = _decode_javascript_source_escapes(visible)
     composed_literals = _static_string_concatenations(tokens)
     marker_haystacks = (decoded_visible, *composed_literals)
