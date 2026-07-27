@@ -253,6 +253,7 @@ _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
         "scripts/run-backend-tests-pre-commit.sh",
         "tests/__init__.py",
         "tests/conftest.py",
+        "tests/**/conftest.py",
         "tests/fixtures/dependency_security_schema.json",
         "tests/guards/**",
         "tests/test_dependency_security_guard.py",
@@ -769,7 +770,11 @@ def _tree_blob_identities(repo_root: Path, revision: str) -> dict[str, str]:
 
 def _matches_authority_input(path: str, patterns: set[str]) -> bool:
     for pattern in patterns:
-        if pattern.endswith("/**"):
+        if "/**/" in pattern:
+            prefix, suffix = pattern.split("/**/", maxsplit=1)
+            if path.startswith(f"{prefix}/") and path.endswith(f"/{suffix}"):
+                return True
+        elif pattern.endswith("/**"):
             if path.startswith(pattern[:-2]):
                 return True
         elif path == pattern:

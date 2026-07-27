@@ -22,6 +22,7 @@ SOURCE_SUFFIXES = {
     ".cts",
     ".js",
     ".jsx",
+    ".mdx",
     ".mjs",
     ".mts",
     ".ts",

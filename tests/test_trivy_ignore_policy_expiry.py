@@ -1354,6 +1354,20 @@ def test_inline_module_scripts_in_html_are_scanned(tmp_path: Path) -> None:
     ]
 
 
+def test_storybook_mdx_is_scanned(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/stories/rsc.mdx",
+        'import { unstable_routeRSCServerRequest } from "react-router";\n'
+        "{unstable_routeRSCServerRequest(request, routes)}\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "src/stories/rsc.mdx:unstable_routeRSCServerRequest",
+    ]
+
+
 def test_executable_classic_inline_script_is_scanned_but_data_scripts_are_not(
     tmp_path: Path,
 ) -> None:
