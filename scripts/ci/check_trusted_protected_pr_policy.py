@@ -248,6 +248,7 @@ _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
         "tox.ini",
         "constraints.txt",
         "requirements-ci-lite.txt",
+        "scripts.py",
         "scripts/ci/check_python_startup_hooks.py",
         "scripts/ci/emergency_python_wheels.json",
         "scripts/ci/install_locked_python_requirements.py",

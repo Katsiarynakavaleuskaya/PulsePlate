@@ -1886,6 +1886,65 @@ def test_static_safe_node_conditions_and_unrelated_node_options_reads_are_allowe
     assert guard.scan_repository(frontend_root) == []
 
 
+@pytest.mark.parametrize("package_root_name", ("", "desktop"))
+def test_repository_scan_covers_every_target_package_root(
+    tmp_path: Path,
+    package_root_name: str,
+) -> None:
+    package_root = tmp_path / package_root_name
+    package_root.mkdir(parents=True, exist_ok=True)
+    (package_root / "package.json").write_text(
+        json.dumps({"dependencies": {"react-router": "7.18.1"}}),
+        encoding="utf-8",
+    )
+    (package_root / "package-lock.json").write_text(
+        json.dumps(
+            {
+                "packages": {
+                    "node_modules/react-router": {
+                        "version": "7.18.1",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_source(
+        package_root,
+        "src/server.mjs",
+        'import { unstable_routeRSCServerRequest } from "react-router";\n',
+    )
+
+    prefix = f"{package_root_name}/" if package_root_name else ""
+    assert guard.scan_repository_package_roots(tmp_path) == [
+        f"{prefix}src/server.mjs:unstable_routeRSCServerRequest"
+    ]
+
+
+def test_repository_scan_ignores_non_target_package_scripts(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(
+        json.dumps({"scripts": {"build": "npm run first && npm run second"}}),
+        encoding="utf-8",
+    )
+    (tmp_path / "package-lock.json").write_text(json.dumps({"packages": {}}), encoding="utf-8")
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"dependencies": {"react-router": "7.18.1"}},
+        package_lock={
+            "packages": {
+                "node_modules/react-router": {
+                    "version": "7.18.1",
+                }
+            }
+        },
+    )
+    _write_source(
+        frontend_root, "src/app.mjs", 'import { createBrowserRouter } from "react-router";'
+    )
+
+    assert guard.scan_repository_package_roots(tmp_path) == []
+
+
 def test_root_outputs_are_pruned_but_nested_build_and_dist_are_scanned(
     tmp_path: Path,
 ) -> None:
@@ -2505,7 +2564,7 @@ def test_noncanonical_target_capable_rule_rejected_and_activates_premise_scan(
 
     assert expiry_guard._contains_react_router_rsc_suppression(policy_path)
     assert expiry_guard.main() == 1
-    assert calls == [tmp_path / "frontend"]
+    assert calls == [tmp_path]
     assert "must contain exactly the canonical five predicates" in capsys.readouterr().out
 
 
@@ -2674,7 +2733,7 @@ def test_unsupported_top_level_ignore_head_fails_closed_and_activates_premise(
 
     assert expiry_guard._contains_react_router_rsc_suppression(policy_path)
     assert expiry_guard.main() == 1
-    assert calls == [tmp_path / "frontend"]
+    assert calls == [tmp_path]
     assert "unsupported top-level ignore rule" in capsys.readouterr().out
 
 
@@ -2726,7 +2785,7 @@ def test_trivy_expiry_wrapper_runs_rsc_premise_once_when_suppression_is_present(
     )
 
     assert expiry_guard.main() == 0
-    assert calls == [tmp_path / "frontend"]
+    assert calls == [tmp_path]
 
 
 def test_trivy_expiry_wrapper_does_not_run_rsc_premise_without_suppression(

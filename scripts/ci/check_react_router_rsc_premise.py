@@ -30,6 +30,7 @@ SOURCE_SUFFIXES = {
 }
 HTML_SUFFIXES = {".html"}
 GLOBAL_EXCLUDED_DIRECTORIES = {
+    ".agents",
     ".git",
     ".mypy_cache",
     ".pytest_cache",
@@ -45,6 +46,8 @@ _PACKAGE_MARKER_LABELS = {
     "@vitejs/plugin-rsc": "@vitejs/plugin-rsc",
     "react-server-dom-": "react-server-dom-*",
 }
+_TARGET_REACT_ROUTER_PACKAGE = "react-router"
+_TARGET_REACT_ROUTER_VERSION = "7.18.1"
 RUNTIME_MARKERS = (
     "unstable_matchRSCServerRequest",
     "unstable_routeRSCServerRequest",
@@ -418,6 +421,64 @@ def _append_lockfile_named_alias_markers(
             violations.append(
                 "package-lock.json:packages." f"{package_path}.name:react-router npm alias"
             )
+
+
+def _package_lock_contains_target(
+    package_lock: dict[str, object],
+    *,
+    label: str,
+) -> bool:
+    """Return whether one lockfile can produce the suppressed package tuple."""
+
+    for section_name in ("packages", "dependencies"):
+        section = package_lock.get(section_name, {})
+        if not isinstance(section, dict):
+            raise PremiseScanError(f"{label}:{section_name} must be a JSON object")
+        for package_path, metadata in section.items():
+            if not isinstance(metadata, dict):
+                continue
+            installed_name = str(package_path).rsplit("node_modules/", maxsplit=1)[-1]
+            package_name = metadata.get("name", installed_name)
+            if (
+                package_name == _TARGET_REACT_ROUTER_PACKAGE
+                and metadata.get("version") == _TARGET_REACT_ROUTER_VERSION
+            ):
+                return True
+    return False
+
+
+def _walk_package_lock_files(root: Path) -> Iterator[Path]:
+    """Yield repository lockfiles without following excluded or symlinked trees."""
+
+    def raise_traversal_error(error: OSError) -> None:
+        raise PremiseScanError(f"unable to traverse repository root: {error}") from error
+
+    for current_raw, dirnames, filenames in os.walk(
+        root,
+        topdown=True,
+        onerror=raise_traversal_error,
+        followlinks=False,
+    ):
+        current = Path(current_raw)
+        retained_directories: list[str] = []
+        for dirname in sorted(dirnames):
+            if dirname in GLOBAL_EXCLUDED_DIRECTORIES or (
+                "package.json" in filenames and dirname in ROOT_OUTPUT_DIRECTORIES
+            ):
+                continue
+            directory = current / dirname
+            label = _relative_label(directory, root)
+            try:
+                metadata = directory.lstat()
+                directory.resolve(strict=True).relative_to(root)
+            except (OSError, ValueError) as exc:
+                raise PremiseScanError(f"unable to inspect directory {label}: {exc}") from exc
+            if stat.S_ISLNK(metadata.st_mode):
+                raise PremiseScanError(f"directory must not be a symlink: {label}")
+            retained_directories.append(dirname)
+        dirnames[:] = retained_directories
+        if "package-lock.json" in filenames:
+            yield current / "package-lock.json"
 
 
 def _shell_command_tokens(command: str, *, label: str, comments: bool) -> tuple[str, ...]:
@@ -1213,6 +1274,26 @@ def scan_repository(root: Path) -> list[str]:
             violations.extend(_scan_html_file(source_path, canonical_root))
         else:
             violations.extend(_scan_source_file(source_path, canonical_root))
+    return sorted(set(violations))
+
+
+def scan_repository_package_roots(root: Path) -> list[str]:
+    """Scan every package root capable of producing the suppressed tuple."""
+
+    canonical_root = _canonical_root(root)
+    violations: list[str] = []
+    for lock_path in _walk_package_lock_files(canonical_root):
+        package_lock = _load_json_object(lock_path, canonical_root)
+        lock_label = _relative_label(lock_path, canonical_root)
+        if not _package_lock_contains_target(package_lock, label=lock_label):
+            continue
+        package_root = lock_path.parent
+        prefix = (
+            ""
+            if package_root == canonical_root
+            else f"{package_root.relative_to(canonical_root).as_posix()}/"
+        )
+        violations.extend(f"{prefix}{violation}" for violation in scan_repository(package_root))
     return sorted(set(violations))
 
 

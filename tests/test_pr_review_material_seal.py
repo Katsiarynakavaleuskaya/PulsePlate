@@ -3236,7 +3236,10 @@ def _self_review_report_payload(
             },
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
-            "scoped_agents_md": evidence_module._applicable_scoped_agents(changed_files),
+            "scoped_agents_md": review_context_module.discover_scoped_agents(
+                evidence_module._REPO_ROOT,
+                list(changed_files),
+            ),
         },
         "warnings": [],
     }
@@ -3345,7 +3348,19 @@ def test_provider_no_claim_pair_is_exact_static_and_material_bound() -> None:
     assert parsed["self_review"]["status"] == "advisory_report_attached"
 
 
-def test_provider_no_claim_requires_exact_material_self_review(tmp_path: Path) -> None:
+def test_provider_no_claim_requires_exact_material_self_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scoped_agents = review_context_module.discover_scoped_agents(
+        evidence_module._REPO_ROOT,
+        ["app/example.py"],
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "_applicable_scoped_agents",
+        lambda _paths, *, material_head_sha: scoped_agents,
+    )
     manifest = _material_manifest(HEAD_SHA, paths=("app/example.py",))
     report_path = _write_self_review_report(
         tmp_path / "review.json",
@@ -3385,19 +3400,68 @@ def test_provider_no_claim_requires_exact_material_self_review(tmp_path: Path) -
         render_embedded_review_seal(stale)
 
 
-def test_self_review_scoped_agents_are_bound_to_exact_material_paths(
+@pytest.mark.parametrize(
+    ("operation", "expected_scopes", "tampered_scopes"),
+    (
+        (
+            "add",
+            ["AGENTS.md", "frontend/AGENTS.md"],
+            ["AGENTS.md"],
+        ),
+        (
+            "delete",
+            ["AGENTS.md"],
+            ["AGENTS.md", "frontend/AGENTS.md"],
+        ),
+    ),
+)
+def test_self_review_scoped_agents_are_resolved_from_material_head_tree(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    expected_scopes: list[str],
+    tampered_scopes: list[str],
 ) -> None:
-    changed_files = ("frontend/src/example.tsx",)
-    report = _self_review_report_payload(changed_files=changed_files)
-    assert report["scope_reviewed"]["scoped_agents_md"] == [
-        "AGENTS.md",
-        "frontend/AGENTS.md",
-    ]
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
+    _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
+    frontend = repo / "frontend"
+    frontend.mkdir()
+    scoped_agents_path = frontend / "AGENTS.md"
+    if operation == "delete":
+        scoped_agents_path.write_text("frontend instructions\n", encoding="utf-8")
+    base = _commit(repo, "base")
+
+    if operation == "add":
+        scoped_agents_path.write_text("frontend instructions\n", encoding="utf-8")
+    else:
+        scoped_agents_path.unlink()
+    head = _commit(repo, f"{operation} scoped agents")
+
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base,
+        head_ref_oid=head,
+        pr_number=42,
+    )
+    assert manifest.diff_summary is not None
+    changed_files = tuple(entry.path for entry in manifest.entries)
+    report = _self_review_report_payload(
+        changed_files=changed_files,
+        base_ref_oid=base,
+        merge_base_sha=manifest.merge_base_sha,
+        material_head_sha=head,
+        material_digest=manifest.digest,
+    )
+    report["scope_reviewed"]["diff_summary"] = manifest.diff_summary.as_dict()
+    report["scope_reviewed"]["scoped_agents_md"] = expected_scopes
     report_path = tmp_path / "review.json"
     _write_json(report_path, report)
-    manifest = _material_manifest(HEAD_SHA, paths=changed_files)
 
+    _git(repo, "checkout", "-q", "--detach", base)
+    assert scoped_agents_path.is_file() is (operation == "delete")
     assert (
         ingest_repo_native_self_review_receipt(
             report_path,
@@ -3406,7 +3470,7 @@ def test_self_review_scoped_agents_are_bound_to_exact_material_paths(
         == "advisory_report_attached"
     )
 
-    report["scope_reviewed"]["scoped_agents_md"] = ["AGENTS.md"]
+    report["scope_reviewed"]["scoped_agents_md"] = tampered_scopes
     _write_json(report_path, report)
     with pytest.raises(
         ReviewEvidenceError,
@@ -4195,6 +4259,7 @@ def test_authenticated_provider_no_claim_rejects_second_mapping_only_successor(
     repo.mkdir()
     _git(repo, "init", "-q")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
 
     material_path = repo / "src" / "policy.py"
@@ -4261,6 +4326,7 @@ def test_authenticated_provider_no_claim_rejects_second_mapping_only_successor(
     )
 
     monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
 
     tokenless = closeout_module.validate_live_mapping(
@@ -4324,6 +4390,11 @@ def _configure_provider_no_claim_closeout(
         closeout_module,
         "compute_material_manifest",
         lambda *_a, **_k: _material_manifest(HEAD_SHA),
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "_applicable_scoped_agents",
+        lambda _paths, *, material_head_sha: ["AGENTS.md"],
     )
     monkeypatch.setattr(
         closeout_module,

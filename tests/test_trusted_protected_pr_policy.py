@@ -103,7 +103,10 @@ def _self_review_receipt(
             "diff_summary": material_diff_summary,
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
-            "scoped_agents_md": evidence_module._applicable_scoped_agents(changed_files),
+            "scoped_agents_md": evidence_module._applicable_scoped_agents(
+                changed_files,
+                material_head_sha=material_head_sha,
+            ),
         },
         "warnings": [],
     }
@@ -242,12 +245,17 @@ def test_event_parser_rejects_non_pr_payload(tmp_path: Path) -> None:
 
 def _protected_repo_with_mapping(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[Path, policy.PullRequestTarget, str]:
     repo = tmp_path / "protected"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init")
     _git(repo, "config", "user.email", "test@example.com")
     _git(repo, "config", "user.name", "Test")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
+    (repo / "scripts").mkdir()
+    (repo / "scripts/AGENTS.md").write_text("scripts instructions\n", encoding="utf-8")
     guarded = repo / "scripts/ci/example.py"
     guarded.parent.mkdir(parents=True)
     guarded.write_text("ENFORCED = False\n", encoding="utf-8")
@@ -303,8 +311,9 @@ def _protected_repo_with_mapping(
 
 def test_protected_material_positive_e2e_and_mapping_tamper(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repo, target, _material_head = _protected_repo_with_mapping(tmp_path)
+    repo, target, _material_head = _protected_repo_with_mapping(tmp_path, monkeypatch)
     assert policy.validate_protected_material(repo, target) == ("scripts/ci/example.py",)
 
     mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
@@ -333,7 +342,7 @@ def test_protected_material_binds_seal_to_derived_diff_summary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repo, target, _material_head = _protected_repo_with_mapping(tmp_path)
+    repo, target, _material_head = _protected_repo_with_mapping(tmp_path, monkeypatch)
     manifest = compute_material_manifest(
         repo,
         base_ref_oid=target.base_sha,
@@ -365,8 +374,9 @@ def test_protected_material_binds_seal_to_derived_diff_summary(
 
 def test_protected_material_rejects_embedded_report_payload_tamper(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repo, target, _material_head = _protected_repo_with_mapping(tmp_path)
+    repo, target, _material_head = _protected_repo_with_mapping(tmp_path, monkeypatch)
     mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
     mapping.write_text(
         mapping.read_text(encoding="utf-8").replace(
@@ -1526,6 +1536,7 @@ def test_unchanged_trust_root_uses_automatic_path(tmp_path: Path) -> None:
         ("lint", "pytest.py"),
         ("lint", "scripts/ci/check_python_startup_hooks.py"),
         ("lint", "scripts/ci/run_main_test_shards.py"),
+        ("lint", "scripts.py"),
         ("lint", "requirements-ci-lite.txt"),
         ("lint", "tests/__init__.py"),
         ("lint", "tests/**/__init__.py"),
@@ -1694,6 +1705,7 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "core/ai/__init__.py",
         "pytest_sharding.py",
         "pytest.py",
+        "scripts.py",
         "scripts/ci/run_main_test_shards.py",
         "tests/__init__.py",
         "tests/edges/__init__.py",
@@ -1967,6 +1979,7 @@ def test_malformed_semantic_input_uses_terminal_rotation_token(tmp_path: Path) -
         "pytest_sharding.py",
         "pytest.py",
         "ruff.toml",
+        "scripts.py",
         "scripts/ci/run_main_test_shards.py",
         "scripts/orchestration/context_pack.py",
         "tests/__init__.py",

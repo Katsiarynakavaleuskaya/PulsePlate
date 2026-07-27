@@ -1473,22 +1473,45 @@ def is_provider_no_claim_security_receipt(receipt: Any) -> bool:
     )
 
 
-def _applicable_scoped_agents(material_paths: Iterable[str]) -> list[str]:
-    """Return every checked-in AGENTS.md ancestor for the exact material paths."""
+def _applicable_scoped_agents(
+    material_paths: Iterable[str],
+    *,
+    material_head_sha: str,
+) -> list[str]:
+    """Return every AGENTS.md ancestor present in the exact material-head tree."""
 
-    discovered: set[str] = set()
+    candidates = {"AGENTS.md"}
     for raw_path in material_paths:
         path = _validate_material_path(raw_path.encode("utf-8"))
-        current = (_REPO_ROOT / PurePosixPath(path)).parent
-        while True:
-            candidate = current / "AGENTS.md"
-            if candidate.is_file():
-                discovered.add(candidate.relative_to(_REPO_ROOT).as_posix())
-            if current == _REPO_ROOT:
-                break
+        current = PurePosixPath(path).parent
+        while current != PurePosixPath("."):
+            candidates.add((current / "AGENTS.md").as_posix())
             current = current.parent
-    if (_REPO_ROOT / "AGENTS.md").is_file():
-        discovered.add("AGENTS.md")
+
+    head_sha = _require_sha(material_head_sha, label="material_head_sha")
+    raw = _run_git(
+        _REPO_ROOT,
+        [
+            "ls-tree",
+            "-r",
+            "--name-only",
+            "-z",
+            "--full-tree",
+            head_sha,
+            "--",
+            *(f":(literal){path}" for path in sorted(candidates)),
+        ],
+    )
+    discovered: set[str] = set()
+    for path_bytes in raw.split(b"\0"):
+        if not path_bytes:
+            continue
+        path = _validate_material_path(path_bytes)
+        if path not in candidates or path in discovered:
+            raise ReviewEvidenceError(
+                "material-head AGENTS.md discovery returned an unexpected path"
+            )
+        discovered.add(path)
     return sorted(discovered)
 
 
@@ -1770,7 +1793,10 @@ def _validate_self_review_report_payload(
             "pulseplate-pr-review report does not cover the exact material path set"
         )
     if expected_material_paths is not None and sorted(scoped_agents) != (
-        _applicable_scoped_agents(expected_material_paths)
+        _applicable_scoped_agents(
+            expected_material_paths,
+            material_head_sha=material_head_sha,
+        )
     ):
         raise ReviewEvidenceError(
             "pulseplate-pr-review scoped AGENTS.md coverage does not match "

@@ -15,6 +15,7 @@ import pytest
 import yaml
 
 from scripts.ci import check_pr_merge_readiness as merge_gate
+from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.ci.check_pr_merge_readiness import (
     _canonical_artifact_markdown_link_count,
     _is_actionable,
@@ -1532,10 +1533,13 @@ def _self_review_advisory_receipt(
 
 def _provider_no_claim_seal_context(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[Path, dict[str, Any], PrSnapshot, str]:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     (repo / "README.md").write_text("material\n", encoding="utf-8")
@@ -1589,7 +1593,10 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repo, seal, snapshot, material_head = _provider_no_claim_seal_context(tmp_path)
+    repo, seal, snapshot, material_head = _provider_no_claim_seal_context(
+        tmp_path,
+        monkeypatch,
+    )
 
     successful_nodes = [
         _check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
@@ -1694,7 +1701,10 @@ def test_ci_gate_provider_no_claim_security_settlement_times_out_bounded(
     monkeypatch: pytest.MonkeyPatch,
     mode: str,
 ) -> None:
-    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(tmp_path)
+    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(
+        tmp_path,
+        monkeypatch,
+    )
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     if mode == "missing":
         nodes = [node for node in nodes if node["name"] != "security"]
@@ -1764,7 +1774,10 @@ def test_ci_gate_provider_no_claim_terminal_security_checks_do_not_retry(
     mode: str,
     expected: str,
 ) -> None:
-    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(tmp_path)
+    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(
+        tmp_path,
+        monkeypatch,
+    )
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     if mode == "stale":
         newer_activity = _check_node(
@@ -1851,7 +1864,9 @@ def test_ci_gate_rejects_legacy_provider_review_seals_without_live_verification(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     (repo / "README.md").write_text("material\n", encoding="utf-8")
@@ -1948,7 +1963,9 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     source = repo / "src" / "policy.py"
@@ -2100,7 +2117,9 @@ def test_ci_gate_rejects_any_descendant_after_the_mapping_closeout(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     source = repo / "src" / "policy.py"

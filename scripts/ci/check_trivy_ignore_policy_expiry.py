@@ -15,7 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.ci.check_react_router_rsc_premise import (  # noqa: E402
     PremiseScanError,
-    scan_repository as scan_react_router_rsc_premise,
+    scan_repository_package_roots as scan_react_router_rsc_premise,
 )
 
 # Allow trailing content after the date (e.g. "(manual removal)").
@@ -556,7 +556,7 @@ def main() -> int:
 
     if suppression_present:
         try:
-            violations = scan_react_router_rsc_premise(repo_root / "frontend")
+            violations = scan_react_router_rsc_premise(repo_root)
         except PremiseScanError as exc:
             failures.append(f"React Router RSC premise scan was incomplete: {exc}")
         else:
