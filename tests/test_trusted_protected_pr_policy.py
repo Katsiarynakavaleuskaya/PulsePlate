@@ -1532,6 +1532,10 @@ def test_unchanged_trust_root_uses_automatic_path(tmp_path: Path) -> None:
         ("lint", ".nvmrc"),
         ("lint", "conftest.py"),
         ("lint", "coverage.py"),
+        ("lint", "frontend/package-lock.json"),
+        ("lint", "frontend/package.json"),
+        ("lint", "package-lock.json"),
+        ("lint", "package.json"),
         ("lint", "pytest_sharding.py"),
         ("lint", "pytest.py"),
         ("lint", "scripts/ci/check_python_startup_hooks.py"),
@@ -1658,7 +1662,6 @@ def test_authority_graph_keeps_declarative_subjects_out_of_blanket_control_set()
     }
     assert "requirements.txt" not in authority_inputs
     assert "scripts/ci/candidate.py" not in authority_inputs
-    assert "frontend/package.json" not in authority_inputs
     assert "pyproject.toml" not in authority_inputs
 
 
@@ -1703,6 +1706,10 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "coverage.py",
         "core/bmi/__init__.py",
         "core/ai/__init__.py",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "package-lock.json",
+        "package.json",
         "pytest_sharding.py",
         "pytest.py",
         "scripts.py",
@@ -1759,18 +1766,22 @@ def _frontend_package_repo(
     return repo, policy.PullRequestTarget("owner/repo", 42, base, head)
 
 
-def test_root_package_dependency_only_change_remains_a_subject(tmp_path: Path) -> None:
+def test_root_package_dependency_change_requires_authority_rotation(tmp_path: Path) -> None:
     repo, target = _frontend_package_repo(
         tmp_path,
         base_payload={"dependencies": {"a": "1"}},
         head_payload={"dependencies": {"a": "2"}},
         package_path="package.json",
     )
-    policy.validate_trust_root_unchanged(
-        repo,
-        target,
-        material_paths=("package.json",),
-    )
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="AUTHORITY_ROTATION_REQUIRED.*package.json",
+    ):
+        policy.validate_trust_root_unchanged(
+            repo,
+            target,
+            material_paths=("package.json",),
+        )
 
 
 @pytest.mark.parametrize("lifecycle_script", ("preinstall", "prepare"))
@@ -1798,17 +1809,21 @@ def test_root_package_install_lifecycle_requires_authority_rotation(
         )
 
 
-def test_frontend_dependency_only_change_remains_a_subject(tmp_path: Path) -> None:
+def test_frontend_dependency_change_requires_authority_rotation(tmp_path: Path) -> None:
     repo, target = _frontend_package_repo(
         tmp_path,
         base_payload={"scripts": {"test:precommit": "vitest run"}, "dependencies": {"a": "1"}},
         head_payload={"scripts": {"test:precommit": "vitest run"}, "dependencies": {"a": "2"}},
     )
-    policy.validate_trust_root_unchanged(
-        repo,
-        target,
-        material_paths=("frontend/package.json",),
-    )
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="AUTHORITY_ROTATION_REQUIRED.*frontend/package.json",
+    ):
+        policy.validate_trust_root_unchanged(
+            repo,
+            target,
+            material_paths=("frontend/package.json",),
+        )
 
 
 def test_frontend_script_change_requires_authority_rotation(tmp_path: Path) -> None:
@@ -1864,7 +1879,7 @@ def test_frontend_precommit_lifecycle_script_requires_authority_rotation(
         )
 
 
-def test_frontend_unrelated_script_change_remains_a_subject(tmp_path: Path) -> None:
+def test_frontend_unrelated_script_change_requires_authority_rotation(tmp_path: Path) -> None:
     repo, target = _frontend_package_repo(
         tmp_path,
         base_payload={
@@ -1876,11 +1891,15 @@ def test_frontend_unrelated_script_change_remains_a_subject(tmp_path: Path) -> N
             "dependencies": {"a": "1"},
         },
     )
-    policy.validate_trust_root_unchanged(
-        repo,
-        target,
-        material_paths=("frontend/package.json",),
-    )
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="AUTHORITY_ROTATION_REQUIRED.*frontend/package.json",
+    ):
+        policy.validate_trust_root_unchanged(
+            repo,
+            target,
+            material_paths=("frontend/package.json",),
+        )
 
 
 def _pyproject_repo(
@@ -1976,6 +1995,10 @@ def test_malformed_semantic_input_uses_terminal_rotation_token(tmp_path: Path) -
         "app/__init__.py",
         "conftest.py",
         "coverage.py",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "package-lock.json",
+        "package.json",
         "pytest_sharding.py",
         "pytest.py",
         "ruff.toml",

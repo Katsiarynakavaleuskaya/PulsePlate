@@ -622,6 +622,43 @@ def _sourced_shell_script_paths(text: str, *, root: Path, label: str) -> tuple[P
     return tuple(paths)
 
 
+def _reject_dynamic_shell_condition_values(text: str, *, label: str) -> None:
+    """Fail closed on dynamic Node condition values in delegated shell scripts."""
+
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line_label = f"{label}:{line_number}"
+        tokens = _shell_command_tokens(raw_line, label=line_label, comments=True)
+        index = 0
+        assignment_indexes: set[int] = set()
+        while index < len(tokens) and _SHELL_ASSIGNMENT_RE.match(tokens[index]):
+            assignment_indexes.add(index)
+            index += 1
+        if index < len(tokens) and tokens[index] == "export":
+            assignment_indexes.update(
+                candidate
+                for candidate in range(index + 1, len(tokens))
+                if _SHELL_ASSIGNMENT_RE.match(tokens[candidate])
+            )
+        for assignment_index in assignment_indexes:
+            name, _, value = tokens[assignment_index].partition("=")
+            if name == "NODE_OPTIONS" and ("$" in value or "`" in value):
+                raise PremiseScanError(
+                    f"NODE_OPTIONS value cannot be statically verified in {line_label}"
+                )
+
+        if index >= len(tokens) or Path(tokens[index]).name not in {"node", "nodejs"}:
+            continue
+        arguments = tokens[index + 1 :]
+        for argument_index, argument in enumerate(arguments):
+            value = argument.partition("=")[2] if argument.startswith("--conditions=") else ""
+            if argument == "--conditions" and argument_index + 1 < len(arguments):
+                value = arguments[argument_index + 1]
+            if value and ("$" in value or "`" in value):
+                raise PremiseScanError(
+                    f"Node condition value cannot be statically verified in {line_label}"
+                )
+
+
 def _scan_delegated_script_file(
     path: Path,
     root: Path,
@@ -632,6 +669,8 @@ def _scan_delegated_script_file(
 
     label = _relative_label(path, root)
     text = _validate_candidate(path, root)
+    if path.suffix not in SOURCE_SUFFIXES and path.suffix != ".py":
+        _reject_dynamic_shell_condition_values(text, label=label)
     resolved = path.resolve(strict=True)
     if resolved in active_paths:
         raise PremiseScanError(f"sourced script cycle detected at {label}")

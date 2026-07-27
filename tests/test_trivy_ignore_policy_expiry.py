@@ -1735,10 +1735,44 @@ def test_delegated_shell_build_script_ignores_comment_only_condition(
     _write_source(
         frontend_root,
         "scripts/build.sh",
-        "# NODE_OPTIONS=--conditions=react-server\necho source scripts/not-run.sh\nvite build\n",
+        "\n".join(
+            (
+                "# NODE_OPTIONS=--conditions=react-server",
+                "PART=react-",
+                'OTHER="--conditions=${PART}server"',
+                'echo "$NODE_OPTIONS"',
+                "echo source scripts/not-run.sh",
+                "vite build",
+            )
+        ),
     )
 
     assert guard.scan_repository(frontend_root) == []
+
+
+@pytest.mark.parametrize(
+    "dynamic_command",
+    (
+        'export NODE_OPTIONS="--conditions=${PART}server"',
+        'node --conditions="${PART}server" build.mjs',
+    ),
+)
+def test_delegated_shell_dynamic_condition_fails_closed(
+    tmp_path: Path,
+    dynamic_command: str,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "bash scripts/build.sh"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build.sh",
+        f"PART=react-\n{dynamic_command}\n",
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="value cannot be statically verified"):
+        guard.scan_repository(frontend_root)
 
 
 def test_delegated_python_build_script_condition_fails_closed(
