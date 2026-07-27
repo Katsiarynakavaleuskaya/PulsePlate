@@ -1478,6 +1478,7 @@ def _self_review_advisory_receipt(
     material_head_sha: str,
     material_digest: str,
     changed_files: tuple[str, ...],
+    diff_summary: dict[str, int],
 ) -> dict[str, Any]:
     report = {
         "actionable_findings_count": 0,
@@ -1499,7 +1500,7 @@ def _self_review_advisory_receipt(
         "schema_version": "2.0.0",
         "scope_reviewed": {
             "changed_files": list(changed_files),
-            "diff_summary": {"changed_lines": 0},
+            "diff_summary": dict(diff_summary),
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
             "scoped_agents_md": ["AGENTS.md"],
@@ -1545,6 +1546,7 @@ def _provider_no_claim_seal_context(
         head_ref_oid=material_head,
         pr_number=42,
     )
+    assert manifest.diff_summary is not None
     code_review, codex_security = build_provider_no_claim_pair(
         base_revision=manifest.merge_base_sha,
         head_revision=material_head,
@@ -1570,6 +1572,7 @@ def _provider_no_claim_seal_context(
             material_head_sha=material_head,
             material_digest=manifest.digest,
             changed_files=("README.md",),
+            diff_summary=manifest.diff_summary.as_dict(),
         ),
     }
     snapshot = PrSnapshot(
@@ -1654,6 +1657,28 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     with pytest.raises(ReviewEvidenceError, match="exact material path set"):
         merge_gate._validate_v1_seal(
             artifact_text=_artifact_with_seal(wrong_paths_seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+            require_committed_closeout=False,
+        )
+
+    wrong_diff_summary_seal = json.loads(json.dumps(seal))
+    self_review = wrong_diff_summary_seal["self_review"]
+    self_review["report_payload"]["scope_reviewed"]["diff_summary"]["changed_lines"] += 1
+    canonical_report = json.dumps(
+        self_review["report_payload"],
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    self_review["report_sha256"] = "sha256:" + hashlib.sha256(canonical_report).hexdigest()
+    with pytest.raises(ReviewEvidenceError, match="diff summary.*exact material"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(wrong_diff_summary_seal),
             repository="owner/repo",
             pr_number=42,
             snapshot=snapshot,
@@ -1933,6 +1958,7 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     frozen = compute_material_manifest(
         repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
     )
+    assert frozen.diff_summary is not None
     code_review, codex_security = build_provider_no_claim_pair(
         base_revision=frozen.merge_base_sha,
         head_revision=material_head,
@@ -1958,6 +1984,7 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
             material_head_sha=material_head,
             material_digest=frozen.digest,
             changed_files=("src/policy.py",),
+            diff_summary=frozen.diff_summary.as_dict(),
         ),
     }
     mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
@@ -2086,6 +2113,7 @@ def test_ci_gate_rejects_any_descendant_after_the_mapping_closeout(
         head_ref_oid=material_head,
         pr_number=42,
     )
+    assert frozen.diff_summary is not None
     code_review, codex_security = build_provider_no_claim_pair(
         base_revision=frozen.merge_base_sha,
         head_revision=material_head,
@@ -2111,6 +2139,7 @@ def test_ci_gate_rejects_any_descendant_after_the_mapping_closeout(
             material_head_sha=material_head,
             material_digest=frozen.digest,
             changed_files=("src/policy.py",),
+            diff_summary=frozen.diff_summary.as_dict(),
         ),
     }
     mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"

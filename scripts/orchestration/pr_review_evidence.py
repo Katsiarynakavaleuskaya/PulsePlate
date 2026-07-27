@@ -247,6 +247,13 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _ROOT_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
+_CANONICAL_CODEOWNERS_PATHS = frozenset(
+    {
+        ".github/CODEOWNERS",
+        "CODEOWNERS",
+        "docs/CODEOWNERS",
+    }
+)
 _DEPENDENCY_MANIFEST_BASENAMES = frozenset(
     {
         "Cargo.lock",
@@ -320,6 +327,38 @@ class MaterialEntry:
 
 
 @dataclass(frozen=True)
+class MaterialDiffSummary:
+    """Git-derived line totals for the exact no-renames material path set."""
+
+    files: int
+    additions: int
+    deletions: int
+
+    def __post_init__(self) -> None:
+        for label, value in (
+            ("files", self.files),
+            ("additions", self.additions),
+            ("deletions", self.deletions),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ReviewEvidenceError(
+                    f"material diff summary {label} must be a non-negative integer"
+                )
+
+    @property
+    def changed_lines(self) -> int:
+        return self.additions + self.deletions
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "files": self.files,
+            "additions": self.additions,
+            "deletions": self.deletions,
+            "changed_lines": self.changed_lines,
+        }
+
+
+@dataclass(frozen=True)
 class MaterialManifest:
     base_ref_oid: str
     head_ref_oid: str
@@ -327,6 +366,7 @@ class MaterialManifest:
     pr_number: int
     entries: tuple[MaterialEntry, ...]
     digest: str
+    diff_summary: MaterialDiffSummary | None = None
 
     def identity_payload(self) -> dict[str, Any]:
         return {
@@ -729,6 +769,49 @@ def _parse_raw_diff(raw: bytes, *, excluded_path: str) -> tuple[MaterialEntry, .
     return tuple(sorted(entries, key=lambda entry: entry.path.encode("utf-8")))
 
 
+def _parse_material_numstat(
+    raw: bytes,
+    *,
+    excluded_path: str,
+    material_paths: Iterable[str],
+) -> MaterialDiffSummary:
+    """Parse exact no-renames numstat output and bind it to manifest paths."""
+
+    expected_paths = tuple(material_paths)
+    stats: dict[str, tuple[int, int]] = {}
+    seen_paths: set[str] = set()
+    for record in raw.split(b"\0"):
+        if not record:
+            continue
+        fields = record.split(b"\t", 2)
+        if len(fields) != 3:
+            raise ReviewEvidenceError("git diff numstat stream contains unsupported record")
+        additions_raw, deletions_raw, path_bytes = fields
+        if additions_raw == b"-" and deletions_raw == b"-":
+            additions = 0
+            deletions = 0
+        elif additions_raw.isdigit() and deletions_raw.isdigit():
+            additions = int(additions_raw)
+            deletions = int(deletions_raw)
+        else:
+            raise ReviewEvidenceError("git diff numstat stream contains invalid line counts")
+        path = _validate_material_path(path_bytes)
+        if path in seen_paths:
+            raise ReviewEvidenceError(f"git diff numstat emitted duplicate path {path!r}")
+        seen_paths.add(path)
+        if path == excluded_path:
+            continue
+        stats[path] = (additions, deletions)
+
+    if len(expected_paths) != len(set(expected_paths)) or set(stats) != set(expected_paths):
+        raise ReviewEvidenceError("git diff numstat paths do not match the exact material path set")
+    return MaterialDiffSummary(
+        files=len(expected_paths),
+        additions=sum(additions for additions, _deletions in stats.values()),
+        deletions=sum(deletions for _additions, deletions in stats.values()),
+    )
+
+
 def compute_material_manifest(
     repo_root: Path,
     *,
@@ -779,6 +862,26 @@ def compute_material_manifest(
     )
     excluded_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     entries = _parse_raw_diff(raw, excluded_path=excluded_path)
+    numstat = _run_git(
+        root,
+        [
+            "diff",
+            "--numstat",
+            "-z",
+            "--no-renames",
+            "--diff-algorithm=myers",
+            "--no-ext-diff",
+            "--no-textconv",
+            merge_base,
+            head_sha,
+            "--",
+        ],
+    )
+    diff_summary = _parse_material_numstat(
+        numstat,
+        excluded_path=excluded_path,
+        material_paths=(entry.path for entry in entries),
+    )
     identity = {
         "entries": [entry.as_dict() for entry in entries],
         "merge_base_sha": merge_base,
@@ -796,6 +899,7 @@ def compute_material_manifest(
         pr_number=pr_number,
         entries=entries,
         digest=digest,
+        diff_summary=diff_summary,
     )
 
 
@@ -1376,6 +1480,7 @@ def _validate_self_review_report_payload(
     material_head_sha: str,
     material_digest: str,
     material_paths: Iterable[str] | None = None,
+    material_diff_summary: MaterialDiffSummary | None = None,
 ) -> dict[str, Any]:
     expected_material_paths = None if material_paths is None else tuple(material_paths)
     if not isinstance(report, dict):
@@ -1403,6 +1508,22 @@ def _validate_self_review_report_payload(
         or not isinstance(scope, dict)
     ):
         raise ReviewEvidenceError("pulseplate-pr-review report contract is malformed")
+
+    if material_diff_summary is not None:
+        if not isinstance(material_diff_summary, MaterialDiffSummary):
+            raise ReviewEvidenceError("material diff summary evidence is malformed")
+        diff_summary = scope.get("diff_summary")
+        expected_diff_summary = material_diff_summary.as_dict()
+        if not isinstance(diff_summary, dict) or any(
+            not isinstance(diff_summary.get(key), int)
+            or isinstance(diff_summary.get(key), bool)
+            or diff_summary[key] < 0
+            or diff_summary[key] != expected_diff_summary[key]
+            for key in ("files", "additions", "deletions", "changed_lines")
+        ):
+            raise ReviewEvidenceError(
+                "pulseplate-pr-review diff summary does not match the exact material"
+            )
 
     severity_rank = {"note": 0, "minor": 1, "major": 2, "critical": 3}
     for finding in findings:
@@ -1644,6 +1765,11 @@ def ingest_repo_native_self_review_receipt(
     """Bind one executable pulseplate-pr-review report to exact material."""
 
     material_paths = tuple(entry.path for entry in material_manifest.entries)
+    material_diff_summary = material_manifest.diff_summary
+    if not isinstance(
+        material_diff_summary, MaterialDiffSummary
+    ) or material_diff_summary.files != len(material_paths):
+        raise ReviewEvidenceError("material manifest is missing Git-derived diff summary evidence")
     try:
         descriptor = os.open(
             report_path,
@@ -1671,6 +1797,7 @@ def ingest_repo_native_self_review_receipt(
         material_head_sha=material_manifest.head_ref_oid,
         material_digest=material_manifest.digest,
         material_paths=material_paths,
+        material_diff_summary=material_diff_summary,
     )
     receipt = {
         "actionable_findings_count": report["actionable_findings_count"],
@@ -1699,6 +1826,7 @@ def ingest_repo_native_self_review_receipt(
         material_head_sha=material_manifest.head_ref_oid,
         material_digest=material_manifest.digest,
         material_paths=material_paths,
+        material_diff_summary=material_diff_summary,
     )
     return receipt
 
@@ -1712,6 +1840,7 @@ def protected_trust_boundary_paths(material_paths: Iterable[str]) -> tuple[str, 
                 path
                 for path in material_paths
                 if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
+                or path in _CANONICAL_CODEOWNERS_PATHS
                 or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
                 or PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
                 or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
@@ -1946,6 +2075,7 @@ def _validate_repo_native_self_review_receipt(
     material_head_sha: str,
     material_digest: str,
     material_paths: Iterable[str] | None = None,
+    material_diff_summary: MaterialDiffSummary | None = None,
 ) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("self_review must be an object")
@@ -1986,6 +2116,7 @@ def _validate_repo_native_self_review_receipt(
         material_head_sha=material_head_sha,
         material_digest=material_digest,
         material_paths=material_paths,
+        material_diff_summary=material_diff_summary,
     )
     if (
         receipt["findings_count"] != report["findings_count"]
@@ -2371,6 +2502,7 @@ def validate_review_seal(
     seal: Any,
     *,
     material_paths: Iterable[str] | None = None,
+    material_diff_summary: MaterialDiffSummary | None = None,
 ) -> dict[str, Any]:
     """Validate the closed v1 embedded seal schema and return it unchanged."""
 
@@ -2445,6 +2577,7 @@ def validate_review_seal(
             material_head_sha=material["material_head_sha"],
             material_digest=material_digest,
             material_paths=material_paths,
+            material_diff_summary=material_diff_summary,
         )
     elif "self_review" in seal:
         raise ReviewEvidenceError(

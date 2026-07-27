@@ -143,6 +143,7 @@ _WORKFLOW_PATHS: Mapping[str, str] = {
     "Docker Build and Push": ".github/workflows/build.yml",
 }
 _TRUSTED_POLICY_ROOT_INPUTS = (
+    ".github/CODEOWNERS",
     ".github/actions/**",
     ".github/workflows/**",
     ".github/workflows/trusted_protected_pr_policy.yml",
@@ -698,7 +699,10 @@ def _required_contexts(material_paths: Sequence[str]) -> tuple[RequiredContext, 
         )
         for name in _BASE_REQUIRED_CONTEXTS
     }
-    run_security = build_risk_profile(tuple(material_paths)).run_security
+    protected_inventory = _protected_or_authority_paths(material_paths)
+    run_security = build_risk_profile(tuple(material_paths)).run_security or bool(
+        protected_inventory
+    )
     for name, (
         workflow_name,
         app_id,
@@ -1006,7 +1010,7 @@ def _validated_action_run(
     target: PullRequestTarget,
     token: str,
     cache: dict[int, dict[str, Any]],
-) -> tuple[str, int]:
+) -> tuple[str, int] | None:
     run_id = _actions_run_id(check.get("details_url"), target)
     if run_id not in cache:
         run = _api_request(
@@ -1017,6 +1021,13 @@ def _validated_action_run(
             raise ReviewEvidenceError("linked Actions run is malformed")
         cache[run_id] = run
     run = cache[run_id]
+    if run.get("id") != run_id:
+        raise ReviewEvidenceError(f"{required.name} linked Actions run identity is malformed")
+    event = run.get("event")
+    if not isinstance(event, str) or not event:
+        raise ReviewEvidenceError(f"{required.name} linked Actions run event is malformed")
+    if event != "pull_request":
+        return None
     pull_requests = run.get("pull_requests")
     if not isinstance(pull_requests, list):
         raise ReviewEvidenceError("linked Actions run PR binding is malformed")
@@ -1027,17 +1038,19 @@ def _validated_action_run(
         and item.get("number") == target.number
         and isinstance(item.get("head"), dict)
         and item["head"].get("sha") == target.head_sha
+        and isinstance(item.get("base"), dict)
+        and item["base"].get("ref") == target.base_ref
+        and item["base"].get("sha") == target.base_sha
     ]
     if (
-        run.get("id") != run_id
-        or run.get("event") != "pull_request"
-        or run.get("head_sha") != target.head_sha
+        run.get("head_sha") != target.head_sha
         or run.get("name") != required.workflow_name
         or run.get("path") != required.workflow_path
         or len(matching_prs) != 1
     ):
         raise ReviewEvidenceError(
-            f"{required.name} is not linked to an exact PR/head base-allowlisted Actions run"
+            f"{required.name} is not linked to an exact PR/base/head "
+            "base-allowlisted Actions run"
         )
     created_at = run.get("created_at")
     attempt = run.get("run_attempt")
@@ -1112,7 +1125,12 @@ def validate_required_checks(
                 token=token,
                 cache=run_cache,
             )
+            if ranking is None:
+                continue
             ranked.append((ranking, check))
+        if not ranked:
+            pending.append(f"{required.name}=missing")
+            continue
         newest_rank = max(rank for rank, _check in ranked)
         newest = [check for rank, check in ranked if rank == newest_rank]
         if len(newest) != 1:
@@ -1203,6 +1221,7 @@ def validate_protected_material(repo_root: Path, target: PullRequestTarget) -> t
     validate_review_seal(
         seal,
         material_paths=(entry.path for entry in sealed_manifest.entries),
+        material_diff_summary=manifest.diff_summary,
     )
     if (
         material["base_ref_oid"] != target.base_sha

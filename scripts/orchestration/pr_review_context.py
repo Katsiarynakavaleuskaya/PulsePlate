@@ -288,6 +288,7 @@ def collect_scope_diff(
                 "--numstat",
                 "-z",
                 "--no-renames",
+                "--diff-algorithm=myers",
                 "--no-ext-diff",
                 "--no-textconv",
                 f"{base_sha}..{head_sha}",

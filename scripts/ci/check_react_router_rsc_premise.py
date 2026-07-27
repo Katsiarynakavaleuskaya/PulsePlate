@@ -79,6 +79,7 @@ class _VisibleCharacters(list[str]):
         super().__init__()
         self._regex_prefix_context: deque[str] = deque(maxlen=_REGEX_PREFIX_CONTEXT_LIMIT)
         self._has_trailing_whitespace = False
+        self._ends_with_postfix_update_operator = False
 
     def append(self, character: str) -> None:
         """Append one source character and update bounded non-blank context."""
@@ -91,6 +92,7 @@ class _VisibleCharacters(list[str]):
             self._regex_prefix_context.append(" ")
         self._regex_prefix_context.append(character)
         self._has_trailing_whitespace = False
+        self._ends_with_postfix_update_operator = False
 
     def extend(self, characters: Iterable[str]) -> None:
         """Append source characters without bypassing context tracking."""
@@ -98,11 +100,23 @@ class _VisibleCharacters(list[str]):
         for character in characters:
             self.append(character)
 
+    def append_update_operator(self, operator: str, *, postfix: bool) -> None:
+        """Append one update token and retain whether it ended an expression."""
+
+        self.extend(operator)
+        self._ends_with_postfix_update_operator = postfix
+
     @property
     def regex_prefix_context(self) -> str:
         """Return the bounded suffix of visible source with whitespace stripped."""
 
         return "".join(self._regex_prefix_context)
+
+    @property
+    def ends_with_postfix_update_operator(self) -> bool:
+        """Return whether the last executable token was postfix ``++`` or ``--``."""
+
+        return self._ends_with_postfix_update_operator
 
 
 class PremiseScanError(RuntimeError):
@@ -447,6 +461,8 @@ def _ends_with_regex_prefix_keyword(prefix: str) -> bool:
 def _starts_regex_literal(visible: _VisibleCharacters) -> bool:
     """Distinguish a regex literal slash from division using bounded context."""
 
+    if visible.ends_with_postfix_update_operator:
+        return False
     prefix = visible.regex_prefix_context
     if not prefix:
         return True
@@ -560,6 +576,15 @@ def _source_analysis(
                 index += 1
             else:
                 raise PremiseScanError(f"unterminated block comment in {label}")
+            continue
+
+        if current in "+-" and following == current:
+            visible.append_update_operator(
+                current + following,
+                postfix=not _starts_regex_literal(visible),
+            )
+            code_buffer.extend((current, following))
+            index += 2
             continue
 
         if current == "/" and _starts_regex_literal(visible):

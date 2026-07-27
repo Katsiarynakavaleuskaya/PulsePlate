@@ -63,6 +63,7 @@ def test_collect_scope_diff_parses_numstat_lines(
     assert not warnings
     assert "-z" in captured_args
     assert "--no-renames" in captured_args
+    assert "--diff-algorithm=myers" in captured_args
     assert "--no-ext-diff" in captured_args
     assert "--no-textconv" in captured_args
     assert captured_args[-2:] == ["base..head", "--"]

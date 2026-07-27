@@ -860,6 +860,7 @@ def _validate_v1_seal(
     seal = validate_review_seal(
         seal,
         material_paths=(entry.path for entry in manifest.entries),
+        material_diff_summary=manifest.diff_summary,
     )
     material = seal["material"]
     if (

@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +20,7 @@ from scripts.ci import check_trusted_protected_pr_policy as policy
 from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
     RECEIPT_AUTHORITY,
+    MaterialDiffSummary,
     ReviewEvidenceError,
     build_provider_no_claim_pair,
     compute_material_manifest,
@@ -75,6 +77,7 @@ def _self_review_receipt(
     material_head_sha: str,
     material_digest: str,
     changed_files: tuple[str, ...],
+    material_diff_summary: dict[str, int],
 ) -> dict[str, Any]:
     report = {
         "actionable_findings_count": 0,
@@ -96,7 +99,7 @@ def _self_review_receipt(
         "schema_version": "2.0.0",
         "scope_reviewed": {
             "changed_files": list(changed_files),
-            "diff_summary": {"changed_lines": 0},
+            "diff_summary": material_diff_summary,
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
             "scoped_agents_md": ["AGENTS.md"],
@@ -130,6 +133,7 @@ def test_workflow_is_base_owned_read_only_and_never_checks_out_pr_code() -> None
     raw = WORKFLOW_PATH.read_text(encoding="utf-8")
     loaded = yaml.safe_load(raw)
     assert set(loaded[True]) == {"pull_request_target"}
+    assert loaded[True]["pull_request_target"]["branches"] == ["main"]
     assert loaded[True]["pull_request_target"]["types"] == [
         "opened",
         "reopened",
@@ -263,6 +267,7 @@ def _protected_repo_with_mapping(
         head_revision=material_head,
         material_digest=manifest.digest,
     )
+    assert manifest.diff_summary is not None
     seal = {
         "authority": RECEIPT_AUTHORITY,
         "code_review": review,
@@ -283,6 +288,7 @@ def _protected_repo_with_mapping(
             material_head_sha=material_head,
             material_digest=manifest.digest,
             changed_files=("scripts/ci/example.py",),
+            material_diff_summary=manifest.diff_summary.as_dict(),
         ),
     }
     mapping = repo / "docs/review/PR_42_FIXED_MAPPING.md"
@@ -320,6 +326,40 @@ def test_protected_material_positive_e2e_and_mapping_tamper(
     assert str(exc_info.value) == (
         "provider-neutral review no-claim receipt is malformed, stale, or escalating"
     )
+
+
+def test_protected_material_binds_seal_to_derived_diff_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, target, _material_head = _protected_repo_with_mapping(tmp_path)
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=target.base_sha,
+        head_ref_oid=target.head_sha,
+        pr_number=target.number,
+    )
+    assert manifest.diff_summary is not None
+    observed: list[MaterialDiffSummary | None] = []
+    validate_review_seal = policy.validate_review_seal
+
+    def validate_with_observation(
+        seal: Any,
+        *,
+        material_paths: Iterable[str] | None = None,
+        material_diff_summary: MaterialDiffSummary | None = None,
+    ) -> dict[str, Any]:
+        observed.append(material_diff_summary)
+        return validate_review_seal(
+            seal,
+            material_paths=material_paths,
+            material_diff_summary=material_diff_summary,
+        )
+
+    monkeypatch.setattr(policy, "validate_review_seal", validate_with_observation)
+
+    assert policy.validate_protected_material(repo, target) == ("scripts/ci/example.py",)
+    assert observed == [manifest.diff_summary]
 
 
 def test_protected_material_rejects_embedded_report_payload_tamper(
@@ -619,34 +659,76 @@ def _successful_check_api(
     *,
     material_paths: tuple[str, ...],
     tampered_workflow: str = "",
+    run_base_ref: str | None = None,
+    run_base_sha: str | None = None,
+    non_pull_request_sibling_for: str | None = None,
+    omit_pull_request_run_for: str | None = None,
+    pull_request_event: object = "pull_request",
+    run_payload_id_delta: int = 0,
 ) -> Any:
     required = policy._required_contexts(material_paths)
     checks: list[dict[str, Any]] = []
     runs: dict[int, dict[str, Any]] = {}
     for index, context in enumerate(required, start=1):
         run_id = 1000 + index
-        checks.append(
-            {
-                "app": {"id": 15368, "slug": "github-actions"},
-                "conclusion": "success",
-                "details_url": (
-                    f"https://github.com/{target.repository}/actions/runs/{run_id}/job/{run_id}"
-                ),
+        if context.name != omit_pull_request_run_for:
+            checks.append(
+                {
+                    "app": {"id": 15368, "slug": "github-actions"},
+                    "conclusion": "success",
+                    "details_url": (
+                        f"https://github.com/{target.repository}/actions/runs/{run_id}/job/"
+                        f"{run_id}"
+                    ),
+                    "head_sha": target.head_sha,
+                    "name": context.name,
+                    "status": "completed",
+                }
+            )
+            runs[run_id] = {
+                "created_at": f"2026-07-27T00:{index:02d}:00Z",
+                "event": pull_request_event,
                 "head_sha": target.head_sha,
-                "name": context.name,
-                "status": "completed",
+                "id": run_id + run_payload_id_delta,
+                "name": context.workflow_name,
+                "path": tampered_workflow or context.workflow_path,
+                "pull_requests": [
+                    {
+                        "base": {
+                            "ref": target.base_ref if run_base_ref is None else run_base_ref,
+                            "sha": target.base_sha if run_base_sha is None else run_base_sha,
+                        },
+                        "head": {"sha": target.head_sha},
+                        "number": target.number,
+                    }
+                ],
+                "run_attempt": 1,
             }
-        )
-        runs[run_id] = {
-            "created_at": f"2026-07-27T00:{index:02d}:00Z",
-            "event": "pull_request",
-            "head_sha": target.head_sha,
-            "id": run_id,
-            "name": context.workflow_name,
-            "path": tampered_workflow or context.workflow_path,
-            "pull_requests": [{"number": target.number, "head": {"sha": target.head_sha}}],
-            "run_attempt": 1,
-        }
+        if context.name == non_pull_request_sibling_for:
+            sibling_run_id = 2000 + index
+            checks.append(
+                {
+                    "app": {"id": 15368, "slug": "github-actions"},
+                    "conclusion": "success",
+                    "details_url": (
+                        f"https://github.com/{target.repository}/actions/runs/"
+                        f"{sibling_run_id}/job/{sibling_run_id}"
+                    ),
+                    "head_sha": target.head_sha,
+                    "name": context.name,
+                    "status": "completed",
+                }
+            )
+            runs[sibling_run_id] = {
+                "created_at": "2026-07-27T23:59:00Z",
+                "event": "workflow_dispatch",
+                "head_sha": "c" * 40,
+                "id": sibling_run_id,
+                "name": "Untrusted sibling workflow",
+                "path": ".github/workflows/untrusted-sibling.yml",
+                "pull_requests": "not-a-pull-request-binding",
+                "run_attempt": 99,
+            }
 
     def api(url: str, *, token: str) -> Any:
         del token
@@ -682,6 +764,103 @@ def test_current_head_checks_accept_exact_runs_and_reject_candidate_workflow(
         ),
     )
     with pytest.raises(ReviewEvidenceError, match="base-allowlisted"):
+        policy.validate_required_checks(target, token="opaque", material_paths=paths)
+
+
+def test_current_head_checks_ignore_non_pull_request_sibling_before_exact_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/example.py",)
+    monkeypatch.setattr(
+        policy,
+        "_api_request",
+        _successful_check_api(
+            target,
+            material_paths=paths,
+            non_pull_request_sibling_for="lint",
+        ),
+    )
+
+    policy.validate_required_checks(target, token="opaque", material_paths=paths)
+
+
+def test_current_head_checks_require_pr_run_when_only_non_pr_sibling_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/example.py",)
+    monkeypatch.setattr(
+        policy,
+        "_api_request",
+        _successful_check_api(
+            target,
+            material_paths=paths,
+            non_pull_request_sibling_for="lint",
+            omit_pull_request_run_for="lint",
+        ),
+    )
+
+    with pytest.raises(policy._ChecksPending, match=r"lint=missing"):
+        policy.validate_required_checks(target, token="opaque", material_paths=paths)
+
+
+@pytest.mark.parametrize(
+    ("pull_request_event", "run_payload_id_delta", "expected_error"),
+    (
+        (None, 0, "event is malformed"),
+        ("pull_request", 1, "identity is malformed"),
+    ),
+)
+def test_current_head_checks_reject_malformed_linked_run_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    pull_request_event: object,
+    run_payload_id_delta: int,
+    expected_error: str,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/example.py",)
+    monkeypatch.setattr(
+        policy,
+        "_api_request",
+        _successful_check_api(
+            target,
+            material_paths=paths,
+            pull_request_event=pull_request_event,
+            run_payload_id_delta=run_payload_id_delta,
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=expected_error):
+        policy.validate_required_checks(target, token="opaque", material_paths=paths)
+
+
+@pytest.mark.parametrize(
+    ("run_base_ref", "run_base_sha"),
+    (
+        ("release", "a" * 40),
+        ("main", "c" * 40),
+    ),
+)
+def test_current_head_checks_reject_run_bound_to_wrong_base(
+    monkeypatch: pytest.MonkeyPatch,
+    run_base_ref: str,
+    run_base_sha: str,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/example.py",)
+    monkeypatch.setattr(
+        policy,
+        "_api_request",
+        _successful_check_api(
+            target,
+            material_paths=paths,
+            run_base_ref=run_base_ref,
+            run_base_sha=run_base_sha,
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=r"exact PR/base/head"):
         policy.validate_required_checks(target, token="opaque", material_paths=paths)
 
 
@@ -1367,6 +1546,16 @@ def test_authority_graph_has_exact_required_context_inventory() -> None:
     )
 
 
+def test_codeowners_is_protected_authority_and_routes_privileged_security() -> None:
+    path = ".github/CODEOWNERS"
+    material_paths = (path,)
+
+    assert policy.protected_trust_boundary_paths(material_paths) == material_paths
+    assert path in policy._all_blob_authority_inputs(material_paths)
+    assert policy._protected_or_authority_paths(material_paths) == material_paths
+    assert "security" in {required.name for required in policy._required_contexts(material_paths)}
+
+
 def test_authority_graph_keeps_declarative_subjects_out_of_blanket_control_set() -> None:
     authority_inputs = {
         authority_input
@@ -1424,6 +1613,7 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "tests/conftest.py",
         "constraints.txt",
         "requirements-ci-lite.txt",
+        ".github/CODEOWNERS",
         ".github/workflows/trusted_protected_pr_policy.yml",
     ),
 )
@@ -1638,6 +1828,7 @@ def test_malformed_semantic_input_uses_terminal_rotation_token(tmp_path: Path) -
     "changed_path",
     (
         ".github/workflows/frontend-ci.yml",
+        ".github/CODEOWNERS",
         ".nvmrc",
         "app/__init__.py",
         "conftest.py",

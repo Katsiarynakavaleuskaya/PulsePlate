@@ -60,6 +60,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_mapping_only_closeout_successor,
     validate_review_seal,
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
@@ -697,6 +698,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         seal = validate_review_seal(
             seal,
             material_paths=(entry.path for entry in manifest.entries),
+            material_diff_summary=manifest.diff_summary,
         )
         if (
             material["merge_base_sha"] != manifest.merge_base_sha
@@ -717,6 +719,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     seal = validate_review_seal(
         seal,
         material_paths=(entry.path for entry in manifest.entries),
+        material_diff_summary=manifest.diff_summary,
     )
     material = seal["material"]
     if (
@@ -740,6 +743,12 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         )
         if code_review != expected_code_review:
             raise CloseoutError("provider-neutral review no-claim receipt is stale")
+        validate_mapping_only_closeout_successor(
+            REPO_ROOT,
+            material_head_sha=material_head.sha,
+            live_head_sha=snapshot.head_sha,
+            pr_number=pr_number,
+        )
     elif is_review_source_positive_response_receipt(code_review):
         response_manifest = compute_material_manifest(
             REPO_ROOT,

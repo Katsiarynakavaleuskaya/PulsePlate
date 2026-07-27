@@ -54,6 +54,7 @@ from scripts.orchestration.pr_review_evidence import (
     RECEIPT_AUTHORITY,
     SEAL_BEGIN,
     SEAL_END,
+    MaterialDiffSummary,
     MaterialManifest,
     ReviewEvidenceError,
     build_provider_no_claim_pair,
@@ -114,6 +115,8 @@ def _material_manifest(
     merge_base_sha: str = BASE_SHA,
     digest: str = DIGEST,
     paths: tuple[str, ...] = (),
+    additions: int = 0,
+    deletions: int = 0,
 ) -> MaterialManifest:
     return MaterialManifest(
         base_ref_oid=base_ref_oid,
@@ -132,6 +135,11 @@ def _material_manifest(
             for path in paths
         ),
         digest=digest,
+        diff_summary=MaterialDiffSummary(
+            files=len(paths),
+            additions=additions,
+            deletions=deletions,
+        ),
     )
 
 
@@ -2442,9 +2450,12 @@ def test_security_outage_override_scope_blocks_future_self_authorization(
     "path",
     (
         ".flake8",
+        ".github/CODEOWNERS",
         ".markdownlint.json",
         ".yamllint",
+        "CODEOWNERS",
         "docs/design/figma-manifest.json",
+        "docs/CODEOWNERS",
         "docs/telemetry/docker_image_baseline.production.json",
         "docs/telemetry/docker_image_budget.production.json",
         "pyproject.toml",
@@ -2461,6 +2472,12 @@ def test_security_outage_trust_boundary_covers_authority_inputs(path: str) -> No
             pr_number=42,
             material_paths=(path,),
         )
+
+
+def test_security_outage_trust_boundary_rejects_nested_noncanonical_codeowners() -> None:
+    path = ".github/config/CODEOWNERS"
+
+    assert evidence_module.protected_trust_boundary_paths((path,)) == ()
 
 
 def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> None:
@@ -3211,7 +3228,12 @@ def _self_review_report_payload(
         "schema_version": "2.0.0",
         "scope_reviewed": {
             "changed_files": list(changed_files),
-            "diff_summary": {"changed_lines": 0},
+            "diff_summary": {
+                "additions": 0,
+                "changed_lines": 0,
+                "deletions": 0,
+                "files": len(changed_files),
+            },
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
             "scoped_agents_md": ["AGENTS.md"],
@@ -3492,7 +3514,12 @@ def test_self_review_advisory_rejects_note_demotions(
         changed_files=("app/example.py",),
         findings=(finding,),
     )
-    report["scope_reviewed"]["diff_summary"] = {"changed_lines": 905}
+    report["scope_reviewed"]["diff_summary"] = {
+        "additions": 905,
+        "changed_lines": 905,
+        "deletions": 0,
+        "files": 1,
+    }
     report_path = tmp_path / "demoted-review.json"
     _write_json(report_path, report)
 
@@ -3502,6 +3529,7 @@ def test_self_review_advisory_rejects_note_demotions(
             material_manifest=_material_manifest(
                 HEAD_SHA,
                 paths=("app/example.py",),
+                additions=905,
             ),
         )
 
@@ -3603,6 +3631,26 @@ def test_real_large_diff_context_report_and_seal_bind_exact_material(
     parsed = parse_embedded_review_seal(render_embedded_review_seal(seal))
     assert parsed["self_review"]["findings_count"] == 1
     assert parsed["self_review"]["actionable_findings_count"] == 0
+
+    forged_report = json.loads(json.dumps(report))
+    forged_report["scope_reviewed"]["diff_summary"] = {
+        "additions": 0,
+        "changed_lines": 0,
+        "deletions": 0,
+        "files": 1,
+    }
+    forged_report["findings"] = []
+    forged_report["findings_count"] = 0
+    forged_report["actionable_findings_count"] = 0
+    _write_json(report_path, forged_report)
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="diff summary does not match the exact material",
+    ):
+        ingest_repo_native_self_review_receipt(
+            report_path,
+            material_manifest=manifest,
+        )
 
 
 def test_self_review_context_uses_merge_base_and_no_rename_material_paths(
@@ -4023,6 +4071,7 @@ def test_live_mapping_rejects_rehashed_wrong_report_paths(
     seal = _provider_no_claim_seal()
     self_review = seal["self_review"]
     self_review["report_payload"]["scope_reviewed"]["changed_files"] = ["wrong/path.py"]
+    self_review["report_payload"]["scope_reviewed"]["diff_summary"]["files"] = 1
     canonical_report = json.dumps(
         self_review["report_payload"],
         allow_nan=False,
@@ -4048,6 +4097,159 @@ def test_live_mapping_rejects_rehashed_wrong_report_paths(
             repository="owner/repo",
             pr_number=42,
             token=token,
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("files", "additions", "deletions", "changed_lines"),
+)
+@pytest.mark.parametrize("token", (None, "opaque"), ids=("tokenless", "authenticated"))
+def test_live_mapping_rejects_rehashed_wrong_report_diff_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    token: str | None,
+    field: str,
+) -> None:
+    seal = _provider_no_claim_seal()
+    self_review = seal["self_review"]
+    forged_summary = {
+        "additions": 0,
+        "changed_lines": 0,
+        "deletions": 0,
+        "files": 0,
+    }
+    forged_summary[field] = 1
+    self_review["report_payload"]["scope_reviewed"]["diff_summary"] = forged_summary
+    canonical_report = json.dumps(
+        self_review["report_payload"],
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    self_review["report_sha256"] = "sha256:" + hashlib.sha256(canonical_report).hexdigest()
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+    manifest = _material_manifest(HEAD_SHA)
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: manifest,
+    )
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="diff summary does not match the exact material",
+    ):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token=token,
+        )
+
+
+def test_authenticated_provider_no_claim_rejects_second_mapping_only_successor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+
+    material_path = repo / "src" / "policy.py"
+    material_path.parent.mkdir(parents=True)
+    material_path.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_head,
+        pr_number=42,
+    )
+    code_review, codex_security = build_provider_no_claim_pair(
+        base_revision=manifest.merge_base_sha,
+        head_revision=material_head,
+        material_digest=manifest.digest,
+    )
+    report = _self_review_report_payload(
+        changed_files=("src/policy.py",),
+        base_ref_oid=base_sha,
+        merge_base_sha=manifest.merge_base_sha,
+        material_head_sha=material_head,
+        material_digest=manifest.digest,
+    )
+    report["scope_reviewed"]["diff_summary"] = {
+        "additions": 1,
+        "changed_lines": 1,
+        "deletions": 0,
+        "files": 1,
+    }
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": codex_security,
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": manifest.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": manifest.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+        "self_review": _self_review_receipt(report),
+    }
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    artifact = _mapping_artifact_with_seal(seal)
+    mapping.write_text(artifact, encoding="utf-8")
+    first_mapping_head = _commit(repo, "mapping closeout")
+    mapping.write_text(artifact + "\n<!-- second mapping commit -->\n", encoding="utf-8")
+    second_mapping_head = _commit(repo, "second mapping-only closeout")
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=second_mapping_head,
+        commits=(
+            PrCommitEvidence(material_head, None),
+            PrCommitEvidence(first_mapping_head, None),
+            PrCommitEvidence(second_mapping_head, None),
+        ),
+    )
+
+    monkeypatch.setattr(closeout_module, "REPO_ROOT", repo)
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+
+    tokenless = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token=None,
+    )
+    assert tokenless["material"]["material_head_sha"] == material_head
+
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: second_mapping_head)
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_COMMIT),
+    )
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    with pytest.raises(ReviewEvidenceError, match="one mapping-only successor"):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
         )
 
 

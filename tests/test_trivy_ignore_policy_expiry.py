@@ -1422,6 +1422,55 @@ def test_javascript_regex_literals_do_not_confuse_quote_scanning(tmp_path: Path)
     assert guard.scan_repository(frontend_root) == ["src/regex.ts:react-server condition"]
 
 
+@pytest.mark.parametrize(
+    ("source_text", "expected"),
+    (
+        (
+            'let count = 0;\ncount++ / import("react-router").then('
+            "(router) => router.unstable_routeRSCServerRequest()) / 2;\n",
+            (
+                "src/postfix.mjs:react-router dynamic import",
+                "src/postfix.mjs:unstable_routeRSCServerRequest",
+            ),
+        ),
+        (
+            'let count = 1;\ncount-- / require("react-router").'
+            "unstable_matchRSCServerRequest() / 2;\n",
+            (
+                "src/postfix.mjs:react-router require",
+                "src/postfix.mjs:unstable_matchRSCServerRequest",
+            ),
+        ),
+    ),
+)
+def test_postfix_update_before_division_does_not_hide_runtime_surfaces(
+    tmp_path: Path,
+    source_text: str,
+    expected: tuple[str, ...],
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(frontend_root, "src/postfix.mjs", source_text)
+
+    assert guard.scan_repository(frontend_root) == list(expected)
+
+
+@pytest.mark.parametrize(
+    "source_text",
+    (
+        r'++ /import\("react-router"\).*unstable_routeRSCServerRequest/.lastIndex;',
+        r'-- /require\("react-router"\).*unstable_matchRSCServerRequest/.lastIndex;',
+    ),
+)
+def test_prefix_update_operators_preserve_real_regex_literals(
+    tmp_path: Path,
+    source_text: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(frontend_root, "src/prefix.mjs", source_text)
+
+    assert guard.scan_repository(frontend_root) == []
+
+
 def test_jsx_text_apostrophes_do_not_start_string_literals(tmp_path: Path) -> None:
     frontend_root = _write_frontend(tmp_path)
     _write_source(
