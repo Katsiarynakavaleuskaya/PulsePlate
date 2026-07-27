@@ -3236,7 +3236,7 @@ def _self_review_report_payload(
             },
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
-            "scoped_agents_md": ["AGENTS.md"],
+            "scoped_agents_md": evidence_module._applicable_scoped_agents(changed_files),
         },
         "warnings": [],
     }
@@ -3383,6 +3383,39 @@ def test_provider_no_claim_requires_exact_material_self_review(tmp_path: Path) -
     stale["self_review"]["material_head_sha"] = FIX_SHA
     with pytest.raises(ReviewEvidenceError, match="malformed or stale"):
         render_embedded_review_seal(stale)
+
+
+def test_self_review_scoped_agents_are_bound_to_exact_material_paths(
+    tmp_path: Path,
+) -> None:
+    changed_files = ("frontend/src/example.tsx",)
+    report = _self_review_report_payload(changed_files=changed_files)
+    assert report["scope_reviewed"]["scoped_agents_md"] == [
+        "AGENTS.md",
+        "frontend/AGENTS.md",
+    ]
+    report_path = tmp_path / "review.json"
+    _write_json(report_path, report)
+    manifest = _material_manifest(HEAD_SHA, paths=changed_files)
+
+    assert (
+        ingest_repo_native_self_review_receipt(
+            report_path,
+            material_manifest=manifest,
+        )["status"]
+        == "advisory_report_attached"
+    )
+
+    report["scope_reviewed"]["scoped_agents_md"] = ["AGENTS.md"]
+    _write_json(report_path, report)
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="scoped AGENTS.md coverage does not match the exact material paths",
+    ):
+        ingest_repo_native_self_review_receipt(
+            report_path,
+            material_manifest=manifest,
+        )
 
 
 def test_self_review_material_paths_are_materialized_at_validation_entry() -> None:
@@ -3556,6 +3589,7 @@ def test_real_large_diff_context_report_and_seal_bind_exact_material(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
     (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "app").mkdir()
@@ -3659,6 +3693,7 @@ def test_self_review_context_uses_merge_base_and_no_rename_material_paths(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
     (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     source = repo / "src" / "old.py"

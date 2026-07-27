@@ -1348,8 +1348,38 @@ def test_inline_module_scripts_in_html_are_scanned(tmp_path: Path) -> None:
     )
 
     assert guard.scan_repository(frontend_root) == [
+        "index.html:inline-classic-script[1]:unstable_matchRSCServerRequest",
         "index.html:inline-module-script[1]:react-router namespace import",
         "index.html:inline-module-script[1]:unstable_routeRSCServerRequest",
+    ]
+
+
+def test_executable_classic_inline_script_is_scanned_but_data_scripts_are_not(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "index.html",
+        "\n".join(
+            (
+                "<script>",
+                '  import("react-router").then('
+                "(router) => router.unstable_routeRSCServerRequest());",
+                "</script>",
+                '<script type="importmap">',
+                '  {"imports": {"router": "react-router/internal/react-server"}}',
+                "</script>",
+                '<script type="application/json">',
+                '  {"api": "unstable_matchRSCServerRequest"}',
+                "</script>",
+            )
+        ),
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "index.html:inline-classic-script[1]:react-router dynamic import",
+        "index.html:inline-classic-script[1]:unstable_routeRSCServerRequest",
     ]
 
 
@@ -1452,6 +1482,39 @@ def test_postfix_update_before_division_does_not_hide_runtime_surfaces(
     _write_source(frontend_root, "src/postfix.mjs", source_text)
 
     assert guard.scan_repository(frontend_root) == list(expected)
+
+
+@pytest.mark.parametrize("property_name", ("await", "return"))
+def test_keyword_named_property_before_division_does_not_hide_runtime_surfaces(
+    tmp_path: Path,
+    property_name: str,
+) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/property.mjs",
+        f'const ratio = obj.{property_name} / import("react-router").then('
+        "(router) => router.unstable_routeRSCServerRequest()) / 2;\n",
+    )
+
+    assert guard.scan_repository(frontend_root) == [
+        "src/property.mjs:react-router dynamic import",
+        "src/property.mjs:unstable_routeRSCServerRequest",
+    ]
+
+
+def test_rsc_template_interpolation_fails_closed(tmp_path: Path) -> None:
+    frontend_root = _write_frontend(tmp_path)
+    _write_source(
+        frontend_root,
+        "src/interpolation.mjs",
+        "const result = "
+        '`${import("react-router").then((router) => '
+        'router["unstable_" + "routeRSCServerRequest"]())}`;\n',
+    )
+
+    with pytest.raises(guard.PremiseScanError, match="RSC template interpolation"):
+        guard.scan_repository(frontend_root)
 
 
 @pytest.mark.parametrize(
@@ -1640,6 +1703,22 @@ def test_delegated_shell_build_script_ignores_comment_only_condition(
     )
 
     assert guard.scan_repository(frontend_root) == []
+
+
+def test_delegated_python_build_script_condition_fails_closed(
+    tmp_path: Path,
+) -> None:
+    frontend_root = _write_frontend(
+        tmp_path,
+        package_json={"scripts": {"build": "python3 scripts/build.py"}},
+    )
+    _write_source(
+        frontend_root,
+        "scripts/build.py",
+        'import os\nos.environ["NODE_OPTIONS"] = "--conditions=react-server"\n',
+    )
+
+    assert guard.scan_repository(frontend_root) == ["scripts/build.py:react-server condition"]
 
 
 @pytest.mark.parametrize(

@@ -58,6 +58,7 @@ _REGEX_PREFIX_CHARACTERS = frozenset("([{=,:;!?&|+-*%^~")
 _REGEX_PREFIX_KEYWORDS = ("await", "case", "delete", "return", "throw", "typeof", "void", "yield")
 _REGEX_PREFIX_CONTEXT_LIMIT = max(len(keyword) for keyword in _REGEX_PREFIX_KEYWORDS) + 1
 _SOURCE_IDENTIFIER_RE = re.compile(r"(?:[$_]|[^\W\d])(?:[$\w\u200c\u200d])*")
+_PYTHON_INTERPRETER_RE = re.compile(r"python(?:\d+(?:\.\d+)*)?\Z")
 _HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
 _JAVASCRIPT_SIMPLE_ESCAPES = {
     "0": "\0",
@@ -78,6 +79,27 @@ _SHELL_CONTROL_TOKENS = frozenset({"&", "&&", "(", ")", ";", "|", "||"})
 _SHELL_SOURCE_BUILTINS = frozenset({".", "source"})
 _SHELL_UNSUPPORTED_COMMANDS = frozenset({"!", "{", "cd", "command", "env", "exec", "if"})
 _SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_CLASSIC_JAVASCRIPT_MIME_TYPES = frozenset(
+    {
+        "application/ecmascript",
+        "application/javascript",
+        "application/x-ecmascript",
+        "application/x-javascript",
+        "text/ecmascript",
+        "text/javascript",
+        "text/jscript",
+        "text/livescript",
+        "text/x-ecmascript",
+        "text/x-javascript",
+    }
+)
+_TEMPLATE_INTERPOLATION_RSC_FRAGMENTS = (
+    "@vitejs/plugin-rsc",
+    "RSCServerRequest",
+    "react-router",
+    "react-server",
+    "unstable_",
+)
 
 
 class _VisibleCharacters(list[str]):
@@ -157,8 +179,10 @@ class _InlineModuleScriptParser(HTMLParser):
         self._label = label
         self._inside_script = False
         self._is_module = False
+        self._is_classic = False
         self._body: list[str] = []
         self.module_scripts: list[str] = []
+        self.classic_scripts: list[str] = []
 
     def handle_starttag(
         self,
@@ -170,12 +194,19 @@ class _InlineModuleScriptParser(HTMLParser):
         if self._inside_script:
             raise PremiseScanError(f"nested script element in {self._label}")
         self._inside_script = True
-        has_module_type = any(
-            name.lower() == "type" and value is not None and value.strip().lower() == "module"
-            for name, value in attrs
+        script_type = next(
+            (
+                (value or "").strip().lower().partition(";")[0]
+                for name, value in attrs
+                if name.lower() == "type"
+            ),
+            "",
         )
         has_source = any(name.lower() == "src" for name, _value in attrs)
-        self._is_module = has_module_type and not has_source
+        self._is_module = script_type == "module" and not has_source
+        self._is_classic = not has_source and (
+            not script_type or script_type in _CLASSIC_JAVASCRIPT_MIME_TYPES
+        )
         self._body = []
 
     def handle_startendtag(
@@ -188,7 +219,7 @@ class _InlineModuleScriptParser(HTMLParser):
             self.set_cdata_mode("script")
 
     def handle_data(self, data: str) -> None:
-        if self._inside_script and self._is_module:
+        if self._inside_script and (self._is_module or self._is_classic):
             self._body.append(data)
 
     def handle_endtag(self, tag: str) -> None:
@@ -196,17 +227,20 @@ class _InlineModuleScriptParser(HTMLParser):
             return
         if self._is_module:
             self.module_scripts.append("".join(self._body))
+        elif self._is_classic:
+            self.classic_scripts.append("".join(self._body))
         self._inside_script = False
         self._is_module = False
+        self._is_classic = False
         self._body = []
 
-    def finish(self) -> tuple[str, ...]:
+    def finish(self) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """Finish parsing and reject an unterminated script element."""
 
         self.close()
         if self._inside_script:
             raise PremiseScanError(f"unterminated script element in {self._label}")
-        return tuple(self.module_scripts)
+        return tuple(self.module_scripts), tuple(self.classic_scripts)
 
 
 def _relative_label(path: Path, root: Path) -> str:
@@ -405,7 +439,7 @@ def _delegated_shell_script_paths(
     root: Path,
     label: str,
 ) -> tuple[Path, ...]:
-    """Resolve shell scripts directly delegated from one package command."""
+    """Resolve local scripts directly delegated from one package command."""
 
     if "\r" in command or "\n" in command:
         raise PremiseScanError(f"{label} uses an unsupported multiline shell command")
@@ -440,6 +474,16 @@ def _delegated_shell_script_paths(
         if not arguments:
             raise PremiseScanError(f"{label} has a source command without a script path")
         append_local_path(arguments[0])
+        return tuple(paths)
+    if _PYTHON_INTERPRETER_RE.fullmatch(Path(executable).name):
+        for candidate in arguments:
+            if candidate.startswith("-"):
+                continue
+            path = Path(candidate)
+            if path.suffix != ".py" or ".." in path.parts:
+                return ()
+            append_local_path(candidate)
+            break
         return tuple(paths)
     if Path(executable).name not in _SHELL_INTERPRETERS:
         if "/" in executable:
@@ -477,8 +521,8 @@ def _delegated_shell_script_paths(
     return tuple(paths)
 
 
-def _scan_shell_script_file(path: Path, root: Path) -> list[str]:
-    """Return RSC condition diagnostics from one delegated shell script."""
+def _scan_delegated_script_file(path: Path, root: Path) -> list[str]:
+    """Return RSC condition diagnostics from one delegated local script."""
 
     label = _relative_label(path, root)
     text = _validate_candidate(path, root)
@@ -537,7 +581,7 @@ def _scan_package_metadata(root: Path) -> list[str]:
             root=root,
             label=label,
         ):
-            violations.extend(_scan_shell_script_file(delegated_path, root))
+            violations.extend(_scan_delegated_script_file(delegated_path, root))
 
     package_lock = _load_json_object(root / "package-lock.json", root)
     for section in ("packages", "dependencies"):
@@ -583,7 +627,31 @@ def _scan_package_metadata(root: Path) -> list[str]:
 def _ends_with_regex_prefix_keyword(prefix: str) -> bool:
     """Return whether a source prefix permits a following regex literal."""
 
-    return any(re.search(rf"\b{keyword}$", prefix) for keyword in _REGEX_PREFIX_KEYWORDS)
+    for keyword in _REGEX_PREFIX_KEYWORDS:
+        if not prefix.endswith(keyword):
+            continue
+        preceding_index = len(prefix) - len(keyword) - 1
+        if preceding_index < 0:
+            return True
+        preceding = prefix[preceding_index]
+        if preceding == "." or preceding in "$_\u200c\u200d" or preceding.isalnum():
+            continue
+        return True
+    return False
+
+
+def _has_unescaped_template_interpolation(value: str) -> bool:
+    """Return whether a template body contains an executable ``${...}``."""
+
+    index = 0
+    while index < len(value) - 1:
+        if value[index] == "\\":
+            index += 2
+            continue
+        if value[index : index + 2] == "${":
+            return True
+        index += 1
+    return False
 
 
 def _starts_regex_literal(visible: _VisibleCharacters) -> bool:
@@ -763,6 +831,15 @@ def _source_analysis(
                 continue
             if character == quote:
                 literal_value = "".join(literal)
+                if (
+                    quote == "`"
+                    and _has_unescaped_template_interpolation(literal_value)
+                    and any(
+                        fragment in _decode_javascript_source_escapes(literal_value)
+                        for fragment in _TEMPLATE_INTERPOLATION_RSC_FRAGMENTS
+                    )
+                ):
+                    raise PremiseScanError(f"RSC template interpolation in {label}")
                 literals.append(literal_value)
                 tokens.append(
                     _SourceToken(
@@ -988,17 +1065,25 @@ def _scan_source_file(path: Path, root: Path) -> list[str]:
 
 
 def _scan_html_file(path: Path, root: Path) -> list[str]:
-    """Return RSC diagnostics from executable inline module scripts."""
+    """Return RSC diagnostics from executable inline scripts."""
 
     label = _relative_label(path, root)
     parser = _InlineModuleScriptParser(label=label)
     parser.feed(_validate_candidate(path, root))
     violations: list[str] = []
-    for index, script in enumerate(parser.finish(), start=1):
+    module_scripts, classic_scripts = parser.finish()
+    for index, script in enumerate(module_scripts, start=1):
         violations.extend(
             _scan_source_text(
                 script,
                 label=f"{label}:inline-module-script[{index}]",
+            )
+        )
+    for index, script in enumerate(classic_scripts, start=1):
+        violations.extend(
+            _scan_source_text(
+                script,
+                label=f"{label}:inline-classic-script[{index}]",
             )
         )
     return violations

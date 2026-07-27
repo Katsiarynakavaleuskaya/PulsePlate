@@ -60,6 +60,7 @@ SELF_REVIEW_ACTIONABLE_SEVERITIES = frozenset({"critical", "major", "minor"})
 SELF_REVIEW_NONBLOCKING_NOTE_CODES = frozenset({"large_diff_review_risk"})
 SELF_REVIEW_LARGE_DIFF_CHANGED_LINES = 300
 SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES = 800
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 SELF_REVIEW_DIAGNOSTIC_MIN_SEVERITY = {
     "blocking_review_source": "minor",
     "context_warning": "minor",
@@ -1472,6 +1473,25 @@ def is_provider_no_claim_security_receipt(receipt: Any) -> bool:
     )
 
 
+def _applicable_scoped_agents(material_paths: Iterable[str]) -> list[str]:
+    """Return every checked-in AGENTS.md ancestor for the exact material paths."""
+
+    discovered: set[str] = set()
+    for raw_path in material_paths:
+        path = _validate_material_path(raw_path.encode("utf-8"))
+        current = (_REPO_ROOT / PurePosixPath(path)).parent
+        while True:
+            candidate = current / "AGENTS.md"
+            if candidate.is_file():
+                discovered.add(candidate.relative_to(_REPO_ROOT).as_posix())
+            if current == _REPO_ROOT:
+                break
+            current = current.parent
+    if (_REPO_ROOT / "AGENTS.md").is_file():
+        discovered.add("AGENTS.md")
+    return sorted(discovered)
+
+
 def _validate_self_review_report_payload(
     report: Any,
     *,
@@ -1748,6 +1768,13 @@ def _validate_self_review_report_payload(
     ):
         raise ReviewEvidenceError(
             "pulseplate-pr-review report does not cover the exact material path set"
+        )
+    if expected_material_paths is not None and sorted(scoped_agents) != (
+        _applicable_scoped_agents(expected_material_paths)
+    ):
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review scoped AGENTS.md coverage does not match "
+            "the exact material paths"
         )
     return report
 

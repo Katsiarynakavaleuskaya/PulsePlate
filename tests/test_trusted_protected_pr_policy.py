@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 from scripts.ci import check_trusted_protected_pr_policy as policy
+from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
     RECEIPT_AUTHORITY,
@@ -102,7 +103,7 @@ def _self_review_receipt(
             "diff_summary": material_diff_summary,
             "fixed_mapping_errors": [],
             "pr_metadata_available": True,
-            "scoped_agents_md": ["AGENTS.md"],
+            "scoped_agents_md": evidence_module._applicable_scoped_agents(changed_files),
         },
         "warnings": [],
     }
@@ -663,24 +664,29 @@ def _successful_check_api(
     run_base_sha: str | None = None,
     non_pull_request_sibling_for: str | None = None,
     omit_pull_request_run_for: str | None = None,
+    rerun_for: str | None = None,
     pull_request_event: object = "pull_request",
     run_payload_id_delta: int = 0,
 ) -> Any:
     required = policy._required_contexts(material_paths)
     checks: list[dict[str, Any]] = []
     runs: dict[int, dict[str, Any]] = {}
+    jobs: dict[int, dict[str, Any]] = {}
     for index, context in enumerate(required, start=1):
         run_id = 1000 + index
+        job_id = 2000 + index
         if context.name != omit_pull_request_run_for:
+            run_attempt = 2 if context.name == rerun_for else 1
             checks.append(
                 {
                     "app": {"id": 15368, "slug": "github-actions"},
                     "conclusion": "success",
                     "details_url": (
                         f"https://github.com/{target.repository}/actions/runs/{run_id}/job/"
-                        f"{run_id}"
+                        f"{job_id}"
                     ),
                     "head_sha": target.head_sha,
+                    "id": job_id,
                     "name": context.name,
                     "status": "completed",
                 }
@@ -702,19 +708,54 @@ def _successful_check_api(
                         "number": target.number,
                     }
                 ],
-                "run_attempt": 1,
+                "run_attempt": run_attempt,
             }
+            jobs[job_id] = {
+                "check_run_url": (
+                    f"https://api.github.com/repos/{target.repository}/check-runs/{job_id}"
+                ),
+                "id": job_id,
+                "run_attempt": run_attempt,
+                "run_id": run_id,
+            }
+            if context.name == rerun_for:
+                old_job_id = 4000 + index
+                checks.append(
+                    {
+                        "app": {"id": 15368, "slug": "github-actions"},
+                        "conclusion": "success",
+                        "details_url": (
+                            f"https://github.com/{target.repository}/actions/runs/"
+                            f"{run_id}/job/{old_job_id}"
+                        ),
+                        "head_sha": target.head_sha,
+                        "id": old_job_id,
+                        "name": context.name,
+                        "status": "completed",
+                    }
+                )
+                jobs[old_job_id] = {
+                    "check_run_url": (
+                        f"https://api.github.com/repos/{target.repository}/check-runs/"
+                        f"{old_job_id}"
+                    ),
+                    "id": old_job_id,
+                    "run_attempt": 1,
+                    "run_id": run_id,
+                }
         if context.name == non_pull_request_sibling_for:
             sibling_run_id = 2000 + index
+            sibling_job_id = 3000 + index
             checks.append(
                 {
                     "app": {"id": 15368, "slug": "github-actions"},
                     "conclusion": "success",
                     "details_url": (
                         f"https://github.com/{target.repository}/actions/runs/"
-                        f"{sibling_run_id}/job/{sibling_run_id}"
+                        f"{sibling_run_id}/job/{sibling_job_id}"
                     ),
                     "head_sha": target.head_sha,
+                    "id": sibling_job_id,
                     "name": context.name,
                     "status": "completed",
                 }
@@ -736,8 +777,10 @@ def _successful_check_api(
             return {"check_runs": checks}
         if "/statuses?" in url:
             return []
-        run_id = int(url.rsplit("/", maxsplit=1)[-1])
-        return runs[run_id]
+        item_id = int(url.rsplit("/", maxsplit=1)[-1])
+        if "/actions/jobs/" in url:
+            return jobs[item_id]
+        return runs[item_id]
 
     return api
 
@@ -779,6 +822,24 @@ def test_current_head_checks_ignore_non_pull_request_sibling_before_exact_valida
             target,
             material_paths=paths,
             non_pull_request_sibling_for="lint",
+        ),
+    )
+
+    policy.validate_required_checks(target, token="opaque", material_paths=paths)
+
+
+def test_current_head_checks_rank_same_run_jobs_by_their_own_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = policy.PullRequestTarget("owner/repo", 42, "a" * 40, "b" * 40)
+    paths = ("scripts/ci/example.py",)
+    monkeypatch.setattr(
+        policy,
+        "_api_request",
+        _successful_check_api(
+            target,
+            material_paths=paths,
+            rerun_for="lint",
         ),
     )
 
@@ -947,6 +1008,9 @@ def test_check_poll_reuses_actions_runs_but_refreshes_check_and_status_lists(
     action_run_calls = [url for url in api_calls if "/actions/runs/" in url]
     assert len(action_run_calls) == len(required)
     assert len(set(action_run_calls)) == len(required)
+    action_job_calls = [url for url in api_calls if "/actions/jobs/" in url]
+    assert len(action_job_calls) == len(required)
+    assert len(set(action_job_calls)) == len(required)
     assert identities == [1, 1]
     assert sleeps == [15.0]
 
@@ -1496,6 +1560,19 @@ def test_authority_graph_has_exact_required_context_inventory() -> None:
     assert set(policy._CONTEXT_AUTHORITY_PROJECTIONS) <= expected_contexts
     assert policy._CONTEXT_AUTHORITY_PROJECTIONS["lint"] == (
         policy.AuthorityProjection(
+            path="package.json",
+            format="json",
+            selectors=(
+                ("scripts", "preinstall"),
+                ("scripts", "install"),
+                ("scripts", "postinstall"),
+                ("scripts", "prepublish"),
+                ("scripts", "preprepare"),
+                ("scripts", "prepare"),
+                ("scripts", "postprepare"),
+            ),
+        ),
+        policy.AuthorityProjection(
             path="frontend/package.json",
             format="json",
             selectors=(
@@ -1614,6 +1691,9 @@ def test_declarative_or_unreferenced_subject_does_not_request_authority_rotation
         "tests/conftest.py",
         "constraints.txt",
         "requirements-ci-lite.txt",
+        "binding.gyp",
+        "sitecustomize.py",
+        "usercustomize.py",
         ".github/CODEOWNERS",
         ".github/workflows/trusted_protected_pr_policy.yml",
     ),
@@ -1639,9 +1719,10 @@ def _frontend_package_repo(
     *,
     base_payload: dict[str, Any],
     head_payload: dict[str, Any],
+    package_path: str = "frontend/package.json",
 ) -> tuple[Path, policy.PullRequestTarget]:
-    repo = tmp_path / "frontend-package"
-    package = repo / "frontend/package.json"
+    repo = tmp_path / package_path.replace("/", "-").replace(".", "_")
+    package = repo / package_path
     package.parent.mkdir(parents=True)
     _git(repo, "init")
     _git(repo, "config", "user.email", "test@example.com")
@@ -1654,6 +1735,45 @@ def _frontend_package_repo(
     _git(repo, "commit", "-am", "head")
     head = _git(repo, "rev-parse", "HEAD")
     return repo, policy.PullRequestTarget("owner/repo", 42, base, head)
+
+
+def test_root_package_dependency_only_change_remains_a_subject(tmp_path: Path) -> None:
+    repo, target = _frontend_package_repo(
+        tmp_path,
+        base_payload={"dependencies": {"a": "1"}},
+        head_payload={"dependencies": {"a": "2"}},
+        package_path="package.json",
+    )
+    policy.validate_trust_root_unchanged(
+        repo,
+        target,
+        material_paths=("package.json",),
+    )
+
+
+@pytest.mark.parametrize("lifecycle_script", ("preinstall", "prepare"))
+def test_root_package_install_lifecycle_requires_authority_rotation(
+    tmp_path: Path,
+    lifecycle_script: str,
+) -> None:
+    repo, target = _frontend_package_repo(
+        tmp_path,
+        base_payload={"dependencies": {"a": "1"}},
+        head_payload={
+            "dependencies": {"a": "1"},
+            "scripts": {lifecycle_script: "node candidate-controlled.js"},
+        },
+        package_path="package.json",
+    )
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="AUTHORITY_ROTATION_REQUIRED.*package.json",
+    ):
+        policy.validate_trust_root_unchanged(
+            repo,
+            target,
+            material_paths=("package.json",),
+        )
 
 
 def test_frontend_dependency_only_change_remains_a_subject(tmp_path: Path) -> None:

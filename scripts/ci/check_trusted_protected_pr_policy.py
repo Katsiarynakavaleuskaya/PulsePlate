@@ -148,6 +148,7 @@ _TRUSTED_POLICY_ROOT_INPUTS = (
     ".github/actions/**",
     ".github/workflows/**",
     ".github/workflows/trusted_protected_pr_policy.yml",
+    "binding.gyp",
     "scripts/ci/check_current_head_pr_checks.py",
     "scripts/ci/check_pr_merge_readiness.py",
     "scripts/ci/check_trusted_protected_pr_policy.py",
@@ -157,6 +158,8 @@ _TRUSTED_POLICY_ROOT_INPUTS = (
     "scripts/orchestration/pr_review_evidence.py",
     "scripts/orchestration/review_mapping_artifact.py",
     "scripts/orchestration/review_source_status.py",
+    "sitecustomize.py",
+    "usercustomize.py",
 )
 _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
     "Determine changed paths (for conditional jobs)": (
@@ -320,6 +323,19 @@ _CONTEXT_AUTHORITY_INPUTS: Mapping[str, tuple[str, ...]] = {
 }
 _CONTEXT_AUTHORITY_PROJECTIONS: Mapping[str, tuple[AuthorityProjection, ...]] = {
     "lint": (
+        AuthorityProjection(
+            path="package.json",
+            format="json",
+            selectors=(
+                ("scripts", "preinstall"),
+                ("scripts", "install"),
+                ("scripts", "postinstall"),
+                ("scripts", "prepublish"),
+                ("scripts", "preprepare"),
+                ("scripts", "prepare"),
+                ("scripts", "postprepare"),
+            ),
+        ),
         AuthorityProjection(
             path="frontend/package.json",
             format="json",
@@ -987,7 +1003,10 @@ def _paged_api_list(
     raise ReviewEvidenceError("GitHub check/status pagination exceeded limit")
 
 
-def _actions_run_id(details_url: object, target: PullRequestTarget) -> int:
+def _actions_run_and_job_ids(
+    details_url: object,
+    target: PullRequestTarget,
+) -> tuple[int, int]:
     if not isinstance(details_url, str):
         raise ReviewEvidenceError("check run details URL is missing")
     parsed = urllib.parse.urlparse(details_url)
@@ -998,10 +1017,17 @@ def _actions_run_id(details_url: object, target: PullRequestTarget) -> int:
         or not parsed.path.startswith(expected_prefix)
     ):
         raise ReviewEvidenceError("check run is not linked to this repository Actions run")
-    tail = parsed.path[len(expected_prefix) :].split("/", maxsplit=1)[0]
-    if not tail.isdigit() or int(tail) <= 0:
-        raise ReviewEvidenceError("check run Actions run id is malformed")
-    return int(tail)
+    tail = parsed.path[len(expected_prefix) :].split("/")
+    if (
+        len(tail) != 3
+        or not tail[0].isdigit()
+        or int(tail[0]) <= 0
+        or tail[1] != "job"
+        or not tail[2].isdigit()
+        or int(tail[2]) <= 0
+    ):
+        raise ReviewEvidenceError("check run Actions run/job identity is malformed")
+    return int(tail[0]), int(tail[2])
 
 
 def _validated_action_run(
@@ -1010,18 +1036,19 @@ def _validated_action_run(
     required: RequiredContext,
     target: PullRequestTarget,
     token: str,
-    cache: dict[int, dict[str, Any]],
+    run_cache: dict[int, dict[str, Any]],
+    job_cache: dict[int, dict[str, Any]],
 ) -> tuple[str, int] | None:
-    run_id = _actions_run_id(check.get("details_url"), target)
-    if run_id not in cache:
+    run_id, job_id = _actions_run_and_job_ids(check.get("details_url"), target)
+    if run_id not in run_cache:
         run = _api_request(
             _repo_api(target, f"/actions/runs/{run_id}"),
             token=token,
         )
         if not isinstance(run, dict):
             raise ReviewEvidenceError("linked Actions run is malformed")
-        cache[run_id] = run
-    run = cache[run_id]
+        run_cache[run_id] = run
+    run = run_cache[run_id]
     if run.get("id") != run_id:
         raise ReviewEvidenceError(f"{required.name} linked Actions run identity is malformed")
     event = run.get("event")
@@ -1054,15 +1081,31 @@ def _validated_action_run(
             "base-allowlisted Actions run"
         )
     created_at = run.get("created_at")
-    attempt = run.get("run_attempt")
+    if not isinstance(created_at, str) or not created_at:
+        raise ReviewEvidenceError(f"{required.name} linked Actions chronology is malformed")
+    if job_id not in job_cache:
+        job = _api_request(
+            _repo_api(target, f"/actions/jobs/{job_id}"),
+            token=token,
+        )
+        if not isinstance(job, dict):
+            raise ReviewEvidenceError("linked Actions job is malformed")
+        job_cache[job_id] = job
+    job = job_cache[job_id]
+    check_id = check.get("id")
+    attempt = job.get("run_attempt")
     if (
-        not isinstance(created_at, str)
-        or not created_at
+        not isinstance(check_id, int)
+        or isinstance(check_id, bool)
+        or check_id <= 0
+        or job.get("id") != job_id
+        or job.get("run_id") != run_id
+        or job.get("check_run_url") != _repo_api(target, f"/check-runs/{check_id}")
         or not isinstance(attempt, int)
         or isinstance(attempt, bool)
         or attempt <= 0
     ):
-        raise ReviewEvidenceError(f"{required.name} linked Actions chronology is malformed")
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
     return created_at, attempt
 
 
@@ -1072,6 +1115,7 @@ def validate_required_checks(
     token: str,
     material_paths: Sequence[str],
     actions_run_cache: dict[int, dict[str, Any]] | None = None,
+    actions_job_cache: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """Require trusted, unambiguous current-head GitHub Actions successes."""
 
@@ -1104,6 +1148,7 @@ def validate_required_checks(
 
     pending: list[str] = []
     run_cache = actions_run_cache if actions_run_cache is not None else {}
+    job_cache = actions_job_cache if actions_job_cache is not None else {}
     for required in required_contexts:
         candidates = [check for check in checks if check.get("name") == required.name]
         if not candidates:
@@ -1124,7 +1169,8 @@ def validate_required_checks(
                 required=required,
                 target=target,
                 token=token,
-                cache=run_cache,
+                run_cache=run_cache,
+                job_cache=job_cache,
             )
             if ranking is None:
                 continue
@@ -1164,6 +1210,7 @@ def poll_required_checks(
     validate_live_identity(repo_root, target, token=token)
     deadline = time.monotonic() + timeout_seconds
     actions_run_cache: dict[int, dict[str, Any]] = {}
+    actions_job_cache: dict[int, dict[str, Any]] = {}
     poll_interval = float(_POLL_INTERVAL_SECONDS)
     while True:
         try:
@@ -1172,6 +1219,7 @@ def poll_required_checks(
                 token=token,
                 material_paths=material_paths,
                 actions_run_cache=actions_run_cache,
+                actions_job_cache=actions_job_cache,
             )
             break
         except _ChecksPending as exc:
