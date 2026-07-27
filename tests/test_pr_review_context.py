@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from scripts.orchestration import pr_review_context as review_ctx
+from scripts.orchestration.pr_review_evidence import MaterialEntry, MaterialManifest
 
 
 def test_collect_fixed_mapping_state_reports_missing_artifact(tmp_path: Path) -> None:
@@ -349,29 +350,49 @@ def test_collect_review_context_checks_mapping_presence_against_raw_pr_diff(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(
-        review_ctx,
-        "collect_pr_metadata",
-        lambda **kwargs: (
-            {"number": 2028, "base_sha": "base-sha", "head_sha": "head-sha"},
-            [],
-        ),
-    )
-    monkeypatch.setattr(
-        review_ctx,
-        "compute_material_manifest",
-        lambda *args, **kwargs: SimpleNamespace(
+    def fake_collect_pr_metadata(
+        *,
+        repo: str,
+        pr_number: int,
+        repo_root: Path,
+    ) -> tuple[dict[str, Any], list[str]]:
+        del repo, pr_number, repo_root
+        return {"number": 2028, "base_sha": "base-sha", "head_sha": "head-sha"}, []
+
+    def fake_compute_material_manifest(
+        repo_root: Path,
+        *,
+        base_ref_oid: str,
+        head_ref_oid: str,
+        pr_number: int,
+    ) -> MaterialManifest:
+        del repo_root, base_ref_oid, head_ref_oid, pr_number
+        return MaterialManifest(
             base_ref_oid="base-sha",
             head_ref_oid="head-sha",
             merge_base_sha="merge-base-sha",
-            entries=(SimpleNamespace(path="scripts/orchestration/pr_review_context.py"),),
+            pr_number=2028,
+            entries=(
+                MaterialEntry(
+                    status="M",
+                    path="scripts/orchestration/pr_review_context.py",
+                    base_mode="100644",
+                    base_blob_oid="a" * 40,
+                    head_mode="100644",
+                    head_blob_oid="b" * 40,
+                ),
+            ),
             digest="sha256:" + "a" * 64,
-        ),
-    )
-    monkeypatch.setattr(
-        review_ctx,
-        "collect_scope_diff",
-        lambda **kwargs: (
+        )
+
+    def fake_collect_scope_diff(
+        *,
+        repo_root: Path,
+        base_sha: str | None,
+        head_sha: str | None,
+    ) -> tuple[list[review_ctx.DiffStats], dict[str, Any], list[str]]:
+        del repo_root, base_sha, head_sha
+        return (
             [
                 review_ctx.DiffStats(
                     path="scripts/orchestration/pr_review_context.py",
@@ -382,12 +403,31 @@ def test_collect_review_context_checks_mapping_presence_against_raw_pr_diff(
             ],
             {"files": 2, "additions": 8, "deletions": 2, "changed_lines": 10},
             [],
-        ),
+        )
+
+    def fake_collect_local_head_sha(repo_root: Path) -> tuple[str, list[str]]:
+        del repo_root
+        return "head-sha", []
+
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_pr_metadata",
+        fake_collect_pr_metadata,
+    )
+    monkeypatch.setattr(
+        review_ctx,
+        "compute_material_manifest",
+        fake_compute_material_manifest,
+    )
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        fake_collect_scope_diff,
     )
     monkeypatch.setattr(
         review_ctx,
         "collect_local_head_sha",
-        lambda repo_root: ("head-sha", []),
+        fake_collect_local_head_sha,
     )
 
     context = review_ctx.collect_review_context(
