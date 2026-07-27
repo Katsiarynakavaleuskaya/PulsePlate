@@ -23,7 +23,7 @@ import urllib.request
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -62,12 +62,20 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     validated_duplicate_reply_urls,
 )
 from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
+    DOCKER_SURFACE_PREFIXES,
     _fetch_pr_metadata as _fetch_current_head_pr_metadata,
     _latest_entries as _latest_check_entries,
     _normalize_node as _normalize_check_node,
+    _path_touches_any,
     _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
 )
 from scripts.ci.ci_risk_profile import build_risk_profile  # noqa: E402
+
+if TYPE_CHECKING:
+    from scripts.ci.check_trusted_protected_pr_policy import (
+        PullRequestTarget as _TrustedPullRequestTarget,
+        RequiredContext as _TrustedRequiredContext,
+    )
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
 # deliberately blocks CI v1 activation finalization until the PR number exists.
@@ -146,6 +154,15 @@ _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] =
     "Trivy ignore-policy expiry": ("CI", 15_368, "github-actions"),
     "security": ("CI", 15_368, "github-actions"),
     "security-scan": ("Docker Build and Push", 15_368, "github-actions"),
+}
+_OUTAGE_OVERRIDE_REQUIRED_WORKFLOW_PATHS: Mapping[str, str] = {
+    "Analyze (actions)": ".github/workflows/codeql.yml",
+    "Analyze (javascript-typescript)": ".github/workflows/codeql.yml",
+    "Analyze (python)": ".github/workflows/codeql.yml",
+    "Private Python proxy health": ".github/workflows/ci.yml",
+    "Trivy ignore-policy expiry": ".github/workflows/ci.yml",
+    "security": ".github/workflows/ci.yml",
+    "security-scan": ".github/workflows/build.yml",
 }
 
 
@@ -678,40 +695,112 @@ def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
     )
 
 
+def _validate_selected_outage_action_run(
+    check_node: Mapping[str, Any],
+    *,
+    required: _TrustedRequiredContext,
+    target: _TrustedPullRequestTarget,
+    token: str,
+    run_cache: dict[int, dict[str, Any]],
+    job_cache: dict[int, dict[str, Any]],
+) -> None:
+    """Bind one selected rollup check to its exact PR Actions run and job."""
+
+    from scripts.ci.check_trusted_protected_pr_policy import (
+        _actions_run_and_job_ids,
+        _validated_action_run,
+    )
+
+    details_url = check_node.get("detailsUrl")
+    run_id, job_id = _actions_run_and_job_ids(details_url, target)
+    api_root = f"https://api.github.com/repos/{target.repository}"
+    if run_id not in run_cache:
+        run = _api_request(f"{api_root}/actions/runs/{run_id}", token=token)
+        if not isinstance(run, dict):
+            raise ReviewEvidenceError(f"{required.name} linked Actions run is malformed")
+        run_cache[run_id] = run
+    if job_id not in job_cache:
+        job = _api_request(f"{api_root}/actions/jobs/{job_id}", token=token)
+        if not isinstance(job, dict):
+            raise ReviewEvidenceError(f"{required.name} linked Actions job is malformed")
+        job_cache[job_id] = job
+    check_run_url = job_cache[job_id].get("check_run_url")
+    if not isinstance(check_run_url, str):
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
+    raw_check_id = check_run_url.rsplit("/", maxsplit=1)[-1]
+    if not raw_check_id.isdigit() or int(raw_check_id) <= 0:
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
+    validated = _validated_action_run(
+        {"details_url": details_url, "id": int(raw_check_id)},
+        required=required,
+        target=target,
+        token=token,
+        run_cache=run_cache,
+        job_cache=job_cache,
+    )
+    if validated is None:
+        raise ReviewEvidenceError(f"{required.name} is not linked to a pull_request Actions run")
+
+
 def _validate_operator_outage_security_checks(
     *,
     repository: str,
     pr_number: int,
     token: str,
+    expected_base_sha: str,
     expected_head_sha: str,
     security_required: bool = True,
+    material_paths: Iterable[str] | None = None,
     evidence_label: str = "operator outage override",
 ) -> None:
     """Require a strict successful trusted current-head security bundle."""
 
-    _is_draft, _merge_state, _base_ref, nodes = _fetch_current_head_pr_metadata(
+    from scripts.ci.check_trusted_protected_pr_policy import (
+        PullRequestTarget,
+        RequiredContext,
+    )
+
+    _is_draft, _merge_state, base_ref, nodes = _fetch_current_head_pr_metadata(
         pr_number, repository, token, expected_head_sha
     )
     try:
-        entries = [_normalize_check_node(node) for node in nodes if node]
+        normalized_nodes = [(node, _normalize_check_node(node)) for node in nodes if node]
     except ValueError as exc:
         raise ReviewEvidenceError(
             f"{evidence_label} cannot order current-head security checks: {exc}"
         ) from exc
+    entries = [entry for _node, entry in normalized_nodes]
     latest, superseded = _latest_check_entries(entries)
     latest, _superseded = _suppress_stale_check_entries(
         entries,
         latest,
         superseded,
     )
+    target = PullRequestTarget(
+        repository=repository,
+        number=pr_number,
+        base_sha=expected_base_sha,
+        head_sha=expected_head_sha,
+        base_ref=base_ref,
+    )
+    docker_security_required = (
+        True
+        if material_paths is None
+        else _operator_outage_docker_security_required(base_ref, material_paths)
+    )
+    run_cache: dict[int, dict[str, Any]] = {}
+    job_cache: dict[int, dict[str, Any]] = {}
     terminal_failures: list[str] = []
     pending_failures: list[str] = []
     for name, expected_identity in sorted(_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items()):
+        if name == "security-scan" and not docker_security_required:
+            continue
         candidates = [entry for entry in entries if entry.name == name]
         if not candidates:
             pending_failures.append(f"{name}=missing")
             continue
         expected_workflow, expected_app_id, expected_app_slug = expected_identity
+        expected_workflow_path = _OUTAGE_OVERRIDE_REQUIRED_WORKFLOW_PATHS[name]
         untrusted = [
             entry
             for entry in candidates
@@ -738,6 +827,31 @@ def _validate_operator_outage_security_checks(
         entry = latest.get(name)
         if entry is None:  # Defensive: candidates were present above.
             terminal_failures.append(f"{name}=missing-latest")
+            continue
+        selected_nodes = [
+            node
+            for node, normalized in normalized_nodes
+            if normalized.source_kind == "check_run" and normalized == entry
+        ]
+        if len(selected_nodes) != 1:
+            terminal_failures.append(f"{name}=ambiguous-actions-run")
+            continue
+        try:
+            _validate_selected_outage_action_run(
+                selected_nodes[0],
+                required=RequiredContext(
+                    name=name,
+                    workflow_name=expected_workflow,
+                    workflow_path=expected_workflow_path,
+                    authority_inputs=(),
+                ),
+                target=target,
+                token=token,
+                run_cache=run_cache,
+                job_cache=job_cache,
+            )
+        except ReviewEvidenceError as exc:
+            terminal_failures.append(f"{name}=untrusted-actions-run({exc})")
             continue
         if (
             name == "security"
@@ -778,8 +892,10 @@ def _wait_for_operator_outage_security_checks(
     repository: str,
     pr_number: int,
     token: str,
+    expected_base_sha: str,
     expected_head_sha: str,
     security_required: bool,
+    material_paths: Iterable[str] | None = None,
     timeout_seconds: int,
     poll_interval_seconds: int = 15,
     evidence_label: str = "operator outage override",
@@ -795,6 +911,7 @@ def _wait_for_operator_outage_security_checks(
     if poll_interval_seconds <= 0:
         raise ValueError("outage security poll interval must be positive")
 
+    frozen_material_paths = None if material_paths is None else tuple(material_paths)
     deadline = time.monotonic() + timeout_seconds
     attempt = 1
     while True:
@@ -803,8 +920,10 @@ def _wait_for_operator_outage_security_checks(
                 repository=repository,
                 pr_number=pr_number,
                 token=token,
+                expected_base_sha=expected_base_sha,
                 expected_head_sha=expected_head_sha,
                 security_required=security_required,
+                material_paths=frozen_material_paths,
                 evidence_label=evidence_label,
             )
             return
@@ -828,6 +947,18 @@ def _operator_outage_security_required(material_paths: Iterable[str]) -> bool:
     """Recompute security-job applicability from the sealed material paths."""
 
     return bool(build_risk_profile(tuple(material_paths)).run_security)
+
+
+def _operator_outage_docker_security_required(
+    base_ref: str,
+    material_paths: Iterable[str],
+) -> bool:
+    """Require Docker security only when its PR trigger and surface both attach."""
+
+    return base_ref == "main" and _path_touches_any(
+        set(material_paths),
+        DOCKER_SURFACE_PREFIXES,
+    )
 
 
 def _validate_v1_seal(
@@ -918,14 +1049,15 @@ def _validate_v1_seal(
     if security_receipt != expected_security:
         raise ReviewEvidenceError("provider-neutral security no-claim receipt is stale")
     if enforce_outage_security_checks:
+        material_paths = tuple(entry.path for entry in manifest.entries)
         _wait_for_operator_outage_security_checks(
             repository=repository,
             pr_number=pr_number,
             token=token,
+            expected_base_sha=snapshot.base_sha,
             expected_head_sha=snapshot.head_sha,
-            security_required=_operator_outage_security_required(
-                entry.path for entry in manifest.entries
-            ),
+            security_required=_operator_outage_security_required(material_paths),
+            material_paths=material_paths,
             timeout_seconds=outage_security_wait_seconds,
             evidence_label="provider-neutral no-claim evidence",
         )

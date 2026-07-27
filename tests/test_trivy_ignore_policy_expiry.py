@@ -2048,6 +2048,23 @@ def test_repository_scan_covers_every_target_package_root(
     ]
 
 
+@pytest.mark.parametrize(
+    "filename",
+    ("npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock"),
+)
+def test_repository_scan_fails_closed_on_unparsed_javascript_lockfile(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    (tmp_path / filename).write_text("react-router@7.18.1\n", encoding="utf-8")
+
+    with pytest.raises(
+        guard.PremiseScanError,
+        match=rf"unsupported JavaScript lockfile cannot be scanned: {re.escape(filename)}",
+    ):
+        guard.scan_repository_package_roots(tmp_path)
+
+
 def test_repository_scan_ignores_non_target_package_scripts(tmp_path: Path) -> None:
     (tmp_path / "package.json").write_text(
         json.dumps({"scripts": {"build": "npm run first && npm run second"}}),

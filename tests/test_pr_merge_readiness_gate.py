@@ -40,6 +40,7 @@ from scripts.orchestration.pr_review_evidence import (
     render_embedded_review_seal,
 )
 
+OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
 
 
@@ -926,6 +927,9 @@ def _check_node(
     expected_workflow, expected_app_id, expected_app_slug = (
         merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES[name]
     )
+    identity_index = tuple(merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES).index(name) + 1
+    run_id = 1_000 + identity_index
+    job_id = 2_000 + identity_index
     resolved_workflow = expected_workflow if workflow_name is None else workflow_name
     return {
         "__typename": "CheckRun",
@@ -934,7 +938,7 @@ def _check_node(
         "conclusion": conclusion,
         "startedAt": started_at,
         "completedAt": "2026-07-16T11:01:00Z" if status == "COMPLETED" else None,
-        "detailsUrl": f"https://github.com/checks/{name}",
+        "detailsUrl": (f"https://github.com/owner/repo/actions/runs/{run_id}/job/{job_id}"),
         "checkSuite": {
             "createdAt": suite_created_at,
             "app": {
@@ -948,9 +952,74 @@ def _check_node(
     }
 
 
+def _install_outage_actions_api(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    base_ref: str = "main",
+    base_sha: str = OUTAGE_BASE_SHA,
+    head_sha: str = OUTAGE_HEAD_SHA,
+    run_overrides: dict[str, dict[str, Any]] | None = None,
+    job_overrides: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    runs: dict[int, dict[str, Any]] = {}
+    jobs: dict[int, dict[str, Any]] = {}
+    for identity_index, (name, identity) in enumerate(
+        merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items(),
+        start=1,
+    ):
+        workflow_name, _app_id, _app_slug = identity
+        workflow_path = merge_gate._OUTAGE_OVERRIDE_REQUIRED_WORKFLOW_PATHS[name]
+        run_id = 1_000 + identity_index
+        job_id = 2_000 + identity_index
+        check_id = 3_000 + identity_index
+        run = {
+            "created_at": f"2026-07-16T11:{identity_index:02d}:00Z",
+            "event": "pull_request",
+            "head_sha": head_sha,
+            "id": run_id,
+            "name": workflow_name,
+            "path": workflow_path,
+            "pull_requests": [
+                {
+                    "base": {"ref": base_ref, "sha": base_sha},
+                    "head": {"sha": head_sha},
+                    "number": 42,
+                }
+            ],
+        }
+        run.update((run_overrides or {}).get(name, {}))
+        runs[run_id] = run
+        job = {
+            "check_run_url": (f"https://api.github.com/repos/owner/repo/check-runs/{check_id}"),
+            "id": job_id,
+            "run_attempt": 1,
+            "run_id": run_id,
+        }
+        job.update((job_overrides or {}).get(name, {}))
+        jobs[job_id] = job
+
+    def api(url: str, *, token: str) -> dict[str, Any]:
+        assert token == "opaque"
+        item_id = int(url.rsplit("/", maxsplit=1)[-1])
+        if "/actions/runs/" in url:
+            return runs[item_id]
+        if "/actions/jobs/" in url:
+            return jobs[item_id]
+        raise AssertionError(f"unexpected Actions API URL: {url}")
+
+    monkeypatch.setattr(merge_gate, "_api_request", api)
+
+
+@pytest.fixture
+def outage_actions_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_outage_actions_api(monkeypatch)
+
+
 def test_operator_outage_override_requires_exact_successful_security_bundle(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
+    del outage_actions_api
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     stale_failed_security = _check_node(
         "security",
@@ -975,13 +1044,83 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
         expected_head_sha=OUTAGE_HEAD_SHA,
     )
     assert observed_heads == [OUTAGE_HEAD_SHA]
 
 
+@pytest.mark.parametrize(
+    ("run_override", "job_override", "expected_error"),
+    (
+        (
+            {"event": "push"},
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*pull_request",
+        ),
+        (
+            {"path": ".github/workflows/candidate.yml"},
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*exact PR/base/head",
+        ),
+        (
+            {"head_sha": "e" * 40},
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*exact PR/base/head",
+        ),
+        (
+            {
+                "pull_requests": [
+                    {
+                        "base": {"ref": "main", "sha": "e" * 40},
+                        "head": {"sha": OUTAGE_HEAD_SHA},
+                        "number": 42,
+                    }
+                ]
+            },
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*exact PR/base/head",
+        ),
+        (
+            {},
+            {"run_id": 999},
+            r"Analyze \(python\)=untrusted-actions-run.*job identity",
+        ),
+    ),
+)
+def test_operator_outage_override_rejects_selected_non_pr_or_drifted_actions_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    run_override: dict[str, Any],
+    job_override: dict[str, Any],
+    expected_error: str,
+) -> None:
+    target = "Analyze (python)"
+    _install_outage_actions_api(
+        monkeypatch,
+        run_overrides={target: run_override},
+        job_overrides={target: job_override},
+    )
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=expected_error):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            material_paths=("Dockerfile",),
+        )
+
+
 def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(
@@ -1000,6 +1139,7 @@ def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
         expected_head_sha=OUTAGE_HEAD_SHA,
         security_required=merge_gate._operator_outage_security_required(("docs/README.md",)),
     )
@@ -1013,8 +1153,84 @@ def test_operator_outage_security_applicability_uses_material_risk_profile() -> 
     )
 
 
+@pytest.mark.parametrize(
+    ("base_ref", "material_paths", "expected"),
+    (
+        ("main", ("Dockerfile",), True),
+        ("main", ("docs/README.md",), False),
+        ("feat/stack", ("Dockerfile",), False),
+        ("fix/stack", ("Dockerfile",), False),
+    ),
+)
+def test_operator_outage_docker_security_applicability_uses_base_and_surface(
+    base_ref: str,
+    material_paths: tuple[str, ...],
+    expected: bool,
+) -> None:
+    assert (
+        merge_gate._operator_outage_docker_security_required(base_ref, material_paths) is expected
+    )
+
+
+@pytest.mark.parametrize("base_ref", ("feat/stack", "fix/stack"))
+def test_operator_outage_override_does_not_wait_for_unattached_stacked_docker_lane(
+    monkeypatch: pytest.MonkeyPatch,
+    base_ref: str,
+) -> None:
+    _install_outage_actions_api(monkeypatch, base_ref=base_ref)
+    nodes = [
+        _check_node(name)
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        if name != "security-scan"
+    ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", base_ref, nodes),
+    )
+
+    merge_gate._validate_operator_outage_security_checks(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
+        expected_head_sha=OUTAGE_HEAD_SHA,
+        material_paths=("Dockerfile",),
+    )
+
+
+def test_operator_outage_override_requires_attached_main_docker_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_outage_actions_api(monkeypatch)
+    nodes = [
+        _check_node(name)
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        if name != "security-scan"
+    ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(
+        merge_gate._OutageSecurityChecksPending,
+        match="security-scan=missing",
+    ):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            material_paths=("Dockerfile",),
+        )
+
+
 def test_operator_outage_override_rejects_newer_queued_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     nodes.append(
@@ -1037,6 +1253,7 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
     message = str(exc_info.value)
@@ -1055,6 +1272,7 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
 )
 def test_operator_outage_override_rejects_stale_success_before_newer_workflow_job(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     target: str,
     newer_job: str,
 ) -> None:
@@ -1077,6 +1295,7 @@ def test_operator_outage_override_rejects_stale_success_before_newer_workflow_jo
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
     assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
@@ -1084,6 +1303,7 @@ def test_operator_outage_override_rejects_stale_success_before_newer_workflow_jo
 
 def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     equal_time_pending = _check_node(
@@ -1091,7 +1311,6 @@ def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
         status="QUEUED",
         conclusion="",
     )
-    equal_time_pending["detailsUrl"] = "https://github.com/checks/a-pending-security"
     nodes.append(equal_time_pending)
     monkeypatch.setattr(
         merge_gate,
@@ -1107,19 +1326,20 @@ def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
 def test_operator_outage_override_rejects_equal_time_neutral_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     equal_time_neutral = _check_node(
         "security",
         conclusion="NEUTRAL",
     )
-    equal_time_neutral["detailsUrl"] = "https://github.com/checks/a-neutral-security"
     nodes.append(equal_time_neutral)
     monkeypatch.setattr(
         merge_gate,
@@ -1132,12 +1352,14 @@ def test_operator_outage_override_rejects_equal_time_neutral_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
 def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(name)
@@ -1172,6 +1394,7 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
@@ -1191,6 +1414,7 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
 )
 def test_operator_outage_override_rejects_non_successful_security_checks(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     target: str,
     status: str,
     conclusion: str,
@@ -1215,6 +1439,7 @@ def test_operator_outage_override_rejects_non_successful_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
     assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
@@ -1240,6 +1465,7 @@ def test_operator_outage_wait_retries_pending_checks_until_success(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
         expected_head_sha=OUTAGE_HEAD_SHA,
         security_required=True,
         timeout_seconds=30,
@@ -1271,6 +1497,7 @@ def test_operator_outage_wait_does_not_retry_terminal_failure(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
             security_required=True,
             timeout_seconds=30,
@@ -1303,6 +1530,7 @@ def test_operator_outage_wait_times_out_fail_closed(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
             security_required=True,
             timeout_seconds=5,
@@ -1315,6 +1543,7 @@ def test_operator_outage_wait_rejects_unbounded_timeout() -> None:
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
             security_required=True,
             timeout_seconds=301,
@@ -1323,6 +1552,7 @@ def test_operator_outage_wait_rejects_unbounded_timeout() -> None:
 
 def test_operator_outage_override_treats_missing_security_check_as_transient(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(name)
@@ -1343,6 +1573,7 @@ def test_operator_outage_override_treats_missing_security_check_as_transient(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
@@ -1357,6 +1588,7 @@ def test_operator_outage_override_treats_missing_security_check_as_transient(
 )
 def test_operator_outage_override_rejects_foreign_check_producers(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     target: str,
     kwargs: dict[str, Any],
 ) -> None:
@@ -1378,12 +1610,14 @@ def test_operator_outage_override_rejects_foreign_check_producers(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
 def test_operator_outage_override_rejects_foreign_status_context(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(name)
@@ -1413,6 +1647,7 @@ def test_operator_outage_override_rejects_foreign_status_context(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
@@ -1420,6 +1655,7 @@ def test_operator_outage_override_rejects_foreign_status_context(
 @pytest.mark.parametrize("mode", ("missing", "pending"))
 def test_provider_no_claim_transient_security_checks_request_bounded_settlement(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     mode: str,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
@@ -1446,6 +1682,7 @@ def test_provider_no_claim_transient_security_checks_request_bounded_settlement(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
             evidence_label="provider-neutral no-claim evidence",
         )
@@ -1597,6 +1834,11 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
         tmp_path,
         monkeypatch,
     )
+    _install_outage_actions_api(
+        monkeypatch,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+    )
 
     successful_nodes = [
         _check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
@@ -1705,6 +1947,11 @@ def test_ci_gate_provider_no_claim_security_settlement_times_out_bounded(
         tmp_path,
         monkeypatch,
     )
+    _install_outage_actions_api(
+        monkeypatch,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+    )
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     if mode == "missing":
         nodes = [node for node in nodes if node["name"] != "security"]
@@ -1777,6 +2024,11 @@ def test_ci_gate_provider_no_claim_terminal_security_checks_do_not_retry(
     repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(
         tmp_path,
         monkeypatch,
+    )
+    _install_outage_actions_api(
+        monkeypatch,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
     )
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     if mode == "stale":

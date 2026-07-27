@@ -474,6 +474,12 @@ def _walk_package_lock_files(root: Path) -> Iterator[Path]:
                 raise PremiseScanError(f"directory must not be a symlink: {label}")
             retained_directories.append(dirname)
         dirnames[:] = retained_directories
+        for filename in ("npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock"):
+            if filename in filenames:
+                label = _relative_label(current / filename, root)
+                raise PremiseScanError(
+                    f"unsupported JavaScript lockfile cannot be scanned: {label}"
+                )
         if "package-lock.json" in filenames:
             yield current / "package-lock.json"
 
