@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1458,8 +1459,11 @@ def test_operator_outage_wait_retries_pending_checks_until_success(
             raise merge_gate._OutageSecurityChecksPending("security=pending/status")
 
     monkeypatch.setattr(merge_gate, "_validate_operator_outage_security_checks", validate)
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
-    monkeypatch.setattr(merge_gate.time, "sleep", sleeps.append)
+    monkeypatch.setattr(
+        merge_gate,
+        "time",
+        SimpleNamespace(monotonic=lambda: 0.0, sleep=sleeps.append),
+    )
 
     merge_gate._wait_for_operator_outage_security_checks(
         repository="owner/repo",
@@ -1487,9 +1491,12 @@ def test_operator_outage_wait_does_not_retry_terminal_failure(
 
     monkeypatch.setattr(merge_gate, "_validate_operator_outage_security_checks", validate)
     monkeypatch.setattr(
-        merge_gate.time,
-        "sleep",
-        lambda _seconds: pytest.fail("terminal failures must not be retried"),
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: 0.0,
+            sleep=lambda _seconds: pytest.fail("terminal failures must not be retried"),
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match="security=failed/FAILURE"):
@@ -1518,11 +1525,13 @@ def test_operator_outage_wait_times_out_fail_closed(
             merge_gate._OutageSecurityChecksPending("security-scan=missing")
         ),
     )
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: next(clock))
     monkeypatch.setattr(
-        merge_gate.time,
-        "sleep",
-        lambda _seconds: pytest.fail("expired waits must not sleep"),
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: next(clock),
+            sleep=lambda _seconds: pytest.fail("expired waits must not sleep"),
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match="timed out.*after 5s"):
@@ -1874,8 +1883,11 @@ def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
     monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
-    monkeypatch.setattr(merge_gate.time, "sleep", sleeps.append)
+    monkeypatch.setattr(
+        merge_gate,
+        "time",
+        SimpleNamespace(monotonic=lambda: 0.0, sleep=sleeps.append),
+    )
 
     validated = merge_gate._validate_v1_seal(
         artifact_text=_artifact_with_seal(seal),
@@ -1985,11 +1997,13 @@ def test_ci_gate_provider_no_claim_security_settlement_times_out_bounded(
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
     monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
     clock = iter((0.0, 121.0))
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: next(clock))
     monkeypatch.setattr(
-        merge_gate.time,
-        "sleep",
-        lambda _seconds: pytest.fail("expired bounded settlement must not sleep"),
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: next(clock),
+            sleep=lambda _seconds: pytest.fail("expired bounded settlement must not sleep"),
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match="timed out.*after 120s"):
@@ -2083,11 +2097,13 @@ def test_ci_gate_provider_no_claim_terminal_security_checks_do_not_retry(
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
     monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
     monkeypatch.setattr(
-        merge_gate.time,
-        "sleep",
-        lambda _seconds: pytest.fail("terminal current-head checks must not be retried"),
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: 0.0,
+            sleep=lambda _seconds: pytest.fail("terminal current-head checks must not be retried"),
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match=expected) as exc_info:
