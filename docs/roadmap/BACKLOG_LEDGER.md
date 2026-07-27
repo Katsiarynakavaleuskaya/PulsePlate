@@ -5232,63 +5232,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: application dependency vulnerability applicability
   - Reason: Trivy reports `GHSA-qwww-vcr4-c8h2` for `react-router@7.18.1` with
     fixed version `8.3.0`. The advisory affects unstable RSC server APIs, while
-    PulsePlate uses the stable declarative SPA surface and has none of the
-    affected RSC entrypoints or tooling. The exact scanner tuple is temporarily
-    suppressed; a deterministic guard makes the applicability premise fail
-    closed.
+    point-in-time repository evidence shows PulsePlate using the stable
+    declarative SPA surface without intentional affected RSC usage. The exact
+    Trivy tuple is temporarily suppressed and protected by lexical
+    structure/expiry/review controls; this entry does not claim deterministic
+    proof of every present or future source-applicability shape.
   - Links:
     - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
     - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
     - `trivy/ignore-policy.rego`
-    - `scripts/ci/check_react_router_rsc_premise.py`
     - `scripts/ci/check_trivy_ignore_policy_expiry.py`
     - `tests/test_trivy_ignore_policy_expiry.py`
   - DoD:
     - Review the advisory and Dependabot alert #241 weekly
-    - Remove the suppression if an affected RSC marker is introduced, the
-      dependency or scanner tuple changes, or a compatible fixed line is
+    - Remove the suppression if affected RSC usage is introduced, the
+      dependency or Trivy tuple changes, or a compatible fixed line is
       approved
-    - Keep the no-RSC applicability guard and exact Rego negative controls green
+    - Refresh the point-in-time repository evidence during each weekly review
+      and on frontend dependency or execution-model changes
+    - Keep exact Rego tuple, lexical structure, expiry, review-date, and
+      negative controls green
     - Close the tracker only after the suppression is removed and current-head
       Trivy evidence passes without it
-
-<a id="ledger-p1-trusted-protected-pr-policy-rollout"></a>
-- [ ] P1: Activate and audit the base-owned protected-PR policy
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: this combined bootstrap PR plus its immediate post-merge
-    branch-protection activation
-  - Status: In progress since 2026-07-27
-  - Area: CI governance / branch protection / security authority
-  - Finding Type: trust-root bootstrap and operational rollback
-  - Reason: A `pull_request_target` policy can evaluate protected PR material
-    from default-branch-owned code without depending on Connector/Codex Security
-    availability, but the introducing PR cannot execute that workflow from
-    `main`. It therefore needs one explicit, final-SHA-bound OWNER/admin
-    bootstrap decision that grants no review, scan, PASS, or no-findings claim.
-  - DoD:
-    - Merge the introducing PR only after every non-bootstrap local, CI,
-      review, mapping, thread, security, ancestry, and wait-window gate passes
-    - Run a harmless post-merge canary and verify
-      `trusted-protected-pr-policy` belongs to GitHub Actions app id `15368`
-      and the exact default-branch workflow path
-    - Add only that exact context to `main` branch protection while preserving
-      `strict=true`, `enforce_admins=true`, and all existing required contexts
-    - Record the ruleset id, actor, timestamp, default-branch SHA, prior state,
-      resulting state, and canary evidence in the bootstrap PR closeout
-    - Lock future executable control changes to the exact additive vNext
-      admission: add only the frozen, previously absent vNext workflow plus a
-      validator byte-identical to the base-owned v1 checker while every
-      v1/other authority input remains byte/mode/type-identical; canary it and,
-      only through a separate external ruleset decision, require it while
-      retaining v1
-    - Treat the admission as exhausted once either vNext path exists in base;
-      it grants no review, scan, required-check, merge, detach, or retirement
-      authority. Track any v1 retirement as a separate reviewed authority
-      design rather than reusing this admission or implying an OWNER/admin
-      bypass
-    - Roll back by removing only the new context attachment; keep the workflow
-      advisory until a default-branch fix and a new canary justify reactivation
 
 - [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya

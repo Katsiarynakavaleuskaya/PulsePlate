@@ -564,10 +564,13 @@ def test_wrapper_rejects_mixed_event_and_local_modes() -> None:
 def test_run_gate_returns_failure_on_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    observed_timeout: list[int] = []
+
     def raise_timeout(*args, **kwargs) -> None:
+        observed_timeout.append(kwargs["timeout"])
         raise merge_ready.subprocess.TimeoutExpired(
             cmd=["python3", "scripts/orchestration/check_merge_ready.py"],
-            timeout=merge_ready.RUN_TIMEOUT_SEC,
+            timeout=kwargs["timeout"],
             output="partial output",
         )
 
@@ -581,5 +584,6 @@ def test_run_gate_returns_failure_on_timeout(
 
     assert result.returncode == 1
     assert result.stdout == "partial output"
-    assert "Timed out after" in result.stderr
+    assert observed_timeout == [merge_ready.MERGE_GATE_TIMEOUT_SEC]
+    assert f"Timed out after {merge_ready.MERGE_GATE_TIMEOUT_SEC}s" in result.stderr
     assert merge_ready.MERGE_GATE.name in result.stderr

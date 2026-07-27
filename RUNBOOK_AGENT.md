@@ -698,19 +698,7 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    `substitute_review_required=false`, `prior_review_required=false`,
    `operator_override_required=false`, and `ttl_required=false` remains
    descriptive compatibility data, not current authoring or fallback authority.
-   No protected change can use no-claim alone to authorize itself. Declarative
-   subjects additionally require the base-owned protected-PR gate and all
-   applicable CI, CodeQL, and Docker security families. Executable control-root
-   changes terminate as `AUTHORITY_ROTATION_REQUIRED`. One exact, previously
-   absent pair may be added for a dormant vNext canary:
-   `.github/workflows/trusted_protected_pr_policy_vnext.yml` and
-   `scripts/ci/check_trusted_protected_pr_policy_vnext.py`. The workflow bytes
-   are frozen, the vNext validator must be byte-identical to the base-owned v1
-   checker, and every v1/other authority input must keep the same blob identity
-   and mode. This admission does not make vNext required, detach or retire v1,
-   or authorize itself, and it cannot be reused once either path exists in
-   base. Retirement is outside this contract and requires a separate reviewed
-   authority design; no marker or OWNER bypass is implied.
+   No protected change can use no-claim alone to authorize itself.
 6. Update the live PR body with exactly one real same-repository Markdown link
    through
    `https://github.com/<owner>/<repo>/blob/<exact-live-head-ref>/docs/review/PR_<N>_FIXED_MAPPING.md`.

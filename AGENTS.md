@@ -225,20 +225,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    partial, open-ended, or escalating no-claim shapes fail closed.
    Provider absence requires no retry.
    The no-claim pair alone cannot authorize any protected authority, verifier,
-   workflow, dependency, or security-policy surface. Protected declarative
-   subjects require the base-owned protected-PR gate plus every applicable
-   current-head CI, CodeQL, and Docker security family. Executable control-root
-   changes terminate as `AUTHORITY_ROTATION_REQUIRED`. The only additive
-   exception admits one exact, previously absent pair:
-   `.github/workflows/trusted_protected_pr_policy_vnext.yml` plus
-   `scripts/ci/check_trusted_protected_pr_policy_vnext.py`, where the workflow
-   has the frozen read-only bytes and the validator is byte-identical to the
-   base-owned v1 checker. Every v1 and other authority input must remain
-   byte/mode/type-identical. This admission only adds a dormant vNext canary; it
-   does not make vNext required, detach or retire v1, or authorize itself.
-   Once either vNext path exists in base, the admission cannot be reused.
-   Retirement of v1 is outside this contract and requires a separate reviewed
-   authority design; no in-repository marker or OWNER bypass is implied.
+   workflow, dependency, or security-policy surface and grants no bypass or
+   self-authorization.
    Current-head CI and the trusted security-check bundle remain hard. So do
    actual provider findings, review dispositions, canonical mapping, unresolved
    threads, bot actionables, commit ancestry, the mapping-only descendant rule,
@@ -621,16 +609,6 @@ Rules:
 - One-sided or mixed provider inputs and partial/escalating no-claim receipts
   fail closed. Any material change invalidates the seal and requires a fresh
   exact-material validation cycle.
-- The protected trust-boundary detector and base-owned gate prevent no-claim
-  self-use. Declarative subjects are admitted only with their unchanged
-  semantic validator and all applicable CI, CodeQL, and Docker security
-  families. Executable control changes terminate as
-  `AUTHORITY_ROTATION_REQUIRED`. One exact, base-absent vNext workflow/checker
-  pair may be added for a dormant canary while v1 and every other authority
-  input remain byte/mode/type-identical. The admission neither changes required
-  contexts nor detaches/retires v1 and is unavailable once either vNext path
-  exists in base. Any retirement requires a separate reviewed authority design;
-  no reusable in-repo exception, activation marker, or OWNER bypass exists.
 - Historical provider-backed v1 receipts remain readable and revalidatable for
   legacy artifacts only. They do not create current authoring authority,
   fallback authority, or a reason to invoke a provider.

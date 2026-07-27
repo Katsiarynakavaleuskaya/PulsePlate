@@ -211,9 +211,9 @@ retry.
   waits at most 300 seconds for missing or pending trusted exact-head security
   checks to settle. Failed, stale, skipped-when-applicable, or untrusted checks
   are terminal immediately; the wait never invokes or retries a provider.
-- Existing protected-path detection blocks no-claim self-use for authority,
-  verifier, workflow, dependency, and security-policy changes. No reusable
-  in-repository exception or activation marker exists.
+- The no-claim pair itself grants no authority, bypass, or self-authorization
+  for protected authority, verifier, workflow, dependency, or security-policy
+  changes.
 - Actual provider output, when independently present, remains normal review
   evidence: every actionable finding still needs FIXED / NOT-A-BUG / DEFERRED
   disposition and mapping. Provider absence grants no thread-resolution,
@@ -390,7 +390,6 @@ Current repo workflow inventory (Tier 1 post-PR2 state):
 | `.github/workflows/ci.yml` (`CI`) | Backend / shared PR lane | Hard gate | Sole canonical backend/shared PR workflow for merge claims; current-head required jobs from this lane block merge when branch protection requires them | Canonical backend/shared PR lane |
 | `.github/workflows/ci.yml` (`lint`, `security`, `diff-coverage`) | Backend / shared PR lane | Hard gate | Canonical lint, PR-time security, and diff coverage live inside `CI`; failures block merge when attached to current HEAD | Canonical enforcement surface |
 | `.github/workflows/ci.yml` (`OpenAPI sync`, docs gates, merge-readiness, review governance) | Backend / shared PR lane | Hard gate | Blocks merge when the corresponding job is required on current HEAD | Canonical governance surface |
-| `.github/workflows/trusted_protected_pr_policy.yml` (`Trusted Protected PR Policy`) | Base-owned protected-authority lane | Hard gate after bootstrap activation | Executes only default-branch validator bytes under `pull_request_target`, treats PR code as data, and emits `trusted-protected-pr-policy`; the introducing PR requires the one final-SHA-bound OWNER/admin bootstrap decision because the workflow is not yet present on the default branch | Attach the exact GitHub-Actions-owned context to `main` only after a post-merge canary; preserve strict mode, admin enforcement, and all existing required contexts |
 | `.github/workflows/pr-tests.yml` (`PR Tests (Fast)`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
 | `.github/workflows/pr-coverage.yml` (`PR Coverage Guard`) | Archived / non-canonical | No current PR lane | Retired as an active PR lane after PR2; keep only as historical reference if the file still exists in branch history | Removed as active PR lane |
 | `.github/workflows/security.yml` (`Security Scan`) | Scheduled / manual security audit lane | Soft gate | Advisory deep-audit lane outside ordinary PR merge truth; findings still require fix-first engineering response when the surface is in scope | Demoted out of PR-time blocking path |
@@ -407,28 +406,6 @@ Bot governance distinction (Tier 1 baseline):
 - Third-party or first-party bot **review comments** remain merge-blocking when they contain actionable items, because review governance/disposition policy is separate from status-check classification.
 - Contributors must use `CI` as the canonical backend/shared PR lane for operator decisions; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` is a scheduled/manual audit lane, and `trivy.yml` is a `main`/schedule/manual non-PR image-security lane.
 - Canonical backend/shared PR merge truth does not imply that all other PR-triggered workflows disappear. Specialized repo-level workflows such as `Frontend CI`, `CodeQL Advanced`, and Docker/image lanes may still appear on workflow/governance PRs, but they remain non-canonical unless GitHub branch protection explicitly requires them.
-- Protected-authority rollout is fail closed: merge the introducing PR only
-  under its explicit, non-reusable final-SHA OWNER/admin bootstrap decision;
-  then open a harmless canary from the merged default branch, verify the
-  `trusted-protected-pr-policy` check belongs to GitHub Actions app id `15368`
-  and the exact workflow path, and attach that context to `main` while
-  preserving `strict=true`, `enforce_admins=true`, and every pre-existing
-  required context. After this introducing bootstrap, executable control-root
-  changes terminate with `AUTHORITY_ROTATION_REQUIRED`, except that PR-A may add
-  exactly the previously absent frozen vNext workflow and a validator
-  byte-identical to the base-owned v1 checker. The old workflow/checker and
-  every other authority input remain byte/mode/type-identical. A post-merge
-  canary may support an external ruleset decision to require vNext while
-  retaining v1, but PR-A itself grants no required-check, review, security, or
-  merge claim. The admission cannot detach or retire v1 and cannot be reused
-  after either vNext path exists in base. PR-B retirement is not authorized by
-  this contract and needs a separate reviewed authority design; no provider
-  retry/wait or implicit OWNER/admin bypass follows from this admission.
-- Rollback removes only the `trusted-protected-pr-policy` required-context
-  attachment, preserves the workflow as advisory evidence, records the
-  before/after ruleset state, and re-enables the context only after a
-  default-branch fix plus a new canary.
-
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:349`
 - `scripts/ci/check_pr_merge_readiness.py:400`

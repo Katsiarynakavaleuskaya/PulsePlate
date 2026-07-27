@@ -4,19 +4,11 @@ import glob
 import json
 import os
 import re
-import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.ci.check_react_router_rsc_premise import (  # noqa: E402
-    PremiseScanError,
-    scan_repository_package_roots as scan_react_router_rsc_premise,
-)
 
 # Allow trailing content after the date (e.g. "(manual removal)").
 _EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
@@ -498,27 +490,6 @@ def _resolve_policy_files(repo_root: Path) -> list[Path]:
     return sorted(trivy_dir.glob("ignore-policy*.rego"))
 
 
-def _contains_react_router_rsc_suppression(
-    policy_file: Path,
-    *,
-    text: str | None = None,
-) -> bool:
-    """Detect any ignore block that could match the canonical target tuple."""
-
-    if text is None:
-        try:
-            text = _read_rego_text(policy_file)
-        except ValueError:
-            return True
-    try:
-        ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(text)
-    except ValueError:
-        return True
-    if unsupported_lines:
-        return True
-    return any(_ignore_block_can_match_react_router_target(body) for body in ignore_blocks)
-
-
 def main() -> int:
     repo_root = REPO_ROOT
     policy_files = _resolve_policy_files(repo_root)
@@ -539,31 +510,14 @@ def main() -> int:
 
     today = datetime.now(UTC).date()
     failures: list[str] = []
-    suppression_present = False
 
     for policy_file in policy_files:
         try:
             text = _read_rego_text(policy_file)
         except ValueError as exc:
             failures.append(str(exc))
-            suppression_present = True
             continue
         failures.extend(evaluate_policy_file(policy_file, today=today, text=text))
-        suppression_present = suppression_present or _contains_react_router_rsc_suppression(
-            policy_file,
-            text=text,
-        )
-
-    if suppression_present:
-        try:
-            violations = scan_react_router_rsc_premise(repo_root)
-        except PremiseScanError as exc:
-            failures.append(f"React Router RSC premise scan was incomplete: {exc}")
-        else:
-            failures.extend(
-                f"React Router RSC suppression premise violated: {violation}"
-                for violation in violations
-            )
 
     if failures:
         print("ERROR: Trivy ignore policy expiry check failed:")

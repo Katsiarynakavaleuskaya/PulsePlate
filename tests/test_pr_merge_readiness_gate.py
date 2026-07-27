@@ -357,6 +357,11 @@ def _configure_pre_closeout_main(
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: actionable_items)
     monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_review_quiet_window",
+        lambda **_k: pytest.fail("pre-closeout must not wait"),
+    )
 
 
 def test_direct_pre_closeout_requires_gh_token(
@@ -858,6 +863,168 @@ def test_rest_pagination_rejects_non_list_page(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(merge_gate, "_api_request", lambda *_a, **_k: {"message": "oops"})
     with pytest.raises(ValueError, match="non-list"):
         merge_gate._api_request_paginated_list("https://api.github.com/example", "opaque")
+
+
+def test_review_activity_inventory_rejects_missing_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def paged(url: str, token: str) -> list[dict[str, Any]]:
+        assert token == "opaque"
+        if "/reviews?" not in url:
+            return []
+        return [
+            {
+                "body": "No issues found",
+                "html_url": "https://github.com/owner/repo/pull/42#pullrequestreview-7",
+                "id": 7,
+                "state": "COMMENTED",
+                "submitted_at": None,
+                "user": {"id": 9, "login": "reviewer[bot]"},
+            }
+        ]
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", paged)
+
+    with pytest.raises(ValueError, match="review created_at is missing or malformed"):
+        merge_gate._review_activity_inventory("owner/repo", 42, "opaque")
+
+
+def test_review_activity_inventory_accepts_pending_review_without_submitted_at(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def paged(url: str, token: str) -> list[dict[str, Any]]:
+        assert token == "opaque"
+        if "/reviews?" not in url:
+            return []
+        return [
+            {
+                "body": "draft review",
+                "commit_id": "a" * 40,
+                "html_url": "https://github.com/owner/repo/pull/42#pullrequestreview-7",
+                "id": 7,
+                "state": "PENDING",
+                "submitted_at": None,
+                "user": {"id": 9, "login": "reviewer"},
+            }
+        ]
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", paged)
+
+    inventory = merge_gate._review_activity_inventory("owner/repo", 42, "opaque")
+
+    assert inventory[0][0:4] == ("review", 7, 9, "reviewer")
+    assert inventory[0][5:7] == (
+        merge_gate._PENDING_REVIEW_TIMESTAMP,
+        merge_gate._PENDING_REVIEW_TIMESTAMP,
+    )
+    assert inventory[0][8:10] == ("PENDING", "a" * 40)
+
+
+def _configure_review_quiet_window(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    inventories: list[tuple[tuple[object, ...], ...]],
+) -> tuple[PrSnapshot, dict[str, float]]:
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="b" * 40,
+        head_sha="a" * 40,
+        commits=(PrCommitEvidence("a" * 40, None),),
+    )
+    clock = {"now": 0.0}
+    iterator = iter(inventories)
+    last = inventories[-1]
+
+    def inventory(*_args: Any, **_kwargs: Any) -> tuple[tuple[object, ...], ...]:
+        return next(iterator, last)
+
+    monkeypatch.setattr(merge_gate, "_review_activity_inventory", inventory)
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_pr_context",
+        lambda **_k: (42, "owner/repo", False, "body", "branch"),
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(merge_gate, "_review_quiet_monotonic", lambda: clock["now"])
+    monkeypatch.setattr(
+        merge_gate,
+        "_review_quiet_sleep",
+        lambda seconds: clock.__setitem__("now", clock["now"] + seconds),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_operator_outage_security_checks",
+        lambda **_k: pytest.fail("review wait must not call provider/security settlement"),
+    )
+    return snapshot, clock
+
+
+def test_review_quiet_window_accepts_two_stable_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event = (("review", 7, "digest"),)
+    snapshot, clock = _configure_review_quiet_window(
+        monkeypatch,
+        inventories=[event],
+    )
+
+    observations, events = merge_gate._wait_for_review_quiet_window(
+        repo="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_pr_context=(42, "owner/repo", False, "body", "branch"),
+        snapshot=snapshot,
+    )
+
+    assert observations == 5
+    assert events == 1
+    assert clock["now"] == 60
+
+
+def test_review_quiet_window_restarts_after_new_activity_without_external_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = (("review", 7, "first"),)
+    second = (*first, ("review_comment", 8, "second"))
+    snapshot, clock = _configure_review_quiet_window(
+        monkeypatch,
+        inventories=[first, first, second],
+    )
+
+    observations, events = merge_gate._wait_for_review_quiet_window(
+        repo="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_pr_context=(42, "owner/repo", False, "body", "branch"),
+        snapshot=snapshot,
+    )
+
+    assert observations == 7
+    assert events == 2
+    assert clock["now"] == 90
+
+
+def test_review_quiet_window_times_out_when_activity_never_settles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventories = [(("review", event_id, f"digest-{event_id}"),) for event_id in range(1, 10)]
+    snapshot, clock = _configure_review_quiet_window(
+        monkeypatch,
+        inventories=inventories,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="did not settle within the bounded 105s"):
+        merge_gate._wait_for_review_quiet_window(
+            repo="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_pr_context=(42, "owner/repo", False, "body", "branch"),
+            snapshot=snapshot,
+        )
+
+    assert clock["now"] == 105
 
 
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
@@ -2351,9 +2518,16 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
     monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_review_quiet_window",
+        lambda **_k: (2, 0),
+    )
 
     assert merge_gate.main() == 0
-    assert "CONTENT_BOUND_RECEIPT_VALID" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "CONTENT_BOUND_RECEIPT_VALID" in output
+    assert "REVIEW_WAIT_WINDOW_VALID observations=2 quiet_seconds=60 events=0" in output
 
     source.write_text("ENFORCED = False\n", encoding="utf-8")
     changed_head = _commit(repo, "post-scan material change")

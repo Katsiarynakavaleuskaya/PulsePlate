@@ -826,18 +826,23 @@ enumeration failure from lesson 24.
 ### Rule
 Before changing code, group new reproducers by the invariant they violate:
 
-1. For a finite authority or execution graph, positively enumerate the complete
-   graph and add one completeness regression.
-2. For open-ended external-runtime semantics, enforce the smallest documented
-   fail-closed boundary; do not build a custom parser or chase adjacent,
-   unreported channels inside an urgent recovery PR.
-3. A materially novel current-surface P1 is fixed once at that class boundary
-   with targeted regression evidence.
-4. An exact repeat without a new reproducer reuses its existing disposition and
+1. Call a graph finite only when one mechanically closed source of truth
+   determines every member. A hand-maintained list is not a completeness proof.
+2. Import resolution, implicit tool configuration, plugin discovery,
+   executable file formats, and arbitrary build/runtime semantics are
+   open-world surfaces. Do not claim they are complete by adding the latest
+   carrier to an allowlist or custom parser.
+3. Fix one materially novel current-surface P1 at the smallest honest class
+   boundary with targeted regression evidence.
+4. When a second novel carrier exposes the same open-world assumption, stop the
+   example-by-example fixes and reset scope: remove or roll back the unsound
+   mechanism, retain only bounded controls whose claims match their proof, and
+   record residual risk explicitly.
+5. An exact repeat without a new reproducer reuses its existing disposition and
    does not justify another material commit.
 
-Stop when the declared invariant is covered. Broader runtime modeling or
-adjacent hardening belongs in a separately scoped lane.
+Stop when the bounded claim is true, not when the current examples happen to
+pass. Broader runtime modeling belongs in a separately scoped lane.
 
 ---
 

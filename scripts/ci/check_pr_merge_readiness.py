@@ -22,8 +22,9 @@ import urllib.parse
 import urllib.request
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -70,12 +71,6 @@ from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
 )
 from scripts.ci.ci_risk_profile import build_risk_profile  # noqa: E402
-
-if TYPE_CHECKING:
-    from scripts.ci.check_trusted_protected_pr_policy import (
-        PullRequestTarget as _TrustedPullRequestTarget,
-        RequiredContext as _TrustedRequiredContext,
-    )
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
 # deliberately blocks CI v1 activation finalization until the PR number exists.
@@ -146,6 +141,12 @@ RAW_HTML_VOID_TAGS = frozenset(
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _MAX_OUTAGE_SECURITY_WAIT_SECONDS = 300
+_REVIEW_QUIET_SECONDS = 60
+_REVIEW_QUIET_POLL_SECONDS = 15
+_MAX_REVIEW_SETTLEMENT_SECONDS = 105
+_PENDING_REVIEW_TIMESTAMP = "pending-review"
+_review_quiet_monotonic = time.monotonic
+_review_quiet_sleep = time.sleep
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
     "Analyze (actions)": ("CodeQL Advanced", 15_368, "github-actions"),
     "Analyze (javascript-typescript)": ("CodeQL Advanced", 15_368, "github-actions"),
@@ -177,6 +178,22 @@ class ActionableItem:
     review_id: int | None = None
     updated_at: str = ""
     body_digest: str = ""
+
+
+@dataclass(frozen=True)
+class _OutagePullRequestTarget:
+    repository: str
+    number: int
+    base_sha: str
+    head_sha: str
+    base_ref: str
+
+
+@dataclass(frozen=True)
+class _OutageRequiredContext:
+    name: str
+    workflow_name: str
+    workflow_path: str
 
 
 class _OutageSecurityChecksPending(ReviewEvidenceError):
@@ -619,6 +636,169 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
     return sorted(unique.values(), key=lambda it: it.created_at)
 
 
+def _validated_review_timestamp(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} is missing or malformed")
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"{label} is missing or malformed") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{label} is missing or malformed")
+    return value
+
+
+def _review_activity_inventory(
+    repo: str,
+    pr_number: int,
+    token: str,
+) -> tuple[tuple[object, ...], ...]:
+    """Return a content-bound inventory of all issue/review activity."""
+
+    base = f"https://api.github.com/repos/{repo}"
+    encoded = urllib.parse.quote(str(pr_number), safe="")
+    sources = (
+        (
+            "issue_comment",
+            _api_request_paginated_list(
+                f"{base}/issues/{encoded}/comments?per_page=100",
+                token=token,
+            ),
+        ),
+        (
+            "review",
+            _api_request_paginated_list(
+                f"{base}/pulls/{encoded}/reviews?per_page=100",
+                token=token,
+            ),
+        ),
+        (
+            "review_comment",
+            _api_request_paginated_list(
+                f"{base}/pulls/{encoded}/comments?per_page=100",
+                token=token,
+            ),
+        ),
+    )
+    inventory: list[tuple[object, ...]] = []
+    seen: set[tuple[str, int]] = set()
+    for kind, rows in sources:
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"{kind} activity row is malformed")
+            event_id = row.get("id")
+            user = row.get("user")
+            user_id = user.get("id") if isinstance(user, dict) else None
+            author = user.get("login") if isinstance(user, dict) else None
+            body = row.get("body")
+            state = row.get("state")
+            created_raw = row.get("submitted_at") if kind == "review" else row.get("created_at")
+            if kind == "review" and state == "PENDING" and created_raw is None:
+                created_at = _PENDING_REVIEW_TIMESTAMP
+            else:
+                created_at = _validated_review_timestamp(
+                    created_raw,
+                    label=f"{kind} created_at",
+                )
+            updated_raw = row.get("updated_at") or created_at
+            if updated_raw == _PENDING_REVIEW_TIMESTAMP:
+                updated_at = _PENDING_REVIEW_TIMESTAMP
+            else:
+                updated_at = _validated_review_timestamp(
+                    updated_raw,
+                    label=f"{kind} updated_at",
+                )
+            if (
+                not isinstance(event_id, int)
+                or isinstance(event_id, bool)
+                or event_id <= 0
+                or not isinstance(user_id, int)
+                or isinstance(user_id, bool)
+                or user_id <= 0
+                or not isinstance(author, str)
+                or not author
+                or body is not None
+                and not isinstance(body, str)
+            ):
+                raise ValueError(f"{kind} activity identity is missing or malformed")
+            key = (kind, event_id)
+            if key in seen:
+                raise ValueError(f"{kind} activity contains duplicate id {event_id}")
+            seen.add(key)
+            inventory.append(
+                (
+                    kind,
+                    event_id,
+                    user_id,
+                    author,
+                    str(row.get("html_url") or ""),
+                    created_at,
+                    updated_at,
+                    _comment_body_digest(body or ""),
+                    str(state or ""),
+                    str(row.get("commit_id") or ""),
+                    row.get("pull_request_review_id") or 0,
+                )
+            )
+    return tuple(sorted(inventory))
+
+
+def _wait_for_review_quiet_window(
+    *,
+    repo: str,
+    pr_number: int,
+    token: str,
+    expected_pr_context: tuple[int, str, bool, str, str],
+    snapshot: PrSnapshot,
+) -> tuple[int, int]:
+    """Require one bounded provider-neutral quiet period over live review state."""
+
+    def observe() -> tuple[
+        tuple[tuple[object, ...], ...],
+        tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...],
+    ]:
+        context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
+        if context != expected_pr_context:
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: live PR body or draft state changed during review wait"
+            )
+        activity = _review_activity_inventory(repo, pr_number, token)
+        threads = fetch_review_threads(repo, pr_number, token=token)
+        assert_snapshot_unchanged(snapshot, token=token)
+        return activity, _review_thread_inventory(threads)
+
+    state = observe()
+    quiet_started = _review_quiet_monotonic()
+    deadline = quiet_started + _MAX_REVIEW_SETTLEMENT_SECONDS
+    observations = 1
+    while True:
+        now = _review_quiet_monotonic()
+        quiet_remaining = _REVIEW_QUIET_SECONDS - (now - quiet_started)
+        if quiet_remaining <= 0:
+            return observations, len(state[0])
+        total_remaining = deadline - now
+        if total_remaining <= 0:
+            raise ReviewEvidenceError(
+                "review activity did not settle within the bounded "
+                f"{_MAX_REVIEW_SETTLEMENT_SECONDS}s window"
+            )
+        sleep_seconds = min(
+            float(_REVIEW_QUIET_POLL_SECONDS),
+            quiet_remaining,
+            total_remaining,
+        )
+        _review_quiet_sleep(sleep_seconds)
+        after_sleep = _review_quiet_monotonic()
+        if after_sleep <= now:
+            raise ReviewEvidenceError("review quiet-window clock did not advance")
+        current = observe()
+        observations += 1
+        if current != state:
+            state = current
+            quiet_started = _review_quiet_monotonic()
+
+
 def _covered_review_summary_urls(
     actionable_items: list[ActionableItem],
     evidence_covered_urls: set[str],
@@ -695,21 +875,119 @@ def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
     )
 
 
+def _actions_run_and_job_ids(
+    details_url: object,
+    target: _OutagePullRequestTarget,
+) -> tuple[int, int]:
+    if not isinstance(details_url, str):
+        raise ReviewEvidenceError("check run details URL is missing")
+    parsed = urllib.parse.urlparse(details_url)
+    expected_prefix = f"/{target.repository}/actions/runs/"
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "github.com"
+        or not parsed.path.startswith(expected_prefix)
+    ):
+        raise ReviewEvidenceError("check run is not linked to this repository Actions run")
+    tail = parsed.path[len(expected_prefix) :].split("/")
+    if (
+        len(tail) != 3
+        or not tail[0].isdigit()
+        or int(tail[0]) <= 0
+        or tail[1] != "job"
+        or not tail[2].isdigit()
+        or int(tail[2]) <= 0
+    ):
+        raise ReviewEvidenceError("check run Actions run/job identity is malformed")
+    return int(tail[0]), int(tail[2])
+
+
+def _validated_action_run(
+    check: Mapping[str, Any],
+    *,
+    required: _OutageRequiredContext,
+    target: _OutagePullRequestTarget,
+    token: str,
+    run_cache: dict[int, dict[str, Any]],
+    job_cache: dict[int, dict[str, Any]],
+) -> tuple[str, int] | None:
+    """Bind one check to the exact pull_request Actions run and job."""
+
+    run_id, job_id = _actions_run_and_job_ids(check.get("details_url"), target)
+    api_root = f"https://api.github.com/repos/{target.repository}"
+    if run_id not in run_cache:
+        run = _api_request(f"{api_root}/actions/runs/{run_id}", token=token)
+        if not isinstance(run, dict):
+            raise ReviewEvidenceError("linked Actions run is malformed")
+        run_cache[run_id] = run
+    run = run_cache[run_id]
+    if run.get("id") != run_id:
+        raise ReviewEvidenceError(f"{required.name} linked Actions run identity is malformed")
+    event = run.get("event")
+    if not isinstance(event, str) or not event:
+        raise ReviewEvidenceError(f"{required.name} linked Actions run event is malformed")
+    if event != "pull_request":
+        return None
+    pull_requests = run.get("pull_requests")
+    if not isinstance(pull_requests, list):
+        raise ReviewEvidenceError("linked Actions run PR binding is malformed")
+    matching_prs = [
+        item
+        for item in pull_requests
+        if isinstance(item, dict)
+        and item.get("number") == target.number
+        and isinstance(item.get("head"), dict)
+        and item["head"].get("sha") == target.head_sha
+        and isinstance(item.get("base"), dict)
+        and item["base"].get("ref") == target.base_ref
+        and item["base"].get("sha") == target.base_sha
+    ]
+    if (
+        run.get("head_sha") != target.head_sha
+        or run.get("name") != required.workflow_name
+        or run.get("path") != required.workflow_path
+        or len(matching_prs) != 1
+    ):
+        raise ReviewEvidenceError(
+            f"{required.name} is not linked to an exact PR/base/head "
+            "base-allowlisted Actions run"
+        )
+    created_at = run.get("created_at")
+    if not isinstance(created_at, str) or not created_at:
+        raise ReviewEvidenceError(f"{required.name} linked Actions chronology is malformed")
+    if job_id not in job_cache:
+        job = _api_request(f"{api_root}/actions/jobs/{job_id}", token=token)
+        if not isinstance(job, dict):
+            raise ReviewEvidenceError("linked Actions job is malformed")
+        job_cache[job_id] = job
+    job = job_cache[job_id]
+    check_id = check.get("id")
+    attempt = job.get("run_attempt")
+    if (
+        not isinstance(check_id, int)
+        or isinstance(check_id, bool)
+        or check_id <= 0
+        or job.get("id") != job_id
+        or job.get("run_id") != run_id
+        or job.get("check_run_url") != f"{api_root}/check-runs/{check_id}"
+        or not isinstance(attempt, int)
+        or isinstance(attempt, bool)
+        or attempt <= 0
+    ):
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
+    return created_at, attempt
+
+
 def _validate_selected_outage_action_run(
     check_node: Mapping[str, Any],
     *,
-    required: _TrustedRequiredContext,
-    target: _TrustedPullRequestTarget,
+    required: _OutageRequiredContext,
+    target: _OutagePullRequestTarget,
     token: str,
     run_cache: dict[int, dict[str, Any]],
     job_cache: dict[int, dict[str, Any]],
 ) -> None:
     """Bind one selected rollup check to its exact PR Actions run and job."""
-
-    from scripts.ci.check_trusted_protected_pr_policy import (
-        _actions_run_and_job_ids,
-        _validated_action_run,
-    )
 
     details_url = check_node.get("detailsUrl")
     run_id, job_id = _actions_run_and_job_ids(details_url, target)
@@ -755,11 +1033,6 @@ def _validate_operator_outage_security_checks(
 ) -> None:
     """Require a strict successful trusted current-head security bundle."""
 
-    from scripts.ci.check_trusted_protected_pr_policy import (
-        PullRequestTarget,
-        RequiredContext,
-    )
-
     _is_draft, _merge_state, base_ref, nodes = _fetch_current_head_pr_metadata(
         pr_number, repository, token, expected_head_sha
     )
@@ -776,7 +1049,7 @@ def _validate_operator_outage_security_checks(
         latest,
         superseded,
     )
-    target = PullRequestTarget(
+    target = _OutagePullRequestTarget(
         repository=repository,
         number=pr_number,
         base_sha=expected_base_sha,
@@ -839,11 +1112,10 @@ def _validate_operator_outage_security_checks(
         try:
             _validate_selected_outage_action_run(
                 selected_nodes[0],
-                required=RequiredContext(
+                required=_OutageRequiredContext(
                     name=name,
                     workflow_name=expected_workflow,
                     workflow_path=expected_workflow_path,
-                    authority_inputs=(),
                 ),
                 target=target,
                 token=token,
@@ -1370,6 +1642,25 @@ def main() -> int:
             for item in unmapped:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")
 
+    review_wait_result: tuple[int, int] | None = None
+    if not args.pre_closeout and not errors:
+        try:
+            review_wait_result = _wait_for_review_quiet_window(
+                repo=repo,
+                pr_number=pr_number,
+                token=token,
+                expected_pr_context=(pr_number, repo, is_draft, pr_body, head_ref),
+                snapshot=snapshot,
+            )
+        except (
+            CommitIdentityError,
+            OSError,
+            ReviewEvidenceError,
+            ValueError,
+            urllib.error.HTTPError,
+        ) as exc:
+            errors.append(f"Mandatory review wait failed: {exc}")
+
     try:
         final_pr_context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
         final_actionable_items = _collect_actionable_items(
@@ -1431,6 +1722,12 @@ def main() -> int:
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
         print("PROVIDER_NO_CLAIM_VALID review_claim=none scan_claim=none")
+    if review_wait_result is not None:
+        observations, events = review_wait_result
+        print(
+            "REVIEW_WAIT_WINDOW_VALID "
+            f"observations={observations} quiet_seconds={_REVIEW_QUIET_SECONDS} events={events}"
+        )
     if duplicate_covered_urls:
         print(f"DUPLICATE_FINDING_REUSED count={len(duplicate_covered_urls)}")
     print(

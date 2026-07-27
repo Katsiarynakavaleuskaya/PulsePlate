@@ -2,7 +2,7 @@
 
 ## Disposition
 
-- Status: temporarily not applicable to the PulsePlate runtime
+- Status: temporarily suppressed under a bounded, point-in-time risk decision
 - Package: `react-router`
 - Installed version: `7.18.1`
 - Trivy fixed version: `8.3.0`
@@ -10,9 +10,10 @@
 - Review-by: 2026-08-24
 
 The advisory affects React Router's unstable React Server Components (RSC)
-server APIs. PulsePlate uses the stable declarative `react-router-dom` SPA
-surface and does not enable those server APIs. The exact Trivy record is
-temporarily suppressed instead of taking an unrelated major-version migration.
+server APIs. Current PulsePlate repository evidence shows the stable
+declarative `react-router-dom` SPA surface and no intentional use of those
+server APIs. The exact Trivy record is temporarily suppressed instead of taking
+an unrelated major-version migration.
 
 ## Applicability evidence
 
@@ -20,47 +21,41 @@ temporarily suppressed instead of taking an unrelated major-version migration.
   `frontend/package-lock.json:9168`, `frontend/package-lock.json:9169`,
   `frontend/package-lock.json:9191`, and `frontend/package-lock.json:9196`
   resolve both router packages to that exact line.
-- The frontend has no `unstable_matchRSCServerRequest` or
-  `unstable_routeRSCServerRequest` use. The canonical marker inventory is at
-  `scripts/ci/check_react_router_rsc_premise.py:51`, and the default CLI's
-  canonical frontend root is asserted at
-  `tests/test_trivy_ignore_policy_expiry.py:641`.
-- The frontend has no `react-router/internal/react-server` import,
-  `@vitejs/plugin-rsc` dependency, `react-server-dom-*` dependency or lockfile
-  resolution/alias, or `react-server` build condition. The token-bounded build
-  condition matcher is at `scripts/ci/check_react_router_rsc_premise.py:57`.
-- `scripts/ci/check_react_router_rsc_premise.py:711` scans package metadata,
-  and `scripts/ci/check_react_router_rsc_premise.py:1423` combines that scan with
-  every source-like file. It fails closed when an affected marker is introduced;
-  metadata and runtime regressions are covered at
-  `tests/test_trivy_ignore_policy_expiry.py:705` and
-  `tests/test_trivy_ignore_policy_expiry.py:927`.
-- `scripts/ci/check_trivy_ignore_policy_expiry.py:501` detects any suppression
-  capable of matching the canonical tuple, and
-  `scripts/ci/check_trivy_ignore_policy_expiry.py:559` invokes
-  the premise guard. The existing blocking `trivy_ignore_policy_expiry` CI job
-  therefore enforces expiry and the complete premise scan together.
+- A point-in-time repository review on 2026-07-27 found no
+  `unstable_matchRSCServerRequest` or `unstable_routeRSCServerRequest` use,
+  `react-router/internal/react-server` import, `@vitejs/plugin-rsc` dependency,
+  `react-server-dom-*` dependency, or intentional `react-server` build
+  condition in the current frontend surface.
 - `trivy/ignore-policy.rego:212` begins the exact suppression rule, whose five
   tuple predicates occupy `trivy/ignore-policy.rego:213` through
-  `trivy/ignore-policy.rego:217`. The guard's canonical predicate tuple is
-  defined at `scripts/ci/check_trivy_ignore_policy_expiry.py:26` and compared
-  exactly at `scripts/ci/check_trivy_ignore_policy_expiry.py:335`.
-- Exact-tuple and fail-closed wrapper regressions are at
-  `tests/test_trivy_ignore_policy_expiry.py:2371` and
-  `tests/test_trivy_ignore_policy_expiry.py:2981`.
+  `trivy/ignore-policy.rego:217`.
+- `scripts/ci/check_trivy_ignore_policy_expiry.py` enforces the exact five-field
+  tuple, rejects duplicate, broader, malformed, or alternate-head ignore rules,
+  and enforces the suppression expiry and review dates.
+- `tests/test_trivy_ignore_policy_expiry.py` covers the exact tuple, lexical
+  Rego structure, comments, quoted/raw-string decoys, expiry, review dates, and
+  stable read failures.
+
+This point-in-time repository evidence is not
+a complete source-applicability proof. There is no claim that a finite marker
+inventory can prove every present or future RSC usage shape; the evidence must
+be refreshed during the weekly review and whenever the frontend dependency or
+execution model changes.
 
 ## Threat and bounded decision
 
 The reported issue can allow an action to execute before a rejected request
 returns HTTP 400, but only through the affected unstable RSC request-handling
-surface. That surface is absent from PulsePlate today. This disposition does
-not claim that React Router 7.18.1 is generally unaffected, that the dependency
-is vulnerability-free, or that a scanner passed.
+surface. That surface was not found in the point-in-time evidence above. This
+disposition does not claim that React Router 7.18.1 is generally unaffected,
+that the dependency is vulnerability-free, that all possible source forms were
+proven safe, or that an applicability scanner passed.
 
 Upgrading the application across a major router boundary solely to clear a
-currently non-applicable scanner record would add product migration risk
-without reducing the current PulsePlate attack surface. The temporary exact
-suppression is the smaller, reversible action.
+scanner record whose triggering surface was not found in the point-in-time
+evidence would add product migration risk without reducing the observed
+PulsePlate attack surface. The temporary exact suppression is the smaller,
+reversible action.
 
 ## Monitor and removal
 
@@ -69,8 +64,9 @@ Owner: `@katsiaryna_kavaleuskaya`
 Review the GitHub advisory and Dependabot alert #241 weekly. Remove the
 suppression immediately when any of these conditions is true:
 
-1. PulsePlate adopts an affected unstable RSC API, internal RSC server import,
-   RSC Vite plugin, React Server DOM package, or `react-server` build condition.
+1. Current or future review finds an affected unstable RSC API, internal RSC
+   server import, RSC Vite plugin, React Server DOM package, or `react-server`
+   build condition.
 2. The installed React Router line moves away from 7.18.1.
 3. Trivy changes any field in the suppressed finding tuple.
 4. A compatible non-affected dependency line is approved and validated.
