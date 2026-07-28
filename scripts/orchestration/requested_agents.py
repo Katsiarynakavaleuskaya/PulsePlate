@@ -11,18 +11,12 @@ from collections.abc import Iterable
 POST_OPEN_QA_AGENT = "qa-engineer-agent"
 POST_OPEN_BUG_HUNTER_AGENT = "bug-hunter"
 POST_OPEN_SECURITY_AUDITOR_AGENT = "security-auditor"
-POST_OPEN_CODEX_SECURITY_SCAN = "Codex Security diff scan / finding discovery"
 POST_OPEN_PULSEPLATE_PR_REVIEW = "pulseplate-pr-review"
 
 MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = (
     POST_OPEN_QA_AGENT,
     POST_OPEN_BUG_HUNTER_AGENT,
     POST_OPEN_SECURITY_AUDITOR_AGENT,
-)
-MANDATORY_POST_OPEN_GATES: tuple[str, ...] = (
-    *MANDATORY_POST_OPEN_ORDER,
-    POST_OPEN_CODEX_SECURITY_SCAN,
-    POST_OPEN_PULSEPLATE_PR_REVIEW,
 )
 IMPLEMENTATION_OWNER_SLUGS: frozenset[str] = frozenset(
     (

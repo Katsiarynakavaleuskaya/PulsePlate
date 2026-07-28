@@ -24,14 +24,20 @@ This policy cannot replace GitHub review-thread truth, CodeRabbit/Sourcery/Cubic
 dispositions, `docs/review/PR_<N>_FIXED_MAPPING.md`, PR body mirror governance,
 current-head CI, or strict merge-readiness checks.
 
-For a material seal, `--review-source-unavailable-ref` accepts only a canonical
-same-repository, same-PR, unedited issue-comment URL from the trusted Codex
-GitHub App. The verifier authenticates the bot and App identity, exact
-`html_url`/`issue_url`, immutable timestamp, and exact known quota body, then
-recomputes the UTF-8 body SHA-256 on every validation. Unknown or changed text
-fails closed. The receipt binds the immutable evidence to the current material
-head/digest as `seal_context_only`; a later material change requires resealing,
-but the same immutable comment may be reverified and reused.
+Current material-seal authoring does not accept provider evidence and does not
+invoke, retry, poll, wait for, or substitute either Connector or Codex Security.
+`seal --self-review-report <report.json>` authors the exact symmetric
+provider-neutral no-claim pair. Provider absence is not review, scan, approval,
+PASS, or no-findings evidence, and all current-head CI/security, disposition,
+mapping, thread, ancestry, and wait-window gates remain mandatory.
+
+Historical material seals may contain `--review-source-unavailable-ref`
+receipts. Their verifier remains available only to read and revalidate legacy
+artifacts: it authenticates the canonical same-repository, same-PR, unedited
+issue-comment URL, bot/App identity, immutable timestamp, exact known quota
+body, and UTF-8 body SHA-256. That compatibility path grants no current
+authoring authority and must not cause a provider request, retry, wait, or
+fallback.
 
 Historical compatibility: the PR `#2142`
 `operator_review_credit_exhaustion_override` receipt remains parseable and

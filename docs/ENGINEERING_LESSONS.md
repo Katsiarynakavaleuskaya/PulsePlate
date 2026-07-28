@@ -594,12 +594,15 @@ For non-trivial PRs:
    tail
 3. scoped `AGENTS.md` files must not narrow the repo-global post-open review
    gate; use a superseding repo-global reference when historical lane bullets
-   would otherwise omit `security-auditor`, Codex Security, or
+   would otherwise omit `security-auditor`, current-head security checks, or
    `pulseplate-pr-review`
 4. run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
    evidence before PR open
 5. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`,
-   Codex Security diff scan / finding discovery, and `pulseplate-pr-review`
+   exact-material `pulseplate-pr-review`, disposition every actual finding, and
+   author the provider-neutral no-claim seal without invoking or waiting for
+   Connector/Codex Security; independently available provider output stays
+   advisory and creates no PASS/no-findings claim
 6. when a recurring governance rule emerges, update the smallest authoritative
    instruction surfaces in the same PR: scoped/root `AGENTS.md`, `RUNBOOK_AGENT.md`,
    workflow/contract docs, and this lessons file
@@ -810,6 +813,36 @@ review summary needs its own mapping even when all child comments are mapped.
 This is a commit-ordering gate, not a merge verdict: unresolved threads,
 current-head CI, and the mandatory wait cycle remain for the normal strict
 post-push wrapper.
+
+## 31) Close bot fix loops at the invariant boundary
+
+### Problem
+Bot findings can have different reproducers yet still form one structural
+fix-loop: each push closes one carrier, parser edge, or authority path while
+leaving the same underlying invariant incomplete. These are not literal repeats
+covered by lesson 22, but fixing each example independently recreates the
+enumeration failure from lesson 24.
+
+### Rule
+Before changing code, group new reproducers by the invariant they violate:
+
+1. Call a graph finite only when one mechanically closed source of truth
+   determines every member. A hand-maintained list is not a completeness proof.
+2. Import resolution, implicit tool configuration, plugin discovery,
+   executable file formats, and arbitrary build/runtime semantics are
+   open-world surfaces. Do not claim they are complete by adding the latest
+   carrier to an allowlist or custom parser.
+3. Fix one materially novel current-surface P1 at the smallest honest class
+   boundary with targeted regression evidence.
+4. When a second novel carrier exposes the same open-world assumption, stop the
+   example-by-example fixes and reset scope: remove or roll back the unsound
+   mechanism, retain only bounded controls whose claims match their proof, and
+   record residual risk explicitly.
+5. An exact repeat without a new reproducer reuses its existing disposition and
+   does not justify another material commit.
+
+Stop when the bounded claim is true, not when the current examples happen to
+pass. Broader runtime modeling belongs in a separately scoped lane.
 
 ---
 

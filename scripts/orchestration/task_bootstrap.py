@@ -102,7 +102,6 @@ from scripts.orchestration.requested_agents import (
     IMPLEMENTATION_OWNER_SLUGS,
     MANDATORY_POST_OPEN_ORDER,
     POST_OPEN_BUG_HUNTER_AGENT,
-    POST_OPEN_CODEX_SECURITY_SCAN,
     POST_OPEN_PULSEPLATE_PR_REVIEW,
     POST_OPEN_QA_AGENT,
     normalize_requested_agents,
@@ -115,7 +114,7 @@ from scripts.orchestration.shadow_reuse_telemetry import (
     resolve_current_head_sha,
 )
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "3.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
 CREATIVE_LEARNING_HINTS_ROOT: Path = (
     REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "learning_rollup"
@@ -153,14 +152,9 @@ PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
-PR_LIFECYCLE_CONTRACT_VERSION = "pulseplate.pr-lifecycle/v2"
+PR_LIFECYCLE_CONTRACT_VERSION = "pulseplate.pr-lifecycle/v3"
 FINAL_MATERIAL_ONLY = "final_material_only"
-FINAL_REVIEW_GATE_LABEL = "trusted exact-head GitHub Codex Connector review"
-FINAL_MATERIAL_REVIEW_GATES: tuple[str, ...] = (
-    POST_OPEN_PULSEPLATE_PR_REVIEW,
-    FINAL_REVIEW_GATE_LABEL,
-    POST_OPEN_CODEX_SECURITY_SCAN,
-)
+FINAL_MATERIAL_REVIEW_GATES: tuple[str, ...] = (POST_OPEN_PULSEPLATE_PR_REVIEW,)
 POST_OPEN_REVIEW_CHAIN_POLICY = "post_open_roles_then_final_material_gates"
 POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS: tuple[str, ...] = (
     "coordinator_evidence_backed_reroute",
@@ -624,19 +618,23 @@ def _normalize_pr_phase(pr_phase: str) -> str:
     return normalized_phase
 
 
-def _codex_security_invocation_policy() -> dict[str, Any]:
-    """Return the per-PR final-security request budget."""
+def _provider_no_claim_policy() -> dict[str, Any]:
+    """Return the closed provider-neutral no-claim policy."""
 
     return {
-        "scope": "per_pr",
-        "automatic_budget": 1,
-        "automatic_retries": 0,
-        "requires_frozen_material": True,
-        "additional_invocation": "trusted_operator_approval",
-        "timeout_or_incomplete_consumes_request": True,
-        "repository_invokes_plugin": False,
-        "global_cross_machine_consumption_provable": False,
-        "local_state_is_global_authority": False,
+        "output_required": False,
+        "seal_without_provider_flags": True,
+        "provider_invocation_required": False,
+        "provider_retry_required": False,
+        "provider_wait_required": False,
+        "substitute_provider_required": False,
+        "operator_override_required": False,
+        "ttl_required": False,
+        "absence_is_pass": False,
+        "absence_is_review": False,
+        "absence_is_scan": False,
+        "absence_is_approval": False,
+        "absence_is_no_findings": False,
     }
 
 
@@ -655,11 +653,9 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "requires_pr": requires_pr,
         "post_open_review_required": post_open_review,
         "review_lane": review_lane,
-        "post_open_codex_security_scan_required": post_open_review,
-        "post_open_codex_security_scan": (
-            POST_OPEN_CODEX_SECURITY_SCAN if post_open_review else ""
-        ),
-        "post_open_codex_security_scan_timing": (FINAL_MATERIAL_ONLY if post_open_review else ""),
+        "post_open_codex_security_scan_required": False,
+        "post_open_codex_security_scan": "",
+        "post_open_codex_security_scan_timing": "",
         "post_open_pulseplate_pr_review_required": post_open_review,
         "post_open_pulseplate_pr_review": (
             POST_OPEN_PULSEPLATE_PR_REVIEW if post_open_review else ""
@@ -678,7 +674,7 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "post_open_later_comments_handling": (
             POST_OPEN_LATER_COMMENTS_HANDLING if post_open_review else ""
         ),
-        "codex_security_invocation_policy": _codex_security_invocation_policy(),
+        "provider_no_claim_policy": _provider_no_claim_policy(),
         "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
         "current_head_required": requires_current_head,
         "current_head_truth": "latest-current-head" if requires_current_head else "not-applicable",

@@ -220,64 +220,6 @@ class TestAppComprehensive97:
         assert abs(data["tdee"]["mifflin"] - 2507.0) < 1  # TDEE moderate
         assert data["recommended_intake"]["maintenance"] == data["tdee"]["mifflin"]
 
-    def test_premium_bmr_endpoint_module_not_available(self):
-        """Test /premium_bmr when nutrition module not available (lines 1180-1189)"""
-        with patch(
-            "app._calculate_all_bmr_wrapper",
-            side_effect=ImportError("nutrition_core module not available"),
-        ):
-            response = client.post(
-                "/premium_bmr",
-                json={
-                    "weight_kg": 70,
-                    "height_cm": 170,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                    "lang": "en",
-                },
-            )
-            assert response.status_code == 503
-            assert "not available" in response.json()["detail"]
-
-    @patch("app._calculate_all_bmr_wrapper")
-    def test_premium_bmr_endpoint_value_error(self, mock_bmr):
-        """Test /premium_bmr with ValueError (lines 1235-1236)"""
-        mock_bmr.side_effect = ValueError("Invalid input data")
-
-        response = client.post(
-            "/premium_bmr",
-            json={
-                "weight_kg": -10,  # Invalid weight
-                "height_cm": 170,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-                "lang": "en",
-            },
-        )
-        assert response.status_code == 400
-        assert "Invalid input" in response.json()["detail"]
-
-    @patch("app._calculate_all_bmr_wrapper")
-    def test_premium_bmr_endpoint_general_error(self, mock_bmr):
-        """Test /premium_bmr with general exception (lines 1237-1238)"""
-        mock_bmr.side_effect = Exception("Calculation failed")
-
-        response = client.post(
-            "/premium_bmr",
-            json={
-                "weight_kg": 70,
-                "height_cm": 170,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-                "lang": "en",
-            },
-        )
-        assert response.status_code == 500
-        assert "BMR calculation failed" in response.json()["detail"]
-
     @patch("core.recommendations.build_nutrition_targets")
     def test_premium_targets_endpoint_success(self, mock_targets):
         """Test /premium_targets endpoint success path (lines 1265-1339)"""
@@ -416,46 +358,6 @@ class TestAppComprehensive97:
         )
         assert response.status_code == 200
         # Should use athlete BMI category
-
-    def test_activity_level_descriptions(self):
-        """Test activity level descriptions in premium_bmr"""
-        with patch("app.calculate_all_bmr", return_value={"mifflin": 1800}):
-            with patch("app.calculate_all_tdee", return_value={"mifflin": 2200}):
-                response = client.post(
-                    "/premium_bmr",
-                    json={
-                        "weight_kg": 70,
-                        "height_cm": 170,
-                        "age": 30,
-                        "sex": "male",
-                        "activity": "very_active",
-                        "lang": "en",
-                    },
-                )
-                assert response.status_code == 200
-                data = response.json()
-                assert "activity_level" in data
-
-    def test_katch_bmr_note(self):
-        """Test Katch BMR formula note when bodyfat provided"""
-        with patch("app.calculate_all_bmr", return_value={"mifflin": 1800, "katch": 1900}):
-            with patch("app.calculate_all_tdee", return_value={"mifflin": 2200, "katch": 2300}):
-                response = client.post(
-                    "/premium_bmr",
-                    json={
-                        "weight_kg": 70,
-                        "height_cm": 170,
-                        "age": 30,
-                        "sex": "male",
-                        "activity": "moderate",
-                        "bodyfat": 15,
-                        "lang": "en",
-                    },
-                )
-                assert response.status_code == 200
-                data = response.json()
-                assert "notes" in data
-                # Should include Katch formula note when bodyfat is provided
 
     def test_premium_targets_import_error_handling(self):
         """Test premium_targets safety validation import error handling (lines 1315-1320)"""

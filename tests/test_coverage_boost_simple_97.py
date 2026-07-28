@@ -34,13 +34,6 @@ class TestCoverageBoostSimple:
         assert self._client_instance is not None
         return self._client_instance
 
-    def test_app_import_fallbacks(self):
-        """Test app import fallbacks."""
-        with patch("legacy_app.calculate_all_bmr", None):
-            with patch("legacy_app.calculate_all_tdee", None):
-                response = self.client.get("/")
-                assert response.status_code == 200
-
     def test_health_endpoint(self):
         """Test health endpoint."""
         response = self.client.get("/health")

@@ -14,9 +14,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.orchestration.pr_review_evidence import (
+    SELF_REVIEW_ACTIONABLE_SEVERITIES,
+    SELF_REVIEW_LARGE_DIFF_CHANGED_LINES,
+    SELF_REVIEW_REPORT_SCHEMA_VERSION,
+    SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES,
+)
 from scripts.orchestration.review_source_status import summarize_degraded_sources
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = SELF_REVIEW_REPORT_SCHEMA_VERSION
 DEFAULT_ROLE_ORDER = [
     "agent-coordinator",
     "architecture-specialist",
@@ -26,13 +32,13 @@ DEFAULT_ROLE_ORDER = [
     "data-scientist-agent",
 ]
 
-LARGE_DIFF_CHANGED_LINES = 300
-VERY_LARGE_DIFF_CHANGED_LINES = 800
+LARGE_DIFF_CHANGED_LINES = SELF_REVIEW_LARGE_DIFF_CHANGED_LINES
+VERY_LARGE_DIFF_CHANGED_LINES = SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES
 CALIBRATION_RUBRIC_VERSION = "pr4-2026-04-28"
 FALSE_POSITIVE_CONTROLS = (
     "clean context must produce zero findings",
     "benign fixed-mapping presence must not become a governance finding",
-    "warnings are advisory NEEDS-HUMAN findings, not auto-postable comments",
+    "warnings and governance uncertainty remain actionable findings, not diagnostic notes",
     "review-source degradation is status/warning only unless an explicit blocking source finding exists",
     "large diff risk is review-planning evidence, not a merge-readiness claim",
 )
@@ -41,6 +47,7 @@ FALSE_POSITIVE_CONTROLS = (
 @dataclass(frozen=True)
 class Finding:
     severity: str
+    diagnostic_code: str
     role_agent: str
     category: str
     file: str
@@ -104,11 +111,24 @@ def _context_path(context: dict[str, Any], default: str) -> str:
     return default
 
 
+def _fixed_mapping_errors(context: dict[str, Any], warnings: list[str]) -> list[str]:
+    raw_fixed_mapping = context.get("fixed_mapping")
+    fixed_mapping = _as_dict(raw_fixed_mapping)
+    if not isinstance(raw_fixed_mapping, dict):
+        return ["Fixed-mapping context is malformed."]
+    if not fixed_mapping.get("exists"):
+        return []
+    return [
+        error
+        for error in _dedupe_strings(_as_list(fixed_mapping.get("errors")))
+        if error not in warnings
+    ]
+
+
 def _coerce_int(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return None
 
 
 def build_findings(context: dict[str, Any]) -> list[Finding]:
@@ -119,7 +139,8 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
     for warning in warnings:
         findings.append(
             Finding(
-                severity="note",
+                severity="minor",
+                diagnostic_code="context_warning",
                 role_agent="agent-coordinator",
                 category="governance",
                 file="scripts/orchestration/pr_review_context.py",
@@ -131,10 +152,11 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
             )
         )
 
-    if context.get("pr") is None:
+    if not isinstance(context.get("pr"), dict):
         findings.append(
             Finding(
-                severity="note",
+                severity="minor",
+                diagnostic_code="missing_pr_metadata",
                 role_agent="agent-coordinator",
                 category="governance",
                 file="scripts/orchestration/pr_review_context.py",
@@ -146,17 +168,18 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
             )
         )
 
-    fixed_mapping = _as_dict(context.get("fixed_mapping"))
-    if not fixed_mapping.get("exists"):
+    mapping_errors = _fixed_mapping_errors(context, warnings)
+    for mapping_error in mapping_errors:
         findings.append(
             Finding(
-                severity="note",
+                severity="minor",
+                diagnostic_code="invalid_fixed_mapping",
                 role_agent="qa-engineer-agent",
                 category="governance",
                 file=_context_path(context, "docs/review/PR_<N>_FIXED_MAPPING.md"),
                 line=None,
-                evidence="Fixed-mapping artifact is missing or not available.",
-                suggested_fix="Create the canonical fixed-mapping artifact after the PR number is assigned.",
+                evidence=mapping_error,
+                suggested_fix="Regenerate the existing canonical fixed-mapping artifact for current PR material.",
                 gate_to_run="python3 scripts/orchestration/check_review_threads_disposition.py --pr-number <PR_NUMBER> --require-auth",
                 disposition_candidate="NEEDS-HUMAN",
             )
@@ -168,7 +191,8 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
     for blocking_source in [item for item in review_sources if bool(item.get("blocking"))]:
         findings.append(
             Finding(
-                severity="note",
+                severity="minor",
+                diagnostic_code="blocking_review_source",
                 role_agent="agent-coordinator",
                 category="governance",
                 file="scripts/orchestration/review_source_status.py",
@@ -193,7 +217,8 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
     if not scoped_agents:
         findings.append(
             Finding(
-                severity="note",
+                severity="minor",
+                diagnostic_code="missing_scoped_agents",
                 role_agent="architecture-specialist",
                 category="architecture",
                 file="AGENTS.md",
@@ -211,7 +236,8 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
     if changed_lines is None:
         findings.append(
             Finding(
-                severity="note",
+                severity="minor",
+                diagnostic_code="invalid_changed_lines",
                 role_agent="qa-engineer-agent",
                 category="governance",
                 file="scripts/orchestration/pr_review_context.py",
@@ -232,6 +258,7 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
         findings.append(
             Finding(
                 severity="note",
+                diagnostic_code="large_diff_review_risk",
                 role_agent="bug-hunter",
                 category="tests",
                 file="docs/roadmap/BACKLOG_LEDGER.md",
@@ -239,7 +266,7 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
                 evidence=f"Diff contains {changed_lines} changed lines, above review-risk threshold {threshold}.",
                 suggested_fix="Confirm PR split rationale and targeted deterministic gates before opening review.",
                 gate_to_run="make validate-changed",
-                disposition_candidate="NEEDS-HUMAN",
+                disposition_candidate="NOT-A-BUG",
             )
         )
 
@@ -266,9 +293,12 @@ def _build_scope(context: dict[str, Any]) -> dict[str, Any]:
     diff = _as_dict(context.get("diff"))
     agents = _as_dict(context.get("agents_discovery"))
     files = _as_list(diff.get("files"))
+    warnings = _dedupe_strings(_as_list(context.get("warnings")))
     return {
         "changed_files": [str(item.get("path", "")) for item in files if isinstance(item, dict)],
         "diff_summary": diff.get("summary", {}),
+        "fixed_mapping_errors": _fixed_mapping_errors(context, warnings),
+        "pr_metadata_available": isinstance(context.get("pr"), dict),
         "scoped_agents_md": agents.get("scoped_agents_md", []),
         "omitted_surfaces": ["GitHub posting", "PR thread resolution", "merge readiness claims"],
     }
@@ -293,11 +323,7 @@ def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict
     categories = {finding.category for finding in findings}
     case_labels: list[str] = []
     has_large_diff_risk = any(
-        finding.category == "tests"
-        and finding.role_agent == "bug-hunter"
-        and finding.gate_to_run == "make validate-changed"
-        and "changed lines" in finding.evidence
-        for finding in findings
+        finding.diagnostic_code == "large_diff_review_risk" for finding in findings
     )
 
     if not findings:
@@ -327,10 +353,18 @@ def build_report(
     packet_path: str = "",
 ) -> dict[str, Any]:
     findings = build_findings(context)
+    actionable_findings_count = sum(
+        finding.severity in SELF_REVIEW_ACTIONABLE_SEVERITIES for finding in findings
+    )
+    material = _as_dict(context.get("material"))
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": str(context.get("generated_at_utc") or "unknown"),
         "mode": "dry-run-report",
+        "base_ref_oid": str(material.get("base_ref_oid") or ""),
+        "material_head_sha": str(material.get("material_head_sha") or ""),
+        "material_digest": str(material.get("material_digest") or ""),
+        "merge_base_sha": str(material.get("merge_base_sha") or ""),
         "coordinator_packet": {
             "task_packet_id": packet_id,
             "path": packet_path,
@@ -339,6 +373,7 @@ def build_report(
         "scope_reviewed": _build_scope(context),
         "review_source_status": _as_list(context.get("review_source_status")),
         "findings_count": len(findings),
+        "actionable_findings_count": actionable_findings_count,
         "findings": [asdict(finding) for finding in findings],
         "calibration": _build_calibration(context, findings),
         "role_review": _build_role_reviews(findings),
@@ -394,7 +429,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             location = f"{location}:{finding['line']}"
         lines.extend(
             [
-                f"- `{finding['severity']}` `{finding['role_agent']}` `{finding['category']}` at `{location}`",
+                f"- `{finding['severity']}` `{finding['diagnostic_code']}` "
+                f"`{finding['role_agent']}` `{finding['category']}` at `{location}`",
                 f"  - Evidence: {_format_value(finding.get('evidence'))}",
                 f"  - Suggested fix: {_format_value(finding.get('suggested_fix'))}",
                 f"  - Gate: `{_format_value(finding.get('gate_to_run'))}`",

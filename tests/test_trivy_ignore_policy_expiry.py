@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from scripts.ci import check_trivy_ignore_policy_expiry as expiry_guard
 from scripts.ci.check_trivy_ignore_policy_expiry import evaluate_policy_file
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,9 @@ SECURITY_DOC_GPGV_24882_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24882
 SECURITY_DOC_GPGV_24883_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24883-gpgv.md"
 SECURITY_DOC_GZIP_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-41992-gzip.md"
 SECURITY_DOC_FARADAY_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-54297-faraday-fastlane.md"
+SECURITY_DOC_REACT_ROUTER_RSC_PATH = (
+    REPO_ROOT / "docs" / "security" / "GHSA-qwww-vcr4-c8h2-react-router.md"
+)
 BACKLOG_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
 LOCAL_ONLY_SCAN_DIRS = {
     ".git",
@@ -115,6 +119,14 @@ def _ledger_faraday_entry() -> str:
     return backlog_text[ledger_start:ledger_end]
 
 
+def _ledger_react_router_entry() -> str:
+    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
+    ledger_start = backlog_text.index('<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>')
+    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
+    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
+    return backlog_text[ledger_start:ledger_end]
+
+
 def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
     """Return repository lockfiles without descending into local-only trees."""
 
@@ -140,6 +152,46 @@ def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: 
                 "# Review-by: 2026-05-27 (manual removal)",
                 "default ignore := false",
             ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert evaluate_policy_file(policy, today=date(2026, 5, 19)) == []
+
+
+@pytest.mark.parametrize(
+    "decoy",
+    (
+        "\n".join(
+            (
+                "decoy := `",
+                "# Suppression expires: 2000-01-01 decoy",
+                "# Review-by: 2000-01-01 decoy",
+                "`",
+            )
+        ),
+        "\n".join(
+            (
+                'expiry_decoy := "# Suppression expires: 2000-01-01 decoy"',
+                'review_decoy := "# Review-by: 2000-01-01 decoy"',
+            )
+        ),
+    ),
+)
+def test_trivy_policy_dates_ignore_raw_and_quoted_string_decoys(
+    tmp_path: Path,
+    decoy: str,
+) -> None:
+    policy = tmp_path / "ignore-policy.rego"
+    policy.write_text(
+        "\n".join(
+            (
+                "package trivy",
+                decoy,
+                "# Suppression expires: 2099-01-01 (manual removal)",
+                "# Review-by: 2099-01-01 (manual removal)",
+                "default ignore := false",
+            )
         ),
         encoding="utf-8",
     )
@@ -558,3 +610,587 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     # Negative mismatches: prefix/wildcard forms must not appear for this CVE.
     assert 'input.PkgID == "util-linux@2.38.1-5+deb12u30"' not in helper_region
     assert 'startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")' not in helper_region
+
+
+def test_react_router_rsc_suppression_requires_exact_trivy_tuple() -> None:
+    policy = _policy_text()
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"')
+    next_ignore = policy.find("\nignore if {", start + 1)
+    rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
+
+    assert 'input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"' in rule
+    assert 'input.PkgName == "react-router"' in rule
+    assert 'input.InstalledVersion == "7.18.1"' in rule
+    assert 'input.PkgID == "react-router@7.18.1"' in rule
+    assert 'input.FixedVersion == "8.3.0"' in rule
+    assert "startswith(" not in rule
+    assert "contains(" not in rule
+
+
+def test_rego_os_read_error_returns_stable_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy_path = tmp_path / "trivy" / "ignore-policy.rego"
+    policy_path.parent.mkdir()
+    policy_path.write_text("package trivy\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def deny_policy_read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == policy_path:
+            raise PermissionError("test denial")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", deny_policy_read)
+
+    assert evaluate_policy_file(policy_path, today=date(2026, 7, 27)) == [
+        f"Unable to read Trivy ignore policy {policy_path}: test denial"
+    ]
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 1
+    assert (
+        f"- Unable to read Trivy ignore policy {policy_path}: test denial"
+        in capsys.readouterr().out
+    )
+
+
+def test_rego_unicode_read_error_returns_stable_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy_path = tmp_path / "trivy" / "ignore-policy.rego"
+    policy_path.parent.mkdir()
+    policy_path.write_bytes(b"\xff")
+
+    failures = evaluate_policy_file(policy_path, today=date(2026, 7, 27))
+
+    assert len(failures) == 1
+    assert failures[0].startswith(f"Unable to read Trivy ignore policy {policy_path}: ")
+    assert "can't decode byte 0xff" in failures[0]
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 1
+    assert f"- Unable to read Trivy ignore policy {policy_path}: " in capsys.readouterr().out
+
+
+def test_trivy_main_reuses_one_rego_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_expiry_wrapper_policy(tmp_path)
+    policy_path = tmp_path / "trivy" / "ignore-policy.rego"
+    original_read_text = Path.read_text
+    read_count = 0
+
+    def read_policy_once(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        nonlocal read_count
+        if path == policy_path:
+            read_count += 1
+            if read_count > 1:
+                raise PermissionError("second read must not occur")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(Path, "read_text", read_policy_once)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 0
+    assert read_count == 1
+
+
+def test_react_router_rsc_suppression_rejects_duplicate_or_broader_rule(
+    tmp_path: Path,
+) -> None:
+    policy_path = tmp_path / "ignore-policy.rego"
+    canonical = "\n".join(
+        (
+            "ignore if {",
+            '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+            '\tinput.PkgName == "react-router"',
+            '\tinput.InstalledVersion == "7.18.1"',
+            '\tinput.PkgID == "react-router@7.18.1"',
+            '\tinput.FixedVersion == "8.3.0"',
+            "}",
+        )
+    )
+    policy_path.write_text(
+        "# Suppression expires: 2099-01-01\n" + canonical + "\n" + canonical + "\n",
+        encoding="utf-8",
+    )
+    assert any(
+        "exactly one GHSA ignore block" in failure
+        for failure in expiry_guard.evaluate_policy_file(
+            policy_path,
+            today=date(2026, 7, 27),
+        )
+    )
+
+    broader = canonical.replace(
+        '\tinput.FixedVersion == "8.3.0"',
+        '\tinput.FixedVersion == "8.3.0"\n\tstartswith(input.PkgID, "react-router")',
+    )
+    policy_path.write_text(
+        "# Suppression expires: 2099-01-01\n" + broader + "\n",
+        encoding="utf-8",
+    )
+    assert any(
+        "canonical five predicates" in failure
+        for failure in expiry_guard.evaluate_policy_file(
+            policy_path,
+            today=date(2026, 7, 27),
+        )
+    )
+
+    policy_path.write_text(
+        "# Suppression expires: 2099-01-01\n"
+        + canonical
+        + "\nignore if {\n"
+        + '\tinput.PkgName == "react-router"\n'
+        + "}\n",
+        encoding="utf-8",
+    )
+    assert any(
+        "additional ignore block capable of matching" in failure
+        for failure in expiry_guard.evaluate_policy_file(
+            policy_path,
+            today=date(2026, 7, 27),
+        )
+    )
+
+
+def test_react_router_rsc_suppression_policy_doc_and_backlog_are_coupled() -> None:
+    policy = _policy_text()
+    security_doc = SECURITY_DOC_REACT_ROUTER_RSC_PATH.read_text(encoding="utf-8")
+    ledger_entry = _ledger_react_router_entry()
+
+    assert "# Monitor: https://github.com/advisories/GHSA-qwww-vcr4-c8h2" in policy
+    assert "# Documented in: docs/security/GHSA-qwww-vcr4-c8h2-react-router.md" in policy
+    assert "GHSA-qwww-vcr4-c8h2" in security_doc
+    assert "Installed version: `7.18.1`" in security_doc
+    assert "Trivy fixed version: `8.3.0`" in security_doc
+    assert "Review the GitHub advisory and Dependabot alert #241 weekly" in security_doc
+    assert "point-in-time repository evidence" in security_doc
+    assert "complete source-applicability proof" in security_doc
+    assert "scripts/ci/check_react_router_rsc_premise.py" not in security_doc
+    assert "scripts/ci/check_trivy_ignore_policy_expiry.py" in security_doc
+    assert "tests/test_trivy_ignore_policy_expiry.py" in security_doc
+    assert '<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>' in ledger_entry
+    assert (
+        "Target PR: this combined bootstrap PR (carryover from closed PRs #2184 and\n" "    #2187)"
+    ) in ledger_entry
+    assert "Remove the suppression if affected RSC usage is introduced" in ledger_entry
+    assert "point-in-time repository evidence" in ledger_entry
+    assert "scripts/ci/check_react_router_rsc_premise.py" not in ledger_entry
+    assert "scripts/ci/check_trivy_ignore_policy_expiry.py" in ledger_entry
+    assert "tests/test_trivy_ignore_policy_expiry.py" in ledger_entry
+
+
+def _write_expiry_wrapper_policy(repo_root: Path) -> None:
+    policy_dir = repo_root / "trivy"
+    policy_dir.mkdir(parents=True)
+    lines = [
+        "package trivy",
+        "# Suppression expires: 2026-10-07 (manual removal)",
+        "default ignore := false",
+        "# Review-by: 2026-08-24 (manual removal)",
+        "ignore if {",
+        '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+        '\tinput.PkgName == "react-router"',
+        '\tinput.InstalledVersion == "7.18.1"',
+        '\tinput.PkgID == "react-router@7.18.1"',
+        '\tinput.FixedVersion == "8.3.0"',
+        "}",
+    ]
+    (policy_dir / "ignore-policy.rego").write_text(
+        "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_expiry_wrapper_policy_with_rule(repo_root: Path, rule: str) -> Path:
+    policy_dir = repo_root / "trivy"
+    policy_dir.mkdir(parents=True)
+    policy_path = policy_dir / "ignore-policy.rego"
+    policy_path.write_text(
+        "\n".join(
+            (
+                "package trivy",
+                "# Suppression expires: 2099-01-01 (manual removal)",
+                "default ignore := false",
+                "# Review-by: 2099-01-01 (manual removal)",
+                rule,
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return policy_path
+
+
+def _write_expiry_wrapper_policy_with_body(repo_root: Path, body: str) -> Path:
+    return _write_expiry_wrapper_policy_with_rule(
+        repo_root,
+        "\n".join(("ignore if {", body, "}")),
+    )
+
+
+_CANONICAL_RSC_RULE_BODY = "\n".join(
+    (
+        '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+        '\tinput.PkgName == "react-router"',
+        '\tinput.InstalledVersion == "7.18.1"',
+        '\tinput.PkgID == "react-router@7.18.1"',
+        '\tinput.FixedVersion == "8.3.0"',
+    )
+)
+
+
+def test_react_router_rsc_suppression_requires_its_review_by_comment() -> None:
+    policy_text = _policy_text()
+    without_rsc_review = policy_text.replace(
+        "# Review-by: 2026-08-24 (manual removal)\n",
+        "",
+        1,
+    )
+
+    failures = evaluate_policy_file(
+        POLICY_PATH,
+        today=date(2026, 7, 27),
+        text=without_rsc_review,
+    )
+
+    assert failures == [
+        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
+        "adjacent 'Review-by: YYYY-MM-DD' comment"
+    ]
+
+
+def test_react_router_rsc_suppression_rejects_separated_review_by_decoy() -> None:
+    policy_text = _policy_text()
+    without_rsc_review = policy_text.replace(
+        "# Review-by: 2026-08-24 (manual removal)\n",
+        "",
+        1,
+    )
+    with_separated_decoy = without_rsc_review.replace(
+        "# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate",
+        "# Review-by: 2099-01-01 (belongs to another note)\n\n"
+        "# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate",
+        1,
+    )
+    assert with_separated_decoy != without_rsc_review
+
+    failures = evaluate_policy_file(
+        POLICY_PATH,
+        today=date(2026, 7, 27),
+        text=with_separated_decoy,
+    )
+
+    assert failures == [
+        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
+        "adjacent 'Review-by: YYYY-MM-DD' comment"
+    ]
+
+
+def test_react_router_rsc_suppression_rejects_multiple_adjacent_review_dates() -> None:
+    policy_text = _policy_text()
+    duplicate_rsc_review = policy_text.replace(
+        "# Review-by: 2026-08-24 (manual removal)\n",
+        "# Review-by: 2026-08-24 (manual removal)\n" "# Review-by: 2099-01-01 (decoy)\n",
+        1,
+    )
+
+    failures = evaluate_policy_file(
+        POLICY_PATH,
+        today=date(2026, 7, 27),
+        text=duplicate_rsc_review,
+    )
+
+    assert failures == [
+        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
+        "adjacent 'Review-by: YYYY-MM-DD' comment"
+    ]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID=="GHSA-qwww-vcr4-c8h2"',
+                    '\tinput.PkgName == "react-router"',
+                    '\tinput.InstalledVersion == "7.18.1"',
+                    '\tinput.PkgID == "react-router@7.18.1"',
+                    '\tinput.FixedVersion == "8.3.0"',
+                )
+            ),
+            id="no-space-target-equality",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\t"GHSA-qwww-vcr4-c8h2" == input.VulnerabilityID',
+                    '\tinput.PkgName == "react-router"',
+                    '\tinput.InstalledVersion == "7.18.1"',
+                    '\tinput.PkgID == "react-router@7.18.1"',
+                    '\tinput.FixedVersion == "8.3.0"',
+                )
+            ),
+            id="reversed-target-equality",
+        ),
+        pytest.param(
+            '\tinput.VulnerabilityID == "\\u0047HSA-qwww-vcr4-c8h2"',
+            id="escaped-target-literal",
+        ),
+        pytest.param(
+            "\treact_router_rsc_target_match",
+            id="opaque-helper-predicate",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\ttarget_vulnerabilities := {"GHSA-qwww-vcr4-c8h2"}',
+                    "\ttarget_vulnerabilities[input.VulnerabilityID]",
+                )
+            ),
+            id="set-member-expression",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    "\tdecoy := `payload",
+                    '\tinput.VulnerabilityID == "CVE-NOT-THE-TARGET"',
+                    "\t`",
+                    "\ttrue",
+                )
+            ),
+            id="raw-string-conflicting-decoy",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "\t# The modifier is part of the equality expression despite the newline.",
+                    '\twith input.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="following-with-overrides-same-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\t"CVE-2026-27171" == input.VulnerabilityID',
+                    '\twith input as {"VulnerabilityID": "GHSA-qwww-vcr4-c8h2"}',
+                )
+            ),
+            id="following-with-overrides-input-root",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    '\twith input["VulnerabilityID"] as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="following-with-overrides-bracket-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "\twith",
+                    '\tinput.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="split-following-with-fails-closed",
+        ),
+    ],
+)
+def test_noncanonical_target_capable_rule_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    body: str,
+) -> None:
+    _write_expiry_wrapper_policy_with_body(tmp_path, body)
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 1
+    assert "must contain exactly the canonical five predicates" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "vulnerability_predicate",
+    [
+        'input.VulnerabilityID=="CVE-2026-27171"',
+        '"CVE-2026-27171" == input.VulnerabilityID',
+    ],
+)
+def test_unrelated_rule_with_explicit_conflicting_vulnerability_stays_valid(
+    tmp_path: Path,
+    vulnerability_predicate: str,
+) -> None:
+    policy_path = _write_expiry_wrapper_policy_with_body(
+        tmp_path,
+        "\n".join(
+            (
+                f"\t{vulnerability_predicate}",
+                '\taffected_packages := {"react-router", "zlib1g"}',
+                "\taffected_packages[input.PkgName]",
+            )
+        ),
+    )
+    assert evaluate_policy_file(policy_path, today=date(2026, 7, 27)) == []
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    [
+        pytest.param(
+            'with input.PkgName as "react-router"',
+            id="different-input-field",
+        ),
+        pytest.param(
+            'with input["PkgName"] as "react-router"',
+            id="different-bracket-input-field",
+        ),
+        pytest.param(
+            'with input.VulnerabilityIDExtra as "GHSA-qwww-vcr4-c8h2"',
+            id="input-field-prefix-near-miss",
+        ),
+        pytest.param(
+            'with data.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+            id="data-document-near-miss",
+        ),
+    ],
+)
+def test_unrelated_rule_with_non_overlapping_modifier_stays_valid(
+    tmp_path: Path,
+    modifier: str,
+) -> None:
+    policy_path = _write_expiry_wrapper_policy_with_body(
+        tmp_path,
+        "\n".join(
+            (
+                '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                f"\t{modifier}",
+                "\ttrue",
+            )
+        ),
+    )
+    assert evaluate_policy_file(policy_path, today=date(2026, 7, 27)) == []
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        pytest.param(
+            "\n".join(("ignore := true if {", _CANONICAL_RSC_RULE_BODY, "}")),
+            id="assignment-colon-equals",
+        ),
+        pytest.param(
+            "\n".join(("ignore = true if {", _CANONICAL_RSC_RULE_BODY, "}")),
+            id="assignment-equals",
+        ),
+        pytest.param(
+            'ignore := input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+            id="direct-boolean-expression",
+        ),
+        pytest.param(
+            "\n".join(("ignore {", _CANONICAL_RSC_RULE_BODY, "}")),
+            id="legacy-unsupported-head",
+        ),
+        pytest.param(
+            "\n".join(("ignore", "if {", "true", "}")),
+            id="newline-between-head",
+        ),
+        pytest.param(
+            "\n".join(("ignore # comment between head tokens", "if {", "true", "}")),
+            id="comment-between-head",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    "rsc_target if {",
+                    _CANONICAL_RSC_RULE_BODY,
+                    "}",
+                    "ignore if rsc_target",
+                )
+            ),
+            id="helper-expression-head",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    "ignore if {",
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "} else if {",
+                    _CANONICAL_RSC_RULE_BODY,
+                    "}",
+                )
+            ),
+            id="else-chain-target",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    "decoy := `ignore if {",
+                    _CANONICAL_RSC_RULE_BODY,
+                    "}`",
+                    "ignore := true if {",
+                    "\ttrue",
+                    "}",
+                )
+            ),
+            id="raw-canonical-decoy-plus-alternate-head",
+        ),
+    ],
+)
+def test_unsupported_top_level_ignore_head_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    rule: str,
+) -> None:
+    _write_expiry_wrapper_policy_with_rule(tmp_path, rule)
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 1
+    assert "unsupported top-level ignore rule" in capsys.readouterr().out
+
+
+def test_ignore_text_in_comments_does_not_create_suppression_rule(
+    tmp_path: Path,
+) -> None:
+    policy_path = _write_expiry_wrapper_policy_with_rule(
+        tmp_path,
+        "\n".join(
+            (
+                "# ignore := true if {",
+                "# ignore = true if {",
+                "# ignore if {",
+                "# }",
+            )
+        ),
+    )
+    assert evaluate_policy_file(policy_path, today=date(2026, 7, 27)) == []
+
+
+def test_current_policy_uses_only_supported_ignore_rule_heads() -> None:
+    assert evaluate_policy_file(POLICY_PATH, today=date(2026, 7, 27)) == []

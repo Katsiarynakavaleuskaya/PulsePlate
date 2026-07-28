@@ -8,11 +8,18 @@ from __future__ import annotations
 
 import inspect
 import os
-from typing import Any
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+if TYPE_CHECKING:
+    from httpx2 import Request, Response
+else:
+    try:
+        from httpx2 import Request, Response
+    except ModuleNotFoundError:
+        from httpx import Request, Response
 
 from app.effective_routes import (
     is_api_route_candidate,
@@ -138,18 +145,15 @@ class MetricsAwareTestClient(TestClient):
 
     auto_metrics_api_key = True
 
-    def request(self, method: str, url: str | object, *args: Any, **kwargs: Any):  # type: ignore[override]
-        headers = dict(kwargs.get("headers") or {})
-        path = urlparse(str(url)).path or str(url)
-        has_explicit_api_key = any(key.lower() == "x-api-key" for key in headers)
+    def send(self, request: Request, **kwargs: Any) -> Response:
+        has_explicit_auth_header = "x-api-key" in request.headers
         if (
             getattr(self, "auto_metrics_api_key", True)
-            and path == "/metrics"
-            and not has_explicit_api_key
+            and request.url.path == "/metrics"
+            and not has_explicit_auth_header
         ):
-            headers["X-API-Key"] = os.getenv("API_KEY", "test_key")
-            kwargs["headers"] = headers
-        return super().request(method, url, *args, **kwargs)
+            request.headers["X-API-Key"] = os.getenv("API_KEY", "test_key")
+        return super().send(request, **kwargs)
 
 
 def make_test_client(app_instance: FastAPI, **kwargs: Any) -> MetricsAwareTestClient:
