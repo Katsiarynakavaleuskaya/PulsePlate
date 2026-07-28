@@ -12,7 +12,7 @@ from scripts.orchestration import pr_review_report as report_runner
 
 def _base_context() -> dict[str, object]:
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "2.0.0",
         "generated_at_utc": "2026-04-28T17:00:00Z",
         "query": {
             "repo": "Katsiarynakavaleuskaya/PulsePlate",
@@ -25,6 +25,12 @@ def _base_context() -> dict[str, object]:
             "title": "PR2",
             "state": "open",
             "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1539",
+        },
+        "material": {
+            "base_ref_oid": "c" * 40,
+            "material_head_sha": "a" * 40,
+            "material_digest": "sha256:" + "b" * 64,
+            "merge_base_sha": "d" * 40,
         },
         "diff": {
             "summary": {"files": 1, "additions": 4, "deletions": 1, "changed_lines": 5},
@@ -71,9 +77,14 @@ def test_build_report_has_no_findings_for_complete_context() -> None:
     )
 
     assert report["mode"] == "dry-run-report"
+    assert report["base_ref_oid"] == "c" * 40
+    assert report["material_head_sha"] == "a" * 40
+    assert report["material_digest"] == "sha256:" + "b" * 64
+    assert report["merge_base_sha"] == "d" * 40
     assert report["generated_at_utc"] == "2026-04-28T17:00:00Z"
     assert report["findings"] == []
     assert report["findings_count"] == 0
+    assert report["actionable_findings_count"] == 0
     assert report["calibration"]["rubric_version"] == "pr4-2026-04-28"
     assert report["calibration"]["case_labels"] == ["clean-context"]
     assert report["calibration"]["posting_eligible"] is False
@@ -83,7 +94,7 @@ def test_build_report_has_no_findings_for_complete_context() -> None:
     assert "GitHub posting" in report["scope_reviewed"]["omitted_surfaces"]
 
 
-def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:
+def test_build_report_does_not_flag_mapping_missing_before_closeout() -> None:
     context = _base_context()
     context["pr"] = None
     context["fixed_mapping"] = {"exists": False}
@@ -104,18 +115,34 @@ def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:
     report = report_runner.build_report(context)
     findings = report["findings"]
 
-    assert len(findings) == 4
+    assert len(findings) == 3
     assert {finding["role_agent"] for finding in findings} == {
         "agent-coordinator",
-        "qa-engineer-agent",
         "architecture-specialist",
     }
     assert all(finding["disposition_candidate"] == "NEEDS-HUMAN" for finding in findings)
+    assert all(finding["severity"] == "minor" for finding in findings)
+    assert report["actionable_findings_count"] == 3
     assert report["calibration"]["case_labels"] == [
         "warning-bearing-context",
         "review-source-degraded",
         "governance-finding",
     ]
+
+
+def test_build_report_flags_malformed_existing_mapping() -> None:
+    context = _base_context()
+    context["fixed_mapping"] = {
+        "exists": True,
+        "repo_path": "docs/review/PR_1539_FIXED_MAPPING.md",
+        "errors": ["Existing mapping seal is stale for current head."],
+    }
+
+    report = report_runner.build_report(context)
+
+    assert report["findings_count"] == 1
+    assert report["findings"][0]["role_agent"] == "qa-engineer-agent"
+    assert "stale" in report["findings"][0]["evidence"]
 
 
 def test_degraded_review_source_status_is_not_a_finding_by_itself() -> None:
@@ -186,6 +213,26 @@ def test_build_report_keeps_false_positive_controls_for_benign_context() -> None
     )
 
 
+def test_build_report_accepts_raw_diff_mapping_presence_with_material_only_scope() -> None:
+    context = _base_context()
+    context["fixed_mapping"] = {
+        "repo_path": "docs/review/PR_1539_FIXED_MAPPING.md",
+        "exists": True,
+        "present_in_pr_diff": True,
+        "entries": {},
+        "no_actionable": True,
+        "errors": [],
+    }
+
+    report = report_runner.build_report(context)
+
+    assert report["findings"] == []
+    assert report["scope_reviewed"]["changed_files"] == [
+        "scripts/orchestration/pr_review_context.py"
+    ]
+    assert report["calibration"]["case_labels"] == ["clean-context"]
+
+
 def test_build_report_flags_malformed_fixed_mapping_context() -> None:
     context = _base_context()
     context["fixed_mapping"] = None
@@ -210,12 +257,36 @@ def test_build_report_flags_large_diff() -> None:
     report = report_runner.build_report(context)
 
     assert report["findings"][0]["role_agent"] == "bug-hunter"
+    assert report["findings"][0]["severity"] == "note"
+    assert report["findings"][0]["diagnostic_code"] == "large_diff_review_risk"
+    assert report["findings"][0]["disposition_candidate"] == "NOT-A-BUG"
+    assert report["findings_count"] == 1
+    assert report["actionable_findings_count"] == 0
     assert "905 changed lines" in report["findings"][0]["evidence"]
     assert "make validate-changed" in report["gate_plan"]
     assert report["calibration"]["case_labels"] == ["large-diff-risk"]
     assert report["gate_plan"].index("python3 scripts/orchestration/check_preflight.py") < report[
         "gate_plan"
     ].index("make validate-changed")
+
+
+def test_calibration_keys_large_diff_only_from_diagnostic_code() -> None:
+    decoy = report_runner.Finding(
+        severity="minor",
+        diagnostic_code="invalid_changed_lines",
+        role_agent="bug-hunter",
+        category="tests",
+        file="scripts/orchestration/pr_review_context.py",
+        line=None,
+        evidence="Diff contains 905 changed lines, above review-risk threshold 800.",
+        suggested_fix="Regenerate the review context.",
+        gate_to_run="make validate-changed",
+        disposition_candidate="NEEDS-HUMAN",
+    )
+
+    calibration = report_runner._build_calibration(_base_context(), [decoy])
+
+    assert "large-diff-risk" not in calibration["case_labels"]
 
 
 def test_build_report_handles_non_numeric_changed_lines() -> None:
@@ -230,9 +301,50 @@ def test_build_report_handles_non_numeric_changed_lines() -> None:
     report = report_runner.build_report(context)
 
     assert report["findings_count"] == 1
+    assert report["actionable_findings_count"] == 1
     assert report["findings"][0]["role_agent"] == "qa-engineer-agent"
     assert "changed_lines is not numeric" in report["findings"][0]["evidence"]
     assert report["calibration"]["case_labels"] == ["governance-finding"]
+
+
+def test_needs_human_diagnostics_cannot_be_demoted_to_notes() -> None:
+    context = _base_context()
+    context["pr"] = None
+    context["warnings"] = ["Required current-head security check is uncertain."]
+    context["fixed_mapping"] = {
+        "exists": True,
+        "errors": ["Existing mapping seal is stale for current head."],
+    }
+    context["agents_discovery"] = {"scoped_agents_md": [], "files_seen": []}
+    context["review_source_status"] = [
+        {
+            "source": "security",
+            "status": "failed",
+            "blocking": True,
+        }
+    ]
+    context["diff"] = {
+        "summary": {"changed_lines": "unknown"},
+        "files": [],
+    }
+
+    report = report_runner.build_report(context)
+    needs_human = [
+        finding
+        for finding in report["findings"]
+        if finding["disposition_candidate"] == "NEEDS-HUMAN"
+    ]
+
+    assert {finding["diagnostic_code"] for finding in needs_human} == {
+        "blocking_review_source",
+        "context_warning",
+        "invalid_changed_lines",
+        "invalid_fixed_mapping",
+        "missing_pr_metadata",
+        "missing_scoped_agents",
+    }
+    assert all(finding["severity"] in {"critical", "major", "minor"} for finding in needs_human)
+    assert report["actionable_findings_count"] == len(needs_human)
 
 
 def test_render_markdown_contains_required_sections() -> None:

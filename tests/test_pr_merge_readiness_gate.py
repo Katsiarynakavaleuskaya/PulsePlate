@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -8,42 +9,39 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import yaml
 
 from scripts.ci import check_pr_merge_readiness as merge_gate
+from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.ci.check_pr_merge_readiness import (
     _canonical_artifact_markdown_link_count,
     _is_actionable,
     _mapped_urls,
 )
 from scripts.orchestration.pr_commit_identity import (
-    CodexConnectorAdvisoryReactionEvidence,
-    CodexReviewEvidence,
-    CodexReviewSourceUnavailabilityEvidence,
     CommitRefKind,
     PrCommitEvidence,
     PrSnapshot,
     RepositoryCommitRef,
     ReviewCommentEvidence,
-    ReviewCreditOutageEvidence,
     ReviewThreadEvidence,
-    SecurityOutageOverrideEvidence,
 )
 from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
     RECEIPT_AUTHORITY,
     ReviewEvidenceError,
-    build_review_credit_outage_receipt,
+    build_provider_no_claim_pair,
     build_review_source_positive_response_receipt,
     build_review_source_unavailability_receipt,
-    build_security_outage_override_receipt,
     compute_material_manifest,
     render_embedded_review_seal,
 )
 
+OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
 
 
@@ -359,6 +357,11 @@ def _configure_pre_closeout_main(
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: actionable_items)
     monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_review_quiet_window",
+        lambda **_k: pytest.fail("pre-closeout must not wait"),
+    )
 
 
 def test_direct_pre_closeout_requires_gh_token(
@@ -862,6 +865,168 @@ def test_rest_pagination_rejects_non_list_page(monkeypatch: pytest.MonkeyPatch) 
         merge_gate._api_request_paginated_list("https://api.github.com/example", "opaque")
 
 
+def test_review_activity_inventory_rejects_missing_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def paged(url: str, token: str) -> list[dict[str, Any]]:
+        assert token == "opaque"
+        if "/reviews?" not in url:
+            return []
+        return [
+            {
+                "body": "No issues found",
+                "html_url": "https://github.com/owner/repo/pull/42#pullrequestreview-7",
+                "id": 7,
+                "state": "COMMENTED",
+                "submitted_at": None,
+                "user": {"id": 9, "login": "reviewer[bot]"},
+            }
+        ]
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", paged)
+
+    with pytest.raises(ValueError, match="review created_at is missing or malformed"):
+        merge_gate._review_activity_inventory("owner/repo", 42, "opaque")
+
+
+def test_review_activity_inventory_accepts_pending_review_without_submitted_at(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def paged(url: str, token: str) -> list[dict[str, Any]]:
+        assert token == "opaque"
+        if "/reviews?" not in url:
+            return []
+        return [
+            {
+                "body": "draft review",
+                "commit_id": "a" * 40,
+                "html_url": "https://github.com/owner/repo/pull/42#pullrequestreview-7",
+                "id": 7,
+                "state": "PENDING",
+                "submitted_at": None,
+                "user": {"id": 9, "login": "reviewer"},
+            }
+        ]
+
+    monkeypatch.setattr(merge_gate, "_api_request_paginated_list", paged)
+
+    inventory = merge_gate._review_activity_inventory("owner/repo", 42, "opaque")
+
+    assert inventory[0][0:4] == ("review", 7, 9, "reviewer")
+    assert inventory[0][5:7] == (
+        merge_gate._PENDING_REVIEW_TIMESTAMP,
+        merge_gate._PENDING_REVIEW_TIMESTAMP,
+    )
+    assert inventory[0][8:10] == ("PENDING", "a" * 40)
+
+
+def _configure_review_quiet_window(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    inventories: list[tuple[tuple[object, ...], ...]],
+) -> tuple[PrSnapshot, dict[str, float]]:
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="b" * 40,
+        head_sha="a" * 40,
+        commits=(PrCommitEvidence("a" * 40, None),),
+    )
+    clock = {"now": 0.0}
+    iterator = iter(inventories)
+    last = inventories[-1]
+
+    def inventory(*_args: Any, **_kwargs: Any) -> tuple[tuple[object, ...], ...]:
+        return next(iterator, last)
+
+    monkeypatch.setattr(merge_gate, "_review_activity_inventory", inventory)
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_pr_context",
+        lambda **_k: (42, "owner/repo", False, "body", "branch"),
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(merge_gate, "_review_quiet_monotonic", lambda: clock["now"])
+    monkeypatch.setattr(
+        merge_gate,
+        "_review_quiet_sleep",
+        lambda seconds: clock.__setitem__("now", clock["now"] + seconds),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_operator_outage_security_checks",
+        lambda **_k: pytest.fail("review wait must not call provider/security settlement"),
+    )
+    return snapshot, clock
+
+
+def test_review_quiet_window_accepts_two_stable_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event = (("review", 7, "digest"),)
+    snapshot, clock = _configure_review_quiet_window(
+        monkeypatch,
+        inventories=[event],
+    )
+
+    observations, events = merge_gate._wait_for_review_quiet_window(
+        repo="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_pr_context=(42, "owner/repo", False, "body", "branch"),
+        snapshot=snapshot,
+    )
+
+    assert observations == 5
+    assert events == 1
+    assert clock["now"] == 60
+
+
+def test_review_quiet_window_restarts_after_new_activity_without_external_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = (("review", 7, "first"),)
+    second = (*first, ("review_comment", 8, "second"))
+    snapshot, clock = _configure_review_quiet_window(
+        monkeypatch,
+        inventories=[first, first, second],
+    )
+
+    observations, events = merge_gate._wait_for_review_quiet_window(
+        repo="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_pr_context=(42, "owner/repo", False, "body", "branch"),
+        snapshot=snapshot,
+    )
+
+    assert observations == 7
+    assert events == 2
+    assert clock["now"] == 90
+
+
+def test_review_quiet_window_times_out_when_activity_never_settles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inventories = [(("review", event_id, f"digest-{event_id}"),) for event_id in range(1, 10)]
+    snapshot, clock = _configure_review_quiet_window(
+        monkeypatch,
+        inventories=inventories,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="did not settle within the bounded 105s"):
+        merge_gate._wait_for_review_quiet_window(
+            repo="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_pr_context=(42, "owner/repo", False, "body", "branch"),
+            snapshot=snapshot,
+        )
+
+    assert clock["now"] == 105
+
+
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     git = shutil.which("git")
     assert git is not None
@@ -896,7 +1061,7 @@ def _commit(repo: Path, message: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-def _receipt(base_sha: str, head_sha: str) -> dict[str, Any]:
+def _legacy_security_receipt(base_sha: str, head_sha: str) -> dict[str, Any]:
     digest = "sha256:" + "a" * 64
     return {
         "artifacts": {
@@ -916,19 +1081,6 @@ def _receipt(base_sha: str, head_sha: str) -> dict[str, Any]:
     }
 
 
-def _outage_receipt(base_sha: str, head_sha: str, material_digest: str) -> dict[str, Any]:
-    return build_security_outage_override_receipt(
-        base_revision=base_sha,
-        head_revision=head_sha,
-        material_digest=material_digest,
-        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
-        created_at="2026-07-16T11:00:00Z",
-        operator_user_id=123,
-        operator_login="owner",
-        operator_association="OWNER",
-    )
-
-
 def _check_node(
     name: str,
     *,
@@ -943,6 +1095,9 @@ def _check_node(
     expected_workflow, expected_app_id, expected_app_slug = (
         merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES[name]
     )
+    identity_index = tuple(merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES).index(name) + 1
+    run_id = 1_000 + identity_index
+    job_id = 2_000 + identity_index
     resolved_workflow = expected_workflow if workflow_name is None else workflow_name
     return {
         "__typename": "CheckRun",
@@ -951,7 +1106,7 @@ def _check_node(
         "conclusion": conclusion,
         "startedAt": started_at,
         "completedAt": "2026-07-16T11:01:00Z" if status == "COMPLETED" else None,
-        "detailsUrl": f"https://github.com/checks/{name}",
+        "detailsUrl": (f"https://github.com/owner/repo/actions/runs/{run_id}/job/{job_id}"),
         "checkSuite": {
             "createdAt": suite_created_at,
             "app": {
@@ -965,9 +1120,74 @@ def _check_node(
     }
 
 
+def _install_outage_actions_api(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    base_ref: str = "main",
+    base_sha: str = OUTAGE_BASE_SHA,
+    head_sha: str = OUTAGE_HEAD_SHA,
+    run_overrides: dict[str, dict[str, Any]] | None = None,
+    job_overrides: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    runs: dict[int, dict[str, Any]] = {}
+    jobs: dict[int, dict[str, Any]] = {}
+    for identity_index, (name, identity) in enumerate(
+        merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items(),
+        start=1,
+    ):
+        workflow_name, _app_id, _app_slug = identity
+        workflow_path = merge_gate._OUTAGE_OVERRIDE_REQUIRED_WORKFLOW_PATHS[name]
+        run_id = 1_000 + identity_index
+        job_id = 2_000 + identity_index
+        check_id = 3_000 + identity_index
+        run = {
+            "created_at": f"2026-07-16T11:{identity_index:02d}:00Z",
+            "event": "pull_request",
+            "head_sha": head_sha,
+            "id": run_id,
+            "name": workflow_name,
+            "path": workflow_path,
+            "pull_requests": [
+                {
+                    "base": {"ref": base_ref, "sha": base_sha},
+                    "head": {"sha": head_sha},
+                    "number": 42,
+                }
+            ],
+        }
+        run.update((run_overrides or {}).get(name, {}))
+        runs[run_id] = run
+        job = {
+            "check_run_url": (f"https://api.github.com/repos/owner/repo/check-runs/{check_id}"),
+            "id": job_id,
+            "run_attempt": 1,
+            "run_id": run_id,
+        }
+        job.update((job_overrides or {}).get(name, {}))
+        jobs[job_id] = job
+
+    def api(url: str, *, token: str) -> dict[str, Any]:
+        assert token == "opaque"
+        item_id = int(url.rsplit("/", maxsplit=1)[-1])
+        if "/actions/runs/" in url:
+            return runs[item_id]
+        if "/actions/jobs/" in url:
+            return jobs[item_id]
+        raise AssertionError(f"unexpected Actions API URL: {url}")
+
+    monkeypatch.setattr(merge_gate, "_api_request", api)
+
+
+@pytest.fixture
+def outage_actions_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_outage_actions_api(monkeypatch)
+
+
 def test_operator_outage_override_requires_exact_successful_security_bundle(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
+    del outage_actions_api
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     stale_failed_security = _check_node(
         "security",
@@ -992,13 +1212,83 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
         expected_head_sha=OUTAGE_HEAD_SHA,
     )
     assert observed_heads == [OUTAGE_HEAD_SHA]
 
 
+@pytest.mark.parametrize(
+    ("run_override", "job_override", "expected_error"),
+    (
+        (
+            {"event": "push"},
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*pull_request",
+        ),
+        (
+            {"path": ".github/workflows/candidate.yml"},
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*exact PR/base/head",
+        ),
+        (
+            {"head_sha": "e" * 40},
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*exact PR/base/head",
+        ),
+        (
+            {
+                "pull_requests": [
+                    {
+                        "base": {"ref": "main", "sha": "e" * 40},
+                        "head": {"sha": OUTAGE_HEAD_SHA},
+                        "number": 42,
+                    }
+                ]
+            },
+            {},
+            r"Analyze \(python\)=untrusted-actions-run.*exact PR/base/head",
+        ),
+        (
+            {},
+            {"run_id": 999},
+            r"Analyze \(python\)=untrusted-actions-run.*job identity",
+        ),
+    ),
+)
+def test_operator_outage_override_rejects_selected_non_pr_or_drifted_actions_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    run_override: dict[str, Any],
+    job_override: dict[str, Any],
+    expected_error: str,
+) -> None:
+    target = "Analyze (python)"
+    _install_outage_actions_api(
+        monkeypatch,
+        run_overrides={target: run_override},
+        job_overrides={target: job_override},
+    )
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=expected_error):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            material_paths=("Dockerfile",),
+        )
+
+
 def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(
@@ -1017,6 +1307,7 @@ def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
         expected_head_sha=OUTAGE_HEAD_SHA,
         security_required=merge_gate._operator_outage_security_required(("docs/README.md",)),
     )
@@ -1030,8 +1321,84 @@ def test_operator_outage_security_applicability_uses_material_risk_profile() -> 
     )
 
 
+@pytest.mark.parametrize(
+    ("base_ref", "material_paths", "expected"),
+    (
+        ("main", ("Dockerfile",), True),
+        ("main", ("docs/README.md",), False),
+        ("feat/stack", ("Dockerfile",), False),
+        ("fix/stack", ("Dockerfile",), False),
+    ),
+)
+def test_operator_outage_docker_security_applicability_uses_base_and_surface(
+    base_ref: str,
+    material_paths: tuple[str, ...],
+    expected: bool,
+) -> None:
+    assert (
+        merge_gate._operator_outage_docker_security_required(base_ref, material_paths) is expected
+    )
+
+
+@pytest.mark.parametrize("base_ref", ("feat/stack", "fix/stack"))
+def test_operator_outage_override_does_not_wait_for_unattached_stacked_docker_lane(
+    monkeypatch: pytest.MonkeyPatch,
+    base_ref: str,
+) -> None:
+    _install_outage_actions_api(monkeypatch, base_ref=base_ref)
+    nodes = [
+        _check_node(name)
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        if name != "security-scan"
+    ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", base_ref, nodes),
+    )
+
+    merge_gate._validate_operator_outage_security_checks(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
+        expected_head_sha=OUTAGE_HEAD_SHA,
+        material_paths=("Dockerfile",),
+    )
+
+
+def test_operator_outage_override_requires_attached_main_docker_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_outage_actions_api(monkeypatch)
+    nodes = [
+        _check_node(name)
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        if name != "security-scan"
+    ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(
+        merge_gate._OutageSecurityChecksPending,
+        match="security-scan=missing",
+    ):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            material_paths=("Dockerfile",),
+        )
+
+
 def test_operator_outage_override_rejects_newer_queued_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     nodes.append(
@@ -1054,6 +1421,7 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
     message = str(exc_info.value)
@@ -1072,6 +1440,7 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
 )
 def test_operator_outage_override_rejects_stale_success_before_newer_workflow_job(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     target: str,
     newer_job: str,
 ) -> None:
@@ -1089,17 +1458,20 @@ def test_operator_outage_override_rejects_stale_success_before_newer_workflow_jo
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match=rf"{target}=missing-latest"):
+    with pytest.raises(ReviewEvidenceError, match=rf"{target}=missing-latest") as exc_info:
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
+    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
 
 
 def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     equal_time_pending = _check_node(
@@ -1107,7 +1479,6 @@ def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
         status="QUEUED",
         conclusion="",
     )
-    equal_time_pending["detailsUrl"] = "https://github.com/checks/a-pending-security"
     nodes.append(equal_time_pending)
     monkeypatch.setattr(
         merge_gate,
@@ -1115,24 +1486,28 @@ def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="security=pending/status"):
+    with pytest.raises(
+        merge_gate._OutageSecurityChecksPending,
+        match="security=pending/status",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
 def test_operator_outage_override_rejects_equal_time_neutral_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     equal_time_neutral = _check_node(
         "security",
         conclusion="NEUTRAL",
     )
-    equal_time_neutral["detailsUrl"] = "https://github.com/checks/a-neutral-security"
     nodes.append(equal_time_neutral)
     monkeypatch.setattr(
         merge_gate,
@@ -1145,12 +1520,14 @@ def test_operator_outage_override_rejects_equal_time_neutral_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
 def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(name)
@@ -1185,6 +1562,7 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
@@ -1192,7 +1570,6 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
 @pytest.mark.parametrize(
     ("target", "status", "conclusion", "expected"),
     [
-        ("security", "IN_PROGRESS", "", "security=pending/status"),
         ("security", "COMPLETED", "SKIPPED", "security=failed/SKIPPED"),
         (
             "Analyze (python)",
@@ -1205,6 +1582,7 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
 )
 def test_operator_outage_override_rejects_non_successful_security_checks(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     target: str,
     status: str,
     conclusion: str,
@@ -1229,9 +1607,11 @@ def test_operator_outage_override_rejects_non_successful_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
-    assert "failed or untrusted checks remain terminal" in str(exc_info.value)
+    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
+    assert "skipped-when-applicable" in str(exc_info.value)
 
 
 def test_operator_outage_wait_retries_pending_checks_until_success(
@@ -1246,13 +1626,17 @@ def test_operator_outage_wait_retries_pending_checks_until_success(
             raise merge_gate._OutageSecurityChecksPending("security=pending/status")
 
     monkeypatch.setattr(merge_gate, "_validate_operator_outage_security_checks", validate)
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
-    monkeypatch.setattr(merge_gate.time, "sleep", sleeps.append)
+    monkeypatch.setattr(
+        merge_gate,
+        "time",
+        SimpleNamespace(monotonic=lambda: 0.0, sleep=sleeps.append),
+    )
 
     merge_gate._wait_for_operator_outage_security_checks(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_base_sha=OUTAGE_BASE_SHA,
         expected_head_sha=OUTAGE_HEAD_SHA,
         security_required=True,
         timeout_seconds=30,
@@ -1274,9 +1658,12 @@ def test_operator_outage_wait_does_not_retry_terminal_failure(
 
     monkeypatch.setattr(merge_gate, "_validate_operator_outage_security_checks", validate)
     monkeypatch.setattr(
-        merge_gate.time,
-        "sleep",
-        lambda _seconds: pytest.fail("terminal failures must not be retried"),
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: 0.0,
+            sleep=lambda _seconds: pytest.fail("terminal failures must not be retried"),
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match="security=failed/FAILURE"):
@@ -1284,6 +1671,7 @@ def test_operator_outage_wait_does_not_retry_terminal_failure(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
             security_required=True,
             timeout_seconds=30,
@@ -1304,11 +1692,13 @@ def test_operator_outage_wait_times_out_fail_closed(
             merge_gate._OutageSecurityChecksPending("security-scan=missing")
         ),
     )
-    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: next(clock))
     monkeypatch.setattr(
-        merge_gate.time,
-        "sleep",
-        lambda _seconds: pytest.fail("expired waits must not sleep"),
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: next(clock),
+            sleep=lambda _seconds: pytest.fail("expired waits must not sleep"),
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match="timed out.*after 5s"):
@@ -1316,14 +1706,29 @@ def test_operator_outage_wait_times_out_fail_closed(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
             security_required=True,
             timeout_seconds=5,
         )
 
 
-def test_operator_outage_override_rejects_missing_security_check(
+def test_operator_outage_wait_rejects_unbounded_timeout() -> None:
+    with pytest.raises(ValueError, match="must not exceed 300 seconds"):
+        merge_gate._wait_for_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            security_required=True,
+            timeout_seconds=301,
+        )
+
+
+def test_operator_outage_override_treats_missing_security_check_as_transient(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(name)
@@ -1336,11 +1741,15 @@ def test_operator_outage_override_rejects_missing_security_check(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="Private Python proxy health=missing"):
+    with pytest.raises(
+        merge_gate._OutageSecurityChecksPending,
+        match="Private Python proxy health=missing",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
@@ -1355,6 +1764,7 @@ def test_operator_outage_override_rejects_missing_security_check(
 )
 def test_operator_outage_override_rejects_foreign_check_producers(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
     target: str,
     kwargs: dict[str, Any],
 ) -> None:
@@ -1376,12 +1786,14 @@ def test_operator_outage_override_rejects_foreign_check_producers(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
 def test_operator_outage_override_rejects_foreign_status_context(
     monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
 ) -> None:
     nodes = [
         _check_node(name)
@@ -1411,7 +1823,44 @@ def test_operator_outage_override_rejects_foreign_status_context(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
             expected_head_sha=OUTAGE_HEAD_SHA,
+        )
+
+
+@pytest.mark.parametrize("mode", ("missing", "pending"))
+def test_provider_no_claim_transient_security_checks_request_bounded_settlement(
+    monkeypatch: pytest.MonkeyPatch,
+    outage_actions_api: None,
+    mode: str,
+) -> None:
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    if mode == "missing":
+        nodes = [node for node in nodes if node["name"] != "security"]
+    elif mode == "pending":
+        nodes = [
+            _check_node(
+                name,
+                status="QUEUED" if name == "security" else "COMPLETED",
+                conclusion="" if name == "security" else "SUCCESS",
+                started_at=None if name == "security" else "2026-07-16T11:00:00Z",
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(merge_gate._OutageSecurityChecksPending):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_base_sha=OUTAGE_BASE_SHA,
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            evidence_label="provider-neutral no-claim evidence",
         )
 
 
@@ -1436,13 +1885,423 @@ def _artifact_with_seal(seal: dict[str, Any]) -> str:
     )
 
 
-@pytest.mark.parametrize("reaction_content", ["+1", "heart", "hooray", "rocket"])
-def test_ci_gate_accepts_trusted_positive_response_without_review_claim(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reaction_content: str
+def _self_review_advisory_receipt(
+    *,
+    base_ref_oid: str,
+    merge_base_sha: str,
+    material_head_sha: str,
+    material_digest: str,
+    changed_files: tuple[str, ...],
+    diff_summary: dict[str, int],
+) -> dict[str, Any]:
+    report = {
+        "actionable_findings_count": 0,
+        "base_ref_oid": base_ref_oid,
+        "calibration": {},
+        "coordinator_packet": {},
+        "decision_log": [],
+        "deferred_followups": [],
+        "findings": [],
+        "findings_count": 0,
+        "gate_plan": [],
+        "generated_at_utc": "2026-07-27T00:00:00Z",
+        "material_digest": material_digest,
+        "material_head_sha": material_head_sha,
+        "merge_base_sha": merge_base_sha,
+        "mode": "dry-run-report",
+        "review_source_status": [],
+        "role_review": [],
+        "schema_version": "2.0.0",
+        "scope_reviewed": {
+            "changed_files": list(changed_files),
+            "diff_summary": dict(diff_summary),
+            "fixed_mapping_errors": [],
+            "pr_metadata_available": True,
+            "scoped_agents_md": ["AGENTS.md"],
+        },
+        "warnings": [],
+    }
+    canonical = json.dumps(
+        report,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return {
+        "actionable_findings_count": 0,
+        "authority": "repo_native_pulseplate_pr_review_advisory",
+        "blocking": False,
+        "findings_count": 0,
+        "material_digest": material_digest,
+        "material_head_sha": material_head_sha,
+        "report_payload": report,
+        "report_sha256": "sha256:" + hashlib.sha256(canonical).hexdigest(),
+        "review_claim": "none",
+        "review_tool": "pulseplate-pr-review",
+        "schema_version": "pulseplate.self-review-advisory/v1",
+        "status": "advisory_report_attached",
+    }
+
+
+def _provider_no_claim_seal_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, dict[str, Any], PrSnapshot, str]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
+    _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    (repo / "README.md").write_text("material\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_head,
+        pr_number=42,
+    )
+    assert manifest.diff_summary is not None
+    code_review, codex_security = build_provider_no_claim_pair(
+        base_revision=manifest.merge_base_sha,
+        head_revision=material_head,
+        material_digest=manifest.digest,
+    )
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": codex_security,
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": manifest.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": manifest.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+        "self_review": _self_review_advisory_receipt(
+            base_ref_oid=base_sha,
+            merge_base_sha=manifest.merge_base_sha,
+            material_head_sha=material_head,
+            material_digest=manifest.digest,
+            changed_files=("README.md",),
+            diff_summary=manifest.diff_summary.as_dict(),
+        ),
+    }
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=material_head,
+        commits=(PrCommitEvidence(material_head, None),),
+    )
+    return repo, seal, snapshot, material_head
+
+
+def test_ci_gate_accepts_provider_no_claim_and_waits_bounded_without_providers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, seal, snapshot, material_head = _provider_no_claim_seal_context(
+        tmp_path,
+        monkeypatch,
+    )
+    _install_outage_actions_api(
+        monkeypatch,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+    )
+
+    successful_nodes = [
+        _check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+    ]
+    missing_nodes = [node for node in successful_nodes if node["name"] != "security"]
+    pending_nodes = [
+        _check_node(
+            name,
+            status="QUEUED" if name == "security" else "COMPLETED",
+            conclusion="" if name == "security" else "SUCCESS",
+            started_at=None if name == "security" else "2026-07-16T11:00:00Z",
+        )
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+    ]
+    metadata_snapshots = iter((missing_nodes, pending_nodes, successful_nodes))
+    metadata_heads: list[str] = []
+    sleeps: list[float] = []
+
+    def fetch_metadata(
+        _pr_number: int,
+        _repository: str,
+        _token: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str, str, list[dict[str, Any]]]:
+        metadata_heads.append(expected_head_sha)
+        return False, "CLEAN", "main", next(metadata_snapshots)
+
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
+    monkeypatch.setattr(
+        merge_gate,
+        "time",
+        SimpleNamespace(monotonic=lambda: 0.0, sleep=sleeps.append),
+    )
+
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=_artifact_with_seal(seal),
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+        outage_security_wait_seconds=120,
+        require_committed_closeout=False,
+    )
+
+    assert validated["code_review"]["review_claim"] == "none"
+    assert validated["codex_security"]["scan_claim"] == "none"
+    assert metadata_heads == [material_head, material_head, material_head]
+    assert sleeps == [15.0, 15.0]
+
+    wrong_paths_seal = json.loads(json.dumps(seal))
+    self_review = wrong_paths_seal["self_review"]
+    self_review["report_payload"]["scope_reviewed"]["changed_files"] = ["wrong/path.py"]
+    canonical_report = json.dumps(
+        self_review["report_payload"],
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    self_review["report_sha256"] = "sha256:" + hashlib.sha256(canonical_report).hexdigest()
+    with pytest.raises(ReviewEvidenceError, match="exact material path set"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(wrong_paths_seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+            require_committed_closeout=False,
+        )
+
+    wrong_diff_summary_seal = json.loads(json.dumps(seal))
+    self_review = wrong_diff_summary_seal["self_review"]
+    self_review["report_payload"]["scope_reviewed"]["diff_summary"]["changed_lines"] += 1
+    canonical_report = json.dumps(
+        self_review["report_payload"],
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    self_review["report_sha256"] = "sha256:" + hashlib.sha256(canonical_report).hexdigest()
+    with pytest.raises(ReviewEvidenceError, match="diff summary.*exact material"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(wrong_diff_summary_seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            enforce_outage_security_checks=False,
+            require_committed_closeout=False,
+        )
+
+
+@pytest.mark.parametrize("mode", ("missing", "pending"))
+def test_ci_gate_provider_no_claim_security_settlement_times_out_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(
+        tmp_path,
+        monkeypatch,
+    )
+    _install_outage_actions_api(
+        monkeypatch,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+    )
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    if mode == "missing":
+        nodes = [node for node in nodes if node["name"] != "security"]
+    elif mode == "pending":
+        nodes = [
+            _check_node(
+                name,
+                status="QUEUED" if name == "security" else "COMPLETED",
+                conclusion="" if name == "security" else "SUCCESS",
+                started_at=None if name == "security" else "2026-07-16T11:00:00Z",
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+    metadata_calls: list[str] = []
+
+    def fetch_metadata(
+        _pr_number: int,
+        _repository: str,
+        _token: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str, str, list[dict[str, Any]]]:
+        metadata_calls.append(expected_head_sha)
+        return False, "CLEAN", "main", nodes
+
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
+    clock = iter((0.0, 121.0))
+    monkeypatch.setattr(
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: next(clock),
+            sleep=lambda _seconds: pytest.fail("expired bounded settlement must not sleep"),
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="timed out.*after 120s"):
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            outage_security_wait_seconds=120,
+            require_committed_closeout=False,
+        )
+
+    assert metadata_calls == [snapshot.head_sha]
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("stale", "security=missing-latest"),
+        ("failed", "security=failed/FAILURE"),
+        ("untrusted", "security=untrusted-producer"),
+        ("skipped_applicable", r"Analyze \(python\)=failed/SKIPPED"),
+    ],
+)
+def test_ci_gate_provider_no_claim_terminal_security_checks_do_not_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    expected: str,
+) -> None:
+    repo, seal, snapshot, _material_head = _provider_no_claim_seal_context(
+        tmp_path,
+        monkeypatch,
+    )
+    _install_outage_actions_api(
+        monkeypatch,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+    )
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    if mode == "stale":
+        newer_activity = _check_node(
+            "security",
+            suite_created_at="2026-07-16T11:01:00Z",
+        )
+        newer_activity["name"] = "pr_scope_guard"
+        newer_activity["detailsUrl"] = "https://github.com/checks/pr_scope_guard"
+        nodes.append(newer_activity)
+    elif mode == "failed":
+        nodes = [
+            _check_node(
+                name,
+                conclusion="FAILURE" if name == "security" else "SUCCESS",
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+    elif mode == "untrusted":
+        nodes = [
+            _check_node(
+                name,
+                workflow_name="foreign-workflow" if name == "security" else None,
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+    else:
+        nodes = [
+            _check_node(
+                name,
+                conclusion="SKIPPED" if name == "Analyze (python)" else "SUCCESS",
+            )
+            for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        ]
+
+    metadata_calls: list[str] = []
+
+    def fetch_metadata(
+        _pr_number: int,
+        _repository: str,
+        _token: str,
+        expected_head_sha: str,
+    ) -> tuple[bool, str, str, list[dict[str, Any]]]:
+        metadata_calls.append(expected_head_sha)
+        return False, "CLEAN", "main", nodes
+
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(merge_gate, "_fetch_current_head_pr_metadata", fetch_metadata)
+    monkeypatch.setattr(
+        merge_gate,
+        "time",
+        SimpleNamespace(
+            monotonic=lambda: 0.0,
+            sleep=lambda _seconds: pytest.fail("terminal current-head checks must not be retried"),
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=expected) as exc_info:
+        merge_gate._validate_v1_seal(
+            artifact_text=_artifact_with_seal(seal),
+            repository="owner/repo",
+            pr_number=42,
+            snapshot=snapshot,
+            token="opaque",
+            outage_security_wait_seconds=120,
+            require_committed_closeout=False,
+        )
+
+    assert not isinstance(exc_info.value, merge_gate._OutageSecurityChecksPending)
+    assert metadata_calls == [snapshot.head_sha]
+
+
+@pytest.mark.parametrize(
+    "legacy_kind",
+    ("exact_review", "positive_response", "source_unavailability"),
+)
+def test_ci_gate_rejects_legacy_provider_review_seals_without_live_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    legacy_kind: str,
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     (repo / "README.md").write_text("material\n", encoding="utf-8")
@@ -1450,17 +2309,35 @@ def test_ci_gate_accepts_trusted_positive_response_without_review_claim(
     manifest = compute_material_manifest(
         repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
     )
-    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
-    seal = {
-        "authority": RECEIPT_AUTHORITY,
-        "code_review": build_review_source_positive_response_receipt(
+    if legacy_kind == "positive_response":
+        code_review = build_review_source_positive_response_receipt(
             material_digest=manifest.digest,
             material_head_sha=material_head,
-            response_reference=reaction_reference,
+            response_reference="https://github.com/owner/repo/pull/42#reaction-456",
             response_created_at="2026-07-15T11:00:00Z",
-            response_content=reaction_content,
-        ),
-        "codex_security": _receipt(base_sha, material_head),
+            response_content="+1",
+        )
+    elif legacy_kind == "source_unavailability":
+        code_review = build_review_source_unavailability_receipt(
+            material_digest=manifest.digest,
+            material_head_sha=material_head,
+            quota_reference="https://github.com/owner/repo/pull/42#issuecomment-456",
+            quota_created_at="2026-07-15T11:00:00Z",
+            quota_body_sha256="sha256:" + "c" * 64,
+            source_status="usage_limit_reached",
+        )
+    else:
+        code_review = {
+            "review_commit_ref": material_head,
+            "review_commit_ref_kind": "repository_commit",
+            "review_reference": ("https://github.com/owner/repo/pull/42#pullrequestreview-123"),
+            "reviewed_material_digest": manifest.digest,
+            "status": "completed",
+        }
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": _legacy_security_receipt(base_sha, material_head),
         "material": {
             "base_ref_oid": base_sha,
             "digest": manifest.digest,
@@ -1480,196 +2357,169 @@ def test_ci_gate_accepts_trusted_positive_response_without_review_claim(
         head_sha=material_head,
         commits=(PrCommitEvidence(material_head, None),),
     )
-    verifier_calls: list[tuple[str | None, str | None]] = []
-
-    def verify_response(*_args: Any, **kwargs: Any) -> CodexConnectorAdvisoryReactionEvidence:
-        verifier_calls.append(
-            (kwargs.get("expected_commit_ref"), kwargs.get("expected_live_pr_head_ref"))
-        )
-        return CodexConnectorAdvisoryReactionEvidence(
-            reference=reaction_reference,
-            created_at="2026-07-15T11:00:00Z",
-            content=reaction_content,
-        )
-
     monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
     monkeypatch.setattr(
         merge_gate,
         "classify_commit_ref",
         lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
     )
-    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_response)
 
-    validated = merge_gate._validate_v1_seal(
-        artifact_text=artifact,
-        repository="owner/repo",
-        pr_number=42,
-        snapshot=snapshot,
-        token="opaque",
-    )
-
-    assert validated["code_review"]["review_claim"] == "none"
-    assert validated["code_review"]["source_status"] == "positive_response"
-    assert verifier_calls == [(material_head, material_head)]
-
-    stale_seal = dict(seal)
-    stale_seal["code_review"] = dict(seal["code_review"])
-    stale_seal["code_review"]["response_content"] = "heart" if reaction_content != "heart" else "+1"
-    with pytest.raises(ReviewEvidenceError, match="positive response receipt is stale"):
+    with pytest.raises(ReviewEvidenceError, match="read-only"):
         merge_gate._validate_v1_seal(
-            artifact_text=_artifact_with_seal(stale_seal),
+            artifact_text=artifact,
             repository="owner/repo",
             pr_number=42,
             snapshot=snapshot,
             token="opaque",
         )
 
-    mapping_path = repo / "docs/review/PR_42_FIXED_MAPPING.md"
-    mapping_path.parent.mkdir(parents=True)
-    mapping_path.write_text("mapping-only\n", encoding="utf-8")
-    mapping_head = _commit(repo, "mapping-only")
-    mapping_snapshot = PrSnapshot(
-        repository="owner/repo",
-        pr_number=42,
-        base_sha=base_sha,
-        head_sha=mapping_head,
-        commits=(*snapshot.commits, PrCommitEvidence(mapping_head, None)),
-    )
-    monkeypatch.setattr(
-        merge_gate,
-        "classify_commit_ref",
-        lambda value, *_a, **_k: RepositoryCommitRef(
-            value,
-            CommitRefKind.PR_COMMIT if value == material_head else CommitRefKind.PR_HEAD,
-        ),
-    )
 
-    def verify_successor(*_args: Any, **kwargs: Any) -> CodexConnectorAdvisoryReactionEvidence:
-        verifier_calls.append(
-            (kwargs.get("expected_commit_ref"), kwargs.get("expected_live_pr_head_ref"))
-        )
-        return CodexConnectorAdvisoryReactionEvidence(
-            reference="https://github.com/owner/repo/pull/42#reaction-789",
-            created_at="2026-07-15T12:00:00Z",
-            content=reaction_content,
-        )
-
-    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_successor)
-    validated = merge_gate._validate_v1_seal(
-        artifact_text=artifact,
-        repository="owner/repo",
-        pr_number=42,
-        snapshot=mapping_snapshot,
-        token="opaque",
-    )
-    assert validated["code_review"]["response_reference"] == reaction_reference
-    assert verifier_calls[-1] == (material_head, mapping_head)
-
-    (repo / "README.md").write_text("later material\n", encoding="utf-8")
-    changed_head = _commit(repo, "later material")
-    changed_manifest = compute_material_manifest(
-        repo, base_ref_oid=base_sha, head_ref_oid=changed_head, pr_number=42
-    )
-    tampered_seal = json.loads(json.dumps(seal))
-    tampered_seal["material"]["digest"] = changed_manifest.digest
-    tampered_seal["code_review"] = build_review_source_positive_response_receipt(
-        material_digest=changed_manifest.digest,
-        material_head_sha=material_head,
-        response_reference=reaction_reference,
-        response_created_at="2026-07-15T11:00:00Z",
-        response_content=reaction_content,
-    )
-    changed_snapshot = PrSnapshot(
-        repository="owner/repo",
-        pr_number=42,
-        base_sha=base_sha,
-        head_sha=changed_head,
-        commits=(*mapping_snapshot.commits, PrCommitEvidence(changed_head, None)),
-    )
-    with pytest.raises(
-        ReviewEvidenceError,
-        match="positive response material head has a different material digest",
-    ):
-        merge_gate._validate_v1_seal(
-            artifact_text=_artifact_with_seal(tampered_seal),
-            repository="owner/repo",
-            pr_number=42,
-            snapshot=changed_snapshot,
-            token="opaque",
-        )
-
-
-def test_ci_gate_rejects_positive_response_in_exact_review_receipt(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q")
-    (repo / "README.md").write_text("base\n", encoding="utf-8")
-    base_sha = _commit(repo, "base")
-    (repo / "README.md").write_text("material\n", encoding="utf-8")
-    material_head = _commit(repo, "material")
-    manifest = compute_material_manifest(
-        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
-    )
-    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
-    seal = {
-        "authority": RECEIPT_AUTHORITY,
-        "code_review": {
-            "review_commit_ref": material_head,
-            "review_commit_ref_kind": "repository_commit",
-            "review_reference": reaction_reference,
-            "reviewed_material_digest": manifest.digest,
-            "status": "completed",
-        },
-        "codex_security": _receipt(base_sha, material_head),
-        "material": {
-            "base_ref_oid": base_sha,
-            "digest": manifest.digest,
-            "material_head_sha": material_head,
-            "merge_base_sha": manifest.merge_base_sha,
-            "policy_version": MATERIAL_POLICY_VERSION,
-        },
-        "pr_number": 42,
-        "repository": "owner/repo",
-        "schema_version": "pulseplate.pr-review-seal/v1",
+def test_merge_gate_exposes_no_legacy_provider_verifier_or_success_marker() -> None:
+    legacy_symbols = {
+        "verify_codex_review_reference",
+        "verify_codex_review_source_unavailability_reference",
+        "verify_review_credit_outage_references",
+        "verify_security_outage_override_reference",
     }
+    assert legacy_symbols.isdisjoint(vars(merge_gate))
+
+    source = Path(merge_gate.__file__).read_text(encoding="utf-8")
+    for success_marker in (
+        "MACHINE_BOUND_REVIEW_COMMIT",
+        "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID",
+        "REVIEW_SOURCE_POSITIVE_RESPONSE_VALID",
+        "REVIEW_SOURCE_UNAVAILABLE_VALID",
+    ):
+        assert success_marker not in source
+
+
+def _configure_post_wait_revalidation_main(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    second_error: ReviewEvidenceError | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    head_sha = "a" * 40
     snapshot = PrSnapshot(
         repository="owner/repo",
         pr_number=42,
-        base_sha=base_sha,
-        head_sha=material_head,
-        commits=(PrCommitEvidence(material_head, None),),
+        base_sha="b" * 40,
+        head_sha=head_sha,
+        commits=(PrCommitEvidence(head_sha, None),),
     )
+    pr_context = (
+        42,
+        "owner/repo",
+        False,
+        "- [canonical artifact](https://github.com/owner/repo/blob/branch/"
+        "docs/review/PR_42_FIXED_MAPPING.md)",
+        "branch",
+    )
+    validation_calls: list[dict[str, Any]] = []
+    trace: list[str] = []
+    inventory_count = 0
 
-    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    def validate_seal(**kwargs: Any) -> dict[str, Any]:
+        validation_calls.append(kwargs)
+        trace.append(f"seal-{kwargs['outage_security_wait_seconds']}")
+        if len(validation_calls) == 2 and second_error is not None:
+            raise second_error
+        return {"material": {"digest": "sha256:" + "c" * 64}}
+
+    def actionable_inventory(**_kwargs: Any) -> list[merge_gate.ActionableItem]:
+        nonlocal inventory_count
+        inventory_count += 1
+        trace.append(f"inventory-{inventory_count}")
+        return []
+
+    def quiet_window(**_kwargs: Any) -> tuple[int, int]:
+        trace.append("quiet")
+        return 2, 0
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
     monkeypatch.setattr(
-        merge_gate,
-        "classify_commit_ref",
-        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
     )
+    monkeypatch.setattr(merge_gate, "_fetch_pr_context", lambda **_kwargs: pr_context)
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", actionable_inventory)
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: "artifact")
+    monkeypatch.setattr(merge_gate, "validate_mapping_artifact_text", lambda _text: [])
+    monkeypatch.setattr(merge_gate, "extract_fixed_mapping_section", lambda _text: "mapping")
+    monkeypatch.setattr(merge_gate, "parse_fixed_mapping_entries", lambda _text: {})
+    monkeypatch.setattr(merge_gate, "has_no_actionable_marker", lambda _text: True)
+    monkeypatch.setattr(merge_gate, "review_seal_version", lambda _text: "v1")
+    monkeypatch.setattr(merge_gate, "_validate_v1_seal", validate_seal)
+    monkeypatch.setattr(merge_gate, "_prove_v1_fixed_commits", lambda **_kwargs: None)
     monkeypatch.setattr(
         merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: CodexConnectorAdvisoryReactionEvidence(
-            reference=reaction_reference,
-            created_at="2026-07-15T11:00:00Z",
-            content="+1",
+        "_canonical_artifact_markdown_link_count",
+        lambda *_args: 1,
+    )
+    monkeypatch.setattr(merge_gate, "_duplicate_reply_coverage", lambda **_kwargs: set())
+    monkeypatch.setattr(merge_gate, "_wait_for_review_quiet_window", quiet_window)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    return validation_calls, trace
+
+
+def test_merge_readiness_revalidates_seal_once_after_stable_review_wait(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    validation_calls, trace = _configure_post_wait_revalidation_main(monkeypatch)
+
+    assert merge_gate.main() == 0
+
+    assert len(validation_calls) == 2
+    assert validation_calls[1]["outage_security_wait_seconds"] == 0
+    assert validation_calls[1]["enforce_outage_security_checks"] is True
+    assert validation_calls[1]["require_committed_closeout"] is True
+    assert trace == ["inventory-1", "seal-300", "quiet", "seal-0", "inventory-2"]
+    assert "REVIEW_WAIT_WINDOW_VALID" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "second_error",
+    (
+        ReviewEvidenceError(
+            "provider-neutral no-claim evidence timed out waiting for exact-head "
+            "security checks after 0s: security=pending/status"
         ),
+        ReviewEvidenceError(
+            "provider-neutral no-claim evidence requires successful current-head "
+            "security checks: security=failed/FAILURE"
+        ),
+    ),
+    ids=("pending", "failed"),
+)
+def test_merge_readiness_fails_closed_when_post_wait_seal_revalidation_is_not_green(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    second_error: ReviewEvidenceError,
+) -> None:
+    validation_calls, trace = _configure_post_wait_revalidation_main(
+        monkeypatch,
+        second_error=second_error,
     )
 
-    with pytest.raises(
-        ReviewEvidenceError,
-        match="Codex positive response is not exact-head review evidence",
-    ):
-        merge_gate._validate_v1_seal(
-            artifact_text=_artifact_with_seal(seal),
-            repository="owner/repo",
-            pr_number=42,
-            snapshot=snapshot,
-            token="opaque",
-        )
+    assert merge_gate.main() == 1
+
+    output = capsys.readouterr().out
+    assert len(validation_calls) == 2
+    assert validation_calls[1]["outage_security_wait_seconds"] == 0
+    assert trace == ["inventory-1", "seal-300", "quiet", "seal-0", "inventory-2"]
+    assert "Post-wait material review seal validation failed" in output
+    assert str(second_error) in output
+    assert "REVIEW_WAIT_WINDOW_VALID" not in output
 
 
 def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
@@ -1677,7 +2527,9 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     source = repo / "src" / "policy.py"
@@ -1687,17 +2539,16 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     frozen = compute_material_manifest(
         repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
     )
-    reaction_reference = "https://github.com/owner/repo/pull/42#reaction-456"
+    assert frozen.diff_summary is not None
+    code_review, codex_security = build_provider_no_claim_pair(
+        base_revision=frozen.merge_base_sha,
+        head_revision=material_head,
+        material_digest=frozen.digest,
+    )
     seal = {
         "authority": RECEIPT_AUTHORITY,
-        "code_review": {
-            "review_commit_ref": material_head,
-            "review_commit_ref_kind": "repository_commit",
-            "review_reference": reaction_reference,
-            "reviewed_material_digest": frozen.digest,
-            "status": "completed",
-        },
-        "codex_security": _receipt(base_sha, material_head),
+        "code_review": code_review,
+        "codex_security": codex_security,
         "material": {
             "base_ref_oid": base_sha,
             "digest": frozen.digest,
@@ -1708,6 +2559,14 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         "pr_number": 42,
         "repository": "owner/repo",
         "schema_version": "pulseplate.pr-review-seal/v1",
+        "self_review": _self_review_advisory_receipt(
+            base_ref_oid=base_sha,
+            merge_base_sha=frozen.merge_base_sha,
+            material_head_sha=material_head,
+            material_digest=frozen.digest,
+            changed_files=("src/policy.py",),
+            diff_summary=frozen.diff_summary.as_dict(),
+        ),
     }
     mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
     mapping.parent.mkdir(parents=True)
@@ -1734,22 +2593,11 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         ),
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    verifier_expected_heads: list[tuple[str | None, str | None]] = []
-
-    def verify_review(*_args: Any, **kwargs: Any) -> CodexReviewEvidence:
-        verifier_expected_heads.append(
-            (
-                kwargs.get("expected_commit_ref"),
-                kwargs.get("expected_live_pr_head_ref"),
-            )
-        )
-        return CodexReviewEvidence(
-            reference=reaction_reference,
-            submitted_at="2026-07-15T11:00:00Z",
-            commit_ref=material_head,
-        )
-
-    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_review)
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_operator_outage_security_checks",
+        lambda **_kwargs: None,
+    )
 
     validated = merge_gate._validate_v1_seal(
         artifact_text=artifact,
@@ -1759,7 +2607,6 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         token="opaque",
     )
     assert validated["material"]["digest"] == frozen.digest
-    assert verifier_expected_heads == [(material_head, governance_head)]
 
     live_snapshot = {"value": snapshot}
     monkeypatch.setenv("GITHUB_TOKEN", "opaque")
@@ -1800,37 +2647,16 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
     monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        merge_gate,
+        "_wait_for_review_quiet_window",
+        lambda **_k: (2, 0),
+    )
 
     assert merge_gate.main() == 0
-    assert "CONTENT_BOUND_RECEIPT_VALID" in capsys.readouterr().out
-
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: CodexReviewEvidence(
-            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
-            submitted_at="2026-07-15T11:00:00Z",
-            commit_ref=governance_head,
-        ),
-    )
-    with pytest.raises(ReviewEvidenceError, match="sealed material head"):
-        merge_gate._validate_v1_seal(
-            artifact_text=artifact,
-            repository="owner/repo",
-            pr_number=42,
-            snapshot=snapshot,
-            token="opaque",
-        )
-
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: CodexReviewEvidence(
-            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
-            submitted_at="2026-07-15T11:00:00Z",
-            commit_ref=material_head,
-        ),
-    )
+    output = capsys.readouterr().out
+    assert "CONTENT_BOUND_RECEIPT_VALID" in output
+    assert "REVIEW_WAIT_WINDOW_VALID observations=2 quiet_seconds=60 events=0" in output
 
     source.write_text("ENFORCED = False\n", encoding="utf-8")
     changed_head = _commit(repo, "post-scan material change")
@@ -1854,19 +2680,17 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     assert "Material review seal validation failed" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize(
-    ("enforce_outage_security_checks", "expected_check_calls"),
-    [(True, 1), (False, 0)],
-)
-def test_ci_gate_revalidates_live_operator_outage_override(
+@pytest.mark.parametrize("descendant_kind", ("mapping-only", "empty"))
+def test_ci_gate_rejects_any_descendant_after_the_mapping_closeout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    enforce_outage_security_checks: bool,
-    expected_check_calls: int,
+    descendant_kind: str,
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
     _git(repo, "init", "-q")
+    (repo / "AGENTS.md").write_text("root instructions\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     source = repo / "src" / "policy.py"
@@ -1874,402 +2698,91 @@ def test_ci_gate_revalidates_live_operator_outage_override(
     source.write_text("ENFORCED = True\n", encoding="utf-8")
     material_head = _commit(repo, "material")
     frozen = compute_material_manifest(
-        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
-    )
-    seal = {
-        "authority": RECEIPT_AUTHORITY,
-        "code_review": {
-            "review_commit_ref": material_head,
-            "review_commit_ref_kind": "repository_commit",
-            "review_reference": "https://github.com/owner/repo/pull/42#pullrequestreview-1",
-            "reviewed_material_digest": frozen.digest,
-            "status": "completed",
-        },
-        "codex_security": _outage_receipt(base_sha, material_head, frozen.digest),
-        "material": {
-            "base_ref_oid": base_sha,
-            "digest": frozen.digest,
-            "material_head_sha": material_head,
-            "merge_base_sha": frozen.merge_base_sha,
-            "policy_version": MATERIAL_POLICY_VERSION,
-        },
-        "pr_number": 42,
-        "repository": "owner/repo",
-        "schema_version": "pulseplate.pr-review-seal/v1",
-    }
-    artifact = _artifact_with_seal(seal)
-    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
-    mapping.parent.mkdir(parents=True)
-    mapping.write_text(artifact, encoding="utf-8")
-    governance_head = _commit(repo, "governance closeout")
-    snapshot = PrSnapshot(
-        repository="owner/repo",
-        pr_number=42,
-        base_sha=base_sha,
-        head_sha=governance_head,
-        commits=(
-            PrCommitEvidence(material_head, None),
-            PrCommitEvidence(governance_head, None),
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
-    monkeypatch.setattr(
-        merge_gate,
-        "classify_commit_ref",
-        lambda value, *_a, **_k: RepositoryCommitRef(
-            value,
-            CommitRefKind.PR_HEAD if value == governance_head else CommitRefKind.PR_COMMIT,
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: CodexReviewEvidence(
-            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
-            submitted_at="2026-07-16T11:00:00Z",
-            commit_ref=material_head,
-        ),
-    )
-    override_calls: list[tuple[str, str]] = []
-
-    def verify_override(*_args: Any, **kwargs: Any) -> SecurityOutageOverrideEvidence:
-        override_calls.append(
-            (kwargs["expected_material_head_sha"], kwargs["expected_material_digest"])
-        )
-        return SecurityOutageOverrideEvidence(
-            reference="https://github.com/owner/repo/pull/42#issuecomment-789",
-            created_at="2026-07-16T11:00:00Z",
-            operator_user_id=123,
-            operator_login="owner",
-            operator_association="OWNER",
-            material_head_sha=material_head,
-            material_digest=frozen.digest,
-        )
-
-    check_calls: list[str] = []
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_security_outage_override_reference",
-        verify_override,
-    )
-    monkeypatch.setattr(
-        merge_gate,
-        "_validate_operator_outage_security_checks",
-        lambda **kwargs: check_calls.append(kwargs["expected_head_sha"]),
-    )
-
-    validated = merge_gate._validate_v1_seal(
-        artifact_text=artifact,
-        repository="owner/repo",
-        pr_number=42,
-        snapshot=snapshot,
-        token="opaque",
-        enforce_outage_security_checks=enforce_outage_security_checks,
-    )
-
-    assert validated["codex_security"]["status"] == "tooling_unavailable"
-    assert override_calls == [(material_head, frozen.digest)]
-    assert check_calls == [governance_head] * expected_check_calls
-
-
-def test_ci_gate_revalidates_review_credit_outage_against_material_head(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    repository = "Katsiarynakavaleuskaya/PulsePlate"
-    pr_number = 2142
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q")
-    (repo / "README.md").write_text("base\n", encoding="utf-8")
-    base_sha = _commit(repo, "base")
-    source = repo / "src" / "policy.py"
-    source.parent.mkdir(parents=True)
-    source.write_text("ENFORCED = True\n", encoding="utf-8")
-    material_head = _commit(repo, "material")
-    frozen = compute_material_manifest(
-        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=pr_number
-    )
-    quota_reference = f"https://github.com/{repository}/pull/{pr_number}#issuecomment-456"
-    override_reference = f"https://github.com/{repository}/pull/{pr_number}#issuecomment-654"
-    prior_reference = f"https://github.com/{repository}/pull/{pr_number}#pullrequestreview-123"
-    operator_reference = f"https://github.com/{repository}/pull/{pr_number}#pullrequestreview-789"
-    code_review = build_review_credit_outage_receipt(
-        material_digest=frozen.digest,
-        material_head_sha=material_head,
-        override_reference=override_reference,
-        override_created_at="2026-07-16T11:15:00Z",
-        quota_reference=quota_reference,
-        quota_created_at="2026-07-16T11:05:00Z",
-        prior_review_reference=prior_reference,
-        prior_review_submitted_at="2026-07-16T10:30:00Z",
-        prior_review_commit_ref=base_sha,
-        operator_review_reference=operator_reference,
-        operator_review_submitted_at="2026-07-16T11:10:00Z",
-        operator_user_id=123,
-        operator_login="owner",
-        operator_association="OWNER",
-    )
-    seal = {
-        "authority": RECEIPT_AUTHORITY,
-        "code_review": code_review,
-        "codex_security": _receipt(base_sha, material_head),
-        "material": {
-            "base_ref_oid": base_sha,
-            "digest": frozen.digest,
-            "material_head_sha": material_head,
-            "merge_base_sha": frozen.merge_base_sha,
-            "policy_version": MATERIAL_POLICY_VERSION,
-        },
-        "pr_number": pr_number,
-        "repository": repository,
-        "schema_version": "pulseplate.pr-review-seal/v1",
-    }
-    artifact = _artifact_with_seal(seal)
-    mapping = repo / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
-    mapping.parent.mkdir(parents=True)
-    mapping.write_text(artifact, encoding="utf-8")
-    governance_head = _commit(repo, "governance closeout")
-    snapshot = PrSnapshot(
-        repository=repository,
-        pr_number=pr_number,
-        base_sha=base_sha,
-        head_sha=governance_head,
-        commits=(
-            PrCommitEvidence(material_head, None),
-            PrCommitEvidence(governance_head, None),
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
-    monkeypatch.setattr(
-        merge_gate,
-        "classify_commit_ref",
-        lambda value, *_a, **_k: RepositoryCommitRef(
-            value,
-            CommitRefKind.PR_HEAD if value == governance_head else CommitRefKind.PR_COMMIT,
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    verified_heads: list[str] = []
-
-    def verify_credit(*_args: Any, **kwargs: Any) -> ReviewCreditOutageEvidence:
-        verified_heads.append(kwargs["expected_material_head_sha"])
-        return ReviewCreditOutageEvidence(
-            override_reference=override_reference,
-            override_created_at="2026-07-16T11:15:00Z",
-            quota_reference=quota_reference,
-            quota_created_at="2026-07-16T11:05:00Z",
-            prior_review_reference=prior_reference,
-            prior_review_submitted_at="2026-07-16T10:30:00Z",
-            prior_review_commit_ref=base_sha,
-            operator_review_reference=operator_reference,
-            operator_review_submitted_at="2026-07-16T11:10:00Z",
-            operator_user_id=123,
-            operator_login="owner",
-            operator_association="OWNER",
-            material_head_sha=material_head,
-            material_digest=frozen.digest,
-        )
-
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_review_credit_outage_references",
-        verify_credit,
-    )
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: pytest.fail("normal Codex review path must not run"),
-    )
-
-    validated = merge_gate._validate_v1_seal(
-        artifact_text=artifact,
-        repository=repository,
-        pr_number=pr_number,
-        snapshot=snapshot,
-        token="opaque",
-    )
-
-    assert validated["code_review"]["status"] == "tooling_unavailable"
-    assert verified_heads == [material_head]
-
-
-def test_ci_gate_reauthenticates_terminal_review_source_unavailability(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q")
-    (repo / "README.md").write_text("base\n", encoding="utf-8")
-    base_sha = _commit(repo, "base")
-    source = repo / "src" / "policy.py"
-    source.parent.mkdir(parents=True)
-    source.write_text("ENFORCED = True\n", encoding="utf-8")
-    material_head = _commit(repo, "material")
-    frozen = compute_material_manifest(
-        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
-    )
-    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
-    quota_body_sha256 = "sha256:" + "c" * 64
-    code_review = build_review_source_unavailability_receipt(
-        material_digest=frozen.digest,
-        material_head_sha=material_head,
-        quota_reference=quota_reference,
-        quota_created_at="2020-01-01T00:00:00Z",
-        quota_body_sha256=quota_body_sha256,
-        source_status="usage_limit_reached",
-    )
-    seal = {
-        "authority": RECEIPT_AUTHORITY,
-        "code_review": code_review,
-        "codex_security": _receipt(base_sha, material_head),
-        "material": {
-            "base_ref_oid": base_sha,
-            "digest": frozen.digest,
-            "material_head_sha": material_head,
-            "merge_base_sha": frozen.merge_base_sha,
-            "policy_version": MATERIAL_POLICY_VERSION,
-        },
-        "pr_number": 42,
-        "repository": "owner/repo",
-        "schema_version": "pulseplate.pr-review-seal/v1",
-    }
-    artifact = _artifact_with_seal(seal)
-    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
-    mapping.parent.mkdir(parents=True)
-    mapping.write_text(artifact, encoding="utf-8")
-    governance_head = _commit(repo, "governance closeout")
-    snapshot = PrSnapshot(
-        repository="owner/repo",
-        pr_number=42,
-        base_sha=base_sha,
-        head_sha=governance_head,
-        commits=(
-            PrCommitEvidence(material_head, None),
-            PrCommitEvidence(governance_head, None),
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
-    monkeypatch.setattr(
-        merge_gate,
-        "classify_commit_ref",
-        lambda value, *_a, **_k: RepositoryCommitRef(
-            value,
-            CommitRefKind.PR_HEAD if value == governance_head else CommitRefKind.PR_COMMIT,
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    verified_refs: list[str] = []
-
-    def verify_source(
-        reference: str, *_args: Any, **_kwargs: Any
-    ) -> CodexReviewSourceUnavailabilityEvidence:
-        verified_refs.append(reference)
-        return CodexReviewSourceUnavailabilityEvidence(
-            reference=quota_reference,
-            created_at="2020-01-01T00:00:00Z",
-            source_status="usage_limit_reached",
-            body_sha256=quota_body_sha256,
-        )
-
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_source_unavailability_reference",
-        verify_source,
-    )
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: pytest.fail("normal Codex review path must not run"),
-    )
-
-    validated = merge_gate._validate_v1_seal(
-        artifact_text=artifact,
-        repository="owner/repo",
-        pr_number=42,
-        snapshot=snapshot,
-        token="opaque",
-    )
-    assert validated["code_review"] == code_review
-    assert verified_refs == [quota_reference]
-
-    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "check_pr_merge_readiness.py",
-            "--pr-number",
-            "42",
-            "--repo",
-            "owner/repo",
-        ],
-    )
-    monkeypatch.setattr(
-        merge_gate,
-        "_fetch_pr_context",
-        lambda *_a, **_k: (
-            42,
-            "owner/repo",
-            False,
-            "- [canonical artifact](https://github.com/owner/repo/blob/main/"
-            "docs/review/PR_42_FIXED_MAPPING.md)",
-            "main",
-        ),
-    )
-    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
-    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: governance_head)
-    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
-    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
-    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
-    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
-
-    assert merge_gate.main() == 0
-    output = capsys.readouterr().out
-    assert "REVIEW_SOURCE_UNAVAILABLE_VALID usage_limit_reached" in output
-    assert "MACHINE_BOUND_REVIEW_COMMIT" not in output
-    assert "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID" not in output
-
-    source.write_text("ENFORCED = False\n", encoding="utf-8")
-    changed_head = _commit(repo, "post-scan material change")
-    changed_manifest = compute_material_manifest(
         repo,
         base_ref_oid=base_sha,
-        head_ref_oid=changed_head,
+        head_ref_oid=material_head,
         pr_number=42,
     )
-    tampered_seal = json.loads(json.dumps(seal))
-    tampered_seal["material"]["digest"] = changed_manifest.digest
-    tampered_seal["code_review"] = build_review_source_unavailability_receipt(
-        material_digest=changed_manifest.digest,
-        material_head_sha=material_head,
-        quota_reference=quota_reference,
-        quota_created_at="2020-01-01T00:00:00Z",
-        quota_body_sha256=quota_body_sha256,
-        source_status="usage_limit_reached",
+    assert frozen.diff_summary is not None
+    code_review, codex_security = build_provider_no_claim_pair(
+        base_revision=frozen.merge_base_sha,
+        head_revision=material_head,
+        material_digest=frozen.digest,
     )
-    changed_snapshot = PrSnapshot(
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": codex_security,
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": frozen.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": frozen.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+        "self_review": _self_review_advisory_receipt(
+            base_ref_oid=base_sha,
+            merge_base_sha=frozen.merge_base_sha,
+            material_head_sha=material_head,
+            material_digest=frozen.digest,
+            changed_files=("src/policy.py",),
+            diff_summary=frozen.diff_summary.as_dict(),
+        ),
+    }
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    artifact = _artifact_with_seal(seal)
+    mapping.write_text(artifact, encoding="utf-8")
+    mapping_head = _commit(repo, "mapping closeout")
+
+    if descendant_kind == "mapping-only":
+        mapping.write_text(artifact + "\n<!-- second mapping commit -->\n", encoding="utf-8")
+        descendant_head = _commit(repo, "second mapping-only descendant")
+    else:
+        env = os.environ.copy()
+        env.update(
+            {
+                "GIT_AUTHOR_NAME": "PulsePlate Test",
+                "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                "GIT_COMMITTER_NAME": "PulsePlate Test",
+                "GIT_COMMITTER_EMAIL": "test@example.invalid",
+            }
+        )
+        _git(repo, "commit", "--allow-empty", "-m", "empty descendant", env=env)
+        descendant_head = _git(repo, "rev-parse", "HEAD")
+
+    snapshot = PrSnapshot(
         repository="owner/repo",
         pr_number=42,
         base_sha=base_sha,
-        head_sha=changed_head,
+        head_sha=descendant_head,
         commits=(
-            *snapshot.commits,
-            PrCommitEvidence(changed_head, None),
+            PrCommitEvidence(material_head, None),
+            PrCommitEvidence(mapping_head, None),
+            PrCommitEvidence(descendant_head, None),
         ),
     )
-    with pytest.raises(
-        ReviewEvidenceError,
-        match="unavailable material head has a different material digest",
-    ):
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == descendant_head else CommitRefKind.PR_COMMIT,
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="one mapping-only successor"):
         merge_gate._validate_v1_seal(
-            artifact_text=_artifact_with_seal(tampered_seal),
+            artifact_text=mapping.read_text(encoding="utf-8"),
             repository="owner/repo",
             pr_number=42,
-            snapshot=changed_snapshot,
+            snapshot=snapshot,
             token="opaque",
+            enforce_outage_security_checks=False,
         )
 
 

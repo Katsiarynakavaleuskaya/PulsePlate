@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -41,7 +42,6 @@ from scripts.orchestration.review_mapping_artifact import (
 from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     CommitIdentityError,
     CommitRefKind,
-    CodexConnectorAdvisoryReactionEvidence,
     PrSnapshot,
     RepositoryCommitRef,
     ReviewThreadEvidence,
@@ -50,32 +50,24 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_pr_snapshot,
     fetch_review_threads,
     is_ancestor,
-    verify_codex_review_reference,
-    verify_codex_review_source_unavailability_reference,
-    verify_review_credit_outage_references,
-    verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
-    build_review_credit_outage_receipt,
-    build_review_source_positive_response_receipt,
-    build_review_source_unavailability_receipt,
-    build_security_outage_override_receipt,
+    build_provider_no_claim_pair,
     compute_material_manifest,
-    is_review_credit_outage_receipt,
-    is_mapping_only_positive_response_successor,
-    is_review_source_positive_response_receipt,
-    is_review_source_unavailability_receipt,
-    is_security_outage_override_receipt,
+    is_provider_no_claim_review_receipt,
+    is_provider_no_claim_security_receipt,
     parse_embedded_review_seal,
-    validate_review_credit_outage_scope,
-    validate_security_outage_override_scope,
+    validate_mapping_only_closeout_successor,
+    validate_review_seal,
     validated_duplicate_reply_urls,
 )
 from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
+    DOCKER_SURFACE_PREFIXES,
     _fetch_pr_metadata as _fetch_current_head_pr_metadata,
     _latest_entries as _latest_check_entries,
     _normalize_node as _normalize_check_node,
+    _path_touches_any,
     _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
 )
 from scripts.ci.ci_risk_profile import build_risk_profile  # noqa: E402
@@ -148,6 +140,13 @@ RAW_HTML_VOID_TAGS = frozenset(
 )
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
+_MAX_OUTAGE_SECURITY_WAIT_SECONDS = 300
+_REVIEW_QUIET_SECONDS = 60
+_REVIEW_QUIET_POLL_SECONDS = 15
+_MAX_REVIEW_SETTLEMENT_SECONDS = 105
+_PENDING_REVIEW_TIMESTAMP = "pending-review"
+_review_quiet_monotonic = time.monotonic
+_review_quiet_sleep = time.sleep
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
     "Analyze (actions)": ("CodeQL Advanced", 15_368, "github-actions"),
     "Analyze (javascript-typescript)": ("CodeQL Advanced", 15_368, "github-actions"),
@@ -156,6 +155,15 @@ _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] =
     "Trivy ignore-policy expiry": ("CI", 15_368, "github-actions"),
     "security": ("CI", 15_368, "github-actions"),
     "security-scan": ("Docker Build and Push", 15_368, "github-actions"),
+}
+_OUTAGE_OVERRIDE_REQUIRED_WORKFLOW_PATHS: Mapping[str, str] = {
+    "Analyze (actions)": ".github/workflows/codeql.yml",
+    "Analyze (javascript-typescript)": ".github/workflows/codeql.yml",
+    "Analyze (python)": ".github/workflows/codeql.yml",
+    "Private Python proxy health": ".github/workflows/ci.yml",
+    "Trivy ignore-policy expiry": ".github/workflows/ci.yml",
+    "security": ".github/workflows/ci.yml",
+    "security-scan": ".github/workflows/build.yml",
 }
 
 
@@ -170,6 +178,22 @@ class ActionableItem:
     review_id: int | None = None
     updated_at: str = ""
     body_digest: str = ""
+
+
+@dataclass(frozen=True)
+class _OutagePullRequestTarget:
+    repository: str
+    number: int
+    base_sha: str
+    head_sha: str
+    base_ref: str
+
+
+@dataclass(frozen=True)
+class _OutageRequiredContext:
+    name: str
+    workflow_name: str
+    workflow_path: str
 
 
 class _OutageSecurityChecksPending(ReviewEvidenceError):
@@ -612,6 +636,169 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
     return sorted(unique.values(), key=lambda it: it.created_at)
 
 
+def _validated_review_timestamp(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} is missing or malformed")
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"{label} is missing or malformed") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{label} is missing or malformed")
+    return value
+
+
+def _review_activity_inventory(
+    repo: str,
+    pr_number: int,
+    token: str,
+) -> tuple[tuple[object, ...], ...]:
+    """Return a content-bound inventory of all issue/review activity."""
+
+    base = f"https://api.github.com/repos/{repo}"
+    encoded = urllib.parse.quote(str(pr_number), safe="")
+    sources = (
+        (
+            "issue_comment",
+            _api_request_paginated_list(
+                f"{base}/issues/{encoded}/comments?per_page=100",
+                token=token,
+            ),
+        ),
+        (
+            "review",
+            _api_request_paginated_list(
+                f"{base}/pulls/{encoded}/reviews?per_page=100",
+                token=token,
+            ),
+        ),
+        (
+            "review_comment",
+            _api_request_paginated_list(
+                f"{base}/pulls/{encoded}/comments?per_page=100",
+                token=token,
+            ),
+        ),
+    )
+    inventory: list[tuple[object, ...]] = []
+    seen: set[tuple[str, int]] = set()
+    for kind, rows in sources:
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"{kind} activity row is malformed")
+            event_id = row.get("id")
+            user = row.get("user")
+            user_id = user.get("id") if isinstance(user, dict) else None
+            author = user.get("login") if isinstance(user, dict) else None
+            body = row.get("body")
+            state = row.get("state")
+            created_raw = row.get("submitted_at") if kind == "review" else row.get("created_at")
+            if kind == "review" and state == "PENDING" and created_raw is None:
+                created_at = _PENDING_REVIEW_TIMESTAMP
+            else:
+                created_at = _validated_review_timestamp(
+                    created_raw,
+                    label=f"{kind} created_at",
+                )
+            updated_raw = row.get("updated_at") or created_at
+            if updated_raw == _PENDING_REVIEW_TIMESTAMP:
+                updated_at = _PENDING_REVIEW_TIMESTAMP
+            else:
+                updated_at = _validated_review_timestamp(
+                    updated_raw,
+                    label=f"{kind} updated_at",
+                )
+            if (
+                not isinstance(event_id, int)
+                or isinstance(event_id, bool)
+                or event_id <= 0
+                or not isinstance(user_id, int)
+                or isinstance(user_id, bool)
+                or user_id <= 0
+                or not isinstance(author, str)
+                or not author
+                or body is not None
+                and not isinstance(body, str)
+            ):
+                raise ValueError(f"{kind} activity identity is missing or malformed")
+            key = (kind, event_id)
+            if key in seen:
+                raise ValueError(f"{kind} activity contains duplicate id {event_id}")
+            seen.add(key)
+            inventory.append(
+                (
+                    kind,
+                    event_id,
+                    user_id,
+                    author,
+                    str(row.get("html_url") or ""),
+                    created_at,
+                    updated_at,
+                    _comment_body_digest(body or ""),
+                    str(state or ""),
+                    str(row.get("commit_id") or ""),
+                    row.get("pull_request_review_id") or 0,
+                )
+            )
+    return tuple(sorted(inventory))
+
+
+def _wait_for_review_quiet_window(
+    *,
+    repo: str,
+    pr_number: int,
+    token: str,
+    expected_pr_context: tuple[int, str, bool, str, str],
+    snapshot: PrSnapshot,
+) -> tuple[int, int]:
+    """Require one bounded provider-neutral quiet period over live review state."""
+
+    def observe() -> tuple[
+        tuple[tuple[object, ...], ...],
+        tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...],
+    ]:
+        context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
+        if context != expected_pr_context:
+            raise CommitIdentityError(
+                "SNAPSHOT_CHANGED: live PR body or draft state changed during review wait"
+            )
+        activity = _review_activity_inventory(repo, pr_number, token)
+        threads = fetch_review_threads(repo, pr_number, token=token)
+        assert_snapshot_unchanged(snapshot, token=token)
+        return activity, _review_thread_inventory(threads)
+
+    state = observe()
+    quiet_started = _review_quiet_monotonic()
+    deadline = quiet_started + _MAX_REVIEW_SETTLEMENT_SECONDS
+    observations = 1
+    while True:
+        now = _review_quiet_monotonic()
+        quiet_remaining = _REVIEW_QUIET_SECONDS - (now - quiet_started)
+        if quiet_remaining <= 0:
+            return observations, len(state[0])
+        total_remaining = deadline - now
+        if total_remaining <= 0:
+            raise ReviewEvidenceError(
+                "review activity did not settle within the bounded "
+                f"{_MAX_REVIEW_SETTLEMENT_SECONDS}s window"
+            )
+        sleep_seconds = min(
+            float(_REVIEW_QUIET_POLL_SECONDS),
+            quiet_remaining,
+            total_remaining,
+        )
+        _review_quiet_sleep(sleep_seconds)
+        after_sleep = _review_quiet_monotonic()
+        if after_sleep <= now:
+            raise ReviewEvidenceError("review quiet-window clock did not advance")
+        current = observe()
+        observations += 1
+        if current != state:
+            state = current
+            quiet_started = _review_quiet_monotonic()
+
+
 def _covered_review_summary_urls(
     actionable_items: list[ActionableItem],
     evidence_covered_urls: set[str],
@@ -688,39 +875,205 @@ def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
     )
 
 
+def _actions_run_and_job_ids(
+    details_url: object,
+    target: _OutagePullRequestTarget,
+) -> tuple[int, int]:
+    if not isinstance(details_url, str):
+        raise ReviewEvidenceError("check run details URL is missing")
+    parsed = urllib.parse.urlparse(details_url)
+    expected_prefix = f"/{target.repository}/actions/runs/"
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "github.com"
+        or not parsed.path.startswith(expected_prefix)
+    ):
+        raise ReviewEvidenceError("check run is not linked to this repository Actions run")
+    tail = parsed.path[len(expected_prefix) :].split("/")
+    if (
+        len(tail) != 3
+        or not tail[0].isdigit()
+        or int(tail[0]) <= 0
+        or tail[1] != "job"
+        or not tail[2].isdigit()
+        or int(tail[2]) <= 0
+    ):
+        raise ReviewEvidenceError("check run Actions run/job identity is malformed")
+    return int(tail[0]), int(tail[2])
+
+
+def _validated_action_run(
+    check: Mapping[str, Any],
+    *,
+    required: _OutageRequiredContext,
+    target: _OutagePullRequestTarget,
+    token: str,
+    run_cache: dict[int, dict[str, Any]],
+    job_cache: dict[int, dict[str, Any]],
+) -> tuple[str, int] | None:
+    """Bind one check to the exact pull_request Actions run and job."""
+
+    run_id, job_id = _actions_run_and_job_ids(check.get("details_url"), target)
+    api_root = f"https://api.github.com/repos/{target.repository}"
+    if run_id not in run_cache:
+        run = _api_request(f"{api_root}/actions/runs/{run_id}", token=token)
+        if not isinstance(run, dict):
+            raise ReviewEvidenceError("linked Actions run is malformed")
+        run_cache[run_id] = run
+    run = run_cache[run_id]
+    if run.get("id") != run_id:
+        raise ReviewEvidenceError(f"{required.name} linked Actions run identity is malformed")
+    event = run.get("event")
+    if not isinstance(event, str) or not event:
+        raise ReviewEvidenceError(f"{required.name} linked Actions run event is malformed")
+    if event != "pull_request":
+        return None
+    pull_requests = run.get("pull_requests")
+    if not isinstance(pull_requests, list):
+        raise ReviewEvidenceError("linked Actions run PR binding is malformed")
+    matching_prs = [
+        item
+        for item in pull_requests
+        if isinstance(item, dict)
+        and item.get("number") == target.number
+        and isinstance(item.get("head"), dict)
+        and item["head"].get("sha") == target.head_sha
+        and isinstance(item.get("base"), dict)
+        and item["base"].get("ref") == target.base_ref
+        and item["base"].get("sha") == target.base_sha
+    ]
+    if (
+        run.get("head_sha") != target.head_sha
+        or run.get("name") != required.workflow_name
+        or run.get("path") != required.workflow_path
+        or len(matching_prs) != 1
+    ):
+        raise ReviewEvidenceError(
+            f"{required.name} is not linked to an exact PR/base/head "
+            "base-allowlisted Actions run"
+        )
+    created_at = run.get("created_at")
+    if not isinstance(created_at, str) or not created_at:
+        raise ReviewEvidenceError(f"{required.name} linked Actions chronology is malformed")
+    if job_id not in job_cache:
+        job = _api_request(f"{api_root}/actions/jobs/{job_id}", token=token)
+        if not isinstance(job, dict):
+            raise ReviewEvidenceError("linked Actions job is malformed")
+        job_cache[job_id] = job
+    job = job_cache[job_id]
+    check_id = check.get("id")
+    attempt = job.get("run_attempt")
+    if (
+        not isinstance(check_id, int)
+        or isinstance(check_id, bool)
+        or check_id <= 0
+        or job.get("id") != job_id
+        or job.get("run_id") != run_id
+        or job.get("check_run_url") != f"{api_root}/check-runs/{check_id}"
+        or not isinstance(attempt, int)
+        or isinstance(attempt, bool)
+        or attempt <= 0
+    ):
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
+    return created_at, attempt
+
+
+def _validate_selected_outage_action_run(
+    check_node: Mapping[str, Any],
+    *,
+    required: _OutageRequiredContext,
+    target: _OutagePullRequestTarget,
+    token: str,
+    run_cache: dict[int, dict[str, Any]],
+    job_cache: dict[int, dict[str, Any]],
+) -> None:
+    """Bind one selected rollup check to its exact PR Actions run and job."""
+
+    details_url = check_node.get("detailsUrl")
+    run_id, job_id = _actions_run_and_job_ids(details_url, target)
+    api_root = f"https://api.github.com/repos/{target.repository}"
+    if run_id not in run_cache:
+        run = _api_request(f"{api_root}/actions/runs/{run_id}", token=token)
+        if not isinstance(run, dict):
+            raise ReviewEvidenceError(f"{required.name} linked Actions run is malformed")
+        run_cache[run_id] = run
+    if job_id not in job_cache:
+        job = _api_request(f"{api_root}/actions/jobs/{job_id}", token=token)
+        if not isinstance(job, dict):
+            raise ReviewEvidenceError(f"{required.name} linked Actions job is malformed")
+        job_cache[job_id] = job
+    check_run_url = job_cache[job_id].get("check_run_url")
+    if not isinstance(check_run_url, str):
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
+    raw_check_id = check_run_url.rsplit("/", maxsplit=1)[-1]
+    if not raw_check_id.isdigit() or int(raw_check_id) <= 0:
+        raise ReviewEvidenceError(f"{required.name} linked Actions job identity is malformed")
+    validated = _validated_action_run(
+        {"details_url": details_url, "id": int(raw_check_id)},
+        required=required,
+        target=target,
+        token=token,
+        run_cache=run_cache,
+        job_cache=job_cache,
+    )
+    if validated is None:
+        raise ReviewEvidenceError(f"{required.name} is not linked to a pull_request Actions run")
+
+
 def _validate_operator_outage_security_checks(
     *,
     repository: str,
     pr_number: int,
     token: str,
+    expected_base_sha: str,
     expected_head_sha: str,
     security_required: bool = True,
+    material_paths: Iterable[str] | None = None,
+    evidence_label: str = "operator outage override",
 ) -> None:
-    """Require a strict successful current-head security bundle for outage overrides."""
+    """Require a strict successful trusted current-head security bundle."""
 
-    _is_draft, _merge_state, _base_ref, nodes = _fetch_current_head_pr_metadata(
+    _is_draft, _merge_state, base_ref, nodes = _fetch_current_head_pr_metadata(
         pr_number, repository, token, expected_head_sha
     )
     try:
-        entries = [_normalize_check_node(node) for node in nodes if node]
+        normalized_nodes = [(node, _normalize_check_node(node)) for node in nodes if node]
     except ValueError as exc:
         raise ReviewEvidenceError(
-            f"operator outage override cannot order current-head security checks: {exc}"
+            f"{evidence_label} cannot order current-head security checks: {exc}"
         ) from exc
+    entries = [entry for _node, entry in normalized_nodes]
     latest, superseded = _latest_check_entries(entries)
     latest, _superseded = _suppress_stale_check_entries(
         entries,
         latest,
         superseded,
     )
+    target = _OutagePullRequestTarget(
+        repository=repository,
+        number=pr_number,
+        base_sha=expected_base_sha,
+        head_sha=expected_head_sha,
+        base_ref=base_ref,
+    )
+    docker_security_required = (
+        True
+        if material_paths is None
+        else _operator_outage_docker_security_required(base_ref, material_paths)
+    )
+    run_cache: dict[int, dict[str, Any]] = {}
+    job_cache: dict[int, dict[str, Any]] = {}
     terminal_failures: list[str] = []
     pending_failures: list[str] = []
     for name, expected_identity in sorted(_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items()):
+        if name == "security-scan" and not docker_security_required:
+            continue
         candidates = [entry for entry in entries if entry.name == name]
         if not candidates:
             pending_failures.append(f"{name}=missing")
             continue
         expected_workflow, expected_app_id, expected_app_slug = expected_identity
+        expected_workflow_path = _OUTAGE_OVERRIDE_REQUIRED_WORKFLOW_PATHS[name]
         untrusted = [
             entry
             for entry in candidates
@@ -746,7 +1099,31 @@ def _validate_operator_outage_security_checks(
             continue
         entry = latest.get(name)
         if entry is None:  # Defensive: candidates were present above.
-            pending_failures.append(f"{name}=missing-latest")
+            terminal_failures.append(f"{name}=missing-latest")
+            continue
+        selected_nodes = [
+            node
+            for node, normalized in normalized_nodes
+            if normalized.source_kind == "check_run" and normalized == entry
+        ]
+        if len(selected_nodes) != 1:
+            terminal_failures.append(f"{name}=ambiguous-actions-run")
+            continue
+        try:
+            _validate_selected_outage_action_run(
+                selected_nodes[0],
+                required=_OutageRequiredContext(
+                    name=name,
+                    workflow_name=expected_workflow,
+                    workflow_path=expected_workflow_path,
+                ),
+                target=target,
+                token=token,
+                run_cache=run_cache,
+                job_cache=job_cache,
+            )
+        except ReviewEvidenceError as exc:
+            terminal_failures.append(f"{name}=untrusted-actions-run({exc})")
             continue
         if (
             name == "security"
@@ -774,10 +1151,11 @@ def _validate_operator_outage_security_checks(
             else ReviewEvidenceError
         )
         raise error_type(
-            "operator outage override requires successful current-head security checks: "
+            f"{evidence_label} requires successful current-head security checks: "
             + ", ".join(failures)
             + ". Pending or not-yet-visible exact-head checks may be retried only "
-            "within the bounded CI wait; failed or untrusted checks remain terminal."
+            "within the bounded CI wait; failed, stale, skipped-when-applicable, "
+            "or untrusted checks remain terminal."
         )
 
 
@@ -786,18 +1164,26 @@ def _wait_for_operator_outage_security_checks(
     repository: str,
     pr_number: int,
     token: str,
+    expected_base_sha: str,
     expected_head_sha: str,
     security_required: bool,
+    material_paths: Iterable[str] | None = None,
     timeout_seconds: int,
     poll_interval_seconds: int = 15,
+    evidence_label: str = "operator outage override",
 ) -> None:
     """Wait only for transient exact-head substitute-check states, then fail closed."""
 
     if timeout_seconds < 0:
         raise ValueError("outage security wait must be non-negative")
+    if timeout_seconds > _MAX_OUTAGE_SECURITY_WAIT_SECONDS:
+        raise ValueError(
+            f"outage security wait must not exceed {_MAX_OUTAGE_SECURITY_WAIT_SECONDS} seconds"
+        )
     if poll_interval_seconds <= 0:
         raise ValueError("outage security poll interval must be positive")
 
+    frozen_material_paths = None if material_paths is None else tuple(material_paths)
     deadline = time.monotonic() + timeout_seconds
     attempt = 1
     while True:
@@ -806,15 +1192,18 @@ def _wait_for_operator_outage_security_checks(
                 repository=repository,
                 pr_number=pr_number,
                 token=token,
+                expected_base_sha=expected_base_sha,
                 expected_head_sha=expected_head_sha,
                 security_required=security_required,
+                material_paths=frozen_material_paths,
+                evidence_label=evidence_label,
             )
             return
         except _OutageSecurityChecksPending as exc:
             remaining = deadline - time.monotonic()
             if timeout_seconds == 0 or remaining <= 0:
                 raise ReviewEvidenceError(
-                    "operator outage override timed out waiting for exact-head "
+                    f"{evidence_label} timed out waiting for exact-head "
                     f"security checks after {timeout_seconds}s: {exc}"
                 ) from exc
             sleep_seconds = min(float(poll_interval_seconds), remaining)
@@ -832,6 +1221,18 @@ def _operator_outage_security_required(material_paths: Iterable[str]) -> bool:
     return bool(build_risk_profile(tuple(material_paths)).run_security)
 
 
+def _operator_outage_docker_security_required(
+    base_ref: str,
+    material_paths: Iterable[str],
+) -> bool:
+    """Require Docker security only when its PR trigger and surface both attach."""
+
+    return base_ref == "main" and _path_touches_any(
+        set(material_paths),
+        DOCKER_SURFACE_PREFIXES,
+    )
+
+
 def _validate_v1_seal(
     *,
     artifact_text: str,
@@ -841,6 +1242,7 @@ def _validate_v1_seal(
     token: str,
     outage_security_wait_seconds: int = 0,
     enforce_outage_security_checks: bool = True,
+    require_committed_closeout: bool = True,
 ) -> dict[str, Any]:
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
@@ -858,6 +1260,11 @@ def _validate_v1_seal(
         head_ref_oid=snapshot.head_sha,
         pr_number=pr_number,
     )
+    seal = validate_review_seal(
+        seal,
+        material_paths=(entry.path for entry in manifest.entries),
+        material_diff_summary=manifest.diff_summary,
+    )
     material = seal["material"]
     if (
         material["base_ref_oid"] != snapshot.base_sha
@@ -872,198 +1279,60 @@ def _validate_v1_seal(
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
-    if is_review_source_positive_response_receipt(code_review):
-        response_manifest = compute_material_manifest(
+    if not is_provider_no_claim_review_receipt(code_review):
+        raise ReviewEvidenceError(
+            "legacy provider-backed review seals are read-only and cannot authorize "
+            "current merge readiness"
+        )
+    expected_code_review, expected_security = build_provider_no_claim_pair(
+        base_revision=manifest.merge_base_sha,
+        head_revision=material_head.sha,
+        material_digest=material["digest"],
+    )
+    if code_review != expected_code_review:
+        raise ReviewEvidenceError("provider-neutral review no-claim receipt is stale")
+    if require_committed_closeout:
+        validate_mapping_only_closeout_successor(
             REPO_ROOT,
-            base_ref_oid=snapshot.base_sha,
-            head_ref_oid=material_head.sha,
-            pr_number=pr_number,
-        )
-        if response_manifest.digest != material["digest"]:
-            raise ReviewEvidenceError(
-                "positive response material head has a different material digest"
-            )
-        response_evidence = verify_codex_review_reference(
-            code_review["response_reference"],
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            expected_commit_ref=material_head.sha,
-            expected_live_pr_head_ref=snapshot.head_sha,
-        )
-        if not isinstance(response_evidence, CodexConnectorAdvisoryReactionEvidence):
-            raise ReviewEvidenceError("Codex positive response reference changed evidence type")
-        expected_code_review = build_review_source_positive_response_receipt(
-            material_digest=material["digest"],
             material_head_sha=material_head.sha,
-            response_reference=response_evidence.reference,
-            response_created_at=response_evidence.created_at,
-            response_content=response_evidence.content,
-        )
-        successor_response = (
-            snapshot.head_sha != material_head.sha
-            and is_mapping_only_positive_response_successor(
-                code_review,
-                response_reference=response_evidence.reference,
-                response_created_at=response_evidence.created_at,
-                response_content=response_evidence.content,
-            )
-        )
-        if code_review != expected_code_review and not successor_response:
-            raise ReviewEvidenceError("Codex positive response receipt is stale")
-    elif is_review_source_unavailability_receipt(code_review):
-        unavailable_manifest = compute_material_manifest(
-            REPO_ROOT,
-            base_ref_oid=snapshot.base_sha,
-            head_ref_oid=material_head.sha,
+            live_head_sha=snapshot.head_sha,
             pr_number=pr_number,
         )
-        if unavailable_manifest.digest != material["digest"]:
-            raise ReviewEvidenceError(
-                "review-source unavailable material head has a different material digest"
-            )
-        source_evidence = verify_codex_review_source_unavailability_reference(
-            code_review["quota_reference"],
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-        )
-        expected_code_review = build_review_source_unavailability_receipt(
-            material_digest=material["digest"],
-            material_head_sha=material_head.sha,
-            quota_reference=source_evidence.reference,
-            quota_created_at=source_evidence.created_at,
-            quota_body_sha256=source_evidence.body_sha256,
-            source_status=source_evidence.source_status,
-        )
-        if code_review != expected_code_review:
-            raise ReviewEvidenceError("Codex review-source unavailability receipt is stale")
-    elif is_review_credit_outage_receipt(code_review):
-        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
-        if not code_review["review_reference"].startswith(review_prefix):
-            raise ReviewEvidenceError("code-review reference belongs to another PR")
-        validate_review_credit_outage_scope(
-            repository=repository,
-            pr_number=pr_number,
-            material_paths=(entry.path for entry in manifest.entries),
-        )
-        credit_evidence = verify_review_credit_outage_references(
-            override_reference=code_review["override_reference"],
-            quota_reference=code_review["quota_reference"],
-            prior_review_reference=code_review["prior_review_reference"],
-            operator_review_reference=code_review["review_reference"],
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-            snapshot=snapshot,
-            expected_material_head_sha=material_head.sha,
-            expected_material_digest=material["digest"],
-        )
-        expected_code_review = build_review_credit_outage_receipt(
-            material_digest=material["digest"],
-            material_head_sha=material_head.sha,
-            override_reference=credit_evidence.override_reference,
-            override_created_at=credit_evidence.override_created_at,
-            quota_reference=credit_evidence.quota_reference,
-            quota_created_at=credit_evidence.quota_created_at,
-            prior_review_reference=credit_evidence.prior_review_reference,
-            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
-            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
-            operator_review_reference=credit_evidence.operator_review_reference,
-            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
-            operator_user_id=credit_evidence.operator_user_id,
-            operator_login=credit_evidence.operator_login,
-            operator_association=credit_evidence.operator_association,
-        )
-        if code_review != expected_code_review:
-            raise ReviewEvidenceError("Codex review credit-outage receipt is stale")
     else:
-        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
-        if not code_review["review_reference"].startswith(review_prefix):
-            raise ReviewEvidenceError("code-review reference belongs to another PR")
-        review_evidence = verify_codex_review_reference(
-            code_review["review_reference"],
+        live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
+        if not is_ancestor(
+            material_head,
+            live_head,
             repository=repository,
-            pr_number=pr_number,
             token=token,
-            expected_commit_ref=material["material_head_sha"],
-            # The digest check above permits only the canonical mapping artifact
-            # to separate the sealed material head from the live PR head.
-            expected_live_pr_head_ref=snapshot.head_sha,
-        )
-        if isinstance(review_evidence, CodexConnectorAdvisoryReactionEvidence):
-            raise ReviewEvidenceError("Codex positive response is not exact-head review evidence")
-        if (
-            review_evidence.commit_ref != code_review["review_commit_ref"]
-            or code_review["review_commit_ref_kind"] != "repository_commit"
-            or review_evidence.commit_ref != material["material_head_sha"]
         ):
-            raise ReviewEvidenceError("Codex review is not bound to the sealed material head")
-        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-        if not isinstance(review_commit, RepositoryCommitRef) or review_commit.kind not in {
-            CommitRefKind.PR_HEAD,
-            CommitRefKind.PR_COMMIT,
-        }:
-            raise ReviewEvidenceError("Codex review commit is not a real commit in the live PR")
-        reviewed_manifest = compute_material_manifest(
-            REPO_ROOT,
-            base_ref_oid=snapshot.base_sha,
-            head_ref_oid=review_commit.sha,
-            pr_number=pr_number,
+            raise ReviewEvidenceError("material head is not an ancestor of the live PR head")
+    security_receipt = seal["codex_security"]
+    if not is_provider_no_claim_security_receipt(security_receipt):
+        raise ReviewEvidenceError(
+            "legacy provider-backed security seals are read-only and cannot authorize "
+            "current merge readiness"
         )
-        if reviewed_manifest.digest != material["digest"]:
-            raise ReviewEvidenceError("Codex review commit has a different material digest")
-    live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
-    if not is_ancestor(
-        material_head,
-        live_head,
-        repository=repository,
-        token=token,
-    ):
-        raise ReviewEvidenceError("material head is not an ancestor of the live PR head")
     if (
-        seal["codex_security"]["base_revision"] != manifest.merge_base_sha
-        or seal["codex_security"]["head_revision"] != material_head.sha
+        security_receipt["base_revision"] != manifest.merge_base_sha
+        or security_receipt["head_revision"] != material_head.sha
     ):
         raise ReviewEvidenceError("Codex Security receipt range is stale")
-    security_receipt = seal["codex_security"]
-    if is_security_outage_override_receipt(security_receipt):
-        validate_security_outage_override_scope(
-            repository=repository,
-            pr_number=pr_number,
-            material_paths=(entry.path for entry in manifest.entries),
-        )
-        outage_evidence = verify_security_outage_override_reference(
-            security_receipt["override_reference"],
+    if security_receipt != expected_security:
+        raise ReviewEvidenceError("provider-neutral security no-claim receipt is stale")
+    if enforce_outage_security_checks:
+        material_paths = tuple(entry.path for entry in manifest.entries)
+        _wait_for_operator_outage_security_checks(
             repository=repository,
             pr_number=pr_number,
             token=token,
-            expected_material_head_sha=material_head.sha,
-            expected_material_digest=material["digest"],
+            expected_base_sha=snapshot.base_sha,
+            expected_head_sha=snapshot.head_sha,
+            security_required=_operator_outage_security_required(material_paths),
+            material_paths=material_paths,
+            timeout_seconds=outage_security_wait_seconds,
+            evidence_label="provider-neutral no-claim evidence",
         )
-        expected_receipt = build_security_outage_override_receipt(
-            base_revision=manifest.merge_base_sha,
-            head_revision=material_head.sha,
-            material_digest=material["digest"],
-            override_reference=outage_evidence.reference,
-            created_at=outage_evidence.created_at,
-            operator_user_id=outage_evidence.operator_user_id,
-            operator_login=outage_evidence.operator_login,
-            operator_association=outage_evidence.operator_association,
-        )
-        if security_receipt != expected_receipt:
-            raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        if enforce_outage_security_checks:
-            _wait_for_operator_outage_security_checks(
-                repository=repository,
-                pr_number=pr_number,
-                token=token,
-                expected_head_sha=snapshot.head_sha,
-                security_required=_operator_outage_security_required(
-                    entry.path for entry in manifest.entries
-                ),
-                timeout_seconds=outage_security_wait_seconds,
-            )
     return seal
 
 
@@ -1152,7 +1421,7 @@ def main() -> int:
     parser.add_argument(
         "--outage-security-wait-seconds",
         type=int,
-        default=0,
+        default=_MAX_OUTAGE_SECURITY_WAIT_SECONDS,
         help=(
             "Bounded CI wait for transient exact-head substitute security checks. "
             "Failed or untrusted checks are never retried."
@@ -1169,6 +1438,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.outage_security_wait_seconds < 0:
         parser.error("--outage-security-wait-seconds must be non-negative")
+    if args.outage_security_wait_seconds > _MAX_OUTAGE_SECURITY_WAIT_SECONDS:
+        parser.error(
+            "--outage-security-wait-seconds must not exceed " f"{_MAX_OUTAGE_SECURITY_WAIT_SECONDS}"
+        )
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
@@ -1308,6 +1581,7 @@ def main() -> int:
                     token=token,
                     outage_security_wait_seconds=args.outage_security_wait_seconds,
                     enforce_outage_security_checks=not args.pre_closeout,
+                    require_committed_closeout=not args.pre_closeout,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
@@ -1367,6 +1641,40 @@ def main() -> int:
             )
             for item in unmapped:
                 print(f"UNMAPPED: {item.author} [{item.kind}] {item.url} ({item.created_at})")
+
+    review_wait_result: tuple[int, int] | None = None
+    if not args.pre_closeout and not errors:
+        try:
+            review_wait_result = _wait_for_review_quiet_window(
+                repo=repo,
+                pr_number=pr_number,
+                token=token,
+                expected_pr_context=(pr_number, repo, is_draft, pr_body, head_ref),
+                snapshot=snapshot,
+            )
+        except (
+            CommitIdentityError,
+            OSError,
+            ReviewEvidenceError,
+            ValueError,
+            urllib.error.HTTPError,
+        ) as exc:
+            errors.append(f"Mandatory review wait failed: {exc}")
+
+    if review_wait_result is not None and seal is not None:
+        try:
+            seal = _validate_v1_seal(
+                artifact_text=artifact_text,
+                repository=repo,
+                pr_number=pr_number,
+                snapshot=snapshot,
+                token=token,
+                outage_security_wait_seconds=0,
+                enforce_outage_security_checks=True,
+                require_committed_closeout=True,
+            )
+        except (CommitIdentityError, ReviewEvidenceError, OSError, ValueError) as exc:
+            errors.append(f"Post-wait material review seal validation failed: {exc}")
 
     try:
         final_pr_context = _fetch_pr_context(pr_number=pr_number, repo=repo, token=token)
@@ -1428,16 +1736,13 @@ def main() -> int:
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
-        if is_review_source_positive_response_receipt(seal["code_review"]):
-            print(
-                f"REVIEW_SOURCE_POSITIVE_RESPONSE_VALID {seal['code_review']['response_content']}"
-            )
-        elif is_review_source_unavailability_receipt(seal["code_review"]):
-            print(f"REVIEW_SOURCE_UNAVAILABLE_VALID {seal['code_review']['source_status']}")
-        elif is_review_credit_outage_receipt(seal["code_review"]):
-            print(f"REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID {seal['code_review']['review_commit_ref']}")
-        else:
-            print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
+        print("PROVIDER_NO_CLAIM_VALID review_claim=none scan_claim=none")
+    if review_wait_result is not None:
+        observations, events = review_wait_result
+        print(
+            "REVIEW_WAIT_WINDOW_VALID "
+            f"observations={observations} quiet_seconds={_REVIEW_QUIET_SECONDS} events={events}"
+        )
     if duplicate_covered_urls:
         print(f"DUPLICATE_FINDING_REUSED count={len(duplicate_covered_urls)}")
     print(

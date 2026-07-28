@@ -169,35 +169,21 @@ def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> 
         "Role order: agent-coordinator, qa-engineer-agent, bug-hunter, security-auditor" in prompt
     )
     assert "Role order: agent-coordinator, security-auditor, bug-hunter" not in prompt
-    assert "one manual Codex Security request" in prompt
-    assert "single pass per material diff" not in prompt
-    assert "security-relevant diff changes" not in prompt
+    assert "one manual Codex Security request" not in prompt
+    assert "no provider invocation, retry, poll, wait, substitute" in prompt
 
     role_index = prompt.index("run the role-only post-open pass in order")
     fixes_index = prompt.index("Fix or disposition every finding")
     freeze_index = prompt.index("freeze the exact material")
-    self_review_index = prompt.index("local self-review")
-    review_index = prompt.index("Satisfy the final review-evidence slot")
-    prepare_index = prompt.index("prepare-final-security")
-    security_index = prompt.index("one manual Codex Security request")
-    assert (
-        role_index
-        < fixes_index
-        < freeze_index
-        < self_review_index
-        < review_index
-        < prepare_index
-        < security_index
-    )
-    assert "performs no automatic retry" in prompt
-    assert "repository makes no plugin call" in prompt
-    assert "cannot prove global cross-machine request consumption" in prompt
-    assert "--review-ref <exact-head-review-URL>" in prompt
-    assert "--review-source-unavailable-ref <trusted-terminal-comment-URL>" in prompt
+    self_review_index = prompt.index("executable local self-review")
+    seal_index = prompt.index("Seal with")
+    no_claim_index = prompt.index("exact static provider no-claim pair")
+    assert role_index < fixes_index < freeze_index < self_review_index < seal_index < no_claim_index
+    assert "--self-review-report <report.json>" in prompt
     assert "`review_claim=none`" in prompt
-    assert "`record-final-security-outcome`" in prompt
-    assert "`completed`, `timeout`, `safety_block`, or `incomplete`" in prompt
-    assert "created after that terminal outcome" in prompt
+    assert "`scan_claim=none`" in prompt
+    assert "`no_findings_claim=false`" in prompt
+    assert "Provider absence is not a PASS, review, scan, approval" in prompt
 
 
 def test_packet_prompt_normalizes_requested_order_when_security_precedes_bug_hunter() -> None:
@@ -355,7 +341,8 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "Role-agent dispatch is a required post-bootstrap step" in prompt
     assert "Do not reconstruct a generic bridge command" in prompt
     assert "Do not treat task_bootstrap.py packet creation as role-agent execution." in prompt
-    assert "`completed`, `timeout`, `safety_block`, or `incomplete`" in prompt
+    assert "exact static provider no-claim pair" in prompt
+    assert "no provider invocation, retry, poll, wait, substitute" in prompt
     assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in prompt
     assert "runner joins the lane and must not replace agent-coordinator" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt

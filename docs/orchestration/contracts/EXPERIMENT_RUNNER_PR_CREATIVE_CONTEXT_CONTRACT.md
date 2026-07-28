@@ -258,30 +258,29 @@ free-form rationale text.
 `mutation_authority=false`, `execute_agent_tasks=false`, and
 `dispatch_to_coordinator=true`. It is a coordinator input, not an agent executor.
 
-## Codex Security Single-Pass Guard
+## Provider-Neutral Final-Material Guard
 
 Creative-context artifacts carry:
 
 ```text
-policy=single_pass_per_material_diff
-rerun_allowed_reasons=[
-  security_relevant_diff_changed,
-  coordinator_evidence_backed_reroute,
-  operator_explicit_request,
-  scan_artifact_failed_or_incomplete
-]
+review_claim=none
+scan_claim=none
+provider_invocation=false
+provider_retry=false
+provider_wait=false
 ```
 
 The post-open chain is:
 
 ```text
 qa-engineer-agent -> bug-hunter -> security-auditor
--> Codex Security diff scan / finding discovery
 -> pulseplate-pr-review
+-> exact-material provider-neutral seal
 ```
 
-That chain runs once per material diff. Later comments go through fixed mapping
-and targeted gates unless one of the rerun reasons is present.
+Every material change returns to fixes, current-head gates, freeze, and
+repo-native self-review. Provider absence is not a PASS, review, scan, approval,
+or no-findings result.
 
 ## Human Approval
 

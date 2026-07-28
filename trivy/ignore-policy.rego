@@ -12,7 +12,7 @@ default ignore := false
 # Suppression expires: 2026-10-07 (manual removal)
 # Last reviewed: 2026-07-09
 # Residual Review-by dates were set to 2026-08-08 (~30-day re-check) after 2026-07-09 re-review; rule bodies for zlib/3184/ncurses are unchanged; only CVE-2026-53615 uses the shared file expiry horizon.
-# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md
+# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md, docs/security/GHSA-qwww-vcr4-c8h2-react-router.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
 # Review-by: 2026-08-08 (manual removal)
@@ -199,4 +199,20 @@ ignore if {
 	cve_2025_69720_pkg_match
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
+}
+
+# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate
+# Review-by: 2026-08-24 (manual removal)
+# Rationale: PulsePlate uses react-router 7.18.1 without the unstable RSC API surface affected by this advisory; suppress only the exact scanner record while the stable non-RSC dependency line remains in use.
+# Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
+# Monitor: https://github.com/advisories/GHSA-qwww-vcr4-c8h2
+# Documented in: docs/security/GHSA-qwww-vcr4-c8h2-react-router.md
+# Removal condition: Remove on upgrade to a non-affected release, any scanner record change, or introduction of unstable React Server Components APIs.
+
+ignore if {
+	input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"
+	input.PkgName == "react-router"
+	input.InstalledVersion == "7.18.1"
+	input.PkgID == "react-router@7.18.1"
+	input.FixedVersion == "8.3.0"
 }
