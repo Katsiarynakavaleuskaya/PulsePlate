@@ -367,6 +367,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   belong in `app/schemas/*` and reusable behavior helpers belong in
   `app/services/*`; `legacy_app.py` may only re-export or delegate unless a PR
   documents a narrower exception.
+- Premium BMR orchestration belongs to `app/services/pro_nutrition_bmr.py`,
+  while formulas remain in `core/bmr.py`. Both retained BMR routes call that
+  service directly and share the request-time premium-nutrition feature gate;
+  `sys.modules`/facade lookup, mutable dependency registries, patch-sensitive
+  gate bypasses, synthetic success stubs, and fallback calorie values are
+  forbidden.
 - Legacy AI/insight routes must not own provider orchestration in
   `legacy_app.py`. When extracting insight routes, route handlers live in
   `app/routers/*` (canonical owner: `app/routers/legacy_insight.py`), reusable

@@ -1,1313 +1,921 @@
-"""Tests for Premium BMR API endpoint in main.py
+"""Deterministic contract tests for canonical premium BMR ownership."""
 
-Tests cover:
-- API endpoint functionality
-- Request validation
-- Response structure
-- Error handling
-- Premium feature integration
-"""
+from __future__ import annotations
 
+import ast
 import asyncio
-from collections.abc import Iterator
-import os
-import sys
-import types
-from types import ModuleType
+from collections.abc import Callable
+from dataclasses import FrozenInstanceError
+import logging
+from pathlib import Path
+from types import MappingProxyType
 from typing import Any, cast
-from unittest.mock import patch
 
-import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
+import pytest
 
-import app as app_package
-from app.utils import nutrition_wrappers
-import legacy_app
-from tests._client import get_client
+from app.http_error_details import (
+    BMR_CALCULATION_FAILED_DETAIL,
+    BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL,
+    INVALID_BMR_INPUT_DETAIL,
+    PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL,
+)
+from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.services import pro_nutrition_bmr as bmr_service
+from app.services.pro_nutrition_bmr import BMRDependencies, calculate_bmr_response
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_VALID_PAYLOAD: dict[str, Any] = {
+    "weight_kg": 70,
+    "height_cm": 175,
+    "age": 30,
+    "sex": "male",
+    "activity": "moderate",
+    "lang": "en",
+}
+_EXPECTED_RESPONSE = {
+    "bmr": {"mifflin": 1648.8, "harris": 1701.9},
+    "tdee": {"mifflin": 2556.0, "harris": 2638.0},
+    "activity_level": "Moderate activity",
+    "recommended_intake": {
+        "maintenance": 2556.0,
+        "weight_loss": 2044.8000000000002,
+        "weight_gain": 3067.2,
+    },
+    "formulas_used": ["mifflin", "harris"],
+    "notes": [],
+}
 
 
-def test_bmr_rejects_invalid_sex() -> None:
-    """Core-level guard: invalid sex must not silently fall through."""
+@pytest.fixture(autouse=True)
+def _configure_bmr_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+
+def _request(
+    model: type[BMRRequest] | type[BMRRequestLegacy] = BMRRequest,
+    **overrides: Any,
+) -> BMRRequest | BMRRequestLegacy:
+    return model.model_validate({**_VALID_PAYLOAD, **overrides})
+
+
+def _dependencies(
+    *,
+    bmr_results: object = None,
+    tdee_results: object = None,
+) -> BMRDependencies:
+    effective_bmr_results = (
+        {"mifflin": 1648.8, "harris": 1701.9} if bmr_results is None else bmr_results
+    )
+    effective_tdee_results = (
+        {"mifflin": 2556.0, "harris": 2638.0} if tdee_results is None else tdee_results
+    )
+
+    def _calculate_bmr(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        return effective_bmr_results
+
+    def _calculate_tdee(
+        _bmr_results: dict[str, float],
+        _activity: str,
+    ) -> object:
+        return effective_tdee_results
+
+    return BMRDependencies(
+        calculate_all_bmr=_calculate_bmr,
+        calculate_all_tdee=_calculate_tdee,
+    )
+
+
+@pytest.mark.parametrize("model", [BMRRequest, BMRRequestLegacy])
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("weight_kg", 0),
+        ("weight_kg", -1),
+        ("weight_kg", float("nan")),
+        ("weight_kg", float("inf")),
+        ("weight_kg", float("-inf")),
+        ("weight_kg", True),
+        ("weight_kg", 10**400),
+        ("weight_kg", "1e400"),
+        ("height_cm", 0),
+        ("height_cm", -1),
+        ("height_cm", float("nan")),
+        ("height_cm", float("inf")),
+        ("height_cm", float("-inf")),
+        ("height_cm", False),
+        ("height_cm", 10**400),
+        ("height_cm", "1e400"),
+        ("age", 0),
+        ("age", 121),
+        ("age", float("nan")),
+        ("age", float("inf")),
+        ("age", float("-inf")),
+        ("age", True),
+        ("bodyfat", 0),
+        ("bodyfat", -1),
+        ("bodyfat", 50.0001),
+        ("bodyfat", float("nan")),
+        ("bodyfat", float("inf")),
+        ("bodyfat", float("-inf")),
+        ("bodyfat", True),
+        ("bodyfat", 10**400),
+        ("bodyfat", "1e400"),
+    ],
+)
+def test_bmr_request_models_reject_invalid_numeric_values(
+    model: type[BMRRequest] | type[BMRRequestLegacy],
+    field_name: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        model.model_validate({**_VALID_PAYLOAD, field_name: value})
+
+
+@pytest.mark.parametrize("model", [BMRRequest, BMRRequestLegacy])
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"age": 1, "bodyfat": None}, (1, None, 70.0, 175.0)),
+        ({"age": 120, "bodyfat": 50}, (120, 50.0, 70.0, 175.0)),
+        (
+            {"age": "30", "weight_kg": "70.5", "height_cm": "175.5"},
+            (30, None, 70.5, 175.5),
+        ),
+        ({"bodyfat": "0.000001"}, (30, 0.000001, 70.0, 175.0)),
+    ],
+)
+def test_bmr_request_models_preserve_valid_boundaries_and_numeric_strings(
+    model: type[BMRRequest] | type[BMRRequestLegacy],
+    overrides: dict[str, object],
+    expected: tuple[int, float | None, float, float],
+) -> None:
+    request = model.model_validate({**_VALID_PAYLOAD, **overrides})
+
+    assert request.age == expected[0]
+    assert request.bodyfat == expected[1]
+    assert request.weight_kg == expected[2]
+    assert request.height_cm == expected[3]
+
+
+@pytest.mark.parametrize("model", [BMRRequest, BMRRequestLegacy])
+def test_bmr_request_model_schema_matches_core_boundaries(
+    model: type[BMRRequest] | type[BMRRequestLegacy],
+) -> None:
+    properties = model.model_json_schema()["properties"]
+    age_schema = properties["age"]
+    bodyfat_schema = properties["bodyfat"]["anyOf"][0]
+
+    assert age_schema["minimum"] == 1
+    assert age_schema["maximum"] == 120
+    assert bodyfat_schema["exclusiveMinimum"] == 0
+    assert bodyfat_schema["maximum"] == 50
+
+
+def test_bmr_dependencies_are_frozen_and_slotted() -> None:
+    dependencies = _dependencies()
+
+    assert not hasattr(dependencies, "__dict__")
+    with pytest.raises(FrozenInstanceError):
+        setattr(dependencies, "calculate_all_bmr", None)
+
+
+def test_service_preserves_exact_response_and_localization_contract() -> None:
+    response = asyncio.run(calculate_bmr_response(_request()))
+
+    assert response.model_dump() == _EXPECTED_RESPONSE
+
+    russian_response = asyncio.run(
+        calculate_bmr_response(_request(bodyfat=15, lang="ru"))
+    ).model_dump()
+    assert russian_response["bmr"] == {
+        "mifflin": 1648.8,
+        "harris": 1701.9,
+        "katch": 1655.2,
+    }
+    assert russian_response["tdee"] == {
+        "mifflin": 2556.0,
+        "harris": 2638.0,
+        "katch": 2566.0,
+    }
+    assert russian_response["activity_level"] == "Умеренная активность"
+    assert russian_response["notes"] == [
+        "Использована формула Katch-McArdle (требует процент жира)"
+    ]
+
+
+def test_response_validation_error_is_not_reclassified_as_invalid_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _invalid_response(**_values: object) -> BMRResponse:
+        return BMRResponse.model_validate({})
+
+    monkeypatch.setattr(bmr_service, "BMRResponse", _invalid_response)
+
+    with pytest.raises(ValidationError):
+        asyncio.run(calculate_bmr_response(_request()))
+
+
+@pytest.mark.parametrize(
+    ("lang", "activity", "expected_activity_level"),
+    [
+        ("en", "sedentary", "Sedentary"),
+        ("en", "light", "Light activity"),
+        ("en", "moderate", "Moderate activity"),
+        ("en", "active", "Active"),
+        ("en", "very_active", "Very active"),
+        ("ru", "sedentary", "Малоподвижный"),
+        ("ru", "light", "Легкая активность"),
+        ("ru", "moderate", "Умеренная активность"),
+        ("ru", "active", "Активный"),
+        ("ru", "very_active", "Очень активный"),
+        ("es", "sedentary", "Sedentario"),
+        ("es", "light", "Actividad ligera"),
+        ("es", "moderate", "Actividad moderada"),
+        ("es", "active", "Activo"),
+        ("es", "very_active", "Muy activo"),
+    ],
+)
+def test_service_preserves_all_activity_and_locale_labels(
+    lang: str,
+    activity: str,
+    expected_activity_level: str,
+) -> None:
+    response = asyncio.run(calculate_bmr_response(_request(lang=lang, activity=activity)))
+
+    assert response.activity_level == expected_activity_level
+
+
+def test_service_resolves_direct_core_calculators_per_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tdee_inputs: list[dict[str, float]] = []
+
+    def _first_bmr(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> dict[str, float]:
+        return {"mifflin": 1000.0, "harris": 1100.0}
+
+    def _second_bmr(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> dict[str, float]:
+        return {"mifflin": 1200.0, "harris": 1300.0}
+
+    def _calculate_tdee(
+        bmr_results: dict[str, float],
+        _activity: str,
+    ) -> dict[str, float]:
+        tdee_inputs.append(bmr_results)
+        return {formula: value * 1.2 for formula, value in bmr_results.items()}
+
+    monkeypatch.setattr(bmr_service.nutrition_bmr, "calculate_all_bmr", _first_bmr)
+    monkeypatch.setattr(
+        bmr_service.nutrition_bmr,
+        "calculate_all_tdee",
+        _calculate_tdee,
+    )
+    first = asyncio.run(calculate_bmr_response(_request()))
+
+    monkeypatch.setattr(bmr_service.nutrition_bmr, "calculate_all_bmr", _second_bmr)
+    second = asyncio.run(calculate_bmr_response(_request()))
+
+    assert first.bmr == {"mifflin": 1000.0, "harris": 1100.0}
+    assert second.bmr == {"mifflin": 1200.0, "harris": 1300.0}
+    assert tdee_inputs == [
+        {"mifflin": 1000.0, "harris": 1100.0},
+        {"mifflin": 1200.0, "harris": 1300.0},
+    ]
+
+
+def test_feature_flag_short_circuits_before_calculators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def _calculate_bmr(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> dict[str, float]:
+        calls.append("bmr")
+        return {"mifflin": 1000.0}
+
+    monkeypatch.delenv("FEATURE_PREMIUM_NUTRITION")
+    dependencies = BMRDependencies(
+        calculate_all_bmr=_calculate_bmr,
+        calculate_all_tdee=lambda _results, _activity: {"mifflin": 1200.0},
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(calculate_bmr_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "dependencies",
+    [
+        BMRDependencies(calculate_all_bmr=None, calculate_all_tdee=lambda _r, _a: {}),
+        BMRDependencies(
+            calculate_all_bmr=lambda _w, _h, _a, _s, _b: {},
+            calculate_all_tdee=None,
+        ),
+        BMRDependencies(
+            calculate_all_bmr=cast(Any, object()),
+            calculate_all_tdee=lambda _r, _a: {},
+        ),
+        BMRDependencies(
+            calculate_all_bmr=lambda _w, _h, _a, _s, _b: {},
+            calculate_all_tdee=cast(Any, object()),
+        ),
+    ],
+)
+def test_missing_dependencies_fail_closed_with_stable_503(
+    dependencies: BMRDependencies,
+) -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(calculate_bmr_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL
+
+
+def test_calculator_import_error_fails_closed_with_stable_503() -> None:
+    def _raise_import_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise ImportError("private import path")
+
+    dependencies = BMRDependencies(
+        calculate_all_bmr=_raise_import_error,
+        calculate_all_tdee=lambda _results, _activity: {"mifflin": 1200.0},
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(calculate_bmr_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL
+    assert "private import path" not in str(exc_info.value.detail)
+
+
+@pytest.mark.parametrize(
+    "invalid_map",
+    [
+        [],
+        {},
+        MappingProxyType({"mifflin": 1000.0}),
+        {1: 1000.0},
+        {"": 1000.0},
+        {"   ": 1000.0},
+        {"mifflin": True},
+        {"mifflin": "1000"},
+        {"mifflin": object()},
+        {"mifflin": float("nan")},
+        {"mifflin": float("inf")},
+        {"mifflin": float("-inf")},
+        {"mifflin": 0},
+        {"mifflin": -1},
+    ],
+)
+def test_malformed_bmr_maps_fail_closed_with_generic_500(
+    invalid_map: object,
+) -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            calculate_bmr_response(
+                _request(),
+                dependencies=_dependencies(bmr_results=invalid_map),
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
+
+
+@pytest.mark.parametrize(
+    "invalid_map",
+    [
+        [],
+        {},
+        MappingProxyType({"mifflin": 2000.0}),
+        {1: 2000.0},
+        {"": 2000.0},
+        {"mifflin": False},
+        {"mifflin": "2000"},
+        {"mifflin": float("nan")},
+        {"mifflin": float("inf")},
+        {"mifflin": float("-inf")},
+        {"mifflin": 0},
+        {"mifflin": -1},
+    ],
+)
+def test_malformed_tdee_maps_fail_closed_with_generic_500(
+    invalid_map: object,
+) -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            calculate_bmr_response(
+                _request(),
+                dependencies=_dependencies(tdee_results=invalid_map),
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
+
+
+def test_malformed_output_log_is_sanitized(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    internal_detail = "private-calculator-key-detail"
+    caplog.set_level(logging.ERROR, logger=bmr_service.__name__)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            calculate_bmr_response(
+                _request(),
+                dependencies=_dependencies(
+                    bmr_results={
+                        "mifflin": 1648.8,
+                        "harris": 1701.9,
+                        internal_detail: object(),
+                    }
+                ),
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
+    assert internal_detail not in caplog.text
+    error_records = [
+        record
+        for record in caplog.records
+        if record.name == bmr_service.__name__ and record.levelno == logging.ERROR
+    ]
+    assert len(error_records) == 1
+    assert error_records[0].getMessage() == "Premium BMR calculation returned malformed data"
+    assert error_records[0].exc_info is None
+
+
+@pytest.mark.parametrize(
+    ("bmr_request", "dependencies"),
+    [
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"harris": 1701.9},
+                tdee_results={"harris": 2638.0},
+            ),
+        ),
+        (
+            _request(bodyfat=15),
+            _dependencies(),
+        ),
+        (
+            _request(),
+            _dependencies(tdee_results={"mifflin": 2556.0}),
+        ),
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"mifflin": 1648.8},
+                tdee_results={"mifflin": 2556.0},
+            ),
+        ),
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"mifflin": 1648.8, "harris": 1701.9, "extra": 1.0},
+                tdee_results={"mifflin": 2556.0, "harris": 2638.0, "extra": 2.0},
+            ),
+        ),
+        (
+            _request(),
+            _dependencies(
+                bmr_results={"mifflin": 1648.8, "harris": 1701.9, "katch": 1655.2},
+                tdee_results={"mifflin": 2556.0, "harris": 2638.0, "katch": 2566.0},
+            ),
+        ),
+    ],
+)
+def test_result_key_contract_failures_return_generic_500(
+    bmr_request: BMRRequest | BMRRequestLegacy,
+    dependencies: BMRDependencies,
+) -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(calculate_bmr_response(bmr_request, dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
+
+
+def test_domain_value_error_is_sanitized_to_generic_400(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    internal_detail = "provider-internal-domain-detail"
+
+    def _raise_value_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise ValueError(internal_detail)
+
+    caplog.set_level(logging.INFO, logger=bmr_service.__name__)
+    dependencies = BMRDependencies(
+        calculate_all_bmr=_raise_value_error,
+        calculate_all_tdee=lambda _results, _activity: {"mifflin": 1200.0},
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(calculate_bmr_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == INVALID_BMR_INPUT_DETAIL
+    assert internal_detail not in str(exc_info.value.detail)
+    assert internal_detail not in caplog.text
+
+
+def test_unexpected_error_is_logged_and_sanitized_to_generic_500(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    internal_detail = "provider-internal-unexpected-detail"
+
+    def _raise_runtime_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise RuntimeError(internal_detail)
+
+    caplog.set_level(logging.ERROR, logger=bmr_service.__name__)
+    dependencies = BMRDependencies(
+        calculate_all_bmr=_raise_runtime_error,
+        calculate_all_tdee=lambda _results, _activity: {"mifflin": 1200.0},
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(calculate_bmr_response(_request(), dependencies=dependencies))
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == BMR_CALCULATION_FAILED_DETAIL
+    assert internal_detail not in str(exc_info.value.detail)
+    assert internal_detail not in caplog.text
+    error_records = [
+        record
+        for record in caplog.records
+        if record.name == bmr_service.__name__ and record.levelno == logging.ERROR
+    ]
+    assert len(error_records) == 1
+    assert error_records[0].getMessage() == "Premium BMR calculation failed"
+    assert error_records[0].exc_info is None
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+@pytest.mark.parametrize(
+    ("failure_kind", "expected_status", "expected_detail"),
+    [
+        ("domain", 400, INVALID_BMR_INPUT_DETAIL),
+        ("malformed", 500, BMR_CALCULATION_FAILED_DETAIL),
+        ("unexpected", 500, BMR_CALCULATION_FAILED_DETAIL),
+        ("missing", 503, BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL),
+        ("import", 503, BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL),
+    ],
+)
+def test_bmr_routes_preserve_exact_calculation_error_contracts(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    headers: dict[str, str],
+    failure_kind: str,
+    expected_status: int,
+    expected_detail: str,
+) -> None:
+    def _raise_value_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise ValueError("private domain detail")
+
+    def _raise_runtime_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise RuntimeError("private runtime detail")
+
+    def _raise_import_error(
+        _weight: float,
+        _height: float,
+        _age: int,
+        _sex: str,
+        _bodyfat: float | None,
+    ) -> object:
+        raise ImportError("private import detail")
+
+    def _valid_tdee(
+        _results: dict[str, float],
+        _activity: str,
+    ) -> dict[str, float]:
+        return {"mifflin": 2556.0, "harris": 2638.0}
+
+    if failure_kind == "domain":
+        dependencies = BMRDependencies(_raise_value_error, _valid_tdee)
+    elif failure_kind == "malformed":
+        dependencies = BMRDependencies(
+            lambda _w, _h, _a, _s, _b: {"mifflin": True, "harris": 1701.9},
+            _valid_tdee,
+        )
+    elif failure_kind == "unexpected":
+        dependencies = BMRDependencies(_raise_runtime_error, _valid_tdee)
+    elif failure_kind == "missing":
+        dependencies = BMRDependencies(None, _valid_tdee)
+    else:
+        dependencies = BMRDependencies(_raise_import_error, _valid_tdee)
+
+    monkeypatch.setattr(bmr_service, "_resolve_dependencies", lambda: dependencies)
+
+    response = client.post(path, json=_VALID_PAYLOAD, headers=headers)
+
+    assert response.status_code == expected_status
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": expected_detail}
+
+
+def test_both_routes_preserve_the_exact_success_contract(client: TestClient) -> None:
+    protected = client.post(
+        "/api/v1/premium/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": "test_key"},
+    )
+    public_alias = client.post("/premium_bmr", json=_VALID_PAYLOAD)
+
+    assert protected.status_code == 200
+    assert public_alias.status_code == 200
+    assert protected.headers["content-type"].startswith("application/json")
+    assert public_alias.headers["content-type"].startswith("application/json")
+    assert protected.json() == _EXPECTED_RESPONSE
+    assert public_alias.json() == _EXPECTED_RESPONSE
+
+
+def test_protected_route_retains_api_key_dependency(client: TestClient) -> None:
+    missing = client.post("/api/v1/premium/bmr", json=_VALID_PAYLOAD)
+    invalid = client.post(
+        "/api/v1/premium/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": "invalid"},
+    )
+
+    assert missing.status_code == 403
+    assert invalid.status_code == 403
+
+
+def test_protected_route_auth_precedes_feature_availability(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("FEATURE_PREMIUM_NUTRITION")
+
+    missing = client.post("/api/v1/premium/bmr", json=_VALID_PAYLOAD)
+    invalid = client.post(
+        "/api/v1/premium/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": "invalid"},
+    )
+
+    assert missing.status_code == 403
+    assert invalid.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("weight_kg", 10**400),
+        ("weight_kg", "1e400"),
+        ("height_cm", 10**400),
+        ("height_cm", "1e400"),
+        ("bodyfat", 10**400),
+        ("bodyfat", "1e400"),
+    ],
+)
+def test_bmr_routes_reject_overflowing_measurements_as_schema_error(
+    client: TestClient,
+    path: str,
+    headers: dict[str, str],
+    field_name: str,
+    value: object,
+) -> None:
+    response = client.post(
+        path,
+        json={**_VALID_PAYLOAD, field_name: value},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
+    assert isinstance(response.json()["detail"], list)
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+def test_bmr_routes_accept_numeric_strings(
+    client: TestClient,
+    path: str,
+    headers: dict[str, str],
+) -> None:
+    response = client.post(
+        path,
+        json={
+            **_VALID_PAYLOAD,
+            "weight_kg": "70.5",
+            "height_cm": "175.5",
+            "age": "30",
+            "bodyfat": "15",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    body = response.json()
+    assert body["formulas_used"] == ["mifflin", "harris", "katch"]
+    assert set(body["bmr"]) == {"mifflin", "harris", "katch"}
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+def test_bmr_routes_reject_non_finite_derived_recommendations(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    headers: dict[str, str],
+) -> None:
+    dependencies = _dependencies(
+        bmr_results={"mifflin": 1648.8, "harris": 1701.9},
+        tdee_results={"mifflin": 1.7e308, "harris": 1.7e308},
+    )
+    monkeypatch.setattr(bmr_service, "_resolve_dependencies", lambda: dependencies)
+
+    response = client.post(
+        path,
+        json=_VALID_PAYLOAD,
+        headers=headers,
+    )
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": BMR_CALCULATION_FAILED_DETAIL}
+
+
+def test_public_alias_remains_public(client: TestClient) -> None:
+    response = client.post("/premium_bmr", json=_VALID_PAYLOAD)
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("path", "headers"),
+    [
+        ("/api/v1/premium/bmr", {"X-API-Key": "test_key"}),
+        ("/premium_bmr", {}),
+    ],
+)
+def test_feature_disabled_returns_exact_503_on_both_routes(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    headers: dict[str, str],
+) -> None:
+    monkeypatch.delenv("FEATURE_PREMIUM_NUTRITION")
+
+    response = client.post(path, json=_VALID_PAYLOAD, headers=headers)
+
+    assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"detail": PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL}
+
+
+def test_static_ownership_has_no_legacy_handler_or_dynamic_wrapper_rail() -> None:
+    legacy_path = _REPO_ROOT / "legacy_app.py"
+    router_path = _REPO_ROOT / "app/routers/legacy_premium_nutrition.py"
+    service_path = _REPO_ROOT / "app/services/pro_nutrition_bmr.py"
+    wrapper_path = _REPO_ROOT / "app/utils/nutrition_wrappers.py"
+
+    legacy_tree = ast.parse(legacy_path.read_text(encoding="utf-8"))
+    legacy_function_names = {
+        node.name
+        for node in legacy_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    legacy_source = legacy_path.read_text(encoding="utf-8")
+    router_source = router_path.read_text(encoding="utf-8")
+    service_source = service_path.read_text(encoding="utf-8")
+    service_tree = ast.parse(service_source)
+    service_import_paths = {
+        alias.name
+        for node in ast.walk(service_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    } | {
+        node.module
+        for node in ast.walk(service_tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    }
+    service_accessed_names = {
+        node.id for node in ast.walk(service_tree) if isinstance(node, ast.Name)
+    } | {node.attr for node in ast.walk(service_tree) if isinstance(node, ast.Attribute)}
+
+    assert "api_premium_bmr" not in legacy_function_names
+    assert "premium_bmr_legacy" not in legacy_function_names
+    assert "_BASELINE_CALCULATE_ALL_BMR" not in legacy_source
+    assert "_calculate_all_bmr_wrapper" not in legacy_source
+    assert "nutrition_wrappers" not in legacy_source
+    assert "legacy_app" not in router_source
+    assert "calculate_bmr_response" in router_source
+    assert not wrapper_path.exists()
+    for forbidden in (
+        "_ValidatedBMRInput",
+        "_positive_finite_number",
+        "_validate_effective_request",
+        "_VALID_SEXES",
+        "_VALID_ACTIVITIES",
+        "_VALID_LANGUAGES",
+        "sys.modules",
+        "MagicMock",
+        '"stub"',
+    ):
+        assert forbidden not in service_source
+    for forbidden_owner in ("nutrition_wrappers", "facade", "registry"):
+        assert all(
+            forbidden_owner not in import_path.split(".") for import_path in service_import_paths
+        )
+        assert forbidden_owner not in service_accessed_names
+
+
+def test_bmr_rejects_invalid_sex_at_core_boundary() -> None:
+    from typing import cast
+
     from core.bmr import Sex, bmr_harris, bmr_mifflin
 
     with pytest.raises(ValueError, match=r"sex must be 'male' or 'female'"):
         bmr_mifflin(weight=70, height=175, age=30, sex=cast(Sex, "unknown"))
-
     with pytest.raises(ValueError, match=r"sex must be 'male' or 'female'"):
         bmr_harris(weight=70, height=175, age=30, sex=cast(Sex, "UNKNOWN"))
-
-
-class TestPremiumBMRAPI:
-    """Test Premium BMR API endpoint."""
-
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def teardown_method(self) -> None:
-        """Cleanup test environment"""
-        os.environ.pop("API_KEY", None)
-        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
-
-    def test_premium_bmr_without_bodyfat(self, client: TestClient) -> None:
-        """Test premium BMR endpoint without bodyfat parameter"""
-        # Test without API key - expect 503 or valid response
-        response = client.post(
-            "/api/v1/premium/bmr",
-            json={
-                "age": 25,
-                "gender": "male",
-                "weight": 70,
-                "height": 175,
-                "activity_level": "moderate",
-            },
-        )
-
-        # API auth now returns 403 when no API key, 503 if feature disabled
-        assert response.status_code in [200, 403, 503]
-
-    def test_premium_bmr_with_bodyfat(self, client: TestClient) -> None:
-        """Test Premium BMR API with body fat percentage."""
-        payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "active",
-            "bodyfat": 15,
-            "lang": "en",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # Should include Katch-McArdle formula
-        assert "katch" in data["bmr"]
-        assert "katch" in data["tdee"]
-        assert "katch" in data["formulas_used"]
-
-        # Verify Katch note is present
-        assert len(data["notes"]) > 0
-
-    def test_premium_bmr_russian_language(self, client: TestClient) -> None:
-        """Test Premium BMR API with Russian language."""
-        payload = {
-            "weight_kg": 65,
-            "height_cm": 170,
-            "age": 25,
-            "sex": "female",
-            "activity": "light",
-            "lang": "ru",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # Check Russian language in response
-        assert "recommended_intake" in data
-
-    def test_premium_bmr_all_activity_levels(self, client: TestClient) -> None:
-        """Test Premium BMR API with all activity levels."""
-        base_payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "lang": "en",
-        }
-
-        activity_levels = ["sedentary", "light", "moderate", "active", "very_active"]
-        tdee_values = []
-
-        for activity in activity_levels:
-            payload = {**base_payload, "activity": activity}
-            response = client.post(
-                "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "activity_level" in data
-            tdee_values.append(data["tdee"]["mifflin"])
-
-        # TDEE should increase with activity level
-        assert tdee_values == sorted(tdee_values)
-
-    def test_premium_bmr_validation_errors(self, client: TestClient) -> None:
-        """Test Premium BMR API validation errors."""
-        # Test invalid weight
-        payload = {
-            "weight_kg": 0,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "moderate",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert response.status_code == 422
-
-        # Test invalid height
-        payload["weight_kg"] = 70
-        payload["height_cm"] = 0
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert response.status_code == 422
-
-        # Test invalid age
-        payload["height_cm"] = 175
-        payload["age"] = 150
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert response.status_code == 422
-
-        # Test invalid sex
-        payload["age"] = 30
-        payload["sex"] = "other"
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert response.status_code == 422
-
-        # Test invalid activity
-        payload["sex"] = "male"
-        payload["activity"] = "invalid"
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert response.status_code == 422
-
-        # Test valid body fat at upper boundary
-        payload["activity"] = "moderate"
-        payload["bodyfat"] = 60
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        # bodyfat=60 triggers ValueError in calculation - expect 400
-        assert response.status_code == 400
-
-    def test_premium_bmr_missing_api_key(self, client: TestClient) -> None:
-        """Test Premium BMR API without API key."""
-        payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "moderate",
-        }
-
-        # Test without API key header
-        response = client.post("/api/v1/premium/bmr", json=payload)
-        # Should pass if no API_KEY is set in environment
-        if os.getenv("API_KEY"):
-            assert response.status_code == 403
-        else:
-            assert response.status_code == 200
-
-    def test_premium_bmr_invalid_api_key(self, client: TestClient) -> None:
-        """Test Premium BMR API with invalid API key."""
-        payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "moderate",
-        }
-
-        with patch.dict(os.environ, {"API_KEY": "valid_key"}):
-            response = client.post(
-                "/api/v1/premium/bmr",
-                json=payload,
-                headers={"X-API-Key": "invalid_key"},
-            )
-            assert response.status_code == 403
-
-    def test_premium_bmr_module_not_available(self, client: TestClient) -> None:
-        """Test Premium BMR API when nutrition module is not available."""
-        # This test is simplified since module mocking in this context is complex
-        # The actual module import handling is tested in other integration tests
-        payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "moderate",
-        }
-
-        # Test that the endpoint works with normal conditions
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        # Should work normally since nutrition_core is available
-        assert response.status_code == 200
-
-    def test_premium_bmr_calculation_error(self, client: TestClient) -> None:
-        """Test Premium BMR API calculation error handling."""
-        # Test with invalid data that should cause validation errors
-        payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "moderate",
-        }
-
-        # Test normal case - error handling is complex to mock properly
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        # Should work normally with valid data
-        assert response.status_code == 200
-        assert "bmr" in response.json()
-
-    def test_premium_bmr_female_calculations(self, client: TestClient) -> None:
-        """Test Premium BMR API with female-specific calculations."""
-        payload = {
-            "weight_kg": 60,
-            "height_cm": 165,
-            "age": 25,
-            "sex": "female",
-            "activity": "moderate",
-            "bodyfat": 25,
-            "lang": "en",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # Female BMR should be lower than equivalent male
-        female_bmr = data["bmr"]["mifflin"]
-
-        # Test equivalent male
-        male_payload = {**payload, "sex": "male"}
-        male_response = client.post(
-            "/api/v1/premium/bmr", json=male_payload, headers={"X-API-Key": "test_key"}
-        )
-
-        male_data = male_response.json()
-        male_bmr = male_data["bmr"]["mifflin"]
-
-        assert female_bmr < male_bmr
-
-    def test_premium_bmr_activity_descriptions(self, client: TestClient) -> None:
-        """Test activity descriptions in Premium BMR API."""
-        payload = {
-            "weight_kg": 70,
-            "height_cm": 175,
-            "age": 30,
-            "sex": "male",
-            "activity": "moderate",
-            "lang": "en",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # Should have activity level
-        assert "activity_level" in data
-
-    def test_premium_bmr_edge_cases(self, client: TestClient) -> None:
-        """Test Premium BMR API edge cases."""
-        # Test minimal values
-        payload = {
-            "weight_kg": 30,
-            "height_cm": 120,
-            "age": 1,
-            "sex": "female",
-            "activity": "sedentary",
-            "bodyfat": 5,
-            "lang": "en",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert all(bmr > 0 for bmr in data["bmr"].values())
-
-        # Test maximal values
-        payload = {
-            "weight_kg": 200,
-            "height_cm": 250,
-            "age": 120,
-            "sex": "male",
-            "activity": "very_active",
-            "bodyfat": 50,
-            "lang": "ru",
-        }
-
-        response = client.post(
-            "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert all(bmr > 0 for bmr in data["bmr"].values())
-        assert all(tdee > bmr for bmr, tdee in zip(data["bmr"].values(), data["tdee"].values()))
-
-
-def test_resolve_prefers_app_over_app_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that app.<name> is preferred over app.app_module.<name>."""
-
-    def f_app(*a: object, **k: object) -> dict[str, float]:
-        return {"mifflin": 1.0}
-
-    def f_appmod(*a: object, **k: object) -> dict[str, float]:
-        return {"mifflin": 2.0}
-
-    fake_appmod = types.SimpleNamespace(calculate_all_bmr=f_appmod)
-    fake_app = types.SimpleNamespace(calculate_all_bmr=f_app, app_module=fake_appmod)
-    fake_alias = types.SimpleNamespace(calculate_all_bmr=lambda *a, **k: {"mifflin": 3.0})
-
-    # Patch the seam function instead of sys.modules directly
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (fake_app, fake_alias, fake_appmod),
-        raising=True,
-    )
-
-    fn = nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-    assert fn is f_app
-
-
-def test_resolve_falls_back_to_app_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that app.app_module.<name> is used when app.<name> is not available."""
-
-    def f_appmod(*a: object, **k: object) -> dict[str, float]:
-        return {"mifflin": 2.0}
-
-    fake_appmod = types.SimpleNamespace(calculate_all_bmr=f_appmod)
-    fake_app = types.SimpleNamespace(app_module=fake_appmod)  # No calculate_all_bmr on app
-
-    # Patch the seam function instead of sys.modules directly
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (fake_app, None, fake_appmod),
-        raising=True,
-    )
-
-    fn = nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-    assert fn is f_appmod
-
-
-def test_resolve_falls_back_to_sys_modules_app_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that sys.modules['app_module'].<name> is used when app/app.app_module are not available."""
-
-    def f_alias(*a: object, **k: object) -> dict[str, float]:
-        return {"mifflin": 3.0}
-
-    fake_app = types.SimpleNamespace()  # No calculate_all_bmr, no app_module
-    fake_appmod = types.SimpleNamespace(calculate_all_bmr=f_alias)
-
-    # Patch the seam function instead of sys.modules directly
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (fake_app, fake_appmod, None),
-        raising=True,
-    )
-
-    fn = nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-    assert fn is f_alias
-
-
-def test_resolve_unknown_name_raises() -> None:
-    """Test that unknown callable name raises ImportError."""
-    with pytest.raises(ImportError, match="unknown nutrition callable"):
-        nutrition_wrappers._resolve_nutrition_callable("nope")
-
-
-def test_resolve_falls_back_to_import_seam(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that nutrition_core import seam is used when all other paths fail."""
-
-    def seam_fn(*a: object, **k: object) -> dict[str, float]:
-        return {"mifflin": 123.0}
-
-    # Patch the seam function to return None modules (all paths fail)
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (None, None, None),
-        raising=True,
-    )
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_bmr",
-        lambda: seam_fn,
-        raising=True,
-    )
-
-    fn = nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-    assert fn is seam_fn
-    assert fn() == {"mifflin": 123.0}
-
-
-def test_resolve_import_seam_none_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that ImportError is raised when import seam returns None."""
-    # Patch the seam function to return None modules (all paths fail)
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (None, None, None),
-        raising=True,
-    )
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_bmr",
-        lambda: None,
-        raising=True,
-    )
-
-    with pytest.raises(ImportError, match="not available"):
-        nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-
-
-def test_resolve_tdee_uses_seam(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that TDEE resolution also uses import seams."""
-
-    def seam_fn(*a: object, **k: object) -> dict[str, int | float]:
-        return {"mifflin": 456.0}
-
-    # Patch the seam function to return None modules (all paths fail)
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (None, None, None),
-        raising=True,
-    )
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_tdee",
-        lambda: seam_fn,
-        raising=True,
-    )
-
-    fn = nutrition_wrappers._resolve_nutrition_callable("calculate_all_tdee")
-    assert fn is seam_fn
-    assert fn({"mifflin": 1500.0}, "moderate") == {"mifflin": 456.0}
-
-
-def test_resolve_skips_non_callable_attr_and_falls_back_to_seam(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test that non-callable attributes are skipped and fallback to seam is used."""
-    # pkg exposes the "right" name but it's NOT callable
-    fake_pkg = types.SimpleNamespace(calculate_all_bmr="not-a-function")
-    fake_alias = None
-    fake_pkg_appmod = None
-
-    def seam_fn(*a: object, **k: object) -> dict[str, float]:
-        return {"mifflin": 123.0}
-
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_get_candidate_modules",
-        lambda: (fake_pkg, fake_alias, fake_pkg_appmod),
-        raising=True,
-    )
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_bmr",
-        lambda: seam_fn,
-        raising=True,
-    )
-
-    fn = nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-    assert fn is seam_fn
-    assert fn() == {"mifflin": 123.0}
-
-
-def test_import_nutrition_core_import_seams(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover _import_nutrition_core_* implementations (ImportError + happy paths)."""
-    modules = cast(dict[str, Any], sys.modules)
-    monkeypatch.setitem(modules, "nutrition_core", None)
-    assert nutrition_wrappers._import_nutrition_core_bmr() is None
-    assert nutrition_wrappers._import_nutrition_core_tdee() is None
-
-    mod = types.ModuleType("nutrition_core")
-
-    def calculate_all_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
-        return {"mifflin": 1500.0}
-
-    def calculate_all_tdee(*_args: Any, **_kwargs: Any) -> dict[str, int | float]:
-        return {"mifflin": 2000.0}
-
-    setattr(mod, "calculate_all_bmr", calculate_all_bmr)
-    setattr(mod, "calculate_all_tdee", calculate_all_tdee)
-
-    monkeypatch.setitem(modules, "nutrition_core", mod)
-    assert nutrition_wrappers._import_nutrition_core_bmr() is calculate_all_bmr
-    assert nutrition_wrappers._import_nutrition_core_tdee() is calculate_all_tdee
-
-
-def test_resolve_nutrition_callable_prefers_app_app_module_over_alias(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover resolution order: app.app_module wins over sys.modules['app_module']."""
-    pkg = types.ModuleType("app")
-    pkg_appmod = types.ModuleType("app.app_module")
-    alias_pkg = types.ModuleType("app_module")
-
-    def appmod_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
-        return {"mifflin": 1500.0}
-
-    def alias_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
-        return {"mifflin": 1400.0}
-
-    setattr(pkg_appmod, "calculate_all_bmr", appmod_bmr)
-    setattr(alias_pkg, "calculate_all_bmr", alias_bmr)
-    setattr(pkg, "app_module", pkg_appmod)
-
-    monkeypatch.setitem(sys.modules, "app", pkg)
-    monkeypatch.setitem(sys.modules, "app_module", alias_pkg)
-
-    resolved = nutrition_wrappers._resolve_nutrition_callable("calculate_all_bmr")
-    assert resolved is appmod_bmr
-
-
-def test_calculate_wrappers_fallback_to_nutrition_core_real_import_seams(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover wrapper fallback to nutrition_core via real import seams."""
-    mod = types.ModuleType("nutrition_core")
-
-    def calculate_all_bmr(
-        weight_kg: float,
-        height_cm: float,
-        age: int,
-        sex: str,
-        bodyfat: float | None,
-    ) -> dict[str, float]:
-        assert (weight_kg, height_cm, age, sex, bodyfat) == (70.0, 175.0, 30, "male", None)
-        return {"mifflin": 1500.0}
-
-    def calculate_all_tdee(bmr_results: dict[str, float], activity: str) -> dict[str, int | float]:
-        assert bmr_results == {"mifflin": 1500.0}
-        assert activity == "moderate"
-        return {"mifflin": 2000.0}
-
-    setattr(mod, "calculate_all_bmr", calculate_all_bmr)
-    setattr(mod, "calculate_all_tdee", calculate_all_tdee)
-
-    # Ensure wrappers don't resolve from app/app_module so fallback is exercised
-    monkeypatch.setitem(sys.modules, "app", types.ModuleType("app"))
-    monkeypatch.delitem(sys.modules, "app_module", raising=False)
-    monkeypatch.setitem(sys.modules, "nutrition_core", mod)
-
-    bmr = nutrition_wrappers._calculate_all_bmr_wrapper(70.0, 175.0, 30, "male", bodyfat=None)
-    assert bmr == {"mifflin": 1500.0}
-
-    tdee = nutrition_wrappers._calculate_all_tdee_wrapper({"mifflin": 1500.0}, "moderate")
-    assert tdee == {"mifflin": 2000.0}
-
-
-def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure wrappers raise ImportError when their dependencies are missing."""
-
-    # Null out all visible locations so wrappers raise ImportError deterministically
-    for module in (
-        app_package,
-        getattr(app_package, "app_module", None),
-        sys.modules.get("app_module"),
-    ):
-        if module is not None:
-            monkeypatch.setattr(module, "calculate_all_bmr", None, raising=False)
-            monkeypatch.setattr(module, "calculate_all_tdee", None, raising=False)
-
-    # Block nutrition_core import seams (wrapper's fallback) by patching import functions
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_bmr",
-        lambda: None,
-        raising=False,
-    )
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_tdee",
-        lambda: None,
-        raising=False,
-    )
-
-    with pytest.raises(ImportError):
-        nutrition_wrappers._calculate_all_bmr_wrapper(70, 175, 30, "male")
-
-    with pytest.raises(ImportError):
-        nutrition_wrappers._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
-
-
-def test_calculate_all_bmr_wrapper_happy_path_nutrition_core(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test BMR wrapper happy path when nutrition_core is available."""
-    calls: dict[str, object] = {}
-
-    def fake_bmr(*args: Any, **kwargs: Any) -> dict[str, float]:
-        calls["args"] = args
-        calls["kwargs"] = kwargs
-        return {"mifflin": 1500.0, "harris": 1600.0}
-
-    # Null out app/app_module paths to force nutrition_core fallback
-    for module in (
-        app_package,
-        getattr(app_package, "app_module", None),
-        sys.modules.get("app_module"),
-    ):
-        if module is not None:
-            monkeypatch.setattr(module, "calculate_all_bmr", None, raising=False)
-
-    # Patch import seam to return fake function
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_bmr",
-        lambda: fake_bmr,
-        raising=False,
-    )
-
-    res = nutrition_wrappers._calculate_all_bmr_wrapper(70.0, 175.0, 30, "male", bodyfat=None)
-    assert res == {"mifflin": 1500.0, "harris": 1600.0}
-    assert calls["args"] == (70.0, 175.0, 30, "male", None)
-    assert calls["kwargs"] == {}
-
-
-def test_calculate_all_tdee_wrapper_happy_path_nutrition_core(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test TDEE wrapper happy path when nutrition_core is available."""
-    calls: dict[str, object] = {}
-
-    def fake_tdee(*args: Any, **kwargs: Any) -> dict[str, int | float]:
-        calls["args"] = args
-        calls["kwargs"] = kwargs
-        return {"mifflin": 2000.0, "harris": 2100.0}
-
-    # Null out app/app_module paths to force nutrition_core fallback
-    for module in (
-        app_package,
-        getattr(app_package, "app_module", None),
-        sys.modules.get("app_module"),
-    ):
-        if module is not None:
-            monkeypatch.setattr(module, "calculate_all_tdee", None, raising=False)
-
-    # Patch import seam to return fake function
-    monkeypatch.setattr(
-        nutrition_wrappers,
-        "_import_nutrition_core_tdee",
-        lambda: fake_tdee,
-        raising=False,
-    )
-
-    res = nutrition_wrappers._calculate_all_tdee_wrapper({"mifflin": 1500.0}, "moderate")
-    assert res == {"mifflin": 2000.0, "harris": 2100.0}
-    assert calls["args"] == ({"mifflin": 1500.0}, "moderate")
-    assert calls["kwargs"] == {}
-
-
-class TestLegacyPremiumBMRComprehensive:
-    """Legacy BMR coverage formerly owned by the broad comprehensive suite."""
-
-    def test_premium_bmr_endpoint_module_not_available(self, client: TestClient) -> None:
-        """Test /premium_bmr when nutrition module not available (lines 1180-1189)"""
-        with patch(
-            "app._calculate_all_bmr_wrapper",
-            side_effect=ImportError("nutrition_core module not available"),
-        ):
-            response = client.post(
-                "/premium_bmr",
-                json={
-                    "weight_kg": 70,
-                    "height_cm": 170,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                    "lang": "en",
-                },
-            )
-            assert response.status_code == 503
-            assert response.headers.get("content-type", "").startswith("application/json")
-            assert "not available" in response.json()["detail"]
-
-    @patch("app._calculate_all_bmr_wrapper")
-    def test_premium_bmr_endpoint_value_error(self, mock_bmr: Any, client: TestClient) -> None:
-        """Test /premium_bmr with ValueError (lines 1235-1236)"""
-        mock_bmr.side_effect = ValueError("Invalid input data")
-
-        response = client.post(
-            "/premium_bmr",
-            json={
-                "weight_kg": -10,  # Invalid weight
-                "height_cm": 170,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-                "lang": "en",
-            },
-        )
-        assert response.status_code == 400
-        assert response.headers.get("content-type", "").startswith("application/json")
-        assert "Invalid input" in response.json()["detail"]
-
-    @patch("app._calculate_all_bmr_wrapper")
-    def test_premium_bmr_endpoint_general_error(self, mock_bmr: Any, client: TestClient) -> None:
-        """Test /premium_bmr with general exception (lines 1237-1238)"""
-        mock_bmr.side_effect = Exception("Calculation failed")
-
-        response = client.post(
-            "/premium_bmr",
-            json={
-                "weight_kg": 70,
-                "height_cm": 170,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-                "lang": "en",
-            },
-        )
-        assert response.status_code == 500
-        assert response.headers.get("content-type", "").startswith("application/json")
-        assert "BMR calculation failed" in response.json()["detail"]
-
-    def test_activity_level_descriptions(self, client: TestClient) -> None:
-        """Test activity level descriptions in premium_bmr"""
-        with patch("app.calculate_all_bmr", return_value={"mifflin": 1800}):
-            with patch("app.calculate_all_tdee", return_value={"mifflin": 2200}):
-                response = client.post(
-                    "/premium_bmr",
-                    json={
-                        "weight_kg": 70,
-                        "height_cm": 170,
-                        "age": 30,
-                        "sex": "male",
-                        "activity": "very_active",
-                        "lang": "en",
-                    },
-                )
-                assert response.status_code == 200
-                data = response.json()
-                assert data["activity_level"] == "Very active"
-
-    def test_katch_bmr_note(self, client: TestClient) -> None:
-        """Test Katch BMR formula note when bodyfat provided"""
-        with patch(
-            "app.calculate_all_bmr",
-            return_value={"mifflin": 1800, "katch": 1900},
-        ):
-            with patch(
-                "app.calculate_all_tdee",
-                return_value={"mifflin": 2200, "katch": 2300},
-            ):
-                response = client.post(
-                    "/premium_bmr",
-                    json={
-                        "weight_kg": 70,
-                        "height_cm": 170,
-                        "age": 30,
-                        "sex": "male",
-                        "activity": "moderate",
-                        "bodyfat": 15,
-                        "lang": "en",
-                    },
-                )
-                assert response.status_code == 200
-                data = response.json()
-                assert data["formulas_used"] == ["mifflin", "katch"]
-                assert data["notes"] == [
-                    "Using Katch-McArdle formula (requires body fat percentage)"
-                ]
-
-
-class TestLegacyPremiumBMRRuntimeFallback:
-    """Legacy BMR fallback coverage formerly owned by the extended suite."""
-
-    @pytest.fixture(autouse=True)
-    def _setup(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-        monkeypatch.setenv("API_KEY", "test_key")
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-        with get_client() as test_client:
-            self.client = test_client
-            yield
-
-    def test_premium_bmr_legacy_patch_still_returns_200(self) -> None:
-        """The canonical route remains available when legacy symbols are patched."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.calculate_all_bmr", None),
-            patch("legacy_app.calculate_all_tdee", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-            }
-
-            response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
-            # The endpoint actually works correctly and returns 200
-            assert response.status_code == 200
-
-    def test_premium_bmr_runtime_patch_returns_stub_response(self) -> None:
-        """Cover the conservative BMR/TDEE fallback when runtime exports are patched away."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.calculate_all_bmr", None),
-            patch("app.calculate_all_tdee", None),
-            patch("legacy_app.calculate_all_bmr", None),
-            patch("legacy_app.calculate_all_tdee", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "weight_kg": 80.0,
-                "height_cm": 180.0,
-                "age": 35,
-                "sex": "male",
-                "activity": "light",
-                "lang": "en",
-            }
-
-            response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
-
-        assert response.status_code == 200
-        assert response.headers.get("content-type", "").startswith("application/json")
-        body = response.json()
-        assert body["bmr"] == {"stub": 1920.0}
-        assert body["tdee"] == {"stub": 2640.0}
-        assert body["activity_level"] == "Light activity"
-        assert body["recommended_intake"]["weight_loss"] == 2112.0
-        assert body["recommended_intake"]["weight_gain"] == 3168.0
-        assert body["formulas_used"] == ["stub"]
-
-
-class TestLegacyBMRAppHelper:
-    """Legacy wrapper integration formerly owned by the app helper suite."""
-
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test-key"
-        self.client = get_client()
-
-    def teardown_method(self) -> None:
-        client_instance = getattr(self, "client", None)
-        if client_instance is not None:
-            client_instance.close()
-        os.environ.pop("API_KEY", None)
-
-    def test_bmr_wrapper_and_tdee_wrapper(self):
-        # BMR wrapper should produce a dict of numeric values
-        bmr = app_package._calculate_all_bmr_wrapper(70, 175, 30, "male", bodyfat=15)
-        assert isinstance(bmr, dict) and bmr
-        # TDEE wrapper should map BMR dict to TDEE dict with same keys
-        tdee = app_package._calculate_all_tdee_wrapper(bmr, "moderate")
-        assert isinstance(tdee, dict) and set(tdee.keys()) == set(bmr.keys())
-        assert all(isinstance(v, (int, float)) for v in tdee.values())
-
-
-class TestLegacyBMRHandlerExceptions:
-    """Tests for app.py lines 3304-3315 (premium_bmr legacy endpoint exceptions)."""
-
-    def test_premium_bmr_legacy_import_error(self, client: TestClient) -> None:
-        """/premium_bmr returns 503 when BMR calculation module unavailable."""
-
-        # Patch wrapper to raise ImportError
-        with patch.object(
-            app_package,
-            "_calculate_all_bmr_wrapper",
-            side_effect=ImportError("Module missing"),
-        ):
-            response = client.post(
-                "/premium_bmr",
-                json={
-                    "weight_kg": 70.0,
-                    "height_cm": 170.0,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                    "lang": "en",
-                },
-            )
-            assert response.status_code == 503
-            assert response.headers.get("content-type", "").startswith("application/json")
-            data = response.json()
-            assert "BMR calculation module not available" in data["detail"]
-
-    def test_premium_bmr_legacy_value_error(self, client: TestClient) -> None:
-        """/premium_bmr returns 400 for invalid input values."""
-
-        # Patch wrapper to raise ValueError
-        with patch.object(
-            app_package,
-            "_calculate_all_bmr_wrapper",
-            side_effect=ValueError("Invalid weight"),
-        ):
-            response = client.post(
-                "/premium_bmr",
-                json={
-                    "weight_kg": 70.0,
-                    "height_cm": 170.0,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                    "lang": "en",
-                },
-            )
-            assert response.status_code == 400
-            assert response.headers.get("content-type", "").startswith("application/json")
-            data = response.json()
-            assert "Invalid input" in data["detail"]
-            assert "Invalid weight" in data["detail"]
-
-    def test_premium_bmr_legacy_generic_exception(self, client: TestClient) -> None:
-        """/premium_bmr returns 500 for unexpected errors."""
-
-        # Patch wrapper to raise generic exception
-        with patch.object(
-            app_package,
-            "_calculate_all_bmr_wrapper",
-            side_effect=RuntimeError("Unexpected error"),
-        ):
-            response = client.post(
-                "/premium_bmr",
-                json={
-                    "weight_kg": 70.0,
-                    "height_cm": 170.0,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                    "lang": "en",
-                },
-            )
-            assert response.status_code == 500
-            assert response.headers.get("content-type", "").startswith("application/json")
-            data = response.json()
-            assert "BMR calculation failed" in data["detail"]
-
-    def test_premium_bmr_legacy_success(self, client: TestClient) -> None:
-        """/premium_bmr returns valid response for correct inputs.
-
-        This is an integration test that verifies the actual implementation
-        produces valid values, providing valuable coverage beyond mocked tests.
-        """
-        response = client.post(
-            "/premium_bmr",
-            json={
-                "weight_kg": 70.0,
-                "height_cm": 170.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "moderate",
-                "lang": "en",
-            },
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "bmr" in data
-        assert "tdee" in data
-        assert "recommended_intake" in data
-
-        # Basic sanity checks on values
-        # BMR and TDEE are dicts with formula names as keys (e.g., {"mifflin": 1617.5})
-        assert isinstance(data["bmr"], dict), "BMR should be a dict"
-        assert isinstance(data["tdee"], dict), "TDEE should be a dict"
-        assert len(data["bmr"]) > 0, "BMR dict should not be empty"
-        assert len(data["tdee"]) > 0, "TDEE dict should not be empty"
-
-        # Check that BMR values are positive
-        for formula, value in data["bmr"].items():
-            assert value > 0, f"BMR[{formula}] should be positive"
-
-        # Check that TDEE values exceed corresponding BMR values
-        for formula in data["bmr"]:
-            if formula in data["tdee"]:
-                assert (
-                    data["tdee"][formula] > data["bmr"][formula]
-                ), f"TDEE[{formula}] should exceed BMR[{formula}]"
-
-        assert isinstance(data["recommended_intake"], dict), "recommended_intake should be a dict"
-
-
-class TestLegacyPremiumBMRErrorPaths:
-    """Legacy BMR endpoint error paths formerly owned by missing-lines coverage."""
-
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        self.client = get_client()
-
-    def teardown_method(self) -> None:
-        os.environ.pop("API_KEY", None)
-        client_instance = getattr(self, "client", None)
-        if client_instance is not None:
-            client_instance.close()
-
-    def test_premium_bmr_value_and_http_errors(self):
-        # Test premium BMR endpoint - ValueError should return 400 Bad Request
-        with (
-            patch.object(
-                app_package,
-                "calculate_all_bmr",
-                side_effect=ValueError("bad"),
-            ),
-            patch.object(app_package, "calculate_all_tdee", lambda *a, **k: {}),
-        ):
-            data = {
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "light",
-                "lang": "en",
-            }
-            r = self.client.post(
-                "/api/v1/premium/bmr",
-                json=data,
-                headers={"X-API-Key": "test_key"},
-            )
-            assert r.status_code == 400
-            assert r.headers.get("content-type", "").startswith("application/json")
-            assert "Invalid input" in r.json().get("detail", "")
-
-        # Trigger HTTPException passthrough re-raise
-        with (
-            patch.object(
-                app_package,
-                "calculate_all_bmr",
-                side_effect=HTTPException(status_code=418, detail="teapot"),
-            ),
-            patch.object(app_package, "calculate_all_tdee", lambda *a, **k: {}),
-        ):
-            data = {
-                "weight_kg": 70.0,
-                "height_cm": 175.0,
-                "age": 30,
-                "sex": "male",
-                "activity": "light",
-                "lang": "en",
-            }
-            r = self.client.post(
-                "/api/v1/premium/bmr",
-                json=data,
-                headers={"X-API-Key": "test_key"},
-            )
-            assert r.status_code == 418
-            assert r.headers.get("content-type", "").startswith("application/json")
-            assert "teapot" in r.json().get("detail", "")
-
-
-def test_premium_bmr_resolve_wrapper_prefers_patched_app(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Resolve api_premium_bmr wrappers from patched app package callables."""
-
-    async def _run() -> None:
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        # Patch wrappers on app package so api_premium_bmr picks them up via sys.modules["app"].
-        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 1000.0}
-
-        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 2000.0}
-
-        monkeypatch.setattr(
-            app_package,
-            "_calculate_all_bmr_wrapper",
-            bmr_wrapper,
-            raising=False,
-        )
-        monkeypatch.setattr(
-            app_package,
-            "_calculate_all_tdee_wrapper",
-            tdee_wrapper,
-            raising=False,
-        )
-
-        req = legacy_app.BMRRequest(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.api_premium_bmr(req)
-        assert resp.bmr == {"mifflin": 1000.0}
-        assert resp.tdee == {"mifflin": 2000.0}
-
-    asyncio.run(_run())
-
-
-def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Resolve api_premium_bmr wrappers from package candidates."""
-
-    async def _run() -> None:
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        dummy_mod = ModuleType("dummy_app_module")
-
-        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 1100.0}
-
-        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 2100.0}
-
-        setattr(dummy_mod, "_calculate_all_bmr_wrapper", bmr_wrapper)
-        setattr(dummy_mod, "_calculate_all_tdee_wrapper", tdee_wrapper)
-
-        # Ensure sys.modules["app"] doesn't short-circuit the resolution
-        # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
-        # the attribute is not actually present on the module. Remove only real module attributes.
-        monkeypatch.delitem(
-            app_package.__dict__,
-            "_calculate_all_bmr_wrapper",
-            raising=False,
-        )
-        monkeypatch.delitem(
-            app_package.__dict__,
-            "_calculate_all_tdee_wrapper",
-            raising=False,
-        )
-
-        monkeypatch.setattr(legacy_app, "_iter_app_modules", lambda: [dummy_mod])
-
-        req = legacy_app.BMRRequest(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.api_premium_bmr(req)
-        assert resp.bmr == {"mifflin": 1100.0}
-        assert resp.tdee == {"mifflin": 2100.0}
-
-    asyncio.run(_run())
-
-
-def test_premium_bmr_legacy_executes_wrapper_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Exercise premium_bmr_legacy wrapper resolution."""
-
-    async def _run() -> None:
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 1000.0}
-
-        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-            return {"mifflin": 2000.0}
-
-        monkeypatch.setattr(
-            app_package,
-            "_calculate_all_bmr_wrapper",
-            bmr_wrapper,
-            raising=False,
-        )
-        monkeypatch.setattr(
-            app_package,
-            "_calculate_all_tdee_wrapper",
-            tdee_wrapper,
-            raising=False,
-        )
-
-        req = legacy_app.BMRRequestLegacy(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.premium_bmr_legacy(req)
-        assert resp.bmr == {"mifflin": 1000.0}
-        assert resp.tdee == {"mifflin": 2000.0}
-
-    asyncio.run(_run())
-
-
-def test_premium_bmr_legacy_hits_globals_fallback_path(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Exercise premium_bmr_legacy wrapper globals fallback."""
-
-    async def _run() -> None:
-        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-        # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
-        # the attribute is not actually present on the module. Remove only real module attributes.
-        monkeypatch.delitem(
-            app_package.__dict__,
-            "_calculate_all_bmr_wrapper",
-            raising=False,
-        )
-        monkeypatch.delitem(
-            app_package.__dict__,
-            "_calculate_all_tdee_wrapper",
-            raising=False,
-        )
-
-        monkeypatch.setattr(
-            legacy_app,
-            "_calculate_all_bmr_wrapper",
-            lambda *_a, **_k: {"mifflin": 1000.0},
-        )
-        monkeypatch.setattr(
-            legacy_app,
-            "_calculate_all_tdee_wrapper",
-            lambda *_a, **_k: {"mifflin": 2000.0},
-        )
-
-        req = legacy_app.BMRRequestLegacy(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            sex="male",
-            activity="moderate",
-            bodyfat=None,
-            lang="en",
-        )
-        resp = await legacy_app.premium_bmr_legacy(req)
-        assert resp.bmr == {"mifflin": 1000.0}
-        assert resp.tdee == {"mifflin": 2000.0}
-
-    asyncio.run(_run())
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

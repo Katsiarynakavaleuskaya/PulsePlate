@@ -28,3 +28,8 @@ INVALID_BMI_INPUT_DETAIL = "Invalid BMI input"
 
 INVALID_PREMIUM_PLATE_INPUT_DETAIL = "Invalid premium plate input"
 ENHANCED_PLATE_GENERATION_FAILED_DETAIL = "Enhanced plate generation failed"
+
+INVALID_BMR_INPUT_DETAIL = "Invalid BMR input"
+BMR_CALCULATION_FAILED_DETAIL = "BMR calculation failed"
+PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL = "Premium BMR feature not available"
+BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL = "BMR calculation module not available"
