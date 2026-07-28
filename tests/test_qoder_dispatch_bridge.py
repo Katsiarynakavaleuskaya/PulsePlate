@@ -2019,6 +2019,27 @@ def test_current_packet_with_malformed_path_cannot_downgrade_to_legacy() -> None
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+@pytest.mark.parametrize(
+    "schema_version",
+    ["3.1 ", "3.01", 3.1, {}, [], None],
+)
+def test_unknown_or_malformed_packet_schema_cannot_claim_legacy(
+    schema_version: object,
+) -> None:
+    """Only exact supported schema values participate in compatibility."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = schema_version
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="schema_version must be exact 3.0 or 3.1",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_bounded_opening_trigger_cannot_masquerade_as_legacy_packet() -> None:
     """A configured positive path hint remains fail-closed without metadata."""
 
@@ -2042,6 +2063,16 @@ def test_true_legacy_no_trigger_packet_retains_fallback() -> None:
     packet.pop("invariant_review")
     packet.pop("role_agent_dispatch_contract")
 
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "logic-agent",
+        "philosophy-agent",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+
+    packet.pop("schema_version")
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
         "agent-coordinator",
         "architecture-specialist",

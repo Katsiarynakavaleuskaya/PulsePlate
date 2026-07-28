@@ -449,8 +449,15 @@ def _validated_dispatch_role_order(
     invariant_review_present = "invariant_review" in payload
     invariant_review = payload.get("invariant_review")
     invariant_review_state: str | None = None
+    task_packet_schema_present = "schema_version" in payload
+    task_packet_schema = payload.get("schema_version")
+    if task_packet_schema_present and task_packet_schema not in (
+        "3.0",
+        CURRENT_TASK_PACKET_SCHEMA_VERSION,
+    ):
+        raise ValueError("task packet schema_version must be exact 3.0 or 3.1")
     if not invariant_review_present:
-        if payload.get("schema_version") == CURRENT_TASK_PACKET_SCHEMA_VERSION:
+        if task_packet_schema == CURRENT_TASK_PACKET_SCHEMA_VERSION:
             raise ValueError("task packet schema 3.1 requires invariant_review metadata")
         automation_flags = payload.get("automation_flags")
         if isinstance(automation_flags, dict) and (
