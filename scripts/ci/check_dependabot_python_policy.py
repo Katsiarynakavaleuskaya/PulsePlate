@@ -137,16 +137,15 @@ FORBIDDEN_UPDATE_KEYS = {
     "target-branch",
     "insecure-external-code-execution",
 }
-EXPECTED_UPDATE_KEYS = {
-    "package-ecosystem",
-    "directory",
-    "registries",
-    "schedule",
-    "open-pull-requests-limit",
-    "cooldown",
-    "commit-message",
-    "groups",
+EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
+    "package-ecosystem": "pip",
+    "directory": "/",
+    "registries": [REGISTRY_NAME],
+    "schedule": {"interval": "weekly"},
+    "open-pull-requests-limit": 4,
+    "commit-message": {"prefix": "deps", "include": "scope"},
 }
+EXPECTED_UPDATE_KEYS = set(EXPECTED_UPDATE_EXACT_VALUES) | {"cooldown", "groups"}
 
 
 class UniqueKeyLoader(yaml.SafeLoader):
@@ -491,33 +490,12 @@ def validate_repo(repo_root: Path) -> list[str]:
                 f"must contain exactly one governed update block; got {len(updates)}",
             )
         )
-    pip_updates: list[tuple[int, Mapping[Any, Any]]] = []
-    for index, candidate in enumerate(updates):
-        candidate_path = f"updates[{index}]"
-        if not isinstance(candidate, Mapping):
-            errors.append(_error(candidate_path, "must be a mapping"))
-            continue
-        package_ecosystem = candidate.get("package-ecosystem")
-        if not isinstance(package_ecosystem, str) or not package_ecosystem.strip():
-            errors.append(
-                _error(
-                    f"{candidate_path}.package-ecosystem",
-                    "must be a non-empty string",
-                )
-            )
-            continue
-        if package_ecosystem == "pip":
-            pip_updates.append((index, candidate))
-    if len(pip_updates) != 1:
-        errors.append(
-            _error(
-                "updates",
-                f"must contain exactly one pip update block; got {len(pip_updates)}",
-            )
-        )
         return errors
-    update_index, update = pip_updates[0]
-    update_path = f"updates[{update_index}]"
+    update = updates[0]
+    update_path = "updates[0]"
+    if not isinstance(update, Mapping):
+        errors.append(_error(update_path, "must be a mapping"))
+        return errors
     if set(update) != EXPECTED_UPDATE_KEYS:
         errors.append(
             _error(
@@ -526,34 +504,15 @@ def validate_repo(repo_root: Path) -> list[str]:
                 f"got {_sorted_keys(update)!r}",
             )
         )
-    if update.get("directory") != "/":
-        errors.append(
-            _error(
-                f"{update_path}.directory",
-                f"must be '/'; got {update.get('directory')!r}",
+    for key, expected_value in EXPECTED_UPDATE_EXACT_VALUES.items():
+        actual_value = update.get(key)
+        if actual_value != expected_value:
+            errors.append(
+                _error(
+                    f"{update_path}.{key}",
+                    f"must be exactly {expected_value!r}; got {actual_value!r}",
+                )
             )
-        )
-    if update.get("registries") != [REGISTRY_NAME]:
-        errors.append(
-            _error(
-                f"{update_path}.registries",
-                f"must be [{REGISTRY_NAME!r}]; got {update.get('registries')!r}",
-            )
-        )
-    if update.get("schedule") != {"interval": "weekly"}:
-        errors.append(
-            _error(
-                f"{update_path}.schedule",
-                "must be exactly {'interval': 'weekly'}",
-            )
-        )
-    if update.get("open-pull-requests-limit") != 4:
-        errors.append(
-            _error(
-                f"{update_path}.open-pull-requests-limit",
-                f"must be 4; got {update.get('open-pull-requests-limit')!r}",
-            )
-        )
     _validate_exact_mapping(
         actual=update.get("cooldown"),
         expected=EXPECTED_COOLDOWN,

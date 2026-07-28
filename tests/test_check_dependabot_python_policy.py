@@ -205,7 +205,9 @@ def test_registry_contract_rejects_public_fallback_and_wildcard_binding(
     errors = policy.validate_repo(repo)
 
     assert any("registries.python-index.replaces-base:must be True" in error for error in errors)
-    assert any("updates[0].registries:must be ['python-index']" in error for error in errors)
+    assert any(
+        "updates[0].registries:must be exactly ['python-index']" in error for error in errors
+    )
 
 
 @pytest.mark.parametrize("credential_key", ["username", "password"])
@@ -380,9 +382,6 @@ def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
     assert (
         ".github/dependabot.yml:updates:" "must contain exactly one governed update block; got 2"
     ) in errors
-    assert (
-        ".github/dependabot.yml:updates:must contain exactly one pip update block; got 2" in errors
-    )
 
 
 @pytest.mark.parametrize(
@@ -411,42 +410,63 @@ def test_non_python_update_siblings_are_outside_the_governed_config(
 
 
 @pytest.mark.parametrize("invalid_update", [42, None, ["pip"]])
-def test_non_mapping_update_siblings_fail_closed(
+def test_single_governed_update_must_be_a_mapping(
     tmp_path: Path,
     invalid_update: object,
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
-    updates = config["updates"]
-    assert isinstance(updates, list)
-    updates.append(invalid_update)
+    config["updates"] = [invalid_update]
     _write_config(repo, config)
 
     errors = policy.validate_repo(repo)
 
-    assert ".github/dependabot.yml:updates[1]:must be a mapping" in errors
+    assert errors == [".github/dependabot.yml:updates[0]:must be a mapping"]
 
 
-@pytest.mark.parametrize("package_ecosystem", [None, "", 42])
-def test_update_siblings_require_a_non_empty_package_ecosystem(
+@pytest.mark.parametrize("package_ecosystem", [None, "", 42, "npm", "not-a-real-ecosystem"])
+def test_single_governed_update_requires_exact_pip_ecosystem(
     tmp_path: Path,
     package_ecosystem: object,
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
-    updates = config["updates"]
-    assert isinstance(updates, list)
-    sibling: dict[str, object] = {"directory": "/"}
-    if package_ecosystem is not None:
-        sibling["package-ecosystem"] = package_ecosystem
-    updates.append(sibling)
+    _pip_update(config)["package-ecosystem"] = package_ecosystem
     _write_config(repo, config)
 
     errors = policy.validate_repo(repo)
 
     assert (
-        ".github/dependabot.yml:updates[1].package-ecosystem:" "must be a non-empty string"
-    ) in errors
+        ".github/dependabot.yml:updates[0].package-ecosystem:must be exactly 'pip'"
+    ) in "\n".join(errors)
+
+
+@pytest.mark.parametrize(
+    ("key", "invalid_value"),
+    [
+        ("directory", "/nested"),
+        ("registries", "*"),
+        ("schedule", {"interval": "daily"}),
+        ("open-pull-requests-limit", 5),
+        ("commit-message", []),
+        ("commit-message", {"prefix": "deps"}),
+        ("commit-message", {"prefix": "deps", "include": "scope", "extra": True}),
+        ("commit-message", {"prefix": "other", "include": "scope"}),
+    ],
+)
+def test_every_exact_update_field_is_value_validated(
+    tmp_path: Path,
+    key: str,
+    invalid_value: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _pip_update(config)[key] = invalid_value
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(f"updates[0].{key}:must be exactly" in error for error in errors)
 
 
 def test_schedule_limit_and_cooldown_are_exact(tmp_path: Path) -> None:
@@ -461,7 +481,7 @@ def test_schedule_limit_and_cooldown_are_exact(tmp_path: Path) -> None:
     errors = policy.validate_repo(repo)
 
     assert any("updates[0].schedule:must be exactly" in error for error in errors)
-    assert any("updates[0].open-pull-requests-limit:must be 4" in error for error in errors)
+    assert any("updates[0].open-pull-requests-limit:must be exactly 4" in error for error in errors)
     assert any("updates[0].cooldown:keys must be exactly" in error for error in errors)
 
 
