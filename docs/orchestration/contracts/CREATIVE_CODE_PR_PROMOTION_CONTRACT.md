@@ -82,7 +82,10 @@ python -m scripts.orchestration.creative_code_pr_promotion plan \
   --promotion-id <id>
 
 python -m scripts.orchestration.creative_code_pr_promotion validate \
-  --promotion-id <id>
+  --promotion-id <id> \
+  [--trusted-dispatch-result artifacts/orchestration/experiments/results/<result>.json \
+   --trusted-generation-receipt \
+     artifacts/orchestration/creative_code/patch_generation/<output>/generation_receipt.json]
 
 python -m scripts.orchestration.creative_code_pr_promotion approve \
   --promotion-id <id> \
@@ -100,7 +103,25 @@ plan and deterministic PR body, and stops.
 applies the exact patch, creates a throwaway local commit so
 `make validate-changed` has a meaningful diff, runs fresh candidate oracle
 evaluation, runs `pre-commit run --all-files`, runs `make validate-changed`,
-and fails if gates mutate the patch.
+and fails if gates mutate the patch. Its validation artifact records
+`oracle_evidence.source=direct_evaluation` and
+`executed_during_validation=true` for that path. The trusted dispatch result and explicit
+generation receipt options must be supplied together or both omitted. When
+supplied, `validate` consumes that result instead of calling the direct
+evaluator and records `oracle_evidence.source=trusted_apple_dispatch` with
+`executed_during_validation=false`. The result must resolve without symlinks under the canonical local
+Experiment Runner result root, and the exactly named receipt must resolve
+without symlinks under the canonical PR-2 patch-generation root. The result
+must pass the existing PR-2 trusted-dispatch binding validator for the exact
+packet, candidate fingerprint, mutated paths, one attempt, zero retries, every
+configured oracle, and untouched shared tree.
+The canonical PR-2 generation receipt and its linked sidecars must still bind
+that packet fingerprint and the exact finalized runner-result fingerprint.
+PR-3 reconstructs the supplied gate from canonical admission and finalized
+run state, requires accepted status with passed `apple-container` provenance,
+binds packet/result/gate/receipt fingerprints into the validation artifact,
+and re-reads all four after local gates to reject fingerprint drift. It does
+not regenerate or finalize PR-2 artifacts.
 
 `approve` requires an interactive TTY, current `gh api user` actor binding, and
 the exact phrase:
@@ -136,8 +157,10 @@ Promotion is allowed only when all PR-2 facts remain true:
 
 Reject on base drift, patch drift, branch-name drift, branch existence, dirty
 shared worktree, non-TTY approval, GitHub actor mismatch, draft PR request,
-pre-commit mutation, validation failure, fresh oracle failure, path traversal,
-symlinked artifact paths, or any attempt to use review/merge/thread authority.
+pre-commit mutation, validation failure, oracle evidence failure, path traversal,
+symlinked artifact paths, malformed or mismatched trusted dispatch evidence,
+non-Apple or rejected trusted results, trusted-result drift during validation,
+or any attempt to use review/merge/thread authority.
 
 ## Git and GitHub Boundaries
 
