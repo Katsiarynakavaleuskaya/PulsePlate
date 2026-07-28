@@ -8,6 +8,8 @@ language: en-US
 # Path-based instructions
 reviews:
   profile: chill
+  # Canonical fixed mappings are generated and validated by repo-native gates.
+  # Excluding them prevents a reviewer-on-closeout recursion after the final seal.
   path_filters:
     - "!docs/review/PR_*_FIXED_MAPPING.md"
   path_instructions:
