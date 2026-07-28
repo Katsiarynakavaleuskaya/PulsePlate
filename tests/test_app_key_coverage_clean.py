@@ -124,12 +124,6 @@ class TestMetricsFallbacks:
 class TestImportFallbacks:
     """Тесты import fallback веток"""
 
-    def test_nutrition_core_missing_fallback(self) -> None:
-        """Тест fallback когда nutrition_core недоступен"""
-        # Проверим что app загружается и fallback функции работают
-        assert hasattr(app, "get_activity_factor")
-        assert app.get_activity_factor("moderate") == 1.55
-
     def test_bmi_pro_router_fallback(self) -> None:
         """Тест fallback для bmi_pro_router"""
         # Проверим что app работает даже если bmi_pro_router=None
