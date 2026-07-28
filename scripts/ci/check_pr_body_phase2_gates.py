@@ -803,6 +803,12 @@ def check_pr_body_phase2_gates(
                 "Pre-closeout marker must be removed after the canonical mapping/seal is "
                 "published."
             )
+        mapping_section = _extract_mapping_section(cleaned)
+        if PRE_CLOSEOUT_PENDING_RE.search(mapping_section):
+            errors.append(
+                "Pre-closeout pending status must be removed after the canonical mapping/seal "
+                "is published."
+            )
         if not _extract_checked(discussion_check):
             errors.append(
                 f"Checklist item must be checked: `{PHASE2_CONFIG['discussion_checkbox_label']}`."

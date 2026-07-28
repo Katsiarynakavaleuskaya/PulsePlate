@@ -49,6 +49,8 @@
 
 ### Fixed in Commit Mapping
 
+<!-- Closeout must remove both the pre-closeout marker and the pending status below. -->
+
 - Pending final clean scan and the single mapping/closeout commit.
 - canonical artifact: `docs/review/PR_<N>_FIXED_MAPPING.md`
 - URL→SHA and disposition details belong only in the canonical artifact.

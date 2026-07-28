@@ -222,6 +222,24 @@ def test_phase2_guard_rejects_stale_pre_closeout_marker_in_mirror_only_body() ->
     ]
 
 
+def test_phase2_guard_rejects_stale_pending_status_in_mirror_only_body() -> None:
+    body = VALID_BODY_MIRROR_ONLY.replace(
+        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`",
+        "- Pending final clean scan and the single mapping/closeout commit.\n"
+        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.MIRROR_ONLY,
+    )
+
+    assert errors == [
+        "Pre-closeout pending status must be removed after the canonical mapping/seal is "
+        "published."
+    ]
+
+
 def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> None:
     errors = gates.check_pr_body_phase2_gates(
         body=PRE_CLOSEOUT_BODY,
