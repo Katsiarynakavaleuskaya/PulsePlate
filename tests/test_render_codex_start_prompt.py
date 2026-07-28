@@ -326,6 +326,7 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
         worktree="worktrees/example",
         paths=["docs/dev/CODEX_SKILLS.md"],
         requested_agents=["qa-engineer-agent"],
+        invariant_change_classes=["validator", "authority"],
     )
 
     assert "Paste into Codex now:" in prompt
@@ -333,6 +334,7 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "did not run authoritative task_bootstrap.py" in prompt
     assert "did not create a task packet" in prompt
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in prompt
+    assert "Invariant change classes: validator, authority" in prompt
     assert "Next required repo command: run task_bootstrap.py" in prompt
     assert "Host/Codex preflight is not authoritative lane provenance" in prompt
     assert "copy `role_agent_dispatch_contract.dispatch_manifest_command` verbatim" in prompt
@@ -369,10 +371,12 @@ def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
         pr_phase="pre_open",
         paths=[],
         requested_agents=[],
+        invariant_change_classes=[],
         preflight_ran=False,
     )
 
     assert "Dry run only: this command did not run preflight" in prompt
+    assert "Invariant change classes: <none>" in prompt
     assert "only ran analyze preflight" not in prompt
 
 

@@ -1770,6 +1770,243 @@ def test_roles_flag_merge_ready_phase_enforces_mandatory_order(
     assert dispatch[2]["depends_on_previous"] is True
 
 
+def _invariant_review_packet(
+    *,
+    dispatch_role_order: object,
+    implementation_authority: object = False,
+    merge_authority: object = False,
+) -> dict[str, object]:
+    return {
+        "pr_phase": "pre_open",
+        "requested_agents": ["architecture-specialist"],
+        "invariant_review": {
+            "schema_version": "invariant_review.v1",
+            "state": "required_pending",
+            "required_roles": ["logic-agent", "philosophy-agent"],
+            "implementation_authority": implementation_authority,
+            "merge_authority": merge_authority,
+        },
+        "role_agent_dispatch_contract": {
+            "dispatch_role_order": dispatch_role_order,
+        },
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "architecture-specialist"},
+            "secondary": [
+                {"repo_agent_slug": "logic-agent"},
+                {"repo_agent_slug": "agent-coordinator"},
+                {"repo_agent_slug": "philosophy-agent"},
+                {"repo_agent_slug": "security-auditor"},
+            ],
+            "advisory": [],
+            "reviewer": {"repo_agent_slug": "cursor-specialist-agent"},
+        },
+    }
+
+
+def test_invariant_review_dispatch_order_replaces_requested_agent_reordering() -> None:
+    """System-required order is canonical without mutating requested agents."""
+
+    expected_order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    packet = _invariant_review_packet(dispatch_role_order=expected_order)
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == expected_order
+    assert packet["requested_agents"] == ["architecture-specialist"]
+
+
+def test_invariant_review_dispatch_order_chains_every_successor() -> None:
+    """An accepted G0 order serializes every role after coordinator."""
+
+    order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    parsed_order = qoder_dispatch_bridge._parse_json_packet_roles(
+        _invariant_review_packet(dispatch_role_order=order)
+    )
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=parsed_order,
+        mode="analysis",
+        packet_source="invariant-review-test",
+        chained_successors=set(parsed_order[1:]),
+        enforce_mandatory_post_open_tail=False,
+    )
+
+    dispatch = manifest["dispatch_sequence"]
+    assert dispatch[0]["depends_on_previous"] is False
+    assert all(entry["depends_on_previous"] is True for entry in dispatch[1:])
+
+
+@pytest.mark.parametrize(
+    ("dispatch_role_order", "error"),
+    [
+        (
+            [
+                "logic-agent",
+                "agent-coordinator",
+                "philosophy-agent",
+                "architecture-specialist",
+                "security-auditor",
+                "cursor-specialist-agent",
+            ],
+            "must start with agent-coordinator",
+        ),
+        (
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "philosophy-agent",
+                "architecture-specialist",
+                "cursor-specialist-agent",
+            ],
+            "must exactly match spawnable",
+        ),
+        (
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "philosophy-agent",
+                "architecture-specialist",
+                "security-auditor",
+                "cursor-specialist-agent",
+                "extra-agent",
+            ],
+            "must exactly match spawnable",
+        ),
+        (
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "logic-agent",
+                "architecture-specialist",
+                "security-auditor",
+                "cursor-specialist-agent",
+            ],
+            "must not contain duplicate",
+        ),
+        ("agent-coordinator", "must be a non-empty JSON list"),
+    ],
+)
+def test_invariant_review_dispatch_order_fails_closed(
+    dispatch_role_order: object,
+    error: str,
+) -> None:
+    """Malformed or set-mismatched canonical orders never use legacy fallback."""
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(
+            _invariant_review_packet(
+                dispatch_role_order=dispatch_role_order,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("implementation_authority", "merge_authority", "error"),
+    [
+        (True, False, "must not grant implementation authority"),
+        (False, True, "must not grant merge authority"),
+        (0, False, "must not grant implementation authority"),
+        (False, None, "must not grant merge authority"),
+    ],
+)
+def test_invariant_review_dispatch_rejects_authority_confusion(
+    implementation_authority: object,
+    merge_authority: object,
+    error: str,
+) -> None:
+    """Authority fields must be exact JSON false values."""
+
+    order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(
+            _invariant_review_packet(
+                dispatch_role_order=order,
+                implementation_authority=implementation_authority,
+                merge_authority=merge_authority,
+            )
+        )
+
+
+def test_invariant_review_dispatch_rejects_creative_override() -> None:
+    """A malicious combined packet cannot replace the pre-fix chain."""
+
+    order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    packet = _invariant_review_packet(dispatch_role_order=order)
+    packet["creative_pilot_context"] = {"phase": "independent"}
+
+    with pytest.raises(ValueError, match="cannot be combined with creative"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("omit_contract", [False, True])
+def test_required_pending_invariant_review_requires_dispatch_order(
+    omit_contract: bool,
+) -> None:
+    """Removing the canonical order cannot downgrade a pending review to legacy."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(contract, dict)
+    if omit_contract:
+        packet.pop("role_agent_dispatch_contract")
+        error = "requires role_agent_dispatch_contract"
+    else:
+        contract.pop("dispatch_role_order")
+        error = "requires dispatch_role_order"
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_required_pending_invariant_review_without_order_blocks_creative_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Creative metadata cannot revive a pending packet whose order is missing."""
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(contract, dict)
+    contract.pop("dispatch_role_order")
+    packet["creative_pilot_context"] = {"phase": "independent"}
+    packet_path = tmp_path / "pending-without-order.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet_path), "--mode", "analysis"])
+
+    assert result == 1
+    assert (
+        "required_pending invariant review requires dispatch_role_order" in capsys.readouterr().err
+    )
+
+
 # ---------------------------------------------------------------------------
 # 8. test_packet_without_role_section_errors
 # ---------------------------------------------------------------------------

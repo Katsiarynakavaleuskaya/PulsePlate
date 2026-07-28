@@ -217,6 +217,7 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "skill_routing_applied": True,
         "native_subagent_bridge_available": True,
         "security_review_required": False,
+        "invariant_class_review_required": False,
         "judgment_lane_enabled": False,
         "pr_lifecycle_enabled": False,
         "design_lane_enabled": False,
@@ -3076,3 +3077,159 @@ def test_active_orchestration_surfaces_forbid_per_diff_security_reruns() -> None
         text = path.read_text(encoding="utf-8")
         for phrase in forbidden:
             assert phrase not in text, f"{path}: stale security lifecycle phrase {phrase!r}"
+
+
+def test_invariant_review_packet_preserves_requested_agents_and_orders_system_roles() -> None:
+    """The system pre-fix pair must not masquerade as operator-requested roles."""
+
+    packet = build_task_packet(
+        goal="Harden a policy mechanism",
+        task_class="Orchestration",
+        candidate_paths=["README.md"],
+        requested_agents=["architecture-specialist"],
+        invariant_change_classes=["guard"],
+        pr_phase="pre_open",
+    )
+
+    assert packet["requested_agents"] == ["architecture-specialist"]
+    assert packet["invariant_review"] == {
+        "schema_version": "invariant_review.v1",
+        "state": "required_pending",
+        "change_classes": ["guard"],
+        "trigger_evidence": [
+            {"change_class": "guard", "source": "explicit"},
+        ],
+        "coverage_claim": "explicit_plus_bounded_positive_triggers_only",
+        "required_roles": ["logic-agent", "philosophy-agent"],
+        "boundary_classes": [
+            "finite_closed_world",
+            "bounded_surface",
+            "delegated_recognizer",
+            "open_world_stop",
+        ],
+        "required_output_fields": [
+            "invariant_statement",
+            "boundary_class",
+            "canonical_sot",
+            "completeness_claim",
+            "counterexample_families",
+            "fail_closed_behavior",
+            "stop_condition",
+            "residual_risk",
+        ],
+        "stop_condition": (
+            "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+        ),
+        "implementation_authority": False,
+        "merge_authority": False,
+    }
+    assert packet["automation_flags"]["invariant_class_review_required"] is True
+    assert packet["role_agent_dispatch_contract"]["dispatch_role_order"][:3] == [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+    ]
+    spawnable_roles = {
+        packet["native_subagent_bridge"]["primary"]["repo_agent_slug"],
+        *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
+        *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["advisory"]],
+        packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
+    }
+    assert set(packet["role_agent_dispatch_contract"]["dispatch_role_order"]) == (spawnable_roles)
+
+
+def test_invariant_review_no_trigger_preserves_legacy_dispatch_and_rag_scope() -> None:
+    """Ordinary product refactors retain the legacy role path and no G0 dispatch."""
+
+    packet = build_task_packet(
+        goal="Remove pass-only RAG constructors",
+        task_class="Backend API",
+        candidate_paths=["core/rag/simple_rag.py"],
+        requested_agents=["backend-engineer"],
+        pr_phase="pre_open",
+    )
+
+    assert packet["invariant_review"]["state"] == "not_required"
+    assert packet["invariant_review"]["change_classes"] == []
+    assert packet["invariant_review"]["trigger_evidence"] == []
+    assert packet["invariant_review"]["required_roles"] == []
+    assert packet["automation_flags"]["invariant_class_review_required"] is False
+    assert "dispatch_role_order" not in packet["role_agent_dispatch_contract"]
+
+
+def test_invariant_review_packet_id_uses_order_insensitive_class_set() -> None:
+    """Equivalent class sets share identity while a different set changes it."""
+
+    common_kwargs = {
+        "goal": "Review mechanism scope",
+        "task_class": "Orchestration",
+        "candidate_paths": ["README.md"],
+        "requested_agents": ["architecture-specialist"],
+        "pr_phase": "pre_open",
+    }
+    first = build_task_packet(
+        **common_kwargs,
+        invariant_change_classes=["guard", "parser", "guard"],
+    )
+    reordered = build_task_packet(
+        **common_kwargs,
+        invariant_change_classes=["parser", "guard"],
+    )
+    different = build_task_packet(
+        **common_kwargs,
+        invariant_change_classes=["validator", "guard"],
+    )
+
+    assert first["task_packet_id"] == reordered["task_packet_id"]
+    assert first["task_packet_id"] != different["task_packet_id"]
+
+
+def test_invariant_review_does_not_repeat_during_post_open_review() -> None:
+    """Post-open lifecycle keeps QA -> bug -> security without the pre-fix pair."""
+
+    packet = build_task_packet(
+        goal="Review guard PR",
+        task_class="Orchestration",
+        candidate_paths=["scripts/ci/guard_actions_pin.py"],
+        invariant_change_classes=["guard"],
+        pr_phase="post_open_review",
+    )
+
+    assert packet["invariant_review"]["state"] == "not_required"
+    assert packet["invariant_review"]["change_classes"] == ["guard"]
+    assert packet["invariant_review"]["required_roles"] == []
+    assert packet["automation_flags"]["invariant_class_review_required"] is False
+    assert "dispatch_role_order" not in packet["role_agent_dispatch_contract"]
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["secondary_agents"][:2] == [
+        "bug-hunter",
+        "security-auditor",
+    ]
+
+
+def test_invariant_review_rejects_creative_workspace_before_loading_it() -> None:
+    """Mechanism work must leave the creative lane before workspace overrides."""
+
+    with pytest.raises(
+        ValueError,
+        match="create a separate ordinary pre-open invariant-review packet",
+    ):
+        build_task_packet(
+            goal="Experiment with a guard mechanism",
+            task_class="Orchestration",
+            candidate_paths=["scripts/ci/guard_actions_pin.py"],
+            creative_pilot_workspace_path="missing-workspace.json",
+            creative_pilot_phase="independent",
+        )
+
+
+def test_invariant_review_python_api_rejects_malformed_class() -> None:
+    """Direct callers cannot bypass the CLI enum."""
+
+    with pytest.raises(ValueError, match="Unsupported invariant change class"):
+        build_task_packet(
+            goal="Review mechanism scope",
+            task_class="Orchestration",
+            candidate_paths=["README.md"],
+            invariant_change_classes=["Guard"],
+        )

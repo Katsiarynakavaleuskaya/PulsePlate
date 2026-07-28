@@ -252,6 +252,7 @@ def compute_task_packet_id(
     pr_phase: str = "none",
     design_fingerprint: str = "",
     creative_learning_hints_fingerprint: str = "",
+    invariant_review_fingerprint: str = "",
 ) -> str:
     """Return deterministic short task packet id."""
 
@@ -263,6 +264,7 @@ def compute_task_packet_id(
             pr_phase.strip(),
             design_fingerprint.strip(),
             creative_learning_hints_fingerprint.strip(),
+            *([invariant_review_fingerprint.strip()] if invariant_review_fingerprint else []),
             *repo_relative_paths(candidate_paths),
             *requested_agents,
         ]

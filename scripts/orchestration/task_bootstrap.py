@@ -64,6 +64,11 @@ from scripts.orchestration.agent_consistency_loader import (
 )
 from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
+    INVARIANT_CHANGE_CLASSES,
+    INVARIANT_REVIEW_COVERAGE_CLAIM,
+    INVARIANT_REVIEW_REQUIRED_ROLES,
+    InvariantReviewDecision,
+    classify_invariant_review,
     needs_agents_sync as bootstrap_needs_agents_sync,
     needs_backlog_update as bootstrap_needs_backlog_update,
     needs_docs_sync as bootstrap_needs_docs_sync,
@@ -123,6 +128,26 @@ CREATIVE_PILOT_ROOT: Path = (
     REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "adaptive_pilots"
 )
 CREATIVE_PILOT_PHASES: tuple[str, ...] = ("independent", "rebuttal", "synthesis")
+INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
+INVARIANT_REVIEW_BOUNDARY_CLASSES: tuple[str, ...] = (
+    "finite_closed_world",
+    "bounded_surface",
+    "delegated_recognizer",
+    "open_world_stop",
+)
+INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
+    "invariant_statement",
+    "boundary_class",
+    "canonical_sot",
+    "completeness_claim",
+    "counterexample_families",
+    "fail_closed_behavior",
+    "stop_condition",
+    "residual_risk",
+)
+INVARIANT_REVIEW_STOP_CONDITION = (
+    "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+)
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
@@ -724,10 +749,121 @@ def _build_role_dispatch_manifest_command(
     return " ".join(command_parts)
 
 
+def _invariant_review_required_now(
+    decision: InvariantReviewDecision,
+    *,
+    pr_phase: str,
+) -> bool:
+    """Return whether this opening-phase packet must dispatch the pre-fix review."""
+
+    return decision.required and pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}
+
+
+def _build_invariant_review_packet(
+    decision: InvariantReviewDecision,
+    *,
+    required_now: bool,
+) -> dict[str, Any]:
+    """Return stable pending-only invariant-review admission metadata."""
+
+    return {
+        "schema_version": INVARIANT_REVIEW_SCHEMA_VERSION,
+        "state": "required_pending" if required_now else "not_required",
+        "change_classes": list(decision.change_classes),
+        "trigger_evidence": [evidence.to_mapping() for evidence in decision.trigger_evidence],
+        "coverage_claim": INVARIANT_REVIEW_COVERAGE_CLAIM,
+        "required_roles": (list(INVARIANT_REVIEW_REQUIRED_ROLES) if required_now else []),
+        "boundary_classes": list(INVARIANT_REVIEW_BOUNDARY_CLASSES),
+        "required_output_fields": list(INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS),
+        "stop_condition": INVARIANT_REVIEW_STOP_CONDITION,
+        "implementation_authority": False,
+        "merge_authority": False,
+    }
+
+
+def _append_system_invariant_review_roles(
+    *,
+    primary_agent: str,
+    secondary_agents: list[str],
+    reviewer: str,
+) -> list[str]:
+    """Add the system-required pre-fix roles without mutating requested agents."""
+
+    ordered_secondary_agents = list(secondary_agents)
+    planned_agents = {primary_agent, reviewer, *ordered_secondary_agents}
+    for agent_slug in (
+        "agent-coordinator",
+        *INVARIANT_REVIEW_REQUIRED_ROLES,
+    ):
+        if agent_slug in planned_agents:
+            continue
+        ordered_secondary_agents.append(agent_slug)
+        planned_agents.add(agent_slug)
+    return ordered_secondary_agents
+
+
+def _spawnable_role_order_from_bridge(
+    native_subagent_bridge: dict[str, Any],
+) -> list[str]:
+    """Return the exact spawnable binding order projected by the native bridge."""
+
+    ordered_roles: list[str] = []
+
+    def add_binding(binding: Any, *, default_spawnable: bool) -> None:
+        if not isinstance(binding, dict):
+            return
+        dispatch_contract = binding.get("dispatch_contract")
+        if dispatch_contract is None:
+            spawnable = default_spawnable
+        elif isinstance(dispatch_contract, dict):
+            spawnable = not (
+                dispatch_contract.get("advisory_only")
+                or dispatch_contract.get("spawn_with_native_subagent") is False
+            )
+        else:
+            spawnable = False
+        slug = str(binding.get("repo_agent_slug", "")).strip()
+        if spawnable and slug and slug not in ordered_roles:
+            ordered_roles.append(slug)
+
+    add_binding(native_subagent_bridge.get("primary"), default_spawnable=True)
+    for binding in native_subagent_bridge.get("secondary", []):
+        add_binding(binding, default_spawnable=True)
+    for binding in native_subagent_bridge.get("advisory", []):
+        add_binding(binding, default_spawnable=False)
+    add_binding(native_subagent_bridge.get("reviewer"), default_spawnable=True)
+    return ordered_roles
+
+
+def _build_invariant_dispatch_role_order(
+    native_subagent_bridge: dict[str, Any],
+) -> list[str]:
+    """Place the pre-fix pair after coordinator without changing role membership."""
+
+    spawnable_roles = _spawnable_role_order_from_bridge(native_subagent_bridge)
+    required_prefix = [
+        "agent-coordinator",
+        *INVARIANT_REVIEW_REQUIRED_ROLES,
+    ]
+    missing_roles = [
+        agent_slug for agent_slug in required_prefix if agent_slug not in spawnable_roles
+    ]
+    if missing_roles:
+        raise ValueError(
+            "invariant review dispatch is missing required spawnable roles: "
+            + ", ".join(missing_roles)
+        )
+    return [
+        *required_prefix,
+        *[agent_slug for agent_slug in spawnable_roles if agent_slug not in required_prefix],
+    ]
+
+
 def _build_role_agent_dispatch_contract(
     *,
     native_subagent_bridge: dict[str, Any] | None = None,
     pr_phase: str = PR_PHASE_NONE,
+    dispatch_role_order: list[str] | None = None,
 ) -> dict[str, Any]:
     """Return deterministic metadata for the post-bootstrap role dispatch step."""
 
@@ -737,7 +873,7 @@ def _build_role_agent_dispatch_contract(
         and pr_phase not in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}
         else []
     )
-    return {
+    contract = {
         "packet_creation_executes_roles": False,
         "role_agent_dispatch_required": True,
         "role_agent_dispatch_hard_gate": True,
@@ -756,6 +892,9 @@ def _build_role_agent_dispatch_contract(
         "missing_role_execution_blocks_readiness": True,
         "mandatory_pre_open_gates": [dict(gate) for gate in MANDATORY_PRE_OPEN_GATES],
     }
+    if dispatch_role_order is not None:
+        contract["dispatch_role_order"] = list(dispatch_role_order)
+    return contract
 
 
 def _apply_pr_lifecycle_review_path(
@@ -1150,6 +1289,7 @@ def build_task_packet(
     task_class: str,
     candidate_paths: list[str],
     requested_agents: list[str] | tuple[str, ...] = (),
+    invariant_change_classes: list[str] | tuple[str, ...] = (),
     pr_phase: str = PR_PHASE_NONE,
     design_source: str | None = None,
     source_url: str | None = None,
@@ -1169,6 +1309,21 @@ def build_task_packet(
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
+    normalized_pr_phase = _normalize_pr_phase(pr_phase)
+    invariant_review_decision = classify_invariant_review(
+        candidate_paths=candidate_paths,
+        explicit_classes=invariant_change_classes,
+    )
+    invariant_review_required_now = _invariant_review_required_now(
+        invariant_review_decision,
+        pr_phase=normalized_pr_phase,
+    )
+    if creative_pilot_workspace_path is not None and invariant_review_required_now:
+        raise ValueError(
+            "creative pilot dispatch cannot include a parser, validator, guard, "
+            "or authority mechanism change; create a separate ordinary pre-open "
+            "invariant-review packet without --creative-pilot-workspace"
+        )
     normalized_paths = repo_relative_paths(
         [path.strip() for path in candidate_paths if path.strip()]
     )
@@ -1190,7 +1345,6 @@ def build_task_packet(
     normalized_requested_agents = normalize_requested_agents(
         pilot_roles if creative_pilot_context is not None else requested_agents
     )
-    normalized_pr_phase = _normalize_pr_phase(pr_phase)
     if creative_pilot_context is not None and normalized_pr_phase in {
         PR_PHASE_POST_OPEN_REVIEW,
         PR_PHASE_MERGE_READY,
@@ -1251,6 +1405,7 @@ def build_task_packet(
                 }
             )
         ),
+        invariant_review_fingerprint=invariant_review_decision.fingerprint,
     )
     context_pack = collect_context_pack(
         normalized_paths,
@@ -1298,6 +1453,12 @@ def build_task_packet(
         secondary_agents=requested_agent_resolution["secondary_agents"],
         reviewer=requested_agent_resolution["reviewer"],
     )
+    if invariant_review_required_now:
+        requested_agent_resolution["secondary_agents"] = _append_system_invariant_review_roles(
+            primary_agent=requested_agent_resolution["primary_agent"],
+            secondary_agents=requested_agent_resolution["secondary_agents"],
+            reviewer=requested_agent_resolution["reviewer"],
+        )
     if creative_pilot_context is not None:
         exact_roles = list(dict.fromkeys(pilot_roles))
         requested_agent_resolution = {
@@ -1334,6 +1495,13 @@ def build_task_packet(
         learning_loop_semantic_triggers
     )
     forced_executable_agents = {"security-auditor"} if security_review_required else set()
+    if invariant_review_required_now:
+        forced_executable_agents.update(
+            {
+                "agent-coordinator",
+                *INVARIANT_REVIEW_REQUIRED_ROLES,
+            }
+        )
     if normalized_pr_phase == PR_PHASE_POST_OPEN_REVIEW:
         forced_executable_agents.update(POST_OPEN_REVIEW_LANE)
     if forced_executable_agents:
@@ -1359,6 +1527,11 @@ def build_task_packet(
         reviewer=requested_agent_resolution["reviewer"],
         advisory_agents=advisory_agents,
         transport=native_bridge_transport,
+    )
+    invariant_dispatch_role_order = (
+        _build_invariant_dispatch_role_order(native_subagent_bridge)
+        if invariant_review_required_now
+        else None
     )
     judgment_activation = _validated_judgment_activation(
         require_bootstrap_lane_activation(
@@ -1485,6 +1658,10 @@ def build_task_packet(
         "reviewer": requested_agent_resolution["reviewer"],
         "requested_agents": normalized_requested_agents,
         "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
+        "invariant_review": _build_invariant_review_packet(
+            invariant_review_decision,
+            required_now=invariant_review_required_now,
+        ),
         "required_context": context_pack,
         "context_pack_compression": dict(
             context_compression_to_stable_mapping(context_pack_compression)
@@ -1571,6 +1748,7 @@ def build_task_packet(
             "skill_routing_applied": True,
             "native_subagent_bridge_available": True,
             "security_review_required": security_review_required,
+            "invariant_class_review_required": invariant_review_required_now,
             "judgment_lane_enabled": judgment_enabled,
             "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
             "design_lane_enabled": design_lane_enabled,
@@ -1578,6 +1756,7 @@ def build_task_packet(
         "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(
             native_subagent_bridge=native_subagent_bridge,
             pr_phase=normalized_pr_phase,
+            dispatch_role_order=invariant_dispatch_role_order,
         ),
         "pr_phase": normalized_pr_phase,
         "pr_lifecycle_contract": pr_lifecycle_contract,
@@ -1633,6 +1812,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="append",
         default=[],
         help="Optional requested agent slug. May be repeated.",
+    )
+    parser.add_argument(
+        "--invariant-change-class",
+        action="append",
+        choices=INVARIANT_CHANGE_CLASSES,
+        default=[],
+        help=("Explicit parser/validator/guard/authority mechanism class. " "May be repeated."),
     )
     parser.add_argument(
         "--pr-phase",
@@ -1717,6 +1903,7 @@ def main(argv: list[str] | None = None) -> int:
             task_class=args.task_class,
             candidate_paths=args.path,
             requested_agents=args.requested_agent,
+            invariant_change_classes=args.invariant_change_class,
             pr_phase=args.pr_phase,
             design_source=args.design_source,
             source_url=args.source_url,

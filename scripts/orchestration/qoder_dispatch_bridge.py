@@ -24,6 +24,7 @@ Usage examples::
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import re
 import sys
@@ -431,6 +432,80 @@ def _known_role_slugs_from_text(text: str, known: set[str]) -> List[str]:
     return slugs
 
 
+def _validated_dispatch_role_order(
+    payload: Dict[str, Any],
+    *,
+    spawnable_roles: List[str],
+) -> Optional[List[str]]:
+    """Validate the fail-closed invariant-review dispatch order when present."""
+
+    invariant_review = payload.get("invariant_review")
+    review_requires_order = (
+        isinstance(invariant_review, dict) and invariant_review.get("state") == "required_pending"
+    )
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if not isinstance(role_dispatch_contract, dict):
+        if review_requires_order:
+            raise ValueError(
+                "required_pending invariant review requires role_agent_dispatch_contract"
+            )
+        return None
+    if "dispatch_role_order" not in role_dispatch_contract:
+        if review_requires_order:
+            raise ValueError("required_pending invariant review requires dispatch_role_order")
+        return None
+
+    raw_order = role_dispatch_contract["dispatch_role_order"]
+    if not isinstance(raw_order, list) or not raw_order:
+        raise ValueError("dispatch_role_order must be a non-empty JSON list")
+    dispatch_order: List[str] = []
+    for raw_slug in raw_order:
+        if not isinstance(raw_slug, str):
+            raise ValueError("dispatch_role_order entries must be strings")
+        if raw_slug != raw_slug.strip() or not _ROLE_SLUG_RE.fullmatch(raw_slug):
+            raise ValueError(
+                f"dispatch_role_order contains a non-canonical role slug: {raw_slug!r}"
+            )
+        dispatch_order.append(raw_slug)
+    if len(dispatch_order) != len(set(dispatch_order)):
+        raise ValueError("dispatch_role_order must not contain duplicate roles")
+    if dispatch_order[0] != "agent-coordinator":
+        raise ValueError("dispatch_role_order must start with agent-coordinator")
+    if Counter(dispatch_order) != Counter(spawnable_roles):
+        raise ValueError("dispatch_role_order must exactly match spawnable native bridge bindings")
+
+    if not isinstance(invariant_review, dict):
+        raise ValueError("dispatch_role_order requires invariant_review metadata")
+    if invariant_review.get("schema_version") != "invariant_review.v1":
+        raise ValueError("dispatch_role_order requires invariant_review.v1")
+    if invariant_review.get("state") != "required_pending":
+        raise ValueError("dispatch_role_order requires required_pending invariant review")
+    if invariant_review.get("required_roles") != [
+        "logic-agent",
+        "philosophy-agent",
+    ]:
+        raise ValueError(
+            "required_pending invariant review requires logic-agent then philosophy-agent"
+        )
+    if invariant_review.get("implementation_authority") is not False:
+        raise ValueError("invariant review must not grant implementation authority")
+    if invariant_review.get("merge_authority") is not False:
+        raise ValueError("invariant review must not grant merge authority")
+    if dispatch_order[:3] != [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+    ]:
+        raise ValueError(
+            "dispatch_role_order must start agent-coordinator -> logic-agent " "-> philosophy-agent"
+        )
+    if payload.get("pr_phase") not in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}:
+        raise ValueError("invariant review dispatch is limited to opening PR phases")
+    if payload.get("creative_pilot_context") is not None:
+        raise ValueError("invariant review dispatch cannot be combined with creative pilot context")
+    return dispatch_order
+
+
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
@@ -478,6 +553,12 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     add_slug(bridge.get("reviewer"))
     if not ordered:
         return []
+    dispatch_role_order = _validated_dispatch_role_order(
+        payload,
+        spawnable_roles=ordered,
+    )
+    if dispatch_role_order is not None:
+        return dispatch_role_order
     requested_agents = payload.get("requested_agents")
     if isinstance(requested_agents, list):
         available_counts: Dict[str, int] = {}
@@ -509,6 +590,18 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
             *ordered[coordinator_index + 1 :],
         ]
     return ["agent-coordinator", *ordered]
+
+
+def _json_packet_has_dispatch_role_order(packet_path: Path) -> bool:
+    """Return whether a JSON packet declares the canonical dispatch order."""
+
+    payload = _load_json_packet(packet_path)
+    if payload is None:
+        return False
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    return isinstance(role_dispatch_contract, dict) and (
+        "dispatch_role_order" in role_dispatch_contract
+    )
 
 
 def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
@@ -1201,11 +1294,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         enforce_mandatory_post_open_tail = not (
             _json_packet_requested_order_preserves_mandatory_tail(packet_path)
         )
-        role_slugs = _parse_packet_roles(packet_path)
+        try:
+            role_slugs = _parse_packet_roles(packet_path)
+        except ValueError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
         # Extract bracket-notation parallelizable groups from packet
         packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
         packet_bracket_groups = _extract_bracket_groups(packet_lines) or None
         packet_chained_successors = _extract_chain_successors(packet_lines) or None
+        if _json_packet_has_dispatch_role_order(packet_path):
+            packet_chained_successors = set(role_slugs[1:])
+            enforce_mandatory_post_open_tail = False
         try:
             packet_source = str(packet_path.relative_to(REPO_ROOT))
         except ValueError:

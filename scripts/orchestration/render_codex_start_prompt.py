@@ -13,6 +13,9 @@ from typing import Any, Iterable
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.bootstrap_sync_policy import INVARIANT_CHANGE_CLASSES
+
 DEFAULT_PR_REVIEW_CHECKLIST = (
     "agent-coordinator",
     "architecture-specialist",
@@ -329,6 +332,7 @@ def render_recipe_prompt(
     worktree: str = "",
     paths: list[str],
     requested_agents: list[str],
+    invariant_change_classes: list[str] | None = None,
     preflight_ran: bool = True,
 ) -> str:
     """Render the pre-task-bootstrap helper prompt block."""
@@ -353,6 +357,8 @@ def render_recipe_prompt(
             f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
             f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
             f"Path scope: {_prompt_list(paths, '<no explicit paths>')}",
+            "Invariant change classes: "
+            f"{_prompt_list(_unique(invariant_change_classes or []), '<none>')}",
             f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
             f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
             "",
@@ -392,6 +398,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     recipe_parser.add_argument("--branch", default="")
     recipe_parser.add_argument("--worktree", default="")
     recipe_parser.add_argument("--path", action="append", default=[])
+    recipe_parser.add_argument(
+        "--invariant-change-class",
+        action="append",
+        choices=INVARIANT_CHANGE_CLASSES,
+        default=[],
+    )
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
     recipe_parser.add_argument("--preflight-ran", action="store_true")
     return parser.parse_args(argv)
@@ -423,6 +435,7 @@ def main(argv: list[str] | None = None) -> int:
                 worktree=args.worktree,
                 paths=args.path,
                 requested_agents=args.requested_agent,
+                invariant_change_classes=args.invariant_change_class,
                 preflight_ran=args.preflight_ran,
             )
         )

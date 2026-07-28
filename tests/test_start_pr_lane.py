@@ -102,6 +102,10 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
         "scripts/orchestration/start_pr_lane.sh",
         "--requested-agent",
         "qa-engineer-agent",
+        "--invariant-change-class",
+        "validator",
+        "--invariant-change-class",
+        "authority",
         "--plugin",
         "GitHub",
         "--plugin",
@@ -123,6 +127,13 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "--path scripts/orchestration/start_pr_lane.sh" in result.stdout
     assert "--requested-agent agent-coordinator" in result.stdout
     assert "--requested-agent qa-engineer-agent" in result.stdout
+    assert "--invariant-change-class validator" in result.stdout
+    assert "--invariant-change-class authority" in result.stdout
+    assert result.stdout.index("--invariant-change-class validator") < result.stdout.index(
+        "--invariant-change-class authority"
+    )
+    paste_block = result.stdout.partition("Paste into Codex now:")[2]
+    assert "Invariant change classes: validator, authority" in paste_block
     assert "Plugin/runtime checklist (operator-confirmed, non-blocking):" in result.stdout
     assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
     assert "Paste into Codex now:" in result.stdout
@@ -171,6 +182,21 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
         "security-auditor, qa-engineer-agent, bug-hunter, dev-operator"
     ) in result.stdout
     assert "automatically start" not in result.stdout.lower()
+
+
+def test_start_pr_lane_rejects_invalid_invariant_change_class() -> None:
+    """The launcher must not normalize unknown, case-shifted mechanism classes."""
+
+    result = run_start(
+        *_required_args(),
+        "--invariant-change-class",
+        "Guard",
+        "--dry-run",
+    )
+
+    assert result.returncode == 2
+    assert "--invariant-change-class must be one of" in result.stderr
+    assert "PulsePlate PR lane start" not in result.stdout
 
 
 def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None:
