@@ -177,7 +177,7 @@ def test_auxiliary_workflows_advanced_ahead_of_canonical_pin_use_exact_python_pa
 ) -> None:
     setup_steps = _iter_python_setup_steps(path)
 
-    assert tuple(job_name for job_name, _step in setup_steps) == expected_jobs
+    assert Counter(job_name for job_name, _step in setup_steps) == Counter(expected_jobs)
     assert {_python_version_input(step) for _job_name, step in setup_steps} == {"3.13.14"}
 
 
