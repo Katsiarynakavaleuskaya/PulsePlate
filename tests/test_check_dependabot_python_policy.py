@@ -14,6 +14,13 @@ from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+class _NoAliasSafeDumper(yaml.SafeDumper):
+    """Materialize test mutations without introducing YAML graph indirection."""
+
+    def ignore_aliases(self, data: object) -> bool:
+        return True
+
+
 def _copy_policy_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     (repo / ".github").mkdir(parents=True)
@@ -39,7 +46,7 @@ def _load_config(repo: Path) -> dict[str, object]:
 
 def _write_config(repo: Path, config: dict[str, object]) -> None:
     (repo / policy.CONFIG_PATH).write_text(
-        yaml.safe_dump(config, sort_keys=False),
+        yaml.dump(config, Dumper=_NoAliasSafeDumper, sort_keys=False),
         encoding="utf-8",
     )
 
@@ -124,7 +131,7 @@ def test_cyclic_yaml_alias_fails_closed_with_cli_shape(
 
     errors = policy.validate_repo(repo)
 
-    assert errors == [".github/dependabot.yml:$:cyclic YAML aliases are forbidden"]
+    assert errors == [".github/dependabot.yml:$:YAML anchors and aliases are forbidden"]
 
     exit_code = policy.main(["--repo-root", str(repo)])
     captured = capsys.readouterr()
@@ -133,6 +140,32 @@ def test_cyclic_yaml_alias_fails_closed_with_cli_shape(
     assert captured.out == f"{errors[0]}\n"
     assert captured.err == ""
     assert "Traceback" not in captured.out
+
+
+@pytest.mark.parametrize(
+    "alias_yaml",
+    [
+        "version: &version 2\nregistries: {}\nupdates: []\n",
+        (
+            "version: 2\n"
+            "registries: {}\n"
+            "updates: []\n"
+            "leaf: &leaf {}\n"
+            "level1: &level1 [*leaf, *leaf, *leaf, *leaf]\n"
+            "level2: [*level1, *level1, *level1, *level1]\n"
+        ),
+    ],
+)
+def test_every_yaml_graph_indirection_is_rejected_before_construction(
+    tmp_path: Path,
+    alias_yaml: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / policy.CONFIG_PATH).write_text(alias_yaml, encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [".github/dependabot.yml:$:YAML anchors and aliases are forbidden"]
 
 
 def test_mixed_scalar_yaml_keys_return_deterministic_errors(tmp_path: Path) -> None:
@@ -147,7 +180,7 @@ def test_mixed_scalar_yaml_keys_return_deterministic_errors(tmp_path: Path) -> N
 
     assert any(
         error.startswith(".github/dependabot.yml:$:root keys must be exactly")
-        and "got [1, 'registries', 'updates', 'version']" in error
+        and "got key_count=4" in error
         for error in errors
     )
 
@@ -231,7 +264,7 @@ def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
     assert sentinel not in "\n".join(errors)
     assert any(
         f"registries.{policy.REGISTRY_NAME}.{credential_key}:must be" in error
-        and "got <redacted>" in error
+        and "got string" in error
         for error in errors
     )
 
@@ -266,7 +299,7 @@ def test_registry_url_userinfo_is_redacted_from_errors_and_cli_output(
     assert userinfo_first not in "\n".join(errors)
     assert userinfo_second not in "\n".join(errors)
     assert any(
-        f"registries.{policy.REGISTRY_NAME}.url:must be" in error and "got <redacted>" in error
+        f"registries.{policy.REGISTRY_NAME}.url:must be" in error and "got string" in error
         for error in errors
     )
 
@@ -275,11 +308,49 @@ def test_registry_url_userinfo_is_redacted_from_errors_and_cli_output(
 
     assert exit_code == 1
     assert f"registries.{policy.REGISTRY_NAME}.url:must be" in captured.out
-    assert "got <redacted>" in captured.out
+    assert "got string" in captured.out
     assert userinfo_first not in captured.out
     assert userinfo_first not in captured.err
     assert userinfo_second not in captured.out
     assert userinfo_second not in captured.err
+
+
+def test_all_untrusted_yaml_keys_and_values_are_structurally_redacted(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    root_key_sentinel = "root-key-must-not-leak"
+    value_sentinel = "value-must-not-leak"
+    pattern_sentinel = "pattern-must-not-leak"
+    config[root_key_sentinel] = value_sentinel
+    update = _pip_update(config)
+    update["directory"] = value_sentinel
+    groups = _groups(config)
+    runtime_web = groups["runtime-web"]
+    assert isinstance(runtime_web, dict)
+    runtime_web["patterns"] = [pattern_sentinel]
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+    rendered = "\n".join(errors)
+
+    assert root_key_sentinel not in rendered
+    assert value_sentinel not in rendered
+    assert pattern_sentinel not in rendered
+    assert "got key_count=" in rendered
+    assert "got string" in rendered
+    assert "got list(len=1)" in rendered
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert root_key_sentinel not in captured.out
+    assert value_sentinel not in captured.out
+    assert pattern_sentinel not in captured.out
+    assert captured.err == ""
 
 
 @pytest.mark.parametrize("credential_key", ["username", "password"])
@@ -364,9 +435,10 @@ def test_update_block_rejects_behavior_and_scope_keys_outside_policy(
 
     assert any(
         error.startswith(".github/dependabot.yml:updates[0]:keys must be exactly")
-        and unexpected_key in error
+        and "got key_count=9" in error
         for error in errors
     )
+    assert unexpected_key not in "\n".join(errors)
 
 
 def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
@@ -503,7 +575,19 @@ def test_direct_package_must_have_exactly_one_owner_group(tmp_path: Path) -> Non
     )
 
 
-def test_known_package_cannot_match_multiple_groups(tmp_path: Path) -> None:
+def test_known_package_cannot_match_multiple_groups(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_groups = {
+        name: dict(group_contract) for name, group_contract in policy.EXPECTED_GROUPS.items()
+    }
+    expected_security = expected_groups["runtime-security-sensitive"]
+    expected_patterns = expected_security["patterns"]
+    assert isinstance(expected_patterns, tuple)
+    expected_security["patterns"] = (*expected_patterns, "fastapi")
+    monkeypatch.setattr(policy, "EXPECTED_GROUPS", expected_groups)
+
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
     security = _groups(config)["runtime-security-sensitive"]
@@ -521,7 +605,23 @@ def test_known_package_cannot_match_multiple_groups(tmp_path: Path) -> None:
     )
 
 
-def test_catch_all_and_zero_match_patterns_are_rejected(tmp_path: Path) -> None:
+def test_catch_all_and_zero_match_patterns_are_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_groups = {
+        name: dict(group_contract) for name, group_contract in policy.EXPECTED_GROUPS.items()
+    }
+    expected_security = expected_groups["runtime-security-sensitive"]
+    expected_patterns = expected_security["patterns"]
+    assert isinstance(expected_patterns, tuple)
+    expected_security["patterns"] = (
+        *expected_patterns,
+        "*",
+        "package-that-does-not-exist",
+    )
+    monkeypatch.setattr(policy, "EXPECTED_GROUPS", expected_groups)
+
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
     security = _groups(config)["runtime-security-sensitive"]

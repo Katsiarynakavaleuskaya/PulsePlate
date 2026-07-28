@@ -196,6 +196,26 @@ def _sorted_keys(keys: Iterable[object]) -> list[object]:
     return sorted(keys, key=lambda key: (type(key).__name__, repr(key)))
 
 
+def _value_shape(value: object) -> str:
+    """Describe untrusted YAML structurally without rendering its content."""
+
+    if isinstance(value, Mapping):
+        return f"mapping(len={len(value)})"
+    if isinstance(value, list):
+        return f"list(len={len(value)})"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if value is None:
+        return "null"
+    return type(value).__name__
+
+
 def _safe_yaml_error_message(exc: yaml.YAMLError) -> str:
     """Describe YAML failures without rendering source buffers or scalar values."""
 
@@ -218,43 +238,28 @@ def _walk_mapping(
 ) -> Iterator[tuple[str, Mapping[object, object]]]:
     if isinstance(value, Mapping):
         yield path, value
+        safe_keys = (
+            EXPECTED_UPDATE_KEYS
+            | set(EXPECTED_GROUPS)
+            | {"applies-to", "patterns", "update-types"}
+            | FORBIDDEN_UPDATE_KEYS
+        )
         for key, child in value.items():
-            child_path = f"{path}.{key}" if path else str(key)
+            key_component = key if isinstance(key, str) and key in safe_keys else "<mapping-value>"
+            child_path = f"{path}.{key_component}" if path else key_component
             yield from _walk_mapping(child, child_path)
     elif isinstance(value, list):
         for index, child in enumerate(value):
             yield from _walk_mapping(child, f"{path}[{index}]")
 
 
-def _contains_cyclic_yaml_alias(
-    value: object,
-    active_container_ids: set[int] | None = None,
-) -> bool:
-    """Detect cyclic aliases without rendering user-controlled YAML values."""
+def _contains_yaml_anchor_or_alias(text: str) -> bool:
+    """Reject YAML graph indirection before constructing the fixed-schema object."""
 
-    if not isinstance(value, (Mapping, list)):
-        return False
-    if active_container_ids is None:
-        active_container_ids = set()
-    container_id = id(value)
-    if container_id in active_container_ids:
-        return True
-
-    active_container_ids.add(container_id)
-    try:
-        if isinstance(value, Mapping):
-            children: Iterable[object] = value.values()
-        else:
-            children = value
-        for child in children:
-            if _contains_cyclic_yaml_alias(
-                child,
-                active_container_ids,
-            ):
-                return True
-    finally:
-        active_container_ids.remove(container_id)
-    return False
+    return any(
+        isinstance(event, yaml.events.AliasEvent) or getattr(event, "anchor", None) is not None
+        for event in yaml.parse(text, Loader=yaml.SafeLoader)
+    )
 
 
 def _normalized_pattern(pattern: str) -> str:
@@ -290,7 +295,6 @@ def _validate_exact_mapping(
     expected: Mapping[str, object],
     key_path: str,
     errors: list[str],
-    redacted_keys: frozenset[str] = frozenset(),
 ) -> None:
     if not isinstance(actual, Mapping):
         errors.append(_error(key_path, "must be a mapping"))
@@ -302,16 +306,15 @@ def _validate_exact_mapping(
             _error(
                 key_path,
                 f"keys must be exactly {_sorted_keys(expected_keys)!r}; "
-                f"got {_sorted_keys(actual_keys)!r}",
+                f"got key_count={len(actual_keys)}",
             )
         )
     for key, expected_value in expected.items():
         if key in actual and actual[key] != expected_value:
-            actual_display = "<redacted>" if key in redacted_keys else repr(actual[key])
             errors.append(
                 _error(
                     f"{key_path}.{key}",
-                    f"must be {expected_value!r}; got {actual_display}",
+                    f"must be {expected_value!r}; got {_value_shape(actual[key])}",
                 )
             )
 
@@ -332,7 +335,7 @@ def _validate_groups(
             _error(
                 "updates[0].groups",
                 f"group names must be exactly {_sorted_keys(expected_names)!r}; "
-                f"got {_sorted_keys(actual_names)!r}",
+                f"got group_count={len(actual_names)}",
             )
         )
 
@@ -349,7 +352,7 @@ def _validate_groups(
                 _error(
                     key_path,
                     f"keys must be exactly {_sorted_keys(expected_keys)!r}; "
-                    f"got {_sorted_keys(group)!r}",
+                    f"got key_count={len(group)}",
                 )
             )
         for scalar_key in ("applies-to",):
@@ -357,7 +360,8 @@ def _validate_groups(
                 errors.append(
                     _error(
                         f"{key_path}.{scalar_key}",
-                        f"must be {expected[scalar_key]!r}; got {group.get(scalar_key)!r}",
+                        f"must be {expected[scalar_key]!r}; "
+                        f"got {_value_shape(group.get(scalar_key))}",
                     )
                 )
         for list_key in ("patterns", "update-types"):
@@ -367,11 +371,11 @@ def _validate_groups(
                 errors.append(
                     _error(
                         f"{key_path}.{list_key}",
-                        f"must be {expected_list!r}; got {actual!r}",
+                        f"must be {expected_list!r}; got {_value_shape(actual)}",
                     )
                 )
         patterns = group.get("patterns")
-        if isinstance(patterns, list) and all(isinstance(pattern, str) for pattern in patterns):
+        if patterns == list(expected["patterns"]):
             usable_groups[group_name] = tuple(patterns)
 
     direct_packages, known_packages = _known_packages(repo_root)
@@ -429,7 +433,11 @@ def validate_repo(repo_root: Path) -> list[str]:
         return errors
 
     try:
-        loader = UniqueKeyLoader(config_path.read_text(encoding="utf-8"))
+        config_text = config_path.read_text(encoding="utf-8")
+        if _contains_yaml_anchor_or_alias(config_text):
+            errors.append(_error("$", "YAML anchors and aliases are forbidden"))
+            return errors
+        loader = UniqueKeyLoader(config_text)
         try:
             config = loader.get_single_data()
         finally:
@@ -446,28 +454,29 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(config, Mapping):
         errors.append(_error("$", "root must be a mapping"))
         return errors
-    if _contains_cyclic_yaml_alias(config):
-        errors.append(_error("$", "cyclic YAML aliases are forbidden"))
-        return errors
 
     if config.get("version") != 2:
-        errors.append(_error("version", f"must be 2; got {config.get('version')!r}"))
+        errors.append(
+            _error(
+                "version",
+                f"must be 2; got {_value_shape(config.get('version'))}",
+            )
+        )
     if set(config) != {"version", "registries", "updates"}:
         errors.append(
             _error(
                 "$",
                 "root keys must be exactly ['registries', 'updates', 'version']; "
-                f"got {_sorted_keys(config)!r}",
+                f"got key_count={len(config)}",
             )
         )
 
     registries = config.get("registries")
     if not isinstance(registries, Mapping) or set(registries) != {REGISTRY_NAME}:
-        actual = _sorted_keys(registries) if isinstance(registries, Mapping) else registries
         errors.append(
             _error(
                 "registries",
-                f"must contain only {REGISTRY_NAME!r}; got {actual!r}",
+                f"must contain only {REGISTRY_NAME!r}; got {_value_shape(registries)}",
             )
         )
     else:
@@ -476,7 +485,6 @@ def validate_repo(repo_root: Path) -> list[str]:
             expected=REGISTRY_CONFIG,
             key_path=f"registries.{REGISTRY_NAME}",
             errors=errors,
-            redacted_keys=frozenset({"url", "username", "password"}),
         )
 
     updates = config.get("updates")
@@ -501,7 +509,7 @@ def validate_repo(repo_root: Path) -> list[str]:
             _error(
                 update_path,
                 f"keys must be exactly {_sorted_keys(EXPECTED_UPDATE_KEYS)!r}; "
-                f"got {_sorted_keys(update)!r}",
+                f"got key_count={len(update)}",
             )
         )
     for key, expected_value in EXPECTED_UPDATE_EXACT_VALUES.items():
@@ -510,7 +518,7 @@ def validate_repo(repo_root: Path) -> list[str]:
             errors.append(
                 _error(
                     f"{update_path}.{key}",
-                    f"must be exactly {expected_value!r}; got {actual_value!r}",
+                    f"must be exactly {expected_value!r}; got {_value_shape(actual_value)}",
                 )
             )
     _validate_exact_mapping(
