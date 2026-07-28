@@ -9,6 +9,13 @@ import subprocess
 import pytest
 
 import scripts.ci.ci_risk_profile as risk_profile
+from scripts.orchestration.pr_review_evidence import (
+    _DEPENDENCY_MANIFEST_BASENAMES as TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES,
+    _ROOT_REQUIREMENTS_MANIFEST_RE as TRUST_BOUNDARY_REQUIREMENTS_MANIFEST_RE,
+    OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
+    OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES,
+    protected_trust_boundary_paths,
+)
 
 
 def test_empty_changed_files_uses_default_risk_profile() -> None:
@@ -46,7 +53,7 @@ def test_docs_only_changes_skip_backend_blocking() -> None:
 
 def test_frontend_only_changes_skip_backend_blocking() -> None:
     profile = risk_profile.build_risk_profile(
-        ["frontend/src/components/Card.tsx", "frontend/package.json"],
+        ["frontend/src/components/Card.tsx"],
     )
 
     assert profile.frontend_only is True
@@ -164,9 +171,30 @@ def test_security_audit_helper_path_is_workflow_privileged() -> None:
 
 @pytest.mark.parametrize(
     "changed_file",
+    tuple(sorted(OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS)),
+)
+def test_every_protected_exact_path_routes_security(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.run_security is True
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    tuple(prefix + "authority-probe" for prefix in OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES),
+)
+def test_every_protected_prefix_routes_security(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.run_security is True
+
+
+@pytest.mark.parametrize(
+    "changed_file",
     (
         "requirements-dev.in",
         "requirements-dev.txt",
+        "requirements.in",
         "requirements-lock.txt",
         "requirements-test.in",
         "requirements-test.txt",
@@ -198,6 +226,73 @@ def test_dependabot_config_routes_bounded_backend_and_governance(
     assert profile.run_backend_blocking is True
     assert profile.run_security is True
     assert profile.contract_risk_groups == ("merge_governance",)
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "requirements.in",
+        "requirements.txt",
+        "requirements-dev.in",
+        "requirements-rag-vector-cpu.txt",
+    ),
+)
+def test_every_sampled_protected_python_manifest_routes_security(
+    changed_file: str,
+) -> None:
+    assert protected_trust_boundary_paths((changed_file,)) == (changed_file,)
+    assert risk_profile.build_risk_profile([changed_file]).run_security is True
+
+
+def test_dependency_manifest_basename_rules_match_trust_boundary_policy() -> None:
+    assert (
+        risk_profile._DEPENDENCY_MANIFEST_BASENAMES == TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES
+    )
+    assert (
+        risk_profile._REQUIREMENTS_MANIFEST_RE.pattern
+        == TRUST_BOUNDARY_REQUIREMENTS_MANIFEST_RE.pattern
+    )
+
+
+@pytest.mark.parametrize(
+    "basename",
+    (
+        *sorted(TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES),
+        "requirements-dev.in",
+        "requirements.in",
+        "requirements-rag-vector-cpu.txt",
+    ),
+)
+def test_nested_protected_dependency_manifests_route_backend_and_security(
+    basename: str,
+) -> None:
+    changed_file = f"nested/dependencies/{basename}"
+
+    assert protected_trust_boundary_paths((changed_file,)) == (changed_file,)
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "nested/Dockerfile",
+        "nested/REQUIREMENTS.md",
+        "nested/package.json.bak",
+        "nested/pyproject.toml.bak",
+        "nested/requirements--dev.in",
+        "nested/requirements-dev.in.bak",
+        "nested/requirements.md",
+    ),
+)
+def test_nested_dependency_manifest_lookalikes_remain_unrouted(changed_file: str) -> None:
+    assert protected_trust_boundary_paths((changed_file,)) == ()
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.backend_shared is False
+    assert profile.run_backend_blocking is False
+    assert profile.run_security is False
 
 
 def test_pull_request_template_is_workflow_privileged() -> None:
@@ -378,6 +473,7 @@ def test_security_audit_helper_change_routes_backend_and_security() -> None:
 
 
 EXPECTED_ROOT_BACKEND_SHARED_MODULES = (
+    "bmi_visualization.py",
     "llm.py",
     "main.py",
     "secure_config.py",
@@ -518,9 +614,83 @@ def test_collect_changed_files_fails_fast_on_git_timeout(
 
     with pytest.raises(
         RuntimeError,
-        match="git diff --name-only timed out after 60 seconds",
+        match="git diff --no-renames --name-only -z timed out after 60 seconds",
     ):
         risk_profile.collect_changed_files(base_sha="base", head_sha="head")
+
+
+def test_collect_changed_files_disables_rename_collapse_and_parses_nul_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def _run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        observed["argv"] = argv
+        observed["kwargs"] = kwargs
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout="docs/old.md\0app/main.py\0docs/élan.md\0".encode(),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(risk_profile, "GIT_BINARY", "/usr/bin/git")
+    monkeypatch.setattr(risk_profile.subprocess, "run", _run)
+
+    changed = risk_profile.collect_changed_files(base_sha="base", head_sha="head")
+
+    assert changed == ("docs/old.md", "app/main.py", "docs/élan.md")
+    assert observed["argv"] == [
+        "/usr/bin/git",
+        "diff",
+        "--no-renames",
+        "--name-only",
+        "-z",
+        "base...head",
+    ]
+    assert observed["kwargs"] == {
+        "cwd": risk_profile.REPO_ROOT,
+        "check": True,
+        "capture_output": True,
+        "text": False,
+        "timeout": risk_profile.GIT_DIFF_TIMEOUT_SECONDS,
+    }
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    ("conftest.py", "pytest_sharding.py", "tests/conftest.py"),
+)
+def test_pytest_control_paths_route_privileged_security(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.workflow_privileged is True
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        ".coveragerc",
+        ".nvmrc",
+        ".ruff.toml",
+        "frontend/.npmrc",
+        "pytest.ini",
+        "ruff.toml",
+        "setup.cfg",
+        "tox.ini",
+    ),
+)
+def test_alternate_tool_configs_route_privileged_security(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.workflow_privileged is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
 
 
 @pytest.mark.parametrize(

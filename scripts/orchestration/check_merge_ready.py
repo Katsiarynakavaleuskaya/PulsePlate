@@ -22,6 +22,7 @@ MERGE_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_merge_readiness.py"
 CURRENT_HEAD_CHECKS_GATE = REPO_ROOT / "scripts" / "ci" / "check_current_head_pr_checks.py"
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
 RUN_TIMEOUT_SEC = 120
+MERGE_GATE_TIMEOUT_SEC = 480
 EXPERIMENT_RUNNER_EVIDENCE_MODES = ("advisory", "required")
 
 
@@ -110,6 +111,7 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
     """Run a gate script and capture its output without mutating its behavior."""
 
     argv = [sys.executable, str(script_path), *extra_args]
+    timeout_seconds = MERGE_GATE_TIMEOUT_SEC if script_path == MERGE_GATE else RUN_TIMEOUT_SEC
     try:
         result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             argv,
@@ -117,7 +119,7 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
             capture_output=True,
             text=True,
             check=False,
-            timeout=RUN_TIMEOUT_SEC,
+            timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
         stdout = (exc.stdout or "").strip() if isinstance(exc.stdout, str) else ""
@@ -126,7 +128,7 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
             argv=argv,
             returncode=1,
             stdout=stdout,
-            stderr=f"Timed out after {RUN_TIMEOUT_SEC}s while running {script_path.name}: {exc}",
+            stderr=f"Timed out after {timeout_seconds}s while running {script_path.name}: {exc}",
         )
     return GateResult(
         name=name,

@@ -21,12 +21,17 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.orchestration.review_source_status import build_review_source_status
+from scripts.orchestration.pr_review_evidence import (
+    MaterialManifest,
+    ReviewEvidenceError,
+    compute_material_manifest,
+)
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.0.0"
 
 AGENTS_BASENAME = "AGENTS.md"
 
-DIFF_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$")
+DIFF_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$", re.DOTALL)
 LOCAL_PATH_RE = re.compile(
     r"(?i)(file://)?("
     r"/(?:Users|private|var|tmp|Volumes|etc|opt)/[^\s,)]+|"
@@ -50,6 +55,17 @@ class DiffStats:
     deletions: int
 
 
+def _summarize_diff_stats(files: list[DiffStats]) -> dict[str, int]:
+    additions = sum(entry.additions for entry in files)
+    deletions = sum(entry.deletions for entry in files)
+    return {
+        "files": len(files),
+        "additions": additions,
+        "deletions": deletions,
+        "changed_lines": additions + deletions,
+    }
+
+
 def _binary(name: str) -> str:
     path = shutil.which(name)
     if not path:
@@ -68,9 +84,23 @@ def _run_command(
     cwd: Path,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    run_env = os.environ.copy()
+    if args and Path(args[0]).name == "git":
+        # Git exports repository-local variables while running hooks. They
+        # override `git -C <repo>` and can silently redirect read-only review
+        # collection to the caller repository instead of the requested one.
+        run_env = {key: value for key, value in run_env.items() if not key.startswith("GIT_")}
+        run_env.update(
+            {
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "LC_ALL": "C",
+            }
+        )
     completed = subprocess.run(  # nosec B603: fixed argv flow via helper + absolute binaries only (remove-by: 2026-12-31, ref: ledger-p2-pulseplate-pr-review-context-collector)
         args,
         cwd=str(cwd),
+        env=run_env,
         text=True,
         check=False,
         capture_output=True,
@@ -256,7 +286,13 @@ def collect_scope_diff(
                 str(repo_root),
                 "diff",
                 "--numstat",
+                "-z",
+                "--no-renames",
+                "--diff-algorithm=myers",
+                "--no-ext-diff",
+                "--no-textconv",
                 f"{base_sha}..{head_sha}",
+                "--",
             ],
             cwd=repo_root,
         )
@@ -264,31 +300,22 @@ def collect_scope_diff(
         return [], {"files": 0, "additions": 0, "deletions": 0, "changed_lines": 0}, [str(exc)]
 
     files: list[DiffStats] = []
-    lines = 0
-    additions_total = 0
-    deletions_total = 0
-    for raw in completed.stdout.splitlines():
-        match = DIFF_NUMSTAT_RE.match(raw)
-        if not match:
+    for raw in completed.stdout.split("\0"):
+        if not raw:
             continue
+        match = DIFF_NUMSTAT_RE.fullmatch(raw)
+        if not match:
+            return (
+                [],
+                {"files": 0, "additions": 0, "deletions": 0, "changed_lines": 0},
+                ["Unable to parse NUL-delimited git diff --numstat output."],
+            )
         additions_raw, deletions_raw, path = match.groups()
         additions = 0 if additions_raw == "-" else int(additions_raw)
         deletions = 0 if deletions_raw == "-" else int(deletions_raw)
         files.append(DiffStats(path=path, additions=additions, deletions=deletions))
-        additions_total += additions
-        deletions_total += deletions
-        lines += additions + deletions
 
-    return (
-        files,
-        {
-            "files": len(files),
-            "additions": additions_total,
-            "deletions": deletions_total,
-            "changed_lines": lines,
-        },
-        [],
-    )
+    return files, _summarize_diff_stats(files), []
 
 
 def collect_local_head_sha(repo_root: Path) -> tuple[str, list[str]]:
@@ -393,12 +420,55 @@ def collect_review_context(
             cwd=repo_root,
         ).stdout.strip()
 
-    changed_file_stats, diff_summary, diff_warnings = collect_scope_diff(
+    material: dict[str, str] = {
+        "base_ref_oid": "",
+        "material_head_sha": "",
+        "material_digest": "",
+        "merge_base_sha": "",
+    }
+    manifest: MaterialManifest | None = None
+    if pr_number is not None and diff_base and diff_head:
+        try:
+            manifest = compute_material_manifest(
+                repo_root,
+                base_ref_oid=diff_base,
+                head_ref_oid=diff_head,
+                pr_number=pr_number,
+            )
+        except ReviewEvidenceError as exc:
+            warnings.append(f"Unable to compute canonical review material: {exc}")
+        else:
+            material = {
+                "base_ref_oid": manifest.base_ref_oid,
+                "material_head_sha": manifest.head_ref_oid,
+                "material_digest": manifest.digest,
+                "merge_base_sha": manifest.merge_base_sha,
+            }
+
+    raw_changed_file_stats, diff_summary, diff_warnings = collect_scope_diff(
         repo_root=repo_root,
-        base_sha=diff_base,
+        base_sha=manifest.merge_base_sha if manifest is not None else diff_base,
         head_sha=diff_head,
     )
     warnings.extend(diff_warnings)
+    raw_changed_files = [entry.path for entry in raw_changed_file_stats]
+    changed_file_stats = raw_changed_file_stats
+    if manifest is not None and not diff_warnings:
+        excluded_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+        material_paths = [entry.path for entry in manifest.entries]
+        diff_stats = {
+            entry.path: entry for entry in raw_changed_file_stats if entry.path != excluded_path
+        }
+        candidate_material_paths = [
+            entry.path for entry in raw_changed_file_stats if entry.path != excluded_path
+        ]
+        if len(candidate_material_paths) != len(set(candidate_material_paths)) or set(
+            candidate_material_paths
+        ) != set(material_paths):
+            warnings.append("Canonical review diff stats do not match the exact material path set.")
+        else:
+            changed_file_stats = [diff_stats[path] for path in material_paths]
+            diff_summary = _summarize_diff_stats(changed_file_stats)
 
     changed_files = [entry.path for entry in changed_file_stats]
     scoped_agents = discover_scoped_agents(repo_root=repo_root, changed_files=changed_files)
@@ -413,8 +483,6 @@ def collect_review_context(
         fixed_mapping_degraded_reason = ""
     else:
         fixed_mapping = collect_fixed_mapping_state(repo_root=repo_root, pr_number=pr_number)
-        if not fixed_mapping.get("exists"):
-            warnings.append("Fixed-mapping artifact is missing for this PR.")
         local_head_sha, local_head_warnings = collect_local_head_sha(repo_root)
         warnings.extend(local_head_warnings)
         fixed_mapping_degraded_reason = ""
@@ -433,7 +501,7 @@ def collect_review_context(
                     "checkout before treating mapping evidence as current PR truth."
                 )
             if repo_path and not diff_warnings:
-                present_in_pr_diff = repo_path in changed_files
+                present_in_pr_diff = repo_path in raw_changed_files
                 fixed_mapping["present_in_pr_diff"] = present_in_pr_diff
                 if not present_in_pr_diff:
                     degraded_reasons.append(
@@ -485,6 +553,7 @@ def collect_review_context(
             "head_ref": diff_head,
         },
         "pr": pr_metadata,
+        "material": material,
         "diff": {
             "summary": diff_summary,
             "files": [entry.__dict__ for entry in changed_file_stats],

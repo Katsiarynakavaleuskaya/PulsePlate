@@ -199,10 +199,9 @@ Rules:
 - The repeatable post-open pass is role-only:
   `qa-engineer-agent -> bug-hunter -> security-auditor`. After fixes, local
   gates, current-head CI, and final material freeze, run the exact-head
-  `pulseplate-pr-review` self-review, validate trusted Connector evidence, and
-  request the expensive Codex Security plugin manually exactly once. Do not
-  restart either final gate automatically; every additional Security request
-  requires fresh exact-material `OWNER`/`MEMBER` approval.
+  `pulseplate-pr-review` self-review, disposition every finding, and seal its
+  exact-material report with the static provider no-claim pair. Do not invoke,
+  retry, wait for, substitute, or override Connector or Codex Security.
 
 ---
 

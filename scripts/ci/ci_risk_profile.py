@@ -10,7 +10,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import fnmatch
 import json
-from pathlib import Path
+import os
+from pathlib import Path, PurePosixPath
+import re
 import subprocess  # nosec B404: subprocess is required for bounded local git diff execution (remove-by: 2026-09-30, ref: PR3-risk-topology)
 import sys
 import shutil
@@ -30,6 +32,7 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
 # Root-level backend modules that influence shared runtime or security posture
 # must route through backend-blocking CI even when they do not live under app/core.
 ROOT_BACKEND_SHARED_MODULES: tuple[str, ...] = (
+    "bmi_visualization.py",
     "llm.py",
     "main.py",
     "secure_config.py",
@@ -37,12 +40,46 @@ ROOT_BACKEND_SHARED_MODULES: tuple[str, ...] = (
     "signed_links.py",
 )
 
+# Keep dependency-manifest basename routing aligned with the protected
+# trust-boundary detector. Nested manifests are security-relevant regardless of
+# their directory, while unrelated exact-path controls remain root-scoped.
+_DEPENDENCY_MANIFEST_BASENAMES = frozenset(
+    {
+        "Cargo.lock",
+        "Cargo.toml",
+        "Gemfile",
+        "Gemfile.lock",
+        "Package.resolved",
+        "Package.swift",
+        "Pipfile",
+        "Pipfile.lock",
+        "Podfile",
+        "Podfile.lock",
+        "composer.json",
+        "composer.lock",
+        "constraints.txt",
+        "go.mod",
+        "go.sum",
+        "npm-shrinkwrap.json",
+        "package-lock.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "poetry.lock",
+        "pylock.toml",
+        "pyproject.toml",
+        "uv.lock",
+        "yarn.lock",
+    }
+)
+_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
+
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
     ".github/dependabot.yaml",
     ".github/dependabot.yml",
     "Dockerfile",
     "Makefile",
     "REQUIREMENTS.md",
+    "conftest.py",
     "constraints.txt",
     "docs/DEPENDENCY_MANAGEMENT.md",
     "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md",
@@ -50,6 +87,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     *ROOT_BACKEND_SHARED_MODULES,
     "mcp_pulseplate_server.py",
     "pyproject.toml",
+    "pytest_sharding.py",
     "pytest.ini",
     "requirements-ci-lite.in",
     "requirements-ci-lite.txt",
@@ -66,6 +104,7 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "requirements-rag-vector.txt",
     "requirements-rag-vector-cpu.in",
     "requirements-rag-vector-cpu.txt",
+    "requirements.in",
     "requirements-test.in",
     "requirements-test.txt",
     "scripts/ci_pip_audit.sh",
@@ -86,20 +125,53 @@ FRONTEND_EXACT: tuple[str, ...] = ("package.json", "package-lock.json", ".nvmrc"
 FRONTEND_PREFIXES: tuple[str, ...] = ("frontend/",)
 IOS_PREFIXES: tuple[str, ...] = ("ios/", "fastlane/")
 WORKFLOW_PRIVILEGED_EXACT: tuple[str, ...] = (
+    ".bandit",
+    ".bandit.yaml",
+    ".coveragerc",
+    ".dockerignore",
+    ".flake8",
     ".github/pull_request_template.md",
+    ".markdownlint.json",
+    ".nvmrc",
+    ".pre-commit-config.yaml",
+    ".ruff.toml",
+    ".secrets.baseline",
+    ".trivyignore",
+    ".yamllint",
     "AGENTS.md",
+    "Dockerfile",
     "RUNBOOK_AGENT.md",
+    "conftest.py",
+    "docs/design/figma-manifest.json",
+    "docs/telemetry/docker_image_baseline.production.json",
+    "docs/telemetry/docker_image_budget.production.json",
+    "pyrightconfig.json",
+    "pytest_sharding.py",
+    "pytest.ini",
+    "ruff.toml",
+    "setup.cfg",
+    "scripts/ci_bandit.sh",
     "scripts/ci_pip_audit.sh",
+    "scripts/design_guard.py",
+    "scripts/hooks/repo_python.sh",
+    "scripts/run-backend-tests-pre-commit.sh",
     "scripts/orchestration/check_agent_consistency.py",
     "scripts/orchestration/check_merge_ready.py",
     "scripts/orchestration/check_review_threads_disposition.py",
+    "tests/conftest.py",
+    "tests/test_dependency_security_guard.py",
+    "tests/test_repo_policy_guards.py",
+    "tox.ini",
+    "frontend/.npmrc",
 )
 WORKFLOW_PRIVILEGED_PREFIXES: tuple[str, ...] = (
     ".github/actions/",
+    ".github/codeql/extensions/",
     ".github/scripts/",
     ".github/workflows/",
     "docs/orchestration/",
     "scripts/ci/",
+    "trivy/",
 )
 MAIN_CI_DIAGNOSTIC_EXACT: tuple[str, ...] = (
     ".github/workflows/ci.yml",
@@ -292,8 +364,12 @@ def _is_workflow_privileged(path: str) -> bool:
 
 def _is_backend_shared(path: str) -> bool:
     normalized = _normalize_path(path)
-    return normalized in BACKEND_SHARED_EXACT or normalized.startswith(
-        BACKEND_SHARED_PREFIXES,
+    basename = PurePosixPath(normalized).name
+    return (
+        normalized in BACKEND_SHARED_EXACT
+        or normalized.startswith(BACKEND_SHARED_PREFIXES)
+        or basename in _DEPENDENCY_MANIFEST_BASENAMES
+        or _REQUIREMENTS_MANIFEST_RE.fullmatch(basename) is not None
     )
 
 
@@ -418,7 +494,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
 
 
 def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[str, ...]:
-    """Return changed files between two git revisions."""
+    """Return both sides of every changed path without rename collapsing."""
     if GIT_BINARY is None:
         raise RuntimeError("git executable not found in PATH")
     try:
@@ -426,20 +502,25 @@ def collect_changed_files(*, base_sha: str, head_sha: str) -> tuple[str, ...]:
             [
                 GIT_BINARY,
                 "diff",
+                "--no-renames",
                 "--name-only",
+                "-z",
                 f"{base_sha}...{head_sha}",
             ],
             cwd=REPO_ROOT,
             check=True,
             capture_output=True,
-            text=True,
+            text=False,
             timeout=GIT_DIFF_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
-            f"git diff --name-only timed out after {GIT_DIFF_TIMEOUT_SECONDS} seconds"
+            "git diff --no-renames --name-only -z timed out after "
+            f"{GIT_DIFF_TIMEOUT_SECONDS} seconds"
         ) from exc
-    return tuple(path for path in result.stdout.splitlines() if path.strip())
+    if not isinstance(result.stdout, bytes):
+        raise RuntimeError("git diff returned a non-bytes path payload")
+    return tuple(os.fsdecode(path) for path in result.stdout.split(b"\0") if path)
 
 
 def _write_github_outputs(path: Path, outputs: dict[str, str]) -> None:
