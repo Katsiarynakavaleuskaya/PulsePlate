@@ -484,11 +484,23 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(updates, list):
         errors.append(_error("updates", "must be a list"))
         return errors
-    pip_updates = [
-        (index, update)
-        for index, update in enumerate(updates)
-        if isinstance(update, Mapping) and update.get("package-ecosystem") == "pip"
-    ]
+    pip_updates: list[tuple[int, Mapping[Any, Any]]] = []
+    for index, candidate in enumerate(updates):
+        candidate_path = f"updates[{index}]"
+        if not isinstance(candidate, Mapping):
+            errors.append(_error(candidate_path, "must be a mapping"))
+            continue
+        package_ecosystem = candidate.get("package-ecosystem")
+        if not isinstance(package_ecosystem, str) or not package_ecosystem.strip():
+            errors.append(
+                _error(
+                    f"{candidate_path}.package-ecosystem",
+                    "must be a non-empty string",
+                )
+            )
+            continue
+        if package_ecosystem == "pip":
+            pip_updates.append((index, candidate))
     if len(pip_updates) != 1:
         errors.append(
             _error(

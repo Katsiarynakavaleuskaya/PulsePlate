@@ -382,6 +382,45 @@ def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("invalid_update", [42, None, ["pip"]])
+def test_non_mapping_update_siblings_fail_closed(
+    tmp_path: Path,
+    invalid_update: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    updates.append(invalid_update)
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert ".github/dependabot.yml:updates[1]:must be a mapping" in errors
+
+
+@pytest.mark.parametrize("package_ecosystem", [None, "", 42])
+def test_update_siblings_require_a_non_empty_package_ecosystem(
+    tmp_path: Path,
+    package_ecosystem: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    sibling: dict[str, object] = {"directory": "/"}
+    if package_ecosystem is not None:
+        sibling["package-ecosystem"] = package_ecosystem
+    updates.append(sibling)
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        ".github/dependabot.yml:updates[1].package-ecosystem:" "must be a non-empty string"
+    ) in errors
+
+
 def test_schedule_limit_and_cooldown_are_exact(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
