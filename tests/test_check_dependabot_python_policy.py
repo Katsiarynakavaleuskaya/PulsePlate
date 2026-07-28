@@ -100,6 +100,42 @@ def test_primary_config_symlink_fails_closed(tmp_path: Path) -> None:
     assert errors == [".github/dependabot.yml:$:required config must be a regular non-symlink file"]
 
 
+def test_primary_config_invalid_utf8_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / policy.CONFIG_PATH).write_bytes(b"\xff")
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [".github/dependabot.yml:$:invalid YAML: config must be UTF-8"]
+
+
+def test_primary_config_identity_swap_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config_path = repo / policy.CONFIG_PATH
+    target_path = config_path.with_name("dependabot-swap-target.yml")
+    real_open = policy.os.open
+    swapped = False
+
+    def _swap_before_open(path: str | bytes | Path, flags: int) -> int:
+        nonlocal swapped
+        if Path(path) == config_path and not swapped:
+            config_path.replace(target_path)
+            config_path.symlink_to(target_path.name)
+            swapped = True
+        return real_open(path, flags)
+
+    monkeypatch.setattr(policy.os, "open", _swap_before_open)
+
+    errors = policy.validate_repo(repo)
+
+    assert swapped is True
+    assert errors
+    assert errors[0].startswith(".github/dependabot.yml:$:required config")
+
+
 def test_duplicate_yaml_key_fails_closed_with_cli_shape(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     config_path = repo / policy.CONFIG_PATH
@@ -701,7 +737,7 @@ def test_direct_requirement_source_symlink_fails_closed(tmp_path: Path) -> None:
 
     errors = policy.validate_repo(repo)
 
-    assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
+    assert "requirements.in:$:policy input must be a regular non-symlink file" in errors
 
 
 @pytest.mark.parametrize("target_kind", ["missing", "directory"])
@@ -719,7 +755,7 @@ def test_every_direct_requirement_source_symlink_shape_fails_closed(
 
     errors = policy.validate_repo(repo)
 
-    assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
+    assert "requirements.in:$:policy input must be a regular non-symlink file" in errors
 
 
 def test_non_regular_direct_requirement_source_fails_closed_without_blocking(
@@ -732,7 +768,62 @@ def test_non_regular_direct_requirement_source_fails_closed_without_blocking(
 
     errors = policy.validate_repo(repo)
 
-    assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
+    assert "requirements.in:$:policy input must be a regular non-symlink file" in errors
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["symlink", "fifo", "invalid-utf8", "oversized"],
+)
+def test_lock_policy_input_class_fails_closed(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    lock_path = repo / "requirements.txt"
+    if mutation == "symlink":
+        target_path = repo / "requirements-lock-target.txt"
+        lock_path.replace(target_path)
+        lock_path.symlink_to(target_path.name)
+        expected = "policy input must be a regular non-symlink file"
+    elif mutation == "fifo":
+        lock_path.unlink()
+        os.mkfifo(lock_path)
+        expected = "policy input must be a regular non-symlink file"
+    elif mutation == "invalid-utf8":
+        lock_path.write_bytes(b"\xff")
+        expected = "policy input must be UTF-8"
+    else:
+        lock_path.write_bytes(b"a" * (policy.MAX_REQUIREMENT_SOURCE_BYTES + 1))
+        expected = f"policy input size exceeds limit {policy.MAX_REQUIREMENT_SOURCE_BYTES} bytes"
+
+    errors = policy.validate_repo(repo)
+
+    assert any(error.startswith("requirements.txt:$:") and expected in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "lock_line",
+    [
+        "-r nested-lock.txt",
+        "locked-package @ https://example.invalid/locked-package.whl",
+        "not a valid PEP 508 declaration @",
+    ],
+)
+def test_lock_grammar_never_silently_skips_unknown_carriers(
+    tmp_path: Path,
+    lock_line: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    lock_path = repo / "requirements.txt"
+    lock_path.write_text(
+        lock_path.read_text(encoding="utf-8") + f"{lock_line}\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert any(error.startswith("requirements.txt:") for error in errors)
 
 
 def test_direct_requirement_source_resource_budgets_fail_closed(tmp_path: Path) -> None:

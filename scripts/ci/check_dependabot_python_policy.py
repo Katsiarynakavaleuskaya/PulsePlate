@@ -20,10 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.ci.check_python_dependency_surfaces import (
-    DEPENDENCY_SURFACES,
-    _requirement_package_names,
-)
+from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 
 CONFIG_PATH = Path(".github/dependabot.yml")
 SHADOW_CONFIG_PATH = Path(".github/dependabot.yaml")
@@ -156,6 +153,11 @@ MAX_REQUIREMENT_SOURCE_BYTES = 64 * 1024
 MAX_REQUIREMENT_SOURCE_LINES = 4096
 MAX_REQUIREMENT_LINE_CHARS = 4096
 ALLOWED_REQUIREMENT_DIRECTIVES = {"-c requirements.txt"}
+ALLOWED_LOCK_DIRECTIVES = {"requirements-all.txt": {"-r requirements.txt"}}
+INPUT_UNREADABLE = "unreadable"
+INPUT_NON_REGULAR = "non_regular"
+INPUT_OVERSIZED = "oversized"
+INPUT_INVALID_UTF8 = "invalid_utf8"
 _YAML_CONTAINER_START_TOKENS = (
     yaml.tokens.FlowSequenceStartToken,
     yaml.tokens.FlowMappingStartToken,
@@ -307,76 +309,73 @@ def _source_error(relative_path: str | Path, location: str, message: str) -> str
     return f"{Path(relative_path).as_posix()}:{location}:{message}"
 
 
-def _strict_source_requirement_names(
+def _read_bounded_regular_utf8(
     repo_root: Path,
     relative_path: str | Path,
-) -> tuple[set[str], list[str]]:
-    """Parse the closed grammar accepted for direct dependency declarations."""
+    *,
+    max_bytes: int,
+) -> tuple[str | None, str | None]:
+    """Read one immutable regular policy input through a bounded descriptor."""
 
     path = repo_root / relative_path
     try:
         path_stat = path.lstat()
     except OSError:
-        return set(), [
-            _source_error(relative_path, "$", "direct dependency source could not be read")
-        ]
+        return None, INPUT_UNREADABLE
     if not stat.S_ISREG(path_stat.st_mode):
-        return set(), [
-            _source_error(
-                relative_path,
-                "$",
-                "direct dependency source must be a regular non-symlink file",
-            )
-        ]
+        return None, INPUT_NON_REGULAR
     open_flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         file_descriptor = os.open(path, open_flags)
     except OSError:
-        return set(), [
-            _source_error(relative_path, "$", "direct dependency source could not be read")
-        ]
+        return None, INPUT_UNREADABLE
     try:
-        source_stat = os.fstat(file_descriptor)
-        if not stat.S_ISREG(source_stat.st_mode) or (
-            source_stat.st_dev,
-            source_stat.st_ino,
+        descriptor_stat = os.fstat(file_descriptor)
+        if not stat.S_ISREG(descriptor_stat.st_mode) or (
+            descriptor_stat.st_dev,
+            descriptor_stat.st_ino,
         ) != (path_stat.st_dev, path_stat.st_ino):
-            return set(), [
-                _source_error(
-                    relative_path,
-                    "$",
-                    "direct dependency source must be a regular non-symlink file",
-                )
-            ]
-        if source_stat.st_size > MAX_REQUIREMENT_SOURCE_BYTES:
-            return set(), [
-                _source_error(
-                    relative_path,
-                    "$",
-                    f"source size exceeds limit {MAX_REQUIREMENT_SOURCE_BYTES} bytes",
-                )
-            ]
-        with os.fdopen(file_descriptor, "rb", closefd=False) as source:
-            source_bytes = source.read(MAX_REQUIREMENT_SOURCE_BYTES + 1)
+            return None, INPUT_NON_REGULAR
+        if descriptor_stat.st_size > max_bytes:
+            return None, INPUT_OVERSIZED
+        with os.fdopen(file_descriptor, "rb", closefd=False) as policy_input:
+            input_bytes = policy_input.read(max_bytes + 1)
     except OSError:
-        return set(), [
-            _source_error(relative_path, "$", "direct dependency source could not be read")
-        ]
+        return None, INPUT_UNREADABLE
     finally:
         os.close(file_descriptor)
 
-    if len(source_bytes) > MAX_REQUIREMENT_SOURCE_BYTES:
-        return set(), [
-            _source_error(
-                relative_path,
-                "$",
-                f"source size exceeds limit {MAX_REQUIREMENT_SOURCE_BYTES} bytes",
-            )
-        ]
+    if len(input_bytes) > max_bytes:
+        return None, INPUT_OVERSIZED
     try:
-        text = source_bytes.decode("utf-8")
+        return input_bytes.decode("utf-8"), None
     except UnicodeError:
-        return set(), [_source_error(relative_path, "$", "direct dependency source must be UTF-8")]
+        return None, INPUT_INVALID_UTF8
+
+
+def _policy_input_error(
+    relative_path: str | Path,
+    failure: str,
+    *,
+    max_bytes: int,
+) -> str:
+    messages = {
+        INPUT_UNREADABLE: "policy input could not be read",
+        INPUT_NON_REGULAR: "policy input must be a regular non-symlink file",
+        INPUT_OVERSIZED: f"policy input size exceeds limit {max_bytes} bytes",
+        INPUT_INVALID_UTF8: "policy input must be UTF-8",
+    }
+    return _source_error(relative_path, "$", messages[failure])
+
+
+def _strict_requirement_names_from_text(
+    text: str,
+    *,
+    relative_path: str | Path,
+    allowed_directives: set[str],
+    direct_source: bool,
+) -> tuple[set[str], list[str]]:
+    """Parse one closed requirements grammar without silently skipped carriers."""
 
     lines = text.splitlines()
     if len(lines) > MAX_REQUIREMENT_SOURCE_LINES:
@@ -403,14 +402,19 @@ def _strict_source_requirement_names(
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        if stripped in ALLOWED_REQUIREMENT_DIRECTIVES:
+        if stripped in allowed_directives:
             continue
         if stripped.startswith(("-", "--")):
+            directive_message = (
+                "unsupported requirement directive; only the canonical constraint is allowed"
+                if direct_source
+                else "unsupported lock directive"
+            )
             errors.append(
                 _source_error(
                     relative_path,
                     str(line_number),
-                    "unsupported requirement directive; only the canonical constraint is allowed",
+                    directive_message,
                 )
             )
             continue
@@ -448,22 +452,65 @@ def _strict_source_requirement_names(
     return names, errors
 
 
+def _strict_requirement_names(
+    repo_root: Path,
+    relative_path: str | Path,
+    *,
+    allowed_directives: set[str],
+    direct_source: bool,
+) -> tuple[set[str], list[str]]:
+    text, failure = _read_bounded_regular_utf8(
+        repo_root,
+        relative_path,
+        max_bytes=MAX_REQUIREMENT_SOURCE_BYTES,
+    )
+    if failure is not None:
+        return set(), [
+            _policy_input_error(
+                relative_path,
+                failure,
+                max_bytes=MAX_REQUIREMENT_SOURCE_BYTES,
+            )
+        ]
+    if text is None:
+        return set(), [
+            _policy_input_error(
+                relative_path,
+                INPUT_UNREADABLE,
+                max_bytes=MAX_REQUIREMENT_SOURCE_BYTES,
+            )
+        ]
+    return _strict_requirement_names_from_text(
+        text,
+        relative_path=relative_path,
+        allowed_directives=allowed_directives,
+        direct_source=direct_source,
+    )
+
+
 def _known_packages(repo_root: Path) -> tuple[set[str], set[str], list[str]]:
     direct: set[str] = set()
     known: set[str] = set()
     errors: list[str] = []
     for surface in DEPENDENCY_SURFACES:
         if surface.source_file is not None:
-            source_packages, source_errors = _strict_source_requirement_names(
+            source_packages, source_errors = _strict_requirement_names(
                 repo_root,
                 surface.source_file,
+                allowed_directives=ALLOWED_REQUIREMENT_DIRECTIVES,
+                direct_source=True,
             )
             direct.update(source_packages)
             known.update(source_packages)
             errors.extend(source_errors)
-        lock_path = repo_root / surface.lockfile
-        if lock_path.is_file():
-            known.update(_requirement_package_names(repo_root, surface.lockfile))
+        lock_packages, lock_errors = _strict_requirement_names(
+            repo_root,
+            surface.lockfile,
+            allowed_directives=ALLOWED_LOCK_DIRECTIVES.get(surface.lockfile, set()),
+            direct_source=False,
+        )
+        known.update(lock_packages)
+        errors.extend(lock_errors)
     return direct, known, errors
 
 
@@ -606,23 +653,26 @@ def validate_repo(repo_root: Path) -> list[str]:
     shadow_path = repo_root / SHADOW_CONFIG_PATH
     if shadow_path.exists() or shadow_path.is_symlink():
         errors.append(f"{SHADOW_CONFIG_PATH.as_posix()}:$:shadow Dependabot config is forbidden")
-    if config_path.is_symlink():
-        errors.append(_error("$", "required config must be a regular non-symlink file"))
+
+    config_text, input_failure = _read_bounded_regular_utf8(
+        repo_root,
+        CONFIG_PATH,
+        max_bytes=MAX_CONFIG_BYTES,
+    )
+    if input_failure is not None:
+        failure_messages = {
+            INPUT_UNREADABLE: "required config could not be read",
+            INPUT_NON_REGULAR: "required config must be a regular non-symlink file",
+            INPUT_OVERSIZED: f"config size exceeds limit {MAX_CONFIG_BYTES} bytes",
+            INPUT_INVALID_UTF8: "invalid YAML: config must be UTF-8",
+        }
+        errors.append(_error("$", failure_messages[input_failure]))
         return errors
-    if not config_path.is_file():
-        errors.append(_error("$", "required config is missing"))
+    if config_text is None:
+        errors.append(_error("$", "required config could not be read"))
         return errors
 
     try:
-        if config_path.stat().st_size > MAX_CONFIG_BYTES:
-            errors.append(
-                _error(
-                    "$",
-                    f"config size exceeds limit {MAX_CONFIG_BYTES} bytes",
-                )
-            )
-            return errors
-        config_text = config_path.read_text(encoding="utf-8")
         structure_violation = _yaml_structure_violation(config_text)
         if structure_violation is not None:
             errors.append(_error("$", structure_violation))
@@ -637,12 +687,6 @@ def validate_repo(repo_root: Path) -> list[str]:
         return errors
     except RecursionError:
         errors.append(_error("$", "invalid YAML: recursion limit exceeded"))
-        return errors
-    except UnicodeError:
-        errors.append(_error("$", "invalid YAML: config must be UTF-8"))
-        return errors
-    except OSError:
-        errors.append(_error("$", "invalid YAML: config could not be read"))
         return errors
     if not isinstance(config, Mapping):
         errors.append(_error("$", "root must be a mapping"))
