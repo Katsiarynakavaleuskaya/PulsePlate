@@ -62,8 +62,6 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
         "pre_open",
         "--requested-agent",
         "qa-engineer-agent",
-        "--invariant-change-class",
-        "guard",
         cwd=tmp_path,
     )
 
@@ -78,9 +76,6 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     assert "--pr-phase pre_open \\" in result.stdout
     assert "--path scripts/orchestration/local_session_bootstrap.sh \\" in result.stdout
     assert "--requested-agent qa-engineer-agent" in result.stdout
-    assert "--invariant-change-class guard" in result.stdout
-    paste_block = result.stdout.partition("Paste into Codex now:")[2]
-    assert "Invariant change classes: guard" in paste_block
     automation_matrix_line = "Automation matrix: docs/orchestration/AUTOMATION_READINESS_MATRIX.md"
     assert automation_matrix_line in result.stdout
     assert "Paste into Codex now:" in result.stdout
@@ -144,10 +139,6 @@ def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
         "qa-engineer-agent",
         "--requested-agent",
         "bug-hunter",
-        "--invariant-change-class",
-        "validator",
-        "--invariant-change-class",
-        "authority",
         cwd=tmp_path,
     )
 
@@ -158,8 +149,6 @@ def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
     second_path = "--path scripts/orchestration/local_session_bootstrap.sh"
     first_agent = "--requested-agent qa-engineer-agent"
     second_agent = "--requested-agent bug-hunter"
-    first_class = "--invariant-change-class validator"
-    second_class = "--invariant-change-class authority"
 
     assert first_path in command_block
     assert second_path in command_block
@@ -167,29 +156,9 @@ def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
     assert first_agent in command_block
     assert second_agent in command_block
     assert command_block.index(first_agent) < command_block.index(second_agent)
-    assert first_class in command_block
-    assert second_class in command_block
-    assert command_block.index(first_class) < command_block.index(second_class)
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent, bug-hunter" in (
         command_block
     )
-
-
-def test_local_session_bootstrap_rejects_invalid_invariant_change_class() -> None:
-    """The helper must reject malformed classes before running preflight."""
-
-    result = run_bootstrap(
-        "--goal",
-        "B0",
-        "--task-class",
-        "Orchestration",
-        "--invariant-change-class",
-        "Guard",
-    )
-
-    assert result.returncode == 2
-    assert "--invariant-change-class must be one of" in result.stderr
-    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_requires_goal_and_task_class_together() -> None:

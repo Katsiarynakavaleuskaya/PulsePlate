@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
+import subprocess
 import uuid
 from pathlib import Path
 
@@ -24,7 +26,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     matches_any_prefix,
     resolve_analysis_envelope_mode,
 )
-from scripts.orchestration.context_pack import repo_relative_paths
+from scripts.orchestration.context_pack import compute_task_packet_id, repo_relative_paths
 from scripts.orchestration.context_pack_compression import _ROLE_FINGERPRINT_RE
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
@@ -43,6 +45,7 @@ from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
 )
+from scripts.orchestration.render_codex_start_prompt import render_recipe_prompt
 from scripts.orchestration.shadow_reuse_telemetry import SHADOW_REUSE_FIELD
 from scripts.orchestration.skill_router import RESEARCH_POLICY_BUCKET_APPROVED
 from scripts.orchestration.task_bootstrap import (
@@ -3184,6 +3187,63 @@ def test_invariant_review_packet_id_uses_order_insensitive_class_set() -> None:
     assert first["task_packet_id"] != different["task_packet_id"]
 
 
+def test_invariant_review_packet_id_frames_class_identity_against_path_collisions() -> None:
+    """A class token must not collide with a same-named candidate path."""
+
+    common_kwargs = {
+        "goal": "Review mechanism scope",
+        "task_class": "Orchestration",
+        "requested_agents": [],
+        "pr_phase": "pre_open",
+    }
+    explicit_class = build_task_packet(
+        **common_kwargs,
+        candidate_paths=["zzz"],
+        invariant_change_classes=["guard"],
+    )
+    same_token_as_path = build_task_packet(
+        **common_kwargs,
+        candidate_paths=["guard", "zzz"],
+    )
+    different_path = build_task_packet(
+        **common_kwargs,
+        candidate_paths=["yyy"],
+        invariant_change_classes=["guard"],
+    )
+
+    assert explicit_class["task_packet_id"] != same_token_as_path["task_packet_id"]
+    assert explicit_class["task_packet_id"] != different_path["task_packet_id"]
+
+
+def test_invariant_review_empty_fingerprint_preserves_legacy_packet_id() -> None:
+    """No-class callers must keep the pre-G0 task packet identity."""
+
+    legacy_payload = "\n".join(
+        [
+            "Review product scope",
+            "Backend API",
+            "backend",
+            "pre_open",
+            "",
+            "",
+            "core/rag/simple_rag.py",
+            "backend-engineer",
+        ]
+    )
+
+    packet_id = compute_task_packet_id(
+        goal="Review product scope",
+        task_class="Backend API",
+        domain="backend",
+        candidate_paths=["core/rag/simple_rag.py"],
+        requested_agents=["backend-engineer"],
+        pr_phase="pre_open",
+        invariant_review_fingerprint="",
+    )
+
+    assert packet_id == hashlib.sha256(legacy_payload.encode("utf-8")).hexdigest()[:12]
+
+
 def test_invariant_review_does_not_repeat_during_post_open_review() -> None:
     """Post-open lifecycle keeps QA -> bug -> security without the pre-fix pair."""
 
@@ -3233,3 +3293,121 @@ def test_invariant_review_python_api_rejects_malformed_class() -> None:
             candidate_paths=["README.md"],
             invariant_change_classes=["Guard"],
         )
+
+
+def _run_invariant_launcher(
+    script_name: str,
+    *args: str,
+    cwd: Path = REPO_ROOT,
+) -> subprocess.CompletedProcess[str]:
+    """Exercise the real shell launcher boundary with captured output."""
+
+    bash_path = shutil.which("bash")
+    if bash_path is None:
+        raise RuntimeError("bash executable not found on PATH")
+    return subprocess.run(
+        [bash_path, str(REPO_ROOT / "scripts/orchestration" / script_name), *args],
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def test_invariant_review_launchers_forward_repeatable_classes_to_prompt(
+    tmp_path: Path,
+) -> None:
+    """Both canonical launchers must retain ordered classes through prompt handoff."""
+
+    local_session = _run_invariant_launcher(
+        "local_session_bootstrap.sh",
+        "--goal",
+        "Review guard authority",
+        "--task-class",
+        "Orchestration",
+        "--invariant-change-class",
+        "guard",
+        "--invariant-change-class",
+        "authority",
+        cwd=tmp_path,
+    )
+    start_lane = _run_invariant_launcher(
+        "start_pr_lane.sh",
+        "--goal",
+        "Review guard authority",
+        "--task-class",
+        "pr_governance",
+        "--branch",
+        "codex/invariant-launcher-test",
+        "--worktree",
+        "worktrees/invariant-launcher-test",
+        "--invariant-change-class",
+        "guard",
+        "--invariant-change-class",
+        "authority",
+        "--dry-run",
+    )
+
+    for result in (local_session, start_lane):
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.index("--invariant-change-class guard") < result.stdout.index(
+            "--invariant-change-class authority"
+        )
+        paste_block = result.stdout.partition("Paste into Codex now:")[2]
+        assert "Invariant change classes: guard, authority" in paste_block
+
+
+@pytest.mark.parametrize(
+    ("script_name", "base_args"),
+    [
+        (
+            "local_session_bootstrap.sh",
+            ("--goal", "Review guard", "--task-class", "Orchestration"),
+        ),
+        (
+            "start_pr_lane.sh",
+            (
+                "--goal",
+                "Review guard",
+                "--task-class",
+                "pr_governance",
+                "--branch",
+                "codex/invariant-launcher-test",
+                "--worktree",
+                "worktrees/invariant-launcher-test",
+                "--dry-run",
+            ),
+        ),
+    ],
+)
+def test_invariant_review_launchers_reject_case_shifted_classes(
+    script_name: str,
+    base_args: tuple[str, ...],
+) -> None:
+    """Shell entrypoints must reject case-shifted enum aliases."""
+
+    result = _run_invariant_launcher(
+        script_name,
+        *base_args,
+        "--invariant-change-class",
+        "Guard",
+    )
+
+    assert result.returncode == 2
+    assert "--invariant-change-class must be one of" in result.stderr
+
+
+def test_invariant_review_recipe_prompt_names_current_classes() -> None:
+    """The copy-paste handoff must expose the normalized class scope."""
+
+    prompt = render_recipe_prompt(
+        goal="Review guard authority",
+        task_class="Orchestration",
+        pr_phase="pre_open",
+        paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["logic-agent"],
+        invariant_change_classes=["guard", "authority"],
+    )
+
+    assert "Invariant change classes: guard, authority" in prompt
