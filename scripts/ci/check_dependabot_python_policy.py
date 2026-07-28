@@ -413,15 +413,13 @@ def _known_packages(repo_root: Path) -> tuple[set[str], set[str], list[str]]:
     errors: list[str] = []
     for surface in DEPENDENCY_SURFACES:
         if surface.source_file is not None:
-            source_path = repo_root / surface.source_file
-            if source_path.is_file():
-                source_packages, source_errors = _strict_source_requirement_names(
-                    repo_root,
-                    surface.source_file,
-                )
-                direct.update(source_packages)
-                known.update(source_packages)
-                errors.extend(source_errors)
+            source_packages, source_errors = _strict_source_requirement_names(
+                repo_root,
+                surface.source_file,
+            )
+            direct.update(source_packages)
+            known.update(source_packages)
+            errors.extend(source_errors)
         lock_path = repo_root / surface.lockfile
         if lock_path.is_file():
             known.update(_requirement_package_names(repo_root, surface.lockfile))

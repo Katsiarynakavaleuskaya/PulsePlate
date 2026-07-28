@@ -703,6 +703,24 @@ def test_direct_requirement_source_symlink_fails_closed(tmp_path: Path) -> None:
     assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
 
 
+@pytest.mark.parametrize("target_kind", ["missing", "directory"])
+def test_every_direct_requirement_source_symlink_shape_fails_closed(
+    tmp_path: Path,
+    target_kind: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    source_path.unlink()
+    target_path = repo / "requirements-source-target"
+    if target_kind == "directory":
+        target_path.mkdir()
+    source_path.symlink_to(target_path.name)
+
+    errors = policy.validate_repo(repo)
+
+    assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
+
+
 def test_direct_requirement_source_resource_budgets_fail_closed(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     source_path = repo / "requirements.in"
