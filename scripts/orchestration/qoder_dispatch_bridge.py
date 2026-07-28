@@ -58,6 +58,8 @@ PR_PHASES = (
     PR_PHASE_POST_OPEN_REVIEW,
     PR_PHASE_MERGE_READY,
 )
+INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
+INVARIANT_REVIEW_STATES = frozenset({"not_required", "required_pending"})
 MANIFEST_SCHEMA_VERSION = "2.0"
 MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
 
@@ -439,10 +441,24 @@ def _validated_dispatch_role_order(
 ) -> Optional[List[str]]:
     """Validate the fail-closed invariant-review dispatch order when present."""
 
+    invariant_review_present = "invariant_review" in payload
     invariant_review = payload.get("invariant_review")
-    review_requires_order = (
-        isinstance(invariant_review, dict) and invariant_review.get("state") == "required_pending"
-    )
+    invariant_review_state: str | None = None
+    if invariant_review_present:
+        if not isinstance(invariant_review, dict):
+            raise ValueError("invariant_review must be a JSON object when present")
+        if invariant_review.get("schema_version") != INVARIANT_REVIEW_SCHEMA_VERSION:
+            raise ValueError("invariant_review metadata requires invariant_review.v1")
+        raw_state = invariant_review.get("state")
+        if not isinstance(raw_state, str) or raw_state not in INVARIANT_REVIEW_STATES:
+            raise ValueError("invariant_review state must be not_required or required_pending")
+        invariant_review_state = raw_state
+        if invariant_review.get("implementation_authority") is not False:
+            raise ValueError("invariant review must not grant implementation authority")
+        if invariant_review.get("merge_authority") is not False:
+            raise ValueError("invariant review must not grant merge authority")
+
+    review_requires_order = invariant_review_state == "required_pending"
     role_dispatch_contract = payload.get("role_agent_dispatch_contract")
     if not isinstance(role_dispatch_contract, dict):
         if review_requires_order:
@@ -476,7 +492,7 @@ def _validated_dispatch_role_order(
 
     if not isinstance(invariant_review, dict):
         raise ValueError("dispatch_role_order requires invariant_review metadata")
-    if invariant_review.get("schema_version") != "invariant_review.v1":
+    if invariant_review.get("schema_version") != INVARIANT_REVIEW_SCHEMA_VERSION:
         raise ValueError("dispatch_role_order requires invariant_review.v1")
     if invariant_review.get("state") != "required_pending":
         raise ValueError("dispatch_role_order requires required_pending invariant review")
@@ -487,10 +503,6 @@ def _validated_dispatch_role_order(
         raise ValueError(
             "required_pending invariant review requires logic-agent then philosophy-agent"
         )
-    if invariant_review.get("implementation_authority") is not False:
-        raise ValueError("invariant review must not grant implementation authority")
-    if invariant_review.get("merge_authority") is not False:
-        raise ValueError("invariant review must not grant merge authority")
     if dispatch_order[:3] != [
         "agent-coordinator",
         "logic-agent",

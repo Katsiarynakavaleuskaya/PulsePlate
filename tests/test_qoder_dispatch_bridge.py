@@ -1983,6 +1983,72 @@ def test_required_pending_invariant_review_requires_dispatch_order(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+@pytest.mark.parametrize(
+    ("invariant_review", "error"),
+    [
+        ("required_pending", "must be a JSON object"),
+        (
+            {
+                "schema_version": "invariant_review.v1",
+                "implementation_authority": False,
+                "merge_authority": False,
+            },
+            "state must be not_required or required_pending",
+        ),
+        (
+            {
+                "schema_version": "invariant_review.v1",
+                "state": "require_pending",
+                "implementation_authority": False,
+                "merge_authority": False,
+            },
+            "state must be not_required or required_pending",
+        ),
+        (
+            {
+                "schema_version": "invariant_review.v0",
+                "state": "not_required",
+                "implementation_authority": False,
+                "merge_authority": False,
+            },
+            "requires invariant_review.v1",
+        ),
+    ],
+)
+def test_present_invariant_review_metadata_fails_closed_when_malformed(
+    invariant_review: object,
+    error: str,
+) -> None:
+    """Only complete absence of invariant metadata may use legacy fallback."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["invariant_review"] = invariant_review
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_malformed_invariant_review_blocks_current_creative_override() -> None:
+    """Creative routing cannot revive malformed invariant-review metadata."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["invariant_review"] = {
+        "schema_version": "invariant_review.v1",
+        "state": "required-pending",
+        "implementation_authority": False,
+        "merge_authority": False,
+    }
+    packet.pop("role_agent_dispatch_contract")
+    packet["creative_pilot_context"] = {"phase": "independent"}
+
+    with pytest.raises(
+        ValueError,
+        match="state must be not_required or required_pending",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_required_pending_invariant_review_without_order_blocks_creative_cli(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
