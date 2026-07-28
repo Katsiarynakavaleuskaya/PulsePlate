@@ -146,6 +146,20 @@ EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
     "commit-message": {"prefix": "deps", "include": "scope"},
 }
 EXPECTED_UPDATE_KEYS = set(EXPECTED_UPDATE_EXACT_VALUES) | {"cooldown", "groups"}
+MAX_CONFIG_BYTES = 64 * 1024
+MAX_YAML_TOKENS = 4096
+MAX_YAML_NESTING = 32
+_YAML_CONTAINER_START_TOKENS = (
+    yaml.tokens.FlowSequenceStartToken,
+    yaml.tokens.FlowMappingStartToken,
+    yaml.tokens.BlockSequenceStartToken,
+    yaml.tokens.BlockMappingStartToken,
+)
+_YAML_CONTAINER_END_TOKENS = (
+    yaml.tokens.FlowSequenceEndToken,
+    yaml.tokens.FlowMappingEndToken,
+    yaml.tokens.BlockEndToken,
+)
 
 
 class UniqueKeyLoader(yaml.SafeLoader):
@@ -253,13 +267,25 @@ def _walk_mapping(
             yield from _walk_mapping(child, f"{path}[{index}]")
 
 
-def _contains_yaml_anchor_or_alias(text: str) -> bool:
-    """Reject YAML graph indirection before constructing the fixed-schema object."""
+def _yaml_structure_violation(text: str) -> str | None:
+    """Return a bounded structural violation before constructing YAML objects."""
 
-    return any(
-        isinstance(event, yaml.events.AliasEvent) or getattr(event, "anchor", None) is not None
-        for event in yaml.parse(text, Loader=yaml.SafeLoader)
-    )
+    nesting = 0
+    for token_count, token in enumerate(
+        yaml.scan(text, Loader=yaml.SafeLoader),
+        start=1,
+    ):
+        if token_count > MAX_YAML_TOKENS:
+            return f"YAML token count exceeds limit {MAX_YAML_TOKENS}"
+        if isinstance(token, (yaml.tokens.AnchorToken, yaml.tokens.AliasToken)):
+            return "YAML anchors and aliases are forbidden"
+        if isinstance(token, _YAML_CONTAINER_START_TOKENS):
+            nesting += 1
+            if nesting > MAX_YAML_NESTING:
+                return f"YAML nesting exceeds limit {MAX_YAML_NESTING}"
+        elif isinstance(token, _YAML_CONTAINER_END_TOKENS):
+            nesting -= 1
+    return None
 
 
 def _normalized_pattern(pattern: str) -> str:
@@ -433,9 +459,18 @@ def validate_repo(repo_root: Path) -> list[str]:
         return errors
 
     try:
+        if config_path.stat().st_size > MAX_CONFIG_BYTES:
+            errors.append(
+                _error(
+                    "$",
+                    f"config size exceeds limit {MAX_CONFIG_BYTES} bytes",
+                )
+            )
+            return errors
         config_text = config_path.read_text(encoding="utf-8")
-        if _contains_yaml_anchor_or_alias(config_text):
-            errors.append(_error("$", "YAML anchors and aliases are forbidden"))
+        structure_violation = _yaml_structure_violation(config_text)
+        if structure_violation is not None:
+            errors.append(_error("$", structure_violation))
             return errors
         loader = UniqueKeyLoader(config_text)
         try:
@@ -444,6 +479,9 @@ def validate_repo(repo_root: Path) -> list[str]:
             loader.dispose()
     except yaml.YAMLError as exc:
         errors.append(_error("$", f"invalid YAML: {_safe_yaml_error_message(exc)}"))
+        return errors
+    except RecursionError:
+        errors.append(_error("$", "invalid YAML: recursion limit exceeded"))
         return errors
     except UnicodeError:
         errors.append(_error("$", "invalid YAML: config must be UTF-8"))

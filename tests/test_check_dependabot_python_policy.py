@@ -168,6 +168,53 @@ def test_every_yaml_graph_indirection_is_rejected_before_construction(
     assert errors == [".github/dependabot.yml:$:YAML anchors and aliases are forbidden"]
 
 
+def test_yaml_nesting_budget_rejects_deep_input_without_recursion(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    depth = policy.MAX_YAML_NESTING + 1
+    nested_value = "[" * depth + "0" + "]" * depth
+    (repo / policy.CONFIG_PATH).write_text(
+        "version: 2\nregistries: {}\nupdates: []\nextra: " + nested_value + "\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:$:YAML nesting exceeds limit {policy.MAX_YAML_NESTING}"
+    ]
+
+
+def test_yaml_token_budget_rejects_wide_input(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    wide_value = ", ".join("0" for _ in range(policy.MAX_YAML_TOKENS))
+    (repo / policy.CONFIG_PATH).write_text(
+        "version: 2\nregistries: {}\nupdates: []\nextra: [" + wide_value + "]\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:$:YAML token count exceeds limit {policy.MAX_YAML_TOKENS}"
+    ]
+
+
+def test_yaml_file_size_budget_rejects_oversized_input(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / policy.CONFIG_PATH).write_text(
+        "#" * (policy.MAX_CONFIG_BYTES + 1),
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        f".github/dependabot.yml:$:config size exceeds limit {policy.MAX_CONFIG_BYTES} bytes"
+    ]
+
+
 def test_mixed_scalar_yaml_keys_return_deterministic_errors(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     config_path = repo / policy.CONFIG_PATH
