@@ -791,12 +791,14 @@ def _bind_invariant_review_packet_id(
     normalized_fingerprint = invariant_review_fingerprint.strip()
     if not normalized_fingerprint:
         return base_packet_id
-    framed_fingerprint = fingerprint_payload(
-        {
-            "base_task_packet_id": base_packet_id,
-            "identity_schema": "task_packet_id.invariant_review.v1",
-            "invariant_review_fingerprint": normalized_fingerprint,
-        }
+    framed_fingerprint = str(
+        fingerprint_payload(
+            {
+                "base_task_packet_id": base_packet_id,
+                "identity_schema": "task_packet_id.invariant_review.v1",
+                "invariant_review_fingerprint": normalized_fingerprint,
+            }
+        )
     )
     return framed_fingerprint.removeprefix("sha256:")[:12]
 
