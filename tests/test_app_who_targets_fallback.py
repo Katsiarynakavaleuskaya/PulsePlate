@@ -10,6 +10,7 @@ from fastapi import HTTPException
 import app
 from app.services import pro_nutrition_targets as service
 from core.bmr import FALLBACK_BMR_KCAL_PER_KG_PER_DAY
+from core.utils import get_activity_factor
 
 
 def _request(
@@ -43,9 +44,7 @@ def test_api_who_targets_value_error_uses_loss_fallback(
     response = asyncio.run(app.api_who_targets(request.model_dump()))
 
     tdee = int(
-        FALLBACK_BMR_KCAL_PER_KG_PER_DAY
-        * request.weight_kg
-        * app.get_activity_factor(request.activity)
+        FALLBACK_BMR_KCAL_PER_KG_PER_DAY * request.weight_kg * get_activity_factor(request.activity)
     )
     expected = max(1200, int(tdee * 0.85))
     assert response.kcal_daily == expected
@@ -68,9 +67,7 @@ def test_api_who_targets_import_error_uses_gain_fallback(
     response = asyncio.run(app.api_who_targets(request.model_dump()))
 
     tdee = int(
-        FALLBACK_BMR_KCAL_PER_KG_PER_DAY
-        * request.weight_kg
-        * app.get_activity_factor(request.activity)
+        FALLBACK_BMR_KCAL_PER_KG_PER_DAY * request.weight_kg * get_activity_factor(request.activity)
     )
     assert response.kcal_daily == int(tdee * 1.1)
     assert response.warnings == []
