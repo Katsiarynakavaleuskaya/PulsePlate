@@ -164,7 +164,7 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
         ],
     )
 
-    assert packet["schema_version"] == "2.0"
+    assert packet["schema_version"] == "3.0"
     assert packet["domain"] == "orchestration"
     assert packet["cluster"] == "ops"
     assert packet["primary_agent"]
@@ -223,7 +223,7 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     }
     assert packet["pr_phase"] == "none"
     assert packet["pr_lifecycle_contract"] == {
-        "contract_version": "pulseplate.pr-lifecycle/v2",
+        "contract_version": "pulseplate.pr-lifecycle/v3",
         "requires_pr": False,
         "post_open_review_required": False,
         "review_lane": [],
@@ -238,16 +238,20 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "post_open_review_chain_policy": "",
         "post_open_review_rerun_allowed_reasons": [],
         "post_open_later_comments_handling": "",
-        "codex_security_invocation_policy": {
-            "scope": "per_pr",
-            "automatic_budget": 1,
-            "automatic_retries": 0,
-            "requires_frozen_material": True,
-            "additional_invocation": "trusted_operator_approval",
-            "timeout_or_incomplete_consumes_request": True,
-            "repository_invokes_plugin": False,
-            "global_cross_machine_consumption_provable": False,
-            "local_state_is_global_authority": False,
+        "provider_no_claim_policy": {
+            "output_required": False,
+            "seal_without_provider_flags": True,
+            "provider_invocation_required": False,
+            "provider_retry_required": False,
+            "provider_wait_required": False,
+            "substitute_provider_required": False,
+            "operator_override_required": False,
+            "ttl_required": False,
+            "absence_is_pass": False,
+            "absence_is_review": False,
+            "absence_is_scan": False,
+            "absence_is_approval": False,
+            "absence_is_no_findings": False,
         },
         "artifact_template": "",
         "current_head_required": False,
@@ -905,21 +909,17 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
     assert packet["automation_flags"]["pr_lifecycle_enabled"] is True
     assert packet["pr_phase"] == "post_open_review"
     assert packet["pr_lifecycle_contract"] == {
-        "contract_version": "pulseplate.pr-lifecycle/v2",
+        "contract_version": "pulseplate.pr-lifecycle/v3",
         "requires_pr": True,
         "post_open_review_required": True,
         "review_lane": ["qa-engineer-agent", "bug-hunter", "security-auditor"],
-        "post_open_codex_security_scan_required": True,
-        "post_open_codex_security_scan": "Codex Security diff scan / finding discovery",
-        "post_open_codex_security_scan_timing": "final_material_only",
+        "post_open_codex_security_scan_required": False,
+        "post_open_codex_security_scan": "",
+        "post_open_codex_security_scan_timing": "",
         "post_open_pulseplate_pr_review_required": True,
         "post_open_pulseplate_pr_review": "pulseplate-pr-review",
         "post_open_pulseplate_pr_review_timing": "final_material_only",
-        "final_material_review_gates": [
-            "pulseplate-pr-review",
-            "trusted exact-head GitHub Codex Connector review",
-            "Codex Security diff scan / finding discovery",
-        ],
+        "final_material_review_gates": ["pulseplate-pr-review"],
         "final_material_review_timing": "final_material_only",
         "post_open_review_chain_policy": "post_open_roles_then_final_material_gates",
         "post_open_review_rerun_allowed_reasons": [
@@ -927,16 +927,20 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
             "operator_explicit_request",
         ],
         "post_open_later_comments_handling": "fixed_mapping_and_targeted_gates",
-        "codex_security_invocation_policy": {
-            "scope": "per_pr",
-            "automatic_budget": 1,
-            "automatic_retries": 0,
-            "requires_frozen_material": True,
-            "additional_invocation": "trusted_operator_approval",
-            "timeout_or_incomplete_consumes_request": True,
-            "repository_invokes_plugin": False,
-            "global_cross_machine_consumption_provable": False,
-            "local_state_is_global_authority": False,
+        "provider_no_claim_policy": {
+            "output_required": False,
+            "seal_without_provider_flags": True,
+            "provider_invocation_required": False,
+            "provider_retry_required": False,
+            "provider_wait_required": False,
+            "substitute_provider_required": False,
+            "operator_override_required": False,
+            "ttl_required": False,
+            "absence_is_pass": False,
+            "absence_is_review": False,
+            "absence_is_scan": False,
+            "absence_is_approval": False,
+            "absence_is_no_findings": False,
         },
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
@@ -1192,7 +1196,7 @@ def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> No
     assert packet["automation_flags"]["pr_lifecycle_enabled"] is True
     assert packet["pr_phase"] == "merge_ready"
     assert packet["pr_lifecycle_contract"] == {
-        "contract_version": "pulseplate.pr-lifecycle/v2",
+        "contract_version": "pulseplate.pr-lifecycle/v3",
         "requires_pr": True,
         "post_open_review_required": False,
         "review_lane": [],
@@ -1207,16 +1211,20 @@ def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> No
         "post_open_review_chain_policy": "",
         "post_open_review_rerun_allowed_reasons": [],
         "post_open_later_comments_handling": "",
-        "codex_security_invocation_policy": {
-            "scope": "per_pr",
-            "automatic_budget": 1,
-            "automatic_retries": 0,
-            "requires_frozen_material": True,
-            "additional_invocation": "trusted_operator_approval",
-            "timeout_or_incomplete_consumes_request": True,
-            "repository_invokes_plugin": False,
-            "global_cross_machine_consumption_provable": False,
-            "local_state_is_global_authority": False,
+        "provider_no_claim_policy": {
+            "output_required": False,
+            "seal_without_provider_flags": True,
+            "provider_invocation_required": False,
+            "provider_retry_required": False,
+            "provider_wait_required": False,
+            "substitute_provider_required": False,
+            "operator_override_required": False,
+            "ttl_required": False,
+            "absence_is_pass": False,
+            "absence_is_review": False,
+            "absence_is_scan": False,
+            "absence_is_approval": False,
+            "absence_is_no_findings": False,
         },
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
@@ -2215,7 +2223,7 @@ def test_main_repeated_packet_records_same_head_shadow_exact_hit(
     task_packet_dir.mkdir(parents=True)
     for index in range(60):
         unrelated_packet = {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "task_packet_id": f"unrelated-{index}",
             "goal": f"Unrelated packet {index}",
         }
@@ -2264,7 +2272,7 @@ def test_main_writes_relative_output_inside_repo(monkeypatch, capsys) -> None:
         repo_output.unlink()
 
     packet = {
-        "schema_version": "2.0",
+        "schema_version": "3.0",
         "task_packet_id": "abc123def456",
         "goal": "Test bootstrap write",
         "task_class": "Orchestration",
@@ -2371,7 +2379,7 @@ def test_main_writes_repo_root_output_as_relative_path(monkeypatch, capsys) -> N
         repo_output.unlink()
 
     packet = {
-        "schema_version": "2.0",
+        "schema_version": "3.0",
         "task_packet_id": "rootpacket123",
         "goal": "Test root output write",
         "task_class": "Orchestration",
@@ -2468,7 +2476,7 @@ def test_main_passes_requested_agent_flags(monkeypatch, capsys) -> None:
     def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
         observed.update(kwargs)
         return {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "task_packet_id": "req-agent-packet",
             "goal": "Use requested agents",
             "task_class": "Orchestration",
@@ -2548,7 +2556,7 @@ def test_main_passes_pr_phase_flag(monkeypatch, capsys) -> None:
     def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
         observed.update(kwargs)
         return {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "task_packet_id": "pr-phase-packet",
             "goal": "Use explicit PR phase",
             "task_class": "Orchestration",
@@ -2625,7 +2633,7 @@ def test_main_passes_native_bridge_transport_flag(
     def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
         observed.update(kwargs)
         return {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "task_packet_id": "bridge-transport-packet",
             "goal": "Use kimi native transport",
             "task_class": "Orchestration",
@@ -2739,7 +2747,7 @@ def test_main_passes_design_lane_flags(
     def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
         observed.update(kwargs)
         return {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "task_packet_id": "design-packet",
             "goal": "Use explicit design packet",
             "task_class": "Frontend",
@@ -2784,7 +2792,7 @@ def test_main_passes_design_lane_flags(
             },
             "pr_phase": "none",
             "pr_lifecycle_contract": {
-                "contract_version": "pulseplate.pr-lifecycle/v2",
+                "contract_version": "pulseplate.pr-lifecycle/v3",
                 "requires_pr": False,
                 "post_open_review_required": False,
                 "review_lane": [],
@@ -2799,16 +2807,20 @@ def test_main_passes_design_lane_flags(
                 "post_open_review_chain_policy": "",
                 "post_open_review_rerun_allowed_reasons": [],
                 "post_open_later_comments_handling": "",
-                "codex_security_invocation_policy": {
-                    "scope": "per_pr",
-                    "automatic_budget": 1,
-                    "automatic_retries": 0,
-                    "requires_frozen_material": True,
-                    "additional_invocation": "trusted_operator_approval",
-                    "timeout_or_incomplete_consumes_request": True,
-                    "repository_invokes_plugin": False,
-                    "global_cross_machine_consumption_provable": False,
-                    "local_state_is_global_authority": False,
+                "provider_no_claim_policy": {
+                    "output_required": False,
+                    "seal_without_provider_flags": True,
+                    "provider_invocation_required": False,
+                    "provider_retry_required": False,
+                    "provider_wait_required": False,
+                    "substitute_provider_required": False,
+                    "operator_override_required": False,
+                    "ttl_required": False,
+                    "absence_is_pass": False,
+                    "absence_is_review": False,
+                    "absence_is_scan": False,
+                    "absence_is_approval": False,
+                    "absence_is_no_findings": False,
                 },
                 "artifact_template": "",
                 "current_head_required": False,
@@ -3014,7 +3026,7 @@ def test_build_task_packet_honored_primary_when_requested_matches_routed_primary
     assert packet["primary_agent"] == "agent-coordinator"
 
 
-def test_final_material_security_budget_has_one_global_source_and_scoped_projections() -> None:
+def test_final_material_provider_policy_has_one_global_source_and_scoped_projections() -> None:
     marker = "**Final-material Codex Security budget invariant (hard):**"
     root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     runbook = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
@@ -3031,20 +3043,16 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
         assert "pulseplate-pr-review" in projection
     assert "automatic_budget=1" in matrix
     assert "repository_invokes_plugin=false" in matrix
-    connector_distinction = (
-        "GitHub Codex Connector review is separate from the locally invoked "
-        "Codex Security plugin."
-    )
     for projection in (
         root_agents,
         runbook,
         scoped_agents,
         matrix,
     ):
-        assert connector_distinction in projection
-        assert "do not disable or manually retrigger it" in projection
-        assert "do not wait indefinitely" in projection
-        assert "invoked manually exactly once" in projection
+        normalized = projection.casefold()
+        assert "provider" in normalized
+        assert "no-claim" in normalized
+        assert "pulseplate-pr-review" in normalized
     assert "external Codex Security `opened` / `synchronize` auto-triggers" not in root_agents
     assert "synchronize-triggered Codex review" not in runbook
 

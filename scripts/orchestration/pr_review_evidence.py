@@ -50,23 +50,139 @@ REVIEW_SOURCE_POSITIVE_RESPONSE_SCHEMA_VERSION = (
 )
 REVIEW_SOURCE_POSITIVE_RESPONSE_AUTHORITY = "trusted_codex_review_source_positive_response"
 REVIEW_SOURCE_POSITIVE_RESPONSE_SOURCE = "codex_review"
+SELF_REVIEW_REPORT_SCHEMA_VERSION = "2.0.0"
+SELF_REVIEW_ADVISORY_SCHEMA_VERSION = "pulseplate.self-review-advisory/v1"
+REPO_NATIVE_SELF_REVIEW_AUTHORITY = "repo_native_pulseplate_pr_review_advisory"
+REPO_NATIVE_SELF_REVIEW_TOOL = "pulseplate-pr-review"
+REPO_NATIVE_SELF_REVIEW_STATUS = "advisory_report_attached"
+SELF_REVIEW_ALLOWED_SEVERITIES = frozenset({"critical", "major", "minor", "note"})
+SELF_REVIEW_ACTIONABLE_SEVERITIES = frozenset({"critical", "major", "minor"})
+SELF_REVIEW_NONBLOCKING_NOTE_CODES = frozenset({"large_diff_review_risk"})
+SELF_REVIEW_LARGE_DIFF_CHANGED_LINES = 300
+SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES = 800
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+SELF_REVIEW_DIAGNOSTIC_MIN_SEVERITY = {
+    "blocking_review_source": "minor",
+    "context_warning": "minor",
+    "invalid_changed_lines": "minor",
+    "invalid_fixed_mapping": "minor",
+    "large_diff_review_risk": "note",
+    "missing_pr_metadata": "minor",
+    "missing_scoped_agents": "minor",
+}
+SELF_REVIEW_FINDING_KEYS = frozenset(
+    {
+        "category",
+        "diagnostic_code",
+        "disposition_candidate",
+        "evidence",
+        "file",
+        "gate_to_run",
+        "line",
+        "role_agent",
+        "severity",
+        "suggested_fix",
+    }
+)
+SELF_REVIEW_REPORT_KEYS = frozenset(
+    {
+        "actionable_findings_count",
+        "base_ref_oid",
+        "calibration",
+        "coordinator_packet",
+        "decision_log",
+        "deferred_followups",
+        "findings",
+        "findings_count",
+        "gate_plan",
+        "generated_at_utc",
+        "material_digest",
+        "material_head_sha",
+        "merge_base_sha",
+        "mode",
+        "review_source_status",
+        "role_review",
+        "schema_version",
+        "scope_reviewed",
+        "warnings",
+    }
+)
+PROVIDER_NO_CLAIM_REVIEW_KEYS = frozenset(
+    {
+        "blocking",
+        "material_digest",
+        "material_head_sha",
+        "output_required",
+        "review_claim",
+    }
+)
+REPO_NATIVE_SELF_REVIEW_KEYS = frozenset(
+    {
+        "actionable_findings_count",
+        "authority",
+        "blocking",
+        "findings_count",
+        "material_digest",
+        "material_head_sha",
+        "report_payload",
+        "report_sha256",
+        "review_claim",
+        "review_tool",
+        "schema_version",
+        "status",
+    }
+)
+PROVIDER_NO_CLAIM_SECURITY_KEYS = frozenset(
+    {
+        "base_revision",
+        "blocking",
+        "head_revision",
+        "material_digest",
+        "no_findings_claim",
+        "output_required",
+        "scan_claim",
+    }
+)
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
         ".bandit.yaml",
+        ".coveragerc",
+        ".dockerignore",
+        ".flake8",
+        ".markdownlint.json",
+        ".nvmrc",
         ".pre-commit-config.yaml",
+        ".ruff.toml",
         ".secrets.baseline",
         ".trivyignore",
+        ".yamllint",
         "AGENTS.md",
+        "Dockerfile",
         "Makefile",
         "RUNBOOK_AGENT.md",
+        "bmi_visualization.py",
+        "conftest.py",
         "constraints.txt",
+        "core/bmi/__init__.py",
+        "core/bmi/engine.py",
+        "core/bmi/query.py",
+        "core/bmi/risk.py",
+        "docs/design/figma-manifest.json",
         "docs/orchestration/AGENTS.md",
         "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
         "docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
         "docs/orchestration/contracts/review_source_status.v1.json",
+        "docs/telemetry/docker_image_baseline.production.json",
+        "docs/telemetry/docker_image_budget.production.json",
+        "pyproject.toml",
+        "pytest_sharding.py",
+        "pytest.ini",
+        "pyrightconfig.json",
+        "ruff.toml",
         "scripts/ci_bandit.sh",
         "scripts/ci_pip_audit.sh",
+        "scripts/design_guard.py",
         "scripts/hooks/repo_python.sh",
         "scripts/run-backend-tests-pre-commit.sh",
         "scripts/orchestration/check_merge_ready.py",
@@ -81,13 +197,18 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "scripts/orchestration/render_codex_start_prompt.py",
         "scripts/orchestration/role_dispatch_bridge.py",
         "scripts/orchestration/task_bootstrap.py",
+        "setup.cfg",
+        "frontend/.npmrc",
+        "tests/conftest.py",
         "tests/fixtures/dependency_security_schema.json",
         "tests/test_dependency_security_guard.py",
         "tests/test_repo_policy_guards.py",
+        "tox.ini",
     }
 )
 OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     ".github/actions/",
+    ".github/codeql/extensions/",
     ".github/workflows/",
     "scripts/ci/",
     "tests/guards/",
@@ -127,6 +248,13 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _ROOT_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
+_CANONICAL_CODEOWNERS_PATHS = frozenset(
+    {
+        ".github/CODEOWNERS",
+        "CODEOWNERS",
+        "docs/CODEOWNERS",
+    }
+)
 _DEPENDENCY_MANIFEST_BASENAMES = frozenset(
     {
         "Cargo.lock",
@@ -165,6 +293,7 @@ _MAX_JSON_ARTIFACT_BYTES = 8 * 1024 * 1024
 _MAX_LEDGER_BYTES = 32 * 1024 * 1024
 _MAX_SCAN_ARTIFACTS = 64
 _MAX_TOTAL_SCAN_ARTIFACT_BYTES = 64 * 1024 * 1024
+_MAX_SELF_REVIEW_REPORT_BYTES = 8 * 1024 * 1024
 _DUPLICATE_REPLY_KEYS = (
     "Disposition",
     "Fingerprint",
@@ -199,6 +328,38 @@ class MaterialEntry:
 
 
 @dataclass(frozen=True)
+class MaterialDiffSummary:
+    """Git-derived line totals for the exact no-renames material path set."""
+
+    files: int
+    additions: int
+    deletions: int
+
+    def __post_init__(self) -> None:
+        for label, value in (
+            ("files", self.files),
+            ("additions", self.additions),
+            ("deletions", self.deletions),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ReviewEvidenceError(
+                    f"material diff summary {label} must be a non-negative integer"
+                )
+
+    @property
+    def changed_lines(self) -> int:
+        return self.additions + self.deletions
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "files": self.files,
+            "additions": self.additions,
+            "deletions": self.deletions,
+            "changed_lines": self.changed_lines,
+        }
+
+
+@dataclass(frozen=True)
 class MaterialManifest:
     base_ref_oid: str
     head_ref_oid: str
@@ -206,6 +367,7 @@ class MaterialManifest:
     pr_number: int
     entries: tuple[MaterialEntry, ...]
     digest: str
+    diff_summary: MaterialDiffSummary | None = None
 
     def identity_payload(self) -> dict[str, Any]:
         return {
@@ -225,15 +387,32 @@ def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _reject_nonfinite_json_constant(value: str) -> None:
+    raise ReviewEvidenceError(f"JSON contains non-finite number {value!r}")
+
+
 def _load_json_bytes(raw: bytes, *, label: str) -> Any:
     try:
-        return json.loads(raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_pairs)
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_nonfinite_json_constant,
+        )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ReviewEvidenceError(f"{label} is not valid UTF-8 JSON") from exc
 
 
 def _canonical_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    try:
+        return json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ReviewEvidenceError("value cannot be rendered as canonical JSON") from exc
 
 
 def _require_exact_keys(value: Mapping[str, Any], expected: set[str], *, label: str) -> None:
@@ -591,6 +770,49 @@ def _parse_raw_diff(raw: bytes, *, excluded_path: str) -> tuple[MaterialEntry, .
     return tuple(sorted(entries, key=lambda entry: entry.path.encode("utf-8")))
 
 
+def _parse_material_numstat(
+    raw: bytes,
+    *,
+    excluded_path: str,
+    material_paths: Iterable[str],
+) -> MaterialDiffSummary:
+    """Parse exact no-renames numstat output and bind it to manifest paths."""
+
+    expected_paths = tuple(material_paths)
+    stats: dict[str, tuple[int, int]] = {}
+    seen_paths: set[str] = set()
+    for record in raw.split(b"\0"):
+        if not record:
+            continue
+        fields = record.split(b"\t", 2)
+        if len(fields) != 3:
+            raise ReviewEvidenceError("git diff numstat stream contains unsupported record")
+        additions_raw, deletions_raw, path_bytes = fields
+        if additions_raw == b"-" and deletions_raw == b"-":
+            additions = 0
+            deletions = 0
+        elif additions_raw.isdigit() and deletions_raw.isdigit():
+            additions = int(additions_raw)
+            deletions = int(deletions_raw)
+        else:
+            raise ReviewEvidenceError("git diff numstat stream contains invalid line counts")
+        path = _validate_material_path(path_bytes)
+        if path in seen_paths:
+            raise ReviewEvidenceError(f"git diff numstat emitted duplicate path {path!r}")
+        seen_paths.add(path)
+        if path == excluded_path:
+            continue
+        stats[path] = (additions, deletions)
+
+    if len(expected_paths) != len(set(expected_paths)) or set(stats) != set(expected_paths):
+        raise ReviewEvidenceError("git diff numstat paths do not match the exact material path set")
+    return MaterialDiffSummary(
+        files=len(expected_paths),
+        additions=sum(additions for additions, _deletions in stats.values()),
+        deletions=sum(deletions for _additions, deletions in stats.values()),
+    )
+
+
 def compute_material_manifest(
     repo_root: Path,
     *,
@@ -641,6 +863,26 @@ def compute_material_manifest(
     )
     excluded_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     entries = _parse_raw_diff(raw, excluded_path=excluded_path)
+    numstat = _run_git(
+        root,
+        [
+            "diff",
+            "--numstat",
+            "-z",
+            "--no-renames",
+            "--diff-algorithm=myers",
+            "--no-ext-diff",
+            "--no-textconv",
+            merge_base,
+            head_sha,
+            "--",
+        ],
+    )
+    diff_summary = _parse_material_numstat(
+        numstat,
+        excluded_path=excluded_path,
+        material_paths=(entry.path for entry in entries),
+    )
     identity = {
         "entries": [entry.as_dict() for entry in entries],
         "merge_base_sha": merge_base,
@@ -658,7 +900,60 @@ def compute_material_manifest(
         pr_number=pr_number,
         entries=entries,
         digest=digest,
+        diff_summary=diff_summary,
     )
+
+
+def validate_mapping_only_closeout_successor(
+    repo_root: Path,
+    *,
+    material_head_sha: str,
+    live_head_sha: str,
+    pr_number: int,
+) -> None:
+    """Require one direct commit that changes only the canonical mapping."""
+
+    material_head = _require_sha(material_head_sha, label="material_head_sha")
+    live_head = _require_sha(live_head_sha, label="live_head_sha")
+    if pr_number <= 0:
+        raise ReviewEvidenceError("pr_number must be positive")
+    root = repo_root.resolve(strict=True)
+    if not (root / ".git").exists():
+        raise ReviewEvidenceError("repo_root is not a Git checkout")
+
+    if material_head == live_head:
+        raise ReviewEvidenceError("canonical mapping must be the sole closeout successor")
+    _run_git(root, ["merge-base", "--is-ancestor", material_head, live_head])
+    commit_count = (
+        _run_git(root, ["rev-list", "--count", f"{material_head}..{live_head}"])
+        .decode("ascii")
+        .strip()
+    )
+    live_parents = (
+        _run_git(root, ["rev-list", "--parents", "-n", "1", live_head])
+        .decode("ascii")
+        .strip()
+        .split()
+    )
+    changed_after_seal = tuple(
+        line
+        for line in _run_git(
+            root,
+            ["diff", "--name-only", material_head, live_head, "--"],
+        )
+        .decode("utf-8")
+        .splitlines()
+        if line
+    )
+    mapping_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    if (
+        commit_count != "1"
+        or live_parents != [live_head, material_head]
+        or changed_after_seal != (mapping_path,)
+    ):
+        raise ReviewEvidenceError(
+            "live head must be the one mapping-only successor of sealed material"
+        )
 
 
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
@@ -1124,6 +1419,489 @@ def build_security_outage_override_receipt(
     return receipt
 
 
+def build_provider_no_claim_pair(
+    *,
+    base_revision: str,
+    head_revision: str,
+    material_digest: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build the exact provider-neutral no-claim pair for one material range."""
+
+    code_review = {
+        "blocking": False,
+        "material_digest": material_digest,
+        "material_head_sha": head_revision,
+        "output_required": False,
+        "review_claim": "none",
+    }
+    codex_security = {
+        "base_revision": base_revision,
+        "blocking": False,
+        "head_revision": head_revision,
+        "material_digest": material_digest,
+        "no_findings_claim": False,
+        "output_required": False,
+        "scan_claim": "none",
+    }
+    _validate_code_review_receipt(code_review, material_digest=material_digest)
+    _validate_security_receipt(codex_security)
+    return code_review, codex_security
+
+
+def is_provider_no_claim_review_receipt(receipt: Any) -> bool:
+    """Return whether the receipt is the exact provider-neutral review no-claim form."""
+
+    return (
+        isinstance(receipt, dict)
+        and frozenset(receipt) == PROVIDER_NO_CLAIM_REVIEW_KEYS
+        and receipt.get("review_claim") == "none"
+        and receipt.get("output_required") is False
+        and receipt.get("blocking") is False
+    )
+
+
+def is_provider_no_claim_security_receipt(receipt: Any) -> bool:
+    """Return whether the receipt is the exact provider-neutral scan no-claim form."""
+
+    return (
+        isinstance(receipt, dict)
+        and frozenset(receipt) == PROVIDER_NO_CLAIM_SECURITY_KEYS
+        and receipt.get("scan_claim") == "none"
+        and receipt.get("no_findings_claim") is False
+        and receipt.get("output_required") is False
+        and receipt.get("blocking") is False
+    )
+
+
+def _applicable_scoped_agents(
+    material_paths: Iterable[str],
+    *,
+    material_head_sha: str,
+) -> list[str]:
+    """Return every AGENTS.md ancestor present in the exact material-head tree."""
+
+    candidates = {"AGENTS.md"}
+    for raw_path in material_paths:
+        path = _validate_material_path(raw_path.encode("utf-8"))
+        current = PurePosixPath(path).parent
+        while current != PurePosixPath("."):
+            candidates.add((current / "AGENTS.md").as_posix())
+            current = current.parent
+
+    head_sha = _require_sha(material_head_sha, label="material_head_sha")
+    raw = _run_git(
+        _REPO_ROOT,
+        [
+            "ls-tree",
+            "-r",
+            "--name-only",
+            "-z",
+            "--full-tree",
+            head_sha,
+            "--",
+            *(f":(literal){path}" for path in sorted(candidates)),
+        ],
+    )
+    discovered: set[str] = set()
+    for path_bytes in raw.split(b"\0"):
+        if not path_bytes:
+            continue
+        path = _validate_material_path(path_bytes)
+        if path not in candidates or path in discovered:
+            raise ReviewEvidenceError(
+                "material-head AGENTS.md discovery returned an unexpected path"
+            )
+        discovered.add(path)
+    return sorted(discovered)
+
+
+def _validate_self_review_report_payload(
+    report: Any,
+    *,
+    base_ref_oid: str,
+    merge_base_sha: str,
+    material_head_sha: str,
+    material_digest: str,
+    material_paths: Iterable[str] | None = None,
+    material_diff_summary: MaterialDiffSummary | None = None,
+) -> dict[str, Any]:
+    expected_material_paths = None if material_paths is None else tuple(material_paths)
+    if not isinstance(report, dict):
+        raise ReviewEvidenceError("pulseplate-pr-review report must be an object")
+    _require_exact_keys(
+        report,
+        set(SELF_REVIEW_REPORT_KEYS),
+        label="pulseplate-pr-review report",
+    )
+    findings = report["findings"]
+    findings_count = report["findings_count"]
+    actionable_findings_count = report["actionable_findings_count"]
+    scope = report["scope_reviewed"]
+    if (
+        report["schema_version"] != SELF_REVIEW_REPORT_SCHEMA_VERSION
+        or report["mode"] != "dry-run-report"
+        or not isinstance(findings, list)
+        or not isinstance(findings_count, int)
+        or isinstance(findings_count, bool)
+        or findings_count < 0
+        or findings_count != len(findings)
+        or not isinstance(actionable_findings_count, int)
+        or isinstance(actionable_findings_count, bool)
+        or actionable_findings_count < 0
+        or not isinstance(scope, dict)
+    ):
+        raise ReviewEvidenceError("pulseplate-pr-review report contract is malformed")
+
+    if material_diff_summary is not None:
+        if not isinstance(material_diff_summary, MaterialDiffSummary):
+            raise ReviewEvidenceError("material diff summary evidence is malformed")
+        diff_summary = scope.get("diff_summary")
+        expected_diff_summary = material_diff_summary.as_dict()
+        if not isinstance(diff_summary, dict) or any(
+            not isinstance(diff_summary.get(key), int)
+            or isinstance(diff_summary.get(key), bool)
+            or diff_summary[key] < 0
+            or diff_summary[key] != expected_diff_summary[key]
+            for key in ("files", "additions", "deletions", "changed_lines")
+        ):
+            raise ReviewEvidenceError(
+                "pulseplate-pr-review diff summary does not match the exact material"
+            )
+
+    severity_rank = {"note": 0, "minor": 1, "major": 2, "critical": 3}
+    for finding in findings:
+        if not isinstance(finding, dict):
+            raise ReviewEvidenceError("pulseplate-pr-review finding must be an object")
+        _require_exact_keys(
+            finding,
+            set(SELF_REVIEW_FINDING_KEYS),
+            label="pulseplate-pr-review finding",
+        )
+        for key in (
+            "category",
+            "diagnostic_code",
+            "disposition_candidate",
+            "evidence",
+            "file",
+            "gate_to_run",
+            "role_agent",
+            "severity",
+            "suggested_fix",
+        ):
+            if not isinstance(finding[key], str) or not finding[key].strip():
+                raise ReviewEvidenceError(
+                    f"pulseplate-pr-review finding {key} must be a non-empty string"
+                )
+        line = finding["line"]
+        if line is not None and (not isinstance(line, int) or isinstance(line, bool) or line <= 0):
+            raise ReviewEvidenceError(
+                "pulseplate-pr-review finding line must be null or a positive integer"
+            )
+        severity = finding["severity"]
+        diagnostic_code = finding["diagnostic_code"]
+        minimum_severity = SELF_REVIEW_DIAGNOSTIC_MIN_SEVERITY.get(diagnostic_code)
+        if (
+            severity not in SELF_REVIEW_ALLOWED_SEVERITIES
+            or minimum_severity is None
+            or severity_rank[severity] < severity_rank[minimum_severity]
+            or (severity == "note" and diagnostic_code not in SELF_REVIEW_NONBLOCKING_NOTE_CODES)
+            or (
+                finding["disposition_candidate"] == "NEEDS-HUMAN"
+                and severity not in SELF_REVIEW_ACTIONABLE_SEVERITIES
+            )
+        ):
+            raise ReviewEvidenceError(
+                "pulseplate-pr-review finding severity or diagnostic code is invalid"
+            )
+        if diagnostic_code == "large_diff_review_risk":
+            diff_summary = scope.get("diff_summary")
+            changed_lines = (
+                diff_summary.get("changed_lines") if isinstance(diff_summary, dict) else None
+            )
+            if (
+                severity != "note"
+                or finding["disposition_candidate"] != "NOT-A-BUG"
+                or finding["role_agent"] != "bug-hunter"
+                or finding["category"] != "tests"
+                or finding["file"] != "docs/roadmap/BACKLOG_LEDGER.md"
+                or finding["gate_to_run"] != "make validate-changed"
+                or not isinstance(changed_lines, int)
+                or isinstance(changed_lines, bool)
+                or changed_lines <= SELF_REVIEW_LARGE_DIFF_CHANGED_LINES
+            ):
+                raise ReviewEvidenceError(
+                    "large_diff_review_risk note does not match its advisory contract"
+                )
+            threshold = (
+                SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES
+                if changed_lines > SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES
+                else SELF_REVIEW_LARGE_DIFF_CHANGED_LINES
+            )
+            if finding["evidence"] != (
+                f"Diff contains {changed_lines} changed lines, "
+                f"above review-risk threshold {threshold}."
+            ):
+                raise ReviewEvidenceError(
+                    "large_diff_review_risk evidence does not match report scope"
+                )
+
+    def diagnostic_evidence(code: str) -> list[str]:
+        return sorted(
+            finding["evidence"] for finding in findings if finding["diagnostic_code"] == code
+        )
+
+    warnings = report["warnings"]
+    if (
+        not isinstance(warnings, list)
+        or any(not isinstance(warning, str) or not warning.strip() for warning in warnings)
+        or len(warnings) != len(set(warnings))
+        or diagnostic_evidence("context_warning") != sorted(warnings)
+    ):
+        raise ReviewEvidenceError("pulseplate-pr-review warnings must remain actionable findings")
+
+    pr_metadata_available = scope.get("pr_metadata_available")
+    if not isinstance(pr_metadata_available, bool):
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review scope pr_metadata_available must be boolean"
+        )
+    expected_missing_metadata = (
+        [] if pr_metadata_available else ["PR metadata is unavailable in the supplied context."]
+    )
+    if diagnostic_evidence("missing_pr_metadata") != expected_missing_metadata:
+        raise ReviewEvidenceError("pulseplate-pr-review missing PR metadata must remain actionable")
+
+    scoped_agents = scope.get("scoped_agents_md")
+    if (
+        not isinstance(scoped_agents, list)
+        or any(not isinstance(path, str) or not path for path in scoped_agents)
+        or len(scoped_agents) != len(set(scoped_agents))
+    ):
+        raise ReviewEvidenceError("pulseplate-pr-review scoped AGENTS.md coverage is malformed")
+    expected_missing_agents = (
+        []
+        if scoped_agents
+        else ["No scoped AGENTS.md files were discovered for the changed files."]
+    )
+    if diagnostic_evidence("missing_scoped_agents") != expected_missing_agents:
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review missing scoped AGENTS.md must remain actionable"
+        )
+
+    fixed_mapping_errors = scope.get("fixed_mapping_errors")
+    if (
+        not isinstance(fixed_mapping_errors, list)
+        or any(not isinstance(error, str) or not error for error in fixed_mapping_errors)
+        or len(fixed_mapping_errors) != len(set(fixed_mapping_errors))
+        or diagnostic_evidence("invalid_fixed_mapping") != sorted(fixed_mapping_errors)
+    ):
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review fixed-mapping uncertainty must remain actionable"
+        )
+
+    review_source_status = report["review_source_status"]
+    if not isinstance(review_source_status, list) or any(
+        not isinstance(source, dict) for source in review_source_status
+    ):
+        raise ReviewEvidenceError("pulseplate-pr-review source status is malformed")
+    expected_blocking_sources = sorted(
+        "Review source has explicit blocking status: "
+        f"{source.get('source')}={source.get('status')}"
+        for source in review_source_status
+        if bool(source.get("blocking"))
+    )
+    if diagnostic_evidence("blocking_review_source") != expected_blocking_sources:
+        raise ReviewEvidenceError("pulseplate-pr-review blocking source must remain actionable")
+
+    diff_summary = scope.get("diff_summary")
+    changed_lines = diff_summary.get("changed_lines") if isinstance(diff_summary, dict) else None
+    changed_lines_is_valid = isinstance(changed_lines, int) and not isinstance(changed_lines, bool)
+    expected_invalid_changed_lines = (
+        []
+        if changed_lines_is_valid
+        else ["diff.summary.changed_lines is not numeric; " "treated as 0 for advisory planning."]
+    )
+    if diagnostic_evidence("invalid_changed_lines") != expected_invalid_changed_lines:
+        raise ReviewEvidenceError("pulseplate-pr-review diff uncertainty must remain actionable")
+    expected_large_diff: list[str] = []
+    if (
+        isinstance(changed_lines, int)
+        and not isinstance(changed_lines, bool)
+        and changed_lines > SELF_REVIEW_LARGE_DIFF_CHANGED_LINES
+    ):
+        threshold = (
+            SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES
+            if changed_lines > SELF_REVIEW_VERY_LARGE_DIFF_CHANGED_LINES
+            else SELF_REVIEW_LARGE_DIFF_CHANGED_LINES
+        )
+        expected_large_diff.append(
+            f"Diff contains {changed_lines} changed lines, "
+            f"above review-risk threshold {threshold}."
+        )
+    if diagnostic_evidence("large_diff_review_risk") != expected_large_diff:
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review large-diff diagnostic does not match report scope"
+        )
+
+    computed_actionable = sum(
+        finding["severity"] in SELF_REVIEW_ACTIONABLE_SEVERITIES for finding in findings
+    )
+    if actionable_findings_count != computed_actionable:
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review actionable findings counter is inconsistent"
+        )
+    if actionable_findings_count:
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review report contains unresolved actionable findings; "
+            "fix or disposition them and regenerate the exact-material report"
+        )
+
+    report_base_ref = _require_sha(
+        report["base_ref_oid"],
+        label="pulseplate-pr-review report base_ref_oid",
+    )
+    report_merge_base = _require_sha(
+        report["merge_base_sha"],
+        label="pulseplate-pr-review report merge_base_sha",
+    )
+    report_material_head = _require_sha(
+        report["material_head_sha"],
+        label="pulseplate-pr-review report material_head_sha",
+    )
+    report_material_digest = _require_digest(
+        report["material_digest"],
+        label="pulseplate-pr-review report material_digest",
+    )
+    if (
+        report_base_ref != base_ref_oid
+        or report_merge_base != merge_base_sha
+        or report_material_head != material_head_sha
+        or report_material_digest != material_digest
+    ):
+        raise ReviewEvidenceError("pulseplate-pr-review report is stale for the exact material")
+
+    changed_files = scope.get("changed_files")
+    if (
+        not isinstance(changed_files, list)
+        or any(not isinstance(path, str) or not path for path in changed_files)
+        or len(changed_files) != len(set(changed_files))
+    ):
+        raise ReviewEvidenceError("pulseplate-pr-review report changed-file coverage is malformed")
+    if expected_material_paths is not None and sorted(changed_files) != sorted(
+        set(expected_material_paths)
+    ):
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review report does not cover the exact material path set"
+        )
+    if expected_material_paths is not None and sorted(scoped_agents) != (
+        _applicable_scoped_agents(
+            expected_material_paths,
+            material_head_sha=material_head_sha,
+        )
+    ):
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review scoped AGENTS.md coverage does not match "
+            "the exact material paths"
+        )
+    return report
+
+
+def _self_review_report_sha256(report: Mapping[str, Any]) -> str:
+    canonical = _canonical_json(report).encode("utf-8")
+    return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+
+def ingest_repo_native_self_review_receipt(
+    report_path: Path,
+    *,
+    material_manifest: MaterialManifest,
+) -> dict[str, Any]:
+    """Bind one executable pulseplate-pr-review report to exact material."""
+
+    material_paths = tuple(entry.path for entry in material_manifest.entries)
+    material_diff_summary = material_manifest.diff_summary
+    if not isinstance(
+        material_diff_summary, MaterialDiffSummary
+    ) or material_diff_summary.files != len(material_paths):
+        raise ReviewEvidenceError("material manifest is missing Git-derived diff summary evidence")
+    try:
+        descriptor = os.open(
+            report_path,
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0),
+        )
+    except OSError as exc:
+        raise ReviewEvidenceError(
+            "pulseplate-pr-review report is missing, unsafe, or unreadable"
+        ) from exc
+    try:
+        raw = _read_regular_descriptor(
+            descriptor,
+            max_bytes=_MAX_SELF_REVIEW_REPORT_BYTES,
+            label="pulseplate-pr-review report",
+        )
+    finally:
+        os.close(descriptor)
+    report = _validate_self_review_report_payload(
+        _load_json_bytes(raw, label="pulseplate-pr-review report"),
+        base_ref_oid=material_manifest.base_ref_oid,
+        merge_base_sha=material_manifest.merge_base_sha,
+        material_head_sha=material_manifest.head_ref_oid,
+        material_digest=material_manifest.digest,
+        material_paths=material_paths,
+        material_diff_summary=material_diff_summary,
+    )
+    receipt = {
+        "actionable_findings_count": report["actionable_findings_count"],
+        "authority": REPO_NATIVE_SELF_REVIEW_AUTHORITY,
+        "blocking": False,
+        "findings_count": report["findings_count"],
+        "material_digest": _require_digest(
+            material_manifest.digest,
+            label="self_review.material_digest",
+        ),
+        "material_head_sha": _require_sha(
+            material_manifest.head_ref_oid,
+            label="self_review.material_head_sha",
+        ),
+        "report_payload": report,
+        "report_sha256": _self_review_report_sha256(report),
+        "review_claim": "none",
+        "review_tool": REPO_NATIVE_SELF_REVIEW_TOOL,
+        "schema_version": SELF_REVIEW_ADVISORY_SCHEMA_VERSION,
+        "status": REPO_NATIVE_SELF_REVIEW_STATUS,
+    }
+    _validate_repo_native_self_review_receipt(
+        receipt,
+        base_ref_oid=material_manifest.base_ref_oid,
+        merge_base_sha=material_manifest.merge_base_sha,
+        material_head_sha=material_manifest.head_ref_oid,
+        material_digest=material_manifest.digest,
+        material_paths=material_paths,
+        material_diff_summary=material_diff_summary,
+    )
+    return receipt
+
+
+def protected_trust_boundary_paths(material_paths: Iterable[str]) -> tuple[str, ...]:
+    """Return protected paths using the existing outage trust-boundary detector."""
+
+    return tuple(
+        sorted(
+            {
+                path
+                for path in material_paths
+                if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
+                or path in _CANONICAL_CODEOWNERS_PATHS
+                or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
+                or PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
+                or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
+            }
+        )
+    )
+
+
 def build_review_credit_outage_receipt(
     *,
     material_digest: str,
@@ -1328,16 +2106,7 @@ def validate_security_outage_override_scope(
 ) -> None:
     """Deny outage self-authorization outside the one reviewed bootstrap PR."""
 
-    touched = sorted(
-        {
-            path
-            for path in material_paths
-            if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
-            or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
-            or PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
-            or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
-        }
-    )
+    touched = protected_trust_boundary_paths(material_paths)
     if not touched:
         return
     is_bootstrap = (
@@ -1349,6 +2118,69 @@ def validate_security_outage_override_scope(
             "Codex Security outage override cannot authorize trust-boundary changes: "
             + ", ".join(touched)
         )
+
+
+def _validate_repo_native_self_review_receipt(
+    receipt: Any,
+    *,
+    base_ref_oid: str,
+    merge_base_sha: str,
+    material_head_sha: str,
+    material_digest: str,
+    material_paths: Iterable[str] | None = None,
+    material_diff_summary: MaterialDiffSummary | None = None,
+) -> None:
+    if not isinstance(receipt, dict):
+        raise ReviewEvidenceError("self_review must be an object")
+    _require_exact_keys(
+        receipt,
+        set(REPO_NATIVE_SELF_REVIEW_KEYS),
+        label="self_review",
+    )
+    if (
+        receipt["schema_version"] != SELF_REVIEW_ADVISORY_SCHEMA_VERSION
+        or receipt["authority"] != REPO_NATIVE_SELF_REVIEW_AUTHORITY
+        or receipt["review_tool"] != REPO_NATIVE_SELF_REVIEW_TOOL
+        or receipt["status"] != REPO_NATIVE_SELF_REVIEW_STATUS
+        or receipt["review_claim"] != "none"
+        or receipt["blocking"] is not False
+        or not isinstance(receipt["findings_count"], int)
+        or isinstance(receipt["findings_count"], bool)
+        or receipt["findings_count"] < 0
+        or not isinstance(receipt["actionable_findings_count"], int)
+        or isinstance(receipt["actionable_findings_count"], bool)
+        or receipt["actionable_findings_count"] != 0
+        or _require_sha(
+            receipt["material_head_sha"],
+            label="self_review.material_head_sha",
+        )
+        != material_head_sha
+        or _require_digest(
+            receipt["material_digest"],
+            label="self_review.material_digest",
+        )
+        != material_digest
+    ):
+        raise ReviewEvidenceError("self_review receipt is malformed or stale")
+    report = _validate_self_review_report_payload(
+        receipt["report_payload"],
+        base_ref_oid=base_ref_oid,
+        merge_base_sha=merge_base_sha,
+        material_head_sha=material_head_sha,
+        material_digest=material_digest,
+        material_paths=material_paths,
+        material_diff_summary=material_diff_summary,
+    )
+    if (
+        receipt["findings_count"] != report["findings_count"]
+        or receipt["actionable_findings_count"] != report["actionable_findings_count"]
+        or _require_digest(
+            receipt["report_sha256"],
+            label="self_review.report_sha256",
+        )
+        != _self_review_report_sha256(report)
+    ):
+        raise ReviewEvidenceError("self_review report payload integrity check failed")
 
 
 def _validate_security_receipt(receipt: Any) -> None:
@@ -1397,6 +2229,31 @@ def _validate_security_receipt(receipt: Any) -> None:
             or any(ord(ch) < 32 for ch in receipt["override_reference"])
         ):
             raise ReviewEvidenceError("Codex Security operator outage override is malformed")
+        return
+    if {
+        "blocking",
+        "material_digest",
+        "no_findings_claim",
+        "output_required",
+        "scan_claim",
+    } & receipt.keys():
+        _require_exact_keys(
+            receipt,
+            set(PROVIDER_NO_CLAIM_SECURITY_KEYS),
+            label="provider-neutral security no-claim receipt",
+        )
+        _require_sha(receipt["base_revision"], label="codex_security.base_revision")
+        _require_sha(receipt["head_revision"], label="codex_security.head_revision")
+        _require_digest(receipt["material_digest"], label="codex_security.material_digest")
+        if (
+            receipt["scan_claim"] != "none"
+            or receipt["no_findings_claim"] is not False
+            or receipt["output_required"] is not False
+            or receipt["blocking"] is not False
+        ):
+            raise ReviewEvidenceError(
+                "provider-neutral security no-claim receipt is malformed or escalating"
+            )
         return
     _require_exact_keys(
         receipt,
@@ -1646,6 +2503,31 @@ def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None
             )
         return
 
+    if {
+        "blocking",
+        "material_digest",
+        "material_head_sha",
+        "output_required",
+        "review_claim",
+    } & receipt.keys():
+        _require_exact_keys(
+            receipt,
+            set(PROVIDER_NO_CLAIM_REVIEW_KEYS),
+            label="provider-neutral review no-claim receipt",
+        )
+        _require_sha(receipt["material_head_sha"], label="code_review.material_head_sha")
+        _require_digest(receipt["material_digest"], label="code_review.material_digest")
+        if (
+            receipt["material_digest"] != material_digest
+            or receipt["review_claim"] != "none"
+            or receipt["output_required"] is not False
+            or receipt["blocking"] is not False
+        ):
+            raise ReviewEvidenceError(
+                "provider-neutral review no-claim receipt is malformed, stale, or escalating"
+            )
+        return
+
     _require_exact_keys(
         receipt,
         {
@@ -1669,24 +2551,30 @@ def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None
     _require_sha(receipt["review_commit_ref"], label="code_review.review_commit_ref")
 
 
-def validate_review_seal(seal: Any) -> dict[str, Any]:
+def validate_review_seal(
+    seal: Any,
+    *,
+    material_paths: Iterable[str] | None = None,
+    material_diff_summary: MaterialDiffSummary | None = None,
+) -> dict[str, Any]:
     """Validate the closed v1 embedded seal schema and return it unchanged."""
 
     if not isinstance(seal, dict):
         raise ReviewEvidenceError("review seal must be an object")
-    _require_exact_keys(
-        seal,
-        {
-            "authority",
-            "code_review",
-            "codex_security",
-            "material",
-            "pr_number",
-            "repository",
-            "schema_version",
-        },
-        label="review seal",
-    )
+    legacy_keys = {
+        "authority",
+        "code_review",
+        "codex_security",
+        "material",
+        "pr_number",
+        "repository",
+        "schema_version",
+    }
+    if frozenset(seal) not in {
+        frozenset(legacy_keys),
+        frozenset({*legacy_keys, "self_review"}),
+    }:
+        raise ReviewEvidenceError("review seal has unknown or missing fields")
     if seal["schema_version"] != SEAL_SCHEMA_VERSION or seal["authority"] != RECEIPT_AUTHORITY:
         raise ReviewEvidenceError("unsupported review seal schema or authority")
     if (
@@ -1716,21 +2604,49 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
     if (
         is_review_source_unavailability_receipt(code_review)
         or is_review_source_positive_response_receipt(code_review)
+        or is_provider_no_claim_review_receipt(code_review)
     ) and (code_review["material_head_sha"] != material["material_head_sha"]):
         raise ReviewEvidenceError(
             "review-source context receipt does not match sealed material head"
         )
-    _validate_security_receipt(seal["codex_security"])
+    security_receipt = seal["codex_security"]
+    _validate_security_receipt(security_receipt)
+    review_no_claim = is_provider_no_claim_review_receipt(code_review)
+    security_no_claim = is_provider_no_claim_security_receipt(security_receipt)
+    if review_no_claim != security_no_claim:
+        raise ReviewEvidenceError(
+            "provider-neutral no-claim evidence must be an exact symmetric pair"
+        )
+    if review_no_claim:
+        if "self_review" not in seal:
+            raise ReviewEvidenceError(
+                "provider-neutral no-claim requires an exact-material repo-native "
+                "self-review advisory artifact"
+            )
+        _validate_repo_native_self_review_receipt(
+            seal["self_review"],
+            base_ref_oid=material["base_ref_oid"],
+            merge_base_sha=material["merge_base_sha"],
+            material_head_sha=material["material_head_sha"],
+            material_digest=material_digest,
+            material_paths=material_paths,
+            material_diff_summary=material_diff_summary,
+        )
+    elif "self_review" in seal:
+        raise ReviewEvidenceError(
+            "repo-native self-review advisory artifact is reserved for "
+            "provider-neutral no-claim seals"
+        )
     if (
-        seal["codex_security"]["base_revision"] != material["merge_base_sha"]
-        or seal["codex_security"]["head_revision"] != material["material_head_sha"]
+        security_receipt["base_revision"] != material["merge_base_sha"]
+        or security_receipt["head_revision"] != material["material_head_sha"]
     ):
         raise ReviewEvidenceError("Codex Security receipt does not match sealed material range")
-    if is_security_outage_override_receipt(seal["codex_security"]) and (
-        seal["codex_security"]["material_digest"] != material_digest
-    ):
+    if (
+        is_security_outage_override_receipt(security_receipt) or security_no_claim
+    ) and security_receipt["material_digest"] != material_digest:
         raise ReviewEvidenceError(
-            "Codex Security operator outage override does not match sealed material digest"
+            "Codex Security context receipt does not match sealed material digest"
         )
     return seal
 
