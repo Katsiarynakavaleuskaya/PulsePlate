@@ -2019,6 +2019,25 @@ def test_current_packet_with_malformed_path_cannot_downgrade_to_legacy() -> None
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+@pytest.mark.parametrize("schema_version", ["3.0", None])
+def test_legacy_packet_with_malformed_path_fails_closed(
+    schema_version: str | None,
+) -> None:
+    """Legacy compatibility never converts invalid candidate paths into no trigger."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["candidate_paths"] = ["scripts//ci/check_pr_merge_readiness.py"]
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+    if schema_version is None:
+        packet.pop("schema_version", None)
+    else:
+        packet["schema_version"] = schema_version
+
+    with pytest.raises(ValueError, match="must use unambiguous POSIX separators"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 @pytest.mark.parametrize(
     "schema_version",
     ["3.1 ", "3.01", 3.1, {}, [], None],

@@ -468,14 +468,9 @@ def _validated_dispatch_role_order(
         raw_pr_phase = payload.get("pr_phase")
         bounded_trigger_required = False
         if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and isinstance(candidate_paths, list):
-            try:
-                bounded_trigger_required = classify_invariant_review(
-                    candidate_paths=candidate_paths
-                ).required
-            except ValueError:
-                # True legacy packets predate the strict path contract. Current
-                # packets are rejected above by their automation marker.
-                bounded_trigger_required = False
+            bounded_trigger_required = classify_invariant_review(
+                candidate_paths=candidate_paths
+            ).required
         if bounded_trigger_required:
             raise ValueError(
                 "opening-phase bounded invariant trigger requires invariant_review metadata"
