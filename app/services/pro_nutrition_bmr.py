@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import logging
 import math
-from typing import cast
+from typing import TypeAlias, cast
 
 from fastapi import HTTPException, status
 
@@ -23,7 +23,7 @@ from core.i18n import t
 
 logger = logging.getLogger(__name__)
 
-_BMRRequest = BMRRequest | BMRRequestLegacy
+_BMRRequest: TypeAlias = BMRRequest | BMRRequestLegacy
 _BMRCalculator = Callable[[float, float, int, str, float | None], object]
 _TDEECalculator = Callable[[dict[str, float], str], object]
 
