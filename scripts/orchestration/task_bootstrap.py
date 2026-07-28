@@ -781,6 +781,26 @@ def _build_invariant_review_packet(
     }
 
 
+def _bind_invariant_review_packet_id(
+    base_packet_id: str,
+    *,
+    invariant_review_fingerprint: str,
+) -> str:
+    """Frame the optional class identity without changing legacy packet ids."""
+
+    normalized_fingerprint = invariant_review_fingerprint.strip()
+    if not normalized_fingerprint:
+        return base_packet_id
+    framed_fingerprint = fingerprint_payload(
+        {
+            "base_task_packet_id": base_packet_id,
+            "identity_schema": "task_packet_id.invariant_review.v1",
+            "invariant_review_fingerprint": normalized_fingerprint,
+        }
+    )
+    return framed_fingerprint.removeprefix("sha256:")[:12]
+
+
 def _append_system_invariant_review_roles(
     *,
     primary_agent: str,
@@ -1384,26 +1404,28 @@ def build_task_packet(
         telemetry=_read_json(telemetry_path),
         routing=routing,
     )
-    packet_id = compute_task_packet_id(
-        goal=goal,
-        task_class=task_class,
-        domain=decision.domain,
-        candidate_paths=normalized_paths,
-        requested_agents=normalized_requested_agents,
-        pr_phase=normalized_pr_phase,
-        design_fingerprint=_design_fingerprint(
-            design_lane_mode=design_lane_mode,
-            design_lane_contract=design_lane_contract,
-        ),
-        creative_learning_hints_fingerprint=(
-            creative_learning_hints_fingerprint
-            if not creative_pilot_fingerprint
-            else fingerprint_payload(
-                {
-                    "creative_learning_hints": creative_learning_hints_fingerprint,
-                    "creative_pilot": creative_pilot_fingerprint,
-                }
-            )
+    packet_id = _bind_invariant_review_packet_id(
+        compute_task_packet_id(
+            goal=goal,
+            task_class=task_class,
+            domain=decision.domain,
+            candidate_paths=normalized_paths,
+            requested_agents=normalized_requested_agents,
+            pr_phase=normalized_pr_phase,
+            design_fingerprint=_design_fingerprint(
+                design_lane_mode=design_lane_mode,
+                design_lane_contract=design_lane_contract,
+            ),
+            creative_learning_hints_fingerprint=(
+                creative_learning_hints_fingerprint
+                if not creative_pilot_fingerprint
+                else fingerprint_payload(
+                    {
+                        "creative_learning_hints": creative_learning_hints_fingerprint,
+                        "creative_pilot": creative_pilot_fingerprint,
+                    }
+                )
+            ),
         ),
         invariant_review_fingerprint=invariant_review_decision.fingerprint,
     )

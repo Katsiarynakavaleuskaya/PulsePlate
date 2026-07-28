@@ -23,6 +23,7 @@ from core.judgment import (
     UNCERTAINTY_FIELDS,
 )
 from scripts.orchestration.bootstrap_sync_policy import (
+    INVARIANT_CHANGE_CLASSES,
     matches_any_prefix,
     resolve_analysis_envelope_mode,
 )
@@ -3213,6 +3214,8 @@ def test_invariant_review_packet_id_frames_class_identity_against_path_collision
 
     assert explicit_class["task_packet_id"] != same_token_as_path["task_packet_id"]
     assert explicit_class["task_packet_id"] != different_path["task_packet_id"]
+    assert len(explicit_class["task_packet_id"]) == 12
+    assert all(character in "0123456789abcdef" for character in explicit_class["task_packet_id"])
 
 
 def test_invariant_review_empty_fingerprint_preserves_legacy_packet_id() -> None:
@@ -3238,7 +3241,6 @@ def test_invariant_review_empty_fingerprint_preserves_legacy_packet_id() -> None
         candidate_paths=["core/rag/simple_rag.py"],
         requested_agents=["backend-engineer"],
         pr_phase="pre_open",
-        invariant_review_fingerprint="",
     )
 
     assert packet_id == hashlib.sha256(legacy_payload.encode("utf-8")).hexdigest()[:12]
@@ -3411,3 +3413,27 @@ def test_invariant_review_recipe_prompt_names_current_classes() -> None:
     )
 
     assert "Invariant change classes: guard, authority" in prompt
+
+
+def test_invariant_review_shell_launchers_share_the_canonical_python_enum() -> None:
+    """Every documented shell carrier must mirror the closed Python enum exactly."""
+
+    expected_case = "|".join(INVARIANT_CHANGE_CLASSES)
+    launcher_paths = (
+        REPO_ROOT / "scripts/orchestration/local_session_bootstrap.sh",
+        REPO_ROOT / "scripts/orchestration/start_pr_lane.sh",
+        REPO_ROOT / "docs/templates/pulseplate-coordinator-launch.example.sh",
+    )
+
+    for launcher_path in launcher_paths:
+        launcher = launcher_path.read_text(encoding="utf-8")
+        assert f"{expected_case})" in launcher
+        assert 'INVARIANT_CLASS_ARGS+=(--invariant-change-class "$2")' in launcher
+        assert any(
+            forwarding_marker in launcher
+            for forwarding_marker in (
+                'prompt_cmd+=("${INVARIANT_CLASS_ARGS[@]}")',
+                'bootstrap_cmd+=("${INVARIANT_CLASS_ARGS[@]}")',
+                '${INVARIANT_CLASS_ARGS[@]+"${INVARIANT_CLASS_ARGS[@]}"}',
+            )
+        )

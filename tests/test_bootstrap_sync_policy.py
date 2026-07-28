@@ -92,6 +92,27 @@ def test_invariant_review_classifier_merges_explicit_and_bounded_hints() -> None
 
 
 @pytest.mark.parametrize(
+    "path",
+    [
+        "./scripts/ci/check_policy.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/ci/check_policy.py"),
+    ],
+)
+def test_invariant_review_classifier_normalizes_supported_repo_path_forms(path: str) -> None:
+    """Documented relative and absolute in-repo forms share canonical evidence."""
+
+    decision = classify_invariant_review(candidate_paths=[path])
+
+    assert [row.to_mapping() for row in decision.trigger_evidence] == [
+        {
+            "change_class": "validator",
+            "source": "bounded_path_hint",
+            "path": "scripts/ci/check_policy.py",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
     ("path", "expected_classes"),
     [
         ("scripts/orchestration/json_parser.py", ("parser",)),

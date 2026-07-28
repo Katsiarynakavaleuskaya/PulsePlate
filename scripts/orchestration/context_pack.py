@@ -7,7 +7,6 @@ EN: Shared helpers for deterministic context packs and path-based routing.
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from pathlib import Path
 
@@ -253,11 +252,10 @@ def compute_task_packet_id(
     pr_phase: str = "none",
     design_fingerprint: str = "",
     creative_learning_hints_fingerprint: str = "",
-    invariant_review_fingerprint: str = "",
 ) -> str:
     """Return deterministic short task packet id."""
 
-    legacy_payload = "\n".join(
+    payload = "\n".join(
         [
             goal.strip(),
             task_class.strip(),
@@ -269,18 +267,4 @@ def compute_task_packet_id(
             *requested_agents,
         ]
     )
-    normalized_invariant_fingerprint = invariant_review_fingerprint.strip()
-    if not normalized_invariant_fingerprint:
-        payload = legacy_payload
-    else:
-        payload = json.dumps(
-            {
-                "base_identity_sha256": hashlib.sha256(legacy_payload.encode("utf-8")).hexdigest(),
-                "identity_schema": "task_packet_id.invariant_review.v1",
-                "invariant_review_fingerprint": normalized_invariant_fingerprint,
-            },
-            ensure_ascii=True,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
