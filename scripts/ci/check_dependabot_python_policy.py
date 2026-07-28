@@ -24,6 +24,7 @@ from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 
 CONFIG_PATH = Path(".github/dependabot.yml")
 SHADOW_CONFIG_PATH = Path(".github/dependabot.yaml")
+CONSTRAINTS_PATH = Path("constraints.txt")
 REGISTRY_NAME = "python-index"
 REGISTRY_CONFIG = {
     "type": "python-index",
@@ -102,6 +103,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
             "black",
             "types-pyyaml",
             "yamllint",
+            "sourcery",
         ),
         "update-types": ("minor", "patch"),
         "applies-to": "version-updates",
@@ -511,6 +513,15 @@ def _known_packages(repo_root: Path) -> tuple[set[str], set[str], list[str]]:
         )
         known.update(lock_packages)
         errors.extend(lock_errors)
+    constraint_packages, constraint_errors = _strict_requirement_names(
+        repo_root,
+        CONSTRAINTS_PATH,
+        allowed_directives=set(),
+        direct_source=True,
+    )
+    direct.update(constraint_packages)
+    known.update(constraint_packages)
+    errors.extend(constraint_errors)
     return direct, known, errors
 
 

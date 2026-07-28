@@ -32,6 +32,7 @@ def _copy_policy_repo(tmp_path: Path) -> Path:
         for relative_path in (surface.source_file, surface.lockfile)
         if relative_path is not None
     }
+    requirement_files.add(policy.CONSTRAINTS_PATH)
     for relative_path in requirement_files:
         source = REPO_ROOT / relative_path
         if source.is_file():
@@ -657,6 +658,42 @@ def test_direct_package_must_have_exactly_one_owner_group(tmp_path: Path) -> Non
         "groups.package-owner.fastapi:direct package must match exactly one group; got []" in error
         for error in errors
     )
+
+
+def test_constraint_only_direct_package_must_have_one_owner_group(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    constraints_path = repo / policy.CONSTRAINTS_PATH
+    constraints_path.write_text(
+        constraints_path.read_text(encoding="utf-8") + "novel-constraint-only>=1.0\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        "groups.package-owner.novel-constraint-only:"
+        "direct package must match exactly one group; got []" in error
+        for error in errors
+    )
+
+
+def test_existing_constraint_only_tool_has_an_explicit_owner(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+
+    direct, known, errors = policy._known_packages(repo)
+
+    assert errors == []
+    assert "sourcery" in direct
+    assert "sourcery" in known
+    owners: list[str] = []
+    for group_name, group in policy.EXPECTED_GROUPS.items():
+        patterns = group["patterns"]
+        assert isinstance(patterns, tuple)
+        if any(policy._matches("sourcery", pattern) for pattern in patterns):
+            owners.append(group_name)
+    assert owners == ["test-quality"]
 
 
 def test_multiline_direct_requirement_fails_closed_before_ownership(

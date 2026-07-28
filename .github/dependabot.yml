@@ -104,6 +104,7 @@ updates:
           - "black"
           - "types-pyyaml"
           - "yamllint"
+          - "sourcery"
         update-types:
           - "minor"
           - "patch"
