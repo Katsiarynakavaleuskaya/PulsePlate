@@ -176,13 +176,16 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
     secondary_bindings: list[object] = []
     advisory_bindings: list[object] = []
+    from scripts.orchestration import qoder_dispatch_bridge
+
+    try:
+        parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    except ValueError as exc:
+        raise PromptError(f"invalid task packet role dispatch: {exc}") from exc
     if isinstance(bridge, dict):
         secondary_bindings = _packet_role_bindings(bridge, "secondary")
         advisory_bindings = _packet_role_bindings(bridge, "advisory")
 
-        from scripts.orchestration import qoder_dispatch_bridge
-
-        parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
         if parsed_roles:
             role_dispatch_contract = packet.get("role_agent_dispatch_contract")
             if isinstance(role_dispatch_contract, dict) and (

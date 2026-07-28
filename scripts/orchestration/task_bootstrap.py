@@ -65,8 +65,11 @@ from scripts.orchestration.agent_consistency_loader import (
 from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
     INVARIANT_CHANGE_CLASSES,
+    INVARIANT_REVIEW_BOUNDARY_CLASSES,
     INVARIANT_REVIEW_COVERAGE_CLAIM,
+    INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
     INVARIANT_REVIEW_REQUIRED_ROLES,
+    INVARIANT_REVIEW_STOP_CONDITION,
     InvariantReviewDecision,
     classify_invariant_review,
     needs_agents_sync as bootstrap_needs_agents_sync,
@@ -129,25 +132,6 @@ CREATIVE_PILOT_ROOT: Path = (
 )
 CREATIVE_PILOT_PHASES: tuple[str, ...] = ("independent", "rebuttal", "synthesis")
 INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
-INVARIANT_REVIEW_BOUNDARY_CLASSES: tuple[str, ...] = (
-    "finite_closed_world",
-    "bounded_surface",
-    "delegated_recognizer",
-    "open_world_stop",
-)
-INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
-    "invariant_statement",
-    "boundary_class",
-    "canonical_sot",
-    "completeness_claim",
-    "counterexample_families",
-    "fail_closed_behavior",
-    "stop_condition",
-    "residual_risk",
-)
-INVARIANT_REVIEW_STOP_CONDITION = (
-    "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
-)
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"

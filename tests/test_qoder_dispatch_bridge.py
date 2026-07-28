@@ -1787,7 +1787,27 @@ def _invariant_review_packet(
             "trigger_evidence": [
                 {"change_class": "guard", "source": "explicit"},
             ],
+            "coverage_claim": "explicit_plus_bounded_positive_triggers_only",
             "required_roles": ["logic-agent", "philosophy-agent"],
+            "boundary_classes": [
+                "finite_closed_world",
+                "bounded_surface",
+                "delegated_recognizer",
+                "open_world_stop",
+            ],
+            "required_output_fields": [
+                "invariant_statement",
+                "boundary_class",
+                "canonical_sot",
+                "completeness_claim",
+                "counterexample_families",
+                "fail_closed_behavior",
+                "stop_condition",
+                "residual_risk",
+            ],
+            "stop_condition": (
+                "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+            ),
             "implementation_authority": implementation_authority,
             "merge_authority": merge_authority,
         },
@@ -1823,6 +1843,84 @@ def test_invariant_review_dispatch_order_replaces_requested_agent_reordering() -
 
     assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == expected_order
     assert packet["requested_agents"] == ["architecture-specialist"]
+
+
+def test_invariant_review_dispatch_rejects_permuted_remaining_roles() -> None:
+    """A matching role set cannot reorder the canonical implementation tail."""
+
+    permuted_order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "security-auditor",
+        "architecture-specialist",
+        "cursor-specialist-agent",
+    ]
+
+    with pytest.raises(ValueError, match="canonical spawnable binding order"):
+        qoder_dispatch_bridge._parse_json_packet_roles(
+            _invariant_review_packet(dispatch_role_order=permuted_order)
+        )
+
+
+@pytest.mark.parametrize("native_bridge", [None, {}])
+def test_required_pending_invariant_review_requires_complete_native_bridge(
+    native_bridge: object,
+) -> None:
+    """Current pending packets cannot fall back around missing bridge bindings."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    packet["native_subagent_bridge"] = native_bridge
+
+    with pytest.raises(ValueError, match="missing required spawnable roles"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "error"),
+    [
+        ("coverage_claim", None, "exactly match the invariant_review.v1 fields"),
+        ("coverage_claim", "complete", "bounded coverage claim"),
+        ("boundary_classes", [], "canonical boundary classes"),
+        ("required_output_fields", [], "canonical output fields"),
+        ("stop_condition", "continue", "canonical stop condition"),
+    ],
+)
+def test_invariant_review_requires_complete_canonical_contract(
+    field: str,
+    replacement: object,
+    error: str,
+) -> None:
+    """The consumer validates the closed v1 review object, not selected fields."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    if replacement is None:
+        invariant_review.pop(field)
+    else:
+        invariant_review[field] = replacement
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
 def test_invariant_review_dispatch_order_chains_every_successor() -> None:
@@ -1874,7 +1972,7 @@ def test_invariant_review_dispatch_order_chains_every_successor() -> None:
                 "architecture-specialist",
                 "cursor-specialist-agent",
             ],
-            "must exactly match spawnable",
+            "canonical spawnable binding order",
         ),
         (
             [
@@ -1886,7 +1984,7 @@ def test_invariant_review_dispatch_order_chains_every_successor() -> None:
                 "cursor-specialist-agent",
                 "extra-agent",
             ],
-            "must exactly match spawnable",
+            "canonical spawnable binding order",
         ),
         (
             [

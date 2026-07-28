@@ -24,7 +24,6 @@ Usage examples::
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import json
 import re
 import sys
@@ -44,6 +43,12 @@ from scripts.orchestration.requested_agents import (
 )
 from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_CHANGE_CLASSES,
+    INVARIANT_REVIEW_BOUNDARY_CLASSES,
+    INVARIANT_REVIEW_COVERAGE_CLAIM,
+    INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
+    INVARIANT_REVIEW_REQUIRED_ROLES,
+    INVARIANT_REVIEW_STOP_CONDITION,
+    INVARIANT_REVIEW_V1_FIELDS,
     classify_invariant_review,
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
@@ -483,6 +488,18 @@ def _validated_dispatch_role_order(
         raw_state = invariant_review.get("state")
         if not isinstance(raw_state, str) or raw_state not in INVARIANT_REVIEW_STATES:
             raise ValueError("invariant_review state must be not_required or required_pending")
+        if set(invariant_review) != INVARIANT_REVIEW_V1_FIELDS:
+            raise ValueError("invariant_review must exactly match the invariant_review.v1 fields")
+        if invariant_review.get("coverage_claim") != INVARIANT_REVIEW_COVERAGE_CLAIM:
+            raise ValueError("invariant_review requires the bounded coverage claim")
+        if invariant_review.get("boundary_classes") != list(INVARIANT_REVIEW_BOUNDARY_CLASSES):
+            raise ValueError("invariant_review requires the canonical boundary classes")
+        if invariant_review.get("required_output_fields") != list(
+            INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS
+        ):
+            raise ValueError("invariant_review requires the canonical output fields")
+        if invariant_review.get("stop_condition") != INVARIANT_REVIEW_STOP_CONDITION:
+            raise ValueError("invariant_review requires the canonical stop condition")
         invariant_review_state = raw_state
         if invariant_review.get("implementation_authority") is not False:
             raise ValueError("invariant review must not grant implementation authority")
@@ -565,8 +582,11 @@ def _validated_dispatch_role_order(
         if not opening_phase and raw_state != "not_required":
             raise ValueError("post-open invariant review state must be not_required")
         required_roles = invariant_review.get("required_roles")
-        if raw_state == "not_required" and required_roles != []:
-            raise ValueError("not_required invariant review must not require roles")
+        expected_required_roles = (
+            list(INVARIANT_REVIEW_REQUIRED_ROLES) if raw_state == "required_pending" else []
+        )
+        if required_roles != expected_required_roles:
+            raise ValueError(f"{raw_state} invariant review requires the canonical required roles")
 
     review_requires_order = invariant_review_state == "required_pending"
     role_dispatch_contract = payload.get("role_agent_dispatch_contract")
@@ -597,8 +617,6 @@ def _validated_dispatch_role_order(
         raise ValueError("dispatch_role_order must not contain duplicate roles")
     if dispatch_order[0] != "agent-coordinator":
         raise ValueError("dispatch_role_order must start with agent-coordinator")
-    if Counter(dispatch_order) != Counter(spawnable_roles):
-        raise ValueError("dispatch_role_order must exactly match spawnable native bridge bindings")
 
     if not isinstance(invariant_review, dict):
         raise ValueError("dispatch_role_order requires invariant_review metadata")
@@ -606,20 +624,23 @@ def _validated_dispatch_role_order(
         raise ValueError("dispatch_role_order requires invariant_review.v1")
     if invariant_review.get("state") != "required_pending":
         raise ValueError("dispatch_role_order requires required_pending invariant review")
-    if invariant_review.get("required_roles") != [
-        "logic-agent",
-        "philosophy-agent",
-    ]:
-        raise ValueError(
-            "required_pending invariant review requires logic-agent then philosophy-agent"
-        )
-    if dispatch_order[:3] != [
+    required_prefix = [
         "agent-coordinator",
-        "logic-agent",
-        "philosophy-agent",
-    ]:
+        *INVARIANT_REVIEW_REQUIRED_ROLES,
+    ]
+    missing_required_roles = [role for role in required_prefix if role not in spawnable_roles]
+    if missing_required_roles:
         raise ValueError(
-            "dispatch_role_order must start agent-coordinator -> logic-agent " "-> philosophy-agent"
+            "required_pending invariant review is missing required spawnable roles: "
+            + ", ".join(missing_required_roles)
+        )
+    canonical_dispatch_order = [
+        *required_prefix,
+        *[role for role in spawnable_roles if role not in required_prefix],
+    ]
+    if dispatch_order != canonical_dispatch_order:
+        raise ValueError(
+            "dispatch_role_order must exactly match the canonical spawnable binding order"
         )
     if payload.get("pr_phase") not in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}:
         raise ValueError("invariant review dispatch is limited to opening PR phases")
@@ -631,9 +652,6 @@ def _validated_dispatch_role_order(
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
-    if not isinstance(bridge, dict):
-        return []
-
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
@@ -656,31 +674,31 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         if slug:
             ordered.append(slug)
 
-    primary = bridge.get("primary")
-    if not isinstance(primary, dict):
-        return []
-    if not binding_is_spawnable(primary, default_when_unspecified=True):
-        return []
-    if not str(primary.get("repo_agent_slug", "")).strip():
-        return []
-    add_slug(primary)
-    secondary_items = bridge.get("secondary")
-    if isinstance(secondary_items, list):
-        for item in secondary_items:
-            add_slug(item)
-    advisory_items = bridge.get("advisory")
-    if isinstance(advisory_items, list):
-        for item in advisory_items:
-            add_slug(item, default_when_unspecified=False)
-    add_slug(bridge.get("reviewer"))
-    if not ordered:
-        return []
+    if isinstance(bridge, dict):
+        primary = bridge.get("primary")
+        if (
+            isinstance(primary, dict)
+            and binding_is_spawnable(primary, default_when_unspecified=True)
+            and str(primary.get("repo_agent_slug", "")).strip()
+        ):
+            add_slug(primary)
+            secondary_items = bridge.get("secondary")
+            if isinstance(secondary_items, list):
+                for item in secondary_items:
+                    add_slug(item)
+            advisory_items = bridge.get("advisory")
+            if isinstance(advisory_items, list):
+                for item in advisory_items:
+                    add_slug(item, default_when_unspecified=False)
+            add_slug(bridge.get("reviewer"))
     dispatch_role_order = _validated_dispatch_role_order(
         payload,
         spawnable_roles=ordered,
     )
     if dispatch_role_order is not None:
         return dispatch_role_order
+    if not ordered:
+        return []
     requested_agents = payload.get("requested_agents")
     if isinstance(requested_agents, list):
         available_counts: Dict[str, int] = {}

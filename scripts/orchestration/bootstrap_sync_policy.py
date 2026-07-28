@@ -27,6 +27,40 @@ INVARIANT_REVIEW_REQUIRED_ROLES: tuple[str, ...] = (
     "philosophy-agent",
 )
 INVARIANT_REVIEW_COVERAGE_CLAIM = "explicit_plus_bounded_positive_triggers_only"
+INVARIANT_REVIEW_BOUNDARY_CLASSES: tuple[str, ...] = (
+    "finite_closed_world",
+    "bounded_surface",
+    "delegated_recognizer",
+    "open_world_stop",
+)
+INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
+    "invariant_statement",
+    "boundary_class",
+    "canonical_sot",
+    "completeness_claim",
+    "counterexample_families",
+    "fail_closed_behavior",
+    "stop_condition",
+    "residual_risk",
+)
+INVARIANT_REVIEW_STOP_CONDITION = (
+    "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+)
+INVARIANT_REVIEW_V1_FIELDS = frozenset(
+    {
+        "schema_version",
+        "state",
+        "change_classes",
+        "trigger_evidence",
+        "coverage_claim",
+        "required_roles",
+        "boundary_classes",
+        "required_output_fields",
+        "stop_condition",
+        "implementation_authority",
+        "merge_authority",
+    }
+)
 INVARIANT_REVIEW_AUTHORITY_PATHS: tuple[str, ...] = (
     "scripts/orchestration/task_bootstrap.py",
     "scripts/orchestration/check_merge_ready.py",
