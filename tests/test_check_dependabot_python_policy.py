@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import shutil
 
@@ -715,6 +716,19 @@ def test_every_direct_requirement_source_symlink_shape_fails_closed(
     if target_kind == "directory":
         target_path.mkdir()
     source_path.symlink_to(target_path.name)
+
+    errors = policy.validate_repo(repo)
+
+    assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
+
+
+def test_non_regular_direct_requirement_source_fails_closed_without_blocking(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    source_path.unlink()
+    os.mkfifo(source_path)
 
     errors = policy.validate_repo(repo)
 

@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 from collections.abc import Iterable, Iterator, Mapping
 import fnmatch
+import os
 from pathlib import Path
 import re
+import stat
 import sys
 from typing import Any
 
@@ -312,7 +314,13 @@ def _strict_source_requirement_names(
     """Parse the closed grammar accepted for direct dependency declarations."""
 
     path = repo_root / relative_path
-    if path.is_symlink():
+    try:
+        path_stat = path.lstat()
+    except OSError:
+        return set(), [
+            _source_error(relative_path, "$", "direct dependency source could not be read")
+        ]
+    if not stat.S_ISREG(path_stat.st_mode):
         return set(), [
             _source_error(
                 relative_path,
@@ -320,8 +328,27 @@ def _strict_source_requirement_names(
                 "direct dependency source must be a regular non-symlink file",
             )
         ]
+    open_flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        if path.stat().st_size > MAX_REQUIREMENT_SOURCE_BYTES:
+        file_descriptor = os.open(path, open_flags)
+    except OSError:
+        return set(), [
+            _source_error(relative_path, "$", "direct dependency source could not be read")
+        ]
+    try:
+        source_stat = os.fstat(file_descriptor)
+        if not stat.S_ISREG(source_stat.st_mode) or (
+            source_stat.st_dev,
+            source_stat.st_ino,
+        ) != (path_stat.st_dev, path_stat.st_ino):
+            return set(), [
+                _source_error(
+                    relative_path,
+                    "$",
+                    "direct dependency source must be a regular non-symlink file",
+                )
+            ]
+        if source_stat.st_size > MAX_REQUIREMENT_SOURCE_BYTES:
             return set(), [
                 _source_error(
                     relative_path,
@@ -329,13 +356,27 @@ def _strict_source_requirement_names(
                     f"source size exceeds limit {MAX_REQUIREMENT_SOURCE_BYTES} bytes",
                 )
             ]
-        text = path.read_text(encoding="utf-8")
-    except UnicodeError:
-        return set(), [_source_error(relative_path, "$", "direct dependency source must be UTF-8")]
+        with os.fdopen(file_descriptor, "rb", closefd=False) as source:
+            source_bytes = source.read(MAX_REQUIREMENT_SOURCE_BYTES + 1)
     except OSError:
         return set(), [
             _source_error(relative_path, "$", "direct dependency source could not be read")
         ]
+    finally:
+        os.close(file_descriptor)
+
+    if len(source_bytes) > MAX_REQUIREMENT_SOURCE_BYTES:
+        return set(), [
+            _source_error(
+                relative_path,
+                "$",
+                f"source size exceeds limit {MAX_REQUIREMENT_SOURCE_BYTES} bytes",
+            )
+        ]
+    try:
+        text = source_bytes.decode("utf-8")
+    except UnicodeError:
+        return set(), [_source_error(relative_path, "$", "direct dependency source must be UTF-8")]
 
     lines = text.splitlines()
     if len(lines) > MAX_REQUIREMENT_SOURCE_LINES:
