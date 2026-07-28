@@ -8,6 +8,8 @@ language: en-US
 # Path-based instructions
 reviews:
   profile: chill
+  path_filters:
+    - "!docs/review/PR_*_FIXED_MAPPING.md"
   path_instructions:
     - path: "**/*.py"
       instructions: |
