@@ -622,6 +622,102 @@ def test_direct_package_must_have_exactly_one_owner_group(tmp_path: Path) -> Non
     )
 
 
+def test_multiline_direct_requirement_fails_closed_before_ownership(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    source_path.write_text(
+        source_path.read_text(encoding="utf-8") + "novel-direct \\\n    ==1.0\n",
+        encoding="utf-8",
+    )
+    lock_path = repo / "requirements.txt"
+    lock_path.write_text(
+        lock_path.read_text(encoding="utf-8") + "novel-direct==1.0\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.startswith("requirements.in:")
+        and "line continuations are forbidden; use one PEP 508 declaration per line" in error
+        for error in errors
+    )
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        "-r nested-requirements.in",
+        "-e git+https://example.invalid/project.git#egg=novel-direct",
+        "--index-url https://example.invalid/simple/",
+    ],
+)
+def test_noncanonical_requirement_directive_class_fails_closed(
+    tmp_path: Path,
+    directive: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    source_path.write_text(
+        source_path.read_text(encoding="utf-8") + f"{directive}\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.startswith("requirements.in:")
+        and "unsupported requirement directive; only the canonical constraint is allowed" in error
+        for error in errors
+    )
+
+
+def test_direct_url_requirement_class_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    source_path.write_text(
+        source_path.read_text(encoding="utf-8")
+        + "novel-direct @ https://example.invalid/novel-direct.whl\n",
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.startswith("requirements.in:") and "direct URL requirements are forbidden" in error
+        for error in errors
+    )
+
+
+def test_direct_requirement_source_symlink_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    target_path = repo / "requirements-source-target.in"
+    source_path.replace(target_path)
+    source_path.symlink_to(target_path.name)
+
+    errors = policy.validate_repo(repo)
+
+    assert "requirements.in:$:direct dependency source must be a regular non-symlink file" in errors
+
+
+def test_direct_requirement_source_resource_budgets_fail_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    source_path = repo / "requirements.in"
+    source_path.write_text(
+        "a" * (policy.MAX_REQUIREMENT_LINE_CHARS + 1),
+        encoding="utf-8",
+    )
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        "requirements.in:1:" f"line length exceeds limit {policy.MAX_REQUIREMENT_LINE_CHARS}"
+    ]
+
+
 def test_known_package_cannot_match_multiple_groups(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

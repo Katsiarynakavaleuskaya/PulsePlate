@@ -11,6 +11,7 @@ import re
 import sys
 from typing import Any
 
+from packaging.requirements import InvalidRequirement, Requirement
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -149,6 +150,10 @@ EXPECTED_UPDATE_KEYS = set(EXPECTED_UPDATE_EXACT_VALUES) | {"cooldown", "groups"
 MAX_CONFIG_BYTES = 64 * 1024
 MAX_YAML_TOKENS = 4096
 MAX_YAML_NESTING = 32
+MAX_REQUIREMENT_SOURCE_BYTES = 64 * 1024
+MAX_REQUIREMENT_SOURCE_LINES = 4096
+MAX_REQUIREMENT_LINE_CHARS = 4096
+ALLOWED_REQUIREMENT_DIRECTIVES = {"-c requirements.txt"}
 _YAML_CONTAINER_START_TOKENS = (
     yaml.tokens.FlowSequenceStartToken,
     yaml.tokens.FlowMappingStartToken,
@@ -296,23 +301,131 @@ def _matches(package: str, pattern: str) -> bool:
     return fnmatch.fnmatchcase(package, _normalized_pattern(pattern))
 
 
-def _known_packages(repo_root: Path) -> tuple[set[str], set[str]]:
+def _source_error(relative_path: str | Path, location: str, message: str) -> str:
+    return f"{Path(relative_path).as_posix()}:{location}:{message}"
+
+
+def _strict_source_requirement_names(
+    repo_root: Path,
+    relative_path: str | Path,
+) -> tuple[set[str], list[str]]:
+    """Parse the closed grammar accepted for direct dependency declarations."""
+
+    path = repo_root / relative_path
+    if path.is_symlink():
+        return set(), [
+            _source_error(
+                relative_path,
+                "$",
+                "direct dependency source must be a regular non-symlink file",
+            )
+        ]
+    try:
+        if path.stat().st_size > MAX_REQUIREMENT_SOURCE_BYTES:
+            return set(), [
+                _source_error(
+                    relative_path,
+                    "$",
+                    f"source size exceeds limit {MAX_REQUIREMENT_SOURCE_BYTES} bytes",
+                )
+            ]
+        text = path.read_text(encoding="utf-8")
+    except UnicodeError:
+        return set(), [_source_error(relative_path, "$", "direct dependency source must be UTF-8")]
+    except OSError:
+        return set(), [
+            _source_error(relative_path, "$", "direct dependency source could not be read")
+        ]
+
+    lines = text.splitlines()
+    if len(lines) > MAX_REQUIREMENT_SOURCE_LINES:
+        return set(), [
+            _source_error(
+                relative_path,
+                "$",
+                f"line count exceeds limit {MAX_REQUIREMENT_SOURCE_LINES}",
+            )
+        ]
+
+    names: set[str] = set()
+    errors: list[str] = []
+    for line_number, raw_line in enumerate(lines, start=1):
+        if len(raw_line) > MAX_REQUIREMENT_LINE_CHARS:
+            errors.append(
+                _source_error(
+                    relative_path,
+                    str(line_number),
+                    f"line length exceeds limit {MAX_REQUIREMENT_LINE_CHARS}",
+                )
+            )
+            continue
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped in ALLOWED_REQUIREMENT_DIRECTIVES:
+            continue
+        if stripped.startswith(("-", "--")):
+            errors.append(
+                _source_error(
+                    relative_path,
+                    str(line_number),
+                    "unsupported requirement directive; only the canonical constraint is allowed",
+                )
+            )
+            continue
+        requirement_text = re.sub(r"\s+#.*$", "", stripped).rstrip()
+        if requirement_text.endswith("\\"):
+            errors.append(
+                _source_error(
+                    relative_path,
+                    str(line_number),
+                    "line continuations are forbidden; use one PEP 508 declaration per line",
+                )
+            )
+            continue
+        try:
+            requirement = Requirement(requirement_text)
+        except InvalidRequirement:
+            errors.append(
+                _source_error(
+                    relative_path,
+                    str(line_number),
+                    "invalid single-line PEP 508 requirement declaration",
+                )
+            )
+            continue
+        if requirement.url is not None:
+            errors.append(
+                _source_error(
+                    relative_path,
+                    str(line_number),
+                    "direct URL requirements are forbidden",
+                )
+            )
+            continue
+        names.add(_normalized_pattern(requirement.name))
+    return names, errors
+
+
+def _known_packages(repo_root: Path) -> tuple[set[str], set[str], list[str]]:
     direct: set[str] = set()
     known: set[str] = set()
+    errors: list[str] = []
     for surface in DEPENDENCY_SURFACES:
         if surface.source_file is not None:
             source_path = repo_root / surface.source_file
             if source_path.is_file():
-                source_packages = _requirement_package_names(
+                source_packages, source_errors = _strict_source_requirement_names(
                     repo_root,
                     surface.source_file,
                 )
                 direct.update(source_packages)
                 known.update(source_packages)
+                errors.extend(source_errors)
         lock_path = repo_root / surface.lockfile
         if lock_path.is_file():
             known.update(_requirement_package_names(repo_root, surface.lockfile))
-    return direct, known
+    return direct, known, errors
 
 
 def _validate_exact_mapping(
@@ -404,7 +517,10 @@ def _validate_groups(
         if patterns == list(expected["patterns"]):
             usable_groups[group_name] = tuple(patterns)
 
-    direct_packages, known_packages = _known_packages(repo_root)
+    direct_packages, known_packages, source_errors = _known_packages(repo_root)
+    errors.extend(source_errors)
+    if source_errors:
+        return
     for group_name, patterns in usable_groups.items():
         for pattern_index, pattern in enumerate(patterns):
             if pattern in {"*", "**"}:
