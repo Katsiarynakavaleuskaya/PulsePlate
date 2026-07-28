@@ -479,6 +479,23 @@ def test_standard_sections_ignore_comments_and_nested_headings() -> None:
     ) == ["scope", "out of scope", "tests"]
 
 
+def test_default_pr_template_satisfies_standard_section_contract() -> None:
+    template = (size_gate.REPO_ROOT / ".github/pull_request_template.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert size_gate.missing_standard_sections(template) == []
+
+
+def test_default_pr_template_legacy_tests_heading_fails_standard_section_contract() -> None:
+    template = (size_gate.REPO_ROOT / ".github/pull_request_template.md").read_text(
+        encoding="utf-8"
+    )
+    legacy_heading = template.replace("## Tests\n", "## Tests / validation\n")
+
+    assert size_gate.missing_standard_sections(legacy_heading) == ["tests"]
+
+
 def test_micro_governance_docs_require_standard_sections() -> None:
     exit_code, lines = size_gate.evaluate_pr_size_policy(
         total_changed_lines=10,

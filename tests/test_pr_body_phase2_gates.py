@@ -231,6 +231,61 @@ def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> Non
     assert errors == []
 
 
+def test_default_pr_template_satisfies_pre_closeout_contract() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=template,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert errors == []
+
+
+def test_default_pr_template_without_pre_closeout_marker_fails() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    without_marker = template.replace(
+        "<!-- phase2-pre-closeout: final-security-pending -->\n\n",
+        "",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=without_marker,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert errors == [
+        "Pre-closeout requires the exact marker: "
+        "`<!-- phase2-pre-closeout: final-security-pending -->`."
+    ]
+
+
+def test_default_pr_template_placeholder_mapping_is_not_closeout_evidence() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    closeout_body = (
+        template.replace(
+            "<!-- phase2-pre-closeout: final-security-pending -->\n\n",
+            "",
+        )
+        .replace("- [ ]", "- [x]")
+        .replace(
+            "- Pending final clean scan and the single mapping/closeout commit.\n",
+            "",
+        )
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=closeout_body,
+        mode=gates.BodyValidationMode.FULL_MAPPING,
+    )
+
+    assert errors == [
+        "Add at least one review-thread entry (`- <review-comment-url>` or "
+        "`- <review-comment-url> -> <commit-sha>`) or "
+        "`- No actionable review comments`."
+    ]
+
+
 def test_phase2_guard_rejects_checked_pre_closeout_boxes() -> None:
     body = PRE_CLOSEOUT_BODY.replace("- [ ]", "- [x]")
 
