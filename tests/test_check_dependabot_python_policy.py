@@ -378,8 +378,36 @@ def test_multiple_root_pip_blocks_fail_closed(tmp_path: Path) -> None:
     errors = policy.validate_repo(repo)
 
     assert (
+        ".github/dependabot.yml:updates:" "must contain exactly one governed update block; got 2"
+    ) in errors
+    assert (
         ".github/dependabot.yml:updates:must contain exactly one pip update block; got 2" in errors
     )
+
+
+@pytest.mark.parametrize(
+    "invalid_sibling",
+    [
+        {"package-ecosystem": "npm"},
+        {"package-ecosystem": "not-a-real-ecosystem"},
+    ],
+)
+def test_non_python_update_siblings_are_outside_the_governed_config(
+    tmp_path: Path,
+    invalid_sibling: dict[str, object],
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    updates = config["updates"]
+    assert isinstance(updates, list)
+    updates.append(invalid_sibling)
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        ".github/dependabot.yml:updates:" "must contain exactly one governed update block; got 2"
+    ) in errors
 
 
 @pytest.mark.parametrize("invalid_update", [42, None, ["pip"]])

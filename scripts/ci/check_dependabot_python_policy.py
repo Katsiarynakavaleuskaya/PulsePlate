@@ -484,6 +484,13 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(updates, list):
         errors.append(_error("updates", "must be a list"))
         return errors
+    if len(updates) != 1:
+        errors.append(
+            _error(
+                "updates",
+                f"must contain exactly one governed update block; got {len(updates)}",
+            )
+        )
     pip_updates: list[tuple[int, Mapping[Any, Any]]] = []
     for index, candidate in enumerate(updates):
         candidate_path = f"updates[{index}]"
