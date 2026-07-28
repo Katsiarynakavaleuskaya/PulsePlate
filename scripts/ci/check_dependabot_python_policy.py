@@ -20,7 +20,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
+from scripts.ci.check_python_dependency_surfaces import (
+    DEPENDENCY_SURFACES,
+    registered_dependabot_requirement_carriers,
+)
+from scripts.ci.dependabot_requirement_carriers import (
+    DependabotRequirementDiscoveryError,
+    discover_dependabot_requirement_carriers,
+)
 
 CONFIG_PATH = Path(".github/dependabot.yml")
 SHADOW_CONFIG_PATH = Path(".github/dependabot.yaml")
@@ -525,6 +532,13 @@ def _known_packages(repo_root: Path) -> tuple[set[str], set[str], list[str]]:
     return direct, known, errors
 
 
+def _unknown_dependabot_requirement_carriers(repo_root: Path) -> list[str]:
+    """Return accepted Dependabot carriers outside the closed ownership registry."""
+
+    discovered = discover_dependabot_requirement_carriers(repo_root)
+    return sorted(discovered - registered_dependabot_requirement_carriers())
+
+
 def _validate_exact_mapping(
     *,
     actual: object,
@@ -702,6 +716,20 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(config, Mapping):
         errors.append(_error("$", "root must be a mapping"))
         return errors
+
+    try:
+        unknown_carriers = _unknown_dependabot_requirement_carriers(repo_root)
+    except DependabotRequirementDiscoveryError:
+        errors.append(
+            "dependabot.requirement-carriers:$:"
+            "candidate discovery could not inspect the repository tree"
+        )
+        unknown_carriers = []
+    if unknown_carriers:
+        errors.append(
+            "dependabot.requirement-carriers:$:"
+            f"unregistered candidate carriers are forbidden: {unknown_carriers!r}"
+        )
 
     if config.get("version") != 2:
         errors.append(

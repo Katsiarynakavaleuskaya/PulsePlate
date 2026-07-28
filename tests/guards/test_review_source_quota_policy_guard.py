@@ -272,10 +272,22 @@ def test_authoritative_docs_keep_terminal_warning_only_contract() -> None:
 def test_every_policy_surface_selects_this_guard_in_diff_validation() -> None:
     runner = (REPO_ROOT / "scripts/run-backend-tests-pre-commit.sh").read_text(encoding="utf-8")
     assert "declare -a REVIEW_SOURCE_QUOTA_POLICY_SURFACE_FILES=(" in runner
+    assert "declare -a CHANGED_FILES=()" in runner
+    assert "declare -a PYTHON_CHANGES=()" in runner
     assert 'done <<< "$CHANGED_FILES"' not in runner
     assert 'done <<< "$PYTHON_CHANGES"' not in runner
-    assert "done < <(printf '%s\\n' \"$CHANGED_FILES\")" in runner
-    assert "done < <(printf '%s\\n' \"$PYTHON_CHANGES\")" in runner
+    assert "printf '%s\\n' \"$CHANGED_FILES\"" not in runner
+    assert "printf '%s\\n' \"$PYTHON_CHANGES\"" not in runner
+    assert '[[ "$candidate" == .claude/* ]]' not in runner
+    assert 'for file in "${CHANGED_FILES[@]}"; do' in runner
+    assert 'for file in "${PYTHON_CHANGES[@]}"; do' in runner
+    assert "record_changed_files < <(" not in runner
+    assert "append_changed_files < <(" not in runner
+    assert "collect_git_diff()" in runner
+    assert "git diff failed while collecting changed files" in runner
+    for line in runner.splitlines():
+        if "git diff" in line and "--name-only" in line:
+            assert "-z" in line
     for path in POLICY_SURFACE_FILES:
         assert f'"{path}"' in runner
     for test_file in POLICY_SUITE_TEST_FILES:

@@ -36,47 +36,110 @@ log_debug() {
 # For pre-push: check files in commits that will be pushed
 # For ad-hoc local validation (`make validate-changed`): prefer current branch diff
 # against the nearest main/master merge-base instead of the pushed/unpushed delta.
-CHANGED_FILES=""
-PYTHON_CHANGES=""
+declare -a CHANGED_FILES=()
+declare -a PYTHON_CHANGES=()
 BRANCH_DIFF_MODE="${BRANCH_DIFF_MODE:-0}"
 BRANCH_DIFF_BASE_RESOLVED=0
+CHANGED_DIFF_MAX_BYTES=4194304
+DIFF_OUTPUT_FILE=""
+
+cleanup_diff_output() {
+    if [ -n "$DIFF_OUTPUT_FILE" ]; then
+        rm -f -- "$DIFF_OUTPUT_FILE"
+        DIFF_OUTPUT_FILE=""
+    fi
+}
+
+trap cleanup_diff_output EXIT
+
+refresh_python_changes() {
+    local changed_file
+    PYTHON_CHANGES=()
+    for changed_file in "${CHANGED_FILES[@]}"; do
+        if [[ "$changed_file" == *.py ]]; then
+            PYTHON_CHANGES+=("$changed_file")
+        fi
+    done
+}
+
+add_changed_file() {
+    local candidate="$1"
+    local existing
+    for existing in "${CHANGED_FILES[@]}"; do
+        if [ "$existing" = "$candidate" ]; then
+            return 0
+        fi
+    done
+    CHANGED_FILES+=("$candidate")
+}
 
 record_changed_files() {
-    CHANGED_FILES=$(printf '%s\n' "$1" | grep -v "^\.claude/" || true)
-    PYTHON_CHANGES=$(printf '%s\n' "$CHANGED_FILES" | grep "\.py$" || true)
+    local incoming
+    CHANGED_FILES=()
+    while IFS= read -r -d '' incoming; do
+        add_changed_file "$incoming"
+    done
+    refresh_python_changes
 }
 
 append_changed_files() {
     local incoming
-    incoming=$(printf '%s\n' "$1" | grep -v "^\.claude/" || true)
-    if [ -z "$incoming" ]; then
-        return 0
+    while IFS= read -r -d '' incoming; do
+        add_changed_file "$incoming"
+    done
+    refresh_python_changes
+}
+
+collect_git_diff() {
+    local mode="$1"
+    local diff_status
+    local diff_output_bytes
+    shift
+
+    if ! DIFF_OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/pulseplate-backend-diff.XXXXXX")"; then
+        echo "❌ Could not allocate temporary storage for changed-file discovery" >&2
+        exit 1
+    fi
+    if git diff --no-renames --name-only -z --diff-filter=ACMDT "$@" > "$DIFF_OUTPUT_FILE"; then
+        :
+    else
+        diff_status=$?
+        echo "❌ git diff failed while collecting changed files (exit ${diff_status})" >&2
+        exit "$diff_status"
     fi
 
-    CHANGED_FILES=$(printf '%s\n%s\n' "$CHANGED_FILES" "$incoming" | sed '/^$/d' | sort -u)
-    PYTHON_CHANGES=$(printf '%s\n' "$CHANGED_FILES" | grep "\.py$" || true)
+    diff_output_bytes="$(wc -c < "$DIFF_OUTPUT_FILE")"
+    diff_output_bytes="${diff_output_bytes//[[:space:]]/}"
+    if ! [[ "$diff_output_bytes" =~ ^[0-9]+$ ]]; then
+        echo "❌ Could not measure changed-file discovery output" >&2
+        exit 1
+    fi
+    if [ "$diff_output_bytes" -gt "$CHANGED_DIFF_MAX_BYTES" ]; then
+        echo "❌ Changed-file discovery output exceeds the ${CHANGED_DIFF_MAX_BYTES}-byte limit" >&2
+        exit 1
+    fi
+
+    if [ "$mode" = "append" ]; then
+        append_changed_files < "$DIFF_OUTPUT_FILE"
+    else
+        record_changed_files < "$DIFF_OUTPUT_FILE"
+    fi
+    cleanup_diff_output
 }
 
 resolve_branch_diff_from_base() {
     local mode="${1:-replace}"
     local base_branch
     local base_sha=""
-    local branch_changed_files
-
     log_debug "Trying merge-base branch diff against main/master candidates..."
     for base_branch in origin/main origin/master main master; do
         base_sha=$(git merge-base HEAD "$base_branch" 2>/dev/null || echo "")
         if [ -n "$base_sha" ]; then
             BRANCH_DIFF_BASE_RESOLVED=1
             log_debug "Merge-base with $base_branch: $base_sha"
-            branch_changed_files=$(git diff --no-renames --name-only --diff-filter=ACMDT "$base_sha" HEAD)
-            if [ "$mode" = "append" ]; then
-                append_changed_files "$branch_changed_files"
-            else
-                record_changed_files "$branch_changed_files"
-            fi
-            if [ -n "$PYTHON_CHANGES" ]; then
-                log_debug "Python changes (via branch diff $base_branch): $PYTHON_CHANGES"
+            collect_git_diff "$mode" "$base_sha" HEAD
+            if [ ${#PYTHON_CHANGES[@]} -gt 0 ]; then
+                log_debug "Python change count (via branch diff $base_branch): ${#PYTHON_CHANGES[@]}"
             fi
             return 0
         fi
@@ -89,15 +152,21 @@ if [ -n "${PRE_COMMIT:-}" ]; then
     # Pre-commit hook: check staged files. For `pre-commit run --all-files`,
     # pass_filenames=false means there may be no staged diff, so fall back to
     # the branch diff to keep manifest governance from going false-green.
-    record_changed_files "$(git diff --cached --no-renames --name-only --diff-filter=ACMDT)"
-    if [ -z "$CHANGED_FILES" ]; then
-        resolve_branch_diff_from_base || true
+    collect_git_diff replace --cached
+    if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
+        if resolve_branch_diff_from_base; then
+            :
+        fi
     else
-        resolve_branch_diff_from_base append || true
+        if resolve_branch_diff_from_base append; then
+            :
+        fi
     fi
 elif [ "$BRANCH_DIFF_MODE" = "1" ]; then
     # Local validation command: diff the current branch against main/master merge-base.
-    resolve_branch_diff_from_base || true
+    if resolve_branch_diff_from_base; then
+        :
+    fi
 else
     # Pre-push hook: check files in commits that will be pushed
     # In pre-push, we need to compare what's being pushed with what's already on remote
@@ -115,28 +184,30 @@ else
         log_debug "Upstream SHA: ${REMOTE_SHA:-<not found>}"
         if [ -n "$REMOTE_SHA" ]; then
             # Compare local HEAD with remote branch (files that will be pushed)
-            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$REMOTE_SHA" HEAD)"
-            log_debug "Python changes (via upstream): ${PYTHON_CHANGES:-<none>}"
+            collect_git_diff replace "$REMOTE_SHA" HEAD
+            log_debug "Python change count (via upstream): ${#PYTHON_CHANGES[@]}"
         fi
     fi
 
     # Fallback: if we couldn't determine remote branch, try common patterns.
     # Preserve package-manifest-only upstream deltas so cross-surface
     # governance tests are not lost just because no Python files changed.
-    if [ -z "$CHANGED_FILES" ]; then
+    if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
         # Try origin/current_branch
         REMOTE_BRANCH="origin/${CURRENT_BRANCH}"
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
         log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: ${REMOTE_SHA:-<not found>})"
         if [ -n "$REMOTE_SHA" ]; then
-            record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "$REMOTE_SHA" HEAD)"
-            log_debug "Python changes (via fallback remote): ${PYTHON_CHANGES:-<none>}"
+            collect_git_diff replace "$REMOTE_SHA" HEAD
+            log_debug "Python change count (via fallback remote): ${#PYTHON_CHANGES[@]}"
         fi
     fi
 
     # Last resort: compare branch diff against main/master using merge-base
-    if [ -z "$CHANGED_FILES" ]; then
-        resolve_branch_diff_from_base || true
+    if [ ${#CHANGED_FILES[@]} -eq 0 ]; then
+        if resolve_branch_diff_from_base; then
+            :
+        fi
     fi
 fi
 
@@ -194,17 +265,28 @@ add_python_dependency_testclient_tests() {
 }
 
 add_extra_tests_for_changed_files() {
-    while IFS= read -r file; do
+    local file
+    for file in "${CHANGED_FILES[@]}"; do
+        # Keep the hook aligned with Dependabot's configured root/one-level
+        # .txt/.in carrier class. The Python policy is the content authority.
+        case "$file" in
+            *.txt | *.in)
+                case "$file" in
+                    */*/*) ;;
+                    *) EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py") ;;
+                esac
+                ;;
+        esac
         case "$file" in
             frontend/package.json | frontend/package-lock.json)
                 EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
                 EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")
                 EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")
                 ;;
-            .github/dependabot.yml | .github/dependabot.yaml | constraints.txt | requirements*.in | requirements*.txt)
+            .github/dependabot.yml | .github/dependabot.yaml)
                 EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
                 ;;
-            scripts/ci/check_dependabot_python_policy.py | scripts/ci/check_python_dependency_surfaces.py | tests/test_check_dependabot_python_policy.py | docs/DEPENDENCY_MANAGEMENT.md | docs/contracts/PYTHON_DEPENDENCY_SURFACES.md)
+            scripts/ci/check_dependabot_python_policy.py | scripts/ci/check_python_dependency_surfaces.py | scripts/ci/dependabot_requirement_carriers.py | tests/test_check_dependabot_python_policy.py | docs/DEPENDENCY_MANAGEMENT.md | docs/contracts/PYTHON_DEPENDENCY_SURFACES.md)
                 EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py")
                 ;;
         esac
@@ -223,7 +305,7 @@ add_extra_tests_for_changed_files() {
                 break
             fi
         done
-    done < <(printf '%s\n' "$CHANGED_FILES")
+    done
 }
 
 add_extra_tests_for_changed_files
@@ -247,7 +329,7 @@ add_helper_tests_for_python_change() {
     return 1
 }
 
-if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
+if [ ${#PYTHON_CHANGES[@]} -eq 0 ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
     if [ "$BRANCH_DIFF_MODE" = "1" ] && [ "$BRANCH_DIFF_BASE_RESOLVED" = "1" ]; then
         echo "ℹ️  No Python or cross-surface governance files changed on the current branch"
         exit 0
@@ -280,11 +362,11 @@ if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
         fi
 
         echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${FALLBACK_DEPTH} commits as safety measure..."
-        record_changed_files "$(git diff --no-renames --name-only --diff-filter=ACMDT "HEAD~${FALLBACK_DEPTH}" HEAD 2>/dev/null || true)"
+        collect_git_diff replace "HEAD~${FALLBACK_DEPTH}" HEAD
         EXTRA_TEST_FILES=()
         add_extra_tests_for_changed_files
-        log_debug "Python changes (via recent commits fallback, n=${FALLBACK_DEPTH}): ${PYTHON_CHANGES:-<none>}"
-        if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
+        log_debug "Python change count (via recent commits fallback, n=${FALLBACK_DEPTH}): ${#PYTHON_CHANGES[@]}"
+        if [ ${#PYTHON_CHANGES[@]} -eq 0 ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
             echo "ℹ️  No Python or cross-surface governance files changed in last ${FALLBACK_DEPTH} commits, skipping backend tests"
             exit 0
         fi
@@ -299,8 +381,8 @@ fi
 # Extract test files that correspond to changed Python files
 declare -a TEST_FILES=()
 
-if [ -n "$PYTHON_CHANGES" ]; then
-    while IFS= read -r file; do
+if [ ${#PYTHON_CHANGES[@]} -gt 0 ]; then
+    for file in "${PYTHON_CHANGES[@]}"; do
         # Per-file test discovery
         declare -a FOUND_FOR_FILE=()
 
@@ -344,7 +426,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
         if [ ${#FOUND_FOR_FILE[@]} -gt 0 ]; then
             TEST_FILES+=("${FOUND_FOR_FILE[@]}")
         fi
-    done < <(printf '%s\n' "$PYTHON_CHANGES")
+    done
 fi
 
 if [ ${#EXTRA_TEST_FILES[@]} -gt 0 ]; then
@@ -372,9 +454,18 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
 
     # Deduplicate test files
     declare -a DEDUPED_TEST_FILES=()
-    while IFS= read -r test_file; do
-        [ -n "$test_file" ] && DEDUPED_TEST_FILES+=("$test_file")
-    done < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
+    for test_file in "${TEST_FILES[@]}"; do
+        test_file_seen=0
+        for deduped_test_file in "${DEDUPED_TEST_FILES[@]}"; do
+            if [ "$deduped_test_file" = "$test_file" ]; then
+                test_file_seen=1
+                break
+            fi
+        done
+        if [ "$test_file_seen" = "0" ]; then
+            DEDUPED_TEST_FILES+=("$test_file")
+        fi
+    done
     TEST_FILES=("${DEDUPED_TEST_FILES[@]}")
     log_debug "Test files to run: ${TEST_FILES[*]}"
 
@@ -394,6 +485,6 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
         exit 1
     fi
 else
-    log_debug "No test files found for Python changes: $PYTHON_CHANGES"
+    log_debug "No test files found for ${#PYTHON_CHANGES[@]} Python changes"
     echo "ℹ️  No corresponding test files found for changed Python files"
 fi

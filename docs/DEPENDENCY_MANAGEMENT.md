@@ -454,10 +454,24 @@ four-PR cap. Security updates are not grouped, suppressed, or counted against
 that version-update cap.
 
 Run `python scripts/ci/check_dependabot_python_policy.py --repo-root .` after
-changing the config, any `requirements*.in`/`requirements*.txt` surface,
-constraints, or this policy. The guard reuses the canonical dependency-surface
-registry and fails closed on public fallback, shadow config, suppression keys,
+changing the config, any root or one-directory-deep `.in`/`.txt` file,
+constraints, or this policy. That path-and-content class mirrors the configured
+Dependabot Python fetcher rather than an allowlist of familiar basenames:
+accepted carriers must belong to the canonical dependency-surface registry.
+The same candidate class drives dependency-surface validation, CI risk routing,
+protected review evidence, and focused pre-commit selection. The guard fails
+closed when descriptor-anchored traversal cannot classify the repository tree,
+and on public fallback, shadow config, suppression keys, unregistered carriers,
 unowned direct packages, overlapping owners, and patterns that match nothing.
+
+The filesystem guarantee is deliberately bounded to committed, at-rest material:
+one descriptor-anchored, no-follow traversal classifies each bounded regular
+UTF-8 candidate while its parent directory remains pinned. It does not claim
+permanent pathname or content stability against an uncooperative same-UID
+process mutating files between syscalls; commit identity and current-head CI are
+the transaction boundary. Stronger writer exclusion requires a separate
+threat-model lane, not repeated pathname, timestamp, or terminal revalidation
+inside this policy checker.
 
 A bot-authored PR is non-authoritative intake. It may be merged directly only
 when its generated artifacts are byte-equivalent to a clean run of the governed

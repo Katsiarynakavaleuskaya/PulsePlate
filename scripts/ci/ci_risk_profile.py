@@ -12,12 +12,18 @@ import fnmatch
 import json
 import os
 from pathlib import Path, PurePosixPath
-import re
 import subprocess  # nosec B404: subprocess is required for bounded local git diff execution (remove-by: 2026-09-30, ref: PR3-risk-topology)
 import sys
 import shutil
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.ci.dependabot_requirement_carriers import (
+    is_protected_python_dependency_text_path,
+)
+
 GIT_BINARY = shutil.which("git")
 ALL_RISK_GROUPS: tuple[str, ...] = (
     "billing_entitlement",
@@ -71,8 +77,6 @@ _DEPENDENCY_MANIFEST_BASENAMES = frozenset(
         "yarn.lock",
     }
 )
-_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
-
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
     ".github/dependabot.yaml",
     ".github/dependabot.yml",
@@ -369,7 +373,7 @@ def _is_backend_shared(path: str) -> bool:
         normalized in BACKEND_SHARED_EXACT
         or normalized.startswith(BACKEND_SHARED_PREFIXES)
         or basename in _DEPENDENCY_MANIFEST_BASENAMES
-        or _REQUIREMENTS_MANIFEST_RE.fullmatch(basename) is not None
+        or is_protected_python_dependency_text_path(normalized)
     )
 
 

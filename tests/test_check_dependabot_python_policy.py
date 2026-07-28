@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from scripts.ci import check_dependabot_python_policy as policy
+from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +70,115 @@ def _groups(config: dict[str, object]) -> dict[str, object]:
 
 def test_live_dependabot_policy_passes() -> None:
     assert policy.validate_repo(REPO_ROOT) == []
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "extra.txt",
+        "nested/extra.in",
+        ".claude/extra.txt",
+        "nested/requirements-shadow.txt",
+        "a\\b/extra.txt",
+        "a\\b\\c.txt",
+    ),
+)
+def test_every_novel_dependabot_carrier_path_fails_closed(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    carrier_path = repo / relative_path
+    carrier_path.parent.mkdir(parents=True, exist_ok=True)
+    carrier_path.write_text("novel-unowned-carrier>=1\n", encoding="utf-8")
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        f"unregistered candidate carriers are forbidden: [{relative_path!r}]"
+    ) in errors
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "content"),
+    (
+        ("diagnostics.txt", "./tests/example.py:1:1: E001 issue\n"),
+        ("notes.txt", "hello world\n"),
+        ("links.txt", "https://example.invalid/pkg\n"),
+        ("direct-url.txt", "pkg @ https://example.invalid/pkg\n"),
+        ("control-separator.txt", "package\vsecond\n"),
+        ("unicode-whitespace.txt", "package\u00a0>=1\n"),
+    ),
+)
+def test_non_requirement_text_file_is_not_misclassified_as_carrier(
+    tmp_path: Path,
+    relative_path: str,
+    content: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / relative_path).write_text(content, encoding="utf-8")
+
+    assert policy.validate_repo(repo) == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        "package\n",
+        "package>=1\n",
+        'package[extra]>=1; python_version < "3.13"\n',
+        "package==1 --hash=sha256:abc\n",
+    ),
+)
+def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -> None:
+    assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_unclassifiable_novel_candidate_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / "extra.txt").symlink_to("missing-carrier-target")
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "unregistered candidate carriers are forbidden: ['extra.txt']"
+    ) in errors
+
+
+def test_unreadable_candidate_directory_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    blocked_directory = repo / "blocked"
+    blocked_directory.mkdir()
+    (blocked_directory / "extra.txt").write_text(
+        "novel-unowned-carrier>=1\n",
+        encoding="utf-8",
+    )
+    real_open = carriers.os.open
+
+    def deny_blocked_directory(
+        path: str | bytes | Path,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if path == "blocked" and dir_fd is not None:
+            raise PermissionError("deterministic unreadable-directory fixture")
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(carriers.os, "open", deny_blocked_directory)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree"
+    ) in errors
 
 
 def test_shadow_yaml_fails_closed(tmp_path: Path) -> None:
