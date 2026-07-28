@@ -23,6 +23,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
+from app.services.pro_nutrition_bmr import calculate_bmr_response
 from app.services.pro_nutrition_plate import generate_plate_response
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
@@ -63,19 +64,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 )
 async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
     """Legacy-compatible premium BMR endpoint."""
-    from legacy_app import api_premium_bmr as _legacy_api_premium_bmr
-
-    resp: BMRResponse = await _legacy_api_premium_bmr(req)
-    return resp
+    return await calculate_bmr_response(req)
 
 
 @router.post("/premium_bmr")
 async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     """Legacy BMR alias; intentionally preserves its historical public route shape."""
-    from legacy_app import premium_bmr_legacy as _legacy_premium_bmr
-
-    resp: BMRResponse = await _legacy_premium_bmr(req)
-    return resp
+    return await calculate_bmr_response(req)
 
 
 @router.post(

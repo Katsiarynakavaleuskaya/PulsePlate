@@ -49,7 +49,11 @@ from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibil
     _get_api_key_dynamic as _get_api_key_dynamic,
     get_api_key as get_api_key,
 )
-from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.schemas.bmr import (  # noqa: F401 - compatibility re-exports
+    BMRRequest,
+    BMRRequestLegacy,
+    BMRResponse,
+)
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 from app.schemas.premium_contracts import (
     Activity,
@@ -109,14 +113,6 @@ from core.nutrition_utils import (
     ensure_priority_micros as _ensure_priority_micros,
 )
 from core.targets import FIBER_MIN_G
-from core.utils import get_activity_factor
-from core.bmr import (
-    FALLBACK_BMR_KCAL_PER_KG_PER_DAY,
-    WEIGHT_GAIN_MULTIPLIER,
-    WEIGHT_LOSS_MULTIPLIER,
-    calculate_all_bmr,
-    calculate_all_tdee,
-)
 from core.export_format import ExportFormat
 from app.scheduler_helpers import (
     resolve_scheduler_starter,
@@ -129,10 +125,6 @@ from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
-)
-from app.utils.nutrition_wrappers import (
-    _calculate_all_bmr_wrapper,
-    _calculate_all_tdee_wrapper,
 )
 
 _BMI_COMPAT_REEXPORTS = (
@@ -199,10 +191,6 @@ FEATURE_BMI_PRO_ENABLED: bool = False
 bmi_router: Optional[APIRouter] = None
 bmi_pro_router: Optional[APIRouter] = None
 bmi_pro_legacy_alias_router: Optional[APIRouter] = None
-
-# Preserve import-time references so later monkeypatching does not mask availability checks
-_BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
-_BASELINE_CALCULATE_ALL_TDEE = calculate_all_tdee
 
 try:
     from core.food_apis.scheduler import (
@@ -952,262 +940,7 @@ async def aggregate_day_micros(
     )
 
 
-# Premium BMR Endpoint
-async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
-    # sourcery skip: low-code-quality
-    """
-    RU: Рассчитывает BMR и TDEE с использованием нескольких формул.
-    EN: Calculates BMR and TDEE using multiple formulas.
-
-    Supports:
-    - Mifflin-St Jeor equation (primary)
-    - Harris-Benedict equation (secondary)
-    - Katch-McArdle equation (if body fat provided)
-        - Multiple activity levels
-        - Localized responses
-    """
-    try:
-        # Resolve wrappers dynamically via the 'app' package to respect test patches
-        _pkg_candidates = _iter_app_modules()
-        _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
-
-        def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
-            """Resolve a wrapper, honoring patched attributes on the main app module first."""
-
-            patched = getattr(sys.modules.get("app"), attr_name, None)
-            if patched is not None and patched is not fallback:
-                return cast(Callable[..., Any], patched)
-
-            for mod in _pkg_candidates:
-                if mod is None:
-                    continue
-                candidate = getattr(mod, attr_name, None)
-                if candidate is not None and candidate is not fallback:
-                    return cast(Callable[..., Any], candidate)
-            return fallback
-
-        _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper)
-        _tdee_wrapper = _resolve_wrapper("_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper)
-
-        # Determine baseline availability and runtime patching state.
-        # Use import-time baselines so runtime monkeypatching (e.g., None) does not
-        # incorrectly flag the core functionality as missing.
-        baseline_bmr = _BASELINE_CALCULATE_ALL_BMR
-        baseline_tdee = _BASELINE_CALCULATE_ALL_TDEE
-        baseline_missing = (baseline_bmr is None) or (baseline_tdee is None)
-
-        app_bmr = (
-            getattr(_pkg, "calculate_all_bmr", baseline_bmr) if _pkg is not None else baseline_bmr
-        )
-        app_tdee = (
-            getattr(_pkg, "calculate_all_tdee", baseline_tdee)
-            if _pkg is not None
-            else baseline_tdee
-        )
-
-        # Patched to None at runtime
-        patched_missing = (app_bmr is None) or (app_tdee is None)
-        # Patched to a different callable (e.g., side_effect=ValueError)
-        patched_changed = (app_bmr is not None and app_bmr is not baseline_bmr) or (
-            app_tdee is not None and app_tdee is not baseline_tdee
-        )
-
-        if baseline_missing and not patched_missing:
-            # True import-time unavailability → 503 (legacy expectation in some tests)
-            raise HTTPException(status_code=503, detail="BMR calculation module not available")
-        if patched_missing and not baseline_missing:
-            # Runtime patched to None → return a conservative stub (expected 200 in other tests)
-            activity_descriptions = {
-                "sedentary": t(req.lang, "activity_sedentary"),
-                "light": t(req.lang, "activity_light"),
-                "moderate": t(req.lang, "activity_moderate"),
-                "active": t(req.lang, "activity_active"),
-                "very_active": t(req.lang, "activity_very_active"),
-            }
-            activity_level = activity_descriptions.get(req.activity, req.activity)
-
-            base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
-            activity_factor = get_activity_factor(req.activity)
-            primary_tdee = int(base_bmr * activity_factor)
-
-            return BMRResponse(
-                bmr={"stub": float(base_bmr)},
-                tdee={"stub": float(primary_tdee)},
-                activity_level=activity_level,
-                recommended_intake={
-                    "maintenance": float(primary_tdee),
-                    "weight_loss": float(primary_tdee * WEIGHT_LOSS_MULTIPLIER),
-                    "weight_gain": float(primary_tdee * WEIGHT_GAIN_MULTIPLIER),
-                },
-                formulas_used=["stub"],
-                notes=["Using fallback calculation due to unavailable backend"],
-            )
-
-        # Backends are available (baseline present) – enforce feature flag only when
-        # originals are unmodified. This ensures:
-        # - In normal mode without patches and flag disabled → 503 (as tests expect)
-        # - When patched/missing at runtime → allow fallbacks (200) without gating
-        if (
-            not baseline_missing
-            and not patched_changed
-            and str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower()
-            not in {
-                "1",
-                "true",
-                "on",
-                "yes",
-            }
-        ):
-            raise HTTPException(status_code=503, detail="Premium BMR feature not available")
-
-        side_effect = getattr(_bmr_wrapper, "side_effect", None)
-        if isinstance(side_effect, ImportError):
-            raise HTTPException(status_code=503, detail="BMR calculation module not available")
-        if isinstance(side_effect, ValueError):
-            detail = str(side_effect) or "Invalid input"
-            raise HTTPException(status_code=400, detail=f"Invalid input: {detail}")
-
-        # Calculate BMR using multiple formulas (use wrapper for easier mocking)
-        bmr_results = _bmr_wrapper(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
-
-        # Calculate TDEE
-        tdee_results = _tdee_wrapper(bmr_results, req.activity)
-
-        # Prepare response
-        formulas_used = list(bmr_results.keys())
-        notes = []
-
-        # Add activity level description
-        activity_descriptions = {
-            "sedentary": t(req.lang, "activity_sedentary"),
-            "light": t(req.lang, "activity_light"),
-            "moderate": t(req.lang, "activity_moderate"),
-            "active": t(req.lang, "activity_active"),
-            "very_active": t(req.lang, "activity_very_active"),
-        }
-        activity_level = activity_descriptions.get(req.activity, req.activity)
-
-        # Add notes based on formulas used
-        if "katch" in bmr_results and req.bodyfat:
-            notes.append(t(req.lang, "bmr_katch_note"))
-
-        # Calculate recommended intake (using Mifflin as primary)
-        # Defensively handle empty tdee_results dict
-        primary_tdee_value_raw: Any = (
-            tdee_results.get("mifflin") or next(iter(tdee_results.values()), None)
-            if tdee_results
-            else None
-        )
-        primary_tdee_value: int = (
-            int(primary_tdee_value_raw)
-            if isinstance(primary_tdee_value_raw, (int, float))
-            else 2000
-        )
-
-        recommended_intake = {
-            "maintenance": primary_tdee_value,
-            "weight_loss": primary_tdee_value * 0.8,  # 20% deficit
-            "weight_gain": primary_tdee_value * 1.2,  # 20% surplus
-        }
-
-        return BMRResponse(
-            bmr=bmr_results,
-            tdee=tdee_results,
-            activity_level=activity_level,
-            recommended_intake=recommended_intake,
-            formulas_used=formulas_used,
-            notes=notes,
-        )
-
-    except ImportError as exc:
-        raise HTTPException(status_code=503, detail="BMR calculation module not available") from exc
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
-    except Exception as e:
-        logger.error(f"premium_bmr error: {e}")
-        raise HTTPException(status_code=500, detail=f"BMR calculation failed: {str(e)}") from e
-
-
 # Legacy Premium Endpoints (for backwards compatibility)
-async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
-    """Legacy endpoint for BMR calculation (backwards compatibility).
-
-    Uses a lenient schema to avoid pydantic 422s in error-path tests.
-    """
-    try:
-        # Resolve wrappers at call time so test-time patches on app._calculate_all_* apply
-        import sys as _sys
-
-        def _resolve_wrapper(name: str) -> Optional[Callable[..., Any]]:
-            """Prefer patched attributes on the app package over module globals."""
-            for mod in (_sys.modules.get("app"), globals().get("_APP_PACKAGE_REF")):
-                if mod is None:
-                    continue
-                candidate = getattr(mod, name, None)
-                if callable(candidate):
-                    return cast(Callable[..., Any], candidate)
-            candidate = globals().get(name)
-            return cast(Callable[..., Any], candidate) if callable(candidate) else None
-
-        _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper")
-        _tdee_wrapper = _resolve_wrapper("_calculate_all_tdee_wrapper")
-
-        if not callable(_bmr_wrapper) or not callable(_tdee_wrapper):
-            raise ImportError("BMR calculation module not available")
-
-        bmr_results = _bmr_wrapper(
-            float(req.weight_kg), float(req.height_cm), int(req.age), str(req.sex), req.bodyfat
-        )
-        tdee_results = _tdee_wrapper(bmr_results, str(req.activity))
-
-        activity_descriptions = {
-            "sedentary": t(req.lang, "activity_sedentary"),
-            "light": t(req.lang, "activity_light"),
-            "moderate": t(req.lang, "activity_moderate"),
-            "active": t(req.lang, "activity_active"),
-            "very_active": t(req.lang, "activity_very_active"),
-        }
-        activity_level = activity_descriptions.get(str(req.activity), str(req.activity))
-
-        formulas_used = list(bmr_results.keys())
-        if "katch" in bmr_results and req.bodyfat:
-            notes = [t(req.lang, "bmr_katch_note")]
-        else:
-            notes = []
-
-        primary_tdee_raw = (
-            tdee_results.get("mifflin") or next(iter(tdee_results.values()), None)
-            if tdee_results
-            else None
-        )
-        primary_tdee = int(primary_tdee_raw) if isinstance(primary_tdee_raw, (int, float)) else 2000
-        recommended_intake = {
-            "maintenance": primary_tdee,
-            "weight_loss": primary_tdee * 0.8,
-            "weight_gain": primary_tdee * 1.2,
-        }
-
-        return BMRResponse(
-            bmr=bmr_results,
-            tdee=tdee_results,
-            activity_level=activity_level,
-            recommended_intake=recommended_intake,
-            formulas_used=formulas_used,
-            notes=notes,
-        )
-    except ImportError as e:
-        raise HTTPException(status_code=503, detail="BMR calculation module not available") from e
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
-    except Exception as e:
-        logger.error(f"premium_bmr (legacy) error: {e}")
-        raise HTTPException(status_code=500, detail=f"BMR calculation failed: {str(e)}") from e
-
-
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy endpoint for WHO targets (backwards compatibility).
 
