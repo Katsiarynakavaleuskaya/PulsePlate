@@ -46,7 +46,10 @@ from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
 )
-from scripts.orchestration.render_codex_start_prompt import render_recipe_prompt
+from scripts.orchestration.render_codex_start_prompt import (
+    render_packet_prompt,
+    render_recipe_prompt,
+)
 from scripts.orchestration.shadow_reuse_telemetry import SHADOW_REUSE_FIELD
 from scripts.orchestration.skill_router import RESEARCH_POLICY_BUCKET_APPROVED
 from scripts.orchestration.task_bootstrap import (
@@ -3413,6 +3416,31 @@ def test_invariant_review_recipe_prompt_names_current_classes() -> None:
     )
 
     assert "Invariant change classes: guard, authority" in prompt
+
+
+def test_invariant_review_packet_prompt_preserves_validated_dispatch_order() -> None:
+    """Prompt rendering must not rewrite an authoritative pre-fix sequence."""
+
+    packet = build_task_packet(
+        goal="Review a guard mechanism",
+        task_class="Orchestration",
+        candidate_paths=["README.md"],
+        requested_agents=[
+            "bug-hunter",
+            "qa-engineer-agent",
+            "security-auditor",
+        ],
+        invariant_change_classes=["guard"],
+        pr_phase="none",
+    )
+    role_dispatch_contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(role_dispatch_contract, dict)
+    dispatch_role_order = role_dispatch_contract["dispatch_role_order"]
+    assert isinstance(dispatch_role_order, list)
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert f"Role order: {', '.join(dispatch_role_order)}" in prompt
 
 
 def test_invariant_review_shell_launchers_share_the_canonical_python_enum() -> None:

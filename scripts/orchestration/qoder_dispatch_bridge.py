@@ -448,6 +448,28 @@ def _validated_dispatch_role_order(
     invariant_review_present = "invariant_review" in payload
     invariant_review = payload.get("invariant_review")
     invariant_review_state: str | None = None
+    if not invariant_review_present:
+        automation_flags = payload.get("automation_flags")
+        if isinstance(automation_flags, dict) and (
+            "invariant_class_review_required" in automation_flags
+        ):
+            raise ValueError("current invariant-class packets require invariant_review metadata")
+        candidate_paths = payload.get("candidate_paths")
+        raw_pr_phase = payload.get("pr_phase")
+        bounded_trigger_required = False
+        if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and isinstance(candidate_paths, list):
+            try:
+                bounded_trigger_required = classify_invariant_review(
+                    candidate_paths=candidate_paths
+                ).required
+            except ValueError:
+                # True legacy packets predate the strict path contract. Current
+                # packets are rejected above by their automation marker.
+                bounded_trigger_required = False
+        if bounded_trigger_required:
+            raise ValueError(
+                "opening-phase bounded invariant trigger requires invariant_review metadata"
+            )
     if invariant_review_present:
         if not isinstance(invariant_review, dict):
             raise ValueError("invariant_review must be a JSON object when present")

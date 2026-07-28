@@ -1988,6 +1988,36 @@ def test_required_pending_invariant_review_requires_dispatch_order(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_current_invariant_packet_cannot_remove_all_review_metadata() -> None:
+    """The post-G0 packet marker prevents a full metadata downgrade."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["automation_flags"] = {"invariant_class_review_required": True}
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="current invariant-class packets require invariant_review metadata",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_bounded_opening_trigger_cannot_masquerade_as_legacy_packet() -> None:
+    """A configured positive path hint remains fail-closed without metadata."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["candidate_paths"] = ["scripts/ci/guard_actions_pin.py"]
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="bounded invariant trigger requires invariant_review metadata",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 @pytest.mark.parametrize(
     ("invariant_review", "error"),
     [

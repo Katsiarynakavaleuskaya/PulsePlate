@@ -184,6 +184,11 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
 
         parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
         if parsed_roles:
+            role_dispatch_contract = packet.get("role_agent_dispatch_contract")
+            if isinstance(role_dispatch_contract, dict) and (
+                "dispatch_role_order" in role_dispatch_contract
+            ):
+                return parsed_roles
             if not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
                 packet
             ):
