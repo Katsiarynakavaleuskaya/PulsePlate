@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 import re
-from typing import Literal
+from typing import Literal, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -64,7 +64,7 @@ class InvariantReviewEvidence:
     def to_mapping(self) -> dict[str, str]:
         """Return a stable JSON-ready evidence row."""
 
-        row = {
+        row: dict[str, str] = {
             "change_class": self.change_class,
             "source": self.source,
         }
@@ -180,7 +180,7 @@ def classify_invariant_review(
                 "Unsupported invariant change class: "
                 f"{raw_change_class!r}. Supported: {supported}"
             )
-        explicit_set.add(raw_change_class)
+        explicit_set.add(cast(InvariantChangeClass, raw_change_class))
 
     normalized_paths = sorted(
         {
