@@ -154,21 +154,28 @@ VALIDATION_KEYS = frozenset(
         "plan_fingerprint",
         "patch_fingerprint",
         "base_commit_sha",
-        "fresh_oracle",
+        "oracle_evidence",
         "preopen_gates",
         "validation_checkout",
         "validation_fingerprint",
     }
 )
-FRESH_ORACLE_KEYS = frozenset(
+ORACLE_EVIDENCE_KEYS = frozenset(
     {
         "status",
+        "source",
+        "executed_during_validation",
         "changed_paths_match",
         "shared_tree_untouched",
         "oracle_commands_configured",
         "oracle_commands_executed",
+        "result_fingerprint",
+        "experiment_packet_fingerprint",
+        "generation_gate_fingerprint",
+        "generation_receipt_fingerprint",
     }
 )
+ORACLE_EVIDENCE_SOURCES = frozenset({"direct_evaluation", "trusted_apple_dispatch"})
 PREOPEN_GATES_KEYS = frozenset({"pre_commit", "validate_changed", "patch_unchanged_after_gates"})
 VALIDATION_CHECKOUT_KEYS = frozenset({"created", "destroyed", "used_throwaway_commit"})
 
@@ -579,13 +586,36 @@ def validate_creative_code_pr_promotion_plan(payload: dict[str, Any]) -> dict[st
     return normalized
 
 
-def _normalize_fresh_oracle(raw_oracle: Any) -> dict[str, Any]:
+def _normalize_optional_fingerprint(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    label: str,
+) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    return _require_fingerprint(payload, key, label=label)
+
+
+def _normalize_oracle_evidence(raw_oracle: Any) -> dict[str, Any]:
     if not isinstance(raw_oracle, dict):
-        raise CreativeCodePRPromotionContractError("fresh_oracle must be a JSON object.")
-    label = "fresh_oracle"
-    _require_exact_keys(raw_oracle, FRESH_ORACLE_KEYS, label=label)
-    return {
+        raise CreativeCodePRPromotionContractError("oracle_evidence must be a JSON object.")
+    label = "oracle_evidence"
+    _require_exact_keys(raw_oracle, ORACLE_EVIDENCE_KEYS, label=label)
+    source = raw_oracle.get("source")
+    if source not in ORACLE_EVIDENCE_SOURCES:
+        raise CreativeCodePRPromotionContractError(
+            "oracle_evidence.source must identify a supported evidence source."
+        )
+    normalized = {
         "status": _require_const(raw_oracle, "status", "accepted", label=label),
+        "source": source,
+        "executed_during_validation": _require_any_bool(
+            raw_oracle,
+            "executed_during_validation",
+            label=label,
+        ),
         "changed_paths_match": _require_bool(
             raw_oracle, "changed_paths_match", expected=True, label=label
         ),
@@ -606,7 +636,49 @@ def _normalize_fresh_oracle(raw_oracle: Any) -> dict[str, Any]:
             max_value=20,
             label=label,
         ),
+        "result_fingerprint": _require_fingerprint(
+            raw_oracle,
+            "result_fingerprint",
+            label=label,
+        ),
+        "experiment_packet_fingerprint": _require_fingerprint(
+            raw_oracle,
+            "experiment_packet_fingerprint",
+            label=label,
+        ),
+        "generation_gate_fingerprint": _normalize_optional_fingerprint(
+            raw_oracle,
+            "generation_gate_fingerprint",
+            label=label,
+        ),
+        "generation_receipt_fingerprint": _normalize_optional_fingerprint(
+            raw_oracle,
+            "generation_receipt_fingerprint",
+            label=label,
+        ),
     }
+    if source == "direct_evaluation":
+        if normalized["executed_during_validation"] is not True:
+            raise CreativeCodePRPromotionContractError(
+                "direct oracle evidence must execute during validation."
+            )
+        if (
+            normalized["generation_gate_fingerprint"] is not None
+            or normalized["generation_receipt_fingerprint"] is not None
+        ):
+            raise CreativeCodePRPromotionContractError(
+                "direct oracle evidence must not claim generation gate or receipt evidence."
+            )
+    elif (
+        normalized["executed_during_validation"] is not False
+        or normalized["generation_gate_fingerprint"] is None
+        or normalized["generation_receipt_fingerprint"] is None
+    ):
+        raise CreativeCodePRPromotionContractError(
+            "trusted Apple dispatch evidence must bind gate and receipt fingerprints "
+            "without claiming execution during validation."
+        )
+    return normalized
 
 
 def _normalize_preopen_gates(raw_gates: Any) -> dict[str, Any]:
@@ -652,6 +724,12 @@ def build_creative_code_pr_promotion_validation(
     base_commit_sha: str,
     oracle_commands_configured: int,
     oracle_commands_executed: int,
+    oracle_evidence_source: str,
+    oracle_executed_during_validation: bool,
+    oracle_result_fingerprint: str,
+    experiment_packet_fingerprint: str,
+    generation_gate_fingerprint: str | None,
+    generation_receipt_fingerprint: str | None,
 ) -> dict[str, Any]:
     validation: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -661,12 +739,18 @@ def build_creative_code_pr_promotion_validation(
         "plan_fingerprint": plan_fingerprint,
         "patch_fingerprint": patch_fingerprint,
         "base_commit_sha": base_commit_sha,
-        "fresh_oracle": {
+        "oracle_evidence": {
             "status": "accepted",
+            "source": oracle_evidence_source,
+            "executed_during_validation": oracle_executed_during_validation,
             "changed_paths_match": True,
             "shared_tree_untouched": True,
             "oracle_commands_configured": oracle_commands_configured,
             "oracle_commands_executed": oracle_commands_executed,
+            "result_fingerprint": oracle_result_fingerprint,
+            "experiment_packet_fingerprint": experiment_packet_fingerprint,
+            "generation_gate_fingerprint": generation_gate_fingerprint,
+            "generation_receipt_fingerprint": generation_receipt_fingerprint,
         },
         "preopen_gates": {
             "pre_commit": "passed",
@@ -697,7 +781,7 @@ def validate_creative_code_pr_promotion_validation(payload: dict[str, Any]) -> d
         "plan_fingerprint": _require_fingerprint(payload, "plan_fingerprint", label=label),
         "patch_fingerprint": _require_fingerprint(payload, "patch_fingerprint", label=label),
         "base_commit_sha": _require_sha(payload, "base_commit_sha", label=label),
-        "fresh_oracle": _normalize_fresh_oracle(payload["fresh_oracle"]),
+        "oracle_evidence": _normalize_oracle_evidence(payload["oracle_evidence"]),
         "preopen_gates": _normalize_preopen_gates(payload["preopen_gates"]),
         "validation_checkout": _normalize_validation_checkout(payload["validation_checkout"]),
         "validation_fingerprint": _require_fingerprint(
@@ -705,11 +789,11 @@ def validate_creative_code_pr_promotion_validation(payload: dict[str, Any]) -> d
         ),
     }
     if (
-        normalized["fresh_oracle"]["oracle_commands_executed"]
-        != normalized["fresh_oracle"]["oracle_commands_configured"]
+        normalized["oracle_evidence"]["oracle_commands_executed"]
+        != normalized["oracle_evidence"]["oracle_commands_configured"]
     ):
         raise CreativeCodePRPromotionContractError(
-            "fresh_oracle must execute every configured oracle command."
+            "oracle_evidence must prove every configured oracle command executed."
         )
     expected = fingerprint_payload(_validation_identity_payload(normalized))
     if normalized["validation_fingerprint"] != expected:

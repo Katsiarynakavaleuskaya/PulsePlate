@@ -161,9 +161,19 @@
   `artifacts/orchestration/creative_code/promotions/`. The promoter CLI
   `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and
   promote one accepted PR-2 patch into a new non-draft `experiment/*` PR. It
-  must not open drafts, update existing branches, force-push, request reviews,
-  submit reviews, resolve review threads, edit fixed mappings, claim merge
-  readiness, merge, release, call Slack/GitHub App authority paths, or call
+  may optionally consume one exact accepted Apple Container dispatch result
+  plus its explicitly supplied canonical PR-2 generation receipt during
+  `validate`; both paths are required together and must remain under their
+  canonical local artifact roots. This intake uses the existing PR-2 trusted
+  binding validator instead of direct re-evaluation, must reconstruct the gate
+  from canonical admission and finalized run state, and must re-read the
+  packet, result, gate, and receipt after local gates. The validation artifact
+  must distinguish direct evaluation from trusted Apple dispatch and bind the
+  applicable evidence fingerprints. The intake must never regenerate or
+  finalize PR-2 artifacts through this intake. It must not open drafts, update
+  existing branches, force-push, request reviews, submit reviews, resolve review
+  threads, edit fixed mappings, claim merge readiness, merge, release, call
+  Slack/GitHub App authority paths, or call
   `experiment_pipeline.py`, `experiment_promote.py`, or notification wrappers.
 - PR-4 creative-code telemetry artifacts stay local under
   `artifacts/orchestration/creative_code/telemetry/`. The telemetry CLI

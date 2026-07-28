@@ -12,7 +12,7 @@
     "plan_fingerprint",
     "patch_fingerprint",
     "base_commit_sha",
-    "fresh_oracle",
+    "oracle_evidence",
     "preopen_gates",
     "validation_checkout",
     "validation_fingerprint"
@@ -25,7 +25,7 @@
     "plan_fingerprint": { "$ref": "#/$defs/sha256" },
     "patch_fingerprint": { "$ref": "#/$defs/sha256" },
     "base_commit_sha": { "$ref": "#/$defs/git_sha" },
-    "fresh_oracle": { "$ref": "#/$defs/fresh_oracle" },
+    "oracle_evidence": { "$ref": "#/$defs/oracle_evidence" },
     "preopen_gates": { "$ref": "#/$defs/preopen_gates" },
     "validation_checkout": { "$ref": "#/$defs/validation_checkout" },
     "validation_fingerprint": { "$ref": "#/$defs/sha256" }
@@ -39,23 +39,69 @@
     },
     "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
     "git_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-    "fresh_oracle": {
+    "oracle_evidence": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "status",
+        "source",
+        "executed_during_validation",
         "changed_paths_match",
         "shared_tree_untouched",
         "oracle_commands_configured",
-        "oracle_commands_executed"
+        "oracle_commands_executed",
+        "result_fingerprint",
+        "experiment_packet_fingerprint",
+        "generation_gate_fingerprint",
+        "generation_receipt_fingerprint"
       ],
       "properties": {
         "status": { "const": "accepted" },
+        "source": {
+          "enum": ["direct_evaluation", "trusted_apple_dispatch"]
+        },
+        "executed_during_validation": { "type": "boolean" },
         "changed_paths_match": { "const": true },
         "shared_tree_untouched": { "const": true },
         "oracle_commands_configured": { "type": "integer", "minimum": 1, "maximum": 20 },
-        "oracle_commands_executed": { "type": "integer", "minimum": 1, "maximum": 20 }
-      }
+        "oracle_commands_executed": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "result_fingerprint": { "$ref": "#/$defs/sha256" },
+        "experiment_packet_fingerprint": { "$ref": "#/$defs/sha256" },
+        "generation_gate_fingerprint": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+        },
+        "generation_receipt_fingerprint": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "source": { "const": "direct_evaluation" } },
+            "required": ["source"]
+          },
+          "then": {
+            "properties": {
+              "executed_during_validation": { "const": true },
+              "generation_gate_fingerprint": { "type": "null" },
+              "generation_receipt_fingerprint": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "source": { "const": "trusted_apple_dispatch" } },
+            "required": ["source"]
+          },
+          "then": {
+            "properties": {
+              "executed_during_validation": { "const": false },
+              "generation_gate_fingerprint": { "$ref": "#/$defs/sha256" },
+              "generation_receipt_fingerprint": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      ]
     },
     "preopen_gates": {
       "type": "object",

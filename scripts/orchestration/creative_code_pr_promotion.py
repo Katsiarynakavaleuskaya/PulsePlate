@@ -23,6 +23,7 @@ from typing import Any, Mapping, Protocol, cast
 from urllib.parse import urlparse
 
 from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration import creative_code_patch_generation as patch_generation_cli
 from scripts.orchestration.creative_code_patch_builder import (
     CANDIDATE_PATCH_FILE,
     EXPERIMENT_PACKET_FILE,
@@ -812,7 +813,7 @@ Manual patch copying remains possible but loses structured provenance. Autonomou
 Patch fingerprint: `{result["patch_summary"]["patch_fingerprint"]}`. Candidate evaluation is not merge-readiness evidence.
 
 ## Oracle Evidence
-Fresh candidate oracle validation is required before promotion. A separate oracle-only governance review of the actual PR diff remains required.
+Candidate oracle evidence is required before promotion. Validation records whether it executed the direct evaluator or consumed exact trusted Apple Container dispatch evidence. A separate oracle-only governance review of the actual PR diff remains required.
 
 ## Pre-Open Validation
 Validation artifact: `{validation_ref}`.
@@ -1027,6 +1028,148 @@ def _load_current_patch_text_for_plan(
     return cast(str, patch_text)
 
 
+def _load_trusted_apple_dispatch_result(
+    *,
+    result_path: Path,
+    generation_receipt_path: Path,
+    experiment_packet: Path,
+    run_dir: Path,
+    plan_artifact: Mapping[str, Any],
+) -> tuple[Path, dict[str, Any], dict[str, Any], str, str, Path, str, Path, str]:
+    """Load one exact accepted Apple Container result through the PR-2 trust boundary."""
+
+    try:
+        resolved_result = patch_generation_cli._resolve_dispatch_result(result_path)
+        packet = patch_generation_cli._read_experiment_packet(
+            experiment_packet,
+            trusted_root=run_dir,
+        )
+        result = patch_generation_cli._validate_dispatch_result_binding(
+            dispatch_result=patch_generation_cli._read_pinned_dispatch_json_object(resolved_result),
+            packet=packet,
+            changed_paths=list(plan_artifact["changed_paths"]),
+            patch_fingerprint=str(plan_artifact["patch_fingerprint"]),
+        )
+        generation_root = patch_generation_cli.PATCH_GENERATION_ROOT
+        patch_generation_cli._reject_symlink_components(
+            generation_root,
+            label="patch generation root",
+        )
+        receipt_candidate = (
+            generation_receipt_path
+            if generation_receipt_path.is_absolute()
+            else patch_generation_cli.REPO_ROOT / generation_receipt_path
+        )
+        patch_generation_cli._reject_symlink_components(
+            receipt_candidate,
+            label="trusted generation receipt",
+        )
+        try:
+            resolved_receipt = receipt_candidate.resolve(strict=True)
+        except OSError as exc:
+            raise CreativeCodePRPromotionError("trusted generation receipt must exist.") from exc
+        resolved_generation_root = generation_root.resolve(strict=False)
+        if (
+            not _is_relative_to(resolved_receipt, resolved_generation_root)
+            or not resolved_receipt.is_file()
+        ):
+            raise CreativeCodePRPromotionError(
+                "trusted generation receipt must be a file under patch generation artifacts."
+            )
+        if resolved_receipt.name != patch_generation_cli.RECEIPT_FILENAME:
+            raise CreativeCodePRPromotionError(
+                "trusted generation receipt must be named generation_receipt.json."
+            )
+        receipt = patch_generation_cli.validate_generation_receipt(
+            patch_generation_cli._read_generated_sidecar_json_object(
+                resolved_receipt,
+                run_dir=resolved_generation_root,
+                label="generation receipt",
+            )
+        )
+        resolved_gate = resolved_receipt.with_name(patch_generation_cli.GATE_FILENAME)
+        patch_generation_cli._reject_symlink_components(
+            resolved_gate,
+            label="trusted generation gate",
+        )
+        gate = patch_generation_cli._read_generation_gate(resolved_gate)
+        patch_generation_cli._validate_receipt_matches_gate(
+            receipt,
+            gate,
+            resolved_gate,
+        )
+        canonical_run_dir, canonical_packet = (
+            patch_generation_cli.validate_finalized_dispatch_context(gate)
+        )
+        if canonical_run_dir != run_dir:
+            raise CreativeCodePRPromotionError(
+                "trusted generation gate does not match the planned PR-2 run directory."
+            )
+        if fingerprint_payload(canonical_packet) != fingerprint_payload(packet):
+            raise CreativeCodePRPromotionError(
+                "trusted generation gate does not match the planned experiment packet."
+            )
+        patch_generation_cli.validate_generation_receipt_linked_artifacts(receipt)
+    except (
+        patch_generation_cli.CreativeCodePatchGenerationError,
+        CreativeCodePatchWorkspaceError,
+    ) as exc:
+        raise CreativeCodePRPromotionError(str(exc)) from exc
+
+    if receipt["run_id"] != run_dir.name:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch generation receipt does not match the PR-2 run."
+        )
+    if receipt["result_id"] != plan_artifact["source_result_id"]:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch generation receipt does not match the planned PR-2 result."
+        )
+    if receipt["experiment_packet_fingerprint"] != fingerprint_payload(packet):
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch experiment packet is not bound to the PR-2 generation receipt."
+        )
+    if packet["base_commit_sha"] != plan_artifact["base_commit_sha"]:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch experiment packet base commit does not match plan."
+        )
+    if packet["candidate_patch_fingerprint"] != plan_artifact["patch_fingerprint"]:
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch experiment packet candidate fingerprint does not match plan."
+        )
+    if sorted(packet["mutable_candidate_surface"]) != sorted(plan_artifact["changed_paths"]):
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch experiment packet mutable paths do not match plan."
+        )
+    if result["status"] != "accepted" or result["failure_class"] is not None:
+        raise CreativeCodePRPromotionError(
+            "trusted Apple Container dispatch result must be accepted."
+        )
+    backend = result.get("execution_backend")
+    if (
+        not isinstance(backend, dict)
+        or backend.get("name") != "apple-container"
+        or backend.get("preflight_status") != "passed"
+    ):
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result must prove passed Apple Container provenance."
+        )
+    if receipt["runner_summary"]["runner_result_fingerprint"] != fingerprint_payload(result):
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result does not match the result finalized into PR-2."
+        )
+    return (
+        resolved_result,
+        packet,
+        result,
+        fingerprint_payload(packet),
+        fingerprint_payload(result),
+        resolved_receipt,
+        fingerprint_payload(receipt),
+        resolved_gate,
+        fingerprint_payload(gate),
+    )
+
+
 def plan(
     *,
     patch_run: str,
@@ -1189,9 +1332,15 @@ def _ensure_patch_unchanged_after_gates(
 def validate(
     *,
     promotion_id: str,
+    trusted_dispatch_result: Path | None = None,
+    trusted_generation_receipt: Path | None = None,
     git: GitTransport | None = None,
     gate_runner: GateRunner | None = None,
 ) -> dict[str, Any]:
+    if (trusted_dispatch_result is None) != (trusted_generation_receipt is None):
+        raise CreativeCodePRPromotionError(
+            "trusted dispatch result and generation receipt must be supplied together."
+        )
     git = git or GitTransport()
     gate_runner = gate_runner or GateRunner()
     promotion_dir = resolve_promotion_dir(promotion_id, create=False)
@@ -1239,10 +1388,44 @@ def validate(
             ],
             cwd=checkout,
         )
-        oracle_result = gate_runner.run_fresh_oracle(
-            experiment_packet=experiment_packet,
-            candidate_patch=patch_path,
-        )
+        trusted_dispatch_snapshot: (
+            tuple[
+                Path,
+                dict[str, Any],
+                dict[str, Any],
+                str,
+                str,
+                Path,
+                str,
+                Path,
+                str,
+            ]
+            | None
+        ) = None
+        direct_packet_fingerprint: str | None = None
+        if trusted_dispatch_result is None:
+            direct_packet = patch_generation_cli._read_experiment_packet(
+                experiment_packet,
+                trusted_root=run_dir,
+            )
+            direct_packet_fingerprint = fingerprint_payload(direct_packet)
+            oracle_result = gate_runner.run_fresh_oracle(
+                experiment_packet=experiment_packet,
+                candidate_patch=patch_path,
+            )
+        else:
+            if trusted_generation_receipt is None:
+                raise CreativeCodePRPromotionError(
+                    "trusted generation receipt path missing during validation."
+                )
+            trusted_dispatch_snapshot = _load_trusted_apple_dispatch_result(
+                result_path=trusted_dispatch_result,
+                generation_receipt_path=trusted_generation_receipt,
+                experiment_packet=experiment_packet,
+                run_dir=run_dir,
+                plan_artifact=plan_artifact,
+            )
+            oracle_result = trusted_dispatch_snapshot[2]
         if (
             oracle_result.get("status") != "accepted"
             or oracle_result.get("failure_class") is not None
@@ -1259,13 +1442,68 @@ def validate(
             expected_patch_fingerprint=plan_artifact["patch_fingerprint"],
             git=git,
         )
+        if trusted_dispatch_snapshot is not None:
+            if trusted_dispatch_result is None or trusted_generation_receipt is None:
+                raise CreativeCodePRPromotionError(
+                    "trusted dispatch evidence paths missing during snapshot verification."
+                )
+            current_snapshot = _load_trusted_apple_dispatch_result(
+                result_path=trusted_dispatch_result,
+                generation_receipt_path=trusted_generation_receipt,
+                experiment_packet=experiment_packet,
+                run_dir=run_dir,
+                plan_artifact=plan_artifact,
+            )
+            if (
+                current_snapshot[0] != trusted_dispatch_snapshot[0]
+                or current_snapshot[3] != trusted_dispatch_snapshot[3]
+                or current_snapshot[4] != trusted_dispatch_snapshot[4]
+                or current_snapshot[5] != trusted_dispatch_snapshot[5]
+                or current_snapshot[6] != trusted_dispatch_snapshot[6]
+                or current_snapshot[7] != trusted_dispatch_snapshot[7]
+                or current_snapshot[8] != trusted_dispatch_snapshot[8]
+            ):
+                raise CreativeCodePRPromotionError(
+                    "trusted dispatch evidence changed during validation."
+                )
+        else:
+            if direct_packet_fingerprint is None:
+                raise CreativeCodePRPromotionError(
+                    "direct oracle experiment packet snapshot is missing."
+                )
+            current_direct_packet = patch_generation_cli._read_experiment_packet(
+                experiment_packet,
+                trusted_root=run_dir,
+            )
+            if fingerprint_payload(current_direct_packet) != direct_packet_fingerprint:
+                raise CreativeCodePRPromotionError(
+                    "direct oracle experiment packet changed during validation."
+                )
     finally:
         destroyed = _destroy_checkout(promotion_dir, VALIDATION_CHECKOUT)
     if not checkout_created or not destroyed:
         raise CreativeCodePRPromotionError("validation checkout cleanup failed.")
     budget_observations = oracle_result.get("budget_observations", {})
     if not isinstance(budget_observations, dict):
-        raise CreativeCodePRPromotionError("fresh oracle budget observations missing.")
+        raise CreativeCodePRPromotionError("oracle evidence budget observations missing.")
+    if trusted_dispatch_snapshot is None:
+        oracle_evidence_source = "direct_evaluation"
+        oracle_executed_during_validation = True
+        oracle_result_fingerprint = fingerprint_payload(oracle_result)
+        if direct_packet_fingerprint is None:
+            raise CreativeCodePRPromotionError(
+                "direct oracle experiment packet snapshot is missing."
+            )
+        experiment_packet_fingerprint = direct_packet_fingerprint
+        generation_gate_fingerprint = None
+        generation_receipt_fingerprint = None
+    else:
+        oracle_evidence_source = "trusted_apple_dispatch"
+        oracle_executed_during_validation = False
+        oracle_result_fingerprint = trusted_dispatch_snapshot[4]
+        experiment_packet_fingerprint = trusted_dispatch_snapshot[3]
+        generation_gate_fingerprint = trusted_dispatch_snapshot[8]
+        generation_receipt_fingerprint = trusted_dispatch_snapshot[6]
     validation_artifact: dict[str, Any] = build_creative_code_pr_promotion_validation(
         promotion_id=promotion_id,
         plan_fingerprint=promotion_plan_fingerprint(plan_artifact),
@@ -1273,6 +1511,12 @@ def validate(
         base_commit_sha=plan_artifact["base_commit_sha"],
         oracle_commands_configured=int(budget_observations["oracle_commands_configured"]),
         oracle_commands_executed=int(budget_observations["oracle_commands_executed"]),
+        oracle_evidence_source=oracle_evidence_source,
+        oracle_executed_during_validation=oracle_executed_during_validation,
+        oracle_result_fingerprint=oracle_result_fingerprint,
+        experiment_packet_fingerprint=experiment_packet_fingerprint,
+        generation_gate_fingerprint=generation_gate_fingerprint,
+        generation_receipt_fingerprint=generation_receipt_fingerprint,
     )
     write_json_atomic(
         resolve_promotion_file(promotion_dir, VALIDATION_FILE, for_write=True),
@@ -1524,6 +1768,8 @@ def main(argv: list[str] | None = None) -> int:
     plan_parser.add_argument("--promotion-id", required=True)
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--promotion-id", required=True)
+    validate_parser.add_argument("--trusted-dispatch-result", type=Path)
+    validate_parser.add_argument("--trusted-generation-receipt", type=Path)
     approve_parser = subparsers.add_parser("approve")
     approve_parser.add_argument("--promotion-id", required=True)
     approve_parser.add_argument("--approved-by-login", required=True)
@@ -1536,7 +1782,11 @@ def main(argv: list[str] | None = None) -> int:
             plan(patch_run=args.patch_run, promotion_id=args.promotion_id)
             print(SUCCESS_PLAN_OUTPUT)
         elif args.command == "validate":
-            validate(promotion_id=args.promotion_id)
+            validate(
+                promotion_id=args.promotion_id,
+                trusted_dispatch_result=args.trusted_dispatch_result,
+                trusted_generation_receipt=args.trusted_generation_receipt,
+            )
             print(SUCCESS_VALIDATE_OUTPUT)
         elif args.command == "approve":
             approve(promotion_id=args.promotion_id, approved_by_login=args.approved_by_login)

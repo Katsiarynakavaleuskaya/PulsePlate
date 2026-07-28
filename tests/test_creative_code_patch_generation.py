@@ -578,6 +578,65 @@ def test_finalize_dispatched_result_writes_canonical_result_and_receipt(
     )
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("admission", "creative spec patch admission"),
+        ("state", "prepared state"),
+    ],
+)
+def test_finalized_dispatch_context_rejects_rewritten_gate_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = f"dispatch-finalized-context-{mutation}"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 0
+    )
+    gate = generation_cli._read_generation_gate(gate_path)
+    run_dir, canonical_packet = generation_cli.validate_finalized_dispatch_context(gate)
+    assert run_dir.name == run_id
+    assert canonical_packet == packet
+
+    if mutation == "admission":
+        gate["admission_id"] = "admission:forged"
+        gate["admission_fingerprint"] = fingerprint_payload({"admission": "forged"})
+        gate["admission_ref"] = "artifacts/orchestration/creative_code/admissions/forged.json"
+    elif mutation == "state":
+        gate["state_fingerprint"] = fingerprint_payload({"state": "forged"})
+    else:  # pragma: no cover - parametrization is closed above.
+        raise AssertionError(mutation)
+    generation_cli._set_identity(
+        gate,
+        id_key="gate_id",
+        asset_type=generation_cli.GATE_ARTIFACT_TYPE,
+    )
+    gate = generation_cli.validate_generation_gate(gate)
+
+    with pytest.raises(CreativeCodePatchGenerationError, match=message):
+        generation_cli.validate_finalized_dispatch_context(gate)
+
+
 @pytest.mark.parametrize("checkout_kind", ["directory", "symlink"])
 def test_finalize_dispatched_result_rechecks_checkout_destruction(
     monkeypatch: pytest.MonkeyPatch,
