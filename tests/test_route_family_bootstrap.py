@@ -17,6 +17,7 @@ from app.bootstrap.route_family import (
     same_callable_by_module_and_qualname,
 )
 from app.routers import legacy_premium_nutrition
+from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from tests.helpers.module_resolve import resolve_legacy_app
 
 
@@ -275,6 +276,8 @@ def test_legacy_premium_plate_wrapper_delegates_inside_route_family_ci_suite(
     assert captured[0] is req
 
 
+# These wrapper tests intentionally remain duplicated in the route-family suite
+# so branch-selected CI keeps direct visibility of this registration contract.
 def test_legacy_premium_api_bmr_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -301,8 +304,8 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     async def _fake_canonical_service(
-        received: app_main._legacy_module.BMRRequest,
-    ) -> app_main._legacy_module.BMRResponse:
+        received: BMRRequest,
+    ) -> BMRResponse:
         captured["request"] = received
         return expected
 
@@ -344,8 +347,8 @@ def test_public_premium_bmr_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     async def _fake_canonical_service(
-        received: app_main._legacy_module.BMRRequestLegacy,
-    ) -> app_main._legacy_module.BMRResponse:
+        received: BMRRequestLegacy,
+    ) -> BMRResponse:
         captured["request"] = received
         return expected
 

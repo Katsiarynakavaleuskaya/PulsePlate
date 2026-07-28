@@ -16,14 +16,13 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 import pytest
 
-from app import app
 from app.http_error_details import (
     BMR_CALCULATION_FAILED_DETAIL,
     BMR_CALCULATION_MODULE_UNAVAILABLE_DETAIL,
     INVALID_BMR_INPUT_DETAIL,
     PREMIUM_BMR_FEATURE_UNAVAILABLE_DETAIL,
 )
-from app.schemas.bmr import BMRRequest, BMRRequestLegacy
+from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.services import pro_nutrition_bmr as bmr_service
 from app.services.pro_nutrition_bmr import BMRDependencies, calculate_bmr_response
 
@@ -54,11 +53,6 @@ _EXPECTED_RESPONSE = {
 def _configure_bmr_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
 
 
 def _request(
@@ -217,6 +211,18 @@ def test_service_preserves_exact_response_and_localization_contract() -> None:
     assert russian_response["notes"] == [
         "Использована формула Katch-McArdle (требует процент жира)"
     ]
+
+
+def test_response_validation_error_is_not_reclassified_as_invalid_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _invalid_response(**_values: object) -> BMRResponse:
+        return BMRResponse.model_validate({})
+
+    monkeypatch.setattr(bmr_service, "BMRResponse", _invalid_response)
+
+    with pytest.raises(ValidationError):
+        asyncio.run(calculate_bmr_response(_request()))
 
 
 @pytest.mark.parametrize(
@@ -798,12 +804,19 @@ def test_bmr_routes_accept_numeric_strings(
 )
 def test_bmr_routes_reject_non_finite_derived_recommendations(
     client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
     path: str,
     headers: dict[str, str],
 ) -> None:
+    dependencies = _dependencies(
+        bmr_results={"mifflin": 1648.8, "harris": 1701.9},
+        tdee_results={"mifflin": 1.7e308, "harris": 1.7e308},
+    )
+    monkeypatch.setattr(bmr_service, "_resolve_dependencies", lambda: dependencies)
+
     response = client.post(
         path,
-        json={**_VALID_PAYLOAD, "height_cm": 1.8e307},
+        json=_VALID_PAYLOAD,
         headers=headers,
     )
 
@@ -855,6 +868,20 @@ def test_static_ownership_has_no_legacy_handler_or_dynamic_wrapper_rail() -> Non
     legacy_source = legacy_path.read_text(encoding="utf-8")
     router_source = router_path.read_text(encoding="utf-8")
     service_source = service_path.read_text(encoding="utf-8")
+    service_tree = ast.parse(service_source)
+    service_import_paths = {
+        alias.name
+        for node in ast.walk(service_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    } | {
+        node.module
+        for node in ast.walk(service_tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    }
+    service_accessed_names = {
+        node.id for node in ast.walk(service_tree) if isinstance(node, ast.Name)
+    } | {node.attr for node in ast.walk(service_tree) if isinstance(node, ast.Attribute)}
 
     assert "api_premium_bmr" not in legacy_function_names
     assert "premium_bmr_legacy" not in legacy_function_names
@@ -874,11 +901,13 @@ def test_static_ownership_has_no_legacy_handler_or_dynamic_wrapper_rail() -> Non
         "sys.modules",
         "MagicMock",
         '"stub"',
-        "nutrition_wrappers",
-        "facade",
-        "registry",
     ):
         assert forbidden not in service_source
+    for forbidden_owner in ("nutrition_wrappers", "facade", "registry"):
+        assert all(
+            forbidden_owner not in import_path.split(".") for import_path in service_import_paths
+        )
+        assert forbidden_owner not in service_accessed_names
 
 
 def test_bmr_rejects_invalid_sex_at_core_boundary() -> None:

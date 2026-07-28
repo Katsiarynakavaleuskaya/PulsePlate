@@ -21,6 +21,7 @@ from app.effective_routes import (
     route_methods,
     route_path,
 )
+from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from tests.helpers.module_resolve import resolve_legacy_app
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
@@ -303,8 +304,8 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     async def _fake_canonical_service(
-        received: app_main._legacy_module.BMRRequest,
-    ) -> app_main._legacy_module.BMRResponse:
+        received: BMRRequest,
+    ) -> BMRResponse:
         captured["request"] = received
         return expected
 
@@ -346,8 +347,8 @@ def test_public_premium_bmr_wrapper_delegates_to_canonical_service(
     captured: dict[str, object] = {}
 
     async def _fake_canonical_service(
-        received: app_main._legacy_module.BMRRequestLegacy,
-    ) -> app_main._legacy_module.BMRResponse:
+        received: BMRRequestLegacy,
+    ) -> BMRResponse:
         captured["request"] = received
         return expected
 

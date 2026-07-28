@@ -138,6 +138,10 @@ async def calculate_bmr_response(
             if "katch" in bmr_results and req.bodyfat is not None
             else []
         )
+        activity_level = t(
+            req.lang,
+            f"activity_{req.activity}",
+        )
         recommended_intake = _validated_calculation_map(
             {
                 "maintenance": primary_tdee,
@@ -145,17 +149,6 @@ async def calculate_bmr_response(
                 "weight_gain": primary_tdee * nutrition_bmr.WEIGHT_GAIN_MULTIPLIER,
             },
             name="Recommended intake",
-        )
-        return BMRResponse(
-            bmr=bmr_results,
-            tdee=tdee_results,
-            activity_level=t(
-                req.lang,
-                f"activity_{req.activity}",
-            ),
-            recommended_intake=recommended_intake,
-            formulas_used=list(bmr_results),
-            notes=notes,
         )
     except (ImportError, _MissingBMRDependencyError):
         logger.warning("Premium BMR dependency unavailable")
@@ -181,3 +174,12 @@ async def calculate_bmr_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=BMR_CALCULATION_FAILED_DETAIL,
         ) from None
+
+    return BMRResponse(
+        bmr=bmr_results,
+        tdee=tdee_results,
+        activity_level=activity_level,
+        recommended_intake=recommended_intake,
+        formulas_used=list(bmr_results),
+        notes=notes,
+    )
