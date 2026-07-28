@@ -42,6 +42,7 @@ from scripts.orchestration.requested_agents import (
     MANDATORY_POST_OPEN_ORDER,
     normalize_implementation_owner_slugs,
 )
+from scripts.orchestration.bootstrap_sync_policy import INVARIANT_CHANGE_CLASSES
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
     load_json_strict as load_creative_pilot_json_strict,
@@ -457,6 +458,44 @@ def _validated_dispatch_role_order(
             raise ValueError("invariant review must not grant implementation authority")
         if invariant_review.get("merge_authority") is not False:
             raise ValueError("invariant review must not grant merge authority")
+        raw_change_classes = invariant_review.get("change_classes")
+        if not isinstance(raw_change_classes, list) or any(
+            not isinstance(change_class, str) or change_class not in INVARIANT_CHANGE_CLASSES
+            for change_class in raw_change_classes
+        ):
+            raise ValueError("invariant_review change_classes must use the closed class list")
+        canonical_change_classes = [
+            change_class
+            for change_class in INVARIANT_CHANGE_CLASSES
+            if change_class in raw_change_classes
+        ]
+        if raw_change_classes != canonical_change_classes:
+            raise ValueError(
+                "invariant_review change_classes must be unique and canonically ordered"
+            )
+        trigger_evidence = invariant_review.get("trigger_evidence")
+        if not isinstance(trigger_evidence, list):
+            raise ValueError("invariant_review trigger_evidence must be a JSON list")
+        raw_pr_phase = payload.get("pr_phase")
+        if not isinstance(raw_pr_phase, str) or raw_pr_phase not in PR_PHASES:
+            raise ValueError("invariant_review requires a valid pr_phase")
+        opening_phase = raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}
+        has_active_trigger = bool(raw_change_classes or trigger_evidence)
+        if opening_phase and has_active_trigger and raw_state != "required_pending":
+            raise ValueError("opening-phase invariant triggers require required_pending review")
+        if (
+            opening_phase
+            and raw_state == "required_pending"
+            and not (raw_change_classes and trigger_evidence)
+        ):
+            raise ValueError(
+                "required_pending invariant review requires classes and trigger evidence"
+            )
+        if not opening_phase and raw_state != "not_required":
+            raise ValueError("post-open invariant review state must be not_required")
+        required_roles = invariant_review.get("required_roles")
+        if raw_state == "not_required" and required_roles != []:
+            raise ValueError("not_required invariant review must not require roles")
 
     review_requires_order = invariant_review_state == "required_pending"
     role_dispatch_contract = payload.get("role_agent_dispatch_contract")

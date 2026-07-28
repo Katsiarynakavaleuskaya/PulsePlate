@@ -1782,6 +1782,10 @@ def _invariant_review_packet(
         "invariant_review": {
             "schema_version": "invariant_review.v1",
             "state": "required_pending",
+            "change_classes": ["guard"],
+            "trigger_evidence": [
+                {"change_class": "guard", "source": "explicit"},
+            ],
             "required_roles": ["logic-agent", "philosophy-agent"],
             "implementation_authority": implementation_authority,
             "merge_authority": merge_authority,
@@ -1990,6 +1994,11 @@ def test_required_pending_invariant_review_requires_dispatch_order(
         (
             {
                 "schema_version": "invariant_review.v1",
+                "change_classes": ["guard"],
+                "trigger_evidence": [
+                    {"change_class": "guard", "source": "explicit"},
+                ],
+                "required_roles": ["logic-agent", "philosophy-agent"],
                 "implementation_authority": False,
                 "merge_authority": False,
             },
@@ -1999,6 +2008,11 @@ def test_required_pending_invariant_review_requires_dispatch_order(
             {
                 "schema_version": "invariant_review.v1",
                 "state": "require_pending",
+                "change_classes": ["guard"],
+                "trigger_evidence": [
+                    {"change_class": "guard", "source": "explicit"},
+                ],
+                "required_roles": ["logic-agent", "philosophy-agent"],
                 "implementation_authority": False,
                 "merge_authority": False,
             },
@@ -2008,6 +2022,9 @@ def test_required_pending_invariant_review_requires_dispatch_order(
             {
                 "schema_version": "invariant_review.v0",
                 "state": "not_required",
+                "change_classes": [],
+                "trigger_evidence": [],
+                "required_roles": [],
                 "implementation_authority": False,
                 "merge_authority": False,
             },
@@ -2036,6 +2053,11 @@ def test_malformed_invariant_review_blocks_current_creative_override() -> None:
     packet["invariant_review"] = {
         "schema_version": "invariant_review.v1",
         "state": "required-pending",
+        "change_classes": ["guard"],
+        "trigger_evidence": [
+            {"change_class": "guard", "source": "explicit"},
+        ],
+        "required_roles": ["logic-agent", "philosophy-agent"],
         "implementation_authority": False,
         "merge_authority": False,
     }
@@ -2047,6 +2069,56 @@ def test_malformed_invariant_review_blocks_current_creative_override() -> None:
         match="state must be not_required or required_pending",
     ):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_opening_invariant_trigger_cannot_downgrade_to_not_required_or_creative() -> None:
+    """Active opening evidence must retain the pending pre-fix chain."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    invariant_review["state"] = "not_required"
+    invariant_review["required_roles"] = []
+    packet.pop("role_agent_dispatch_contract")
+    packet["creative_pilot_context"] = {"phase": "independent"}
+
+    with pytest.raises(
+        ValueError,
+        match="opening-phase invariant triggers require required_pending review",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_not_required_invariant_review_keeps_phase_bounded_fallback() -> None:
+    """No-trigger opening packets and recorded post-open classes remain valid."""
+
+    opening_packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    opening_review = opening_packet["invariant_review"]
+    assert isinstance(opening_review, dict)
+    opening_review.update(
+        {
+            "state": "not_required",
+            "change_classes": [],
+            "trigger_evidence": [],
+            "required_roles": [],
+        }
+    )
+    opening_packet.pop("role_agent_dispatch_contract")
+
+    post_open_packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    post_open_packet["pr_phase"] = "post_open_review"
+    post_open_review = post_open_packet["invariant_review"]
+    assert isinstance(post_open_review, dict)
+    post_open_review.update(
+        {
+            "state": "not_required",
+            "required_roles": [],
+        }
+    )
+    post_open_packet.pop("role_agent_dispatch_contract")
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(opening_packet)
+    assert qoder_dispatch_bridge._parse_json_packet_roles(post_open_packet)
 
 
 def test_required_pending_invariant_review_without_order_blocks_creative_cli(
