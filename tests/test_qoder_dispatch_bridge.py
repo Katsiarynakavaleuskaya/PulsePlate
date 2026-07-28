@@ -1778,6 +1778,7 @@ def _invariant_review_packet(
 ) -> dict[str, object]:
     return {
         "pr_phase": "pre_open",
+        "candidate_paths": ["README.md"],
         "requested_agents": ["architecture-specialist"],
         "invariant_review": {
             "schema_version": "invariant_review.v1",
@@ -2041,6 +2042,49 @@ def test_present_invariant_review_metadata_fails_closed_when_malformed(
     packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
     packet["invariant_review"] = invariant_review
     packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("trigger_evidence", "error"),
+    [
+        ([None], "rows must be JSON objects"),
+        (
+            [{"change_class": "safety", "source": "explicit"}],
+            "unknown change_class",
+        ),
+        (
+            [{"change_class": "guard", "source": "manual"}],
+            "unknown source",
+        ),
+        (
+            [{"change_class": "guard", "source": "explicit", "path": "README.md"}],
+            "must not contain path or extra fields",
+        ),
+        (
+            [
+                {
+                    "change_class": "guard",
+                    "source": "bounded_path_hint",
+                    "path": "scripts/orchestration/check_merge_ready.py",
+                }
+            ],
+            "must match the canonical classifier",
+        ),
+    ],
+)
+def test_invariant_review_evidence_must_match_canonical_classifier(
+    trigger_evidence: object,
+    error: str,
+) -> None:
+    """The bridge reuses the classifier instead of trusting packet evidence."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    invariant_review["trigger_evidence"] = trigger_evidence
 
     with pytest.raises(ValueError, match=error):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)

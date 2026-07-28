@@ -42,7 +42,10 @@ from scripts.orchestration.requested_agents import (
     MANDATORY_POST_OPEN_ORDER,
     normalize_implementation_owner_slugs,
 )
-from scripts.orchestration.bootstrap_sync_policy import INVARIANT_CHANGE_CLASSES
+from scripts.orchestration.bootstrap_sync_policy import (
+    INVARIANT_CHANGE_CLASSES,
+    classify_invariant_review,
+)
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
     load_json_strict as load_creative_pilot_json_strict,
@@ -476,6 +479,47 @@ def _validated_dispatch_role_order(
         trigger_evidence = invariant_review.get("trigger_evidence")
         if not isinstance(trigger_evidence, list):
             raise ValueError("invariant_review trigger_evidence must be a JSON list")
+        candidate_paths = payload.get("candidate_paths")
+        if not isinstance(candidate_paths, list) or any(
+            not isinstance(candidate_path, str) for candidate_path in candidate_paths
+        ):
+            raise ValueError("invariant_review requires candidate_paths as a string list")
+        explicit_classes: List[str] = []
+        for evidence_row in trigger_evidence:
+            if not isinstance(evidence_row, dict):
+                raise ValueError("invariant_review trigger_evidence rows must be JSON objects")
+            change_class = evidence_row.get("change_class")
+            source = evidence_row.get("source")
+            if not isinstance(change_class, str) or change_class not in INVARIANT_CHANGE_CLASSES:
+                raise ValueError("invariant_review trigger_evidence uses an unknown change_class")
+            if source == "explicit":
+                if set(evidence_row) != {"change_class", "source"}:
+                    raise ValueError(
+                        "explicit invariant_review evidence must not contain path or extra fields"
+                    )
+                explicit_classes.append(change_class)
+            elif source == "bounded_path_hint":
+                if set(evidence_row) != {"change_class", "source", "path"} or not isinstance(
+                    evidence_row.get("path"), str
+                ):
+                    raise ValueError(
+                        "bounded invariant_review evidence requires exactly one string path"
+                    )
+            else:
+                raise ValueError("invariant_review trigger_evidence uses an unknown source")
+        canonical_decision = classify_invariant_review(
+            candidate_paths=candidate_paths,
+            explicit_classes=explicit_classes,
+        )
+        canonical_evidence = [
+            evidence_row.to_mapping() for evidence_row in canonical_decision.trigger_evidence
+        ]
+        if raw_change_classes != list(canonical_decision.change_classes) or (
+            trigger_evidence != canonical_evidence
+        ):
+            raise ValueError(
+                "invariant_review classes and evidence must match the canonical classifier"
+            )
         raw_pr_phase = payload.get("pr_phase")
         if not isinstance(raw_pr_phase, str) or raw_pr_phase not in PR_PHASES:
             raise ValueError("invariant_review requires a valid pr_phase")
