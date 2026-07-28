@@ -11,7 +11,7 @@ is neither a basename allowlist nor a prose-matching approximation.
 from __future__ import annotations
 
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 import re
 import stat
 
@@ -80,26 +80,27 @@ _LOCAL_ONLY_TOP_LEVEL_DIRS = frozenset(
         "worktrees",
     }
 )
+RepoPath = str | PurePath
 
 
 class DependabotRequirementDiscoveryError(RuntimeError):
     """Fail-closed signal for an unclassifiable repository tree."""
 
-    def __init__(self, relative_path: str | Path) -> None:
+    def __init__(self, relative_path: RepoPath) -> None:
         self.relative_path = normalize_repo_relative_path(relative_path)
         super().__init__(
             "Dependabot requirement carrier discovery could not inspect " "the repository tree"
         )
 
 
-def normalize_repo_relative_path(path: str | Path) -> PurePosixPath:
+def normalize_repo_relative_path(path: RepoPath) -> PurePosixPath:
     """Return a stable repository-relative POSIX path."""
 
     normalized = str(path).removeprefix("./")
     return PurePosixPath(normalized)
 
 
-def is_dependabot_requirement_candidate_path(path: str | Path) -> bool:
+def is_dependabot_requirement_candidate_path(path: RepoPath) -> bool:
     """Return whether the configured updater can discover ``path`` by shape."""
 
     normalized = normalize_repo_relative_path(path)
@@ -113,7 +114,7 @@ def is_dependabot_requirement_candidate_path(path: str | Path) -> bool:
     )
 
 
-def is_protected_python_dependency_text_path(path: str | Path) -> bool:
+def is_protected_python_dependency_text_path(path: RepoPath) -> bool:
     """Preserve broad requirements protection plus exact carrier discovery."""
 
     normalized = normalize_repo_relative_path(path)
@@ -123,7 +124,7 @@ def is_protected_python_dependency_text_path(path: str | Path) -> bool:
 
 
 def is_dependabot_requirement_carrier_text(
-    path: str | Path,
+    path: RepoPath,
     text: str,
 ) -> bool:
     """Recognize the exact frozen content class accepted by Dependabot.

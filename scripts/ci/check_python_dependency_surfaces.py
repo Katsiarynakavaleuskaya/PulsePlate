@@ -370,7 +370,8 @@ def _read_text(repo_root: Path, relative_path: str | Path) -> str:
 
 
 def _existing_requirement_surfaces(repo_root: Path) -> set[str]:
-    return discover_dependabot_requirement_carriers(repo_root)
+    carriers: set[str] = discover_dependabot_requirement_carriers(repo_root)
+    return carriers
 
 
 def _known_requirement_surfaces() -> set[str]:
