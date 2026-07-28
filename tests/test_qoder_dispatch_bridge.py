@@ -1989,16 +1989,32 @@ def test_required_pending_invariant_review_requires_dispatch_order(
 
 
 def test_current_invariant_packet_cannot_remove_all_review_metadata() -> None:
-    """The post-G0 packet marker prevents a full metadata downgrade."""
+    """The versioned post-G0 packet contract prevents a full metadata downgrade."""
 
     packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
-    packet["automation_flags"] = {"invariant_class_review_required": True}
+    packet["schema_version"] = "3.1"
     packet.pop("invariant_review")
     packet.pop("role_agent_dispatch_contract")
 
     with pytest.raises(
         ValueError,
-        match="current invariant-class packets require invariant_review metadata",
+        match="task packet schema 3.1 requires invariant_review metadata",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_packet_with_malformed_path_cannot_downgrade_to_legacy() -> None:
+    """Current provenance stays fail-closed before strict path normalization."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = "3.1"
+    packet["candidate_paths"] = ["scripts/ci/check_policy.py\nignored"]
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="task packet schema 3.1 requires invariant_review metadata",
     ):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
@@ -2016,6 +2032,24 @@ def test_bounded_opening_trigger_cannot_masquerade_as_legacy_packet() -> None:
         match="bounded invariant trigger requires invariant_review metadata",
     ):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_true_legacy_no_trigger_packet_retains_fallback() -> None:
+    """Pre-G0 schema packets without a bounded trigger keep legacy ordering."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = "3.0"
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "logic-agent",
+        "philosophy-agent",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
 
 
 @pytest.mark.parametrize(

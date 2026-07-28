@@ -119,7 +119,7 @@ from scripts.orchestration.shadow_reuse_telemetry import (
     resolve_current_head_sha,
 )
 
-SCHEMA_VERSION = "3.0"
+SCHEMA_VERSION = "3.1"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
 CREATIVE_LEARNING_HINTS_ROOT: Path = (
     REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "learning_rollup"

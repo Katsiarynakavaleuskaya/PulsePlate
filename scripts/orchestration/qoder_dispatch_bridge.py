@@ -64,6 +64,7 @@ PR_PHASES = (
 )
 INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
 INVARIANT_REVIEW_STATES = frozenset({"not_required", "required_pending"})
+CURRENT_TASK_PACKET_SCHEMA_VERSION = "3.1"
 MANIFEST_SCHEMA_VERSION = "2.0"
 MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
 
@@ -449,6 +450,8 @@ def _validated_dispatch_role_order(
     invariant_review = payload.get("invariant_review")
     invariant_review_state: str | None = None
     if not invariant_review_present:
+        if payload.get("schema_version") == CURRENT_TASK_PACKET_SCHEMA_VERSION:
+            raise ValueError("task packet schema 3.1 requires invariant_review metadata")
         automation_flags = payload.get("automation_flags")
         if isinstance(automation_flags, dict) and (
             "invariant_class_review_required" in automation_flags

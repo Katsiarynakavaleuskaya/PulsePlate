@@ -171,7 +171,7 @@ def test_task_bootstrap_resolves_orchestration_domain() -> None:
         ],
     )
 
-    assert packet["schema_version"] == "3.0"
+    assert packet["schema_version"] == "3.1"
     assert packet["domain"] == "orchestration"
     assert packet["cluster"] == "ops"
     assert packet["primary_agent"]
