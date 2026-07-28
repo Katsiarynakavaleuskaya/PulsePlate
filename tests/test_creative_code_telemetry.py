@@ -181,6 +181,12 @@ def _promotion_artifacts(
         base_commit_sha=result["base_commit_sha"],
         oracle_commands_configured=1,
         oracle_commands_executed=1,
+        oracle_evidence_source="direct_evaluation",
+        oracle_executed_during_validation=True,
+        oracle_result_fingerprint=fingerprint_payload({"result": "telemetry-test"}),
+        experiment_packet_fingerprint=fingerprint_payload({"packet": "telemetry-test"}),
+        generation_gate_fingerprint=None,
+        generation_receipt_fingerprint=None,
     )
     approval = build_creative_code_pr_promotion_approval(
         promotion_id=promotion_id,
