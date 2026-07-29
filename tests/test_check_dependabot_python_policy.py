@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError, asdict
 import os
 from pathlib import Path
 import shutil
@@ -133,6 +134,53 @@ def test_non_requirement_text_file_is_not_misclassified_as_carrier(
 )
 def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -> None:
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> None:
+    snapshot = carriers.DEPENDABOT_REQUIREMENT_CARRIER_UPSTREAM_SNAPSHOT
+    assert asdict(snapshot) == {
+        "contract_version": "dependabot-python-requirement-carriers/v1",
+        "upstream_repository_url": "https://github.com/dependabot/dependabot-core",
+        "upstream_commit_sha": "7936a8ab913935a937365279b3f44a1740117929",  # pragma: allowlist secret
+        "shared_file_fetcher_source_path": ("python/lib/dependabot/python/shared_file_fetcher.rb"),
+        "requirement_parser_source_path": ("python/lib/dependabot/python/requirement_parser.rb"),
+    }
+    assert not hasattr(type(snapshot), "__slots__")
+    with pytest.raises(FrozenInstanceError):
+        setattr(snapshot, "upstream_commit_sha", "different")
+
+    documentation = (REPO_ROOT / "docs/DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    projection = "\n".join(
+        (
+            "contract_version=dependabot-python-requirement-carriers/v1",
+            "upstream_repository_url=https://github.com/dependabot/dependabot-core",
+            "upstream_commit_sha=7936a8ab913935a937365279b3f44a1740117929",
+            (
+                "shared_file_fetcher_source_path="
+                "python/lib/dependabot/python/shared_file_fetcher.rb"
+            ),
+            (
+                "requirement_parser_source_path="
+                "python/lib/dependabot/python/requirement_parser.rb"
+            ),
+        )
+    )
+    assert documentation.count(projection) == 1
+    for source_url in (
+        (
+            "https://github.com/dependabot/dependabot-core/blob/"
+            "7936a8ab913935a937365279b3f44a1740117929/"
+            "python/lib/dependabot/python/shared_file_fetcher.rb"
+        ),
+        (
+            "https://github.com/dependabot/dependabot-core/blob/"
+            "7936a8ab913935a937365279b3f44a1740117929/"
+            "python/lib/dependabot/python/requirement_parser.rb"
+        ),
+    ):
+        assert source_url in documentation
+    assert "Newer upstream revisions are outside this pinned snapshot claim" in documentation
+    assert "separate reviewed revalidation plus a contract-version bump" in documentation
 
 
 def test_unclassifiable_novel_candidate_fails_closed(tmp_path: Path) -> None:

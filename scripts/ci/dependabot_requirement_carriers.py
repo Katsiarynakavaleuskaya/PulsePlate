@@ -2,14 +2,19 @@
 """Canonical path and content class for Dependabot Python requirement carriers.
 
 The repository config fixes the Dependabot update directory at ``/``.  The
-upstream Python fetcher therefore inspects ``.txt`` and ``.in`` files at the
-repository root and one directory below it.  This module freezes the upstream
-path and content grammar at the immutable commit documented below so discovery
-is neither a basename allowlist nor a prose-matching approximation.
+pinned upstream Python fetcher snapshot declared below inspects ``.txt`` and
+``.in`` files at the repository root and one directory below it.  This module
+freezes that snapshot's path and content grammar so discovery is neither a
+basename allowlist nor a prose-matching approximation.
+
+Newer upstream revisions are outside this snapshot claim.  Path or content
+grammar drift requires a separate reviewed revalidation and contract-version
+bump, not another carrier exception or fallback.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 from pathlib import Path, PurePath, PurePosixPath
 import re
@@ -20,11 +25,32 @@ DEPENDABOT_REQUIREMENT_MAX_DEPTH = 1
 DEPENDABOT_REQUIREMENT_MAX_BYTES = 500_000
 DEPENDABOT_REQUIREMENTS_NAME_FRAGMENT = "requirements"
 DEPENDABOT_REQUIREMENT_DIRECTIVE_PREFIXES = ("-r ", "-c ", "-e ", "--")
+
+
+@dataclass(frozen=True)
+class DependabotRequirementCarrierUpstreamSnapshot:
+    """Immutable identity for the validated upstream carrier snapshot."""
+
+    contract_version: str
+    upstream_repository_url: str
+    upstream_commit_sha: str
+    shared_file_fetcher_source_path: str
+    requirement_parser_source_path: str
+
+
+DEPENDABOT_REQUIREMENT_CARRIER_UPSTREAM_SNAPSHOT = DependabotRequirementCarrierUpstreamSnapshot(
+    contract_version="dependabot-python-requirement-carriers/v1",
+    upstream_repository_url="https://github.com/dependabot/dependabot-core",
+    upstream_commit_sha="7936a8ab913935a937365279b3f44a1740117929",  # pragma: allowlist secret
+    shared_file_fetcher_source_path=("python/lib/dependabot/python/shared_file_fetcher.rb"),
+    requirement_parser_source_path=("python/lib/dependabot/python/requirement_parser.rb"),
+)
+
 _REQUIREMENTS_MANIFEST_BASENAME_RE = re.compile(
     r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$"
 )
-# Frozen translation of RequirementParser::VALID_REQ_TXT_REQUIREMENT at
-# dependabot-core 7936a8ab913935a937365279b3f44a1740117929.
+# Frozen translation of RequirementParser::VALID_REQ_TXT_REQUIREMENT from
+# DEPENDABOT_REQUIREMENT_CARRIER_UPSTREAM_SNAPSHOT.
 _UPSTREAM_NAME = r"[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?"
 _UPSTREAM_EXTRA = r"[A-Za-z0-9_.-]+"
 _UPSTREAM_COMPARISON = r"(?:===|==|>=|<=|<|>|~=|!=)"
@@ -127,11 +153,12 @@ def is_dependabot_requirement_carrier_text(
     path: RepoPath,
     text: str,
 ) -> bool:
-    """Recognize the exact frozen content class accepted by Dependabot.
+    """Recognize the exact content class accepted by the pinned snapshot.
 
-    Dependabot accepts any valid-encoding candidate with ``requirements`` in
-    its name.  For other candidates, every line must be blank, a comment, a
-    supported pip directive, or match the frozen upstream requirement regex.
+    The pinned shared-file-fetcher snapshot accepts any valid-encoding candidate
+    with ``requirements`` in its name.  For other candidates, every line must
+    be blank, a comment, a supported pip directive, or match the pinned
+    requirement-parser snapshot.
     """
 
     normalized = normalize_repo_relative_path(path)

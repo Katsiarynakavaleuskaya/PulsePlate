@@ -455,9 +455,31 @@ that version-update cap.
 
 Run `python scripts/ci/check_dependabot_python_policy.py --repo-root .` after
 changing the config, any root or one-directory-deep `.in`/`.txt` file,
-constraints, or this policy. That path-and-content class mirrors the configured
-Dependabot Python fetcher rather than an allowlist of familiar basenames:
-accepted carriers must belong to the canonical dependency-surface registry.
+constraints, or this policy. That path-and-content class translates the pinned
+upstream snapshot below for the current root updater configuration rather than
+using an allowlist of familiar basenames:
+
+```text
+contract_version=dependabot-python-requirement-carriers/v1
+upstream_repository_url=https://github.com/dependabot/dependabot-core
+upstream_commit_sha=7936a8ab913935a937365279b3f44a1740117929
+shared_file_fetcher_source_path=python/lib/dependabot/python/shared_file_fetcher.rb
+requirement_parser_source_path=python/lib/dependabot/python/requirement_parser.rb
+```
+
+The executable owner is
+`DEPENDABOT_REQUIREMENT_CARRIER_UPSTREAM_SNAPSHOT`. Its immutable upstream
+sources are
+[`shared_file_fetcher.rb`](https://github.com/dependabot/dependabot-core/blob/7936a8ab913935a937365279b3f44a1740117929/python/lib/dependabot/python/shared_file_fetcher.rb)
+and
+[`requirement_parser.rb`](https://github.com/dependabot/dependabot-core/blob/7936a8ab913935a937365279b3f44a1740117929/python/lib/dependabot/python/requirement_parser.rb).
+Newer upstream revisions are outside this pinned snapshot claim and require a
+separate reviewed revalidation plus a contract-version bump. This provenance
+record identifies the selected translation source only; it is not proof of
+GitHub's deployed Dependabot version, live parity, registry access, ACL
+correctness, review approval, or merge authority.
+
+Accepted carriers must belong to the canonical dependency-surface registry.
 The same candidate class drives dependency-surface validation, CI risk routing,
 protected review evidence, and focused pre-commit selection. The guard fails
 closed when descriptor-anchored traversal cannot classify the repository tree,
