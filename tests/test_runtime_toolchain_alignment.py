@@ -20,14 +20,25 @@ from tests.runtime_toolchain_versions import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON_SETUP_USES = ("actions/setup-python@", "./.github/actions/python-setup")
-AUXILIARY_PY313_WORKFLOWS = (
-    ".github/workflows/build-equivalence-evidence.yml",
-    ".github/workflows/ci-metrics.yml",
-    ".github/workflows/experiment-runner-dispatch.yml",
-    ".github/workflows/experiment-runner-slack-socket-smoke.yml",
-    ".github/workflows/nightly.yml",
-    ".github/workflows/release-control-plane-evidence.yml",
-    ".github/workflows/release-manifest-evidence.yml",
+EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
+    (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
+    (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),
+    (".github/workflows/experiment-runner-dispatch.yml", "experiment-runner-dispatch-contract"),
+    (".github/workflows/experiment-runner-slack-socket-smoke.yml", "slack-socket-bridge-smoke"),
+    (".github/workflows/nightly-tests.yml", "tests"),
+    (".github/workflows/nightly-tests.yml", "tests"),
+    (".github/workflows/nightly.yml", "coverage-merge"),
+    (".github/workflows/nightly.yml", "integration-test"),
+    (".github/workflows/nightly.yml", "performance-test"),
+    (".github/workflows/nightly.yml", "test"),
+    (".github/workflows/rag-release-gates.yml", "rag-release-gates-smoke"),
+    (".github/workflows/rag-release-gates.yml", "rag-release-gates-weekly"),
+    (
+        ".github/workflows/release-control-plane-evidence.yml",
+        "publish-release-control-plane-evidence",
+    ),
+    (".github/workflows/release-manifest-evidence.yml", "publish-release-manifest-evidence"),
+    (".github/workflows/security.yml", "bandit"),
 )
 EXPECTED_RUBY_SETUP_OWNERS = (
     (".github/workflows/ci.yml", "jwt_fastlane_unblock_guard"),
@@ -104,6 +115,15 @@ def _assert_expected_ruby_setup_steps(
         assert _ruby_version_input(step) == CANONICAL_RUBY, owner
 
 
+def _assert_expected_auxiliary_python_setup_steps(
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]],
+) -> None:
+    owners = Counter(owner for owner, _step in discovered)
+    assert owners == Counter(EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS)
+    for owner, step in discovered:
+        assert _python_version_input(step) == CANONICAL_PYTHON, owner
+
+
 def _tool_versions() -> dict[str, str]:
     entries: dict[str, str] = {}
     for line in (REPO_ROOT / ".tool-versions").read_text(encoding="utf-8").splitlines():
@@ -143,6 +163,7 @@ def test_canonical_ci_uses_patch_pin_without_renaming_visible_labels() -> None:
     assert _python_version_input(setup_steps["test-main"]) == (
         "${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}"
     )
+    assert _python_version_input(setup_steps["pgvector_compat"]) == CANONICAL_PYTHON
 
 
 def test_frontend_ci_keeps_shared_python_patch_source() -> None:
@@ -154,31 +175,13 @@ def test_frontend_ci_keeps_shared_python_patch_source() -> None:
 
 
 def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
-    for path in AUXILIARY_PY313_WORKFLOWS:
-        setup_steps = _iter_python_setup_steps(path)
-        assert setup_steps, f"Missing Python setup step in {path}"
-        for job_name, step in setup_steps:
-            assert _python_version_input(step) == CANONICAL_PYTHON, f"{path}:{job_name}"
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]] = []
+    workflow_paths = sorted({path for path, _job_name in EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS})
+    for path in workflow_paths:
+        for job_name, step in _iter_python_setup_steps(path):
+            discovered.append(((path, job_name), step))
 
-
-@pytest.mark.parametrize(
-    ("path", "expected_jobs"),
-    (
-        (".github/workflows/nightly-tests.yml", ("tests", "tests")),
-        (
-            ".github/workflows/rag-release-gates.yml",
-            ("rag-release-gates-smoke", "rag-release-gates-weekly"),
-        ),
-    ),
-)
-def test_auxiliary_workflows_advanced_ahead_of_canonical_pin_use_exact_python_patch(
-    path: str,
-    expected_jobs: tuple[str, ...],
-) -> None:
-    setup_steps = _iter_python_setup_steps(path)
-
-    assert Counter(job_name for job_name, _step in setup_steps) == Counter(expected_jobs)
-    assert {_python_version_input(step) for _job_name, step in setup_steps} == {"3.13.14"}
+    _assert_expected_auxiliary_python_setup_steps(discovered)
 
 
 def test_no_python_setup_step_uses_bare_py313_runtime_pin() -> None:
