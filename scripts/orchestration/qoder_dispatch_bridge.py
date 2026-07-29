@@ -56,6 +56,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict as load_creative_pilot_json_strict,
     validate_task_pilot_context,
 )
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 
 PR_PHASE_NONE = "none"
 PR_PHASE_PRE_OPEN = "pre_open"
@@ -663,34 +664,39 @@ def _validate_current_native_subagent_bridge(
     if not isinstance(bridge, dict):
         raise ValueError("current invariant packet requires native_subagent_bridge object")
 
-    def validate_binding(value: Any, *, field: str) -> None:
+    def binding_slug(value: Any, *, field: str) -> str:
         if not isinstance(value, dict):
             raise ValueError(f"native_subagent_bridge.{field} must be a JSON object")
         slug = value.get("repo_agent_slug")
         if not isinstance(slug, str) or slug != slug.strip() or not _ROLE_SLUG_RE.fullmatch(slug):
             raise ValueError(f"native_subagent_bridge.{field}.repo_agent_slug must be canonical")
-        dispatch_contract = value.get("dispatch_contract")
-        if dispatch_contract is None:
-            return
-        if not isinstance(dispatch_contract, dict):
-            raise ValueError(
-                f"native_subagent_bridge.{field}.dispatch_contract must be a JSON object"
-            )
-        for flag in ("advisory_only", "spawn_with_native_subagent"):
-            if flag in dispatch_contract and not isinstance(dispatch_contract[flag], bool):
-                raise ValueError(
-                    f"native_subagent_bridge.{field}.dispatch_contract.{flag} "
-                    "must be a JSON boolean"
-                )
+        return slug
 
-    validate_binding(bridge.get("primary"), field="primary")
-    validate_binding(bridge.get("reviewer"), field="reviewer")
+    primary_slug = binding_slug(bridge.get("primary"), field="primary")
+    reviewer_slug = binding_slug(bridge.get("reviewer"), field="reviewer")
+    binding_slugs: dict[str, list[str]] = {}
     for collection_name in ("secondary", "advisory"):
         bindings = bridge.get(collection_name)
         if not isinstance(bindings, list):
             raise ValueError(f"native_subagent_bridge.{collection_name} must be a JSON list")
-        for index, binding in enumerate(bindings):
-            validate_binding(binding, field=f"{collection_name}[{index}]")
+        binding_slugs[collection_name] = [
+            binding_slug(binding, field=f"{collection_name}[{index}]")
+            for index, binding in enumerate(bindings)
+        ]
+    transport = bridge.get("transport")
+    if not isinstance(transport, str):
+        raise ValueError("native_subagent_bridge.transport must be a string")
+    expected_bridge = build_native_subagent_bridge(
+        primary_agent=primary_slug,
+        secondary_agents=binding_slugs["secondary"],
+        reviewer=reviewer_slug,
+        advisory_agents=binding_slugs["advisory"],
+        transport=transport,
+    )
+    if bridge != expected_bridge:
+        raise ValueError(
+            "current native_subagent_bridge must exactly match the canonical builder contract"
+        )
 
 
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:

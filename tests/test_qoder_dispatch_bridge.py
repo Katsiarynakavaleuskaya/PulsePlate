@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 import pytest
 from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1814,17 +1815,17 @@ def _invariant_review_packet(
         "role_agent_dispatch_contract": {
             "dispatch_role_order": dispatch_role_order,
         },
-        "native_subagent_bridge": {
-            "primary": {"repo_agent_slug": "architecture-specialist"},
-            "secondary": [
-                {"repo_agent_slug": "logic-agent"},
-                {"repo_agent_slug": "agent-coordinator"},
-                {"repo_agent_slug": "philosophy-agent"},
-                {"repo_agent_slug": "security-auditor"},
+        "native_subagent_bridge": build_native_subagent_bridge(
+            primary_agent="architecture-specialist",
+            secondary_agents=[
+                "logic-agent",
+                "agent-coordinator",
+                "philosophy-agent",
+                "security-auditor",
             ],
-            "advisory": [],
-            "reviewer": {"repo_agent_slug": "cursor-specialist-agent"},
-        },
+            advisory_agents=[],
+            reviewer="cursor-specialist-agent",
+        ),
     }
 
 
@@ -1900,11 +1901,13 @@ def test_required_pending_invariant_review_requires_complete_native_bridge(
         ("secondary_null", r"secondary\[4\] must be a JSON object"),
         ("advisory_null", r"advisory\[0\] must be a JSON object"),
         ("empty_slug", r"secondary\[4\]\.repo_agent_slug must be canonical"),
-        ("dispatch_contract_scalar", r"secondary\[0\]\.dispatch_contract must be"),
+        ("missing_dispatch_contract", r"canonical builder contract"),
+        ("dispatch_contract_scalar", r"canonical builder contract"),
         (
             "spawn_flag_string",
-            r"secondary\[0\]\.dispatch_contract\.spawn_with_native_subagent must be",
+            r"canonical builder contract",
         ),
+        ("advisory_partial_contract", r"canonical builder contract"),
     ],
 )
 def test_current_invariant_review_rejects_lossy_bridge_projection(
@@ -1939,14 +1942,31 @@ def test_current_invariant_review_rejects_lossy_bridge_projection(
         advisory.append(None)
     elif mutation == "empty_slug":
         secondary.append({"repo_agent_slug": ""})
+    elif mutation == "missing_dispatch_contract":
+        binding = secondary[0]
+        assert isinstance(binding, dict)
+        binding.pop("dispatch_contract")
     elif mutation == "dispatch_contract_scalar":
         binding = secondary[0]
         assert isinstance(binding, dict)
         binding["dispatch_contract"] = "spawn"
-    else:
+    elif mutation == "spawn_flag_string":
         binding = secondary[0]
         assert isinstance(binding, dict)
         binding["dispatch_contract"] = {"spawn_with_native_subagent": "false"}
+    else:
+        advisory_bridge = build_native_subagent_bridge(
+            primary_agent="architecture-specialist",
+            secondary_agents=[],
+            advisory_agents=["qa-engineer-agent"],
+            reviewer="cursor-specialist-agent",
+        )
+        advisory_binding = advisory_bridge["advisory"][0]
+        assert isinstance(advisory_binding, dict)
+        dispatch_contract = advisory_binding["dispatch_contract"]
+        assert isinstance(dispatch_contract, dict)
+        dispatch_contract.pop("advisory_only")
+        advisory.append(advisory_binding)
 
     with pytest.raises(ValueError, match=error):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
