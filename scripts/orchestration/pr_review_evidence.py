@@ -500,7 +500,7 @@ def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
     if not any(term in lowered for term in cause_terms):
         raise ReviewEvidenceError("review finding is not an ancestry cause")
     candidates = tuple(sorted(set(re.findall(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])", body))))
-    if not candidates or len(candidates) > 3:
+    if not candidates or len(candidates) > 4:
         raise ReviewEvidenceError("review finding has ambiguous commit references")
     return candidates
 
@@ -594,7 +594,12 @@ def validated_duplicate_reply_urls(
             for resolution in resolutions
             if isinstance(resolution, RepositoryCommitRef)
         }
-        if len(unavailable) != 1 or repository_shas - {record.verified_fix}:
+        effective_repository_shas = repository_shas | {record.verified_fix}
+        accepted_repository_identities = (
+            {record.verified_fix},
+            {record.verified_fix, snapshot.base_sha, snapshot.head_sha},
+        )
+        if len(unavailable) != 1 or effective_repository_shas not in accepted_repository_identities:
             raise ReviewEvidenceError("review finding ancestry cause is ambiguous")
         return _parse_timestamp(finding.created_at, label="review finding createdAt")
 
