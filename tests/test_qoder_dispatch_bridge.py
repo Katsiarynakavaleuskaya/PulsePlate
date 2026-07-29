@@ -1863,9 +1863,16 @@ def test_invariant_review_dispatch_rejects_permuted_remaining_roles() -> None:
         )
 
 
-@pytest.mark.parametrize("native_bridge", [None, {}])
+@pytest.mark.parametrize(
+    ("native_bridge", "error"),
+    [
+        (None, "requires native_subagent_bridge object"),
+        ({}, "native_subagent_bridge.primary must be a JSON object"),
+    ],
+)
 def test_required_pending_invariant_review_requires_complete_native_bridge(
     native_bridge: object,
+    error: str,
 ) -> None:
     """Current pending packets cannot fall back around missing bridge bindings."""
 
@@ -1881,8 +1888,101 @@ def test_required_pending_invariant_review_requires_complete_native_bridge(
     )
     packet["native_subagent_bridge"] = native_bridge
 
-    with pytest.raises(ValueError, match="missing required spawnable roles"):
+    with pytest.raises(ValueError, match=error):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        ("secondary_scalar", r"secondary must be a JSON list"),
+        ("advisory_scalar", r"advisory must be a JSON list"),
+        ("secondary_null", r"secondary\[4\] must be a JSON object"),
+        ("advisory_null", r"advisory\[0\] must be a JSON object"),
+        ("empty_slug", r"secondary\[4\]\.repo_agent_slug must be canonical"),
+        ("dispatch_contract_scalar", r"secondary\[0\]\.dispatch_contract must be"),
+        (
+            "spawn_flag_string",
+            r"secondary\[0\]\.dispatch_contract\.spawn_with_native_subagent must be",
+        ),
+    ],
+)
+def test_current_invariant_review_rejects_lossy_bridge_projection(
+    mutation: str,
+    error: str,
+) -> None:
+    """Every current bridge input to spawnable-role projection is validated."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    secondary = bridge["secondary"]
+    advisory = bridge["advisory"]
+    assert isinstance(secondary, list)
+    assert isinstance(advisory, list)
+    if mutation == "secondary_scalar":
+        bridge["secondary"] = {}
+    elif mutation == "advisory_scalar":
+        bridge["advisory"] = {}
+    elif mutation == "secondary_null":
+        secondary.append(None)
+    elif mutation == "advisory_null":
+        advisory.append(None)
+    elif mutation == "empty_slug":
+        secondary.append({"repo_agent_slug": ""})
+    elif mutation == "dispatch_contract_scalar":
+        binding = secondary[0]
+        assert isinstance(binding, dict)
+        binding["dispatch_contract"] = "spawn"
+    else:
+        binding = secondary[0]
+        assert isinstance(binding, dict)
+        binding["dispatch_contract"] = {"spawn_with_native_subagent": "false"}
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_bridge_cli_rejects_malformed_binding(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The neutral CLI fails before manifest construction on malformed bindings."""
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    secondary = bridge["secondary"]
+    assert isinstance(secondary, list)
+    secondary.append(None)
+    packet_path = tmp_path / "malformed-current-bridge.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    result = role_dispatch_bridge.main(["--packet", str(packet_path), "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "native_subagent_bridge.secondary[4] must be a JSON object" in captured.err
 
 
 @pytest.mark.parametrize(

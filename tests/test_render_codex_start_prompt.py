@@ -524,7 +524,7 @@ def test_main_reports_current_packet_dispatch_failure_without_traceback(
     captured = capsys.readouterr()
     assert result == 1
     assert "FAIL: invalid task packet role dispatch:" in captured.err
-    assert "missing required spawnable roles" in captured.err
+    assert "requires native_subagent_bridge object" in captured.err
     assert "Traceback" not in captured.err
     assert "Paste into Codex now:" not in captured.out
 

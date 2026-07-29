@@ -649,9 +649,54 @@ def _validated_dispatch_role_order(
     return dispatch_order
 
 
+def _validate_current_native_subagent_bridge(
+    payload: Dict[str, Any],
+    bridge: Any,
+) -> None:
+    """Reject lossy bridge projections for current invariant packet contracts."""
+
+    if (
+        payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
+        and "invariant_review" not in payload
+    ):
+        return
+    if not isinstance(bridge, dict):
+        raise ValueError("current invariant packet requires native_subagent_bridge object")
+
+    def validate_binding(value: Any, *, field: str) -> None:
+        if not isinstance(value, dict):
+            raise ValueError(f"native_subagent_bridge.{field} must be a JSON object")
+        slug = value.get("repo_agent_slug")
+        if not isinstance(slug, str) or slug != slug.strip() or not _ROLE_SLUG_RE.fullmatch(slug):
+            raise ValueError(f"native_subagent_bridge.{field}.repo_agent_slug must be canonical")
+        dispatch_contract = value.get("dispatch_contract")
+        if dispatch_contract is None:
+            return
+        if not isinstance(dispatch_contract, dict):
+            raise ValueError(
+                f"native_subagent_bridge.{field}.dispatch_contract must be a JSON object"
+            )
+        for flag in ("advisory_only", "spawn_with_native_subagent"):
+            if flag in dispatch_contract and not isinstance(dispatch_contract[flag], bool):
+                raise ValueError(
+                    f"native_subagent_bridge.{field}.dispatch_contract.{flag} "
+                    "must be a JSON boolean"
+                )
+
+    validate_binding(bridge.get("primary"), field="primary")
+    validate_binding(bridge.get("reviewer"), field="reviewer")
+    for collection_name in ("secondary", "advisory"):
+        bindings = bridge.get(collection_name)
+        if not isinstance(bindings, list):
+            raise ValueError(f"native_subagent_bridge.{collection_name} must be a JSON list")
+        for index, binding in enumerate(bindings):
+            validate_binding(binding, field=f"{collection_name}[{index}]")
+
+
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
+    _validate_current_native_subagent_bridge(payload, bridge)
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
