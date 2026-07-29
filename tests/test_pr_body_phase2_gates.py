@@ -236,9 +236,10 @@ def test_phase2_guard_rejects_stale_pending_status_in_final_modes(
     body: str,
 ) -> None:
     stale_body = body.replace(
-        "### Fixed in Commit Mapping\n",
-        "### Fixed in Commit Mapping\n"
-        "- Pending final clean scan and the single mapping/closeout commit.\n",
+        "## Experiment Runner Evidence",
+        "## Risks / rollback\n"
+        "- Pending final clean scan and the single mapping/closeout commit.\n\n"
+        "## Experiment Runner Evidence",
     )
 
     errors = gates.check_pr_body_phase2_gates(
@@ -342,7 +343,7 @@ def test_default_pr_template_closeout_uses_exact_branch_link(
         ref=head_ref,
     )
     phase2_start = template.index("## Discussion Thread Pass")
-    phase2_end = template.index("## Split justification", phase2_start)
+    phase2_end = template.index("\n## Split justification\n", phase2_start) + 1
     closeout_body = template[:phase2_start] + phase2_mirror + "\n\n" + template[phase2_end:]
 
     assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template

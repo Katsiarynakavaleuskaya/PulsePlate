@@ -803,8 +803,7 @@ def check_pr_body_phase2_gates(
                 "Pre-closeout marker must be removed after the canonical mapping/seal is "
                 "published."
             )
-        mapping_section = _extract_mapping_section(cleaned)
-        if PRE_CLOSEOUT_PENDING_RE.search(mapping_section):
+        if PRE_CLOSEOUT_PENDING_RE.search(cleaned):
             errors.append(
                 "Pre-closeout pending status must be removed after the canonical mapping/seal "
                 "is published."
