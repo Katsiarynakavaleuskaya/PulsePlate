@@ -1394,6 +1394,46 @@ def test_duplicate_key_json_packet_fails_closed_before_dispatch(
     assert captured.out == ""
 
 
+@pytest.mark.parametrize("suffix", [".json", ".JSON"])
+def test_json_designated_packet_never_falls_back_to_markdown(
+    suffix: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_file = tmp_path / f"packet{suffix}"
+    packet_file.write_text(
+        '{"schema_version":"3.1"\n'
+        "## Coordinator Role Order\n"
+        "1. agent-coordinator\n"
+        "2. backend-engineer\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet_file), "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "JSON packet must contain a valid JSON object" in captured.err
+    assert captured.out == ""
+
+
+def test_json_designated_packet_requires_object_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        json.dumps(["## Coordinator Role Order", "1. backend-engineer"]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(ValueError, match="JSON packet must contain a valid JSON object"):
+        qoder_dispatch_bridge._parse_packet_roles(packet_file)
+
+
 def test_runtime_implementation_owner_cli_packet_success(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

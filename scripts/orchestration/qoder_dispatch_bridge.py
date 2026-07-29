@@ -1056,6 +1056,8 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
         sys.exit(1)
 
     json_payload = _load_json_packet(resolved_packet_path)
+    if json_payload is None and resolved_packet_path.suffix.casefold() == ".json":
+        raise ValueError("JSON packet must contain a valid JSON object")
     if json_payload is not None:
         return _parse_json_packet_roles(json_payload)
 
