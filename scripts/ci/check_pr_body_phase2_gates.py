@@ -952,6 +952,7 @@ def main() -> int:
     if body.strip():
         cleaned_body = _normalize_phase2_body(body)
         has_pre_closeout_marker = bool(PRE_CLOSEOUT_MARKER_RE.search(cleaned_body))
+        has_stale_pending_status = bool(PRE_CLOSEOUT_PENDING_RE.search(cleaned_body))
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )
@@ -961,7 +962,12 @@ def main() -> int:
         has_lane_start_provenance = bool(
             _extract_section_by_h2(cleaned_body, str(PHASE2_CONFIG["lane_start_heading"]))
         )
-        if not artifact_checked or has_phase2_mirror or has_pre_closeout_marker:
+        if (
+            not artifact_checked
+            or has_phase2_mirror
+            or has_pre_closeout_marker
+            or has_stale_pending_status
+        ):
             body_checked = True
             body_mode = (
                 BodyValidationMode.PRE_CLOSEOUT

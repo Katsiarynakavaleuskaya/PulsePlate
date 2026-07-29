@@ -2051,13 +2051,28 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert "canonical mapping artifact passed" in result.stdout
 
 
-def test_phase2_rejects_stale_pre_closeout_marker_without_mirror(
+@pytest.mark.parametrize(
+    ("body", "expected_error"),
+    [
+        (
+            "<!-- phase2-pre-closeout: final-security-pending -->",
+            "Pre-closeout marker must be removed",
+        ),
+        (
+            "- Pending final clean scan and the single mapping/closeout commit.",
+            "Pre-closeout pending status must be removed",
+        ),
+    ],
+)
+def test_phase2_rejects_stale_pre_closeout_state_without_mirror(
     tmp_path: Path,
+    body: str,
+    expected_error: str,
 ) -> None:
     event = {
         "pull_request": {
             "number": 998,
-            "body": "<!-- phase2-pre-closeout: final-security-pending -->",
+            "body": body,
         }
     }
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
@@ -2074,7 +2089,7 @@ Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
-Not applicable: fixture artifact only checks stale pre-closeout marker behavior.
+Not applicable: fixture artifact only checks stale pre-closeout state behavior.
 
 ## Lane Start Provenance
 Packet: {LANE_START_PACKET_PATH}
@@ -2101,7 +2116,7 @@ Starter: scripts/orchestration/start_pr_lane.sh
         _cleanup_lane_start_packet(repo_root)
 
     assert result.returncode == 1
-    assert "Pre-closeout marker must be removed" in result.stdout
+    assert expected_error in result.stdout
 
 
 def test_phase2_rejects_invalid_present_body_mirror_when_artifact_is_valid(
