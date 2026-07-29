@@ -246,18 +246,12 @@ def retrieve_context_structured(
 class RAGEngine:
     """Thin facade for RAG operations."""
 
-    def __init__(self) -> None:
-        pass
-
     def query(self, query: str, max_chunks: int = 3) -> str:
         return retrieve_context(query, max_chunks=max_chunks)
 
 
 class SimpleRAG:
     """Thin facade with .query() method."""
-
-    def __init__(self) -> None:
-        pass
 
     def query(self, query: str, max_chunks: int = 3) -> str:
         return retrieve_context(query or "", max_chunks=max_chunks)
