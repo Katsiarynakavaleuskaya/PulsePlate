@@ -5830,12 +5830,25 @@ def _validate_duplicate_finding_body(
     )
 
 
+@pytest.mark.parametrize(
+    ("fix_reference", "head_reference"),
+    [
+        (
+            FIX_SHA,
+            f"[evidence](https://github.com/owner/repo/commit/{HEAD_SHA})",
+        ),
+        (f"{FIX_SHA[:8]}...", HEAD_SHA),
+    ],
+    ids=["full-fix-markdown-head", "abbreviated-fix-plain-head"],
+)
 def test_duplicate_reply_accepts_exact_fix_base_head_and_one_unavailable(
     monkeypatch: pytest.MonkeyPatch,
+    fix_reference: str,
+    head_reference: str,
 ) -> None:
     body = (
-        f"Commit ancestry finding: verified FIX {FIX_SHA} descends from base {BASE_SHA}; "
-        f"the reviewed head is [evidence](https://github.com/owner/repo/commit/{HEAD_SHA}), "
+        f"Commit ancestry finding: verified FIX {fix_reference} descends from base {BASE_SHA}; "
+        f"the reviewed head is {head_reference}, "
         f"but reviewer execution ref {UNAVAILABLE_SHA} is reported unreachable."
     )
 
