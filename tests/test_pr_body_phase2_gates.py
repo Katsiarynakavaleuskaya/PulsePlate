@@ -13,6 +13,7 @@ import pytest
 
 import scripts.ci.check_pr_body_phase2_gates as gates
 import scripts.ci.check_pr_merge_readiness as merge_readiness
+import scripts.orchestration.review_mapping_artifact as mapping_artifact
 
 LANE_START_PACKET_ID = "a733b2e09986"
 LANE_START_PACKET_PATH = f"{gates.LANE_START_PACKET_PREFIX}{LANE_START_PACKET_ID}.json"
@@ -315,26 +316,34 @@ def test_default_pr_template_without_rendered_link_is_not_closeout_evidence() ->
     ]
 
 
-def test_default_pr_template_closeout_uses_exact_branch_link() -> None:
+def test_default_pr_template_closeout_uses_exact_branch_link(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     pr_number = 2192
     repository = "Katsiarynakavaleuskaya/PulsePlate"
     head_ref = "codex/align-pr-template-body-gates"
-    artifact_url = (
-        f"https://github.com/{repository}/blob/{head_ref}/"
-        f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    (tmp_path / f"PR_{pr_number}_FIXED_MAPPING.md").write_text(
+        f"""# PR {pr_number} — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+- No actionable review comments
+""",
+        encoding="utf-8",
     )
-    closeout_body = (
-        template.replace(
-            "<!-- phase2-pre-closeout: final-security-pending -->\n\n",
-            "",
-        )
-        .replace("- [ ]", "- [x]")
-        .replace(
-            "- Pending final clean scan and the single mapping/closeout commit.",
-            f"- [canonical artifact]({artifact_url})",
-        )
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    phase2_mirror = mapping_artifact.render_phase2_body_mirror(
+        pr_number,
+        repository=repository,
+        ref=head_ref,
     )
+    phase2_start = template.index("## Discussion Thread Pass")
+    phase2_end = template.index("## Split justification", phase2_start)
+    closeout_body = template[:phase2_start] + phase2_mirror + "\n\n" + template[phase2_end:]
 
     assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
     assert (
