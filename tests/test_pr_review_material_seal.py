@@ -80,6 +80,7 @@ from scripts.orchestration.pr_review_evidence import (
     validated_duplicate_reply_urls,
 )
 from scripts.orchestration.review_mapping_artifact import (
+    CanonicalFingerprintRecord,
     NO_ACTIONABLE_LINE,
     parse_canonical_fingerprint_records,
     validate_mapping_artifact_text,
@@ -5720,6 +5721,195 @@ def _duplicate_reply(fingerprint: str) -> str:
             "Reason: reviewer ref is unavailable; canonical disposition reused",
         ]
     )
+
+
+def _validate_duplicate_finding_body(
+    monkeypatch: pytest.MonkeyPatch,
+    body: str,
+    *,
+    unavailable_shas: tuple[str, ...] = (UNAVAILABLE_SHA,),
+    api_unknown_shas: tuple[str, ...] = (),
+) -> set[str]:
+    canonical_url = "https://github.com/owner/repo/pull/42#discussion_canonical"
+    duplicate_url = "https://github.com/owner/repo/pull/42#discussion_duplicate"
+    fingerprint = unavailable_review_ref_fingerprint(
+        pr_number=42,
+        material_digest=DIGEST,
+        verified_real_fix_sha=FIX_SHA,
+    )
+    record = CanonicalFingerprintRecord(
+        fingerprint=fingerprint,
+        cause=evidence_module.UNAVAILABLE_REVIEW_REF_CAUSE,
+        material_digest=DIGEST,
+        verified_fix=FIX_SHA,
+        urls=(canonical_url,),
+    )
+    canonical_finding = ReviewCommentEvidence(
+        url=canonical_url,
+        body=body,
+        created_at="2026-07-15T09:00:00Z",
+        author_login="chatgpt-codex-connector",
+        author_association="NONE",
+        original_commit_sha=FIX_SHA,
+    )
+    duplicate_finding = ReviewCommentEvidence(
+        url=duplicate_url,
+        body=body,
+        created_at="2026-07-15T10:00:00Z",
+        author_login="chatgpt-codex-connector",
+        author_association="NONE",
+        original_commit_sha=HEAD_SHA,
+    )
+    reply = ReviewCommentEvidence(
+        url=f"{duplicate_url}-reply",
+        body=_duplicate_reply(fingerprint),
+        created_at="2026-07-15T11:00:00Z",
+        author_login="maintainer",
+        author_association="OWNER",
+        original_commit_sha=HEAD_SHA,
+    )
+    threads = (
+        ReviewThreadEvidence("canonical-thread", True, (canonical_finding,)),
+        ReviewThreadEvidence("duplicate-thread", True, (duplicate_finding, reply)),
+    )
+
+    def classify(
+        value: str, snapshot: PrSnapshot, *, token: str
+    ) -> RepositoryCommitRef | ReviewExecutionRef:
+        del token
+        if value in api_unknown_shas:
+            return ReviewExecutionRef(value, CommitRefKind.API_UNKNOWN, "rate limited")
+        if value in unavailable_shas:
+            return ReviewExecutionRef(
+                value,
+                CommitRefKind.REVIEW_REF_UNAVAILABLE,
+                "unavailable",
+            )
+        if value == snapshot.head_sha:
+            kind = CommitRefKind.PR_HEAD
+        elif value in snapshot.commit_shas:
+            kind = CommitRefKind.PR_COMMIT
+        else:
+            kind = CommitRefKind.REPO_COMMIT_OUTSIDE_PR
+        return RepositoryCommitRef(value, kind)
+
+    def ancestor(
+        _left: RepositoryCommitRef,
+        _right: RepositoryCommitRef,
+        *,
+        repository: str,
+        token: str,
+    ) -> bool:
+        del repository, token
+        return True
+
+    def material_manifest(
+        _repo_root: Path,
+        *,
+        base_ref_oid: str,
+        head_ref_oid: str,
+        pr_number: int,
+    ) -> MaterialManifest:
+        assert base_ref_oid == BASE_SHA
+        assert pr_number == 42
+        return _material_manifest(head_ref_oid)
+
+    monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
+    monkeypatch.setattr(identity_module, "is_ancestor", ancestor)
+    monkeypatch.setattr(evidence_module, "compute_material_manifest", material_manifest)
+
+    return validated_duplicate_reply_urls(
+        candidate_urls={duplicate_url},
+        threads=threads,
+        fingerprint_records={fingerprint: record},
+        material_digest=DIGEST,
+        repo_root=Path(),
+        snapshot=_snapshot(),
+        repository="owner/repo",
+        token="opaque",
+    )
+
+
+def test_duplicate_reply_accepts_exact_fix_base_head_and_one_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = (
+        f"Commit ancestry finding: verified FIX {FIX_SHA} descends from base {BASE_SHA}; "
+        f"the reviewed head is [evidence](https://github.com/owner/repo/commit/{HEAD_SHA}), "
+        f"but reviewer execution ref {UNAVAILABLE_SHA} is reported unreachable."
+    )
+
+    assert body.count(HEAD_SHA) == 1
+    assert _validate_duplicate_finding_body(monkeypatch, body) == {
+        "https://github.com/owner/repo/pull/42#discussion_duplicate"
+    }
+
+
+@pytest.mark.parametrize(
+    "repository_shas",
+    [
+        (FIX_SHA, BASE_SHA),
+        (FIX_SHA, HEAD_SHA),
+    ],
+    ids=["missing-head", "missing-base"],
+)
+def test_duplicate_reply_rejects_partial_enriched_repository_identity_set(
+    monkeypatch: pytest.MonkeyPatch,
+    repository_shas: tuple[str, ...],
+) -> None:
+    body = "Commit ancestry finding: " + " ".join((*repository_shas, UNAVAILABLE_SHA))
+
+    with pytest.raises(ReviewEvidenceError, match="ancestry cause is ambiguous"):
+        _validate_duplicate_finding_body(monkeypatch, body)
+
+
+@pytest.mark.parametrize(
+    ("repository_shas", "error"),
+    [
+        ((FIX_SHA, BASE_SHA, OUTSIDE_SHA), "ancestry cause is ambiguous"),
+        (
+            (FIX_SHA, BASE_SHA, HEAD_SHA, OUTSIDE_SHA),
+            "ambiguous commit references",
+        ),
+    ],
+    ids=["foreign-fourth", "foreign-fifth"],
+)
+def test_duplicate_reply_rejects_foreign_repository_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    repository_shas: tuple[str, ...],
+    error: str,
+) -> None:
+    body = "Commit ancestry finding: " + " ".join((*repository_shas, UNAVAILABLE_SHA))
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        _validate_duplicate_finding_body(monkeypatch, body)
+
+
+def test_duplicate_reply_rejects_multiple_unavailable_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    second_unavailable = "6" * 40
+    body = "Commit ancestry finding: " f"{FIX_SHA} {UNAVAILABLE_SHA} {second_unavailable}"
+
+    with pytest.raises(ReviewEvidenceError, match="ancestry cause is ambiguous"):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            unavailable_shas=(UNAVAILABLE_SHA, second_unavailable),
+        )
+
+
+def test_duplicate_reply_keeps_api_unknown_terminal_with_enriched_identities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = "Commit ancestry finding: " f"{FIX_SHA} {BASE_SHA} {HEAD_SHA} {UNAVAILABLE_SHA}"
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            api_unknown_shas=(UNAVAILABLE_SHA,),
+        )
 
 
 def test_duplicate_reply_requires_trusted_resolved_thread_and_real_fix(
