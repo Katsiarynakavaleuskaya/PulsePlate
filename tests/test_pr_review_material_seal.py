@@ -6202,14 +6202,22 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
     )
     agents = (closeout_module.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     runbook = (closeout_module.REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+    contract_matrix = (
+        closeout_module.REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md"
+    ).read_text(encoding="utf-8")
 
     assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
     assert template.count("review_mapping_artifact.render_phase2_body_mirror") == 1
-    assert "exact standalone Markdown link" in template
+    assert "replace the entire Phase2 block" in template
+    assert (
+        "`## Discussion Thread Pass` through the line before `## Split justification`" in template
+    )
     assert "## Discussion Thread Pass" in template
     assert "### Fixed in Commit Mapping" in template
     assert "- [ ] Discussion-thread pass completed" in template
     assert "- [ ] Fixed in commit mapping completed" in template
+    assert "both the marker and matching pending mapping-status" in contract_matrix
+    assert "either stale token is a Phase 2 body-gate error" in contract_matrix
     for document in (agents, runbook):
         assert "## Discussion Thread Pass" in document
         assert "### Fixed in Commit Mapping" in document

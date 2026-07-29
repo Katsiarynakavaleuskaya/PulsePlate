@@ -50,8 +50,9 @@
 ### Fixed in Commit Mapping
 
 <!--
-Closeout automation must remove this marker/pending state and replace it with the
-exact standalone Markdown link produced by
+Closeout automation must replace the entire Phase2 block from
+`## Discussion Thread Pass` through the line before `## Split justification`
+with the complete block produced by
 scripts.orchestration.review_mapping_artifact.render_phase2_body_mirror(...)
 for the live PR number, repository, and exact head ref.
 -->
