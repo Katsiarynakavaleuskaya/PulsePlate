@@ -14,6 +14,7 @@ import re
 import shutil
 import stat
 import subprocess  # nosec B404: fixed absolute git only (remove-by: 2026-09-30, ref: PR-governance-seal)
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -248,6 +249,12 @@ SEAL_BEGIN = "\n".join(
 SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_FINDING_COMMIT_REF_RE = re.compile(
+    r"(?<![0-9A-Fa-f])(?:"
+    r"(?P<full>[0-9a-f]{40})(?![0-9A-Fa-f]|\.{3}|…)"
+    r"|(?P<short>[0-9a-f]{7,39})(?:\.{3}(?!\.)|…(?!…))"
+    r")"
+)
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _CANONICAL_CODEOWNERS_PATHS = frozenset(
@@ -491,7 +498,7 @@ def parse_duplicate_disposition_reply(body: str) -> str:
 
 
 def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
-    """Return bounded full SHA candidates only for an unambiguous ancestry finding."""
+    """Return the bounded commit-ref class for an unambiguous ancestry finding."""
 
     if not isinstance(body, str) or len(body.encode("utf-8")) > 256 * 1024:
         raise ReviewEvidenceError("review finding body is malformed")
@@ -499,10 +506,95 @@ def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
     cause_terms = ("ancestry", "ancestor", "reachable", "commit graph", "merge-base")
     if not any(term in lowered for term in cause_terms):
         raise ReviewEvidenceError("review finding is not an ancestry cause")
-    candidates = tuple(sorted(set(re.findall(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])", body))))
+    candidates = tuple(
+        sorted(
+            {
+                match.group("full") or match.group("short")
+                for match in _FINDING_COMMIT_REF_RE.finditer(body)
+            }
+        )
+    )
     if not candidates or len(candidates) > 4:
         raise ReviewEvidenceError("review finding has ambiguous commit references")
     return candidates
+
+
+def _classify_finding_commit_candidate(
+    candidate: str,
+    snapshot: Any,
+    *,
+    token: str,
+) -> Any:
+    """Resolve one finding-local short ref before canonical commit classification."""
+
+    from scripts.orchestration.pr_commit_identity import (
+        CommitIdentityError,
+        CommitRefKind,
+        GitHubHttpError,
+        ReviewExecutionRef,
+        classify_commit_ref,
+        github_api_request,
+    )
+
+    if _SHA_RE.fullmatch(candidate):
+        return classify_commit_ref(candidate, snapshot, token=token)
+
+    repository_parts = snapshot.repository.strip().split("/")
+    if len(repository_parts) != 2 or not all(
+        re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in repository_parts
+    ):
+        return ReviewExecutionRef(
+            value=candidate,
+            kind=CommitRefKind.API_UNKNOWN,
+            reason="repository identity is malformed",
+        )
+    owner, name = repository_parts
+    encoded_candidate = urllib.parse.quote(candidate, safe="")
+    try:
+        response = github_api_request(
+            f"https://api.github.com/repos/{owner}/{name}/commits/{encoded_candidate}",
+            token=token,
+        )
+    except GitHubHttpError as exc:
+        definitive_422_messages = {
+            "No commit found for SHA",
+            f"No commit found for SHA: {candidate}",
+        }
+        if exc.status == 404 or (exc.status == 422 and exc.api_message in definitive_422_messages):
+            return ReviewExecutionRef(
+                value=candidate,
+                kind=CommitRefKind.REVIEW_REF_UNAVAILABLE,
+                reason="commit is unavailable from the GitHub Commit API",
+            )
+        return ReviewExecutionRef(
+            value=candidate,
+            kind=CommitRefKind.API_UNKNOWN,
+            reason=f"Commit API failed with HTTP {exc.status}",
+        )
+    except (CommitIdentityError, OSError, TimeoutError) as exc:
+        return ReviewExecutionRef(
+            value=candidate,
+            kind=CommitRefKind.API_UNKNOWN,
+            reason=f"Commit API could not prove identity: {type(exc).__name__}",
+        )
+    if not isinstance(response, dict):
+        return ReviewExecutionRef(
+            value=candidate,
+            kind=CommitRefKind.API_UNKNOWN,
+            reason="Commit API response is malformed",
+        )
+    returned_sha = response.get("sha")
+    if (
+        not isinstance(returned_sha, str)
+        or not _SHA_RE.fullmatch(returned_sha)
+        or not returned_sha.startswith(candidate)
+    ):
+        return ReviewExecutionRef(
+            value=candidate,
+            kind=CommitRefKind.API_UNKNOWN,
+            reason="Commit API did not uniquely bind the short reference",
+        )
+    return classify_commit_ref(returned_sha, snapshot, token=token)
 
 
 def _review_finding_mentions_fix(body: str, verified_fix: str) -> bool:
@@ -577,7 +669,8 @@ def validated_duplicate_reply_urls(
         if not _review_finding_mentions_fix(finding.body, record.verified_fix):
             raise ReviewEvidenceError("unavailable-ref finding does not cite verified FIX")
         resolutions = [
-            classify_commit_ref(candidate, snapshot, token=token) for candidate in candidates
+            _classify_finding_commit_candidate(candidate, snapshot, token=token)
+            for candidate in candidates
         ]
         if any(
             getattr(resolution, "kind", None) is CommitRefKind.API_UNKNOWN
@@ -594,12 +687,13 @@ def validated_duplicate_reply_urls(
             for resolution in resolutions
             if isinstance(resolution, RepositoryCommitRef)
         }
-        effective_repository_shas = repository_shas | {record.verified_fix}
         accepted_repository_identities = (
             {record.verified_fix},
             {record.verified_fix, snapshot.base_sha, snapshot.head_sha},
         )
-        if len(unavailable) != 1 or effective_repository_shas not in accepted_repository_identities:
+        if record.verified_fix not in repository_shas:
+            raise ReviewEvidenceError("unavailable-ref finding does not cite verified FIX")
+        if len(unavailable) != 1 or repository_shas not in accepted_repository_identities:
             raise ReviewEvidenceError("review finding ancestry cause is ambiguous")
         return _parse_timestamp(finding.created_at, label="review finding createdAt")
 
