@@ -68,6 +68,17 @@ class _BoundedModuleResolver:
         self._unsupported_carriers: list[tuple[int, str]] = []
         self._collect_bindings()
 
+    def _set_binding(self, name: str, binding: _Binding, *, line: int) -> None:
+        existing = self.bindings.get(name)
+        if existing is not None and existing.target != binding.target:
+            self._record_unsupported_carrier(line, "tracked_binding_rebound")
+        self.bindings[name] = binding
+
+    def _unbind_name(self, name: str, *, line: int) -> None:
+        if name in self.bindings:
+            self._record_unsupported_carrier(line, "tracked_binding_rebound")
+            self.bindings.pop(name)
+
     @staticmethod
     def _is_tracked_import(target: str) -> bool:
         return target in TRACKED_MODULES or any(
@@ -83,10 +94,18 @@ class _BoundedModuleResolver:
             if not self._is_tracked_import(alias.name):
                 continue
             if alias.asname is not None:
-                self.bindings[alias.asname] = _Binding(alias.name, 0)
+                self._set_binding(
+                    alias.asname,
+                    _Binding(alias.name, 0),
+                    line=node.lineno,
+                )
                 continue
             root_name = alias.name.split(".", maxsplit=1)[0]
-            self.bindings[root_name] = _Binding(root_name, 0)
+            self._set_binding(
+                root_name,
+                _Binding(root_name, 0),
+                line=node.lineno,
+            )
 
     def _bind_import_from(self, node: ast.ImportFrom) -> None:
         if node.level != 0 or node.module is None:
@@ -96,7 +115,11 @@ class _BoundedModuleResolver:
             if not (self._is_tracked_import(target) or target in TRACKED_SYMBOLS):
                 continue
             bound_name = alias.asname or alias.name
-            self.bindings[bound_name] = _Binding(target, 0)
+            self._set_binding(
+                bound_name,
+                _Binding(target, 0),
+                line=node.lineno,
+            )
 
     def _bind_local_definition(
         self,
@@ -106,9 +129,13 @@ class _BoundedModuleResolver:
             LOCAL_CLIENT_HELPERS.get(node.name) if self.path == Path("tests/_client.py") else None
         )
         if target is None:
-            self.bindings.pop(node.name, None)
+            self._unbind_name(node.name, line=node.lineno)
         else:
-            self.bindings[node.name] = _Binding(target, 0)
+            self._set_binding(
+                node.name,
+                _Binding(target, 0),
+                line=node.lineno,
+            )
 
     @staticmethod
     def _name_targets(node: ast.AST) -> list[str]:
@@ -138,12 +165,16 @@ class _BoundedModuleResolver:
         if source is not None and self._is_safe_alias_target(source.target):
             alias_depth = source.alias_depth + 1
             for name in names:
-                self.bindings[name] = _Binding(source.target, alias_depth)
+                self._set_binding(
+                    name,
+                    _Binding(source.target, alias_depth),
+                    line=line,
+                )
             if alias_depth > 1 and names:
                 self._record_unsupported_carrier(line, "tracked_alias_depth")
             return
         for name in names:
-            self.bindings.pop(name, None)
+            self._unbind_name(name, line=line)
 
     def _collect_bindings(self) -> None:
         # Provider imports may intentionally live inside pytest hooks. Treat a
@@ -493,6 +524,38 @@ with factory_alias(app):
     for source in sources:
         assert _resolved_call_targets(source) == TRACKED_SYMBOLS
         assert _resolved_unsupported_carriers(source) == []
+
+
+def test_bounded_resolver_fails_closed_when_tracked_bindings_are_rebound() -> None:
+    sources = (
+        """
+from fastapi.testclient import TestClient
+TestClient(app)
+TestClient = unrelated_client
+""",
+        """
+from fastapi.testclient import TestClient
+from tests._client import open_test_client
+TestClient(app)
+TestClient = open_test_client
+""",
+        """
+from fastapi.testclient import TestClient
+TestClient(app)
+def TestClient():
+    pass
+""",
+        """
+from fastapi.testclient import TestClient
+TestClient(app)
+from tests._client import open_test_client as TestClient
+""",
+    )
+
+    for source in sources:
+        unsupported = _resolved_unsupported_carriers(source)
+        assert len(unsupported) == 1
+        assert unsupported[0][1] == "tracked_binding_rebound"
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:
