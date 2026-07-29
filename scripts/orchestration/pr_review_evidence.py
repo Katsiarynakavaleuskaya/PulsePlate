@@ -15,6 +15,7 @@ import re
 import shutil
 import stat
 import subprocess  # nosec B404: fixed absolute git only (remove-by: 2026-09-30, ref: PR-governance-seal)
+import unicodedata
 import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime
@@ -255,27 +256,9 @@ SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _FINDING_SHORT_REF_PATTERN = r"[0-9a-f]{7,39}"
 _FINDING_ELLIPSIS_CARRIER_PATTERN = r"(?:\.{3}|…)"
-_FINDING_COMMIT_REF_RE = re.compile(
-    rf"(?<![0-9A-Fa-f])(?:"
-    rf"(?P<full>[0-9a-f]{{40}})(?![0-9A-Fa-f]|\.{{3}}|…)"
-    rf"|(?P<short>{_FINDING_SHORT_REF_PATTERN})"
-    rf"{_FINDING_ELLIPSIS_CARRIER_PATTERN}(?![0-9A-Fa-f.…])"
-    rf")"
-)
-_FINDING_SHA_LIKE_CARRIER_RE = re.compile(
-    r"""
-    (?<![0-9A-Fa-f])
-    (?P<token>
-        [0-9A-Fa-f]{7,}
-        (?:\.{3}|…)
-        [0-9A-Fa-f.…]*
-    )
-    (?![0-9A-Fa-f.…])
-    """,
-    re.VERBOSE,
-)
+_FINDING_ASCII_HEX_CORE_RE = re.compile(r"[0-9A-Fa-f]{7,}")
 _FINDING_VALID_SHORT_REF_TOKEN_RE = re.compile(
-    rf"^{_FINDING_SHORT_REF_PATTERN}{_FINDING_ELLIPSIS_CARRIER_PATTERN}$"
+    rf"^(?P<short>{_FINDING_SHORT_REF_PATTERN}){_FINDING_ELLIPSIS_CARRIER_PATTERN}$"
 )
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -519,26 +502,69 @@ def parse_duplicate_disposition_reply(body: str) -> str:
     return fingerprint
 
 
+def _is_finding_atom_char(char: str) -> bool:
+    category = unicodedata.category(char)
+    return (
+        char == "_" or category[0] in {"L", "M", "N"} or (category[0] == "C" and not char.isspace())
+    )
+
+
+def _finding_atom_end(body: str, start: int) -> int:
+    end = start
+    while end < len(body):
+        char = body[end]
+        if not (_is_finding_atom_char(char) or char in {".", "…"}):
+            break
+        end += 1
+    return end
+
+
+def _finding_sha_like_tokens(body: str) -> tuple[str, ...]:
+    """Return maximal standalone SHA-like atoms from one bounded finding."""
+
+    tokens: list[str] = []
+    position = 0
+    while match := _FINDING_ASCII_HEX_CORE_RE.search(body, position):
+        start, core_end = match.span()
+        if start > 0 and _is_finding_atom_char(body[start - 1]):
+            position = _finding_atom_end(body, core_end)
+            continue
+        if core_end < len(body) and _is_finding_atom_char(body[core_end]):
+            position = _finding_atom_end(body, core_end)
+            continue
+        token_end = core_end
+        if body.startswith("...", core_end) or body.startswith("…", core_end):
+            token_end = _finding_atom_end(body, core_end)
+        tokens.append(body[start:token_end])
+        position = token_end
+    return tuple(tokens)
+
+
 def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
     """Return the bounded commit-ref class for an unambiguous ancestry finding."""
 
-    if not isinstance(body, str) or len(body.encode("utf-8")) > 256 * 1024:
+    if not isinstance(body, str):
+        raise ReviewEvidenceError("review finding body is malformed")
+    try:
+        body_size = len(body.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise ReviewEvidenceError("review finding body is malformed") from exc
+    if body_size > 256 * 1024:
         raise ReviewEvidenceError("review finding body is malformed")
     lowered = body.lower()
     cause_terms = ("ancestry", "ancestor", "reachable", "commit graph", "merge-base")
     if not any(term in lowered for term in cause_terms):
         raise ReviewEvidenceError("review finding is not an ancestry cause")
-    for match in _FINDING_SHA_LIKE_CARRIER_RE.finditer(body):
-        if not _FINDING_VALID_SHORT_REF_TOKEN_RE.fullmatch(match.group("token")):
+    candidate_values: set[str] = set()
+    for token in _finding_sha_like_tokens(body):
+        if _SHA_RE.fullmatch(token):
+            candidate_values.add(token)
+            continue
+        short_match = _FINDING_VALID_SHORT_REF_TOKEN_RE.fullmatch(token)
+        if short_match is None:
             raise ReviewEvidenceError("review finding has ambiguous commit references")
-    candidates = tuple(
-        sorted(
-            {
-                match.group("full") or match.group("short")
-                for match in _FINDING_COMMIT_REF_RE.finditer(body)
-            }
-        )
-    )
+        candidate_values.add(short_match.group("short"))
+    candidates = tuple(sorted(candidate_values))
     if not candidates or len(candidates) > 4:
         raise ReviewEvidenceError("review finding has ambiguous commit references")
     return candidates
@@ -644,14 +670,12 @@ def _classify_finding_commit_candidate(
     )
 
 
-def _review_finding_mentions_fix(body: str, verified_fix: str) -> bool:
-    if verified_fix in body:
-        return True
-    for match in _FINDING_COMMIT_REF_RE.finditer(body):
-        prefix = match.group("short")
-        if prefix and verified_fix.startswith(prefix):
-            return True
-    return False
+def _review_finding_mentions_fix(candidates: tuple[str, ...], verified_fix: str) -> bool:
+    return any(
+        candidate == verified_fix
+        or (len(candidate) < len(verified_fix) and verified_fix.startswith(candidate))
+        for candidate in candidates
+    )
 
 
 def validated_duplicate_reply_urls(
@@ -698,7 +722,11 @@ def validated_duplicate_reply_urls(
         original_commit_digests[commit_sha] = digest
         return digest
 
-    def validate_finding(record: Any, thread: Any, finding_index: int) -> datetime:
+    def prepare_finding(
+        record: Any,
+        thread: Any,
+        finding_index: int,
+    ) -> tuple[datetime, tuple[str, ...]]:
         finding = thread.comments[finding_index]
         if (
             not thread.is_resolved
@@ -714,8 +742,17 @@ def validated_duplicate_reply_urls(
                 "unavailable-ref finding originalCommit has a different material digest"
             )
         candidates = review_finding_sha_candidates(finding.body)
-        if not _review_finding_mentions_fix(finding.body, record.verified_fix):
+        if not _review_finding_mentions_fix(candidates, record.verified_fix):
             raise ReviewEvidenceError("unavailable-ref finding does not cite verified FIX")
+        return (
+            _parse_timestamp(finding.created_at, label="review finding createdAt"),
+            candidates,
+        )
+
+    def validate_finding_candidates(
+        record: Any,
+        candidates: tuple[str, ...],
+    ) -> None:
         resolutions = [
             _classify_finding_commit_candidate(candidate, snapshot, token=token)
             for candidate in candidates
@@ -743,7 +780,6 @@ def validated_duplicate_reply_urls(
             raise ReviewEvidenceError("unavailable-ref finding does not cite verified FIX")
         if len(unavailable) != 1 or repository_shas not in accepted_repository_identities:
             raise ReviewEvidenceError("review finding ancestry cause is ambiguous")
-        return _parse_timestamp(finding.created_at, label="review finding createdAt")
 
     validated_records: dict[str, tuple[Any, datetime]] = {}
     for fingerprint, record in fingerprint_records.items():
@@ -752,6 +788,7 @@ def validated_duplicate_reply_urls(
         location = comment_locations.get(record.urls[0])
         if location is None or location[1] != 0:
             raise ReviewEvidenceError("canonical fingerprint URL is not a live thread root")
+        canonical_time, candidates = prepare_finding(record, location[0], location[1])
         fix_resolution = classify_commit_ref(record.verified_fix, snapshot, token=token)
         if not isinstance(fix_resolution, RepositoryCommitRef) or fix_resolution.kind not in {
             CommitRefKind.PR_HEAD,
@@ -765,7 +802,7 @@ def validated_duplicate_reply_urls(
             token=token,
         ):
             raise ReviewEvidenceError("canonical verified FIX is not reachable from live head")
-        canonical_time = validate_finding(record, location[0], location[1])
+        validate_finding_candidates(record, candidates)
         validated_records[fingerprint] = (record, canonical_time)
 
     covered: set[str] = set()
@@ -796,7 +833,8 @@ def validated_duplicate_reply_urls(
         if url == record.urls[0] or finding_time <= canonical_time:
             continue
         try:
-            validate_finding(record, thread, finding_index)
+            _, candidates = prepare_finding(record, thread, finding_index)
+            validate_finding_candidates(record, candidates)
         except ReviewEvidenceError as exc:
             if "API_UNKNOWN" in str(exc):
                 raise

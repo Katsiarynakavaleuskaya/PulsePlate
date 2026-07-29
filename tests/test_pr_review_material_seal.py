@@ -5921,18 +5921,40 @@ def test_review_finding_commit_ref_parser_rejects_outside_class(reference: str) 
     [
         "a" * 7 + "...…",
         "A" * 7 + "...",
+        "A" * 40,
         "a" * 40 + "…",
+        "a" * 41,
         "a" * 41 + "...",
         "a" * 7 + "...c",
         "a" * 7 + "…A",
+        "abcdef1...garbage",
+        "abcdef1...хвост",
+        "abcdef1...\u0301tail",
+        "abcdef1...\u200dtail",
+        "abcdef1...\u200btail",
+        "abcdef1...\x00tail",
+        "abcdef1...\x07tail",
+        "abcdef1...\ue000tail",
+        "abcdef1...\u0378tail",
     ],
     ids=[
         "mixed-carrier",
-        "uppercase",
+        "uppercase-short",
+        "uppercase-full-bare",
         "full-with-carrier",
-        "overlong",
+        "overlong-bare",
+        "overlong-with-carrier",
         "ascii-carrier-trailing-lower-hex",
         "unicode-carrier-trailing-upper-hex",
+        "ascii-carrier-trailing-word",
+        "ascii-carrier-trailing-unicode-word",
+        "ascii-carrier-trailing-combining-mark",
+        "ascii-carrier-trailing-joiner",
+        "ascii-carrier-trailing-zero-width-space",
+        "ascii-carrier-trailing-null-control",
+        "ascii-carrier-trailing-bell-control",
+        "ascii-carrier-trailing-private-use",
+        "ascii-carrier-trailing-unassigned",
     ],
 )
 def test_review_finding_parser_rejects_malformed_token_beside_valid_candidates(
@@ -5947,7 +5969,7 @@ def test_review_finding_parser_rejects_malformed_token_beside_valid_candidates(
         evidence_module.review_finding_sha_candidates(body)
 
 
-@pytest.mark.parametrize("punctuation", [",", ";", ")"])
+@pytest.mark.parametrize("punctuation", [",", ";", ")", "]", "`", ":", "=", "/"])
 def test_review_finding_parser_accepts_short_ref_before_ordinary_punctuation(
     punctuation: str,
 ) -> None:
@@ -5956,6 +5978,55 @@ def test_review_finding_parser_accepts_short_ref_before_ordinary_punctuation(
     assert evidence_module.review_finding_sha_candidates(
         f"Commit ancestry reports {short_ref}...{punctuation} then continues."
     ) == (short_ref,)
+
+
+@pytest.mark.parametrize(
+    "ordinary_atom",
+    [
+        "prefixabcdef1...",
+        "abcdef1g...",
+        "prefixabcdef1",
+        "_abcdef1..._",
+        "e\u0301abcdef1...",
+        "prefix\u200dabcdef1...",
+    ],
+    ids=[
+        "word-prefix",
+        "word-suffix-before-carrier",
+        "ordinary-word",
+        "underscore-identifier",
+        "decomposed-unicode-word",
+        "format-joined-word",
+    ],
+)
+def test_review_finding_parser_does_not_extract_refs_from_word_atoms(
+    ordinary_atom: str,
+) -> None:
+    assert evidence_module.review_finding_sha_candidates(
+        f"Commit ancestry reports {FIX_SHA}. Ordinary prose: {ordinary_atom}"
+    ) == (FIX_SHA,)
+
+
+def test_review_finding_parser_accepts_full_sha_before_sentence_period() -> None:
+    assert evidence_module.review_finding_sha_candidates(f"Commit ancestry reports {FIX_SHA}.") == (
+        FIX_SHA,
+    )
+
+
+@pytest.mark.parametrize("separator", ["\n", "\r", "\t"], ids=["lf", "cr", "tab"])
+def test_review_finding_parser_accepts_short_ref_before_control_whitespace(
+    separator: str,
+) -> None:
+    short_ref = "a" * 7
+
+    assert evidence_module.review_finding_sha_candidates(
+        f"Commit ancestry reports {short_ref}...{separator}then continues."
+    ) == (short_ref,)
+
+
+def test_review_finding_parser_rejects_unpaired_surrogate() -> None:
+    with pytest.raises(ReviewEvidenceError, match="review finding body is malformed"):
+        evidence_module.review_finding_sha_candidates("Commit ancestry reports abcdef1...\ud800")
 
 
 def test_short_finding_ref_resolves_to_one_matching_full_sha_before_classification(
@@ -6320,20 +6391,54 @@ def test_short_unavailable_422_remains_api_unknown_end_to_end(
     "malformed_reference",
     [
         "a" * 7 + "...…",
+        "A" * 40,
+        "a" * 41,
         "a" * 7 + "...c",
         "a" * 7 + "…A",
+        "abcdef1...garbage",
+        "abcdef1...хвост",
+        "abcdef1...\u0301tail",
+        "abcdef1...\u200dtail",
+        "abcdef1...\u200btail",
+        "abcdef1...\x00tail",
+        "abcdef1...\x07tail",
+        "abcdef1...\ue000tail",
+        "abcdef1...\u0378tail",
     ],
-    ids=["mixed-carrier", "ascii-carrier-trailing-hex", "unicode-carrier-trailing-hex"],
+    ids=[
+        "mixed-carrier",
+        "uppercase-full-bare",
+        "overlong-bare",
+        "ascii-carrier-trailing-hex",
+        "unicode-carrier-trailing-hex",
+        "ascii-carrier-trailing-word",
+        "ascii-carrier-trailing-unicode-word",
+        "ascii-carrier-trailing-combining-mark",
+        "ascii-carrier-trailing-joiner",
+        "ascii-carrier-trailing-zero-width-space",
+        "ascii-carrier-trailing-null-control",
+        "ascii-carrier-trailing-bell-control",
+        "ascii-carrier-trailing-private-use",
+        "ascii-carrier-trailing-unassigned",
+    ],
 )
-def test_malformed_carrier_beside_valid_candidates_is_terminal_before_identity(
+def test_malformed_token_beside_valid_candidates_is_terminal_before_identity(
     monkeypatch: pytest.MonkeyPatch,
     malformed_reference: str,
 ) -> None:
     classified_values: list[str] = []
+    ancestry_values: list[tuple[str, str]] = []
     body = (
         f"Commit ancestry finding: verified FIX {FIX_SHA}; "
         f"reviewer execution ref {UNAVAILABLE_SHA} is not reachable; "
         f"malformed ref {malformed_reference} is also cited."
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "_classify_finding_commit_candidate",
+        lambda *_args, **_kwargs: pytest.fail(
+            "malformed finding reached candidate identity classification"
+        ),
     )
 
     with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
@@ -6341,9 +6446,11 @@ def test_malformed_carrier_beside_valid_candidates_is_terminal_before_identity(
             monkeypatch,
             body,
             classified_values=classified_values,
+            ancestry_values=ancestry_values,
         )
 
-    assert classified_values == [FIX_SHA]
+    assert classified_values == []
+    assert ancestry_values == []
 
 
 def test_short_fix_snapshot_known_404_remains_api_unknown_end_to_end(

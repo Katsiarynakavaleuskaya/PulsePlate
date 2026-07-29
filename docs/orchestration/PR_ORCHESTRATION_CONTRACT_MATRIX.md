@@ -318,13 +318,22 @@ come after the finding in the same explicitly resolved thread, and the cited
 review ref must resolve as unavailable (not API-unknown). Finding-local commit
 candidates are capped at four unique values and admit only a full lowercase
 40-character SHA or a lowercase 7–39-character hexadecimal ref carried by
-exactly `...` or `…`. Every SHA-like ellipsis-carried token in the whole
-finding must match that grammar; malformed adjacent tokens make the finding
-ambiguous instead of being ignored. A shortened ref must resolve through the
-authenticated GitHub Commit API to one matching full SHA, and that same
-successful response is passed to the existing commit classifier without a
-second network lookup. Only authenticated Commit API `404` proves finding-local
-repository unavailability, and only when the prefix matches none of the
+exactly `...` or `…`. One finding-local maximal-token lexer examines every
+standalone lexical atom that starts with an ASCII-hex core of at least seven
+characters. The whole atom must match one of those two forms; an adjacent
+Unicode letter, number, mark, underscore, non-whitespace `C*` control, dot, or
+ellipsis tail is part of the same atom, so malformed prefixes cannot be
+admitted while their suffix is ignored. The same `L|N|M|_|C*-nonspace`
+boundary-blocking class prevents substring extraction inside ordinary or
+invisibly joined words. Whitespace controls remain separators. Only other
+punctuation and Markdown delimiters bound atoms; underscore remains an
+identifier character rather than a CommonMark emphasis instruction. Any
+malformed SHA-like atom makes the whole finding ambiguous before API,
+classification, or ancestry work. A shortened ref must resolve
+through the authenticated GitHub Commit API to one matching full SHA, and that
+same successful response is passed to the existing commit classifier without
+a second network lookup. Only authenticated Commit API `404` proves
+finding-local repository unavailability, and only when the prefix matches none of the
 snapshot-proven base, head, or PR commits. A successful binding must agree with
 every snapshot-known prefix match; contradictions remain `API_UNKNOWN`. Every
 shortened-ref `422` remains `API_UNKNOWN`
