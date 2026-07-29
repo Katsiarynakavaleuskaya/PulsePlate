@@ -18,6 +18,8 @@ Options:
   --goal <text>              Goal to print in the task_bootstrap.py command.
   --task-class <class>       Task class to print in the task_bootstrap.py command.
   --path <path>              Repeatable; passed to preflight analyze and printed for bootstrap.
+  --invariant-change-class <class>
+                             Repeatable; parser, validator, guard, or authority.
   --pr-phase <phase>         One of: pre_open, post_open_review, merge_ready, none.
   --requested-agent <slug>   Repeatable; printed for bootstrap.
   -h, --help                 Show this help.
@@ -138,6 +140,7 @@ PR_PHASE="none"
 BOOTSTRAP_OPTION_SEEN=0
 REQUESTED_ARGS=()
 PATH_ARGS=()
+INVARIANT_CLASS_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -160,6 +163,16 @@ while [[ $# -gt 0 ]]; do
         --path)
             if [[ $# -lt 2 ]]; then die_usage "--path requires a value"; fi
             PATH_ARGS+=(--path "$(normalize_scope_path "$2")")
+            BOOTSTRAP_OPTION_SEEN=1
+            shift 2
+            ;;
+        --invariant-change-class)
+            if [[ $# -lt 2 ]]; then die_usage "--invariant-change-class requires a value"; fi
+            case "$2" in
+                parser|validator|guard|authority) ;;
+                *) die_usage "--invariant-change-class must be one of: parser, validator, guard, authority" ;;
+            esac
+            INVARIANT_CLASS_ARGS+=(--invariant-change-class "$2")
             BOOTSTRAP_OPTION_SEEN=1
             shift 2
             ;;
@@ -210,6 +223,9 @@ if [[ "${BOOTSTRAP_OPTION_SEEN}" -eq 1 ]]; then
     for ((i = 0; i < ${#PATH_ARGS[@]}; i += 2)); do
         printf " \\\\\n    %q %q" "${PATH_ARGS[i]}" "${PATH_ARGS[i + 1]}"
     done
+    for ((i = 0; i < ${#INVARIANT_CLASS_ARGS[@]}; i += 2)); do
+        printf " \\\\\n    %q %q" "${INVARIANT_CLASS_ARGS[i]}" "${INVARIANT_CLASS_ARGS[i + 1]}"
+    done
     for ((i = 0; i < ${#REQUESTED_ARGS[@]}; i += 2)); do
         printf " \\\\\n    %q %q" "${REQUESTED_ARGS[i]}" "${REQUESTED_ARGS[i + 1]}"
     done
@@ -222,6 +238,7 @@ else
     echo ""
     echo "Common options:"
     echo "  --path <path>              (repeatable; scope for scoped AGENTS / routing)"
+    echo "  --invariant-change-class parser|validator|guard|authority (repeatable)"
     echo "  --pr-phase post_open_review|pre_open|merge_ready|none"
     echo "  --requested-agent <slug>   (repeatable)"
 fi
@@ -247,6 +264,9 @@ prompt_cmd=(
 )
 if ((${#PATH_ARGS[@]})); then
     prompt_cmd+=("${PATH_ARGS[@]}")
+fi
+if ((${#INVARIANT_CLASS_ARGS[@]})); then
+    prompt_cmd+=("${INVARIANT_CLASS_ARGS[@]}")
 fi
 if ((${#REQUESTED_ARGS[@]})); then
     prompt_cmd+=("${REQUESTED_ARGS[@]}")

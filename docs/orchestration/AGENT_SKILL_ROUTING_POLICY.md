@@ -150,6 +150,31 @@ For `pulseplate-app-store-release`, docs-only suppression still applies even whe
 that skill only for mixed or implementation envelopes that also carry App Store
 metadata, screenshot-pack, App Privacy, or release-evidence intent.
 
+### 2d. Invariant-class pre-fix roles
+
+Parser, validator, guard, and authority mechanism changes use the single
+`invariant_review.v1` admission contract emitted by `task_bootstrap.py`.
+For opening phases, the executable order starts:
+
+`agent-coordinator -> logic-agent -> philosophy-agent`
+
+The pair is system-required and must not be written into the operator's
+`requested_agents`. Logic classifies the invariant boundary; Philosophy bounds
+claims such as `all`, `valid`, `safe`, `complete`, and `authorized`. Both roles
+are read-only advisory passes with no implementation or merge authority.
+
+Explicit invariant classes are authoritative. The shared sync policy may add
+bounded positive path hints, but it does not claim exhaustive semantic
+detection. A second materially novel carrier for the same open-world invariant
+requires stop/rescope rather than another carrier-specific patch. Post-open
+review does not repeat this pair and retains the canonical
+`qa-engineer-agent -> bug-hunter -> security-auditor` pass.
+
+Creative/Experiment Runner work is not a separate routing exception. A creative
+task that triggers invariant review must leave the creative lane and use the
+ordinary pre-fix packet; no Runner-private router or completion receipt is
+defined here.
+
 ---
 
 ## 3. Project-Fit Skill Lanes

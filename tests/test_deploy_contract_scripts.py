@@ -2250,6 +2250,7 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >> "{log_file}"
 printf 'env backend=%s caddy=%s config=%s\n' "${{STAGING_IMAGE_REF:-}}" "${{STAGING_CADDY_IMAGE_REF:-}}" "${{DOCKER_CONFIG:-}}" >> "{log_file}"
 case "$*" in
+  *"login ghcr.io"*"--password-stdin"*) cat >/dev/null ;;
   *"info --format"*"Architecture"*) printf 'amd64\n' ;;
   *"ps -q postgres"*) printf 'postgres-id\n' ;;
   *"inspect --format"*) printf 'healthy\n' ;;

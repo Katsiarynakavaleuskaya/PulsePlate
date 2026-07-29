@@ -1,57 +1,137 @@
 version: 2
+
+registries:
+  python-index:
+    type: "python-index"
+    url: "https://packages.pulseplate.app/root/pulseplate/+simple/"
+    username: "${{secrets.DEVPI_DEPENDABOT_USER}}"
+    password: "${{secrets.DEVPI_DEPENDABOT_PASSWORD}}"
+    replaces-base: true
+
 updates:
-  # Python dependencies with grouped updates
   - package-ecosystem: "pip"
     directory: "/"
+    registries:
+      - "python-index"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 4
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     commit-message:
       prefix: "deps"
       include: "scope"
     groups:
-      # Security-critical runtime dependencies
-      security:
+      runtime-security-sensitive:
+        applies-to: "version-updates"
         patterns:
           - "cryptography"
+          - "requests"
           - "urllib3"
           - "certifi"
-          - "requests"
-      production:
+          - "pillow"
+          - "python-multipart"
+          - "mako"
+          - "setuptools"
+        update-types:
+          - "minor"
+          - "patch"
+      runtime-web:
+        applies-to: "version-updates"
         patterns:
           - "fastapi"
+          - "starlette"
           - "uvicorn"
-          - "pydantic"
-          - "openai"
+          - "pydantic*"
           - "httpx"
+          - "openai"
           - "python-dotenv"
+          - "slowapi"
+          - "tenacity"
+          - "click"
+          - "email-validator"
+          - "nh3"
+        update-types:
+          - "minor"
+          - "patch"
+      runtime-database:
+        applies-to: "version-updates"
+        patterns:
           - "sqlalchemy"
           - "alembic"
+          - "psycopg*"
+          - "aiosqlite"
+          - "greenlet"
         update-types:
           - "minor"
           - "patch"
-      testing:
+      runtime-observability:
+        applies-to: "version-updates"
+        patterns:
+          - "opentelemetry-*"
+          - "prometheus-client"
+          - "zipp"
+        update-types:
+          - "minor"
+          - "patch"
+      runtime-rendering:
+        applies-to: "version-updates"
+        patterns:
+          - "reportlab"
+          - "matplotlib"
+          - "numpy"
+          - "pygments"
+        update-types:
+          - "minor"
+          - "patch"
+      test-quality:
+        applies-to: "version-updates"
         patterns:
           - "pytest*"
+          - "coverage"
           - "hypothesis"
           - "faker"
-          - "coverage"
-        update-types:
-          - "minor"
-          - "patch"
-      quality:
-        patterns:
-          - "black"
+          - "httpx2"
+          - "diff-cover"
+          - "flake8"
+          - "marshmallow"
+          - "msgpack"
           - "mypy"
           - "ruff"
-          - "bandit"
+          - "black"
+          - "types-pyyaml"
+          - "yamllint"
+          - "sourcery"
         update-types:
           - "minor"
           - "patch"
-      dev-tools:
+      supply-chain-tools:
+        applies-to: "version-updates"
         patterns:
+          - "pip-tools"
           - "pip-audit"
           - "pre-commit"
+          - "bandit"
+          - "detect-secrets"
+          - "distlib"
+          - "cyclonedx-python-lib"
         update-types:
           - "minor"
+          - "patch"
+      optional-rag-patches:
+        applies-to: "version-updates"
+        patterns:
+          - "pgvector"
+          - "fastembed"
+        update-types:
+          - "patch"
+      offline-data-patches:
+        applies-to: "version-updates"
+        patterns:
+          - "pandas"
+          - "pyarrow"
+        update-types:
           - "patch"

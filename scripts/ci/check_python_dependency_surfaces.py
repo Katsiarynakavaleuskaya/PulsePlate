@@ -22,6 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.ci.dependabot_requirement_carriers import (
+    DependabotRequirementDiscoveryError,
+    discover_dependabot_requirement_carriers,
+)
+
 CONTRACT_DOC = Path("docs/contracts/PYTHON_DEPENDENCY_SURFACES.md")
 DEPENDENCY_DOC = Path("docs/DEPENDENCY_MANAGEMENT.md")
 REQUIREMENTS_GUIDE = Path("REQUIREMENTS.md")
@@ -365,10 +370,8 @@ def _read_text(repo_root: Path, relative_path: str | Path) -> str:
 
 
 def _existing_requirement_surfaces(repo_root: Path) -> set[str]:
-    surfaces: set[str] = set()
-    for pattern in ("requirements*.in", "requirements*.txt"):
-        surfaces.update(path.name for path in repo_root.glob(pattern))
-    return surfaces
+    carriers: set[str] = discover_dependabot_requirement_carriers(repo_root)
+    return carriers
 
 
 def _known_requirement_surfaces() -> set[str]:
@@ -378,6 +381,12 @@ def _known_requirement_surfaces() -> set[str]:
         if surface.source_file is not None:
             known.add(surface.source_file)
     return known
+
+
+def registered_dependabot_requirement_carriers() -> set[str]:
+    """Return every carrier whose dependency ownership is explicitly governed."""
+
+    return _known_requirement_surfaces() | {"constraints.txt"}
 
 
 def _literal_str_tuple(value: ast.AST) -> tuple[str, ...] | None:
@@ -1058,10 +1067,20 @@ def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
     if errors:
         return errors
 
-    unknown_surfaces = sorted(_existing_requirement_surfaces(repo_root) - expected_files)
+    try:
+        unknown_surfaces = sorted(
+            _existing_requirement_surfaces(repo_root) - registered_dependabot_requirement_carriers()
+        )
+    except DependabotRequirementDiscoveryError:
+        errors.append(
+            "Dependabot-discoverable requirement carrier scan could not inspect "
+            "the repository tree."
+        )
+        unknown_surfaces = []
     if unknown_surfaces:
         errors.append(
-            f"Unknown root requirements surfaces are not in the registry: {unknown_surfaces}."
+            "Dependabot-discoverable requirement carriers are not in the registry: "
+            f"{unknown_surfaces}."
         )
 
     for surface in DEPENDENCY_SURFACES:
