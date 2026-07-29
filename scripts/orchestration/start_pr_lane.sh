@@ -32,6 +32,8 @@ Required:
 
 Options:
   --path <path>              Repeatable; task scope path for preflight/bootstrap.
+  --invariant-change-class <class>
+                             Repeatable; parser, validator, guard, or authority.
   --requested-agent <slug>   Repeatable; forwarded to task_bootstrap.py.
   --plugin <name>            Repeatable; operator/runtime plugin checklist item.
   --pr-phase <phase>         One of: pre_open, post_open_review, merge_ready, none. Default: pre_open.
@@ -184,6 +186,7 @@ BASE_REF="origin/main"
 DRY_RUN=0
 ALLOW_DIRTY_LAUNCHER=0
 PATH_ARGS=()
+INVARIANT_CLASS_ARGS=()
 REQUESTED_ARGS=(--requested-agent "agent-coordinator")
 PLUGIN_ARGS=()
 
@@ -216,6 +219,15 @@ while [[ $# -gt 0 ]]; do
         --path)
             if [[ $# -lt 2 ]]; then die_usage "--path requires a value"; fi
             PATH_ARGS+=(--path "$(normalize_scope_path "$2")")
+            shift 2
+            ;;
+        --invariant-change-class)
+            if [[ $# -lt 2 ]]; then die_usage "--invariant-change-class requires a value"; fi
+            case "$2" in
+                parser|validator|guard|authority) ;;
+                *) die_usage "--invariant-change-class must be one of: parser, validator, guard, authority" ;;
+            esac
+            INVARIANT_CLASS_ARGS+=(--invariant-change-class "$2")
             shift 2
             ;;
         --requested-agent)
@@ -344,6 +356,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     for ((i = 0; i < ${#PATH_ARGS[@]}; i += 2)); do
         printf " %q %q" "${PATH_ARGS[i]}" "${PATH_ARGS[i + 1]}"
     done
+    for ((i = 0; i < ${#INVARIANT_CLASS_ARGS[@]}; i += 2)); do
+        printf " %q %q" "${INVARIANT_CLASS_ARGS[i]}" "${INVARIANT_CLASS_ARGS[i + 1]}"
+    done
     for ((i = 0; i < ${#REQUESTED_ARGS[@]}; i += 2)); do
         printf " %q %q" "${REQUESTED_ARGS[i]}" "${REQUESTED_ARGS[i + 1]}"
     done
@@ -360,6 +375,9 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     )
     if ((${#PATH_ARGS[@]})); then
         prompt_cmd+=("${PATH_ARGS[@]}")
+    fi
+    if ((${#INVARIANT_CLASS_ARGS[@]})); then
+        prompt_cmd+=("${INVARIANT_CLASS_ARGS[@]}")
     fi
     if ((${#REQUESTED_ARGS[@]})); then
         prompt_cmd+=("${REQUESTED_ARGS[@]}")
@@ -386,6 +404,9 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
     )
     if ((${#PATH_ARGS[@]})); then
         bootstrap_cmd+=("${PATH_ARGS[@]}")
+    fi
+    if ((${#INVARIANT_CLASS_ARGS[@]})); then
+        bootstrap_cmd+=("${INVARIANT_CLASS_ARGS[@]}")
     fi
     if ((${#REQUESTED_ARGS[@]})); then
         bootstrap_cmd+=("${REQUESTED_ARGS[@]}")
