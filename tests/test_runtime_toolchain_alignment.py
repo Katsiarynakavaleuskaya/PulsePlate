@@ -20,6 +20,26 @@ from tests.runtime_toolchain_versions import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON_SETUP_USES = ("actions/setup-python@", "./.github/actions/python-setup")
+PYTHON_VERSION_FROM_ENV = "${{ env.PYTHON_VERSION }}"
+PYTHON_VERSION_FROM_MATRIX = (
+    "${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}"
+)
+EXPECTED_CANONICAL_CI_PYTHON_SETUP_OWNERS = (
+    ("pygments_exception_guard", PYTHON_VERSION_FROM_ENV),
+    ("docs_phase1_gates", PYTHON_VERSION_FROM_ENV),
+    ("pr_body_phase2_gates", PYTHON_VERSION_FROM_ENV),
+    ("merge_readiness_gate", PYTHON_VERSION_FROM_ENV),
+    ("private_python_proxy_health", PYTHON_VERSION_FROM_ENV),
+    ("lint", PYTHON_VERSION_FROM_ENV),
+    ("security", PYTHON_VERSION_FROM_ENV),
+    ("openapi-sync", PYTHON_VERSION_FROM_ENV),
+    ("test-pr", PYTHON_VERSION_FROM_ENV),
+    ("pgvector_compat", CANONICAL_PYTHON),
+    ("test-feature", PYTHON_VERSION_FROM_ENV),
+    ("test-main", PYTHON_VERSION_FROM_MATRIX),
+    ("diff-coverage", PYTHON_VERSION_FROM_ENV),
+)
+EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS = (("build-and-test", PYTHON_VERSION_FROM_ENV),)
 EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
     (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
     (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),
@@ -126,6 +146,15 @@ def _assert_expected_auxiliary_python_setup_steps(
         assert _python_version_input(step) == CANONICAL_PYTHON, owner
 
 
+def _assert_expected_python_setup_steps(
+    discovered: list[tuple[str, dict[str, Any]]],
+    expected: tuple[tuple[str, str], ...],
+) -> None:
+    """Require the finite owner/input multiset for one known workflow."""
+    actual = Counter((owner, _python_version_input(step)) for owner, step in discovered)
+    assert actual == Counter(expected)
+
+
 def _tool_versions() -> dict[str, str]:
     entries: dict[str, str] = {}
     for line in (REPO_ROOT / ".tool-versions").read_text(encoding="utf-8").splitlines():
@@ -159,7 +188,12 @@ def test_canonical_ci_uses_patch_pin_without_renaming_visible_labels() -> None:
     assert [entry["python-version"] for entry in test_main_include] == ["3.11", "3.12", "3.13"]
     assert [entry["timeout-minutes"] for entry in test_main_include] == [60, 90, 90]
 
-    setup_steps = dict(_iter_python_setup_steps(".github/workflows/ci.yml"))
+    discovered = _iter_python_setup_steps(".github/workflows/ci.yml")
+    _assert_expected_python_setup_steps(
+        discovered,
+        EXPECTED_CANONICAL_CI_PYTHON_SETUP_OWNERS,
+    )
+    setup_steps = dict(discovered)
     assert _python_version_input(setup_steps["test-pr"]) == "${{ env.PYTHON_VERSION }}"
     assert _python_version_input(setup_steps["test-feature"]) == "${{ env.PYTHON_VERSION }}"
     assert _python_version_input(setup_steps["test-main"]) == (
@@ -172,8 +206,47 @@ def test_frontend_ci_keeps_shared_python_patch_source() -> None:
     workflow = _load_workflow(".github/workflows/frontend-ci.yml")
     assert workflow["env"]["PYTHON_VERSION"] == CANONICAL_PYTHON
 
-    setup_steps = dict(_iter_python_setup_steps(".github/workflows/frontend-ci.yml"))
+    discovered = _iter_python_setup_steps(".github/workflows/frontend-ci.yml")
+    _assert_expected_python_setup_steps(
+        discovered,
+        EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS,
+    )
+    setup_steps = dict(discovered)
     assert _python_version_input(setup_steps["build-and-test"]) == "${{ env.PYTHON_VERSION }}"
+
+
+def test_canonical_ci_python_setup_owner_contract_rejects_stale_patch() -> None:
+    owner = "pygments_exception_guard"
+    discovered = [
+        (
+            owner,
+            {
+                "uses": "actions/setup-python@full-sha",
+                "with": {"python-version": "3.13.13"},
+            },
+        )
+    ]
+
+    with pytest.raises(AssertionError):
+        _assert_expected_python_setup_steps(
+            discovered,
+            ((owner, PYTHON_VERSION_FROM_ENV),),
+        )
+
+
+def test_frontend_ci_python_setup_owner_contract_rejects_duplicate_step() -> None:
+    owner = "build-and-test"
+    step = {
+        "uses": "./.github/actions/python-setup",
+        "with": {"python-version": PYTHON_VERSION_FROM_ENV},
+    }
+    discovered = [(owner, step), (owner, step)]
+
+    with pytest.raises(AssertionError):
+        _assert_expected_python_setup_steps(
+            discovered,
+            EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS,
+        )
 
 
 def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
