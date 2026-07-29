@@ -556,11 +556,7 @@ def _classify_finding_commit_candidate(
             token=token,
         )
     except GitHubHttpError as exc:
-        definitive_422_messages = {
-            "No commit found for SHA",
-            f"No commit found for SHA: {candidate}",
-        }
-        if exc.status == 404 or (exc.status == 422 and exc.api_message in definitive_422_messages):
+        if exc.status == 404:
             return ReviewExecutionRef(
                 value=candidate,
                 kind=CommitRefKind.REVIEW_REF_UNAVAILABLE,

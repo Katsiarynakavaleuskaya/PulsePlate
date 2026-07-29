@@ -5946,27 +5946,13 @@ def test_short_finding_ref_resolves_to_one_matching_full_sha_before_classificati
     assert classified_values == [full_ref]
 
 
-@pytest.mark.parametrize(
-    "error",
-    [
-        GitHubHttpError(404, "Not Found"),
-        GitHubHttpError(422, "Unprocessable", "No commit found for SHA"),
-        GitHubHttpError(
-            422,
-            "Unprocessable",
-            "No commit found for SHA: " + "a" * 7,
-        ),
-    ],
-    ids=["404", "bounded-422", "bounded-422-with-ref"],
-)
-def test_short_finding_ref_accepts_only_definitive_unavailable_responses(
+def test_short_finding_ref_accepts_only_definitive_404_unavailable_response(
     monkeypatch: pytest.MonkeyPatch,
-    error: GitHubHttpError,
 ) -> None:
     classify_calls: list[str] = []
 
     def request_json(*_args: Any, **_kwargs: Any) -> Any:
-        raise error
+        raise GitHubHttpError(404, "Not Found")
 
     monkeypatch.setattr(identity_module, "github_api_request", request_json)
     monkeypatch.setattr(
@@ -5993,6 +5979,12 @@ def test_short_finding_ref_accepts_only_definitive_unavailable_responses(
         {"sha": "b" * 40},
         {"sha": "a" * 39},
         {"sha": "A" * 40},
+        GitHubHttpError(422, "Unprocessable", "No commit found for SHA"),
+        GitHubHttpError(
+            422,
+            "Unprocessable",
+            "No commit found for SHA: " + "a" * 7,
+        ),
         GitHubHttpError(422, "Unprocessable", "ambiguous short ref"),
         GitHubHttpError(403, "Forbidden"),
         GitHubHttpError(429, "Rate Limited"),
@@ -6004,6 +5996,8 @@ def test_short_finding_ref_accepts_only_definitive_unavailable_responses(
         "non-prefix",
         "partial",
         "uppercase",
+        "bounded-422",
+        "bounded-422-with-ref",
         "unbounded-422",
         "forbidden",
         "rate-limit",
@@ -6098,6 +6092,35 @@ def test_pr_shaped_findings_distinguish_short_fix_from_short_unavailable(
         for ancestry_pair in ancestry_values
         for endpoint in ancestry_pair
     )
+
+
+def test_short_unavailable_422_remains_api_unknown_end_to_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    short_unavailable = "6" * 8
+
+    def request_json(url: str, **_kwargs: Any) -> dict[str, str]:
+        candidate = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+        if candidate == short_unavailable:
+            raise GitHubHttpError(
+                422,
+                "Unprocessable",
+                f"No commit found for SHA: {candidate}",
+            )
+        raise AssertionError(f"unexpected short candidate: {candidate}")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    body = (
+        f"Commit ancestry finding: verified FIX {FIX_SHA}; "
+        f"reviewer execution ref {short_unavailable}... is not reachable."
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            unavailable_shas=(),
+        )
 
 
 def test_short_fix_reported_unavailable_cannot_satisfy_verified_fix_identity(

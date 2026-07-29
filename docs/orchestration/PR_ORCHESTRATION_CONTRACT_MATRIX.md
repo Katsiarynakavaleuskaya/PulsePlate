@@ -320,9 +320,11 @@ candidates are capped at four unique values and admit only a full lowercase
 40-character SHA or a lowercase 7–39-character hexadecimal ref carried by
 exactly `...` or `…`. A shortened ref must resolve through the authenticated
 GitHub Commit API to one matching full SHA before existing commit
-classification; only definitive `404` or bounded `422 No commit found` proves
-unavailability. Ambiguity, malformed or non-prefix responses, authorization,
-rate-limit, server, and transport failures remain `API_UNKNOWN`. The accepted
+classification; only authenticated Commit API `404` proves finding-local
+repository unavailability. Every shortened-ref `422` remains `API_UNKNOWN`
+because prefix uniqueness is unproven. Ambiguity, malformed or non-prefix
+responses, authorization, rate-limit, server, and transport failures remain
+`API_UNKNOWN`. The accepted
 repository identity set remains exactly `{verified FIX}` or
 `{verified FIX, base, head}`, with exactly one unavailable ref; unavailable
 refs never enter ancestry. The exception creates no docs commit and does not
