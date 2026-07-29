@@ -19,7 +19,8 @@ from tests.runtime_toolchain_versions import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PYTHON_SETUP_USES = ("actions/setup-python@", "./.github/actions/python-setup")
+EXTERNAL_PYTHON_SETUP_USE = "actions/setup-python@"
+LOCAL_PYTHON_SETUP_USE = "./.github/actions/python-setup"
 PYTHON_VERSION_FROM_ENV = "${{ env.PYTHON_VERSION }}"
 PYTHON_VERSION_FROM_MATRIX = (
     "${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}"
@@ -95,7 +96,9 @@ def _iter_python_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
         for step in steps:
             assert isinstance(step, dict)
             uses = str(step.get("uses", ""))
-            if any(uses.startswith(prefix) for prefix in PYTHON_SETUP_USES):
+            if uses.casefold().startswith(EXTERNAL_PYTHON_SETUP_USE) or (
+                uses == LOCAL_PYTHON_SETUP_USE
+            ):
                 setup_steps.append((job_name, step))
     return setup_steps
 
@@ -276,13 +279,13 @@ def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
     _assert_expected_auxiliary_python_setup_steps(discovered)
 
 
-def test_auxiliary_python_setup_discovery_rejects_unlisted_stale_workflow(
+def test_auxiliary_python_setup_discovery_rejects_unlisted_mixed_case_stale_workflow(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     baseline = _discover_auxiliary_python_setup_steps()
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
-    (workflow_dir / "unlisted.yml").write_text(
+    (workflow_dir / "unlisted.yaml").write_text(
         """
 name: Unlisted Python owner
 on: workflow_dispatch
@@ -290,7 +293,7 @@ jobs:
   stale-owner:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@0123456789abcdef0123456789abcdef01234567
+      - uses: Actions/setup-python@0123456789abcdef0123456789abcdef01234567
         with:
           python-version: "3.13.13"
 """.lstrip(),
@@ -301,7 +304,7 @@ jobs:
     unlisted = _discover_auxiliary_python_setup_steps()
 
     assert [owner for owner, _step in unlisted] == [
-        (".github/workflows/unlisted.yml", "stale-owner")
+        (".github/workflows/unlisted.yaml", "stale-owner")
     ]
     with pytest.raises(AssertionError):
         _assert_expected_auxiliary_python_setup_steps([*baseline, *unlisted])
