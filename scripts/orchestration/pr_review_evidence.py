@@ -252,17 +252,29 @@ SEAL_BEGIN = "\n".join(
 SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_FINDING_SHORT_REF_PATTERN = r"[0-9a-f]{7,39}"
+_FINDING_ELLIPSIS_CARRIER_PATTERN = r"(?:\.{3}|…)"
 _FINDING_COMMIT_REF_RE = re.compile(
-    r"(?<![0-9A-Fa-f])(?:"
-    r"(?P<full>[0-9a-f]{40})(?![0-9A-Fa-f]|\.{3}|…)"
-    r"|(?P<short>[0-9a-f]{7,39})(?:\.{3}|…)(?![.…])"
-    r")"
+    rf"(?<![0-9A-Fa-f])(?:"
+    rf"(?P<full>[0-9a-f]{{40}})(?![0-9A-Fa-f]|\.{{3}}|…)"
+    rf"|(?P<short>{_FINDING_SHORT_REF_PATTERN})"
+    rf"{_FINDING_ELLIPSIS_CARRIER_PATTERN}(?![0-9A-Fa-f.…])"
+    rf")"
 )
 _FINDING_SHA_LIKE_CARRIER_RE = re.compile(
-    r"(?<![0-9A-Fa-f])"
-    r"(?P<sha_like>[0-9A-Fa-f]{7,})"
-    r"(?P<carrier>(?:\.{3,}|[.…]*…[.…]*))"
-    r"(?![.…])"
+    r"""
+    (?<![0-9A-Fa-f])
+    (?P<token>
+        [0-9A-Fa-f]{7,}
+        (?:\.{3}|…)
+        [0-9A-Fa-f.…]*
+    )
+    (?![0-9A-Fa-f.…])
+    """,
+    re.VERBOSE,
+)
+_FINDING_VALID_SHORT_REF_TOKEN_RE = re.compile(
+    rf"^{_FINDING_SHORT_REF_PATTERN}{_FINDING_ELLIPSIS_CARRIER_PATTERN}$"
 )
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -516,9 +528,7 @@ def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
     if not any(term in lowered for term in cause_terms):
         raise ReviewEvidenceError("review finding is not an ancestry cause")
     for match in _FINDING_SHA_LIKE_CARRIER_RE.finditer(body):
-        if not re.fullmatch(r"[0-9a-f]{7,39}", match.group("sha_like")) or match.group(
-            "carrier"
-        ) not in {"...", "…"}:
+        if not _FINDING_VALID_SHORT_REF_TOKEN_RE.fullmatch(match.group("token")):
             raise ReviewEvidenceError("review finding has ambiguous commit references")
     candidates = tuple(
         sorted(

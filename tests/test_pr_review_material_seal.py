@@ -5923,8 +5923,17 @@ def test_review_finding_commit_ref_parser_rejects_outside_class(reference: str) 
         "A" * 7 + "...",
         "a" * 40 + "…",
         "a" * 41 + "...",
+        "a" * 7 + "...c",
+        "a" * 7 + "…A",
     ],
-    ids=["mixed-carrier", "uppercase", "full-with-carrier", "overlong"],
+    ids=[
+        "mixed-carrier",
+        "uppercase",
+        "full-with-carrier",
+        "overlong",
+        "ascii-carrier-trailing-lower-hex",
+        "unicode-carrier-trailing-upper-hex",
+    ],
 )
 def test_review_finding_parser_rejects_malformed_token_beside_valid_candidates(
     malformed_reference: str,
@@ -5936,6 +5945,17 @@ def test_review_finding_parser_rejects_malformed_token_beside_valid_candidates(
 
     with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
         evidence_module.review_finding_sha_candidates(body)
+
+
+@pytest.mark.parametrize("punctuation", [",", ";", ")"])
+def test_review_finding_parser_accepts_short_ref_before_ordinary_punctuation(
+    punctuation: str,
+) -> None:
+    short_ref = "a" * 7
+
+    assert evidence_module.review_finding_sha_candidates(
+        f"Commit ancestry reports {short_ref}...{punctuation} then continues."
+    ) == (short_ref,)
 
 
 def test_short_finding_ref_resolves_to_one_matching_full_sha_before_classification(
@@ -6214,14 +6234,24 @@ def test_short_unavailable_422_remains_api_unknown_end_to_end(
         )
 
 
+@pytest.mark.parametrize(
+    "malformed_reference",
+    [
+        "a" * 7 + "...…",
+        "a" * 7 + "...c",
+        "a" * 7 + "…A",
+    ],
+    ids=["mixed-carrier", "ascii-carrier-trailing-hex", "unicode-carrier-trailing-hex"],
+)
 def test_malformed_carrier_beside_valid_candidates_is_terminal_before_identity(
     monkeypatch: pytest.MonkeyPatch,
+    malformed_reference: str,
 ) -> None:
     classified_values: list[str] = []
     body = (
         f"Commit ancestry finding: verified FIX {FIX_SHA}; "
         f"reviewer execution ref {UNAVAILABLE_SHA} is not reachable; "
-        f"malformed ref {'a' * 7}...… is also cited."
+        f"malformed ref {malformed_reference} is also cited."
     )
 
     with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
