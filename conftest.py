@@ -56,7 +56,7 @@ def pytest_configure(config: pytest.Config) -> None:
     os.environ.setdefault("VIP_MODULE_ENABLED", "true")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
-    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
+    os.environ.setdefault("FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
 
     # Ensure all pytest-imported FastAPI TestClient instances inherit the canonical
     # /metrics test-auth behavior before test modules import TestClient symbols.

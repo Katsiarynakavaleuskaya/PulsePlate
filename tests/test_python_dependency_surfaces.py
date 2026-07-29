@@ -21,6 +21,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 APPROVED_INDEX = "https://packages.pulseplate.app/root/pulseplate/+simple/"
 
 
+def _run_fixture_git(repo: Path, *args: str) -> None:
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2181)
+        [git_binary, "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        env=fixture_env,
+        timeout=10,
+    )
+
+
+def _stage_fixture_paths(repo: Path, *paths: str) -> None:
+    _run_fixture_git(repo, "add", "--", *paths)
+
+
 def _write_lockfile(root: Path, surface: surfaces.DependencySurface) -> None:
     lock_path = root / surface.lockfile
     if surface.lockfile == "requirements-all.txt":
@@ -86,6 +103,8 @@ def _write_valid_contract_repo(root: Path) -> None:
     _write_installer_profiles(root)
     _write_pip_audit_helper(root)
     _write_dependency_submission_workflow(root)
+    _run_fixture_git(root, "init", "--quiet")
+    _stage_fixture_paths(root, ".")
 
 
 def test_registry_rejects_novel_dependabot_carrier_class(tmp_path: Path) -> None:
@@ -96,6 +115,7 @@ def test_registry_rejects_novel_dependabot_carrier_class(tmp_path: Path) -> None
         "novel-unowned-carrier>=1\n",
         encoding="utf-8",
     )
+    _stage_fixture_paths(repo, "nested/extra.txt")
 
     errors = surfaces.validate_repo(repo)
 
@@ -116,6 +136,7 @@ def test_registry_fails_closed_when_candidate_directory_is_unreadable(
         "novel-unowned-carrier>=1\n",
         encoding="utf-8",
     )
+    _stage_fixture_paths(tmp_path, "blocked/extra.txt")
     real_open = carriers.os.open
 
     def deny_blocked_directory(
@@ -321,6 +342,7 @@ def test_dependency_surface_contract_requires_all_managed_surfaces(tmp_path: Pat
 def test_dependency_surface_contract_rejects_unknown_surface(tmp_path: Path) -> None:
     _write_valid_contract_repo(tmp_path)
     (tmp_path / "requirements-surprise.txt").write_text("example==1.0.0\n", encoding="utf-8")
+    _stage_fixture_paths(tmp_path, "requirements-surprise.txt")
 
     errors = surfaces.validate_repo(tmp_path)
 

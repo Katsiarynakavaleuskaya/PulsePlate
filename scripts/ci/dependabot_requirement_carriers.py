@@ -18,13 +18,17 @@ from dataclasses import dataclass
 import os
 from pathlib import Path, PurePath, PurePosixPath
 import re
+import shutil
 import stat
+import subprocess  # nosec B404: read-only Git index query has no safe in-process API (remove-by: 2026-10-31, ref: PR-2181)
 
 DEPENDABOT_REQUIREMENT_SUFFIXES = frozenset({".in", ".txt"})
 DEPENDABOT_REQUIREMENT_MAX_DEPTH = 1
 DEPENDABOT_REQUIREMENT_MAX_BYTES = 500_000
 DEPENDABOT_REQUIREMENTS_NAME_FRAGMENT = "requirements"
 DEPENDABOT_REQUIREMENT_DIRECTIVE_PREFIXES = ("-r ", "-c ", "-e ", "--")
+GIT_BINARY = shutil.which("git")
+GIT_SOURCE_SET_TIMEOUT_SECONDS = 10
 
 
 @dataclass(frozen=True)
@@ -92,20 +96,6 @@ _UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
     r"\s*(?:#+\s*.*)?$",
     flags=re.ASCII,
 )
-_LOCAL_ONLY_TOP_LEVEL_DIRS = frozenset(
-    {
-        ".git",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".venv",
-        "artifacts",
-        "build",
-        "dist",
-        "node_modules",
-        "worktrees",
-    }
-)
 RepoPath = str | PurePath
 
 
@@ -132,7 +122,7 @@ def is_dependabot_requirement_candidate_path(path: RepoPath) -> bool:
     normalized = normalize_repo_relative_path(path)
     if normalized.is_absolute() or ".." in normalized.parts:
         return False
-    if not normalized.parts or normalized.parts[0] in _LOCAL_ONLY_TOP_LEVEL_DIRS:
+    if not normalized.parts:
         return False
     return (
         len(normalized.parts) <= DEPENDABOT_REQUIREMENT_MAX_DEPTH + 1
@@ -209,16 +199,6 @@ def _open_directory_descriptor(
         os.close(descriptor)
         raise DependabotRequirementDiscoveryError(relative_path)
     return descriptor
-
-
-def _directory_names(descriptor: int, *, relative_path: str | Path) -> tuple[str, ...]:
-    """Return deterministic entry names or fail closed on traversal errors."""
-
-    try:
-        with os.scandir(descriptor) as entries:
-            return tuple(sorted(entry.name for entry in entries))
-    except OSError as exc:
-        raise DependabotRequirementDiscoveryError(relative_path) from exc
 
 
 def _entry_stat(
@@ -305,61 +285,137 @@ def _record_candidate(
         carriers.add(normalized)
 
 
+def _run_git_bytes(repo_root: Path, *args: str) -> bytes:
+    """Run one fixed Git query with an absolute executable and bytes output."""
+
+    if GIT_BINARY is None:
+        raise DependabotRequirementDiscoveryError(".")
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    try:
+        result = subprocess.run(  # nosec B603: resolved Git binary with fixed read-only argv (remove-by: 2026-10-31, ref: PR-2181)
+            [GIT_BINARY, "-C", os.fspath(repo_root), *args],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            env=git_env,
+            text=False,
+            timeout=GIT_SOURCE_SET_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise DependabotRequirementDiscoveryError(".") from exc
+    if not isinstance(result.stdout, bytes):
+        raise DependabotRequirementDiscoveryError(".")
+    return result.stdout
+
+
+def _git_index_source_paths(repo_root: Path) -> tuple[PurePosixPath, ...]:
+    """Return the exact Git-index path set for one repository top level."""
+
+    try:
+        resolved_repo_root = repo_root.resolve(strict=True)
+    except OSError as exc:
+        raise DependabotRequirementDiscoveryError(".") from exc
+
+    top_level_payload = _run_git_bytes(repo_root, "rev-parse", "--show-toplevel")
+    if (
+        not top_level_payload.endswith(b"\n")
+        or b"\0" in top_level_payload
+        or b"\n" in top_level_payload[:-1]
+    ):
+        raise DependabotRequirementDiscoveryError(".")
+    try:
+        reported_top_level = Path(os.fsdecode(top_level_payload[:-1])).resolve(strict=True)
+    except OSError as exc:
+        raise DependabotRequirementDiscoveryError(".") from exc
+    if reported_top_level != resolved_repo_root:
+        raise DependabotRequirementDiscoveryError(".")
+
+    index_payload = _run_git_bytes(
+        repo_root,
+        "ls-files",
+        "--cached",
+        "--full-name",
+        "-z",
+    )
+    if index_payload and not index_payload.endswith(b"\0"):
+        raise DependabotRequirementDiscoveryError(".")
+
+    source_paths: set[PurePosixPath] = set()
+    raw_paths = index_payload.split(b"\0")
+    for raw_path in raw_paths[:-1] if index_payload else ():
+        if not raw_path:
+            raise DependabotRequirementDiscoveryError(".")
+        normalized = normalize_repo_relative_path(os.fsdecode(raw_path))
+        if normalized.is_absolute() or not normalized.parts or ".." in normalized.parts:
+            raise DependabotRequirementDiscoveryError(normalized)
+        source_paths.add(normalized)
+    return tuple(sorted(source_paths, key=PurePosixPath.as_posix))
+
+
+def _record_git_index_candidate(
+    carriers: set[str],
+    *,
+    root_descriptor: int,
+    relative_path: PurePosixPath,
+) -> None:
+    """Classify one indexed candidate through descriptor-anchored path lookup."""
+
+    parent_descriptor = root_descriptor
+    child_descriptor: int | None = None
+    try:
+        if len(relative_path.parts) == 2:
+            directory_name = relative_path.parts[0]
+            directory_stat = _entry_stat(
+                root_descriptor,
+                directory_name,
+                relative_path=directory_name,
+            )
+            child_descriptor = _open_directory_descriptor(
+                directory_name,
+                relative_path=directory_name,
+                dir_fd=root_descriptor,
+                expected_identity=(directory_stat.st_dev, directory_stat.st_ino),
+            )
+            parent_descriptor = child_descriptor
+
+        filesystem_path = Path(*relative_path.parts)
+        candidate_name = relative_path.parts[-1]
+        candidate_stat = _entry_stat(
+            parent_descriptor,
+            candidate_name,
+            relative_path=filesystem_path,
+        )
+        _record_candidate(
+            carriers,
+            parent_descriptor=parent_descriptor,
+            name=candidate_name,
+            relative_path=filesystem_path,
+            expected_stat=candidate_stat,
+        )
+    finally:
+        if child_descriptor is not None:
+            os.close(child_descriptor)
+
+
 def discover_dependabot_requirement_carriers(
     repo_root: Path,
 ) -> set[str]:
-    """Return carriers from one descriptor-anchored at-rest tree pass."""
+    """Return carriers from the Git-index source set and pinned content class."""
 
     carriers: set[str] = set()
+    candidate_paths = tuple(
+        path
+        for path in _git_index_source_paths(repo_root)
+        if is_dependabot_requirement_candidate_path(path)
+    )
     root_descriptor = _open_directory_descriptor(repo_root, relative_path=".")
     try:
-        for entry_name in _directory_names(root_descriptor, relative_path="."):
-            relative_entry = Path(entry_name)
-            if entry_name in _LOCAL_ONLY_TOP_LEVEL_DIRS:
-                continue
-            entry_stat = _entry_stat(
-                root_descriptor,
-                entry_name,
-                relative_path=relative_entry,
+        for relative_path in candidate_paths:
+            _record_git_index_candidate(
+                carriers,
+                root_descriptor=root_descriptor,
+                relative_path=relative_path,
             )
-            if is_dependabot_requirement_candidate_path(relative_entry):
-                _record_candidate(
-                    carriers,
-                    parent_descriptor=root_descriptor,
-                    name=entry_name,
-                    relative_path=relative_entry,
-                    expected_stat=entry_stat,
-                )
-            if not stat.S_ISDIR(entry_stat.st_mode):
-                continue
-            child_descriptor = _open_directory_descriptor(
-                entry_name,
-                relative_path=relative_entry,
-                dir_fd=root_descriptor,
-                expected_identity=(entry_stat.st_dev, entry_stat.st_ino),
-            )
-            try:
-                for child_name in _directory_names(
-                    child_descriptor,
-                    relative_path=relative_entry,
-                ):
-                    relative_child = Path(entry_name, child_name)
-                    if not is_dependabot_requirement_candidate_path(relative_child):
-                        continue
-                    child_stat = _entry_stat(
-                        child_descriptor,
-                        child_name,
-                        relative_path=relative_child,
-                    )
-                    _record_candidate(
-                        carriers,
-                        parent_descriptor=child_descriptor,
-                        name=child_name,
-                        relative_path=relative_child,
-                        expected_stat=child_stat,
-                    )
-            finally:
-                os.close(child_descriptor)
     finally:
         os.close(root_descriptor)
     return carriers

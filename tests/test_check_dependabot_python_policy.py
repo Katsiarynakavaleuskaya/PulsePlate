@@ -6,6 +6,7 @@ from dataclasses import FrozenInstanceError, asdict
 import os
 from pathlib import Path
 import shutil
+import subprocess
 
 import pytest
 import yaml
@@ -15,6 +16,24 @@ from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _run_fixture_git(repo: Path, *args: str) -> None:
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    fixture_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    subprocess.run(  # nosec B603: resolved Git binary with test-owned argv (remove-by: 2026-10-31, ref: PR-2181)
+        [git_binary, "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        env=fixture_env,
+        timeout=10,
+    )
+
+
+def _stage_fixture_paths(repo: Path, *paths: str, force: bool = False) -> None:
+    force_arg = ("--force",) if force else ()
+    _run_fixture_git(repo, "add", *force_arg, "--", *paths)
 
 
 class _NoAliasSafeDumper(yaml.SafeDumper):
@@ -27,6 +46,7 @@ class _NoAliasSafeDumper(yaml.SafeDumper):
 def _copy_policy_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     (repo / ".github").mkdir(parents=True)
+    shutil.copy2(REPO_ROOT / ".gitignore", repo / ".gitignore")
     shutil.copy2(REPO_ROOT / policy.CONFIG_PATH, repo / policy.CONFIG_PATH)
     requirement_files = {
         relative_path
@@ -39,6 +59,8 @@ def _copy_policy_repo(tmp_path: Path) -> Path:
         source = REPO_ROOT / relative_path
         if source.is_file():
             shutil.copy2(source, repo / relative_path)
+    _run_fixture_git(repo, "init", "--quiet")
+    _stage_fixture_paths(repo, ".")
     return repo
 
 
@@ -92,6 +114,7 @@ def test_every_novel_dependabot_carrier_path_fails_closed(
     carrier_path = repo / relative_path
     carrier_path.parent.mkdir(parents=True, exist_ok=True)
     carrier_path.write_text("novel-unowned-carrier>=1\n", encoding="utf-8")
+    _stage_fixture_paths(repo, relative_path, force=True)
 
     errors = policy.validate_repo(repo)
 
@@ -119,6 +142,7 @@ def test_non_requirement_text_file_is_not_misclassified_as_carrier(
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
     (repo / relative_path).write_text(content, encoding="utf-8")
+    _stage_fixture_paths(repo, relative_path)
 
     assert policy.validate_repo(repo) == []
 
@@ -186,6 +210,7 @@ def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> 
 def test_unclassifiable_novel_candidate_fails_closed(tmp_path: Path) -> None:
     repo = _copy_policy_repo(tmp_path)
     (repo / "extra.txt").symlink_to("missing-carrier-target")
+    _stage_fixture_paths(repo, "extra.txt")
 
     errors = policy.validate_repo(repo)
 
@@ -206,6 +231,7 @@ def test_unreadable_candidate_directory_fails_closed(
         "novel-unowned-carrier>=1\n",
         encoding="utf-8",
     )
+    _stage_fixture_paths(repo, "blocked/extra.txt")
     real_open = carriers.os.open
 
     def deny_blocked_directory(
@@ -227,6 +253,117 @@ def test_unreadable_candidate_directory_fails_closed(
         "dependabot.requirement-carriers:$:"
         "candidate discovery could not inspect the repository tree"
     ) in errors
+
+
+def test_ignored_untracked_runtime_salt_is_not_a_source_carrier(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    salt_path = repo / "cache" / "fingerprint_salt.txt"
+    salt_path.parent.mkdir()
+    salt_path.write_text("0123456789abcdef\n", encoding="utf-8")
+
+    assert policy.validate_repo(repo) == []
+
+
+def test_force_tracked_ignored_carrier_still_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    salt_path = repo / "cache" / "fingerprint_salt.txt"
+    salt_path.parent.mkdir()
+    salt_path.write_text("0123456789abcdef\n", encoding="utf-8")
+    _stage_fixture_paths(repo, "cache/fingerprint_salt.txt", force=True)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "unregistered candidate carriers are forbidden: "
+        "['cache/fingerprint_salt.txt']"
+    ) in errors
+
+
+def test_tracked_missing_carrier_fails_closed(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    carrier_path = repo / "missing.txt"
+    carrier_path.write_text("package>=1\n", encoding="utf-8")
+    _stage_fixture_paths(repo, "missing.txt")
+    carrier_path.unlink()
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree"
+    ) in errors
+
+
+def test_git_index_paths_are_nul_safe(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    relative_path = "line\nbreak.txt"
+    (repo / relative_path).write_text("package>=1\n", encoding="utf-8")
+    _stage_fixture_paths(repo, relative_path)
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        f"unregistered candidate carriers are forbidden: [{relative_path!r}]"
+    ) in errors
+
+
+def test_git_index_discovery_requires_exact_repo_top_level(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    nested = repo / "nested"
+    nested.mkdir()
+
+    with pytest.raises(carriers.DependabotRequirementDiscoveryError):
+        carriers.discover_dependabot_requirement_carriers(nested)
+
+
+def test_git_index_discovery_ignores_outer_git_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    outer_repo = tmp_path / "outer"
+    outer_repo.mkdir()
+    _run_fixture_git(outer_repo, "init", "--quiet")
+    monkeypatch.setenv("GIT_DIR", os.fspath(outer_repo / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", os.fspath(outer_repo))
+    monkeypatch.setenv("GIT_INDEX_FILE", os.fspath(outer_repo / ".git" / "index"))
+
+    assert policy.validate_repo(repo) == []
+
+
+def test_malformed_git_index_payload_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    real_run_git_bytes = carriers._run_git_bytes
+
+    def malformed_ls_files(repo_root: Path, *args: str) -> bytes:
+        if args and args[0] == "ls-files":
+            return b"requirements.txt"
+        return real_run_git_bytes(repo_root, *args)
+
+    monkeypatch.setattr(carriers, "_run_git_bytes", malformed_ls_files)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree"
+    ) in policy.validate_repo(repo)
+
+
+def test_missing_git_binary_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    monkeypatch.setattr(carriers, "GIT_BINARY", None)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree"
+    ) in policy.validate_repo(repo)
 
 
 def test_shadow_yaml_fails_closed(tmp_path: Path) -> None:
