@@ -40,6 +40,13 @@ EXPECTED_CANONICAL_CI_PYTHON_SETUP_OWNERS = (
     ("diff-coverage", PYTHON_VERSION_FROM_ENV),
 )
 EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS = (("build-and-test", PYTHON_VERSION_FROM_ENV),)
+SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        ".github/workflows/codecov-upload.yml",
+        ".github/workflows/frontend-ci.yml",
+    }
+)
 EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
     (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
     (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),
@@ -91,6 +98,21 @@ def _iter_python_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
             if any(uses.startswith(prefix) for prefix in PYTHON_SETUP_USES):
                 setup_steps.append((job_name, step))
     return setup_steps
+
+
+def _discover_auxiliary_python_setup_steps() -> list[tuple[tuple[str, str], dict[str, Any]]]:
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    workflow_paths = sorted(
+        path for pattern in ("*.yml", "*.yaml") for path in workflow_dir.glob(pattern)
+    )
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]] = []
+    for path in workflow_paths:
+        rel_path = path.relative_to(REPO_ROOT).as_posix()
+        if rel_path in SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS:
+            continue
+        for job_name, step in _iter_python_setup_steps(rel_path):
+            discovered.append(((rel_path, job_name), step))
+    return discovered
 
 
 def _iter_ruby_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
@@ -250,13 +272,39 @@ def test_frontend_ci_python_setup_owner_contract_rejects_duplicate_step() -> Non
 
 
 def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
-    discovered: list[tuple[tuple[str, str], dict[str, Any]]] = []
-    workflow_paths = sorted({path for path, _job_name in EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS})
-    for path in workflow_paths:
-        for job_name, step in _iter_python_setup_steps(path):
-            discovered.append(((path, job_name), step))
-
+    discovered = _discover_auxiliary_python_setup_steps()
     _assert_expected_auxiliary_python_setup_steps(discovered)
+
+
+def test_auxiliary_python_setup_discovery_rejects_unlisted_stale_workflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = _discover_auxiliary_python_setup_steps()
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "unlisted.yml").write_text(
+        """
+name: Unlisted Python owner
+on: workflow_dispatch
+jobs:
+  stale-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@0123456789abcdef0123456789abcdef01234567
+        with:
+          python-version: "3.13.13"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.test_runtime_toolchain_alignment.REPO_ROOT", tmp_path)
+
+    unlisted = _discover_auxiliary_python_setup_steps()
+
+    assert [owner for owner, _step in unlisted] == [
+        (".github/workflows/unlisted.yml", "stale-owner")
+    ]
+    with pytest.raises(AssertionError):
+        _assert_expected_auxiliary_python_setup_steps([*baseline, *unlisted])
 
 
 def test_no_python_setup_step_uses_bare_py313_runtime_pin() -> None:
