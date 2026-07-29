@@ -530,7 +530,9 @@ def _finding_sha_like_tokens(body: str) -> tuple[str, ...]:
             position = _finding_atom_end(body, core_end)
             continue
         if core_end < len(body) and _is_finding_atom_char(body[core_end]):
-            position = _finding_atom_end(body, core_end)
+            token_end = _finding_atom_end(body, core_end)
+            tokens.append(body[start:token_end])
+            position = token_end
             continue
         token_end = core_end
         if body.startswith("...", core_end) or body.startswith("…", core_end):
