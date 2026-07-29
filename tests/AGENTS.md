@@ -33,6 +33,15 @@
   `_application_lifespan_with_hooks(...)` through synchronous `asyncio.run(...)`
   tests. Inject `LifespanHooks`; do not patch `lifespan.__wrapped__.__globals__`
   or fan one scheduler mock across `app`, `legacy_app`, and `app_module`.
+- Shared client fixtures (`client`, `test_client`, `app_client`,
+  `isolated_test_client`, and `client_with_vip_access`) live only in
+  `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
+  The managed wrapper owns one lifespan, exact `dependency_overrides`
+  restoration, and temporary finite SlowAPI limiter isolation.
+- The root `MetricsAwareTestClient` assignment is a temporary TC2 compatibility
+  bridge. Do not add another patch owner or new callers of raw
+  `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider
+  modules.
 - Direct alias patching remains allowed only in focused compatibility tests for
   the legacy synchronous scheduler wrappers; it is not lifecycle evidence.
 - Admin scheduler tests must patch only the consumer binding
@@ -135,6 +144,11 @@ Any test touching DB must ensure full schema initialization (`import models` + `
 - **EN:** Any test mutating `DATABASE_URL` must reset `_RAW_ENGINE` before and after (and restore env).
 - **RU:** Fixture `configure_sqlite_database` — source of truth и всегда делает hard-reset `_RAW_ENGINE`.
 - **EN:** `configure_sqlite_database` fixture is SoT and always hard-resets `_RAW_ENGINE`.
+- Function-level DB isolation is opt-in through
+  `isolated_sqlite_database`/`isolated_test_client`. It must use a no-follow
+  file inside pytest `tmp_path`, public `reset_db_for_tests()`/`init_db()`,
+  exact DB-env restoration, `NullPool`, and `check_same_thread=False`; active
+  async DB state fails closed before mutation.
 
 ## Coverage / diff-cover (process invariant)
 

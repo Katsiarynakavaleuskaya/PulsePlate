@@ -5,14 +5,16 @@ Includes tenant-based sharding configuration for memory-efficient parallel testi
 
 import importlib
 import importlib.util
+import hashlib
 import logging
 import os
-import sys
+import re
+import tempfile
 import warnings
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Generator, Iterable, cast
-import tempfile
+from typing import Any, Callable, Generator, Iterable, Iterator, cast
 
 import pytest
 from fastapi import FastAPI
@@ -20,6 +22,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionError
+from sqlalchemy.pool import NullPool
 
 from app.effective_routes import (
     is_api_route_candidate,
@@ -28,8 +31,7 @@ from app.effective_routes import (
 )
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
-from tests._client import make_test_client
-from tests._client import disable_rate_limiting_for_test_app
+from tests._client import open_test_client
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -139,32 +141,6 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
             return real_requests_request(self, method, url, *args, **kwargs)
 
         monkeypatch.setattr(requests.sessions.Session, "request", session_request, raising=True)
-
-
-@pytest.fixture(autouse=True)
-def _disable_singleton_rate_limiters() -> None:
-    """Keep shared singleton app limiter state disabled before each test."""
-    seen_app_ids: set[int] = set()
-
-    for module in tuple(sys.modules.values()):
-        if module is None:
-            continue
-
-        for attr_name in ("app", "main_app"):
-            app_instance = vars(module).get(attr_name)
-            if not isinstance(app_instance, FastAPI):
-                try:
-                    app_instance = getattr(module, attr_name, None)
-                except Exception:
-                    app_instance = None
-            if not isinstance(app_instance, FastAPI):
-                continue
-
-            app_id = id(app_instance)
-            if app_id in seen_app_ids:
-                continue
-            seen_app_ids.add(app_id)
-            disable_rate_limiting_for_test_app(app_instance)
 
 
 # NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
@@ -297,10 +273,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     # EN: Hard reset of global engine between tests.
     import core.db as core_db
 
-    engine = getattr(core_db, "_RAW_ENGINE", None)
-    if engine is not None:
-        engine.dispose()
-        core_db._RAW_ENGINE = None
+    core_db.reset_db_for_tests()
 
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
@@ -363,36 +336,14 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
                 "This indicates a test DB setup / model import problem."
             )
 
-    # Ensure SQLite file is writable for tests
-    try:
-        resolved_path.chmod(0o666)
-    except Exception as e:
-        logger.debug(f"Could not set permissions on test database: {e}")
-
     # Expose the DB module to dependent fixtures (e.g., _cleanup_users)
     # so they can use a consistent session_scope and engine configuration.
     yield db_module
 
     # Teardown: Clean up database connections and files
     try:
-        # Close database connections if available
-        # First, close the raw engine if it exists
-        if hasattr(db_module, "_RAW_ENGINE") and db_module._RAW_ENGINE:
-            try:
-                db_module._RAW_ENGINE.dispose()
-                logger.debug(f"Disposed raw database engine for worker {worker_id}")
-            except Exception as e:
-                logger.warning(f"Error disposing raw database engine: {e}")
-
-        if hasattr(db_module, "engine") and db_module.engine:
-            try:
-                db_module.engine.dispose()
-                logger.debug(f"Disposed database engine for worker {worker_id}")
-            except Exception as e:
-                logger.warning(f"Error disposing database engine: {e}")
-
-        # NOTE: Do not clear SessionLocal binding - it breaks API tests that expect
-        # SessionLocal to be available in teardown. Engine disposal is sufficient cleanup.
+        db_module.reset_db_for_tests()
+        logger.debug(f"Reset database state for worker {worker_id}")
 
         # Remove the SQLite database file
         db_path = Path(os.environ.get("TEST_DB_PATH", ""))
@@ -444,10 +395,7 @@ def setup_test_environment() -> Generator[None, None, None]:
     try:
         import core.db
 
-        if hasattr(core.db, "_RAW_ENGINE") and core.db._RAW_ENGINE:
-            core.db._RAW_ENGINE.dispose()
-        if hasattr(core.db, "engine") and core.db.engine:
-            core.db.engine.dispose()
+        core.db.reset_db_for_tests()
     except Exception:
         pass  # Best-effort cleanup
     # Clean up environment variables
@@ -456,31 +404,13 @@ def setup_test_environment() -> Generator[None, None, None]:
             del os.environ[key]
 
 
-_CACHED_APP_MODULE: ModuleType | None = None
-
-
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
     """Import app package and return stable module instance."""
-    global _CACHED_APP_MODULE
 
-    # Reuse cached module if we already loaded it
-    if _CACHED_APP_MODULE is not None:
-        if "app" not in sys.modules:
-            sys.modules["app"] = _CACHED_APP_MODULE
-        return _CACHED_APP_MODULE
-
-    # Import app directly (standard import, no sys.path manipulation)
     import app as app_mod
 
-    _CACHED_APP_MODULE = app_mod
     return app_mod
-
-
-@pytest.fixture(autouse=True)
-def _ensure_app_module(app_module: ModuleType) -> None:
-    """Ensure sys.modules always contains the cached app module."""
-    sys.modules["app"] = app_module
 
 
 @pytest.fixture
@@ -495,8 +425,6 @@ def app() -> FastAPI:
 
     app_instance = app.main.app
 
-    disable_rate_limiting_for_test_app(app_instance)
-
     return cast(FastAPI, app_instance)
 
 
@@ -507,8 +435,158 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
     Using TestClient as a context manager ensures lifespan startup/shutdown runs
     deterministically and prevents leaking background threads across tests.
     """
-    with make_test_client(app) as test_client:
+    with open_test_client(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def test_client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Compatibility fixture backed by the managed client lifecycle."""
+
+    with open_test_client(app) as managed_client:
+        yield managed_client
+
+
+@pytest.fixture
+def app_client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Compatibility alias with independent managed lifecycle ownership."""
+
+    with open_test_client(app) as managed_client:
+        yield managed_client
+
+
+_DATABASE_ENV_KEYS = (
+    "DATABASE_URL",
+    "TEST_DB_PATH",
+    "DB_FALLBACK_URL",
+    "DATABASE_ASYNC_URL",
+    "DATABASE_USE_ASYNC",
+)
+
+
+def _snapshot_database_environment() -> dict[str, tuple[bool, str | None]]:
+    """Capture exact presence and values for DB routing environment."""
+
+    return {key: (key in os.environ, os.environ.get(key)) for key in _DATABASE_ENV_KEYS}
+
+
+def _restore_database_environment(snapshot: dict[str, tuple[bool, str | None]]) -> None:
+    """Restore exact DB environment presence without retaining fixture keys."""
+
+    for key, (was_present, value) in snapshot.items():
+        if was_present and value is not None:
+            os.environ[key] = value
+        else:
+            os.environ.pop(key, None)
+
+
+def _assert_async_database_inactive(core_db: ModuleType) -> None:
+    """Fail closed before a synchronous fixture could orphan async DB state."""
+
+    async_env_active = (
+        bool(os.environ.get("DATABASE_ASYNC_URL", "").strip())
+        or os.environ.get("DATABASE_USE_ASYNC", "").strip() == "1"
+    )
+    async_state_active = any(
+        getattr(core_db, name, None) is not None
+        for name in ("_ASYNC_ENGINE", "async_engine", "AsyncSessionLocal")
+    )
+    if async_env_active or async_state_active:
+        raise RuntimeError(
+            "isolated_sqlite_database requires inactive async DB configuration and state"
+        )
+
+
+def _create_owned_sqlite_file(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> tuple[Path, int]:
+    """Create one no-follow SQLite file whose ownership is bound to this test."""
+
+    if tmp_path.is_symlink():
+        raise RuntimeError("pytest tmp_path must not be a symlink")
+    tmp_root = tmp_path.resolve(strict=True)
+    worker_info = getattr(request.config, "workerinput", {}) or {}
+    worker_id = worker_info.get("workerid", "") or os.getenv("PYTEST_XDIST_WORKER", "master")
+    safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
+    test_id = request.node.nodeid
+    safe_test_id = re.sub(r"[^A-Za-z0-9_-]", "_", test_id)[-48:] or "test"
+    digest = hashlib.sha256(test_id.encode("utf-8")).hexdigest()[:12]
+    sqlite_path = tmp_root / f"isolated_{safe_worker}_{safe_test_id}_{digest}.sqlite3"
+    if sqlite_path.parent != tmp_root:
+        raise RuntimeError("isolated SQLite path escaped pytest tmp_path")
+
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(sqlite_path, flags, 0o600)
+    os.close(descriptor)
+    stat_result = sqlite_path.stat(follow_symlinks=False)
+    if sqlite_path.is_symlink() or not sqlite_path.is_file():
+        raise RuntimeError("isolated SQLite path must be a regular owned file")
+    return sqlite_path, stat_result.st_ino
+
+
+@contextmanager
+def _isolated_sqlite_database_context(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> Iterator[Path]:
+    """Temporarily route the canonical DB to one function-owned SQLite file."""
+
+    import core.db as core_db
+
+    environment_snapshot = _snapshot_database_environment()
+    _assert_async_database_inactive(core_db)
+    sqlite_path, owned_inode = _create_owned_sqlite_file(tmp_path, request)
+    sqlite_url = f"sqlite:///{sqlite_path}"
+
+    try:
+        core_db.reset_db_for_tests()
+        os.environ["DATABASE_URL"] = sqlite_url
+        os.environ["TEST_DB_PATH"] = str(sqlite_path)
+        os.environ["DB_FALLBACK_URL"] = sqlite_url
+        os.environ.pop("DATABASE_ASYNC_URL", None)
+        os.environ["DATABASE_USE_ASYNC"] = "0"
+        engine = core_db.init_db()
+
+        assert str(engine.url) == sqlite_url
+        assert isinstance(engine.pool, NullPool)
+        _args, connect_args = engine.dialect.create_connect_args(engine.url)
+        assert connect_args.get("check_same_thread") is False
+        yield sqlite_path
+    finally:
+        try:
+            core_db.reset_db_for_tests()
+            if sqlite_path.exists():
+                current_stat = sqlite_path.stat(follow_symlinks=False)
+                if sqlite_path.is_symlink() or current_stat.st_ino != owned_inode:
+                    raise RuntimeError("refusing to delete a replaced isolated SQLite path")
+                sqlite_path.unlink()
+        finally:
+            _restore_database_environment(environment_snapshot)
+            core_db.init_db()
+
+
+@pytest.fixture
+def isolated_sqlite_database(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> Generator[Path, None, None]:
+    """Provide function-scoped SQLite isolation without changing the session default."""
+
+    with _isolated_sqlite_database_context(tmp_path, request) as sqlite_path:
+        yield sqlite_path
+
+
+@pytest.fixture
+def isolated_test_client(
+    app: FastAPI,
+    isolated_sqlite_database: Path,
+) -> Generator[TestClient, None, None]:
+    """Return a managed client bound to a function-owned SQLite database."""
+
+    del isolated_sqlite_database
+    with open_test_client(app) as managed_client:
+        yield managed_client
 
 
 # --- VIP shoplist test fixtures ---
@@ -563,6 +641,7 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
     import app.routers.vip_shoplist as vip_router
 
     app_instance = app.main.app
+    overrides_snapshot = dict(app_instance.dependency_overrides)
 
     # ⚠️ NO *args/**kwargs — иначе FastAPI требует query args/kwargs
     async def mock_require_vip_tier() -> str:
@@ -576,7 +655,6 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
     # NOTE: We do NOT override require_vip_module_enabled - it should check the feature flag
     # Tests can use monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", ...)
 
-    route_level_deps: list[Callable] = []
     try:
         route = _find_route_by_endpoint_name(app_instance, "vip_shoplist_generate")
         assert route is not None, "Route for endpoint 'vip_shoplist_generate' not found"
@@ -587,12 +665,11 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
         for dep_fn in route_level_deps:
             app_instance.dependency_overrides[dep_fn] = mock_api_key
 
-        with TestClient(app_instance) as client:
-            yield client
+        with open_test_client(app_instance) as managed_client:
+            yield managed_client
     finally:
-        app_instance.dependency_overrides.pop(vip_router.require_vip_tier, None)
-        for dep_fn in route_level_deps:
-            app_instance.dependency_overrides.pop(dep_fn, None)
+        app_instance.dependency_overrides.clear()
+        app_instance.dependency_overrides.update(overrides_snapshot)
 
 
 @pytest.fixture

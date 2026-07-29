@@ -2508,11 +2508,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-TEST-HYGIENE-CLIENT-LIFECYCLE
-  - Status: 📋 Planned
+  - Target PR: PR-TC1 managed-lifecycle foundation -> PR-TC2 direct-caller migration
+  - Review-by: 2026-08-31
+  - Status: 🚧 TC1 foundation in progress; remains open through TC2
   - Area: tests / FastAPI lifecycle / session cleanup
   - Finding Type: resource lifecycle debt
-  - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
+  - Reason (EN): TC1 narrows shared-provider ownership to a managed client lifecycle and adds opt-in function-level SQLite isolation without broad env cleanup. More than twenty direct legacy/coverage callers still require the mechanical TC2 migration before the temporary global compatibility patch can be removed.
   - Links:
     - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
     - `docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md`
@@ -2520,9 +2521,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/conftest.py`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
   - DoD:
-    - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
-    - Closeable test resources have deterministic teardown
-    - Targeted xdist smoke for touched files passes without stale client/session state
+    - TC1: shared fixtures use `open_test_client`, restore exact overrides/limiter policy, and close lifespan deterministically
+    - TC1: opt-in SQLite isolation restores baseline DB/env and is covered by finite provider/lifecycle guards
+    - TC2: remaining high-risk and coverage-only direct callers migrate to fixture-based or context-managed usage
+    - TC2: the global compatibility patch, deprecated factories, and broad direct-client exclusions are removed
+    - Targeted xdist smoke for each lane passes without stale client/session state
 
 <a id="ledger-p1-test-hygiene-env-isolation"></a>
 - [ ] P1: `os.environ` isolation and `setup_method` teardown migration

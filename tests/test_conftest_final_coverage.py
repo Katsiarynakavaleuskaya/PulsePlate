@@ -4,7 +4,6 @@ Final targeted tests to improve conftest.py coverage to 97%.
 
 import os
 import sys
-from types import ModuleType
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,25 +11,6 @@ from fastapi.testclient import TestClient
 
 class TestConftestFinalCoverage:
     """Final targeted tests for conftest.py coverage."""
-
-    def test_conftest_keyerror_exception_path(self):
-        """Test the KeyError exception path in reset_environment fixture."""
-        # This test specifically targets lines 44-45 by creating a situation
-        # where a KeyError would occur during the fixture's cleanup phase
-
-        # We'll directly test the logic that causes the KeyError path to be executed
-        # by manipulating sys.modules in a way that triggers the exception handling
-
-        # Add a module that matches the filter pattern
-        test_module_name = "app.test_module_for_coverage"
-        sys.modules[test_module_name] = ModuleType(test_module_name)
-
-        # Delete it immediately so when the fixture tries to delete it during cleanup,
-        # it will raise a KeyError which should be caught by the except block
-        del sys.modules[test_module_name]
-
-        # The fixture's exception handling (lines 44-45) should catch this gracefully
-        # This test ensures those lines are covered
 
     def test_conftest_reset_sys_modules_yield_execution(self):
         """Test that the yield statement in reset_sys_modules fixture is executed."""
@@ -68,23 +48,21 @@ class TestConftestFinalCoverage:
             os.environ.get("VIP_MODULE_ENABLED") == "false"
         )  # premium_disabled_environment overrides
 
-    def test_conftest_client_fixtures(self, test_client, isolated_test_client, app_client):
-        """Test all client fixtures together."""
-        # This test ensures all client fixtures work together
-        # and helps improve overall coverage
+    @pytest.mark.parametrize(
+        "client_fixture_name",
+        ("test_client", "isolated_test_client", "app_client"),
+    )
+    def test_conftest_client_fixtures(
+        self,
+        request: pytest.FixtureRequest,
+        client_fixture_name: str,
+    ) -> None:
+        """Exercise one managed client fixture lifecycle per parametrized item."""
 
-        # Check that all clients are TestClient instances
-        assert isinstance(test_client, TestClient)
-        assert isinstance(isolated_test_client, TestClient)
-        assert isinstance(app_client, TestClient)
+        client = request.getfixturevalue(client_fixture_name)
 
-        # Check that they can make requests
-        for client in [test_client, isolated_test_client, app_client]:
-            response = client.get("/health")
-            assert response.status_code in [
-                200,
-                404,
-            ]  # Might be 404 if app is not fully initialized
+        assert isinstance(client, TestClient)
+        assert client.get("/health").status_code == 200
 
     def test_conftest_last_line_coverage(self):
         """Test to ensure the last line of conftest.py is covered."""

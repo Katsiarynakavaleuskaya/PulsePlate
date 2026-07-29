@@ -1,12 +1,16 @@
-# Tracking Issue: Migrate legacy tests to `tests._client.get_client()`
+# Tracking Issue: Complete the managed TestClient migration in PR-TC2
 
 **Owner:** @Katsiarynakavaleuskaya
-**Target:** 2026-03-31
+**Target PR:** PR-TC2
+**Review-by:** 2026-08-31
+**Status:** Open after TC1 foundation
 
 ## Problem
 
-Some legacy/coverage-boost tests still create `TestClient(app*.app)` directly.
-This bypasses canonical bootstrap (`app.main:app`), which can cause:
+TC1 establishes `tests._client.open_test_client(...)` and moves shared fixture
+ownership to `tests/conftest.py`. Legacy and coverage-only tests still create
+`TestClient(app*.app)` directly. Those callers remain behind the single
+test-environment compatibility patch until PR-TC2 and can still cause:
 
 - `/metrics` 404 in tests
 - Missing middleware/observability wiring
@@ -14,17 +18,22 @@ This bypasses canonical bootstrap (`app.main:app`), which can cause:
 
 ## Goal
 
-Replace direct TestClient construction in excluded patterns with one of:
+PR-TC2 mechanically replaces direct construction with one of:
 
-- `tests._client.get_client()`
+- `tests._client.open_test_client(...)`
 - Canonical conftest fixtures (e.g., `client`, `test_client`, `client_with_vip_access`)
 
 ## Done when
 
 - `tests/test_no_direct_testclient.py` no longer needs `COVERAGE_BOOST_PATTERNS` exclusions
 - No remaining `TestClient(app.app)` / `TestClient(app_mod.app)` patterns outside the allowlist
+- The root `MetricsAwareTestClient` compatibility assignment is removed
+- Deprecated `make_test_client()` and `get_client()` are removed
+- The final whole-tree AST guard permits construction only in `tests/_client.py`
 
 ## Notes
 
 - Keep changes mechanical and behavior-preserving.
 - Prefer per-test client creation/closure to avoid shared state.
+- TC1's four-provider AST guard is intentionally finite; it is not a
+  whole-tree migration claim.
