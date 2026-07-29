@@ -65,8 +65,8 @@ _na_alternatives = "|".join(re.escape(a) for a in PHASE2_CONFIG["mapping_na_alte
 MAPPING_NA_RE = re.compile(rf"(?im)^\s*-\s*(?:{_na_alternatives})\s*$")
 _PRE_CLOSEOUT_MARKER = str(PHASE2_CONFIG["pre_closeout_marker"])
 _PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
-PRE_CLOSEOUT_MARKER_RE = re.compile(rf"(?im)^\s*<!--\s*{re.escape(_PRE_CLOSEOUT_MARKER)}\s*-->\s*$")
-PRE_CLOSEOUT_PENDING_RE = re.compile(rf"(?im)^\s*-\s*{re.escape(_PRE_CLOSEOUT_PENDING_TEXT)}\s*$")
+_PRE_CLOSEOUT_MARKER_LINE = f"<!-- {_PRE_CLOSEOUT_MARKER} -->"
+_PRE_CLOSEOUT_PENDING_LINE = f"- {_PRE_CLOSEOUT_PENDING_TEXT}"
 HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
@@ -168,6 +168,12 @@ def _strip_fenced_code_blocks(text: str) -> str:
     return re.sub(r"(?s)~~~.*?~~~", "", cleaned)
 
 
+def _contains_exact_line(text: str, expected_line: str) -> bool:
+    """Return whether LF-delimited text contains the exact reserved line."""
+
+    return expected_line in text.split("\n")
+
+
 def _normalize_phase2_body(text: str) -> str:
     """Remove non-authoritative Markdown content before Phase2 parsing."""
 
@@ -175,7 +181,7 @@ def _normalize_phase2_body(text: str) -> str:
 
     def preserve_pre_closeout_marker(match: re.Match[str]) -> str:
         comment = match.group(0)
-        return comment if PRE_CLOSEOUT_MARKER_RE.fullmatch(comment) else ""
+        return comment if comment == _PRE_CLOSEOUT_MARKER_LINE else ""
 
     return HTML_COMMENT_RE.sub(preserve_pre_closeout_marker, cleaned)
 
@@ -187,7 +193,7 @@ def _extract_checked(match: re.Match[str] | None) -> bool:
 def _has_pre_closeout_marker(text: str) -> bool:
     """Return whether a body explicitly declares the non-mergeable closeout phase."""
 
-    return bool(PRE_CLOSEOUT_MARKER_RE.search(_normalize_phase2_body(text)))
+    return _contains_exact_line(_normalize_phase2_body(text), _PRE_CLOSEOUT_MARKER_LINE)
 
 
 def _load_event_pull_request(event_path: Path) -> dict[str, object]:
@@ -768,10 +774,8 @@ def check_pr_body_phase2_gates(
             errors.append(f"Duplicate checklist item: `{label}`.")
 
     if mode is BodyValidationMode.PRE_CLOSEOUT:
-        if not PRE_CLOSEOUT_MARKER_RE.search(cleaned):
-            errors.append(
-                "Pre-closeout requires the exact marker: " f"`<!-- {_PRE_CLOSEOUT_MARKER} -->`."
-            )
+        if not _contains_exact_line(cleaned, _PRE_CLOSEOUT_MARKER_LINE):
+            errors.append(f"Pre-closeout requires the exact marker: `{_PRE_CLOSEOUT_MARKER_LINE}`.")
         for check, label in (
             (discussion_check, str(PHASE2_CONFIG["discussion_checkbox_label"])),
             (mapping_check, str(PHASE2_CONFIG["mapping_checkbox_label"])),
@@ -784,7 +788,7 @@ def check_pr_body_phase2_gates(
                     f"canonical mapping/seal is published: `{label}`."
                 )
         mapping_section = _extract_mapping_section(cleaned)
-        if not PRE_CLOSEOUT_PENDING_RE.search(mapping_section):
+        if not _contains_exact_line(mapping_section, _PRE_CLOSEOUT_PENDING_LINE):
             errors.append(
                 "Pre-closeout mapping section must declare the exact pending final scan "
                 "and single mapping/closeout commit status."
@@ -798,12 +802,12 @@ def check_pr_body_phase2_gates(
                 "Pre-closeout mapping section must not contain completed mapping entries."
             )
     else:
-        if PRE_CLOSEOUT_MARKER_RE.search(cleaned):
+        if _contains_exact_line(cleaned, _PRE_CLOSEOUT_MARKER_LINE):
             errors.append(
                 "Pre-closeout marker must be removed after the canonical mapping/seal is "
                 "published."
             )
-        if PRE_CLOSEOUT_PENDING_RE.search(cleaned):
+        if _contains_exact_line(cleaned, _PRE_CLOSEOUT_PENDING_LINE):
             errors.append(
                 "Pre-closeout pending status must be removed after the canonical mapping/seal "
                 "is published."
@@ -951,8 +955,8 @@ def main() -> int:
 
     if body.strip():
         cleaned_body = _normalize_phase2_body(body)
-        has_pre_closeout_marker = bool(PRE_CLOSEOUT_MARKER_RE.search(cleaned_body))
-        has_stale_pending_status = bool(PRE_CLOSEOUT_PENDING_RE.search(cleaned_body))
+        has_pre_closeout_marker = _contains_exact_line(cleaned_body, _PRE_CLOSEOUT_MARKER_LINE)
+        has_stale_pending_status = _contains_exact_line(cleaned_body, _PRE_CLOSEOUT_PENDING_LINE)
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )

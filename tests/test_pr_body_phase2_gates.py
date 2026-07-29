@@ -262,6 +262,19 @@ def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> Non
     assert errors == []
 
 
+def test_phase2_reserved_protocol_lines_are_exact_template_tokens() -> None:
+    marker_line = f"<!-- {gates.PHASE2_CONFIG['pre_closeout_marker']} -->"
+    pending_line = f"- {gates.PHASE2_CONFIG['pre_closeout_pending_text']}"
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+
+    assert gates._PRE_CLOSEOUT_MARKER_LINE == marker_line
+    assert gates._PRE_CLOSEOUT_PENDING_LINE == pending_line
+    for reserved_line in (marker_line, pending_line):
+        assert template.split("\n").count(reserved_line) == 1
+        assert gates._contains_exact_line(reserved_line, reserved_line)
+        assert not gates._contains_exact_line(f"{reserved_line} ", reserved_line)
+
+
 def test_default_pr_template_satisfies_pre_closeout_contract() -> None:
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
 
