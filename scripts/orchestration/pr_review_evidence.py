@@ -252,7 +252,7 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _FINDING_COMMIT_REF_RE = re.compile(
     r"(?<![0-9A-Fa-f])(?:"
     r"(?P<full>[0-9a-f]{40})(?![0-9A-Fa-f]|\.{3}|…)"
-    r"|(?P<short>[0-9a-f]{7,39})(?:\.{3}(?!\.)|…(?!…))"
+    r"|(?P<short>[0-9a-f]{7,39})(?:\.{3}|…)(?![.…])"
     r")"
 )
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")

@@ -5893,6 +5893,9 @@ def test_review_finding_commit_ref_parser_accepts_only_bounded_carriers(
         "a" * 40 + "...",
         "a" * 7 + "....",
         "a" * 7 + "……",
+        "a" * 7 + "...…",
+        "a" * 7 + "…...",
+        "a" * 7 + "….",
     ],
     ids=[
         "six",
@@ -5901,6 +5904,9 @@ def test_review_finding_commit_ref_parser_accepts_only_bounded_carriers(
         "forty-short-carrier",
         "four-ascii-dots",
         "double-unicode-ellipsis",
+        "ascii-then-unicode-ellipsis",
+        "unicode-then-ascii-ellipsis",
+        "unicode-ellipsis-then-dot",
     ],
 )
 def test_review_finding_commit_ref_parser_rejects_outside_class(reference: str) -> None:
