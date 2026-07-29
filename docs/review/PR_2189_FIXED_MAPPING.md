@@ -6,7 +6,7 @@ Review-Seal-Version: v1
 Packet: `artifacts/orchestration/task_packets/e0647dfb8260.json`
 
 ## Experiment Runner Evidence
-Artifact: `artifacts/orchestration/experiments/results/g0-invariant-oracle-final-35343-result.json`
+Artifact: `artifacts/orchestration/experiments/results/g0-invariant-consumer-final-708bb42-result.json`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -45,6 +45,61 @@ Evidence: scripts/orchestration/qoder_dispatch_bridge.py propagates canonical cl
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3668456537 -> 35343f5830977d67c6e459d01a70b102073def81
 
 Disposition: FIXED
+Commit: 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+Evidence: render_codex_start_prompt.py converts bridge validation ValueError into one stable PromptError/FAIL diagnostic; prompt and bridge regressions pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3668903172 -> 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+
+Disposition: FIXED
+Commit: 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+Evidence: qoder_dispatch_bridge.py requires dispatch_role_order to equal the complete canonical spawnable binding order; permutation and exact-tail regressions pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3668903176 -> 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+
+Disposition: FIXED
+Commit: 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+Evidence: current invariant packets require and validate native_subagent_bridge before any fallback projection; missing/malformed bridge regressions pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3669018518 -> 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+
+Disposition: FIXED
+Commit: 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+Evidence: qoder_dispatch_bridge.py validates the exact invariant_review.v1 field set and canonical constants before dispatch; complete-payload regressions pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3669018523 -> 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+
+Disposition: FIXED
+Commit: 859acfb2169e40dea40c2e3873612e4489bee697
+Evidence: 859acfb2169e40dea40c2e3873612e4489bee697 is the final post-comment material head; pulseplate-pr-review and pr_review_closeout freeze bind it to sha256:2e1e0915d36c8352efd4ec6a493e7eaf5fb225b35a51d381eee94e6c8e55f6c5 for the sole mapping successor
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3669270246 -> 859acfb2169e40dea40c2e3873612e4489bee697
+
+Disposition: FIXED
+Commit: 859acfb2169e40dea40c2e3873612e4489bee697
+Evidence: qoder_dispatch_bridge.py now requires primary/reviewer exact equality and unique secondary/advisory membership against top-level packet assignments; canonical replacement regression passes
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3670977975 -> 859acfb2169e40dea40c2e3873612e4489bee697
+
+Disposition: FIXED
+Commit: 859acfb2169e40dea40c2e3873612e4489bee697
+Evidence: qoder_dispatch_bridge.py rejects duplicate assigned or bridge roles across primary, secondary, advisory, and reviewer before canonical reconstruction; duplicate-role regression passes
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3671109012 -> 859acfb2169e40dea40c2e3873612e4489bee697
+
+Disposition: FIXED
+Commit: 859acfb2169e40dea40c2e3873612e4489bee697
+Evidence: the complete role_agent_dispatch_contract is rebuilt by task_bootstrap.build_role_agent_dispatch_contract and compared type-exactly; flag, command, missing, extra, and alias regressions pass
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3671109015 -> 859acfb2169e40dea40c2e3873612e4489bee697
+
+Disposition: FIXED
+Commit: 7f733cfeceb1cbcfdd91b3f7ea336df83818f575
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py; tests/test_qoder_dispatch_bridge.py::test_json_designated_packet_never_falls_back_to_markdown
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3671359114 -> 7f733cfeceb1cbcfdd91b3f7ea336df83818f575
+
+Disposition: FIXED
+Commit: 708bb42e2f042b81e6acf256da43e0588495ae16
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py; tests/test_qoder_dispatch_bridge.py::test_current_invariant_review_preserves_ordered_assignment_projection
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3673254603 -> 708bb42e2f042b81e6acf256da43e0588495ae16
+
+Disposition: FIXED
+Commit: 708bb42e2f042b81e6acf256da43e0588495ae16
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py; tests/test_qoder_dispatch_bridge.py::test_current_invariant_review_rejects_cross_bucket_role_move
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3673389238 -> 708bb42e2f042b81e6acf256da43e0588495ae16
+
+Disposition: FIXED
 Commit: 105c99400c498d50ed1b1a73fe9cbc57ee1ea442
 Evidence: The review child collision is fixed by structurally framed task-packet identity in task_bootstrap.py with exact collision and legacy-ID regressions in tests/test_task_bootstrap.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4797179780 -> 105c99400c498d50ed1b1a73fe9cbc57ee1ea442
@@ -58,6 +113,21 @@ Disposition: FIXED
 Commit: d0f4d3b84d77a140a9c2c5e25fee996af58f1eb4
 Evidence: The review children are fixed by current-vs-legacy schema provenance, metadata-removal fail-closed validation, and authoritative renderer order; bridge/task/prompt regressions pass
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4797800595 -> d0f4d3b84d77a140a9c2c5e25fee996af58f1eb4
+
+Disposition: FIXED
+Commit: 7f733cfeceb1cbcfdd91b3f7ea336df83818f575
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py; tests/test_qoder_dispatch_bridge.py::test_json_designated_packet_never_falls_back_to_markdown
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4804430235 -> 7f733cfeceb1cbcfdd91b3f7ea336df83818f575
+
+Disposition: FIXED
+Commit: 708bb42e2f042b81e6acf256da43e0588495ae16
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py; tests/test_qoder_dispatch_bridge.py::test_current_invariant_review_preserves_ordered_assignment_projection
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4806925998 -> 708bb42e2f042b81e6acf256da43e0588495ae16
+
+Disposition: FIXED
+Commit: 708bb42e2f042b81e6acf256da43e0588495ae16
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py; tests/test_qoder_dispatch_bridge.py::test_current_invariant_review_rejects_cross_bucket_role_move
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4807099770 -> 708bb42e2f042b81e6acf256da43e0588495ae16
 
 Disposition: NOT-A-BUG
 Evidence: AGENTS.md packet-identity criterion and tests/test_task_bootstrap.py prove equivalent normalized scope/classes share one ID while class or path changes alter it
@@ -93,6 +163,26 @@ Disposition: NOT-A-BUG
 Evidence: scripts/orchestration/pr_review_context.py:457-460 excludes only the exact PR mapping artifact from canonical material while still reporting raw-diff presence; tests/test_pr_review_report.py:216-228 locks this material-only scope; regenerated self_review_context_6c400.json reports fixed_mapping_artifact available, non-degraded, present_in_pr_diff=true, with no errors
 Reason: The source-status refresh is incorporated in the supported reseal, but including the mapping artifact in its own content digest or reviewed material would be self-referential and contradict the canonical material contract; the exact mapping remains the one intentional material exclusion
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3668430747
+
+Disposition: NOT-A-BUG
+Evidence: AGENTS.md defines invariant_review.v1 as pending-only with zero implementation/merge authority; ENGINEERING_LESSONS.md Lessons 28 and 31 require a separate threat-modelled identity lane and stop/rescope for another open-world carrier
+Reason: Producer-bound immutable identity, packet authentication, and Codex identity are explicitly outside the operator-approved G0 authority boundary; the operator additionally prohibited this identity lane
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3669114454
+
+Disposition: NOT-A-BUG
+Evidence: git merge-base --is-ancestor proves 105c99400c498d50ed1b1a73fe9cbc57ee1ea442, a737e9e5b8d5534f5fc5cdd36dfe11661750d55c, d0f4d3b84d77a140a9c2c5e25fee996af58f1eb4, 1546b750fa0098cb51b7b7570b2a565d520872b0, and 35343f5830977d67c6e459d01a70b102073def81 are ancestors of live branch head 859acfb2169e40dea40c2e3873612e4489bee697
+Reason: The cited 8956461 synthetic squash-preview is not the live PR branch head; ENGINEERING_LESSONS.md Lesson 22 requires live branch ancestry and forbids a mapping-only loop on synthetic hashes
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3671109009
+
+Disposition: NOT-A-BUG
+Evidence: true schema 3.0 and schema-less packets retain the explicitly required legacy fallback; exact schema 3.1 packets require canonical invariant metadata, pr_phase, bridge assignments, and dispatch contract
+Reason: Distinguishing a deliberately stripped current packet from a genuine schema-less legacy packet requires producer identity/provenance, which is explicitly outside and prohibited by the operator-approved G0 authority boundary
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3671162404
+
+Disposition: NOT-A-BUG
+Evidence: AGENTS.md invariant_review.v1 grants zero implementation or merge authority; scripts/orchestration/qoder_dispatch_bridge.py validates the producer-supplied ordered assignment projection but does not authenticate or re-author producer task semantics; ENGINEERING_LESSONS.md Lessons 28 and 31 require stop/rescope for another open-world identity carrier
+Reason: The report mutates a producer-owned disposition and coherently rebuilds every derived bridge/dispatch projection. Detecting that whole-packet substitution requires producer-bound immutable identity/authentication or a second producer inside the consumer bridge, both outside the operator-approved G0 authority boundary and explicitly prohibited by the operator.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#discussion_r3673616923
 
 Disposition: NOT-A-BUG
 Evidence: tests/test_task_bootstrap.py enforces exact enum parity across all three shell carriers; bootstrap and bridge project the same exact spawnable set and focused parity tests pass
@@ -134,8 +224,48 @@ Evidence: The single child P1 is fixed by 35343f5830977d67c6e459d01a70b102073def
 Reason: The top-level Codex review is a container with no independent finding; its only child has a separate FIXED disposition and post-comment proof commit
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4800958980
 
+Disposition: NOT-A-BUG
+Evidence: Children discussion_r3668903172 and discussion_r3668903176 have separate FIXED dispositions with post-comment commit 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+Reason: The top-level Codex review is a container with no independent finding; both actionable children are mapped separately
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4801487199
+
+Disposition: NOT-A-BUG
+Evidence: Children discussion_r3669018518 and discussion_r3669018523 have separate FIXED dispositions with post-comment commit 308e0bf5573912cbaac5b67fc975a2ee3dd1447c
+Reason: The top-level Codex review is a container with no independent finding; both actionable children are mapped separately
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4801621373
+
+Disposition: NOT-A-BUG
+Evidence: The only child discussion_r3669114454 has an explicit NOT-A-BUG/outside-authority disposition with pending-only and Lesson 31 evidence
+Reason: The top-level Codex review is a container with no independent finding; its child requests the separately prohibited producer-identity lane
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4801737119
+
+Disposition: NOT-A-BUG
+Evidence: The child discussion_r3669270246 is mapped FIXED to final post-comment material head 859acfb2169e40dea40c2e3873612e4489bee697 and exact digest sha256:2e1e0915d36c8352efd4ec6a493e7eaf5fb225b35a51d381eee94e6c8e55f6c5
+Reason: The top-level Codex review is a container with no independent finding; its stale-seal child is handled by the one final exact-material reseal
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4801920110
+
+Disposition: NOT-A-BUG
+Evidence: The only child discussion_r3670977975 is separately FIXED by post-comment commit 859acfb2169e40dea40c2e3873612e4489bee697 with assignment-bound bridge regressions
+Reason: The top-level Codex review is a container with no independent finding
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4803980540
+
+Disposition: NOT-A-BUG
+Evidence: Children discussion_r3671109012 and discussion_r3671109015 are FIXED by 859acfb2169e40dea40c2e3873612e4489bee697; discussion_r3671109009 has live ancestry NOT-A-BUG evidence
+Reason: The top-level Codex review is a container with no independent finding; all three actionable children are mapped separately
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4804132648
+
+Disposition: NOT-A-BUG
+Evidence: The only child discussion_r3671162404 has a separate NOT-A-BUG/outside-identity-authority disposition and true-legacy compatibility evidence
+Reason: The top-level Codex review is a container with no independent finding
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4804200422
+
+Disposition: NOT-A-BUG
+Evidence: The only actionable child discussion_r3673616923 has a separate NOT-A-BUG disposition documenting the producer-identity stop condition
+Reason: The top-level Codex review is a container with no independent finding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2189#pullrequestreview-4807380684
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:26c8d6db37a5e047c64a338eed653374efce9dfde069d8714b2ca67d57e987b9","material_head_sha":"35343f5830977d67c6e459d01a70b102073def81","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"27780b40516b0f649e377cf0ba91dcbd281fa74d","blocking":false,"head_revision":"35343f5830977d67c6e459d01a70b102073def81","material_digest":"sha256:26c8d6db37a5e047c64a338eed653374efce9dfde069d8714b2ca67d57e987b9","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"27780b40516b0f649e377cf0ba91dcbd281fa74d","digest":"sha256:26c8d6db37a5e047c64a338eed653374efce9dfde069d8714b2ca67d57e987b9","material_head_sha":"35343f5830977d67c6e459d01a70b102073def81","merge_base_sha":"27780b40516b0f649e377cf0ba91dcbd281fa74d","policy_version":"pulseplate.material-classification/v1"},"pr_number":2189,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:26c8d6db37a5e047c64a338eed653374efce9dfde069d8714b2ca67d57e987b9","material_head_sha":"35343f5830977d67c6e459d01a70b102073def81","report_payload":{"actionable_findings_count":0,"base_ref_oid":"27780b40516b0f649e377cf0ba91dcbd281fa74d","calibration":{"case_labels":["large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"artifacts/orchestration/task_packets/e0647dfb8260.json","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":"e0647dfb8260"},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 1948 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","make test-fast","make validate-changed"],"generated_at_utc":"2026-07-28T20:42:04Z","material_digest":"sha256:26c8d6db37a5e047c64a338eed653374efce9dfde069d8714b2ca67d57e987b9","material_head_sha":"35343f5830977d67c6e459d01a70b102073def81","merge_base_sha":"27780b40516b0f649e377cf0ba91dcbd281fa74d","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"27780b40516b0f649e377cf0ba91dcbd281fa74d..35343f5830977d67c6e459d01a70b102073def81","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2189_FIXED_MAPPING.md","fallback_required":false,"reason":"","source":"fixed_mapping_artifact","source_degraded":false,"status":"available"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":[".cursor/agents/logic-agent.md",".cursor/agents/philosophy-agent.md",".secrets.baseline","AGENTS.md","docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md","docs/templates/pulseplate-coordinator-launch.example.sh","scripts/orchestration/bootstrap_sync_policy.py","scripts/orchestration/local_session_bootstrap.sh","scripts/orchestration/qoder_dispatch_bridge.py","scripts/orchestration/render_codex_start_prompt.py","scripts/orchestration/start_pr_lane.sh","scripts/orchestration/task_bootstrap.py","tests/test_bootstrap_sync_policy.py","tests/test_qoder_dispatch_bridge.py","tests/test_render_codex_start_prompt.py","tests/test_task_bootstrap.py"],"diff_summary":{"additions":1916,"changed_lines":1948,"deletions":32,"files":16},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":[".cursor/agents/AGENTS.md","AGENTS.md","docs/orchestration/AGENTS.md","scripts/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:4ae0ec3492c96ff4244920d3e0eb9a105aab366cae55eefe3551dc02b2487f0a","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
+{"authority":"human_asserted_content_receipt","code_review":{"blocking":false,"material_digest":"sha256:d591d3d12cd1856ffdd03a94d8cdadc9d28596e313a307483b13b0c74f4d6564","material_head_sha":"708bb42e2f042b81e6acf256da43e0588495ae16","output_required":false,"review_claim":"none"},"codex_security":{"base_revision":"7073fd3ae47a732db574d8e2f7eddd21e8525c66","blocking":false,"head_revision":"708bb42e2f042b81e6acf256da43e0588495ae16","material_digest":"sha256:d591d3d12cd1856ffdd03a94d8cdadc9d28596e313a307483b13b0c74f4d6564","no_findings_claim":false,"output_required":false,"scan_claim":"none"},"material":{"base_ref_oid":"7073fd3ae47a732db574d8e2f7eddd21e8525c66","digest":"sha256:d591d3d12cd1856ffdd03a94d8cdadc9d28596e313a307483b13b0c74f4d6564","material_head_sha":"708bb42e2f042b81e6acf256da43e0588495ae16","merge_base_sha":"7073fd3ae47a732db574d8e2f7eddd21e8525c66","policy_version":"pulseplate.material-classification/v1"},"pr_number":2189,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1","self_review":{"actionable_findings_count":0,"authority":"repo_native_pulseplate_pr_review_advisory","blocking":false,"findings_count":1,"material_digest":"sha256:d591d3d12cd1856ffdd03a94d8cdadc9d28596e313a307483b13b0c74f4d6564","material_head_sha":"708bb42e2f042b81e6acf256da43e0588495ae16","report_payload":{"actionable_findings_count":0,"base_ref_oid":"7073fd3ae47a732db574d8e2f7eddd21e8525c66","calibration":{"case_labels":["large-diff-risk"],"false_positive_controls":["clean context must produce zero findings","benign fixed-mapping presence must not become a governance finding","warnings and governance uncertainty remain actionable findings, not diagnostic notes","review-source degradation is status/warning only unless an explicit blocking source finding exists","large diff risk is review-planning evidence, not a merge-readiness claim"],"posting_eligible":false,"posting_gate":"GitHub posting remains out of scope until a dedicated calibrated posting PR.","rubric_version":"pr4-2026-04-28"},"coordinator_packet":{"path":"","role_order":["agent-coordinator","architecture-specialist","security-auditor","qa-engineer-agent","bug-hunter","data-scientist-agent"],"task_packet_id":""},"decision_log":["This report is advisory and side-effect free.","This report does not post GitHub comments, resolve review threads, merge PRs, or claim merge readiness.","External CodeRabbit, Sourcery, and Cubic statuses remain separate PR governance signals."],"deferred_followups":[],"findings":[{"category":"tests","diagnostic_code":"large_diff_review_risk","disposition_candidate":"NOT-A-BUG","evidence":"Diff contains 3082 changed lines, above review-risk threshold 800.","file":"docs/roadmap/BACKLOG_LEDGER.md","gate_to_run":"make validate-changed","line":null,"role_agent":"bug-hunter","severity":"note","suggested_fix":"Confirm PR split rationale and targeted deterministic gates before opening review."}],"findings_count":1,"gate_plan":["python3 scripts/orchestration/check_preflight.py","python3 scripts/orchestration/check_agent_consistency.py","python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q","make test-fast","make validate-changed"],"generated_at_utc":"2026-07-29T11:11:48Z","material_digest":"sha256:d591d3d12cd1856ffdd03a94d8cdadc9d28596e313a307483b13b0c74f4d6564","material_head_sha":"708bb42e2f042b81e6acf256da43e0588495ae16","merge_base_sha":"7073fd3ae47a732db574d8e2f7eddd21e8525c66","mode":"dry-run-report","review_source_status":[{"blocking":false,"evidence":"gh api repos/<repo>/pulls/<pr>","fallback_required":false,"reason":"","source":"github_pr_metadata","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"7073fd3ae47a732db574d8e2f7eddd21e8525c66..708bb42e2f042b81e6acf256da43e0588495ae16","fallback_required":false,"reason":"","source":"git_diff","source_degraded":false,"status":"available"},{"blocking":false,"evidence":"docs/review/PR_2189_FIXED_MAPPING.md","fallback_required":false,"reason":"","source":"fixed_mapping_artifact","source_degraded":false,"status":"available"}],"role_review":[{"role_agent":"agent-coordinator","summary":"agent-coordinator has no deterministic findings from the supplied context."},{"role_agent":"architecture-specialist","summary":"architecture-specialist has no deterministic findings from the supplied context."},{"role_agent":"security-auditor","summary":"security-auditor has no deterministic findings from the supplied context."},{"role_agent":"qa-engineer-agent","summary":"qa-engineer-agent has no deterministic findings from the supplied context."},{"role_agent":"bug-hunter","summary":"bug-hunter flagged 1 advisory finding(s) for human review."},{"role_agent":"data-scientist-agent","summary":"data-scientist-agent has no scoring calibration changes in this dry-run report."}],"schema_version":"2.0.0","scope_reviewed":{"changed_files":[".cursor/agents/logic-agent.md",".cursor/agents/philosophy-agent.md",".secrets.baseline","AGENTS.md","docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md","docs/templates/pulseplate-coordinator-launch.example.sh","scripts/orchestration/bootstrap_sync_policy.py","scripts/orchestration/local_session_bootstrap.sh","scripts/orchestration/qoder_dispatch_bridge.py","scripts/orchestration/render_codex_start_prompt.py","scripts/orchestration/start_pr_lane.sh","scripts/orchestration/task_bootstrap.py","tests/test_bootstrap_sync_policy.py","tests/test_qoder_dispatch_bridge.py","tests/test_render_codex_start_prompt.py","tests/test_task_bootstrap.py"],"diff_summary":{"additions":3001,"changed_lines":3082,"deletions":81,"files":16},"fixed_mapping_errors":[],"omitted_surfaces":["GitHub posting","PR thread resolution","merge readiness claims"],"pr_metadata_available":true,"scoped_agents_md":[".cursor/agents/AGENTS.md","AGENTS.md","docs/orchestration/AGENTS.md","scripts/AGENTS.md","tests/AGENTS.md"]},"warnings":[]},"report_sha256":"sha256:b05b36c1689fb6cf0463d92d375c5302b7f9b956ff32b73b89dff968195c23f9","review_claim":"none","review_tool":"pulseplate-pr-review","schema_version":"pulseplate.self-review-advisory/v1","status":"advisory_report_attached"}}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
