@@ -87,9 +87,12 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "go mod init pulseplate.local/caddy-build" in text
     caddy_get = "go get github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4"
     grpc_get = "go get google.golang.org/grpc@v1.82.1"
+    text_get = "go get golang.org/x/text@v0.39.0"
     assert caddy_get in text
     assert grpc_get in text
-    assert text.index(caddy_get) < text.index(grpc_get)
+    assert text_get in text
+    assert text.index(caddy_get) < text.index(grpc_get) < text.index(text_get)
+    assert text.index(text_get) < text.index("go mod download all")
     assert "go mod download all" in text
     assert "go mod verify" in text
     assert (
@@ -102,11 +105,17 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         'google.golang.org/grpc)" = \\\n'
         '      "google.golang.org/grpc v1.82.1"'
     ) in text
+    assert (
+        "test \"$(go list -m -f '{{.Path}} {{.Version}}' "
+        'golang.org/x/text)" = \\\n'
+        '      "golang.org/x/text v0.39.0"'
+    ) in text
     assert "go build -mod=readonly -trimpath" in text
     assert "github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4" in text
     assert "go version -m /go/bin/caddy" in text
     assert '$2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4"' in text
     assert '$2 == "google.golang.org/grpc" && $3 == "v1.82.1"' in text
+    assert '$2 == "golang.org/x/text" && $3 == "v0.39.0"' in text
     assert '"c-ares>=1.34.8-r0"' in text
     assert '"curl>=8.20.0-r0"' in text
     assert '"libcurl>=8.20.0-r0"' in text
@@ -125,10 +134,13 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
         "GOSUMDB=off",
         "google.golang.org/grpc@v1.81.0",
         "google.golang.org/grpc v1.81.0",
+        "golang.org/x/text@v0.37.0",
+        "golang.org/x/text v0.37.0",
         "xcaddy",
     ):
         assert forbidden not in text
     assert re.search(r"(?m)^\s*replace(?:\s|=)", text) is None
+    assert "CVE-2026-56852" not in (REPO_ROOT / ".trivyignore").read_text(encoding="utf-8")
     assert 'rm -rf "$build_dir"' in text
 
 
