@@ -18,7 +18,7 @@ import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
 
 from scripts.ci.dependabot_requirement_carriers import (
     is_protected_python_dependency_text_path,
@@ -27,6 +27,9 @@ from scripts.orchestration.review_source_status import (
     TERMINAL_NONBLOCKING_STATUSES,
     review_source_policy_projection,
 )
+
+if TYPE_CHECKING:
+    from scripts.orchestration.pr_commit_identity import CommitResolution, PrSnapshot
 
 MATERIAL_SCHEMA_VERSION = "pulseplate.material-diff/v1"
 MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
@@ -254,6 +257,12 @@ _FINDING_COMMIT_REF_RE = re.compile(
     r"(?P<full>[0-9a-f]{40})(?![0-9A-Fa-f]|\.{3}|…)"
     r"|(?P<short>[0-9a-f]{7,39})(?:\.{3}|…)(?![.…])"
     r")"
+)
+_FINDING_SHA_LIKE_CARRIER_RE = re.compile(
+    r"(?<![0-9A-Fa-f])"
+    r"(?P<sha_like>[0-9A-Fa-f]{7,})"
+    r"(?P<carrier>(?:\.{3,}|[.…]*…[.…]*))"
+    r"(?![.…])"
 )
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -506,6 +515,11 @@ def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
     cause_terms = ("ancestry", "ancestor", "reachable", "commit graph", "merge-base")
     if not any(term in lowered for term in cause_terms):
         raise ReviewEvidenceError("review finding is not an ancestry cause")
+    for match in _FINDING_SHA_LIKE_CARRIER_RE.finditer(body):
+        if not re.fullmatch(r"[0-9a-f]{7,39}", match.group("sha_like")) or match.group(
+            "carrier"
+        ) not in {"...", "…"}:
+            raise ReviewEvidenceError("review finding has ambiguous commit references")
     candidates = tuple(
         sorted(
             {
@@ -521,10 +535,10 @@ def review_finding_sha_candidates(body: str) -> tuple[str, ...]:
 
 def _classify_finding_commit_candidate(
     candidate: str,
-    snapshot: Any,
+    snapshot: PrSnapshot,
     *,
     token: str,
-) -> Any:
+) -> CommitResolution:
     """Resolve one finding-local short ref before canonical commit classification."""
 
     from scripts.orchestration.pr_commit_identity import (
@@ -590,14 +604,20 @@ def _classify_finding_commit_candidate(
             kind=CommitRefKind.API_UNKNOWN,
             reason="Commit API did not uniquely bind the short reference",
         )
-    return classify_commit_ref(returned_sha, snapshot, token=token)
+    return classify_commit_ref(
+        returned_sha,
+        snapshot,
+        token=token,
+        request_json=lambda *_args, **_kwargs: response,
+    )
 
 
 def _review_finding_mentions_fix(body: str, verified_fix: str) -> bool:
     if verified_fix in body:
         return True
-    for prefix in re.findall(r"(?<![0-9a-f])([0-9a-f]{7,39})(?:\.\.\.|…)", body):
-        if verified_fix.startswith(prefix):
+    for match in _FINDING_COMMIT_REF_RE.finditer(body):
+        prefix = match.group("short")
+        if prefix and verified_fix.startswith(prefix):
             return True
     return False
 

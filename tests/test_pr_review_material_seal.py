@@ -5803,7 +5803,7 @@ def _validate_duplicate_finding_body(
     )
 
     def classify(
-        value: str, snapshot: PrSnapshot, *, token: str
+        value: str, snapshot: PrSnapshot, *, token: str, **_kwargs: Any
     ) -> RepositoryCommitRef | ReviewExecutionRef:
         del token
         if classified_values is not None:
@@ -5916,6 +5916,28 @@ def test_review_finding_commit_ref_parser_rejects_outside_class(reference: str) 
         )
 
 
+@pytest.mark.parametrize(
+    "malformed_reference",
+    [
+        "a" * 7 + "...…",
+        "A" * 7 + "...",
+        "a" * 40 + "…",
+        "a" * 41 + "...",
+    ],
+    ids=["mixed-carrier", "uppercase", "full-with-carrier", "overlong"],
+)
+def test_review_finding_parser_rejects_malformed_token_beside_valid_candidates(
+    malformed_reference: str,
+) -> None:
+    body = (
+        f"Commit ancestry reports verified FIX {FIX_SHA} and unavailable "
+        f"{UNAVAILABLE_SHA}; malformed ref {malformed_reference} is also cited."
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
+        evidence_module.review_finding_sha_candidates(body)
+
+
 def test_short_finding_ref_resolves_to_one_matching_full_sha_before_classification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -5944,6 +5966,75 @@ def test_short_finding_ref_resolves_to_one_matching_full_sha_before_classificati
     assert resolution == RepositoryCommitRef(full_ref, CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
     assert requested_urls == [f"https://api.github.com/repos/owner/repo/commits/{short_ref}"]
     assert classified_values == [full_ref]
+
+
+@pytest.mark.parametrize(
+    "contradictory_second_outcome",
+    [
+        GitHubHttpError(404, "Not Found"),
+        GitHubHttpError(422, "Unprocessable", "No commit found for SHA"),
+    ],
+    ids=["second-404", "second-422"],
+)
+def test_short_finding_ref_reuses_successful_binding_for_canonical_classification(
+    monkeypatch: pytest.MonkeyPatch,
+    contradictory_second_outcome: GitHubHttpError,
+) -> None:
+    short_ref = FIX_SHA[:8]
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> dict[str, str]:
+        requested_urls.append(url)
+        if len(requested_urls) > 1:
+            raise contradictory_second_outcome
+        return {"sha": FIX_SHA}
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        short_ref,
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert resolution == RepositoryCommitRef(
+        FIX_SHA,
+        CommitRefKind.PR_COMMIT,
+        pushed_at="2026-07-15T10:00:00Z",
+    )
+    assert requested_urls == [f"https://api.github.com/repos/owner/repo/commits/{short_ref}"]
+
+
+def test_short_finding_ref_rejects_malformed_repository_before_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot()
+    malformed_snapshot = PrSnapshot(
+        repository="owner",
+        pr_number=snapshot.pr_number,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+        commits=snapshot.commits,
+    )
+    api_calls: list[str] = []
+    monkeypatch.setattr(
+        identity_module,
+        "github_api_request",
+        lambda url, **_kwargs: api_calls.append(url),
+    )
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        "a" * 7,
+        malformed_snapshot,
+        token="opaque",
+    )
+
+    assert resolution == ReviewExecutionRef(
+        value="a" * 7,
+        kind=CommitRefKind.API_UNKNOWN,
+        reason="repository identity is malformed",
+    )
+    assert api_calls == []
 
 
 def test_short_finding_ref_accepts_only_definitive_404_unavailable_response(
@@ -6121,6 +6212,26 @@ def test_short_unavailable_422_remains_api_unknown_end_to_end(
             body,
             unavailable_shas=(),
         )
+
+
+def test_malformed_carrier_beside_valid_candidates_is_terminal_before_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classified_values: list[str] = []
+    body = (
+        f"Commit ancestry finding: verified FIX {FIX_SHA}; "
+        f"reviewer execution ref {UNAVAILABLE_SHA} is not reachable; "
+        f"malformed ref {'a' * 7}...… is also cited."
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            classified_values=classified_values,
+        )
+
+    assert classified_values == [FIX_SHA]
 
 
 def test_short_fix_reported_unavailable_cannot_satisfy_verified_fix_identity(

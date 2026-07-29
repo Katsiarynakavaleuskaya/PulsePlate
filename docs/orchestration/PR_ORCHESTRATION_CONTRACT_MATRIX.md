@@ -318,9 +318,12 @@ come after the finding in the same explicitly resolved thread, and the cited
 review ref must resolve as unavailable (not API-unknown). Finding-local commit
 candidates are capped at four unique values and admit only a full lowercase
 40-character SHA or a lowercase 7–39-character hexadecimal ref carried by
-exactly `...` or `…`. A shortened ref must resolve through the authenticated
-GitHub Commit API to one matching full SHA before existing commit
-classification; only authenticated Commit API `404` proves finding-local
+exactly `...` or `…`. Every SHA-like ellipsis-carried token in the whole
+finding must match that grammar; malformed adjacent tokens make the finding
+ambiguous instead of being ignored. A shortened ref must resolve through the
+authenticated GitHub Commit API to one matching full SHA, and that same
+successful response is passed to the existing commit classifier without a
+second network lookup. Only authenticated Commit API `404` proves finding-local
 repository unavailability. Every shortened-ref `422` remains `API_UNKNOWN`
 because prefix uniqueness is unproven. Ambiguity, malformed or non-prefix
 responses, authorization, rate-limit, server, and transport failures remain
