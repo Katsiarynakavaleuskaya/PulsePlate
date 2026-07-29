@@ -324,10 +324,13 @@ ambiguous instead of being ignored. A shortened ref must resolve through the
 authenticated GitHub Commit API to one matching full SHA, and that same
 successful response is passed to the existing commit classifier without a
 second network lookup. Only authenticated Commit API `404` proves finding-local
-repository unavailability. Every shortened-ref `422` remains `API_UNKNOWN`
+repository unavailability, and only when the prefix matches none of the
+snapshot-proven base, head, or PR commits. A successful binding must agree with
+every snapshot-known prefix match; contradictions remain `API_UNKNOWN`. Every
+shortened-ref `422` remains `API_UNKNOWN`
 because prefix uniqueness is unproven. Ambiguity, malformed or non-prefix
-responses, authorization, rate-limit, server, and transport failures remain
-`API_UNKNOWN`. The accepted
+responses, authorization, rate-limit, server, HTTP protocol, and transport
+failures remain `API_UNKNOWN`. The accepted
 repository identity set remains exactly `{verified FIX}` or
 `{verified FIX, base, head}`, with exactly one unavailable ref; unavailable
 refs never enter ancestry. The exception creates no docs commit and does not

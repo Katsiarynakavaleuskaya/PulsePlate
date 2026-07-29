@@ -8,6 +8,7 @@ evidence, but are not an independently verifiable CI attestation.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -573,6 +574,15 @@ def _classify_finding_commit_candidate(
             reason="repository identity is malformed",
         )
     owner, name = repository_parts
+    known_matches = {
+        sha
+        for sha in {
+            snapshot.base_sha,
+            snapshot.head_sha,
+            *snapshot.commit_shas,
+        }
+        if sha.startswith(candidate)
+    }
     encoded_candidate = urllib.parse.quote(candidate, safe="")
     try:
         response = github_api_request(
@@ -581,6 +591,12 @@ def _classify_finding_commit_candidate(
         )
     except GitHubHttpError as exc:
         if exc.status == 404:
+            if known_matches:
+                return ReviewExecutionRef(
+                    value=candidate,
+                    kind=CommitRefKind.API_UNKNOWN,
+                    reason="Commit API contradicts the live PR snapshot",
+                )
             return ReviewExecutionRef(
                 value=candidate,
                 kind=CommitRefKind.REVIEW_REF_UNAVAILABLE,
@@ -591,7 +607,7 @@ def _classify_finding_commit_candidate(
             kind=CommitRefKind.API_UNKNOWN,
             reason=f"Commit API failed with HTTP {exc.status}",
         )
-    except (CommitIdentityError, OSError, TimeoutError) as exc:
+    except (CommitIdentityError, OSError, TimeoutError, http.client.HTTPException) as exc:
         return ReviewExecutionRef(
             value=candidate,
             kind=CommitRefKind.API_UNKNOWN,
@@ -613,6 +629,12 @@ def _classify_finding_commit_candidate(
             value=candidate,
             kind=CommitRefKind.API_UNKNOWN,
             reason="Commit API did not uniquely bind the short reference",
+        )
+    if known_matches and known_matches != {returned_sha}:
+        return ReviewExecutionRef(
+            value=candidate,
+            kind=CommitRefKind.API_UNKNOWN,
+            reason="Commit API contradicts the live PR snapshot",
         )
     return classify_commit_ref(
         returned_sha,

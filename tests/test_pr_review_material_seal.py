@@ -6084,6 +6084,82 @@ def test_short_finding_ref_accepts_only_definitive_404_unavailable_response(
 
 
 @pytest.mark.parametrize(
+    "known_sha",
+    [BASE_SHA, HEAD_SHA, FIX_SHA],
+    ids=["base", "head", "pr-commit"],
+)
+def test_short_finding_ref_keeps_snapshot_known_404_api_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+    known_sha: str,
+) -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise GitHubHttpError(404, "Not Found")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        known_sha[:8],
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert resolution == ReviewExecutionRef(
+        value=known_sha[:8],
+        kind=CommitRefKind.API_UNKNOWN,
+        reason="Commit API contradicts the live PR snapshot",
+    )
+
+
+@pytest.mark.parametrize(
+    ("known_shas", "returned_sha"),
+    [
+        (("a" * 8 + "b" * 32,), "a" * 8 + "c" * 32),
+        (
+            ("a" * 8 + "b" * 32, "a" * 8 + "c" * 32),
+            "a" * 8 + "b" * 32,
+        ),
+    ],
+    ids=["different-known-match", "multiple-known-matches"],
+)
+def test_short_finding_ref_rejects_commit_api_snapshot_conflicts(
+    monkeypatch: pytest.MonkeyPatch,
+    known_shas: tuple[str, ...],
+    returned_sha: str,
+) -> None:
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=BASE_SHA,
+        head_sha=HEAD_SHA,
+        commits=tuple(PrCommitEvidence(sha, "2026-07-15T10:00:00Z") for sha in known_shas),
+    )
+    classify_calls: list[str] = []
+    monkeypatch.setattr(
+        identity_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: {"sha": returned_sha},
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "classify_commit_ref",
+        lambda value, *_args, **_kwargs: classify_calls.append(value),
+    )
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        "a" * 8,
+        snapshot,
+        token="opaque",
+    )
+
+    assert resolution == ReviewExecutionRef(
+        value="a" * 8,
+        kind=CommitRefKind.API_UNKNOWN,
+        reason="Commit API contradicts the live PR snapshot",
+    )
+    assert classify_calls == []
+
+
+@pytest.mark.parametrize(
     "outcome",
     [
         [{"sha": "a" * 40}, {"sha": "a" * 39 + "b"}],
@@ -6101,6 +6177,9 @@ def test_short_finding_ref_accepts_only_definitive_404_unavailable_response(
         GitHubHttpError(429, "Rate Limited"),
         GitHubHttpError(503, "Unavailable"),
         TimeoutError(),
+        http.client.BadStatusLine("malformed status"),
+        http.client.IncompleteRead(b"partial", 10),
+        http.client.HTTPException("protocol failure"),
     ],
     ids=[
         "ambiguous",
@@ -6114,6 +6193,9 @@ def test_short_finding_ref_accepts_only_definitive_404_unavailable_response(
         "rate-limit",
         "server",
         "timeout",
+        "bad-status-line",
+        "incomplete-read",
+        "http-exception",
     ],
 )
 def test_short_finding_ref_keeps_unproven_responses_api_unknown(
@@ -6264,7 +6346,7 @@ def test_malformed_carrier_beside_valid_candidates_is_terminal_before_identity(
     assert classified_values == [FIX_SHA]
 
 
-def test_short_fix_reported_unavailable_cannot_satisfy_verified_fix_identity(
+def test_short_fix_snapshot_known_404_remains_api_unknown_end_to_end(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     short_fix = FIX_SHA[:8]
@@ -6277,7 +6359,7 @@ def test_short_fix_reported_unavailable_cannot_satisfy_verified_fix_identity(
 
     with pytest.raises(
         ReviewEvidenceError,
-        match="unavailable-ref finding does not cite verified FIX",
+        match="API_UNKNOWN",
     ):
         _validate_duplicate_finding_body(
             monkeypatch,
