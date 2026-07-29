@@ -57,6 +57,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     validate_task_pilot_context,
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
+from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
 PR_PHASE_NONE = "none"
 PR_PHASE_PRE_OPEN = "pre_open"
@@ -686,10 +687,50 @@ def _validate_current_native_subagent_bridge(
     transport = bridge.get("transport")
     if not isinstance(transport, str):
         raise ValueError("native_subagent_bridge.transport must be a string")
+    assigned_primary = payload.get("primary_agent")
+    assigned_reviewer = payload.get("reviewer")
+    assigned_secondaries = payload.get("secondary_agents")
+    if (
+        not isinstance(assigned_primary, str)
+        or assigned_primary != assigned_primary.strip()
+        or not _ROLE_SLUG_RE.fullmatch(assigned_primary)
+    ):
+        raise ValueError("current invariant packet primary_agent must be canonical")
+    if (
+        not isinstance(assigned_reviewer, str)
+        or assigned_reviewer != assigned_reviewer.strip()
+        or not _ROLE_SLUG_RE.fullmatch(assigned_reviewer)
+    ):
+        raise ValueError("current invariant packet reviewer must be canonical")
+    if not isinstance(assigned_secondaries, list) or any(
+        not isinstance(slug, str) or slug != slug.strip() or not _ROLE_SLUG_RE.fullmatch(slug)
+        for slug in assigned_secondaries
+    ):
+        raise ValueError("current invariant packet secondary_agents must be canonical")
+    assigned_roles = [assigned_primary, *assigned_secondaries, assigned_reviewer]
+    bridge_roles = [
+        primary_slug,
+        *binding_slugs["secondary"],
+        *binding_slugs["advisory"],
+        reviewer_slug,
+    ]
+    if len(assigned_roles) != len(set(assigned_roles)):
+        raise ValueError("current invariant packet assigned roles must be unique")
+    if len(bridge_roles) != len(set(bridge_roles)):
+        raise ValueError("current native_subagent_bridge roles must be unique")
+    if (
+        primary_slug != assigned_primary
+        or reviewer_slug != assigned_reviewer
+        or set([*binding_slugs["secondary"], *binding_slugs["advisory"]])
+        != set(assigned_secondaries)
+    ):
+        raise ValueError(
+            "current native_subagent_bridge roles must exactly match packet assignments"
+        )
     expected_bridge = build_native_subagent_bridge(
-        primary_agent=primary_slug,
+        primary_agent=assigned_primary,
         secondary_agents=binding_slugs["secondary"],
-        reviewer=reviewer_slug,
+        reviewer=assigned_reviewer,
         advisory_agents=binding_slugs["advisory"],
         transport=transport,
     )
@@ -714,6 +755,55 @@ def _validate_current_native_subagent_bridge(
         sort_keys=True,
     )
     if canonical_bridge != canonical_expected_bridge:
+        raise ValueError(canonical_error)
+
+
+def _validate_current_role_dispatch_contract(
+    payload: Dict[str, Any],
+    bridge: Any,
+    dispatch_role_order: List[str] | None,
+) -> None:
+    """Require the complete producer-built dispatch contract for current packets."""
+
+    if (
+        payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
+        and "invariant_review" not in payload
+    ):
+        return
+    if not isinstance(bridge, dict):
+        raise ValueError("current invariant packet requires native_subagent_bridge object")
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if not isinstance(role_dispatch_contract, dict):
+        raise ValueError("current invariant packet requires role_agent_dispatch_contract object")
+    pr_phase = payload.get("pr_phase")
+    if not isinstance(pr_phase, str):
+        raise ValueError("current invariant packet requires a string pr_phase")
+    expected_contract = build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase=pr_phase,
+        dispatch_role_order=dispatch_role_order,
+    )
+    canonical_error = (
+        "current role_agent_dispatch_contract must exactly match the canonical builder contract"
+    )
+    try:
+        canonical_contract = json.dumps(
+            role_dispatch_contract,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(canonical_error) from exc
+    canonical_expected_contract = json.dumps(
+        expected_contract,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    if canonical_contract != canonical_expected_contract:
         raise ValueError(canonical_error)
 
 
@@ -763,6 +853,11 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     dispatch_role_order = _validated_dispatch_role_order(
         payload,
         spawnable_roles=ordered,
+    )
+    _validate_current_role_dispatch_contract(
+        payload,
+        bridge,
+        dispatch_role_order,
     )
     if dispatch_role_order is not None:
         return dispatch_role_order

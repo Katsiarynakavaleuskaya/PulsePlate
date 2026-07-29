@@ -865,7 +865,7 @@ def _build_invariant_dispatch_role_order(
     ]
 
 
-def _build_role_agent_dispatch_contract(
+def build_role_agent_dispatch_contract(
     *,
     native_subagent_bridge: dict[str, Any] | None = None,
     pr_phase: str = PR_PHASE_NONE,
@@ -1761,7 +1761,7 @@ def build_task_packet(
             "pr_lifecycle_enabled": normalized_pr_phase != PR_PHASE_NONE,
             "design_lane_enabled": design_lane_enabled,
         },
-        "role_agent_dispatch_contract": _build_role_agent_dispatch_contract(
+        "role_agent_dispatch_contract": build_role_agent_dispatch_contract(
             native_subagent_bridge=native_subagent_bridge,
             pr_phase=normalized_pr_phase,
             dispatch_role_order=invariant_dispatch_role_order,
@@ -1963,7 +1963,7 @@ def main(argv: list[str] | None = None) -> int:
         output_ref = str(out_path)
     role_dispatch_contract = packet.get("role_agent_dispatch_contract")
     if not isinstance(role_dispatch_contract, dict):
-        role_dispatch_contract = _build_role_agent_dispatch_contract(
+        role_dispatch_contract = build_role_agent_dispatch_contract(
             native_subagent_bridge=packet.get("native_subagent_bridge"),
             pr_phase=str(packet.get("pr_phase", PR_PHASE_NONE)),
         )
