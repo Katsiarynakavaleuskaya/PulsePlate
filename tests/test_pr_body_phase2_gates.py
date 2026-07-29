@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import scripts.ci.check_pr_body_phase2_gates as gates
+import scripts.ci.check_pr_merge_readiness as merge_readiness
 
 LANE_START_PACKET_ID = "a733b2e09986"
 LANE_START_PACKET_PATH = f"{gates.LANE_START_PACKET_PREFIX}{LANE_START_PACKET_ID}.json"
@@ -222,16 +223,26 @@ def test_phase2_guard_rejects_stale_pre_closeout_marker_in_mirror_only_body() ->
     ]
 
 
-def test_phase2_guard_rejects_stale_pending_status_in_mirror_only_body() -> None:
-    body = VALID_BODY_MIRROR_ONLY.replace(
-        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`",
-        "- Pending final clean scan and the single mapping/closeout commit.\n"
-        "- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`",
+@pytest.mark.parametrize(
+    ("mode", "body"),
+    [
+        (gates.BodyValidationMode.MIRROR_ONLY, VALID_BODY_MIRROR_ONLY),
+        (gates.BodyValidationMode.FULL_MAPPING, VALID_BODY_WITH_MAPPING),
+    ],
+)
+def test_phase2_guard_rejects_stale_pending_status_in_final_modes(
+    mode: gates.BodyValidationMode,
+    body: str,
+) -> None:
+    stale_body = body.replace(
+        "### Fixed in Commit Mapping\n",
+        "### Fixed in Commit Mapping\n"
+        "- Pending final clean scan and the single mapping/closeout commit.\n",
     )
 
     errors = gates.check_pr_body_phase2_gates(
-        body=body,
-        mode=gates.BodyValidationMode.MIRROR_ONLY,
+        body=stale_body,
+        mode=mode,
     )
 
     assert errors == [
@@ -278,7 +289,7 @@ def test_default_pr_template_without_pre_closeout_marker_fails() -> None:
     ]
 
 
-def test_default_pr_template_placeholder_mapping_is_not_closeout_evidence() -> None:
+def test_default_pr_template_without_rendered_link_is_not_closeout_evidence() -> None:
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     closeout_body = (
         template.replace(
@@ -302,6 +313,46 @@ def test_default_pr_template_placeholder_mapping_is_not_closeout_evidence() -> N
         "`- <review-comment-url> -> <commit-sha>`) or "
         "`- No actionable review comments`."
     ]
+
+
+def test_default_pr_template_closeout_uses_exact_branch_link() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    pr_number = 2192
+    repository = "Katsiarynakavaleuskaya/PulsePlate"
+    head_ref = "codex/align-pr-template-body-gates"
+    artifact_url = (
+        f"https://github.com/{repository}/blob/{head_ref}/"
+        f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    )
+    closeout_body = (
+        template.replace(
+            "<!-- phase2-pre-closeout: final-security-pending -->\n\n",
+            "",
+        )
+        .replace("- [ ]", "- [x]")
+        .replace(
+            "- Pending final clean scan and the single mapping/closeout commit.",
+            f"- [canonical artifact]({artifact_url})",
+        )
+    )
+
+    assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=closeout_body,
+            mode=gates.BodyValidationMode.MIRROR_ONLY,
+        )
+        == []
+    )
+    assert (
+        merge_readiness._canonical_artifact_markdown_link_count(
+            closeout_body,
+            pr_number,
+            repository,
+            head_ref,
+        )
+        == 1
+    )
 
 
 def test_phase2_guard_rejects_checked_pre_closeout_boxes() -> None:

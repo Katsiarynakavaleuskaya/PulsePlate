@@ -49,10 +49,14 @@
 
 ### Fixed in Commit Mapping
 
-<!-- Closeout must remove both the pre-closeout marker and the pending status below. -->
+<!--
+Closeout automation must remove this marker/pending state and replace it with the
+exact standalone Markdown link produced by
+scripts.orchestration.review_mapping_artifact.render_phase2_body_mirror(...)
+for the live PR number, repository, and exact head ref.
+-->
 
 - Pending final clean scan and the single mapping/closeout commit.
-- canonical artifact: `docs/review/PR_<N>_FIXED_MAPPING.md`
 - URL→SHA and disposition details belong only in the canonical artifact.
 
 ## Split justification

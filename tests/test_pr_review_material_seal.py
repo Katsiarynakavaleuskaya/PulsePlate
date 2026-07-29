@@ -6203,7 +6203,9 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
     agents = (closeout_module.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     runbook = (closeout_module.REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
 
-    assert template.count("docs/review/PR_<N>_FIXED_MAPPING.md") == 1
+    assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
+    assert template.count("review_mapping_artifact.render_phase2_body_mirror") == 1
+    assert "exact standalone Markdown link" in template
     assert "## Discussion Thread Pass" in template
     assert "### Fixed in Commit Mapping" in template
     assert "- [ ] Discussion-thread pass completed" in template
