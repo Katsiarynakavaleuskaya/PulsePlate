@@ -8,7 +8,246 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 import re
+from typing import Literal, cast
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+InvariantChangeClass = Literal["parser", "validator", "guard", "authority"]
+
+INVARIANT_CHANGE_CLASSES: tuple[InvariantChangeClass, ...] = (
+    "parser",
+    "validator",
+    "guard",
+    "authority",
+)
+INVARIANT_REVIEW_REQUIRED_ROLES: tuple[str, ...] = (
+    "logic-agent",
+    "philosophy-agent",
+)
+INVARIANT_REVIEW_COVERAGE_CLAIM = "explicit_plus_bounded_positive_triggers_only"
+INVARIANT_REVIEW_BOUNDARY_CLASSES: tuple[str, ...] = (
+    "finite_closed_world",
+    "bounded_surface",
+    "delegated_recognizer",
+    "open_world_stop",
+)
+INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
+    "invariant_statement",
+    "boundary_class",
+    "canonical_sot",
+    "completeness_claim",
+    "counterexample_families",
+    "fail_closed_behavior",
+    "stop_condition",
+    "residual_risk",
+)
+INVARIANT_REVIEW_STOP_CONDITION = (
+    "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+)
+INVARIANT_REVIEW_V1_FIELDS = frozenset(
+    {
+        "schema_version",
+        "state",
+        "change_classes",
+        "trigger_evidence",
+        "coverage_claim",
+        "required_roles",
+        "boundary_classes",
+        "required_output_fields",
+        "stop_condition",
+        "implementation_authority",
+        "merge_authority",
+    }
+)
+INVARIANT_REVIEW_AUTHORITY_PATHS: tuple[str, ...] = (
+    "scripts/orchestration/task_bootstrap.py",
+    "scripts/orchestration/check_merge_ready.py",
+    "scripts/orchestration/check_review_threads_disposition.py",
+    "scripts/orchestration/pr_review_closeout.py",
+    "scripts/ci/check_pr_merge_readiness.py",
+)
+_INVARIANT_REVIEW_CONTROL_ROOTS: tuple[str, ...] = (
+    "scripts/ci/",
+    "scripts/orchestration/",
+)
+_INVARIANT_REVIEW_EXCLUDED_COMPONENTS = frozenset(
+    {
+        "artifacts",
+        "build",
+        "dist",
+        "docs",
+        "examples",
+        "fixtures",
+        "generated",
+        "node_modules",
+        "worktrees",
+    }
+)
+
+
+@dataclass(frozen=True)
+class InvariantReviewEvidence:
+    """One deterministic reason for requiring an invariant review."""
+
+    change_class: InvariantChangeClass
+    source: Literal["explicit", "bounded_path_hint"]
+    path: str | None = None
+
+    def to_mapping(self) -> dict[str, str]:
+        """Return a stable JSON-ready evidence row."""
+
+        row: dict[str, str] = {
+            "change_class": self.change_class,
+            "source": self.source,
+        }
+        if self.path is not None:
+            row["path"] = self.path
+        return row
+
+
+@dataclass(frozen=True)
+class InvariantReviewDecision:
+    """Bounded invariant-review classification for one task scope."""
+
+    change_classes: tuple[InvariantChangeClass, ...]
+    trigger_evidence: tuple[InvariantReviewEvidence, ...]
+
+    @property
+    def required(self) -> bool:
+        """Return whether the bounded classifier found any review class."""
+
+        return bool(self.change_classes)
+
+    @property
+    def fingerprint(self) -> str:
+        """Return the stable identity input for the normalized class set."""
+
+        return ",".join(self.change_classes)
+
+
+def _normalize_invariant_review_path(raw_path: str) -> str:
+    """Return a strict repo-relative POSIX path for bounded matching."""
+
+    if not isinstance(raw_path, str):
+        raise ValueError("invariant review paths must be strings")
+    candidate_text = raw_path.strip()
+    if not candidate_text:
+        return ""
+    if any(ord(character) < 32 or ord(character) == 127 for character in candidate_text):
+        raise ValueError("invariant review paths must not contain control characters")
+    if "\\" in candidate_text or "//" in candidate_text:
+        raise ValueError("invariant review paths must use unambiguous POSIX separators")
+    if candidate_text.startswith("~") or re.match(r"^[A-Za-z]:/", candidate_text):
+        raise ValueError("invariant review paths must stay under the repository root")
+
+    candidate = Path(candidate_text)
+    if candidate.is_absolute():
+        try:
+            return candidate.resolve().relative_to(REPO_ROOT).as_posix()
+        except ValueError as exc:
+            raise ValueError("invariant review paths must stay under the repository root") from exc
+
+    normalized = PurePosixPath(candidate_text)
+    if ".." in normalized.parts:
+        raise ValueError(
+            "invariant review paths: path must stay inside repo; " "parent traversal is forbidden"
+        )
+    normalized_text = normalized.as_posix()
+    while normalized_text.startswith("./"):
+        normalized_text = normalized_text[2:]
+    return "" if normalized_text == "." else normalized_text
+
+
+def _bounded_invariant_classes_for_path(
+    normalized_path: str,
+) -> tuple[InvariantChangeClass, ...]:
+    """Return bounded positive matches without claiming semantic completeness."""
+
+    path = PurePosixPath(normalized_path)
+    if any(component in _INVARIANT_REVIEW_EXCLUDED_COMPONENTS for component in path.parts):
+        return ()
+
+    matches: set[InvariantChangeClass] = set()
+    if normalized_path in INVARIANT_REVIEW_AUTHORITY_PATHS:
+        matches.add("authority")
+
+    if normalized_path.startswith("tests/guards/"):
+        if path.suffix == ".py" and path.name != "__init__.py":
+            matches.add("guard")
+    elif any(normalized_path.startswith(prefix) for prefix in _INVARIANT_REVIEW_CONTROL_ROOTS):
+        if path.suffix == ".py":
+            stem = path.stem
+            if stem.startswith("parser_") or stem.endswith("_parser"):
+                matches.add("parser")
+            if (
+                stem.startswith("validator_")
+                or stem.endswith("_validator")
+                or stem.endswith("_validation")
+                or stem.startswith("check_")
+            ):
+                matches.add("validator")
+            if stem.startswith("guard_") or stem.endswith("_guard"):
+                matches.add("guard")
+
+    return tuple(
+        change_class for change_class in INVARIANT_CHANGE_CLASSES if change_class in matches
+    )
+
+
+def classify_invariant_review(
+    *,
+    candidate_paths: Sequence[str],
+    explicit_classes: Sequence[str] = (),
+) -> InvariantReviewDecision:
+    """Classify the closed enum plus bounded path hints for pre-fix review."""
+
+    explicit_set: set[InvariantChangeClass] = set()
+    for raw_change_class in explicit_classes:
+        if (
+            not isinstance(raw_change_class, str)
+            or raw_change_class not in INVARIANT_CHANGE_CLASSES
+        ):
+            supported = ", ".join(INVARIANT_CHANGE_CLASSES)
+            raise ValueError(
+                "Unsupported invariant change class: "
+                f"{raw_change_class!r}. Supported: {supported}"
+            )
+        explicit_set.add(cast(InvariantChangeClass, raw_change_class))
+
+    normalized_paths = sorted(
+        {
+            normalized_path
+            for raw_path in candidate_paths
+            if (normalized_path := _normalize_invariant_review_path(raw_path))
+        }
+    )
+    evidence: list[InvariantReviewEvidence] = [
+        InvariantReviewEvidence(change_class=change_class, source="explicit")
+        for change_class in INVARIANT_CHANGE_CLASSES
+        if change_class in explicit_set
+    ]
+    for normalized_path in normalized_paths:
+        for change_class in _bounded_invariant_classes_for_path(normalized_path):
+            evidence.append(
+                InvariantReviewEvidence(
+                    change_class=change_class,
+                    source="bounded_path_hint",
+                    path=normalized_path,
+                )
+            )
+
+    matched_classes = {evidence_row.change_class for evidence_row in evidence}
+    return InvariantReviewDecision(
+        change_classes=tuple(
+            change_class
+            for change_class in INVARIANT_CHANGE_CLASSES
+            if change_class in matched_classes
+        ),
+        trigger_evidence=tuple(evidence),
+    )
+
 
 BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "backlog",

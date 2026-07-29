@@ -16,9 +16,13 @@ from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
     DOCS_ONLY_ROOT_FILES,
     IMPLEMENTATION_PATH_PREFIXES,
+    INVARIANT_CHANGE_CLASSES,
+    INVARIANT_REVIEW_COVERAGE_CLAIM,
+    INVARIANT_REVIEW_REQUIRED_ROLES,
     PRIVILEGED_REVIEW_PREFIXES,
     PRIVILEGED_REVIEW_SURFACES,
     SKILL_CONTRACT_FILE,
+    classify_invariant_review,
     is_docs_only_contract_path,
     matches_any_prefix,
     needs_agents_sync,
@@ -30,6 +34,170 @@ from scripts.orchestration.bootstrap_sync_policy import (
 )
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
+
+
+def test_invariant_review_classifier_freezes_closed_contract() -> None:
+    """The pre-fix gate must keep a small explicit class and role surface."""
+
+    assert INVARIANT_CHANGE_CLASSES == (
+        "parser",
+        "validator",
+        "guard",
+        "authority",
+    )
+    assert INVARIANT_REVIEW_REQUIRED_ROLES == (
+        "logic-agent",
+        "philosophy-agent",
+    )
+    assert INVARIANT_REVIEW_COVERAGE_CLAIM == "explicit_plus_bounded_positive_triggers_only"
+
+
+def test_invariant_review_classifier_merges_explicit_and_bounded_hints() -> None:
+    """Explicit classes stay authoritative while hints add bounded evidence."""
+
+    decision = classify_invariant_review(
+        candidate_paths=[
+            "scripts/ci/guard_actions_pin.py",
+            "scripts/orchestration/check_merge_ready.py",
+        ],
+        explicit_classes=["authority", "parser", "parser"],
+    )
+
+    assert decision.change_classes == (
+        "parser",
+        "validator",
+        "guard",
+        "authority",
+    )
+    assert decision.fingerprint == "parser,validator,guard,authority"
+    assert [row.to_mapping() for row in decision.trigger_evidence] == [
+        {"change_class": "parser", "source": "explicit"},
+        {"change_class": "authority", "source": "explicit"},
+        {
+            "change_class": "guard",
+            "source": "bounded_path_hint",
+            "path": "scripts/ci/guard_actions_pin.py",
+        },
+        {
+            "change_class": "validator",
+            "source": "bounded_path_hint",
+            "path": "scripts/orchestration/check_merge_ready.py",
+        },
+        {
+            "change_class": "authority",
+            "source": "bounded_path_hint",
+            "path": "scripts/orchestration/check_merge_ready.py",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "./scripts/ci/check_policy.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/ci/check_policy.py"),
+    ],
+)
+def test_invariant_review_classifier_normalizes_supported_repo_path_forms(path: str) -> None:
+    """Documented relative and absolute in-repo forms share canonical evidence."""
+
+    decision = classify_invariant_review(candidate_paths=[path])
+
+    assert [row.to_mapping() for row in decision.trigger_evidence] == [
+        {
+            "change_class": "validator",
+            "source": "bounded_path_hint",
+            "path": "scripts/ci/check_policy.py",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_classes"),
+    [
+        ("scripts/orchestration/json_parser.py", ("parser",)),
+        ("scripts/ci/policy_validator.py", ("validator",)),
+        ("scripts/orchestration/schema_validation.py", ("validator",)),
+        ("scripts/ci/check_policy.py", ("validator",)),
+        ("scripts/ci/guard_actions_pin.py", ("guard",)),
+        ("scripts/orchestration/scope_guard.py", ("guard",)),
+        ("tests/guards/test_agent_consistency_guard.py", ("guard",)),
+        ("scripts/orchestration/task_bootstrap.py", ("authority",)),
+        (
+            "scripts/ci/check_pr_merge_readiness.py",
+            ("validator", "authority"),
+        ),
+    ],
+)
+def test_invariant_review_classifier_bounded_positive_matrix(
+    path: str,
+    expected_classes: tuple[str, ...],
+) -> None:
+    """Only reviewed control-plane naming patterns create automatic hints."""
+
+    decision = classify_invariant_review(candidate_paths=[path])
+
+    assert decision.change_classes == expected_classes
+    assert all(row.source == "bounded_path_hint" for row in decision.trigger_evidence)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "core/rag/simple_rag.py",
+        ".python-version",
+        "Dockerfile",
+        "app/check_policy.py",
+        "docs/orchestration/check_policy.py",
+        "scripts/orchestration/fixtures/check_policy.py",
+        "tests/fixtures/guards/test_scope_guard.py",
+        "scripts/ci/Check_policy.py",
+        "scripts/ci/check_policy.md",
+    ],
+)
+def test_invariant_review_classifier_rejects_decoy_hints(path: str) -> None:
+    """A negative match means only that no configured bounded hint matched."""
+
+    decision = classify_invariant_review(candidate_paths=[path])
+
+    assert decision.required is False
+    assert decision.change_classes == ()
+    assert decision.trigger_evidence == ()
+
+
+@pytest.mark.parametrize(
+    "change_class",
+    ["", "Parser", " parser", "parser ", "pаrser", "unknown"],
+)
+def test_invariant_review_classifier_rejects_malformed_explicit_classes(
+    change_class: str,
+) -> None:
+    """Python callers cannot bypass the exact argparse enum contract."""
+
+    with pytest.raises(ValueError, match="Unsupported invariant change class"):
+        classify_invariant_review(
+            candidate_paths=[],
+            explicit_classes=[change_class],
+        )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../scripts/ci/check_policy.py",
+        "scripts/../scripts/ci/check_policy.py",
+        "scripts\\ci\\check_policy.py",
+        "scripts//ci/check_policy.py",
+        "scripts/ci/check_policy.py\nignored",
+        "/tmp/check_policy.py",
+        "C:/repo/scripts/ci/check_policy.py",
+    ],
+)
+def test_invariant_review_classifier_rejects_unsafe_paths(path: str) -> None:
+    """Ambiguous or out-of-repo matcher inputs fail closed."""
+
+    with pytest.raises(ValueError, match="invariant review paths"):
+        classify_invariant_review(candidate_paths=[path])
 
 
 def _privileged_surface_cases() -> list[dict[str, object]]:

@@ -41,10 +41,25 @@ from scripts.orchestration.requested_agents import (
     MANDATORY_POST_OPEN_ORDER,
     normalize_implementation_owner_slugs,
 )
+from scripts.orchestration.bootstrap_sync_policy import (
+    INVARIANT_CHANGE_CLASSES,
+    INVARIANT_REVIEW_BOUNDARY_CLASSES,
+    INVARIANT_REVIEW_COVERAGE_CLAIM,
+    INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
+    INVARIANT_REVIEW_REQUIRED_ROLES,
+    INVARIANT_REVIEW_STOP_CONDITION,
+    INVARIANT_REVIEW_V1_FIELDS,
+    classify_invariant_review,
+)
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
     load_json_strict as load_creative_pilot_json_strict,
     validate_task_pilot_context,
+)
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
+from scripts.orchestration.task_bootstrap import (
+    build_role_agent_dispatch_contract,
+    partition_native_secondaries,
 )
 
 PR_PHASE_NONE = "none"
@@ -57,6 +72,9 @@ PR_PHASES = (
     PR_PHASE_POST_OPEN_REVIEW,
     PR_PHASE_MERGE_READY,
 )
+INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
+INVARIANT_REVIEW_STATES = frozenset({"not_required", "required_pending"})
+CURRENT_TASK_PACKET_SCHEMA_VERSION = "3.1"
 MANIFEST_SCHEMA_VERSION = "2.0"
 MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
 
@@ -431,12 +449,393 @@ def _known_role_slugs_from_text(text: str, known: set[str]) -> List[str]:
     return slugs
 
 
+def _validated_dispatch_role_order(
+    payload: Dict[str, Any],
+    *,
+    spawnable_roles: List[str],
+) -> Optional[List[str]]:
+    """Validate the fail-closed invariant-review dispatch order when present."""
+
+    invariant_review_present = "invariant_review" in payload
+    invariant_review = payload.get("invariant_review")
+    invariant_review_state: str | None = None
+    task_packet_schema_present = "schema_version" in payload
+    task_packet_schema = payload.get("schema_version")
+    if task_packet_schema_present and task_packet_schema not in (
+        "3.0",
+        CURRENT_TASK_PACKET_SCHEMA_VERSION,
+    ):
+        raise ValueError("task packet schema_version must be exact 3.0 or 3.1")
+    if not invariant_review_present:
+        if task_packet_schema == CURRENT_TASK_PACKET_SCHEMA_VERSION:
+            raise ValueError("task packet schema 3.1 requires invariant_review metadata")
+        automation_flags = payload.get("automation_flags")
+        if isinstance(automation_flags, dict) and (
+            "invariant_class_review_required" in automation_flags
+        ):
+            raise ValueError("current invariant-class packets require invariant_review metadata")
+        candidate_paths = payload.get("candidate_paths")
+        raw_pr_phase = payload.get("pr_phase")
+        bounded_trigger_required = False
+        if raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN} and isinstance(candidate_paths, list):
+            bounded_trigger_required = classify_invariant_review(
+                candidate_paths=candidate_paths
+            ).required
+        if bounded_trigger_required:
+            raise ValueError(
+                "opening-phase bounded invariant trigger requires invariant_review metadata"
+            )
+    if invariant_review_present:
+        if not isinstance(invariant_review, dict):
+            raise ValueError("invariant_review must be a JSON object when present")
+        if invariant_review.get("schema_version") != INVARIANT_REVIEW_SCHEMA_VERSION:
+            raise ValueError("invariant_review metadata requires invariant_review.v1")
+        raw_state = invariant_review.get("state")
+        if not isinstance(raw_state, str) or raw_state not in INVARIANT_REVIEW_STATES:
+            raise ValueError("invariant_review state must be not_required or required_pending")
+        if set(invariant_review) != INVARIANT_REVIEW_V1_FIELDS:
+            raise ValueError("invariant_review must exactly match the invariant_review.v1 fields")
+        if invariant_review.get("coverage_claim") != INVARIANT_REVIEW_COVERAGE_CLAIM:
+            raise ValueError("invariant_review requires the bounded coverage claim")
+        if invariant_review.get("boundary_classes") != list(INVARIANT_REVIEW_BOUNDARY_CLASSES):
+            raise ValueError("invariant_review requires the canonical boundary classes")
+        if invariant_review.get("required_output_fields") != list(
+            INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS
+        ):
+            raise ValueError("invariant_review requires the canonical output fields")
+        if invariant_review.get("stop_condition") != INVARIANT_REVIEW_STOP_CONDITION:
+            raise ValueError("invariant_review requires the canonical stop condition")
+        invariant_review_state = raw_state
+        if invariant_review.get("implementation_authority") is not False:
+            raise ValueError("invariant review must not grant implementation authority")
+        if invariant_review.get("merge_authority") is not False:
+            raise ValueError("invariant review must not grant merge authority")
+        raw_change_classes = invariant_review.get("change_classes")
+        if not isinstance(raw_change_classes, list) or any(
+            not isinstance(change_class, str) or change_class not in INVARIANT_CHANGE_CLASSES
+            for change_class in raw_change_classes
+        ):
+            raise ValueError("invariant_review change_classes must use the closed class list")
+        canonical_change_classes = [
+            change_class
+            for change_class in INVARIANT_CHANGE_CLASSES
+            if change_class in raw_change_classes
+        ]
+        if raw_change_classes != canonical_change_classes:
+            raise ValueError(
+                "invariant_review change_classes must be unique and canonically ordered"
+            )
+        trigger_evidence = invariant_review.get("trigger_evidence")
+        if not isinstance(trigger_evidence, list):
+            raise ValueError("invariant_review trigger_evidence must be a JSON list")
+        candidate_paths = payload.get("candidate_paths")
+        if not isinstance(candidate_paths, list) or any(
+            not isinstance(candidate_path, str) for candidate_path in candidate_paths
+        ):
+            raise ValueError("invariant_review requires candidate_paths as a string list")
+        explicit_classes: List[str] = []
+        for evidence_row in trigger_evidence:
+            if not isinstance(evidence_row, dict):
+                raise ValueError("invariant_review trigger_evidence rows must be JSON objects")
+            change_class = evidence_row.get("change_class")
+            source = evidence_row.get("source")
+            if not isinstance(change_class, str) or change_class not in INVARIANT_CHANGE_CLASSES:
+                raise ValueError("invariant_review trigger_evidence uses an unknown change_class")
+            if source == "explicit":
+                if set(evidence_row) != {"change_class", "source"}:
+                    raise ValueError(
+                        "explicit invariant_review evidence must not contain path or extra fields"
+                    )
+                explicit_classes.append(change_class)
+            elif source == "bounded_path_hint":
+                if set(evidence_row) != {"change_class", "source", "path"} or not isinstance(
+                    evidence_row.get("path"), str
+                ):
+                    raise ValueError(
+                        "bounded invariant_review evidence requires exactly one string path"
+                    )
+            else:
+                raise ValueError("invariant_review trigger_evidence uses an unknown source")
+        canonical_decision = classify_invariant_review(
+            candidate_paths=candidate_paths,
+            explicit_classes=explicit_classes,
+        )
+        canonical_evidence = [
+            evidence_row.to_mapping() for evidence_row in canonical_decision.trigger_evidence
+        ]
+        if raw_change_classes != list(canonical_decision.change_classes) or (
+            trigger_evidence != canonical_evidence
+        ):
+            raise ValueError(
+                "invariant_review classes and evidence must match the canonical classifier"
+            )
+        raw_pr_phase = payload.get("pr_phase")
+        if not isinstance(raw_pr_phase, str) or raw_pr_phase not in PR_PHASES:
+            raise ValueError("invariant_review requires a valid pr_phase")
+        opening_phase = raw_pr_phase in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}
+        has_active_trigger = bool(raw_change_classes or trigger_evidence)
+        if opening_phase and has_active_trigger and raw_state != "required_pending":
+            raise ValueError("opening-phase invariant triggers require required_pending review")
+        if (
+            opening_phase
+            and raw_state == "required_pending"
+            and not (raw_change_classes and trigger_evidence)
+        ):
+            raise ValueError(
+                "required_pending invariant review requires classes and trigger evidence"
+            )
+        if not opening_phase and raw_state != "not_required":
+            raise ValueError("post-open invariant review state must be not_required")
+        required_roles = invariant_review.get("required_roles")
+        expected_required_roles = (
+            list(INVARIANT_REVIEW_REQUIRED_ROLES) if raw_state == "required_pending" else []
+        )
+        if required_roles != expected_required_roles:
+            raise ValueError(f"{raw_state} invariant review requires the canonical required roles")
+
+    review_requires_order = invariant_review_state == "required_pending"
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if not isinstance(role_dispatch_contract, dict):
+        if review_requires_order:
+            raise ValueError(
+                "required_pending invariant review requires role_agent_dispatch_contract"
+            )
+        return None
+    if "dispatch_role_order" not in role_dispatch_contract:
+        if review_requires_order:
+            raise ValueError("required_pending invariant review requires dispatch_role_order")
+        return None
+
+    raw_order = role_dispatch_contract["dispatch_role_order"]
+    if not isinstance(raw_order, list) or not raw_order:
+        raise ValueError("dispatch_role_order must be a non-empty JSON list")
+    dispatch_order: List[str] = []
+    for raw_slug in raw_order:
+        if not isinstance(raw_slug, str):
+            raise ValueError("dispatch_role_order entries must be strings")
+        if raw_slug != raw_slug.strip() or not _ROLE_SLUG_RE.fullmatch(raw_slug):
+            raise ValueError(
+                f"dispatch_role_order contains a non-canonical role slug: {raw_slug!r}"
+            )
+        dispatch_order.append(raw_slug)
+    if len(dispatch_order) != len(set(dispatch_order)):
+        raise ValueError("dispatch_role_order must not contain duplicate roles")
+    if dispatch_order[0] != "agent-coordinator":
+        raise ValueError("dispatch_role_order must start with agent-coordinator")
+
+    if not isinstance(invariant_review, dict):
+        raise ValueError("dispatch_role_order requires invariant_review metadata")
+    if invariant_review.get("schema_version") != INVARIANT_REVIEW_SCHEMA_VERSION:
+        raise ValueError("dispatch_role_order requires invariant_review.v1")
+    if invariant_review.get("state") != "required_pending":
+        raise ValueError("dispatch_role_order requires required_pending invariant review")
+    required_prefix = [
+        "agent-coordinator",
+        *INVARIANT_REVIEW_REQUIRED_ROLES,
+    ]
+    missing_required_roles = [role for role in required_prefix if role not in spawnable_roles]
+    if missing_required_roles:
+        raise ValueError(
+            "required_pending invariant review is missing required spawnable roles: "
+            + ", ".join(missing_required_roles)
+        )
+    canonical_dispatch_order = [
+        *required_prefix,
+        *[role for role in spawnable_roles if role not in required_prefix],
+    ]
+    if dispatch_order != canonical_dispatch_order:
+        raise ValueError(
+            "dispatch_role_order must exactly match the canonical spawnable binding order"
+        )
+    if payload.get("pr_phase") not in {PR_PHASE_NONE, PR_PHASE_PRE_OPEN}:
+        raise ValueError("invariant review dispatch is limited to opening PR phases")
+    if payload.get("creative_pilot_context") is not None:
+        raise ValueError("invariant review dispatch cannot be combined with creative pilot context")
+    return dispatch_order
+
+
+def _validate_current_native_subagent_bridge(
+    payload: Dict[str, Any],
+    bridge: Any,
+) -> None:
+    """Reject lossy bridge projections for current invariant packet contracts."""
+
+    if (
+        payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
+        and "invariant_review" not in payload
+    ):
+        return
+    if not isinstance(bridge, dict):
+        raise ValueError("current invariant packet requires native_subagent_bridge object")
+
+    def binding_slug(value: Any, *, field: str) -> str:
+        if not isinstance(value, dict):
+            raise ValueError(f"native_subagent_bridge.{field} must be a JSON object")
+        slug = value.get("repo_agent_slug")
+        if not isinstance(slug, str) or slug != slug.strip() or not _ROLE_SLUG_RE.fullmatch(slug):
+            raise ValueError(f"native_subagent_bridge.{field}.repo_agent_slug must be canonical")
+        return slug
+
+    primary_slug = binding_slug(bridge.get("primary"), field="primary")
+    reviewer_slug = binding_slug(bridge.get("reviewer"), field="reviewer")
+    binding_slugs: dict[str, list[str]] = {}
+    for collection_name in ("secondary", "advisory"):
+        bindings = bridge.get(collection_name)
+        if not isinstance(bindings, list):
+            raise ValueError(f"native_subagent_bridge.{collection_name} must be a JSON list")
+        binding_slugs[collection_name] = [
+            binding_slug(binding, field=f"{collection_name}[{index}]")
+            for index, binding in enumerate(bindings)
+        ]
+    transport = bridge.get("transport")
+    if not isinstance(transport, str):
+        raise ValueError("native_subagent_bridge.transport must be a string")
+    assigned_primary = payload.get("primary_agent")
+    assigned_reviewer = payload.get("reviewer")
+    assigned_secondaries = payload.get("secondary_agents")
+    if (
+        not isinstance(assigned_primary, str)
+        or assigned_primary != assigned_primary.strip()
+        or not _ROLE_SLUG_RE.fullmatch(assigned_primary)
+    ):
+        raise ValueError("current invariant packet primary_agent must be canonical")
+    if (
+        not isinstance(assigned_reviewer, str)
+        or assigned_reviewer != assigned_reviewer.strip()
+        or not _ROLE_SLUG_RE.fullmatch(assigned_reviewer)
+    ):
+        raise ValueError("current invariant packet reviewer must be canonical")
+    if not isinstance(assigned_secondaries, list) or any(
+        not isinstance(slug, str) or slug != slug.strip() or not _ROLE_SLUG_RE.fullmatch(slug)
+        for slug in assigned_secondaries
+    ):
+        raise ValueError("current invariant packet secondary_agents must be canonical")
+    assigned_roles = [assigned_primary, *assigned_secondaries, assigned_reviewer]
+    bridge_roles = [
+        primary_slug,
+        *binding_slugs["secondary"],
+        *binding_slugs["advisory"],
+        reviewer_slug,
+    ]
+    if len(assigned_roles) != len(set(assigned_roles)):
+        raise ValueError("current invariant packet assigned roles must be unique")
+    if len(bridge_roles) != len(set(bridge_roles)):
+        raise ValueError("current native_subagent_bridge roles must be unique")
+    if (
+        primary_slug != assigned_primary
+        or reviewer_slug != assigned_reviewer
+        or set([*binding_slugs["secondary"], *binding_slugs["advisory"]])
+        != set(assigned_secondaries)
+    ):
+        raise ValueError(
+            "current native_subagent_bridge roles must exactly match packet assignments"
+        )
+    requested_agent_disposition = payload.get("requested_agent_disposition")
+    if not isinstance(requested_agent_disposition, list):
+        raise ValueError("current invariant packet requested_agent_disposition must be a JSON list")
+    try:
+        expected_secondaries, expected_advisory = partition_native_secondaries(
+            secondary_agents=assigned_secondaries,
+            requested_agent_disposition=cast(
+                list[dict[str, str]],
+                requested_agent_disposition,
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            "current invariant packet requested_agent_disposition must be canonical"
+        ) from exc
+    if (
+        binding_slugs["secondary"] != expected_secondaries
+        or binding_slugs["advisory"] != expected_advisory
+    ):
+        raise ValueError(
+            "current native_subagent_bridge must preserve the ordered packet assignment projection"
+        )
+    expected_bridge = build_native_subagent_bridge(
+        primary_agent=assigned_primary,
+        secondary_agents=expected_secondaries,
+        reviewer=assigned_reviewer,
+        advisory_agents=expected_advisory,
+        transport=transport,
+    )
+    canonical_error = (
+        "current native_subagent_bridge must exactly match the canonical builder contract"
+    )
+    try:
+        canonical_bridge = json.dumps(
+            bridge,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(canonical_error) from exc
+    canonical_expected_bridge = json.dumps(
+        expected_bridge,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    if canonical_bridge != canonical_expected_bridge:
+        raise ValueError(canonical_error)
+
+
+def _validate_current_role_dispatch_contract(
+    payload: Dict[str, Any],
+    bridge: Any,
+    dispatch_role_order: List[str] | None,
+) -> None:
+    """Require the complete producer-built dispatch contract for current packets."""
+
+    if (
+        payload.get("schema_version") != CURRENT_TASK_PACKET_SCHEMA_VERSION
+        and "invariant_review" not in payload
+    ):
+        return
+    if not isinstance(bridge, dict):
+        raise ValueError("current invariant packet requires native_subagent_bridge object")
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    if not isinstance(role_dispatch_contract, dict):
+        raise ValueError("current invariant packet requires role_agent_dispatch_contract object")
+    pr_phase = payload.get("pr_phase")
+    if not isinstance(pr_phase, str):
+        raise ValueError("current invariant packet requires a string pr_phase")
+    expected_contract = build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase=pr_phase,
+        dispatch_role_order=dispatch_role_order,
+    )
+    canonical_error = (
+        "current role_agent_dispatch_contract must exactly match the canonical builder contract"
+    )
+    try:
+        canonical_contract = json.dumps(
+            role_dispatch_contract,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(canonical_error) from exc
+    canonical_expected_contract = json.dumps(
+        expected_contract,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    if canonical_contract != canonical_expected_contract:
+        raise ValueError(canonical_error)
+
+
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     """Extract ordered role slugs from a task_bootstrap JSON packet."""
     bridge = payload.get("native_subagent_bridge")
-    if not isinstance(bridge, dict):
-        return []
-
+    _validate_current_native_subagent_bridge(payload, bridge)
     ordered: List[str] = []
 
     def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
@@ -459,23 +858,34 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         if slug:
             ordered.append(slug)
 
-    primary = bridge.get("primary")
-    if not isinstance(primary, dict):
-        return []
-    if not binding_is_spawnable(primary, default_when_unspecified=True):
-        return []
-    if not str(primary.get("repo_agent_slug", "")).strip():
-        return []
-    add_slug(primary)
-    secondary_items = bridge.get("secondary")
-    if isinstance(secondary_items, list):
-        for item in secondary_items:
-            add_slug(item)
-    advisory_items = bridge.get("advisory")
-    if isinstance(advisory_items, list):
-        for item in advisory_items:
-            add_slug(item, default_when_unspecified=False)
-    add_slug(bridge.get("reviewer"))
+    if isinstance(bridge, dict):
+        primary = bridge.get("primary")
+        if (
+            isinstance(primary, dict)
+            and binding_is_spawnable(primary, default_when_unspecified=True)
+            and str(primary.get("repo_agent_slug", "")).strip()
+        ):
+            add_slug(primary)
+            secondary_items = bridge.get("secondary")
+            if isinstance(secondary_items, list):
+                for item in secondary_items:
+                    add_slug(item)
+            advisory_items = bridge.get("advisory")
+            if isinstance(advisory_items, list):
+                for item in advisory_items:
+                    add_slug(item, default_when_unspecified=False)
+            add_slug(bridge.get("reviewer"))
+    dispatch_role_order = _validated_dispatch_role_order(
+        payload,
+        spawnable_roles=ordered,
+    )
+    _validate_current_role_dispatch_contract(
+        payload,
+        bridge,
+        dispatch_role_order,
+    )
+    if dispatch_role_order is not None:
+        return dispatch_role_order
     if not ordered:
         return []
     requested_agents = payload.get("requested_agents")
@@ -511,6 +921,28 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     return ["agent-coordinator", *ordered]
 
 
+def _json_payload_has_dispatch_role_order(payload: Dict[str, Any]) -> bool:
+    """Return whether a JSON payload declares the canonical dispatch order."""
+
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    return isinstance(role_dispatch_contract, dict) and (
+        "dispatch_role_order" in role_dispatch_contract
+    )
+
+
+def _json_packet_has_dispatch_role_order(packet_path: Path) -> bool:
+    """Return whether a JSON packet declares the canonical dispatch order."""
+
+    payload = _load_json_packet(packet_path)
+    return payload is not None and _json_payload_has_dispatch_role_order(payload)
+
+
+def _is_json_designated_packet(packet_path: Path) -> bool:
+    """Return whether the caller-designated packet format is JSON."""
+
+    return packet_path.suffix.casefold() == ".json"
+
+
 def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
     """Return JSON packet payload when the packet is a JSON object."""
     try:
@@ -520,6 +952,18 @@ def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
     if not isinstance(payload, dict):
         return None
     return payload
+
+
+def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
+    """Load one JSON object while rejecting duplicate keys."""
+
+    try:
+        return cast(
+            Dict[str, Any],
+            load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8")),
+        )
+    except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
+        raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
 
 def _json_packet_has_requested_order(packet_path: Path) -> bool:
@@ -606,6 +1050,11 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
     payload = _load_json_packet(resolved_packet_path)
     if payload is None:
         return set()
+    return _json_payload_runtime_implementation_owners(payload)
+
+
+def _json_payload_runtime_implementation_owners(payload: Dict[str, Any]) -> set[str]:
+    """Return implementation owners explicitly granted by a JSON payload."""
 
     bridge = payload.get("native_subagent_bridge")
     if not isinstance(bridge, dict):
@@ -637,14 +1086,9 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
     return bridge_owner_slugs
 
 
-def _parse_packet_roles(packet_path: Path) -> List[str]:
-    """Extract ordered role slugs from a governance packet.
+def _resolve_packet_path(packet_path: Path) -> Path:
+    """Resolve one packet path after enforcing repository containment."""
 
-    Looks for:
-    1. A task_bootstrap JSON packet with ``native_subagent_bridge``.
-    2. A ``## Coordinator Role Order`` section with numbered/bulleted slugs.
-    3. Fallback: any numbered list containing agent slugs.
-    """
     if not packet_path.is_file():
         print(f"FAIL: Packet file not found: {packet_path}", file=sys.stderr)
         sys.exit(1)
@@ -657,8 +1101,27 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
             file=sys.stderr,
         )
         sys.exit(1)
+    return resolved_packet_path
 
-    json_payload = _load_json_packet(resolved_packet_path)
+
+def _load_packet_payload(
+    resolved_packet_path: Path,
+    *,
+    json_designated: bool,
+) -> Optional[Dict[str, Any]]:
+    """Load a packet once using the caller-designated format."""
+
+    if json_designated:
+        return _load_strict_json_packet(resolved_packet_path)
+    return _load_json_packet(resolved_packet_path)
+
+
+def _parse_loaded_packet_roles(
+    resolved_packet_path: Path,
+    json_payload: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Extract ordered roles from one already-classified packet."""
+
     if json_payload is not None:
         return _parse_json_packet_roles(json_payload)
 
@@ -707,6 +1170,23 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
                     ordered.append(slug)
 
     return ordered
+
+
+def _parse_packet_roles(packet_path: Path) -> List[str]:
+    """Extract ordered role slugs from a governance packet.
+
+    JSON designation comes from the caller path before symlink resolution.
+    Markdown role parsing remains the fallback only for non-JSON-designated
+    packet paths.
+    """
+
+    json_designated = _is_json_designated_packet(packet_path)
+    resolved_packet_path = _resolve_packet_path(packet_path)
+    json_payload = _load_packet_payload(
+        resolved_packet_path,
+        json_designated=json_designated,
+    )
+    return _parse_loaded_packet_roles(resolved_packet_path, json_payload)
 
 
 def _extract_roles_from_section(lines: List[str], heading_fragment: str) -> List[str]:
@@ -1092,13 +1572,18 @@ def build_dispatch_manifest(
     return manifest
 
 
-def _load_creative_pilot_context(packet_path: Path) -> Optional[Dict[str, Any]]:
-    if packet_path.suffix != ".json":
+def _load_creative_pilot_context(
+    packet_path: Path,
+    *,
+    json_designated: Optional[bool] = None,
+    payload: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    if json_designated is None:
+        json_designated = _is_json_designated_packet(packet_path)
+    if not json_designated:
         return None
-    try:
-        payload = load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
-        raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
+    if payload is None:
+        payload = _load_strict_json_packet(packet_path)
     context = payload.get("creative_pilot_context") if isinstance(payload, dict) else None
     if context is None:
         return None
@@ -1193,19 +1678,36 @@ def main(argv: Optional[List[str]] = None) -> int:
     packet_source: Optional[str] = None
     packet_bracket_groups: Optional[List[List[str]]] = None
     packet_chained_successors: Optional[set[str]] = None
+    packet_json_payload: Optional[Dict[str, Any]] = None
     enforce_mandatory_post_open_tail = True
     if args.packet:
-        packet_path = Path(args.packet)
-        if not packet_path.is_absolute():
-            packet_path = (REPO_ROOT / packet_path).resolve()
+        packet_input_path = Path(args.packet)
+        if not packet_input_path.is_absolute():
+            packet_input_path = REPO_ROOT / packet_input_path
+        json_designated = _is_json_designated_packet(packet_input_path)
+        try:
+            packet_path = _resolve_packet_path(packet_input_path)
+            packet_json_payload = _load_packet_payload(
+                packet_path,
+                json_designated=json_designated,
+            )
+            role_slugs = _parse_loaded_packet_roles(packet_path, packet_json_payload)
+        except ValueError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
         enforce_mandatory_post_open_tail = not (
-            _json_packet_requested_order_preserves_mandatory_tail(packet_path)
+            packet_json_payload is not None
+            and _json_payload_requested_order_preserves_mandatory_tail(packet_json_payload)
         )
-        role_slugs = _parse_packet_roles(packet_path)
         # Extract bracket-notation parallelizable groups from packet
         packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
         packet_bracket_groups = _extract_bracket_groups(packet_lines) or None
         packet_chained_successors = _extract_chain_successors(packet_lines) or None
+        if packet_json_payload is not None and _json_payload_has_dispatch_role_order(
+            packet_json_payload
+        ):
+            packet_chained_successors = set(role_slugs[1:])
+            enforce_mandatory_post_open_tail = False
         try:
             packet_source = str(packet_path.relative_to(REPO_ROOT))
         except ValueError:
@@ -1217,7 +1719,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             return 1
         try:
-            creative_pilot_context = _load_creative_pilot_context(packet_path)
+            creative_pilot_context = _load_creative_pilot_context(
+                packet_path,
+                json_designated=json_designated,
+                payload=packet_json_payload,
+            )
         except ValueError as exc:
             print(f"FAIL: {exc}", file=sys.stderr)
             return 1
@@ -1265,7 +1771,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         return 1
     if implementation_owner_slugs and args.packet:
-        allowed_owner_slugs = _json_packet_runtime_implementation_owners(packet_path)
+        allowed_owner_slugs = (
+            _json_payload_runtime_implementation_owners(packet_json_payload)
+            if packet_json_payload is not None
+            else set()
+        )
         ungranted_owner_slugs = sorted(implementation_owner_slugs - allowed_owner_slugs)
         if ungranted_owner_slugs:
             print(

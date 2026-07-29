@@ -585,6 +585,24 @@ Rules:
   records a new evidence-backed routing update or the operator explicitly
   overrides it.
 
+**Invariant-class pre-fix review (hard):**
+- Before the first change to a parser, validator, guard, or authority mechanism,
+  run one ordered `logic-agent -> philosophy-agent` pre-fix pass through the
+  ordinary `task_bootstrap.py` packet. Logic must classify the invariant and its
+  finite/bounded/open-world boundary; Philosophy must bound the meaning of
+  `all`, `valid`, `safe`, `complete`, and `authorized`.
+- Explicit `--invariant-change-class` declarations are authoritative. Bounded
+  path hints may add a required class, but a negative hint result never proves
+  that no semantic mechanism change exists.
+- The packet remains `required_pending` admission metadata and grants no
+  implementation, review, approval, disposition, or merge authority.
+- A second materially novel carrier of the same open-world invariant is a stop
+  condition: rescope, delegate to a canonical closed recognizer, or roll back
+  the unsound mechanism instead of adding another carrier-specific patch.
+- This rule also gates creative/Experiment Runner intake. A creative task that
+  changes one of these mechanisms must leave the creative lane and use the
+  ordinary pre-fix packet; do not add a Runner-private router or receipt schema.
+
 **Final-material Codex Security budget invariant (hard):**
 - The repeatable post-open pass is role-only:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
