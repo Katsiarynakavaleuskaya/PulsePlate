@@ -13,6 +13,9 @@ from typing import Any, Iterable
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.bootstrap_sync_policy import INVARIANT_CHANGE_CLASSES
+
 DEFAULT_PR_REVIEW_CHECKLIST = (
     "agent-coordinator",
     "architecture-specialist",
@@ -173,14 +176,22 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
     secondary_bindings: list[object] = []
     advisory_bindings: list[object] = []
+    from scripts.orchestration import qoder_dispatch_bridge
+
+    try:
+        parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    except ValueError as exc:
+        raise PromptError(f"invalid task packet role dispatch: {exc}") from exc
     if isinstance(bridge, dict):
         secondary_bindings = _packet_role_bindings(bridge, "secondary")
         advisory_bindings = _packet_role_bindings(bridge, "advisory")
 
-        from scripts.orchestration import qoder_dispatch_bridge
-
-        parsed_roles: list[str] = qoder_dispatch_bridge._parse_json_packet_roles(packet)
         if parsed_roles:
+            role_dispatch_contract = packet.get("role_agent_dispatch_contract")
+            if isinstance(role_dispatch_contract, dict) and (
+                "dispatch_role_order" in role_dispatch_contract
+            ):
+                return parsed_roles
             if not qoder_dispatch_bridge._json_payload_requested_order_preserves_mandatory_tail(
                 packet
             ):
@@ -329,6 +340,7 @@ def render_recipe_prompt(
     worktree: str = "",
     paths: list[str],
     requested_agents: list[str],
+    invariant_change_classes: list[str] | None = None,
     preflight_ran: bool = True,
 ) -> str:
     """Render the pre-task-bootstrap helper prompt block."""
@@ -353,6 +365,8 @@ def render_recipe_prompt(
             f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
             f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
             f"Path scope: {_prompt_list(paths, '<no explicit paths>')}",
+            "Invariant change classes: "
+            f"{_prompt_list(_unique(invariant_change_classes or []), '<none>')}",
             f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
             f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
             "",
@@ -392,6 +406,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     recipe_parser.add_argument("--branch", default="")
     recipe_parser.add_argument("--worktree", default="")
     recipe_parser.add_argument("--path", action="append", default=[])
+    recipe_parser.add_argument(
+        "--invariant-change-class",
+        action="append",
+        choices=INVARIANT_CHANGE_CLASSES,
+        default=[],
+    )
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
     recipe_parser.add_argument("--preflight-ran", action="store_true")
     return parser.parse_args(argv)
@@ -423,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
                 worktree=args.worktree,
                 paths=args.path,
                 requested_agents=args.requested_agent,
+                invariant_change_classes=args.invariant_change_class,
                 preflight_ran=args.preflight_ran,
             )
         )

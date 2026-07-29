@@ -21,6 +21,7 @@ TASK_CLASS=""
 PR_PHASE="none"
 REQUESTED_ARGS=()
 PATH_ARGS=()
+INVARIANT_CLASS_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,6 +50,21 @@ while [[ $# -gt 0 ]]; do
       PATH_ARGS+=(--path "$2")
       shift 2
       ;;
+    --invariant-change-class)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --invariant-change-class requires a value" >&2
+        exit 2
+      fi
+      case "$2" in
+        parser|validator|guard|authority) ;;
+        *)
+          echo "ERROR: --invariant-change-class must be one of: parser, validator, guard, authority" >&2
+          exit 2
+          ;;
+      esac
+      INVARIANT_CLASS_ARGS+=(--invariant-change-class "$2")
+      shift 2
+      ;;
     *) echo "ERROR: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -68,4 +84,5 @@ python3 scripts/orchestration/task_bootstrap.py \
   --task-class "$TASK_CLASS" \
   --pr-phase "$PR_PHASE" \
   ${PATH_ARGS[@]+"${PATH_ARGS[@]}"} \
+  ${INVARIANT_CLASS_ARGS[@]+"${INVARIANT_CLASS_ARGS[@]}"} \
   ${REQUESTED_ARGS[@]+"${REQUESTED_ARGS[@]}"}
