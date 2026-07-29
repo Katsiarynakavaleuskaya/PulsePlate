@@ -693,10 +693,28 @@ def _validate_current_native_subagent_bridge(
         advisory_agents=binding_slugs["advisory"],
         transport=transport,
     )
-    if bridge != expected_bridge:
-        raise ValueError(
-            "current native_subagent_bridge must exactly match the canonical builder contract"
+    canonical_error = (
+        "current native_subagent_bridge must exactly match the canonical builder contract"
+    )
+    try:
+        canonical_bridge = json.dumps(
+            bridge,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
         )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(canonical_error) from exc
+    canonical_expected_bridge = json.dumps(
+        expected_bridge,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    if canonical_bridge != canonical_expected_bridge:
+        raise ValueError(canonical_error)
 
 
 def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:

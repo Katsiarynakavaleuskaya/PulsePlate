@@ -1972,6 +1972,82 @@ def test_current_invariant_review_rejects_lossy_bridge_projection(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+@pytest.mark.parametrize(
+    ("binding_collection", "binding_index", "field", "numeric_alias"),
+    [
+        ("secondary", 0, "native_executor_name_transport_only", 1),
+        ("secondary", 0, "native_executor_name_transport_only", 1.0),
+        ("advisory", 0, "spawn_with_native_subagent", 1),
+        ("advisory", 0, "advisory_only", 0),
+        ("advisory", 0, "advisory_only", 0.0),
+    ],
+)
+def test_current_invariant_review_rejects_numeric_boolean_aliases(
+    binding_collection: str,
+    binding_index: int,
+    field: str,
+    numeric_alias: int | float,
+) -> None:
+    """Canonical JSON comparison preserves boolean types across the whole bridge."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    bindings = bridge[binding_collection]
+    assert isinstance(bindings, list)
+    if binding_collection == "advisory":
+        advisory_bridge = build_native_subagent_bridge(
+            primary_agent="architecture-specialist",
+            secondary_agents=[],
+            advisory_agents=["qa-engineer-agent"],
+            reviewer="cursor-specialist-agent",
+        )
+        bindings.extend(advisory_bridge["advisory"])
+    binding = bindings[binding_index]
+    assert isinstance(binding, dict)
+    dispatch_contract = binding["dispatch_contract"]
+    assert isinstance(dispatch_contract, dict)
+    dispatch_contract[field] = numeric_alias
+
+    with pytest.raises(ValueError, match="canonical builder contract"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("numeric_alias", [1, 1.0])
+def test_current_invariant_review_rejects_numeric_bridge_policy_boolean_alias(
+    numeric_alias: int | float,
+) -> None:
+    """Bridge-level policy booleans are type-exact, not Python-equality aliases."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    dispatch_policy = bridge["dispatch_policy"]
+    assert isinstance(dispatch_policy, dict)
+    dispatch_policy["spawn_via_coordinator_only"] = numeric_alias
+
+    with pytest.raises(ValueError, match="canonical builder contract"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_current_invariant_bridge_cli_rejects_malformed_binding(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
