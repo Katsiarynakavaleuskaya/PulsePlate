@@ -9,6 +9,31 @@ import pytest
 from core import fingerprint_security
 from core import log_retention
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_pytest_bootstrap_prevents_default_checkout_salt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The canonical test salt must prevent repo-relative runtime salt writes."""
+
+    bootstrap_source = (REPO_ROOT / "conftest.py").read_text(encoding="utf-8")
+    assert (
+        'os.environ.setdefault("FINGERPRINT_SALT", ' '"test-salt-for-ci-only-not-for-production")'
+    ) in bootstrap_source
+    assert "CLIENT_FINGERPRINT_SALT" not in bootstrap_source
+    assert os.environ.get(fingerprint_security.SALT_ENV_VAR)
+
+    monkeypatch.delenv(fingerprint_security.SALT_FILE_ENV_VAR, raising=False)
+    monkeypatch.chdir(tmp_path)
+    fingerprint_security._get_salt.cache_clear()
+
+    assert fingerprint_security.compute_fingerprint("client-ip", truncate=8)
+    assert not fingerprint_security.DEFAULT_SALT_PATH.exists()
+
+    fingerprint_security._get_salt.cache_clear()
+
 
 def test_fingerprint_uses_env_salt(monkeypatch: pytest.MonkeyPatch) -> None:
     """compute_fingerprint should respect environment-provided salt."""

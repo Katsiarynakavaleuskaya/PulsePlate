@@ -91,6 +91,7 @@ repos:
           # Keep in sync with requirements.txt / pyproject.toml.
           # Pre-commit mypy runs in an isolated env and needs runtime deps to avoid Any pollution.
           - pydantic==2.12.5
+          - types-PyYAML==6.0.12.20260518
         args:
           - --pretty
           - --show-error-codes

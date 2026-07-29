@@ -11,7 +11,6 @@ import pytest
 import scripts.ci.ci_risk_profile as risk_profile
 from scripts.orchestration.pr_review_evidence import (
     _DEPENDENCY_MANIFEST_BASENAMES as TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES,
-    _ROOT_REQUIREMENTS_MANIFEST_RE as TRUST_BOUNDARY_REQUIREMENTS_MANIFEST_RE,
     OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
     OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES,
     protected_trust_boundary_paths,
@@ -213,6 +212,23 @@ def test_python_dependency_surfaces_route_backend_blocking(changed_file: str) ->
 
 @pytest.mark.parametrize(
     "changed_file",
+    (".github/dependabot.yml", ".github/dependabot.yaml"),
+)
+def test_dependabot_config_routes_bounded_backend_and_governance(
+    changed_file: str,
+) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.workflow_privileged is False
+    assert profile.backend_shared is True
+    assert profile.merge_governance is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == ("merge_governance",)
+
+
+@pytest.mark.parametrize(
+    "changed_file",
     (
         "requirements.in",
         "requirements.txt",
@@ -230,10 +246,6 @@ def test_every_sampled_protected_python_manifest_routes_security(
 def test_dependency_manifest_basename_rules_match_trust_boundary_policy() -> None:
     assert (
         risk_profile._DEPENDENCY_MANIFEST_BASENAMES == TRUST_BOUNDARY_DEPENDENCY_MANIFEST_BASENAMES
-    )
-    assert (
-        risk_profile._REQUIREMENTS_MANIFEST_RE.pattern
-        == TRUST_BOUNDARY_REQUIREMENTS_MANIFEST_RE.pattern
     )
 
 
@@ -261,11 +273,36 @@ def test_nested_protected_dependency_manifests_route_backend_and_security(
 @pytest.mark.parametrize(
     "changed_file",
     (
+        "extra.txt",
+        "nested/extra.in",
+        "nested/novel-name.txt",
+        "nested/requirements--dev.in",
+    ),
+)
+def test_every_dependabot_candidate_carrier_routes_backend_security_and_review(
+    changed_file: str,
+) -> None:
+    assert protected_trust_boundary_paths((changed_file,)) == (changed_file,)
+    profile = risk_profile.build_risk_profile([changed_file])
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+
+
+def test_files_below_dependabot_discovery_depth_are_not_candidate_carriers() -> None:
+    changed_file = "nested/deeper/extra.txt"
+
+    assert protected_trust_boundary_paths((changed_file,)) == ()
+    assert risk_profile.build_risk_profile([changed_file]).backend_shared is False
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
         "nested/Dockerfile",
         "nested/REQUIREMENTS.md",
         "nested/package.json.bak",
         "nested/pyproject.toml.bak",
-        "nested/requirements--dev.in",
         "nested/requirements-dev.in.bak",
         "nested/requirements.md",
     ),
