@@ -10,6 +10,8 @@ from typing import Any, Dict, List
 
 import pytest
 from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge
+from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
+from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1367,12 +1369,14 @@ def test_runtime_implementation_owner_cli_requires_packet(
     assert "--implementation-owner requires --packet" in captured.err
 
 
+@pytest.mark.parametrize("suffix", [".json", ".JSON", ".JsOn"])
 def test_duplicate_key_json_packet_fails_closed_before_dispatch(
+    suffix: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    packet_file = tmp_path / "packet.json"
+    packet_file = tmp_path / f"packet{suffix}"
     packet_file.write_text(
         "{"
         '"requested_agents":["agent-coordinator"],'
@@ -1385,6 +1389,67 @@ def test_duplicate_key_json_packet_fails_closed_before_dispatch(
     monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
 
     result = qoder_dispatch_bridge.main(["--packet", str(packet_file), "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "invalid strict JSON task packet" in captured.err
+    assert captured.out == ""
+
+
+@pytest.mark.parametrize("suffix", [".json", ".JSON"])
+def test_json_designated_packet_never_falls_back_to_markdown(
+    suffix: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_file = tmp_path / f"packet{suffix}"
+    packet_file.write_text(
+        '{"schema_version":"3.1"\n'
+        "## Coordinator Role Order\n"
+        "1. agent-coordinator\n"
+        "2. backend-engineer\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet_file), "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "invalid strict JSON task packet" in captured.err
+    assert captured.out == ""
+
+
+def test_json_designated_packet_requires_object_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        json.dumps(["## Coordinator Role Order", "1. backend-engineer"]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(ValueError, match="invalid strict JSON task packet"):
+        qoder_dispatch_bridge._parse_packet_roles(packet_file)
+
+
+def test_relative_json_symlink_cannot_downgrade_to_markdown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = tmp_path / "packet.md"
+    target.write_text(
+        "## Coordinator Role Order\n" "1. agent-coordinator\n" "2. backend-engineer\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "packet.json").symlink_to(target)
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = qoder_dispatch_bridge.main(["--packet", "packet.json", "--mode", "analysis"])
 
     captured = capsys.readouterr()
     assert result == 1
@@ -1768,6 +1833,1115 @@ def test_roles_flag_merge_ready_phase_enforces_mandatory_order(
     ]
     assert dispatch[1]["depends_on_previous"] is True
     assert dispatch[2]["depends_on_previous"] is True
+
+
+def _invariant_review_packet(
+    *,
+    dispatch_role_order: object,
+    implementation_authority: object = False,
+    merge_authority: object = False,
+) -> dict[str, object]:
+    primary_agent = "architecture-specialist"
+    secondary_agents = [
+        "logic-agent",
+        "agent-coordinator",
+        "philosophy-agent",
+        "security-auditor",
+    ]
+    reviewer = "cursor-specialist-agent"
+    native_subagent_bridge = build_native_subagent_bridge(
+        primary_agent=primary_agent,
+        secondary_agents=secondary_agents,
+        advisory_agents=[],
+        reviewer=reviewer,
+    )
+    role_agent_dispatch_contract = build_role_agent_dispatch_contract(
+        native_subagent_bridge=native_subagent_bridge,
+        pr_phase="pre_open",
+        dispatch_role_order=(dispatch_role_order if isinstance(dispatch_role_order, list) else []),
+    )
+    role_agent_dispatch_contract["dispatch_role_order"] = dispatch_role_order
+    return {
+        "schema_version": "3.1",
+        "pr_phase": "pre_open",
+        "candidate_paths": ["README.md"],
+        "primary_agent": primary_agent,
+        "secondary_agents": secondary_agents,
+        "reviewer": reviewer,
+        "requested_agents": ["architecture-specialist"],
+        "requested_agent_disposition": [],
+        "invariant_review": {
+            "schema_version": "invariant_review.v1",
+            "state": "required_pending",
+            "change_classes": ["guard"],
+            "trigger_evidence": [
+                {"change_class": "guard", "source": "explicit"},
+            ],
+            "coverage_claim": "explicit_plus_bounded_positive_triggers_only",
+            "required_roles": ["logic-agent", "philosophy-agent"],
+            "boundary_classes": [
+                "finite_closed_world",
+                "bounded_surface",
+                "delegated_recognizer",
+                "open_world_stop",
+            ],
+            "required_output_fields": [
+                "invariant_statement",
+                "boundary_class",
+                "canonical_sot",
+                "completeness_claim",
+                "counterexample_families",
+                "fail_closed_behavior",
+                "stop_condition",
+                "residual_risk",
+            ],
+            "stop_condition": (
+                "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+            ),
+            "implementation_authority": implementation_authority,
+            "merge_authority": merge_authority,
+        },
+        "role_agent_dispatch_contract": role_agent_dispatch_contract,
+        "native_subagent_bridge": native_subagent_bridge,
+    }
+
+
+def _packet_with_advisory_secondaries() -> dict[str, object]:
+    packet = _invariant_review_packet(dispatch_role_order=[])
+    assigned_secondaries = packet["secondary_agents"]
+    assert isinstance(assigned_secondaries, list)
+    assigned_secondaries.extend(["qa-engineer-agent", "bug-hunter"])
+    packet["requested_agent_disposition"] = [
+        {
+            "agent": "qa-engineer-agent",
+            "reason": "Test advisory partition.",
+            "status": "advisory_domain_mismatch",
+        },
+        {
+            "agent": "bug-hunter",
+            "reason": "Test advisory partition.",
+            "status": "advisory_domain_mismatch",
+        },
+    ]
+    bridge = build_native_subagent_bridge(
+        primary_agent="architecture-specialist",
+        secondary_agents=[
+            "logic-agent",
+            "agent-coordinator",
+            "philosophy-agent",
+            "security-auditor",
+        ],
+        advisory_agents=["qa-engineer-agent", "bug-hunter"],
+        reviewer="cursor-specialist-agent",
+    )
+    packet["native_subagent_bridge"] = bridge
+    _rebuild_invariant_dispatch_contract(packet)
+    return packet
+
+
+def _rebuild_invariant_dispatch_contract(packet: dict[str, object]) -> None:
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+
+    def slug(binding: object) -> str:
+        assert isinstance(binding, dict)
+        value = binding["repo_agent_slug"]
+        assert isinstance(value, str)
+        return value
+
+    secondary = bridge["secondary"]
+    advisory = bridge["advisory"]
+    assert isinstance(secondary, list)
+    assert isinstance(advisory, list)
+    bridge_order = [
+        slug(bridge["primary"]),
+        *[slug(binding) for binding in secondary],
+        *[slug(binding) for binding in advisory],
+        slug(bridge["reviewer"]),
+    ]
+    required_prefix = ["agent-coordinator", "logic-agent", "philosophy-agent"]
+    dispatch_order = [
+        *required_prefix,
+        *[role for role in bridge_order if role not in required_prefix],
+    ]
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    invariant_review["state"] = "required_pending"
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase="pre_open",
+        dispatch_role_order=dispatch_order,
+    )
+
+
+def test_invariant_review_dispatch_order_replaces_requested_agent_reordering() -> None:
+    """System-required order is canonical without mutating requested agents."""
+
+    expected_order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    packet = _invariant_review_packet(dispatch_role_order=expected_order)
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == expected_order
+    assert packet["requested_agents"] == ["architecture-specialist"]
+
+
+def test_invariant_review_dispatch_rejects_permuted_remaining_roles() -> None:
+    """A matching role set cannot reorder the canonical implementation tail."""
+
+    permuted_order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "security-auditor",
+        "architecture-specialist",
+        "cursor-specialist-agent",
+    ]
+
+    with pytest.raises(ValueError, match="canonical spawnable binding order"):
+        qoder_dispatch_bridge._parse_json_packet_roles(
+            _invariant_review_packet(dispatch_role_order=permuted_order)
+        )
+
+
+@pytest.mark.parametrize(
+    ("native_bridge", "error"),
+    [
+        (None, "requires native_subagent_bridge object"),
+        ({}, "native_subagent_bridge.primary must be a JSON object"),
+    ],
+)
+def test_required_pending_invariant_review_requires_complete_native_bridge(
+    native_bridge: object,
+    error: str,
+) -> None:
+    """Current pending packets cannot fall back around missing bridge bindings."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    packet["native_subagent_bridge"] = native_bridge
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        ("secondary_scalar", r"secondary must be a JSON list"),
+        ("advisory_scalar", r"advisory must be a JSON list"),
+        ("secondary_null", r"secondary\[4\] must be a JSON object"),
+        ("advisory_null", r"advisory\[0\] must be a JSON object"),
+        ("empty_slug", r"secondary\[4\]\.repo_agent_slug must be canonical"),
+        ("missing_dispatch_contract", r"canonical builder contract"),
+        ("dispatch_contract_scalar", r"canonical builder contract"),
+        (
+            "spawn_flag_string",
+            r"canonical builder contract",
+        ),
+        ("advisory_partial_contract", r"canonical builder contract"),
+    ],
+)
+def test_current_invariant_review_rejects_lossy_bridge_projection(
+    mutation: str,
+    error: str,
+) -> None:
+    """Every current bridge input to spawnable-role projection is validated."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    secondary = bridge["secondary"]
+    advisory = bridge["advisory"]
+    assert isinstance(secondary, list)
+    assert isinstance(advisory, list)
+    if mutation == "secondary_scalar":
+        bridge["secondary"] = {}
+    elif mutation == "advisory_scalar":
+        bridge["advisory"] = {}
+    elif mutation == "secondary_null":
+        secondary.append(None)
+    elif mutation == "advisory_null":
+        advisory.append(None)
+    elif mutation == "empty_slug":
+        secondary.append({"repo_agent_slug": ""})
+    elif mutation == "missing_dispatch_contract":
+        binding = secondary[0]
+        assert isinstance(binding, dict)
+        binding.pop("dispatch_contract")
+    elif mutation == "dispatch_contract_scalar":
+        binding = secondary[0]
+        assert isinstance(binding, dict)
+        binding["dispatch_contract"] = "spawn"
+    elif mutation == "spawn_flag_string":
+        binding = secondary[0]
+        assert isinstance(binding, dict)
+        binding["dispatch_contract"] = {"spawn_with_native_subagent": "false"}
+    else:
+        advisory_bridge = build_native_subagent_bridge(
+            primary_agent="architecture-specialist",
+            secondary_agents=[],
+            advisory_agents=["qa-engineer-agent"],
+            reviewer="cursor-specialist-agent",
+        )
+        advisory_binding = advisory_bridge["advisory"][0]
+        assert isinstance(advisory_binding, dict)
+        dispatch_contract = advisory_binding["dispatch_contract"]
+        assert isinstance(dispatch_contract, dict)
+        dispatch_contract.pop("advisory_only")
+        advisory.append(advisory_binding)
+        assigned_secondaries = packet["secondary_agents"]
+        assert isinstance(assigned_secondaries, list)
+        assigned_secondaries.append("qa-engineer-agent")
+        requested_agent_disposition = packet["requested_agent_disposition"]
+        assert isinstance(requested_agent_disposition, list)
+        requested_agent_disposition.append(
+            {
+                "agent": "qa-engineer-agent",
+                "reason": "Test advisory partition.",
+                "status": "advisory_domain_mismatch",
+            }
+        )
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("binding_collection", "binding_index", "field", "numeric_alias"),
+    [
+        ("secondary", 0, "native_executor_name_transport_only", 1),
+        ("secondary", 0, "native_executor_name_transport_only", 1.0),
+        ("advisory", 0, "spawn_with_native_subagent", 1),
+        ("advisory", 0, "advisory_only", 0),
+        ("advisory", 0, "advisory_only", 0.0),
+    ],
+)
+def test_current_invariant_review_rejects_numeric_boolean_aliases(
+    binding_collection: str,
+    binding_index: int,
+    field: str,
+    numeric_alias: int | float,
+) -> None:
+    """Canonical JSON comparison preserves boolean types across the whole bridge."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    bindings = bridge[binding_collection]
+    assert isinstance(bindings, list)
+    if binding_collection == "advisory":
+        advisory_bridge = build_native_subagent_bridge(
+            primary_agent="architecture-specialist",
+            secondary_agents=[],
+            advisory_agents=["qa-engineer-agent"],
+            reviewer="cursor-specialist-agent",
+        )
+        bindings.extend(advisory_bridge["advisory"])
+        assigned_secondaries = packet["secondary_agents"]
+        assert isinstance(assigned_secondaries, list)
+        assigned_secondaries.append("qa-engineer-agent")
+        requested_agent_disposition = packet["requested_agent_disposition"]
+        assert isinstance(requested_agent_disposition, list)
+        requested_agent_disposition.append(
+            {
+                "agent": "qa-engineer-agent",
+                "reason": "Test advisory partition.",
+                "status": "advisory_domain_mismatch",
+            }
+        )
+    binding = bindings[binding_index]
+    assert isinstance(binding, dict)
+    dispatch_contract = binding["dispatch_contract"]
+    assert isinstance(dispatch_contract, dict)
+    dispatch_contract[field] = numeric_alias
+
+    with pytest.raises(ValueError, match="canonical builder contract"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("numeric_alias", [1, 1.0])
+def test_current_invariant_review_rejects_numeric_bridge_policy_boolean_alias(
+    numeric_alias: int | float,
+) -> None:
+    """Bridge-level policy booleans are type-exact, not Python-equality aliases."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    dispatch_policy = bridge["dispatch_policy"]
+    assert isinstance(dispatch_policy, dict)
+    dispatch_policy["spawn_via_coordinator_only"] = numeric_alias
+
+    with pytest.raises(ValueError, match="canonical builder contract"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_review_binds_bridge_roles_to_packet_assignments() -> None:
+    """A canonical replacement binding cannot substitute an assigned role."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    secondary = bridge["secondary"]
+    assert isinstance(secondary, list)
+    replacement_bridge = build_native_subagent_bridge(
+        primary_agent="architecture-specialist",
+        secondary_agents=["data-scientist-agent"],
+        advisory_agents=[],
+        reviewer="cursor-specialist-agent",
+    )
+    secondary[-1] = replacement_bridge["secondary"][0]
+
+    with pytest.raises(ValueError, match="exactly match packet assignments"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("binding_collection", ["secondary", "advisory"])
+def test_current_invariant_review_preserves_ordered_assignment_projection(
+    binding_collection: str,
+) -> None:
+    packet = _packet_with_advisory_secondaries()
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    bindings = bridge[binding_collection]
+    assert isinstance(bindings, list)
+    bindings.reverse()
+    _rebuild_invariant_dispatch_contract(packet)
+
+    with pytest.raises(ValueError, match="ordered packet assignment projection"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_review_accepts_canonical_mixed_bucket_projection() -> None:
+    packet = _packet_with_advisory_secondaries()
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "cursor-specialist-agent",
+    ]
+
+
+def test_current_invariant_review_rejects_cross_bucket_role_move() -> None:
+    packet = _packet_with_advisory_secondaries()
+    packet["native_subagent_bridge"] = build_native_subagent_bridge(
+        primary_agent="architecture-specialist",
+        secondary_agents=[
+            "logic-agent",
+            "agent-coordinator",
+            "philosophy-agent",
+            "security-auditor",
+            "bug-hunter",
+        ],
+        advisory_agents=["qa-engineer-agent"],
+        reviewer="cursor-specialist-agent",
+    )
+    _rebuild_invariant_dispatch_contract(packet)
+
+    with pytest.raises(ValueError, match="ordered packet assignment projection"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    "requested_agent_disposition",
+    [
+        "advisory",
+        [{"agent": "qa-engineer-agent", "status": "unknown"}],
+        [
+            {"agent": "qa-engineer-agent", "status": "honored_secondary"},
+            {"agent": "qa-engineer-agent", "status": "advisory_domain_mismatch"},
+        ],
+    ],
+)
+def test_current_invariant_review_rejects_malformed_assignment_disposition(
+    requested_agent_disposition: object,
+) -> None:
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    packet["requested_agent_disposition"] = requested_agent_disposition
+
+    with pytest.raises(ValueError, match="requested_agent_disposition must be"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_review_rejects_duplicate_bridge_roles() -> None:
+    """Canonical bindings cannot duplicate a required role pass."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    secondary = bridge["secondary"]
+    assert isinstance(secondary, list)
+    secondary.append(secondary[-1])
+
+    with pytest.raises(ValueError, match="bridge roles must be unique"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("packet_creation_executes_roles", True),
+        ("role_agent_dispatch_required", False),
+        ("role_agent_dispatch_hard_gate", False),
+        ("dispatch_manifest_command", "true"),
+        ("must_execute_dispatch_sequence_in_order", False),
+    ],
+)
+def test_current_invariant_review_requires_complete_dispatch_contract(
+    field: str,
+    replacement: object,
+) -> None:
+    """Current consumers use the producer builder as the dispatch-contract SoT."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(contract, dict)
+    contract[field] = replacement
+
+    with pytest.raises(ValueError, match="canonical builder contract"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_bridge_cli_rejects_malformed_binding(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The neutral CLI fails before manifest construction on malformed bindings."""
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    secondary = bridge["secondary"]
+    assert isinstance(secondary, list)
+    secondary.append(None)
+    packet_path = tmp_path / "malformed-current-bridge.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    result = role_dispatch_bridge.main(["--packet", str(packet_path), "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "native_subagent_bridge.secondary[4] must be a JSON object" in captured.err
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "error"),
+    [
+        ("coverage_claim", None, "exactly match the invariant_review.v1 fields"),
+        ("coverage_claim", "complete", "bounded coverage claim"),
+        ("boundary_classes", [], "canonical boundary classes"),
+        ("required_output_fields", [], "canonical output fields"),
+        ("stop_condition", "continue", "canonical stop condition"),
+    ],
+)
+def test_invariant_review_requires_complete_canonical_contract(
+    field: str,
+    replacement: object,
+    error: str,
+) -> None:
+    """The consumer validates the closed v1 review object, not selected fields."""
+
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    if replacement is None:
+        invariant_review.pop(field)
+    else:
+        invariant_review[field] = replacement
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_invariant_review_dispatch_order_chains_every_successor() -> None:
+    """An accepted G0 order serializes every role after coordinator."""
+
+    order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    parsed_order = qoder_dispatch_bridge._parse_json_packet_roles(
+        _invariant_review_packet(dispatch_role_order=order)
+    )
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=parsed_order,
+        mode="analysis",
+        packet_source="invariant-review-test",
+        chained_successors=set(parsed_order[1:]),
+        enforce_mandatory_post_open_tail=False,
+    )
+
+    dispatch = manifest["dispatch_sequence"]
+    assert dispatch[0]["depends_on_previous"] is False
+    assert all(entry["depends_on_previous"] is True for entry in dispatch[1:])
+
+
+@pytest.mark.parametrize(
+    ("dispatch_role_order", "error"),
+    [
+        (
+            [
+                "logic-agent",
+                "agent-coordinator",
+                "philosophy-agent",
+                "architecture-specialist",
+                "security-auditor",
+                "cursor-specialist-agent",
+            ],
+            "must start with agent-coordinator",
+        ),
+        (
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "philosophy-agent",
+                "architecture-specialist",
+                "cursor-specialist-agent",
+            ],
+            "canonical spawnable binding order",
+        ),
+        (
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "philosophy-agent",
+                "architecture-specialist",
+                "security-auditor",
+                "cursor-specialist-agent",
+                "extra-agent",
+            ],
+            "canonical spawnable binding order",
+        ),
+        (
+            [
+                "agent-coordinator",
+                "logic-agent",
+                "logic-agent",
+                "architecture-specialist",
+                "security-auditor",
+                "cursor-specialist-agent",
+            ],
+            "must not contain duplicate",
+        ),
+        ("agent-coordinator", "must be a non-empty JSON list"),
+    ],
+)
+def test_invariant_review_dispatch_order_fails_closed(
+    dispatch_role_order: object,
+    error: str,
+) -> None:
+    """Malformed or set-mismatched canonical orders never use legacy fallback."""
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(
+            _invariant_review_packet(
+                dispatch_role_order=dispatch_role_order,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("implementation_authority", "merge_authority", "error"),
+    [
+        (True, False, "must not grant implementation authority"),
+        (False, True, "must not grant merge authority"),
+        (0, False, "must not grant implementation authority"),
+        (False, None, "must not grant merge authority"),
+    ],
+)
+def test_invariant_review_dispatch_rejects_authority_confusion(
+    implementation_authority: object,
+    merge_authority: object,
+    error: str,
+) -> None:
+    """Authority fields must be exact JSON false values."""
+
+    order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(
+            _invariant_review_packet(
+                dispatch_role_order=order,
+                implementation_authority=implementation_authority,
+                merge_authority=merge_authority,
+            )
+        )
+
+
+def test_invariant_review_dispatch_rejects_creative_override() -> None:
+    """A malicious combined packet cannot replace the pre-fix chain."""
+
+    order = [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+    packet = _invariant_review_packet(dispatch_role_order=order)
+    packet["creative_pilot_context"] = {"phase": "independent"}
+
+    with pytest.raises(ValueError, match="cannot be combined with creative"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("omit_contract", [False, True])
+def test_required_pending_invariant_review_requires_dispatch_order(
+    omit_contract: bool,
+) -> None:
+    """Removing the canonical order cannot downgrade a pending review to legacy."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(contract, dict)
+    if omit_contract:
+        packet.pop("role_agent_dispatch_contract")
+        error = "requires role_agent_dispatch_contract"
+    else:
+        contract.pop("dispatch_role_order")
+        error = "requires dispatch_role_order"
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_packet_cannot_remove_all_review_metadata() -> None:
+    """The versioned post-G0 packet contract prevents a full metadata downgrade."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = "3.1"
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="task packet schema 3.1 requires invariant_review metadata",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_packet_with_malformed_path_cannot_downgrade_to_legacy() -> None:
+    """Current provenance stays fail-closed before strict path normalization."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = "3.1"
+    packet["candidate_paths"] = ["scripts/ci/check_policy.py\nignored"]
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="task packet schema 3.1 requires invariant_review metadata",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("schema_version", ["3.0", None])
+def test_legacy_packet_with_malformed_path_fails_closed(
+    schema_version: str | None,
+) -> None:
+    """Legacy compatibility never converts invalid candidate paths into no trigger."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["candidate_paths"] = ["scripts//ci/check_pr_merge_readiness.py"]
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+    if schema_version is None:
+        packet.pop("schema_version", None)
+    else:
+        packet["schema_version"] = schema_version
+
+    with pytest.raises(ValueError, match="must use unambiguous POSIX separators"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    "schema_version",
+    ["3.1 ", "3.01", 3.1, {}, [], None],
+)
+def test_unknown_or_malformed_packet_schema_cannot_claim_legacy(
+    schema_version: object,
+) -> None:
+    """Only exact supported schema values participate in compatibility."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = schema_version
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="schema_version must be exact 3.0 or 3.1",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_bounded_opening_trigger_cannot_masquerade_as_legacy_packet() -> None:
+    """A configured positive path hint remains fail-closed without metadata."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["candidate_paths"] = ["scripts/ci/guard_actions_pin.py"]
+    packet.pop("schema_version")
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(
+        ValueError,
+        match="bounded invariant trigger requires invariant_review metadata",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_true_legacy_no_trigger_packet_retains_fallback() -> None:
+    """Pre-G0 schema packets without a bounded trigger keep legacy ordering."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["schema_version"] = "3.0"
+    packet.pop("invariant_review")
+    packet.pop("role_agent_dispatch_contract")
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "logic-agent",
+        "philosophy-agent",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+
+    packet.pop("schema_version")
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "logic-agent",
+        "philosophy-agent",
+        "security-auditor",
+        "cursor-specialist-agent",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("invariant_review", "error"),
+    [
+        ("required_pending", "must be a JSON object"),
+        (
+            {
+                "schema_version": "invariant_review.v1",
+                "change_classes": ["guard"],
+                "trigger_evidence": [
+                    {"change_class": "guard", "source": "explicit"},
+                ],
+                "required_roles": ["logic-agent", "philosophy-agent"],
+                "implementation_authority": False,
+                "merge_authority": False,
+            },
+            "state must be not_required or required_pending",
+        ),
+        (
+            {
+                "schema_version": "invariant_review.v1",
+                "state": "require_pending",
+                "change_classes": ["guard"],
+                "trigger_evidence": [
+                    {"change_class": "guard", "source": "explicit"},
+                ],
+                "required_roles": ["logic-agent", "philosophy-agent"],
+                "implementation_authority": False,
+                "merge_authority": False,
+            },
+            "state must be not_required or required_pending",
+        ),
+        (
+            {
+                "schema_version": "invariant_review.v0",
+                "state": "not_required",
+                "change_classes": [],
+                "trigger_evidence": [],
+                "required_roles": [],
+                "implementation_authority": False,
+                "merge_authority": False,
+            },
+            "requires invariant_review.v1",
+        ),
+    ],
+)
+def test_present_invariant_review_metadata_fails_closed_when_malformed(
+    invariant_review: object,
+    error: str,
+) -> None:
+    """Only complete absence of invariant metadata may use legacy fallback."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["invariant_review"] = invariant_review
+    packet.pop("role_agent_dispatch_contract")
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("trigger_evidence", "error"),
+    [
+        ([None], "rows must be JSON objects"),
+        (
+            [{"change_class": "safety", "source": "explicit"}],
+            "unknown change_class",
+        ),
+        (
+            [{"change_class": "guard", "source": "manual"}],
+            "unknown source",
+        ),
+        (
+            [{"change_class": "guard", "source": "explicit", "path": "README.md"}],
+            "must not contain path or extra fields",
+        ),
+        (
+            [
+                {
+                    "change_class": "guard",
+                    "source": "bounded_path_hint",
+                    "path": "scripts/orchestration/check_merge_ready.py",
+                }
+            ],
+            "must match the canonical classifier",
+        ),
+    ],
+)
+def test_invariant_review_evidence_must_match_canonical_classifier(
+    trigger_evidence: object,
+    error: str,
+) -> None:
+    """The bridge reuses the classifier instead of trusting packet evidence."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    invariant_review["trigger_evidence"] = trigger_evidence
+
+    with pytest.raises(ValueError, match=error):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_malformed_invariant_review_blocks_current_creative_override() -> None:
+    """Creative routing cannot revive malformed invariant-review metadata."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    packet["invariant_review"] = {
+        "schema_version": "invariant_review.v1",
+        "state": "required-pending",
+        "change_classes": ["guard"],
+        "trigger_evidence": [
+            {"change_class": "guard", "source": "explicit"},
+        ],
+        "required_roles": ["logic-agent", "philosophy-agent"],
+        "implementation_authority": False,
+        "merge_authority": False,
+    }
+    packet.pop("role_agent_dispatch_contract")
+    packet["creative_pilot_context"] = {"phase": "independent"}
+
+    with pytest.raises(
+        ValueError,
+        match="state must be not_required or required_pending",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_opening_invariant_trigger_cannot_downgrade_to_not_required_or_creative() -> None:
+    """Active opening evidence must retain the pending pre-fix chain."""
+
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    invariant_review["state"] = "not_required"
+    invariant_review["required_roles"] = []
+    packet.pop("role_agent_dispatch_contract")
+    packet["creative_pilot_context"] = {"phase": "independent"}
+
+    with pytest.raises(
+        ValueError,
+        match="opening-phase invariant triggers require required_pending review",
+    ):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_not_required_invariant_review_keeps_phase_bounded_dispatch() -> None:
+    """No-trigger opening packets and recorded post-open classes remain valid."""
+
+    opening_packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    opening_review = opening_packet["invariant_review"]
+    assert isinstance(opening_review, dict)
+    opening_review.update(
+        {
+            "state": "not_required",
+            "change_classes": [],
+            "trigger_evidence": [],
+            "required_roles": [],
+        }
+    )
+    opening_bridge = opening_packet["native_subagent_bridge"]
+    assert isinstance(opening_bridge, dict)
+    opening_packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=opening_bridge,
+        pr_phase="pre_open",
+    )
+
+    post_open_packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    post_open_packet["pr_phase"] = "post_open_review"
+    post_open_review = post_open_packet["invariant_review"]
+    assert isinstance(post_open_review, dict)
+    post_open_review.update(
+        {
+            "state": "not_required",
+            "required_roles": [],
+        }
+    )
+    post_open_bridge = post_open_packet["native_subagent_bridge"]
+    assert isinstance(post_open_bridge, dict)
+    post_open_packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=post_open_bridge,
+        pr_phase="post_open_review",
+    )
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(opening_packet)
+    assert qoder_dispatch_bridge._parse_json_packet_roles(post_open_packet)
+
+
+def test_required_pending_invariant_review_without_order_blocks_creative_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Creative metadata cannot revive a pending packet whose order is missing."""
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = _invariant_review_packet(dispatch_role_order=["agent-coordinator"])
+    contract = packet["role_agent_dispatch_contract"]
+    assert isinstance(contract, dict)
+    contract.pop("dispatch_role_order")
+    packet["creative_pilot_context"] = {"phase": "independent"}
+    packet_path = tmp_path / "pending-without-order.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet_path), "--mode", "analysis"])
+
+    assert result == 1
+    assert (
+        "required_pending invariant review requires dispatch_role_order" in capsys.readouterr().err
+    )
 
 
 # ---------------------------------------------------------------------------
