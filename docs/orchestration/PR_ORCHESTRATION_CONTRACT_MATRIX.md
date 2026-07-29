@@ -53,10 +53,10 @@ Canonical operator entrypoint:
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
 
-The PR body keeps Goal, Scope, Tests/validation, Security notes,
+The PR body keeps Goal, Scope, the exact `## Tests` heading, Security notes,
 Risks/Rollback, and one link to the canonical artifact. It does not mirror
-review-thread URL→SHA entries. Required `## Experiment Runner Evidence` lives
-in the canonical artifact:
+review-thread URL→SHA entries. Required `## Experiment Runner Evidence` lives in
+the canonical artifact:
 
 - full URL→SHA mapping lines exist only in the canonical artifact
 - required `## Experiment Runner Evidence` in the canonical artifact:

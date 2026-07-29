@@ -6216,6 +6216,8 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
     assert "### Fixed in Commit Mapping" in template
     assert "- [ ] Discussion-thread pass completed" in template
     assert "- [ ] Fixed in commit mapping completed" in template
+    assert "Tests/validation" not in contract_matrix
+    assert "the exact `## Tests` heading" in contract_matrix
     assert "both the marker and matching pending mapping-status" in contract_matrix
     assert "either stale token is a Phase 2 body-gate error" in contract_matrix
     for document in (agents, runbook):
