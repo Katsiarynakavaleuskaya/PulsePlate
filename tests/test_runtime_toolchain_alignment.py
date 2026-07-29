@@ -161,6 +161,26 @@ def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
             assert _python_version_input(step) == CANONICAL_PYTHON, f"{path}:{job_name}"
 
 
+@pytest.mark.parametrize(
+    ("path", "expected_jobs"),
+    (
+        (".github/workflows/nightly-tests.yml", ("tests", "tests")),
+        (
+            ".github/workflows/rag-release-gates.yml",
+            ("rag-release-gates-smoke", "rag-release-gates-weekly"),
+        ),
+    ),
+)
+def test_auxiliary_workflows_advanced_ahead_of_canonical_pin_use_exact_python_patch(
+    path: str,
+    expected_jobs: tuple[str, ...],
+) -> None:
+    setup_steps = _iter_python_setup_steps(path)
+
+    assert Counter(job_name for job_name, _step in setup_steps) == Counter(expected_jobs)
+    assert {_python_version_input(step) for _job_name, step in setup_steps} == {"3.13.14"}
+
+
 def test_no_python_setup_step_uses_bare_py313_runtime_pin() -> None:
     offenders: list[str] = []
     workflow_dir = REPO_ROOT / ".github" / "workflows"
