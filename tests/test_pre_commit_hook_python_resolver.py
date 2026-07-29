@@ -10,6 +10,8 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOK_RESOLVER = REPO_ROOT / "scripts" / "hooks" / "repo_python.sh"
 HOOK_FILES = [
@@ -40,6 +42,22 @@ def _write_fake_pytest_python(path: Path, calls_file: Path) -> None:
             fi
             echo "unexpected fake python args: $*" >&2
             exit 2
+            """),
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def _write_failing_git_diff(path: Path, real_git: str) -> None:
+    path.write_text(
+        textwrap.dedent(f"""\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [[ "${{1:-}}" == "diff" ]]; then
+                echo "deterministic git diff failure" >&2
+                exit 42
+            fi
+            exec {shlex.quote(real_git)} "$@"
             """),
         encoding="utf-8",
     )
@@ -1512,6 +1530,246 @@ def test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests(
     assert "tests/test_ci_workflow_pr_size_governance_contract.py" in called_args
     assert "tests/test_frontend_dependency_guards.py" in called_args
     assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def _prepare_dependabot_policy_hook_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    _git(repo, "branch", "-M", "main")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "scripts" / "ci").mkdir()
+    (repo / "scripts" / "ci" / "check_python_dependency_surfaces.py").write_text(
+        "DEPENDENCY_SURFACES = ()\n",
+        encoding="utf-8",
+    )
+    (repo / "tests").mkdir()
+    (repo / ".github").mkdir()
+    (repo / ".github" / "dependabot.yml").write_text(
+        "version: 2\n",
+        encoding="utf-8",
+    )
+    (repo / "requirements.in").write_text("fastapi~=0.1\n", encoding="utf-8")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    return repo
+
+
+def test_backend_hook_maps_staged_dependabot_config_to_policy_test(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    (repo / ".github" / "dependabot.yml").write_text(
+        "version: 2\n# changed\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".github/dependabot.yml")
+    calls_file = tmp_path / "pytest-dependabot-staged-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-staged"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+@pytest.mark.parametrize("relative_path", ("extra.txt", "nested/extra.in"))
+def test_backend_hook_maps_every_staged_dependabot_carrier_candidate_to_policy_test(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    carrier_path = repo / relative_path
+    carrier_path.parent.mkdir(parents=True, exist_ok=True)
+    carrier_path.write_text("novel-unowned-carrier>=1\n", encoding="utf-8")
+    _git(repo, "add", relative_path)
+    calls_file = tmp_path / "pytest-dependabot-carrier-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-carrier"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ("staged", "branch", "upstream", "origin_fallback", "recent_fallback"),
+)
+def test_backend_hook_never_suppresses_claude_dependabot_carrier(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    env = _clean_hook_env()
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    if mode == "staged":
+        env["PRE_COMMIT"] = "1"
+    elif mode == "recent_fallback":
+        _git(repo, "switch", "--detach", "--quiet")
+        _git(repo, "branch", "-D", "main")
+    else:
+        branch_name = f"claude-carrier-{mode}"
+        _git(repo, "switch", "--quiet", "-c", branch_name)
+        if mode in {"upstream", "origin_fallback"}:
+            _git(repo, "update-ref", f"refs/remotes/origin/{branch_name}", base_sha)
+        if mode == "upstream":
+            _git(repo, "config", f"branch.{branch_name}.remote", "origin")
+            _git(
+                repo,
+                "config",
+                f"branch.{branch_name}.merge",
+                f"refs/heads/{branch_name}",
+            )
+
+    carrier_path = repo / ".claude" / "extra.txt"
+    carrier_path.parent.mkdir()
+    carrier_path.write_text("novel-unowned-carrier>=1\n", encoding="utf-8")
+    _git(repo, "add", ".claude/extra.txt")
+    if mode != "staged":
+        _git(repo, "commit", "--quiet", "-m", "add hidden-directory carrier")
+    if mode == "branch":
+        env["BRANCH_DIFF_MODE"] = "1"
+
+    calls_file = tmp_path / f"pytest-claude-carrier-{mode}-args.txt"
+    fake_python = tmp_path / f"fake-python-claude-carrier-{mode}"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env["VENV_PYTHON"] = str(fake_python)
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+@pytest.mark.parametrize("control_character", ("\n", "\r", "\t"))
+def test_backend_hook_preserves_control_character_carrier_paths(
+    tmp_path: Path,
+    control_character: str,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    relative_path = f"extra{control_character}carrier.txt"
+    (repo / relative_path).write_text(
+        "novel-unowned-carrier>=1\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", relative_path)
+    calls_file = tmp_path / "pytest-dependabot-control-path-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-control-path"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+@pytest.mark.parametrize("mode", ("staged", "branch", "upstream"))
+def test_backend_hook_fails_closed_when_git_diff_fails(
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    real_git = shutil.which("git")
+    assert real_git is not None
+    bin_dir = tmp_path / "failing-git-bin"
+    bin_dir.mkdir()
+    _write_failing_git_diff(bin_dir / "git", real_git)
+    env = _clean_hook_env()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    if mode == "staged":
+        env["PRE_COMMIT"] = "1"
+    elif mode == "branch":
+        env["BRANCH_DIFF_MODE"] = "1"
+    else:
+        _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        _git(repo, "config", "branch.main.remote", "origin")
+        _git(repo, "config", "branch.main.merge", "refs/heads/main")
+
+    completed = _bash_failure(
+        "bash scripts/run-backend-tests-pre-commit.sh",
+        cwd=repo,
+        env=env,
+    )
+
+    assert completed.returncode == 42
+    assert "deterministic git diff failure" in completed.stderr
+    assert "git diff failed while collecting changed files (exit 42)" in completed.stderr
+    assert "No Python or cross-surface governance files changed" not in completed.stdout
+
+
+def test_backend_hook_maps_staged_dependency_surface_registry_to_policy_test(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    registry = repo / "scripts" / "ci" / "check_python_dependency_surfaces.py"
+    registry.write_text(
+        "DEPENDENCY_SURFACES = ('requirements.in',)\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "scripts/ci/check_python_dependency_surfaces.py")
+    calls_file = tmp_path / "pytest-dependabot-surface-registry-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-surface-registry"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
+    assert "Backend tests passed" in output
+
+
+def test_backend_hook_maps_branch_requirement_delta_to_dependabot_policy_test(
+    tmp_path: Path,
+) -> None:
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    _git(repo, "switch", "--quiet", "-c", "dependency-policy")
+    (repo / "requirements.in").write_text(
+        "fastapi~=0.1\nrequests~=2.0\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "requirements.in")
+    _git(repo, "commit", "--quiet", "-m", "change requirement source")
+    calls_file = tmp_path / "pytest-dependabot-branch-args.txt"
+    fake_python = tmp_path / "fake-python-dependabot-branch"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["BRANCH_DIFF_MODE"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_check_dependabot_python_policy.py" in called_args
     assert "Backend tests passed" in output
 
 

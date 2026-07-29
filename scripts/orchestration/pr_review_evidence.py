@@ -19,6 +19,9 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from scripts.ci.dependabot_requirement_carriers import (
+    is_protected_python_dependency_text_path,
+)
 from scripts.orchestration.review_source_status import (
     TERMINAL_NONBLOCKING_STATUSES,
     review_source_policy_projection,
@@ -247,7 +250,6 @@ SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
-_ROOT_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
 _CANONICAL_CODEOWNERS_PATHS = frozenset(
     {
         ".github/CODEOWNERS",
@@ -1896,7 +1898,7 @@ def protected_trust_boundary_paths(material_paths: Iterable[str]) -> tuple[str, 
                 or path in _CANONICAL_CODEOWNERS_PATHS
                 or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
                 or PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
-                or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
+                or is_protected_python_dependency_text_path(path)
             }
         )
     )
