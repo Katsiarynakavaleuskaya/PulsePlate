@@ -57,7 +57,10 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     validate_task_pilot_context,
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
-from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
+from scripts.orchestration.task_bootstrap import (
+    build_role_agent_dispatch_contract,
+    partition_native_secondaries,
+)
 
 PR_PHASE_NONE = "none"
 PR_PHASE_PRE_OPEN = "pre_open"
@@ -727,11 +730,33 @@ def _validate_current_native_subagent_bridge(
         raise ValueError(
             "current native_subagent_bridge roles must exactly match packet assignments"
         )
+    requested_agent_disposition = payload.get("requested_agent_disposition")
+    if not isinstance(requested_agent_disposition, list):
+        raise ValueError("current invariant packet requested_agent_disposition must be a JSON list")
+    try:
+        expected_secondaries, expected_advisory = partition_native_secondaries(
+            secondary_agents=assigned_secondaries,
+            requested_agent_disposition=cast(
+                list[dict[str, str]],
+                requested_agent_disposition,
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            "current invariant packet requested_agent_disposition must be canonical"
+        ) from exc
+    if (
+        binding_slugs["secondary"] != expected_secondaries
+        or binding_slugs["advisory"] != expected_advisory
+    ):
+        raise ValueError(
+            "current native_subagent_bridge must preserve the ordered packet assignment projection"
+        )
     expected_bridge = build_native_subagent_bridge(
         primary_agent=assigned_primary,
-        secondary_agents=binding_slugs["secondary"],
+        secondary_agents=expected_secondaries,
         reviewer=assigned_reviewer,
-        advisory_agents=binding_slugs["advisory"],
+        advisory_agents=expected_advisory,
         transport=transport,
     )
     canonical_error = (
@@ -896,16 +921,26 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     return ["agent-coordinator", *ordered]
 
 
-def _json_packet_has_dispatch_role_order(packet_path: Path) -> bool:
-    """Return whether a JSON packet declares the canonical dispatch order."""
+def _json_payload_has_dispatch_role_order(payload: Dict[str, Any]) -> bool:
+    """Return whether a JSON payload declares the canonical dispatch order."""
 
-    payload = _load_json_packet(packet_path)
-    if payload is None:
-        return False
     role_dispatch_contract = payload.get("role_agent_dispatch_contract")
     return isinstance(role_dispatch_contract, dict) and (
         "dispatch_role_order" in role_dispatch_contract
     )
+
+
+def _json_packet_has_dispatch_role_order(packet_path: Path) -> bool:
+    """Return whether a JSON packet declares the canonical dispatch order."""
+
+    payload = _load_json_packet(packet_path)
+    return payload is not None and _json_payload_has_dispatch_role_order(payload)
+
+
+def _is_json_designated_packet(packet_path: Path) -> bool:
+    """Return whether the caller-designated packet format is JSON."""
+
+    return packet_path.suffix.casefold() == ".json"
 
 
 def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
@@ -917,6 +952,18 @@ def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
     if not isinstance(payload, dict):
         return None
     return payload
+
+
+def _load_strict_json_packet(packet_path: Path) -> Dict[str, Any]:
+    """Load one JSON object while rejecting duplicate keys."""
+
+    try:
+        return cast(
+            Dict[str, Any],
+            load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8")),
+        )
+    except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
+        raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
 
 
 def _json_packet_has_requested_order(packet_path: Path) -> bool:
@@ -1003,6 +1050,11 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
     payload = _load_json_packet(resolved_packet_path)
     if payload is None:
         return set()
+    return _json_payload_runtime_implementation_owners(payload)
+
+
+def _json_payload_runtime_implementation_owners(payload: Dict[str, Any]) -> set[str]:
+    """Return implementation owners explicitly granted by a JSON payload."""
 
     bridge = payload.get("native_subagent_bridge")
     if not isinstance(bridge, dict):
@@ -1034,14 +1086,9 @@ def _json_packet_runtime_implementation_owners(packet_path: Path) -> set[str]:
     return bridge_owner_slugs
 
 
-def _parse_packet_roles(packet_path: Path) -> List[str]:
-    """Extract ordered role slugs from a governance packet.
+def _resolve_packet_path(packet_path: Path) -> Path:
+    """Resolve one packet path after enforcing repository containment."""
 
-    Looks for:
-    1. A task_bootstrap JSON packet with ``native_subagent_bridge``.
-    2. A ``## Coordinator Role Order`` section with numbered/bulleted slugs.
-    3. Fallback: any numbered list containing agent slugs.
-    """
     if not packet_path.is_file():
         print(f"FAIL: Packet file not found: {packet_path}", file=sys.stderr)
         sys.exit(1)
@@ -1054,10 +1101,27 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
             file=sys.stderr,
         )
         sys.exit(1)
+    return resolved_packet_path
 
-    json_payload = _load_json_packet(resolved_packet_path)
-    if json_payload is None and resolved_packet_path.suffix.casefold() == ".json":
-        raise ValueError("JSON packet must contain a valid JSON object")
+
+def _load_packet_payload(
+    resolved_packet_path: Path,
+    *,
+    json_designated: bool,
+) -> Optional[Dict[str, Any]]:
+    """Load a packet once using the caller-designated format."""
+
+    if json_designated:
+        return _load_strict_json_packet(resolved_packet_path)
+    return _load_json_packet(resolved_packet_path)
+
+
+def _parse_loaded_packet_roles(
+    resolved_packet_path: Path,
+    json_payload: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Extract ordered roles from one already-classified packet."""
+
     if json_payload is not None:
         return _parse_json_packet_roles(json_payload)
 
@@ -1106,6 +1170,23 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
                     ordered.append(slug)
 
     return ordered
+
+
+def _parse_packet_roles(packet_path: Path) -> List[str]:
+    """Extract ordered role slugs from a governance packet.
+
+    JSON designation comes from the caller path before symlink resolution.
+    Markdown role parsing remains the fallback only for non-JSON-designated
+    packet paths.
+    """
+
+    json_designated = _is_json_designated_packet(packet_path)
+    resolved_packet_path = _resolve_packet_path(packet_path)
+    json_payload = _load_packet_payload(
+        resolved_packet_path,
+        json_designated=json_designated,
+    )
+    return _parse_loaded_packet_roles(resolved_packet_path, json_payload)
 
 
 def _extract_roles_from_section(lines: List[str], heading_fragment: str) -> List[str]:
@@ -1491,13 +1572,18 @@ def build_dispatch_manifest(
     return manifest
 
 
-def _load_creative_pilot_context(packet_path: Path) -> Optional[Dict[str, Any]]:
-    if packet_path.suffix != ".json":
+def _load_creative_pilot_context(
+    packet_path: Path,
+    *,
+    json_designated: Optional[bool] = None,
+    payload: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    if json_designated is None:
+        json_designated = _is_json_designated_packet(packet_path)
+    if not json_designated:
         return None
-    try:
-        payload = load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
-        raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
+    if payload is None:
+        payload = _load_strict_json_packet(packet_path)
     context = payload.get("creative_pilot_context") if isinstance(payload, dict) else None
     if context is None:
         return None
@@ -1592,24 +1678,34 @@ def main(argv: Optional[List[str]] = None) -> int:
     packet_source: Optional[str] = None
     packet_bracket_groups: Optional[List[List[str]]] = None
     packet_chained_successors: Optional[set[str]] = None
+    packet_json_payload: Optional[Dict[str, Any]] = None
     enforce_mandatory_post_open_tail = True
     if args.packet:
-        packet_path = Path(args.packet)
-        if not packet_path.is_absolute():
-            packet_path = (REPO_ROOT / packet_path).resolve()
-        enforce_mandatory_post_open_tail = not (
-            _json_packet_requested_order_preserves_mandatory_tail(packet_path)
-        )
+        packet_input_path = Path(args.packet)
+        if not packet_input_path.is_absolute():
+            packet_input_path = REPO_ROOT / packet_input_path
+        json_designated = _is_json_designated_packet(packet_input_path)
         try:
-            role_slugs = _parse_packet_roles(packet_path)
+            packet_path = _resolve_packet_path(packet_input_path)
+            packet_json_payload = _load_packet_payload(
+                packet_path,
+                json_designated=json_designated,
+            )
+            role_slugs = _parse_loaded_packet_roles(packet_path, packet_json_payload)
         except ValueError as exc:
             print(f"FAIL: {exc}", file=sys.stderr)
             return 1
+        enforce_mandatory_post_open_tail = not (
+            packet_json_payload is not None
+            and _json_payload_requested_order_preserves_mandatory_tail(packet_json_payload)
+        )
         # Extract bracket-notation parallelizable groups from packet
         packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
         packet_bracket_groups = _extract_bracket_groups(packet_lines) or None
         packet_chained_successors = _extract_chain_successors(packet_lines) or None
-        if _json_packet_has_dispatch_role_order(packet_path):
+        if packet_json_payload is not None and _json_payload_has_dispatch_role_order(
+            packet_json_payload
+        ):
             packet_chained_successors = set(role_slugs[1:])
             enforce_mandatory_post_open_tail = False
         try:
@@ -1623,7 +1719,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             )
             return 1
         try:
-            creative_pilot_context = _load_creative_pilot_context(packet_path)
+            creative_pilot_context = _load_creative_pilot_context(
+                packet_path,
+                json_designated=json_designated,
+                payload=packet_json_payload,
+            )
         except ValueError as exc:
             print(f"FAIL: {exc}", file=sys.stderr)
             return 1
@@ -1671,7 +1771,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
         return 1
     if implementation_owner_slugs and args.packet:
-        allowed_owner_slugs = _json_packet_runtime_implementation_owners(packet_path)
+        allowed_owner_slugs = (
+            _json_payload_runtime_implementation_owners(packet_json_payload)
+            if packet_json_payload is not None
+            else set()
+        )
         ungranted_owner_slugs = sorted(implementation_owner_slugs - allowed_owner_slugs)
         if ungranted_owner_slugs:
             print(

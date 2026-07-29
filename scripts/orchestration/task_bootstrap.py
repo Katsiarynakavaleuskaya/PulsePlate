@@ -1025,7 +1025,7 @@ def _reconcile_requested_agent_dispositions(
             )
 
 
-def _partition_native_secondaries(
+def partition_native_secondaries(
     *,
     secondary_agents: list[str],
     requested_agent_disposition: list[dict[str, str]],
@@ -1043,6 +1043,28 @@ def _partition_native_secondaries(
         REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
         REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
     }
+    known_statuses = {
+        REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN,
+        REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
+        REQUESTED_AGENT_STATUS_HONORED_SECONDARY,
+        REQUESTED_AGENT_STATUS_HONORED_REVIEWER,
+        REQUESTED_AGENT_STATUS_ADVISORY_NON_ROUTABLE,
+        REQUESTED_AGENT_STATUS_PROMOTED,
+        REQUESTED_AGENT_STATUS_ADVISORY_DOMAIN_MISMATCH,
+    }
+    seen_disposition_agents: set[str] = set()
+    for disposition in requested_agent_disposition:
+        if not isinstance(disposition, dict):
+            raise ValueError("requested_agent_disposition entries must be objects")
+        agent_slug = disposition.get("agent")
+        status = disposition.get("status")
+        if not isinstance(agent_slug, str) or not agent_slug or agent_slug != agent_slug.strip():
+            raise ValueError("requested_agent_disposition agent must be canonical")
+        if agent_slug in seen_disposition_agents:
+            raise ValueError("requested_agent_disposition agents must be unique")
+        if not isinstance(status, str) or status not in known_statuses:
+            raise ValueError("requested_agent_disposition status must be recognized")
+        seen_disposition_agents.add(agent_slug)
     normalized_forced_executable_agents = forced_executable_agents or set()
     advisory_agents = {
         disposition["agent"]
@@ -1524,7 +1546,7 @@ def build_task_packet(
             secondary_agents=requested_agent_resolution["secondary_agents"],
             reviewer=requested_agent_resolution["reviewer"],
         )
-    executable_secondaries, advisory_agents = _partition_native_secondaries(
+    executable_secondaries, advisory_agents = partition_native_secondaries(
         secondary_agents=requested_agent_resolution["secondary_agents"],
         requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
         forced_executable_agents=forced_executable_agents,

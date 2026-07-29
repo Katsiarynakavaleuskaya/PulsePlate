@@ -1369,12 +1369,14 @@ def test_runtime_implementation_owner_cli_requires_packet(
     assert "--implementation-owner requires --packet" in captured.err
 
 
+@pytest.mark.parametrize("suffix", [".json", ".JSON", ".JsOn"])
 def test_duplicate_key_json_packet_fails_closed_before_dispatch(
+    suffix: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    packet_file = tmp_path / "packet.json"
+    packet_file = tmp_path / f"packet{suffix}"
     packet_file.write_text(
         "{"
         '"requested_agents":["agent-coordinator"],'
@@ -1415,7 +1417,7 @@ def test_json_designated_packet_never_falls_back_to_markdown(
 
     captured = capsys.readouterr()
     assert result == 1
-    assert "JSON packet must contain a valid JSON object" in captured.err
+    assert "invalid strict JSON task packet" in captured.err
     assert captured.out == ""
 
 
@@ -1430,8 +1432,29 @@ def test_json_designated_packet_requires_object_root(
     )
     monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
 
-    with pytest.raises(ValueError, match="JSON packet must contain a valid JSON object"):
+    with pytest.raises(ValueError, match="invalid strict JSON task packet"):
         qoder_dispatch_bridge._parse_packet_roles(packet_file)
+
+
+def test_relative_json_symlink_cannot_downgrade_to_markdown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = tmp_path / "packet.md"
+    target.write_text(
+        "## Coordinator Role Order\n" "1. agent-coordinator\n" "2. backend-engineer\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "packet.json").symlink_to(target)
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = qoder_dispatch_bridge.main(["--packet", "packet.json", "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "invalid strict JSON task packet" in captured.err
+    assert captured.out == ""
 
 
 def test_runtime_implementation_owner_cli_packet_success(
@@ -1846,6 +1869,7 @@ def _invariant_review_packet(
         "secondary_agents": secondary_agents,
         "reviewer": reviewer,
         "requested_agents": ["architecture-specialist"],
+        "requested_agent_disposition": [],
         "invariant_review": {
             "schema_version": "invariant_review.v1",
             "state": "required_pending",
@@ -1880,6 +1904,74 @@ def _invariant_review_packet(
         "role_agent_dispatch_contract": role_agent_dispatch_contract,
         "native_subagent_bridge": native_subagent_bridge,
     }
+
+
+def _packet_with_advisory_secondaries() -> dict[str, object]:
+    packet = _invariant_review_packet(dispatch_role_order=[])
+    assigned_secondaries = packet["secondary_agents"]
+    assert isinstance(assigned_secondaries, list)
+    assigned_secondaries.extend(["qa-engineer-agent", "bug-hunter"])
+    packet["requested_agent_disposition"] = [
+        {
+            "agent": "qa-engineer-agent",
+            "reason": "Test advisory partition.",
+            "status": "advisory_domain_mismatch",
+        },
+        {
+            "agent": "bug-hunter",
+            "reason": "Test advisory partition.",
+            "status": "advisory_domain_mismatch",
+        },
+    ]
+    bridge = build_native_subagent_bridge(
+        primary_agent="architecture-specialist",
+        secondary_agents=[
+            "logic-agent",
+            "agent-coordinator",
+            "philosophy-agent",
+            "security-auditor",
+        ],
+        advisory_agents=["qa-engineer-agent", "bug-hunter"],
+        reviewer="cursor-specialist-agent",
+    )
+    packet["native_subagent_bridge"] = bridge
+    _rebuild_invariant_dispatch_contract(packet)
+    return packet
+
+
+def _rebuild_invariant_dispatch_contract(packet: dict[str, object]) -> None:
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+
+    def slug(binding: object) -> str:
+        assert isinstance(binding, dict)
+        value = binding["repo_agent_slug"]
+        assert isinstance(value, str)
+        return value
+
+    secondary = bridge["secondary"]
+    advisory = bridge["advisory"]
+    assert isinstance(secondary, list)
+    assert isinstance(advisory, list)
+    bridge_order = [
+        slug(bridge["primary"]),
+        *[slug(binding) for binding in secondary],
+        *[slug(binding) for binding in advisory],
+        slug(bridge["reviewer"]),
+    ]
+    required_prefix = ["agent-coordinator", "logic-agent", "philosophy-agent"]
+    dispatch_order = [
+        *required_prefix,
+        *[role for role in bridge_order if role not in required_prefix],
+    ]
+    invariant_review = packet["invariant_review"]
+    assert isinstance(invariant_review, dict)
+    invariant_review["state"] = "required_pending"
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=bridge,
+        pr_phase="pre_open",
+        dispatch_role_order=dispatch_order,
+    )
 
 
 def test_invariant_review_dispatch_order_replaces_requested_agent_reordering() -> None:
@@ -2023,6 +2115,15 @@ def test_current_invariant_review_rejects_lossy_bridge_projection(
         assigned_secondaries = packet["secondary_agents"]
         assert isinstance(assigned_secondaries, list)
         assigned_secondaries.append("qa-engineer-agent")
+        requested_agent_disposition = packet["requested_agent_disposition"]
+        assert isinstance(requested_agent_disposition, list)
+        requested_agent_disposition.append(
+            {
+                "agent": "qa-engineer-agent",
+                "reason": "Test advisory partition.",
+                "status": "advisory_domain_mismatch",
+            }
+        )
 
     with pytest.raises(ValueError, match=error):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
@@ -2071,6 +2172,15 @@ def test_current_invariant_review_rejects_numeric_boolean_aliases(
         assigned_secondaries = packet["secondary_agents"]
         assert isinstance(assigned_secondaries, list)
         assigned_secondaries.append("qa-engineer-agent")
+        requested_agent_disposition = packet["requested_agent_disposition"]
+        assert isinstance(requested_agent_disposition, list)
+        requested_agent_disposition.append(
+            {
+                "agent": "qa-engineer-agent",
+                "reason": "Test advisory partition.",
+                "status": "advisory_domain_mismatch",
+            }
+        )
     binding = bindings[binding_index]
     assert isinstance(binding, dict)
     dispatch_contract = binding["dispatch_contract"]
@@ -2133,6 +2243,87 @@ def test_current_invariant_review_binds_bridge_roles_to_packet_assignments() -> 
     secondary[-1] = replacement_bridge["secondary"][0]
 
     with pytest.raises(ValueError, match="exactly match packet assignments"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("binding_collection", ["secondary", "advisory"])
+def test_current_invariant_review_preserves_ordered_assignment_projection(
+    binding_collection: str,
+) -> None:
+    packet = _packet_with_advisory_secondaries()
+    bridge = packet["native_subagent_bridge"]
+    assert isinstance(bridge, dict)
+    bindings = bridge[binding_collection]
+    assert isinstance(bindings, list)
+    bindings.reverse()
+    _rebuild_invariant_dispatch_contract(packet)
+
+    with pytest.raises(ValueError, match="ordered packet assignment projection"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_current_invariant_review_accepts_canonical_mixed_bucket_projection() -> None:
+    packet = _packet_with_advisory_secondaries()
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "cursor-specialist-agent",
+    ]
+
+
+def test_current_invariant_review_rejects_cross_bucket_role_move() -> None:
+    packet = _packet_with_advisory_secondaries()
+    packet["native_subagent_bridge"] = build_native_subagent_bridge(
+        primary_agent="architecture-specialist",
+        secondary_agents=[
+            "logic-agent",
+            "agent-coordinator",
+            "philosophy-agent",
+            "security-auditor",
+            "bug-hunter",
+        ],
+        advisory_agents=["qa-engineer-agent"],
+        reviewer="cursor-specialist-agent",
+    )
+    _rebuild_invariant_dispatch_contract(packet)
+
+    with pytest.raises(ValueError, match="ordered packet assignment projection"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    "requested_agent_disposition",
+    [
+        "advisory",
+        [{"agent": "qa-engineer-agent", "status": "unknown"}],
+        [
+            {"agent": "qa-engineer-agent", "status": "honored_secondary"},
+            {"agent": "qa-engineer-agent", "status": "advisory_domain_mismatch"},
+        ],
+    ],
+)
+def test_current_invariant_review_rejects_malformed_assignment_disposition(
+    requested_agent_disposition: object,
+) -> None:
+    packet = _invariant_review_packet(
+        dispatch_role_order=[
+            "agent-coordinator",
+            "logic-agent",
+            "philosophy-agent",
+            "architecture-specialist",
+            "security-auditor",
+            "cursor-specialist-agent",
+        ]
+    )
+    packet["requested_agent_disposition"] = requested_agent_disposition
+
+    with pytest.raises(ValueError, match="requested_agent_disposition must be"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
