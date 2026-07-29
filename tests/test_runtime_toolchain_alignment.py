@@ -25,6 +25,7 @@ EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
     (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),
     (".github/workflows/experiment-runner-dispatch.yml", "experiment-runner-dispatch-contract"),
     (".github/workflows/experiment-runner-slack-socket-smoke.yml", "slack-socket-bridge-smoke"),
+    # nightly-tests has two setup steps in one job; keep both owners for strict multiplicity.
     (".github/workflows/nightly-tests.yml", "tests"),
     (".github/workflows/nightly-tests.yml", "tests"),
     (".github/workflows/nightly.yml", "coverage-merge"),
@@ -118,6 +119,7 @@ def _assert_expected_ruby_setup_steps(
 def _assert_expected_auxiliary_python_setup_steps(
     discovered: list[tuple[tuple[str, str], dict[str, Any]]],
 ) -> None:
+    """Require the finite owner multiset and canonical Python pin."""
     owners = Counter(owner for owner, _step in discovered)
     assert owners == Counter(EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS)
     for owner, step in discovered:
