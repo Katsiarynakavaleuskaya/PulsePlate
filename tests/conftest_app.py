@@ -1,14 +1,20 @@
 """Reusable response assertions for app-group compatibility tests."""
 
 from collections.abc import Collection, Mapping
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
-from httpx import Response
+
+
+class _ResponseLike(Protocol):
+    status_code: int
+    text: str
+
+    def json(self) -> Any: ...
 
 
 def assert_vip_response(
-    response: Response,
+    response: _ResponseLike,
     expected_status_codes: Collection[int] | None = None,
     expected_data_fields: Mapping[str, Any] | None = None,
 ) -> None:
