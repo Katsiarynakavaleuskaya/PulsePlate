@@ -666,6 +666,75 @@ def test_registry_contract_rejects_public_fallback_and_wildcard_binding(
     )
 
 
+@pytest.mark.parametrize(
+    ("selector", "key", "invalid_value", "expected_error"),
+    [
+        ((), "version", 2.0, ".github/dependabot.yml:version:must be 2; got number"),
+        (
+            ("registries", policy.REGISTRY_NAME),
+            "replaces-base",
+            1,
+            ".github/dependabot.yml:registries.python-index.replaces-base:"
+            "must be True; got integer",
+        ),
+        (
+            ("registries", policy.REGISTRY_NAME),
+            "replaces-base",
+            1.0,
+            ".github/dependabot.yml:registries.python-index.replaces-base:"
+            "must be True; got number",
+        ),
+        (
+            ("updates", 0),
+            "open-pull-requests-limit",
+            4.0,
+            ".github/dependabot.yml:updates[0].open-pull-requests-limit:"
+            "must be exactly 4; got number",
+        ),
+        (
+            ("updates", 0, "cooldown"),
+            "default-days",
+            7.0,
+            ".github/dependabot.yml:updates[0].cooldown.default-days:" "must be 7; got number",
+        ),
+        (
+            ("updates", 0, "cooldown"),
+            "semver-major-days",
+            30.0,
+            ".github/dependabot.yml:updates[0].cooldown.semver-major-days:"
+            "must be 30; got number",
+        ),
+        (
+            ("updates", 0, "cooldown"),
+            "semver-minor-days",
+            7.0,
+            ".github/dependabot.yml:updates[0].cooldown.semver-minor-days:" "must be 7; got number",
+        ),
+        (
+            ("updates", 0, "cooldown"),
+            "semver-patch-days",
+            3.0,
+            ".github/dependabot.yml:updates[0].cooldown.semver-patch-days:" "must be 3; got number",
+        ),
+    ],
+)
+def test_exact_policy_values_reject_cross_type_equality(
+    tmp_path: Path,
+    selector: MappingSelector,
+    key: str,
+    invalid_value: object,
+    expected_error: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _mapping_at_selector(config, selector)[key] = invalid_value
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert expected_error in errors
+
+
 @pytest.mark.parametrize("credential_key", ["username", "password"])
 def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
     tmp_path: Path,
