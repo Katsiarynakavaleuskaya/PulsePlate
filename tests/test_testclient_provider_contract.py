@@ -395,36 +395,14 @@ def _direct_fixture_with_targets(
             body: list[ast.stmt],
             bound_name: str,
         ) -> bool:
-            class BindingVisitor(ast.NodeVisitor):
-                def __init__(self) -> None:
-                    self.direct_yield = False
-                    self.rebound = False
-
-                def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-                    return
-
-                def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-                    return
-
-                def visit_ClassDef(self, node: ast.ClassDef) -> None:
-                    return
-
-                def visit_Lambda(self, node: ast.Lambda) -> None:
-                    return
-
-                def visit_Name(self, node: ast.Name) -> None:
-                    if node.id == bound_name and isinstance(node.ctx, (ast.Store, ast.Del)):
-                        self.rebound = True
-
-                def visit_Yield(self, node: ast.Yield) -> None:
-                    if isinstance(node.value, ast.Name) and node.value.id == bound_name:
-                        self.direct_yield = True
-                    self.generic_visit(node)
-
-            binding_visitor = BindingVisitor()
-            for statement in body:
-                binding_visitor.visit(statement)
-            return binding_visitor.direct_yield and not binding_visitor.rebound
+            if len(body) != 1 or not isinstance(body[0], ast.Expr):
+                return False
+            yielded = body[0].value
+            return (
+                isinstance(yielded, ast.Yield)
+                and isinstance(yielded.value, ast.Name)
+                and yielded.value.id == bound_name
+            )
 
         def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
             for item in node.items:
@@ -963,10 +941,20 @@ def client(app, unmanaged_client):
         managed_client = unmanaged_client
         yield managed_client
 """
+    pattern_rebound_source = """
+from tests import _client as test_client_helpers
+def client(app, unmanaged_client):
+    with test_client_helpers.open_test_client(app) as managed_client:
+        match unmanaged_client:
+            case managed_client:
+                pass
+        yield managed_client
+"""
 
     assert targets(managed_source) == [OPEN_CLIENT_SYMBOL]
     assert targets(unmanaged_source) == []
     assert targets(rebound_source) == []
+    assert targets(pattern_rebound_source) == []
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:
