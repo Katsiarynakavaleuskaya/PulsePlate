@@ -6521,11 +6521,12 @@ def test_duplicate_reply_accepts_exact_fix_base_head_and_one_unavailable(
         f"but reviewer execution ref {UNAVAILABLE_SHA} is reported unreachable."
     )
 
-    monkeypatch.setattr(
-        identity_module,
-        "github_api_request",
-        lambda *_a, **_k: {"sha": FIX_SHA},
-    )
+    def resolve_short_fix(url: str, **_kwargs: Any) -> dict[str, str]:
+        candidate = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+        assert candidate == FIX_SHA[:8], f"unexpected short candidate: {candidate}"
+        return {"sha": FIX_SHA}
+
+    monkeypatch.setattr(identity_module, "github_api_request", resolve_short_fix)
     assert body.count(HEAD_SHA) == 1
     assert _validate_duplicate_finding_body(monkeypatch, body) == {
         "https://github.com/owner/repo/pull/42#discussion_duplicate"
