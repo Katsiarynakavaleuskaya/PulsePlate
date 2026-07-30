@@ -68,12 +68,6 @@ _PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
 _PRE_CLOSEOUT_MARKER_LINE = f"<!-- {_PRE_CLOSEOUT_MARKER} -->"
 _PRE_CLOSEOUT_PENDING_LINE = f"- {_PRE_CLOSEOUT_PENDING_TEXT}"
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
-PRE_CLOSEOUT_MARKER_DENY_RE = re.compile(
-    rf"^ {{0,3}}<!--[ \t]*{re.escape(_PRE_CLOSEOUT_MARKER)}[ \t]*-->[ \t]*$"
-)
-PRE_CLOSEOUT_PENDING_DENY_RE = re.compile(
-    rf"^ {{0,3}}-[ \t]+{re.escape(_PRE_CLOSEOUT_PENDING_TEXT)}[ \t]*$"
-)
 HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
@@ -234,22 +228,16 @@ def _contains_exact_line(text: str, expected_line: str) -> bool:
 
 
 def _stale_pre_closeout_tokens(text: str) -> tuple[bool, bool]:
-    """Find rendered reserved-token equivalents without widening admission."""
+    """Find reserved physical-line identities without interpreting Markdown carriers."""
 
-    marker_seen = False
-    pending_seen = False
-    in_html_comment = False
-    for raw_line in _strip_fenced_code_blocks(text).splitlines():
-        was_in_html_comment = in_html_comment
-        visible_line, in_html_comment = _visible_line_without_comments(
-            raw_line,
-            in_html_comment,
-        )
-        if not was_in_html_comment and PRE_CLOSEOUT_MARKER_DENY_RE.fullmatch(raw_line):
-            marker_seen = True
-        if PRE_CLOSEOUT_PENDING_DENY_RE.fullmatch(visible_line):
-            pending_seen = True
-    return marker_seen, pending_seen
+    def normalize_physical_line(line: str) -> str:
+        return re.sub(r"[ \t]+", " ", line.strip(" \t\r"))
+
+    normalized_lines = {normalize_physical_line(line) for line in text.splitlines()}
+    return (
+        normalize_physical_line(_PRE_CLOSEOUT_MARKER_LINE) in normalized_lines,
+        normalize_physical_line(_PRE_CLOSEOUT_PENDING_LINE) in normalized_lines,
+    )
 
 
 def _normalize_phase2_body(text: str) -> str:

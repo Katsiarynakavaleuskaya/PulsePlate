@@ -7087,9 +7087,7 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
     assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
     assert template.count("pr_review_closeout.py render-body") == 1
     assert "replace the entire Phase2 block" in template
-    assert (
-        "`## Discussion Thread Pass` through the line before `## Split justification`" in template
-    )
+    assert "`## Discussion Thread Pass` through the line before the next H2 section" in template
     assert "## Discussion Thread Pass" in template
     assert "### Fixed in Commit Mapping" in template
     assert "- [ ] Discussion-thread pass completed" in template

@@ -14,7 +14,7 @@ labels: [design, frontend, sora]
 - Product surface(s): Home / Plate / Progress / Setup / BMI / Pro / EnterKey.
 - Linked source: `docs/design/VISUAL_ELEMENT_PROMPT_CATALOG.md`.
 
-## Visual Scope
+## Scope
 
 - Prompt pack file(s):
   - `docs/sora/prompts/hpp/<path>/<file>.md`
@@ -24,6 +24,10 @@ labels: [design, frontend, sora]
   - `figma_design_url`
   - `figma_file_key`
   - `figma_node_id`
+
+## Out of scope
+
+- Visual, runtime, or marketing surfaces intentionally excluded from this PR.
 
 ## Prompt and Governance Checks
 
@@ -54,7 +58,7 @@ labels: [design, frontend, sora]
 - Product Hunt/social assets impacted: <yes/no + where>
 - Campaign dependency: <if any>
 
-## Test Plan
+## Tests
 
 - [ ] Visual snapshot/screenshots attached
 - [ ] Frontend checks run (if UI code changed)
@@ -67,9 +71,11 @@ labels: [design, frontend, sora]
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed
 
+<!-- phase2-pre-closeout: final-security-pending -->
+
 ### Fixed in Commit Mapping
-- `<review-comment-url>` -> `<commit-sha>`
-- No actionable review comments
+- Pending final clean scan and the single mapping/closeout commit.
+- URL→SHA and disposition details belong only in the canonical artifact.
 
 ## Merge Readiness (Mandatory)
 - [ ] PR is non-draft only when truly ready for merge

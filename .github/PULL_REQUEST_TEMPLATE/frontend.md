@@ -16,7 +16,10 @@ labels: [frontend, feat]
 ## Scope
 
 - Основные файлы/папки.
-- Out of scope / TODO.
+
+## Out of scope
+
+- Что намеренно не входит в этот PR / TODO.
 
 ## Acceptance Criteria
 
@@ -47,9 +50,11 @@ npm run dev
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed
 
+<!-- phase2-pre-closeout: final-security-pending -->
+
 ### Fixed in Commit Mapping
-- `<review-comment-url>` -> `<commit-sha>`
-- No actionable review comments
+- Pending final clean scan and the single mapping/closeout commit.
+- URL→SHA and disposition details belong only in the canonical artifact.
 
 ## Deferred / Follow-ups
 - [ ] Ledger item(s): <link or None>

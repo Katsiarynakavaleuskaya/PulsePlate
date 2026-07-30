@@ -100,9 +100,12 @@ List follow-ups with backlog links or state `None`.
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed
 
+<!-- phase2-pre-closeout: final-security-pending -->
+
 ### Fixed in Commit Mapping
 
-See `docs/review/PR_<N>_FIXED_MAPPING.md`.
+- Pending final clean scan and the single mapping/closeout commit.
+- URL→SHA and disposition details belong only in the canonical artifact.
 
 ## Merge Readiness
 

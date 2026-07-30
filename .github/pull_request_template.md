@@ -51,7 +51,7 @@
 
 <!--
 Closeout automation must replace the entire Phase2 block from
-`## Discussion Thread Pass` through the line before `## Split justification`
+`## Discussion Thread Pass` through the line before the next H2 section
 with the complete canonical block by running
 `python scripts/orchestration/pr_review_closeout.py render-body`
 with the live PR number, repository, exact head ref, and body file.

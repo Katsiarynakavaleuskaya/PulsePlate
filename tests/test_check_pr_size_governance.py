@@ -18,6 +18,14 @@ TRUSTED_FRONTEND_MIX = {
     "scope/frontend-mvp-approved",
     "scope/frontend-backend-mix-approved",
 }
+STANDARD_TEMPLATE_PRODUCERS = [
+    ".github/pull_request_template.md",
+    *[
+        str(path.relative_to(size_gate.REPO_ROOT))
+        for path in sorted((size_gate.REPO_ROOT / ".github/PULL_REQUEST_TEMPLATE").glob("*.md"))
+    ],
+    "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
+]
 
 
 def test_repo_root_can_be_overridden_for_trusted_base_script_execution(
@@ -481,11 +489,7 @@ def test_standard_sections_ignore_comments_and_nested_headings() -> None:
 
 @pytest.mark.parametrize(
     "relative_path",
-    [
-        ".github/pull_request_template.md",
-        ".github/PULL_REQUEST_TEMPLATE/design.md",
-        "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
-    ],
+    STANDARD_TEMPLATE_PRODUCERS,
 )
 def test_standard_pr_template_producers_satisfy_section_contract(relative_path: str) -> None:
     template = (size_gate.REPO_ROOT / relative_path).read_text(encoding="utf-8")

@@ -14,6 +14,8 @@ labels: [iOS, feat]
 
 ## Scope
 - Основные файлы (Views, Managers, StoreKit, HealthKit).
+
+## Out of scope
 - Что осталось вне PR.
 
 ## Acceptance Criteria
@@ -36,9 +38,11 @@ open ios/PulsePlate.xcodeproj
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed
 
+<!-- phase2-pre-closeout: final-security-pending -->
+
 ### Fixed in Commit Mapping
-- `<review-comment-url>` -> `<commit-sha>`
-- No actionable review comments
+- Pending final clean scan and the single mapping/closeout commit.
+- URL→SHA and disposition details belong only in the canonical artifact.
 
 ## Deferred / Follow-ups
 - [ ] Ledger item(s): <link or None>

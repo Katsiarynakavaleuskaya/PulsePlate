@@ -76,11 +76,15 @@ entries; `check_merge_ready.py` still requires the canonical artifact and
 therefore cannot treat this state as merge-ready. Once the canonical
 mapping/seal is published, both the marker and matching pending mapping-status
 line must be removed. Admission remains byte-exact and template-owned; final
-denial also rejects rendered horizontal-whitespace and line-ending equivalents
-of either stale token. Fenced or hidden examples remain non-authoritative.
+denial treats the two reserved physical-line identities as protocol, normalizes
+only horizontal whitespace and line endings, and does not interpret Markdown
+carriers. Fenced, hidden, or otherwise quoted copies of a reserved physical line
+are therefore forbidden after closeout. This keeps the denial class finite and
+avoids a carrier-by-carrier Markdown parser.
 After closeout, either stale token is a Phase 2 body-gate error even when the
-artifact exists. The closeout command replaces the complete body block through
-`pr_review_closeout.py render-body`; callers do not splice individual lines.
+artifact exists. The closeout command
+replaces the complete body block through `pr_review_closeout.py render-body`;
+callers do not splice individual lines.
 
 The historical marker name is retained for wire compatibility only. It does
 not request, invoke, retry, wait for, or claim a Connector/Codex Security
