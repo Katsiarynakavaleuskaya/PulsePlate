@@ -199,6 +199,32 @@ class _BoundedModuleResolver:
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 self._bind_assignment([node.target], node.value, line=node.lineno)
 
+        for node in ast.walk(self.tree):
+            if not isinstance(
+                node,
+                (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda),
+            ):
+                continue
+            for argument in self._argument_nodes(node.args):
+                if argument.arg in self.bindings:
+                    self._record_unsupported_carrier(
+                        argument.lineno,
+                        "tracked_lexical_rebinding",
+                    )
+
+    @staticmethod
+    def _argument_nodes(arguments: ast.arguments) -> list[ast.arg]:
+        nodes = [
+            *arguments.posonlyargs,
+            *arguments.args,
+            *arguments.kwonlyargs,
+        ]
+        if arguments.vararg is not None:
+            nodes.append(arguments.vararg)
+        if arguments.kwarg is not None:
+            nodes.append(arguments.kwarg)
+        return nodes
+
     def resolve(self, node: ast.AST) -> _Binding | None:
         if isinstance(node, ast.Name):
             return self.bindings.get(node.id)
@@ -300,12 +326,23 @@ def _with_calls(
     resolver: _BoundedModuleResolver,
 ) -> set[str]:
     targets: set[str] = set()
+    shadowed_names = {argument.arg for argument in resolver._argument_nodes(function.args)}
     for node in ast.walk(function):
         if not isinstance(node, (ast.With, ast.AsyncWith)):
             continue
         for item in node.items:
             for child in ast.walk(item.context_expr):
+                if isinstance(child, ast.Lambda):
+                    shadowed_names.update(
+                        argument.arg for argument in resolver._argument_nodes(child.args)
+                    )
+            for child in ast.walk(item.context_expr):
                 if isinstance(child, ast.Call):
+                    call_owner = child.func
+                    while isinstance(call_owner, ast.Attribute):
+                        call_owner = call_owner.value
+                    if isinstance(call_owner, ast.Name) and call_owner.id in shadowed_names:
+                        continue
                     call_target = resolver.call_target(child)
                     if call_target is not None:
                         targets.add(call_target)
@@ -618,6 +655,31 @@ from tests._client import open_test_client as TestClient
         unsupported = _resolved_unsupported_carriers(source)
         assert len(unsupported) == 1
         assert unsupported[0][1] == "tracked_binding_rebound"
+
+
+def test_bounded_resolver_fails_closed_for_lexical_shadowing() -> None:
+    function_parameter_source = """
+from tests._client import open_test_client
+def client(open_test_client):
+    with open_test_client(app):
+        pass
+"""
+    lambda_parameter_source = """
+import tests._client as client_helpers
+def client():
+    with (lambda client_helpers: client_helpers.open_test_client(app))(raw_client):
+        pass
+"""
+
+    for source in (function_parameter_source, lambda_parameter_source):
+        tree = ast.parse(source)
+        resolver = _BoundedModuleResolver(Path("tests/conftest.py"), tree)
+        function = _function_map(tree)["client"]
+
+        assert _with_calls(function, resolver) == set()
+        unsupported = resolver.unsupported_carriers()
+        assert len(unsupported) == 1
+        assert unsupported[0][1] == "tracked_lexical_rebinding"
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:
