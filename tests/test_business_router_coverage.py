@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException, status
-from fastapi.testclient import TestClient
 
+from tests._client import MetricsAwareTestClient
 from tests._helpers.api_headers import API_KEY_HEADERS
 
 
@@ -67,7 +67,11 @@ class TestBusinessAnalysisEndpoint:
             MockAnalyzer.assert_called_once_with(locale="en")
             mock_instance.analyze.assert_called_once()
 
-    def test_business_analysis_rejects_missing_api_key(self, test_client) -> None:
+    def test_business_analysis_rejects_missing_api_key(
+        self,
+        test_client: MetricsAwareTestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Missing API key must fail closed through the app-level guard."""
         from app.main import app as main_app
         from app.routers.api_key import require_app_api_key
@@ -75,15 +79,15 @@ class TestBusinessAnalysisEndpoint:
         def _reject_missing() -> str:
             raise HTTPException(status_code=403, detail="Missing API Key")
 
-        main_app.dependency_overrides[require_app_api_key] = _reject_missing
-        try:
-            with TestClient(main_app) as isolated_client:
-                response = isolated_client.post(
-                    "/api/v1/business/analyze",
-                    json={"code": "def test(): pass", "test_name": "missing_key"},
-                )
-        finally:
-            main_app.dependency_overrides.pop(require_app_api_key, None)
+        monkeypatch.setitem(
+            main_app.dependency_overrides,
+            require_app_api_key,
+            _reject_missing,
+        )
+        response = test_client.post(
+            "/api/v1/business/analyze",
+            json={"code": "def test(): pass", "test_name": "missing_key"},
+        )
 
         assert response.status_code == 403
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -180,7 +184,10 @@ def test_exactly_100kb_payload_accepted(test_client, monkeypatch) -> None:
         assert response.status_code == 200
 
 
-def test_business_analysis_invalid_api_key_rejected(test_client, monkeypatch) -> None:
+def test_business_analysis_invalid_api_key_rejected(
+    test_client: MetricsAwareTestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Business analysis must fail closed on invalid API keys."""
     from app.main import app as main_app
     from app.routers.api_key import require_app_api_key
@@ -190,15 +197,15 @@ def test_business_analysis_invalid_api_key_rejected(test_client, monkeypatch) ->
     def _reject_invalid() -> str:
         raise HTTPException(status_code=403, detail="Invalid API Key")
 
-    main_app.dependency_overrides[require_app_api_key] = _reject_invalid
-    try:
-        with TestClient(main_app) as isolated_client:
-            response = isolated_client.post(
-                "/api/v1/business/analyze",
-                json={"code": "def test(): pass", "test_name": "auth_fail"},
-            )
-    finally:
-        main_app.dependency_overrides.pop(require_app_api_key, None)
+    monkeypatch.setitem(
+        main_app.dependency_overrides,
+        require_app_api_key,
+        _reject_invalid,
+    )
+    response = test_client.post(
+        "/api/v1/business/analyze",
+        json={"code": "def test(): pass", "test_name": "auth_fail"},
+    )
 
     assert response.status_code == 403
     assert response.headers.get("content-type", "").startswith("application/json")
