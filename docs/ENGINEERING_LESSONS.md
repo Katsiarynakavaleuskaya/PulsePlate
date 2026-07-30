@@ -844,6 +844,44 @@ Before changing code, group new reproducers by the invariant they violate:
 Stop when the bounded claim is true, not when the current examples happen to
 pass. Broader runtime modeling belongs in a separately scoped lane.
 
+## 32) Restart closeout from the live head after a new canonical finding
+
+### Problem
+A review finding that arrives after the mapping-only closeout can look like a
+deadlock: the existing seal names the pre-closeout material head, another docs
+commit would no longer be its direct successor, and an operator bypass would
+weaken review governance. This becomes a self-created loop when the old
+`material_head_sha` is treated as permanent.
+
+### Rule
+Classify the new review item before choosing the recovery path:
+
+1. Use the reply-only path only for a validated same-digest duplicate whose
+   fingerprint already exists in the canonical mapping artifact.
+2. If no matching canonical fingerprint exists, the finding is canonical for
+   this closeout state. Start a new exact-material cycle from the current live
+   PR head, even when that head is the prior mapping-only successor.
+3. Fix or disposition the canonical finding, repeat the exact-material
+   self-review and pre-closeout validation, then publish one new direct
+   mapping-only successor for that cycle.
+4. Do not wait for an unrelated `main` advance, add a synthetic carrier commit,
+   enumerate reviewer execution refs, or use operator approval to bypass the
+   hard disposition gate.
+
+The mapping artifact remains excluded from the material digest, but the live
+head identity is still the authoritative start of the next closeout cycle.
+This preserves the one-successor invariant without freezing an obsolete head
+or turning every new reviewer ref into another parser variant.
+
+### Use instead
+
+- Query the live thread and canonical fingerprint inventory first.
+- Re-freeze from the authenticated live head when the finding is canonical.
+- Reuse a structured reply only when the validator can bind it to an existing
+  same-digest fingerprint record.
+- Treat a strict-wrapper disposition failure as evidence to restart the
+  closeout cycle, not as grounds for an operator merge exception.
+
 ---
 
 ## Repo Commands Reference
