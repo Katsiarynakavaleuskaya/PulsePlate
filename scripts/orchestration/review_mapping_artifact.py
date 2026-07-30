@@ -34,6 +34,7 @@ def _review_dir() -> Path:
 DISCUSSION_THREAD_PASS_HEADING = "## Discussion Thread Pass"  # nosec B105: doc heading (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 # Canonical artifact uses ##; PR-body mirror/fallback may use ### (AGENTS.md)
 FIXED_MAPPING_HEADINGS = ("## Fixed in Commit Mapping", "### Fixed in Commit Mapping")
+PRE_CLOSEOUT_MARKER = "phase2-pre-closeout: final-security-pending"
 
 CHECKBOX_DISCUSSION_PASS = "- [x] Discussion-thread pass completed"  # nosec B105: checkbox label (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 CHECKBOX_FIXED_MAPPING = "- [x] Fixed in commit mapping completed"
@@ -833,4 +834,8 @@ def replace_phase2_body_mirror(
         repository=repository,
         ref=ref,
     )
-    return body[: start_line.source_offset] + mirror + "\n\n" + body[end:]
+    replaced = body[: start_line.source_offset] + mirror + "\n\n" + body[end:]
+    marker_line = f"<!-- {PRE_CLOSEOUT_MARKER} -->"
+    return "".join(
+        line for line in replaced.splitlines(keepends=True) if line.rstrip("\r\n") != marker_line
+    )

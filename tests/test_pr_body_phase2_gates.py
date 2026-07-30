@@ -511,11 +511,24 @@ def test_pr_template_producers_closeout_use_exact_branch_link(
     template_path: Path,
 ) -> None:
     template = template_path.read_text(encoding="utf-8")
+    marker_line = f"<!-- {mapping_artifact.PRE_CLOSEOUT_MARKER} -->"
+    template = template.replace(marker_line, "", 1).replace(
+        "## Discussion Thread Pass",
+        f"{marker_line}\n\n## Discussion Thread Pass",
+        1,
+    )
     pr_number = 2192
     repository = "Katsiarynakavaleuskaya/PulsePlate"
     head_ref = "codex/align-pr-template-body-gates"
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=template,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
     closeout_body = mapping_artifact.replace_phase2_body_mirror(
         template,
         pr_number,

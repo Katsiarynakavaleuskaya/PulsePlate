@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.orchestration.review_mapping_artifact import (
+    PRE_CLOSEOUT_MARKER,
     RenderedMarkdownLine,
     is_rendered_markdown_heading,
     iter_unfenced_markdown_lines,
@@ -38,7 +39,7 @@ PHASE2_CONFIG = {
     "discussion_checkbox_label": "Discussion-thread pass completed",
     "mapping_checkbox_label": "Fixed in commit mapping completed",
     "mapping_na_alternatives": ("N/A", "No actionable review comments"),
-    "pre_closeout_marker": "phase2-pre-closeout: final-security-pending",
+    "pre_closeout_marker": PRE_CLOSEOUT_MARKER,
     "pre_closeout_pending_text": "Pending final clean scan and the single mapping/closeout commit.",
 }
 
