@@ -253,7 +253,7 @@ def event_from_specification_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     status = "accepted" if selected_variant_id and failure_class is None else "rejected"
     taxonomy_codes = _taxonomy_from_failure(failure_class)
     rejection_class = taxonomy_codes[0] if taxonomy_codes else None
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="specification",
         source_artifact_type="creative_code_specification",
         source_artifact_id=normalized["bundle_id"],
@@ -272,6 +272,7 @@ def event_from_specification_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
             variant_count=len(normalized["variants"]),
         ),
     )
+    return event
 
 
 def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -280,7 +281,7 @@ def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
     rejection_class = taxonomy_codes[0] if taxonomy_codes else None
     patch_summary = normalized["patch_summary"]
     runner_summary = normalized["runner_summary"]
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="patch_evaluation",
         source_artifact_type="creative_code_patch_result",
         source_artifact_id=normalized["result_id"],
@@ -304,11 +305,12 @@ def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
             patch_bytes=patch_summary["patch_bytes"],
         ),
     )
+    return event
 
 
 def event_from_promotion_plan(plan: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_plan(plan)
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="promotion_plan",
         source_artifact_type="creative_code_pr_promotion_plan",
         source_artifact_id=normalized["promotion_id"],
@@ -326,12 +328,13 @@ def event_from_promotion_plan(plan: dict[str, Any]) -> dict[str, Any]:
             promotion_plan_count=1,
         ),
     )
+    return event
 
 
 def event_from_promotion_validation(validation: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_validation(validation)
     oracle_evidence = normalized["oracle_evidence"]
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="promotion_validation",
         source_artifact_type="creative_code_pr_promotion_validation",
         source_artifact_id=normalized["promotion_id"],
@@ -344,11 +347,12 @@ def event_from_promotion_validation(validation: dict[str, Any]) -> dict[str, Any
             promotion_validation_passed=1,
         ),
     )
+    return event
 
 
 def event_from_promotion_approval(approval: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_approval(approval)
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="promotion_approval",
         source_artifact_type="creative_code_pr_promotion_approval",
         source_artifact_id=normalized["approval_id"],
@@ -357,6 +361,7 @@ def event_from_promotion_approval(approval: dict[str, Any]) -> dict[str, Any]:
         status="accepted",
         metrics=default_metrics(promotion_approval_count=1),
     )
+    return event
 
 
 def _promotion_receipt_failure_code(receipt: dict[str, Any]) -> str | None:
@@ -375,7 +380,7 @@ def event_from_promotion_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
     failure_code = _promotion_receipt_failure_code(normalized)
     status = "opened" if failure_code is None else "blocked"
     taxonomy_codes = [] if failure_code is None else [failure_code]
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="pr_open",
         source_artifact_type="creative_code_pr_promotion_receipt",
         source_artifact_id=normalized["receipt_id"],
@@ -390,12 +395,13 @@ def event_from_promotion_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
         taxonomy_codes=taxonomy_codes,
         metrics=default_metrics(pull_requests_opened=1 if status == "opened" else 0),
     )
+    return event
 
 
 def safe_read_error_event(path: Path) -> dict[str, Any]:
     path_fingerprint = _artifact_locator_fingerprint(path)
     source_id = path_fingerprint.removeprefix("sha256:")[:24]
-    return build_creative_code_telemetry_event(
+    event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="artifact_read_error",
         source_artifact_type="creative_code_artifact_read_error",
         source_artifact_id=f"read-error:{source_id}",
@@ -407,6 +413,7 @@ def safe_read_error_event(path: Path) -> dict[str, Any]:
         taxonomy_codes=["malformed_artifact"],
         metrics=default_metrics(),
     )
+    return event
 
 
 def _load_spec_event(path: Path) -> dict[str, Any] | None:
@@ -450,7 +457,8 @@ def _load_terminal_event(path: Path) -> dict[str, Any] | None:
         return None
     try:
         outcome = validate_creative_code_terminal_outcome(read_terminal_json_object(path))
-        return build_creative_code_terminal_telemetry_event(outcome)
+        event: dict[str, Any] = build_creative_code_terminal_telemetry_event(outcome)
+        return event
     except CreativeCodeTerminalOutcomeError as exc:
         raise CreativeCodeTelemetryError("terminal outcome validation failed.") from exc
 
@@ -606,6 +614,7 @@ def collect_and_write(
         _safe_root_label(patch_runs_dir),
         _safe_root_label(promotions_dir),
     ]
+    rollup: dict[str, Any]
     if terminal_outcomes_dir is None:
         rollup = build_creative_code_telemetry_rollup(
             events,

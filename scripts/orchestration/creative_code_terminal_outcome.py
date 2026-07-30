@@ -101,7 +101,8 @@ def _read_regular_json(
         raise CreativeCodeTerminalOutcomeIOError(f"{label}_must_be_regular")
     if info.st_size > MAX_JSON_OBJECT_BYTES:
         raise CreativeCodeTerminalOutcomeIOError(f"{label}_too_large")
-    return read_json_object(contained)
+    payload: dict[str, Any] = read_json_object(contained)
+    return payload
 
 
 def _ensure_output_root(root: Path) -> Path:

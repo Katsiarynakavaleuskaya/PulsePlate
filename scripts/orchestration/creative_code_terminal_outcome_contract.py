@@ -473,7 +473,8 @@ def _normalize_process(raw_process: Any) -> dict[str, int]:
 
 def _normalize_cost(raw_cost: Any) -> dict[str, int | bool | None]:
     try:
-        return normalize_cost_metadata(raw_cost)
+        normalized: dict[str, int | bool | None] = normalize_cost_metadata(raw_cost)
+        return normalized
     except CreativeCodeTelemetryContractError as exc:
         raise CreativeCodeTerminalOutcomeError(str(exc)) from exc
 
@@ -599,7 +600,7 @@ def terminal_outcome_id(
         "promotion_id": promotion_id,
         "promoted_head_sha": promoted_head_sha,
     }
-    return build_asset_id(
+    outcome_id: str = build_asset_id(
         asset_type=ARTIFACT_TYPE,
         rail="control_plane",
         version=SCHEMA_VERSION,
@@ -612,6 +613,7 @@ def terminal_outcome_id(
             promoted_head_sha,
         ),
     )
+    return outcome_id
 
 
 def terminal_lineage_key(lineage: Mapping[str, Any]) -> str:
@@ -624,9 +626,10 @@ def terminal_lineage_key(lineage: Mapping[str, Any]) -> str:
         "promotion_id": normalized["promotion_id"],
         "promoted_head_sha": normalized["promoted_head_sha"],
     }
-    return fingerprint_payload(
+    lineage_key: str = fingerprint_payload(
         identity,
     )
+    return lineage_key
 
 
 def _idempotency_payload(outcome: Mapping[str, Any]) -> dict[str, Any]:
@@ -637,7 +640,8 @@ def terminal_outcome_fingerprint(outcome: Mapping[str, Any]) -> str:
     """Fingerprint one fully validated terminal outcome."""
 
     normalized = validate_creative_code_terminal_outcome(outcome)
-    return fingerprint_payload(normalized)
+    fingerprint: str = fingerprint_payload(normalized)
+    return fingerprint
 
 
 def build_creative_code_terminal_outcome(
