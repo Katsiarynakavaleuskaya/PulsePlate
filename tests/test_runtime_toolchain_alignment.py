@@ -19,15 +19,55 @@ from tests.runtime_toolchain_versions import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PYTHON_SETUP_USES = ("actions/setup-python@", "./.github/actions/python-setup")
-AUXILIARY_PY313_WORKFLOWS = (
-    ".github/workflows/build-equivalence-evidence.yml",
-    ".github/workflows/ci-metrics.yml",
-    ".github/workflows/experiment-runner-dispatch.yml",
-    ".github/workflows/experiment-runner-slack-socket-smoke.yml",
-    ".github/workflows/nightly.yml",
-    ".github/workflows/release-control-plane-evidence.yml",
-    ".github/workflows/release-manifest-evidence.yml",
+EXTERNAL_PYTHON_SETUP_USE = "actions/setup-python@"
+LOCAL_PYTHON_SETUP_USE = "./.github/actions/python-setup"
+PYTHON_VERSION_FROM_ENV = "${{ env.PYTHON_VERSION }}"
+PYTHON_VERSION_FROM_MATRIX = (
+    "${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}"
+)
+EXPECTED_CANONICAL_CI_PYTHON_SETUP_OWNERS = (
+    ("pygments_exception_guard", PYTHON_VERSION_FROM_ENV),
+    ("docs_phase1_gates", PYTHON_VERSION_FROM_ENV),
+    ("pr_body_phase2_gates", PYTHON_VERSION_FROM_ENV),
+    ("merge_readiness_gate", PYTHON_VERSION_FROM_ENV),
+    ("private_python_proxy_health", PYTHON_VERSION_FROM_ENV),
+    ("lint", PYTHON_VERSION_FROM_ENV),
+    ("security", PYTHON_VERSION_FROM_ENV),
+    ("openapi-sync", PYTHON_VERSION_FROM_ENV),
+    ("test-pr", PYTHON_VERSION_FROM_ENV),
+    ("pgvector_compat", CANONICAL_PYTHON),
+    ("test-feature", PYTHON_VERSION_FROM_ENV),
+    ("test-main", PYTHON_VERSION_FROM_MATRIX),
+    ("diff-coverage", PYTHON_VERSION_FROM_ENV),
+)
+EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS = (("build-and-test", PYTHON_VERSION_FROM_ENV),)
+SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        ".github/workflows/codecov-upload.yml",
+        ".github/workflows/frontend-ci.yml",
+    }
+)
+EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS = (
+    (".github/workflows/build-equivalence-evidence.yml", "publish-build-equivalence-evidence"),
+    (".github/workflows/ci-metrics.yml", "collect-ci-metrics"),
+    (".github/workflows/experiment-runner-dispatch.yml", "experiment-runner-dispatch-contract"),
+    (".github/workflows/experiment-runner-slack-socket-smoke.yml", "slack-socket-bridge-smoke"),
+    # nightly-tests has two setup steps in one job; keep both owners for strict multiplicity.
+    (".github/workflows/nightly-tests.yml", "tests"),
+    (".github/workflows/nightly-tests.yml", "tests"),
+    (".github/workflows/nightly.yml", "coverage-merge"),
+    (".github/workflows/nightly.yml", "integration-test"),
+    (".github/workflows/nightly.yml", "performance-test"),
+    (".github/workflows/nightly.yml", "test"),
+    (".github/workflows/rag-release-gates.yml", "rag-release-gates-smoke"),
+    (".github/workflows/rag-release-gates.yml", "rag-release-gates-weekly"),
+    (
+        ".github/workflows/release-control-plane-evidence.yml",
+        "publish-release-control-plane-evidence",
+    ),
+    (".github/workflows/release-manifest-evidence.yml", "publish-release-manifest-evidence"),
+    (".github/workflows/security.yml", "bandit"),
 )
 EXPECTED_RUBY_SETUP_OWNERS = (
     (".github/workflows/ci.yml", "jwt_fastlane_unblock_guard"),
@@ -56,9 +96,26 @@ def _iter_python_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
         for step in steps:
             assert isinstance(step, dict)
             uses = str(step.get("uses", ""))
-            if any(uses.startswith(prefix) for prefix in PYTHON_SETUP_USES):
+            if uses.casefold().startswith(EXTERNAL_PYTHON_SETUP_USE) or (
+                uses == LOCAL_PYTHON_SETUP_USE
+            ):
                 setup_steps.append((job_name, step))
     return setup_steps
+
+
+def _discover_auxiliary_python_setup_steps() -> list[tuple[tuple[str, str], dict[str, Any]]]:
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    workflow_paths = sorted(
+        path for pattern in ("*.yml", "*.yaml") for path in workflow_dir.glob(pattern)
+    )
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]] = []
+    for path in workflow_paths:
+        rel_path = path.relative_to(REPO_ROOT).as_posix()
+        if rel_path in SEPARATELY_GOVERNED_PYTHON_SETUP_WORKFLOWS:
+            continue
+        for job_name, step in _iter_python_setup_steps(rel_path):
+            discovered.append(((rel_path, job_name), step))
+    return discovered
 
 
 def _iter_ruby_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
@@ -104,6 +161,25 @@ def _assert_expected_ruby_setup_steps(
         assert _ruby_version_input(step) == CANONICAL_RUBY, owner
 
 
+def _assert_expected_auxiliary_python_setup_steps(
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]],
+) -> None:
+    """Require the finite owner multiset and canonical Python pin."""
+    owners = Counter(owner for owner, _step in discovered)
+    assert owners == Counter(EXPECTED_AUXILIARY_PYTHON_SETUP_OWNERS)
+    for owner, step in discovered:
+        assert _python_version_input(step) == CANONICAL_PYTHON, owner
+
+
+def _assert_expected_python_setup_steps(
+    discovered: list[tuple[str, dict[str, Any]]],
+    expected: tuple[tuple[str, str], ...],
+) -> None:
+    """Require the finite owner/input multiset for one known workflow."""
+    actual = Counter((owner, _python_version_input(step)) for owner, step in discovered)
+    assert actual == Counter(expected)
+
+
 def _tool_versions() -> dict[str, str]:
     entries: dict[str, str] = {}
     for line in (REPO_ROOT / ".tool-versions").read_text(encoding="utf-8").splitlines():
@@ -137,48 +213,101 @@ def test_canonical_ci_uses_patch_pin_without_renaming_visible_labels() -> None:
     assert [entry["python-version"] for entry in test_main_include] == ["3.11", "3.12", "3.13"]
     assert [entry["timeout-minutes"] for entry in test_main_include] == [60, 90, 90]
 
-    setup_steps = dict(_iter_python_setup_steps(".github/workflows/ci.yml"))
+    discovered = _iter_python_setup_steps(".github/workflows/ci.yml")
+    _assert_expected_python_setup_steps(
+        discovered,
+        EXPECTED_CANONICAL_CI_PYTHON_SETUP_OWNERS,
+    )
+    setup_steps = dict(discovered)
     assert _python_version_input(setup_steps["test-pr"]) == "${{ env.PYTHON_VERSION }}"
     assert _python_version_input(setup_steps["test-feature"]) == "${{ env.PYTHON_VERSION }}"
     assert _python_version_input(setup_steps["test-main"]) == (
         "${{ matrix.python-version == '3.13' && env.PYTHON_VERSION || matrix.python-version }}"
     )
+    assert _python_version_input(setup_steps["pgvector_compat"]) == CANONICAL_PYTHON
 
 
 def test_frontend_ci_keeps_shared_python_patch_source() -> None:
     workflow = _load_workflow(".github/workflows/frontend-ci.yml")
     assert workflow["env"]["PYTHON_VERSION"] == CANONICAL_PYTHON
 
-    setup_steps = dict(_iter_python_setup_steps(".github/workflows/frontend-ci.yml"))
+    discovered = _iter_python_setup_steps(".github/workflows/frontend-ci.yml")
+    _assert_expected_python_setup_steps(
+        discovered,
+        EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS,
+    )
+    setup_steps = dict(discovered)
     assert _python_version_input(setup_steps["build-and-test"]) == "${{ env.PYTHON_VERSION }}"
 
 
-def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
-    for path in AUXILIARY_PY313_WORKFLOWS:
-        setup_steps = _iter_python_setup_steps(path)
-        assert setup_steps, f"Missing Python setup step in {path}"
-        for job_name, step in setup_steps:
-            assert _python_version_input(step) == CANONICAL_PYTHON, f"{path}:{job_name}"
-
-
-@pytest.mark.parametrize(
-    ("path", "expected_jobs"),
-    (
-        (".github/workflows/nightly-tests.yml", ("tests", "tests")),
+def test_canonical_ci_python_setup_owner_contract_rejects_stale_patch() -> None:
+    owner = "pygments_exception_guard"
+    discovered = [
         (
-            ".github/workflows/rag-release-gates.yml",
-            ("rag-release-gates-smoke", "rag-release-gates-weekly"),
-        ),
-    ),
-)
-def test_auxiliary_workflows_advanced_ahead_of_canonical_pin_use_exact_python_patch(
-    path: str,
-    expected_jobs: tuple[str, ...],
-) -> None:
-    setup_steps = _iter_python_setup_steps(path)
+            owner,
+            {
+                "uses": "actions/setup-python@full-sha",
+                "with": {"python-version": "3.13.13"},
+            },
+        )
+    ]
 
-    assert Counter(job_name for job_name, _step in setup_steps) == Counter(expected_jobs)
-    assert {_python_version_input(step) for _job_name, step in setup_steps} == {"3.13.14"}
+    with pytest.raises(AssertionError):
+        _assert_expected_python_setup_steps(
+            discovered,
+            ((owner, PYTHON_VERSION_FROM_ENV),),
+        )
+
+
+def test_frontend_ci_python_setup_owner_contract_rejects_duplicate_step() -> None:
+    owner = "build-and-test"
+    step = {
+        "uses": "./.github/actions/python-setup",
+        "with": {"python-version": PYTHON_VERSION_FROM_ENV},
+    }
+    discovered = [(owner, step), (owner, step)]
+
+    with pytest.raises(AssertionError):
+        _assert_expected_python_setup_steps(
+            discovered,
+            EXPECTED_FRONTEND_CI_PYTHON_SETUP_OWNERS,
+        )
+
+
+def test_auxiliary_workflow_python_setup_pins_use_exact_patch_version() -> None:
+    discovered = _discover_auxiliary_python_setup_steps()
+    _assert_expected_auxiliary_python_setup_steps(discovered)
+
+
+def test_auxiliary_python_setup_discovery_rejects_unlisted_mixed_case_stale_workflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = _discover_auxiliary_python_setup_steps()
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "unlisted.yaml").write_text(
+        """
+name: Unlisted Python owner
+on: workflow_dispatch
+jobs:
+  stale-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Actions/setup-python@0123456789abcdef0123456789abcdef01234567
+        with:
+          python-version: "3.13.13"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.test_runtime_toolchain_alignment.REPO_ROOT", tmp_path)
+
+    unlisted = _discover_auxiliary_python_setup_steps()
+
+    assert [owner for owner, _step in unlisted] == [
+        (".github/workflows/unlisted.yaml", "stale-owner")
+    ]
+    with pytest.raises(AssertionError):
+        _assert_expected_auxiliary_python_setup_steps([*baseline, *unlisted])
 
 
 def test_no_python_setup_step_uses_bare_py313_runtime_pin() -> None:

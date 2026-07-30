@@ -28,7 +28,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: '3.13.6'
+          python-version: '3.13.14'
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
