@@ -33,6 +33,15 @@
   `_application_lifespan_with_hooks(...)` through synchronous `asyncio.run(...)`
   tests. Inject `LifespanHooks`; do not patch `lifespan.__wrapped__.__globals__`
   or fan one scheduler mock across `app`, `legacy_app`, and `app_module`.
+- Shared client fixtures (`client`, `test_client`, `app_client`,
+  `isolated_test_client`, and `client_with_vip_access`) live only in
+  `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
+  The managed wrapper owns one lifespan, exact `dependency_overrides`
+  restoration, and temporary finite SlowAPI limiter isolation.
+- The root `MetricsAwareTestClient` assignment is a temporary PR-TC2
+  compatibility bridge. Do not add another patch owner or new callers of raw
+  `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider
+  modules.
 - Direct alias patching remains allowed only in focused compatibility tests for
   the legacy synchronous scheduler wrappers; it is not lifecycle evidence.
 - Admin scheduler tests must patch only the consumer binding
