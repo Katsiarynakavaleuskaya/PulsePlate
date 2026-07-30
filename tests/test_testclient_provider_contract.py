@@ -27,14 +27,24 @@ SHARED_CLIENT_FIXTURES = {
 }
 ROOT_FORBIDDEN_FIXTURES = SHARED_CLIENT_FIXTURES | {"dynamic_app", "dynamic_client"}
 FASTAPI_TESTCLIENT_MODULE = "fastapi.testclient"
+STARLETTE_TESTCLIENT_MODULE = "starlette.testclient"
 CLIENT_HELPERS_MODULE = "tests._client"
 TESTCLIENT_SYMBOL = f"{FASTAPI_TESTCLIENT_MODULE}.TestClient"
+STARLETTE_TESTCLIENT_SYMBOL = f"{STARLETTE_TESTCLIENT_MODULE}.TestClient"
 METRICS_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.MetricsAwareTestClient"
 OPEN_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.open_test_client"
 MAKE_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.make_test_client"
 GET_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.get_client"
-TRACKED_SYMBOLS = {
+RAW_TESTCLIENT_SYMBOLS = {
     TESTCLIENT_SYMBOL,
+    STARLETTE_TESTCLIENT_SYMBOL,
+}
+RAW_TESTCLIENT_MODULES = {
+    FASTAPI_TESTCLIENT_MODULE,
+    STARLETTE_TESTCLIENT_MODULE,
+}
+TRACKED_SYMBOLS = {
+    *RAW_TESTCLIENT_SYMBOLS,
     METRICS_CLIENT_SYMBOL,
     OPEN_CLIENT_SYMBOL,
     MAKE_CLIENT_SYMBOL,
@@ -42,7 +52,7 @@ TRACKED_SYMBOLS = {
 }
 TRACKED_MODULES = {
     "fastapi",
-    FASTAPI_TESTCLIENT_MODULE,
+    *RAW_TESTCLIENT_MODULES,
     "tests",
     CLIENT_HELPERS_MODULE,
 }
@@ -242,7 +252,7 @@ class _BoundedModuleResolver:
                 value = self.resolve(node.args[2])
                 if (
                     owner is None
-                    or owner.target != FASTAPI_TESTCLIENT_MODULE
+                    or owner.target not in RAW_TESTCLIENT_MODULES
                     or value is None
                     or value.target != METRICS_CLIENT_SYMBOL
                 ):
@@ -272,7 +282,7 @@ class _BoundedModuleResolver:
                 resolved
                 for target in targets
                 if (resolved := self.resolve(target)) is not None
-                and resolved.target == TESTCLIENT_SYMBOL
+                and resolved.target in RAW_TESTCLIENT_SYMBOLS
             ]
             if not patch_targets:
                 continue
@@ -562,7 +572,7 @@ def test_raw_client_construction_has_one_provider_owner() -> None:
 
         def visit_Call(self, node: ast.Call) -> None:
             call_target = self.resolver.call_target(node)
-            if call_target in {TESTCLIENT_SYMBOL, METRICS_CLIENT_SYMBOL}:
+            if call_target in RAW_TESTCLIENT_SYMBOLS | {METRICS_CLIENT_SYMBOL}:
                 location = f"{self.path}:{node.lineno}"
                 if (
                     self.path == Path("tests/_client.py")
@@ -734,9 +744,22 @@ with factory_alias(app):
 """,
     )
 
+    expected_symbols = TRACKED_SYMBOLS - {STARLETTE_TESTCLIENT_SYMBOL}
     for source in sources:
-        assert _resolved_call_targets(source) == TRACKED_SYMBOLS
+        assert _resolved_call_targets(source) == expected_symbols
         assert _resolved_unsupported_carriers(source) == []
+
+
+def test_bounded_resolver_recognizes_starlette_testclient_alias() -> None:
+    source = """
+from starlette.testclient import TestClient as StarletteTestClient
+import starlette.testclient as starlette_clients
+StarletteTestClient(app)
+starlette_clients.TestClient(app)
+"""
+
+    assert _resolved_call_targets(source) == {STARLETTE_TESTCLIENT_SYMBOL}
+    assert _resolved_unsupported_carriers(source) == []
 
 
 def test_bounded_resolver_fails_closed_when_tracked_bindings_are_rebound() -> None:
@@ -1049,6 +1072,11 @@ import fastapi.testclient as fastapi_clients
 from tests._client import MetricsAwareTestClient as MetricsClient
 setattr(fastapi_clients, "TestClient", MetricsClient)
 """
+    starlette_patch_source = """
+import starlette.testclient as starlette_clients
+from tests._client import MetricsAwareTestClient as MetricsClient
+starlette_clients.TestClient = MetricsClient
+"""
     duplicate_setattr_source = """
 import fastapi.testclient as fastapi_clients
 from tests._client import MetricsAwareTestClient as MetricsClient
@@ -1081,6 +1109,7 @@ setattr(fastapi_clients, "OtherClient", MetricsAwareTestClient)
     assert len(_resolved_patch_lines(one_patch_source)) == 1
     assert len(_resolved_patch_lines(duplicate_patch_source)) == 2
     assert len(_resolved_patch_lines(setattr_patch_source)) == 1
+    assert len(_resolved_patch_lines(starlette_patch_source)) == 1
     assert len(_resolved_patch_lines(duplicate_setattr_source)) == 2
     assert len(_resolved_patch_lines(assignment_and_setattr_source)) == 2
     assert _resolved_patch_lines(unrelated_patch_source) == []
@@ -1088,6 +1117,7 @@ setattr(fastapi_clients, "OtherClient", MetricsAwareTestClient)
     assert _resolved_patch_lines(other_literal_source) == []
     assert _resolved_unsupported_carriers(one_patch_source) == []
     assert _resolved_unsupported_carriers(setattr_patch_source) == []
+    assert _resolved_unsupported_carriers(starlette_patch_source) == []
     assert _resolved_unsupported_carriers(unrelated_patch_source) == []
     assert _resolved_unsupported_carriers(unrelated_value_source) == []
     assert _resolved_unsupported_carriers(other_literal_source) == []
