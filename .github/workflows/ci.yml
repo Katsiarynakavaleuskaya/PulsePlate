@@ -5,7 +5,7 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  PYTHON_VERSION: "3.13.6"
+  PYTHON_VERSION: "3.13.14"
   FRONTEND_NODE_VERSION_FILE: ".nvmrc"
   PULSEPLATE_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -1120,7 +1120,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.13.6"
+          python-version: "3.13.14"
           cache: "pip"
           cache-dependency-path: |
             requirements-ci-lite.txt
