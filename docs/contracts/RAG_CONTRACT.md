@@ -36,6 +36,7 @@
 
 ```jsonc
 {
+  "provider": "string",
   "insight": "string",
   "sources": [
     {
@@ -63,6 +64,7 @@
 
 ```jsonc
 {
+  "provider": "string",
   "insight": "string",
   "sources": [],
   "confidence": null,

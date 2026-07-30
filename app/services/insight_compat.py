@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from fastapi import HTTPException, status
 
@@ -63,21 +63,19 @@ async def _execute_insight_request(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Delegate Insight execution to the existing application service."""
-    return cast(
-        InsightResponse,
-        await _execute_insight_request_via_service(
-            req,
-            route_path=route_path,
-            user_tier=user_tier,
-            subject_id=subject_id,
-            input_guard=require_safe_ai_agent_input,
-            provider_loader=_load_insight_provider,
-            transparency_loader=_require_ai_generated_insight_notice,
-            direct_provider_factory=_DirectInsightProviderStub,
-            response_factory=InsightResponse,
-            source_item_factory=RAGSourceItem,
-        ),
+    result: InsightResponse = await _execute_insight_request_via_service(
+        req,
+        route_path=route_path,
+        user_tier=user_tier,
+        subject_id=subject_id,
+        input_guard=require_safe_ai_agent_input,
+        provider_loader=_load_insight_provider,
+        transparency_loader=_require_ai_generated_insight_notice,
+        direct_provider_factory=_DirectInsightProviderStub,
+        response_factory=InsightResponse,
+        source_item_factory=RAGSourceItem,
     )
+    return result
 
 
 async def insight_v1(
