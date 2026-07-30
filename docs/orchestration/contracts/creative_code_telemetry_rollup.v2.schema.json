@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_telemetry_rollup.v2.schema.json",
+  "title": "CreativeCodeTelemetryRollupV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "input_roots",
+    "event_count",
+    "legacy_event_count",
+    "funnel",
+    "rates",
+    "rejections_by_class",
+    "failures_by_class",
+    "events_by_stage",
+    "events_by_status",
+    "source_artifacts",
+    "terminal",
+    "cost",
+    "caveats",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "2.0" },
+    "artifact_type": { "const": "creative_code_telemetry_rollup" },
+    "policy_version": { "const": "creative-code-telemetry-v2" },
+    "input_roots": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/safe_token" }
+    },
+    "event_count": { "$ref": "#/$defs/count" },
+    "legacy_event_count": { "$ref": "#/$defs/count" },
+    "funnel": { "$ref": "#/$defs/funnel" },
+    "rates": { "$ref": "#/$defs/rates" },
+    "rejections_by_class": { "$ref": "#/$defs/taxonomy_count_map" },
+    "failures_by_class": { "$ref": "#/$defs/taxonomy_count_map" },
+    "events_by_stage": { "$ref": "#/$defs/stage_count_map" },
+    "events_by_status": { "$ref": "#/$defs/status_count_map" },
+    "source_artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_artifact" }
+    },
+    "terminal": { "$ref": "#/$defs/terminal" },
+    "cost": { "$ref": "#/$defs/cost" },
+    "caveats": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "local_only",
+          "not_merge_readiness_evidence",
+          "not_product_runtime_truth",
+          "terminal_observation_only"
+        ]
+      }
+    },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "not": {
+        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
+      }
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "count_map": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/count" }
+    },
+    "taxonomy_count_map": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "approval_missing",
+          "base_drift",
+          "branch_exists",
+          "capability_mismatch",
+          "duplicate_variant",
+          "github_transport_failed",
+          "guard_failure",
+          "infra_flake",
+          "invalid_input",
+          "leak_detected",
+          "lineage_mismatch",
+          "malformed_artifact",
+          "metric_regression",
+          "oom",
+          "patch_drift",
+          "policy_violation",
+          "pr_readback_failed",
+          "review_blocker",
+          "specification_rejected",
+          "timeout",
+          "unchanged_result",
+          "unknown",
+          "unsafe_authority"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/count" }
+    },
+    "stage_count_map": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "artifact_read_error",
+          "patch_evaluation",
+          "pr_open",
+          "pr_terminal",
+          "promotion_approval",
+          "promotion_plan",
+          "promotion_validation",
+          "specification"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/count" }
+    },
+    "status_count_map": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "accepted",
+          "blocked",
+          "closed_unmerged",
+          "merged",
+          "not_applicable",
+          "opened",
+          "promoted",
+          "rejected"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/count" }
+    },
+    "funnel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specification_bundles",
+        "variants_total",
+        "variants_selected",
+        "patch_results",
+        "patch_results_accepted",
+        "patch_results_rejected",
+        "promotion_plans",
+        "promotion_validations_passed",
+        "promotion_approvals",
+        "pull_requests_opened"
+      ],
+      "properties": {
+        "specification_bundles": { "$ref": "#/$defs/count" },
+        "variants_total": { "$ref": "#/$defs/count" },
+        "variants_selected": { "$ref": "#/$defs/count" },
+        "patch_results": { "$ref": "#/$defs/count" },
+        "patch_results_accepted": { "$ref": "#/$defs/count" },
+        "patch_results_rejected": { "$ref": "#/$defs/count" },
+        "promotion_plans": { "$ref": "#/$defs/count" },
+        "promotion_validations_passed": { "$ref": "#/$defs/count" },
+        "promotion_approvals": { "$ref": "#/$defs/count" },
+        "pull_requests_opened": { "$ref": "#/$defs/count" }
+      }
+    },
+    "rate_bps": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "rates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_pass_rate_bps",
+        "human_approval_rate_bps",
+        "promotion_rate_bps",
+        "first_pass_acceptance_rate_bps",
+        "merge_rate_bps",
+        "post_merge_complete_rate_bps"
+      ],
+      "properties": {
+        "oracle_pass_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "human_approval_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "promotion_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "first_pass_acceptance_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "merge_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "post_merge_complete_rate_bps": { "$ref": "#/$defs/rate_bps" }
+      }
+    },
+    "source_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_artifact_id",
+        "source_artifact_type",
+        "source_fingerprint"
+      ],
+      "properties": {
+        "source_artifact_id": { "$ref": "#/$defs/safe_id" },
+        "source_artifact_type": {
+          "enum": [
+            "creative_code_specification",
+            "creative_code_patch_result",
+            "creative_code_pr_promotion_plan",
+            "creative_code_pr_promotion_validation",
+            "creative_code_pr_promotion_approval",
+            "creative_code_pr_promotion_receipt",
+            "creative_code_artifact_read_error",
+            "creative_code_terminal_outcome"
+          ]
+        },
+        "source_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "review_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionables_observed",
+        "no_actionables_observed",
+        "evidence_unavailable"
+      ],
+      "properties": {
+        "actionables_observed": { "$ref": "#/$defs/count" },
+        "no_actionables_observed": { "$ref": "#/$defs/count" },
+        "evidence_unavailable": { "$ref": "#/$defs/count" }
+      }
+    },
+    "governance_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blockers_observed",
+        "no_blockers_observed",
+        "evidence_unavailable"
+      ],
+      "properties": {
+        "blockers_observed": { "$ref": "#/$defs/count" },
+        "no_blockers_observed": { "$ref": "#/$defs/count" },
+        "evidence_unavailable": { "$ref": "#/$defs/count" }
+      }
+    },
+    "post_merge_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "complete_observed",
+        "incomplete_observed",
+        "evidence_unavailable",
+        "not_applicable"
+      ],
+      "properties": {
+        "complete_observed": { "$ref": "#/$defs/count" },
+        "incomplete_observed": { "$ref": "#/$defs/count" },
+        "evidence_unavailable": { "$ref": "#/$defs/count" },
+        "not_applicable": { "$ref": "#/$defs/count" }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_cycles",
+        "repair_cycles",
+        "validation_attempts"
+      ],
+      "properties": {
+        "review_cycles": { "$ref": "#/$defs/count" },
+        "repair_cycles": { "$ref": "#/$defs/count" },
+        "validation_attempts": { "$ref": "#/$defs/count" }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome_count",
+        "merged",
+        "closed_unmerged",
+        "review_observations",
+        "governance_observations",
+        "post_merge_observations",
+        "process"
+      ],
+      "properties": {
+        "outcome_count": { "$ref": "#/$defs/count" },
+        "merged": { "$ref": "#/$defs/count" },
+        "closed_unmerged": { "$ref": "#/$defs/count" },
+        "review_observations": { "$ref": "#/$defs/review_counts" },
+        "governance_observations": {
+          "$ref": "#/$defs/governance_counts"
+        },
+        "post_merge_observations": {
+          "$ref": "#/$defs/post_merge_counts"
+        },
+        "process": { "$ref": "#/$defs/process" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cost_metadata_available_count",
+        "token_usage_available_count",
+        "terminal_cost_metadata_available_count",
+        "terminal_token_usage_available_count",
+        "estimated_cost_usd"
+      ],
+      "properties": {
+        "cost_metadata_available_count": { "$ref": "#/$defs/count" },
+        "token_usage_available_count": { "$ref": "#/$defs/count" },
+        "terminal_cost_metadata_available_count": {
+          "$ref": "#/$defs/count"
+        },
+        "terminal_token_usage_available_count": {
+          "$ref": "#/$defs/count"
+        },
+        "estimated_cost_usd": { "type": "null" }
+      }
+    }
+  }
+}

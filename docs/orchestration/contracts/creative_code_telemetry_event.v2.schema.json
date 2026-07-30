@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_telemetry_event.v2.schema.json",
+  "title": "CreativeCodeTelemetryEventV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "event_id",
+    "idempotency_key",
+    "lane_stage",
+    "source_artifact_type",
+    "source_artifact_id",
+    "source_fingerprint",
+    "status",
+    "terminal_projection",
+    "process",
+    "cost_metadata",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "2.0" },
+    "artifact_type": { "const": "creative_code_telemetry_event" },
+    "policy_version": { "const": "creative-code-telemetry-v2" },
+    "event_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "lane_stage": { "const": "pr_terminal" },
+    "source_artifact_type": { "const": "creative_code_terminal_outcome" },
+    "source_artifact_id": { "$ref": "#/$defs/safe_id" },
+    "source_fingerprint": { "$ref": "#/$defs/sha256" },
+    "status": { "enum": ["merged", "closed_unmerged"] },
+    "terminal_projection": { "$ref": "#/$defs/terminal_projection" },
+    "process": { "$ref": "#/$defs/process" },
+    "cost_metadata": { "$ref": "#/$defs/cost_metadata" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "not": {
+        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
+      }
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "terminal_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promotion_id",
+        "repository",
+        "pull_request_number",
+        "promoted_head_sha",
+        "closure_epoch",
+        "review_observation",
+        "governance_observation",
+        "post_merge_observation"
+      ],
+      "properties": {
+        "promotion_id": { "$ref": "#/$defs/safe_token" },
+        "repository": { "const": "Katsiarynakavaleuskaya/PulsePlate" },
+        "pull_request_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999
+        },
+        "promoted_head_sha": { "$ref": "#/$defs/git_sha" },
+        "closure_epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "review_observation": {
+          "enum": [
+            "actionables_observed",
+            "no_actionables_observed",
+            "evidence_unavailable"
+          ]
+        },
+        "governance_observation": {
+          "enum": [
+            "blockers_observed",
+            "no_blockers_observed",
+            "evidence_unavailable"
+          ]
+        },
+        "post_merge_observation": {
+          "enum": [
+            "complete_observed",
+            "incomplete_observed",
+            "evidence_unavailable",
+            "not_applicable"
+          ]
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_cycles",
+        "repair_cycles",
+        "validation_attempts"
+      ],
+      "properties": {
+        "review_cycles": { "$ref": "#/$defs/count" },
+        "repair_cycles": { "$ref": "#/$defs/count" },
+        "validation_attempts": { "$ref": "#/$defs/count" }
+      }
+    },
+    "token_count": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "cost_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "estimated"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "input_tokens": { "$ref": "#/$defs/token_count" },
+        "cached_input_tokens": { "$ref": "#/$defs/token_count" },
+        "output_tokens": { "$ref": "#/$defs/token_count" },
+        "reasoning_output_tokens": { "$ref": "#/$defs/token_count" },
+        "estimated": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "available": { "const": false } },
+            "required": ["available"]
+          },
+          "then": {
+            "properties": {
+              "input_tokens": { "type": "null" },
+              "cached_input_tokens": { "type": "null" },
+              "output_tokens": { "type": "null" },
+              "reasoning_output_tokens": { "type": "null" },
+              "estimated": { "const": false }
+            }
+          }
+        }
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls_network",
+        "calls_runtime",
+        "claims_merge_readiness",
+        "merges",
+        "modifies_github_app",
+        "modifies_slack",
+        "opens_pr",
+        "read_only_telemetry",
+        "resolves_threads",
+        "writes_repo"
+      ],
+      "properties": {
+        "calls_network": { "const": false },
+        "calls_runtime": { "const": false },
+        "claims_merge_readiness": { "const": false },
+        "merges": { "const": false },
+        "modifies_github_app": { "const": false },
+        "modifies_slack": { "const": false },
+        "opens_pr": { "const": false },
+        "read_only_telemetry": { "const": true },
+        "resolves_threads": { "const": false },
+        "writes_repo": { "const": false }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "closed_unmerged" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "post_merge_observation": { "const": "not_applicable" }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "post_merge_observation": {
+                "enum": [
+                  "complete_observed",
+                  "incomplete_observed",
+                  "evidence_unavailable"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
