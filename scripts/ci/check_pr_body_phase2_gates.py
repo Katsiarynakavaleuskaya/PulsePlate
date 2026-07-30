@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.orchestration.review_mapping_artifact import (
+    iter_unfenced_markdown_lines,
     read_mapping_artifact,
     validate_mapping_artifact_text,
 )
@@ -67,7 +68,6 @@ _PRE_CLOSEOUT_MARKER = str(PHASE2_CONFIG["pre_closeout_marker"])
 _PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
 _PRE_CLOSEOUT_MARKER_LINE = f"<!-- {_PRE_CLOSEOUT_MARKER} -->"
 _PRE_CLOSEOUT_PENDING_LINE = f"- {_PRE_CLOSEOUT_PENDING_TEXT}"
-FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
 HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
@@ -164,61 +164,10 @@ def _experiment_runner_evidence_mode(
         ) from exc
 
 
-def _visible_line_without_comments(line: str, in_html_comment: bool) -> tuple[str, bool]:
-    """Return rendered line content and the next multiline-comment state."""
-
-    visible_parts: list[str] = []
-    cursor = 0
-    while cursor < len(line):
-        if in_html_comment:
-            comment_end = line.find("-->", cursor)
-            if comment_end < 0:
-                return "".join(visible_parts), True
-            in_html_comment = False
-            cursor = comment_end + 3
-            continue
-        comment_start = line.find("<!--", cursor)
-        if comment_start < 0:
-            visible_parts.append(line[cursor:])
-            break
-        visible_parts.append(line[cursor:comment_start])
-        visible_parts.append(" ")
-        in_html_comment = True
-        cursor = comment_start + 4
-    return "".join(visible_parts), in_html_comment
-
-
 def _strip_fenced_code_blocks(text: str) -> str:
     """Remove Markdown fenced blocks, including an unmatched fence through EOF."""
 
-    retained: list[str] = []
-    in_html_comment = False
-    fence_char = ""
-    fence_length = 0
-    for raw_line in text.splitlines(keepends=True):
-        line = raw_line.rstrip("\r\n")
-
-        if fence_char:
-            closing_fence = re.fullmatch(
-                rf" {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
-                line,
-            )
-            if closing_fence:
-                fence_char = ""
-                fence_length = 0
-            continue
-        visible_line, in_html_comment = _visible_line_without_comments(
-            line,
-            in_html_comment,
-        )
-        fence_open = FENCE_OPEN_RE.match(visible_line)
-        if fence_open:
-            fence = fence_open.group("fence")
-            fence_char = fence[0]
-            fence_length = len(fence)
-            continue
-        retained.append(raw_line)
-    return "".join(retained)
+    return "".join(raw_line for _offset, raw_line, _visible in iter_unfenced_markdown_lines(text))
 
 
 def _contains_exact_line(text: str, expected_line: str) -> bool:

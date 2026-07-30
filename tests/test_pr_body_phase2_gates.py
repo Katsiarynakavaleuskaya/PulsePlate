@@ -512,6 +512,65 @@ def test_pr_template_producers_closeout_use_exact_branch_link(
     )
 
 
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "Closeout automation must replace the entire Phase2 block",
+            "## Hidden guidance heading\n"
+            "Closeout automation must replace the entire Phase2 block",
+        ),
+        (
+            "- URL→SHA and disposition details belong only in the canonical artifact.",
+            "```\n## Fenced example heading\n```\n\n"
+            "- URL→SHA and disposition details belong only in the canonical artifact.",
+        ),
+    ],
+)
+def test_phase2_replacement_ignores_non_rendered_h2_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    pr_number = 2192
+    (tmp_path / f"PR_{pr_number}_FIXED_MAPPING.md").write_text(
+        f"""# PR {pr_number} — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+- No actionable review comments
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(anchor, replacement)
+
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=body,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
+
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert "## Hidden guidance heading" not in rendered
+    assert "## Fenced example heading" not in rendered
+    assert "Pending final clean scan" not in rendered
+    assert "## Split justification" in rendered
+
+
 def test_phase2_body_replacement_requires_one_complete_ordered_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

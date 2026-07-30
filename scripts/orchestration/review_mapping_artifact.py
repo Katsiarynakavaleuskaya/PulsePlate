@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import urllib.parse
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,6 +58,68 @@ COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REVIEW_SEAL_VERSION_RE = re.compile(r"(?m)^Review-Seal-Version:\s*(\S+)\s*$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+MARKDOWN_FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+
+
+def _visible_line_without_html_comments(
+    line: str,
+    in_html_comment: bool,
+) -> tuple[str, bool]:
+    """Return rendered line content and the next multiline-comment state."""
+
+    visible_parts: list[str] = []
+    cursor = 0
+    while cursor < len(line):
+        if in_html_comment:
+            comment_end = line.find("-->", cursor)
+            if comment_end < 0:
+                return "".join(visible_parts), True
+            in_html_comment = False
+            cursor = comment_end + 3
+            continue
+        comment_start = line.find("<!--", cursor)
+        if comment_start < 0:
+            visible_parts.append(line[cursor:])
+            break
+        visible_parts.append(line[cursor:comment_start])
+        visible_parts.append(" ")
+        in_html_comment = True
+        cursor = comment_start + 4
+    return "".join(visible_parts), in_html_comment
+
+
+def iter_unfenced_markdown_lines(text: str) -> Iterator[tuple[int, str, str]]:
+    """Yield source offsets, raw lines, and rendered text outside fenced code."""
+
+    offset = 0
+    in_html_comment = False
+    fence_char = ""
+    fence_length = 0
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        if fence_char:
+            closing_fence = re.fullmatch(
+                rf" {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
+                line,
+            )
+            if closing_fence:
+                fence_char = ""
+                fence_length = 0
+            offset += len(raw_line)
+            continue
+
+        visible_line, in_html_comment = _visible_line_without_html_comments(
+            line,
+            in_html_comment,
+        )
+        fence_open = MARKDOWN_FENCE_OPEN_RE.match(visible_line)
+        if fence_open:
+            fence = fence_open.group("fence")
+            fence_char = fence[0]
+            fence_length = len(fence)
+        else:
+            yield offset, raw_line, visible_line
+        offset += len(raw_line)
 
 
 def _is_valid_git_branch_ref(ref: str) -> bool:
@@ -668,17 +731,28 @@ def replace_phase2_body_mirror(
 ) -> str:
     """Replace exactly one complete Phase2 body block with the canonical mirror."""
 
-    start_pattern = re.compile(rf"(?m)^{re.escape(DISCUSSION_THREAD_PASS_HEADING)}[ \t]*$")
-    starts = list(start_pattern.finditer(body))
+    rendered_lines = list(iter_unfenced_markdown_lines(body))
+    start_pattern = re.compile(rf"{re.escape(DISCUSSION_THREAD_PASS_HEADING)}[ \t]*$")
+    starts = [
+        (offset, raw_line)
+        for offset, raw_line, visible_line in rendered_lines
+        if start_pattern.fullmatch(visible_line)
+    ]
     if len(starts) != 1:
         raise ValueError("body must contain exactly one `## Discussion Thread Pass` Phase2 block")
-    following_h2 = re.search(r"(?m)^##[ \t]+\S.*$", body[starts[0].end() :])
-    if following_h2 is None:
+    start_offset, start_line = starts[0]
+    start_end = start_offset + len(start_line)
+    following_h2_offsets = [
+        offset
+        for offset, _raw_line, visible_line in rendered_lines
+        if offset >= start_end and re.fullmatch(r"##[ \t]+\S.*", visible_line)
+    ]
+    if not following_h2_offsets:
         raise ValueError("Phase2 block must be followed by another H2 section")
-    end = starts[0].end() + following_h2.start()
+    end = following_h2_offsets[0]
     mirror = render_phase2_body_mirror(
         pr_number,
         repository=repository,
         ref=ref,
     )
-    return body[: starts[0].start()] + mirror + "\n\n" + body[end:]
+    return body[:start_offset] + mirror + "\n\n" + body[end:]
