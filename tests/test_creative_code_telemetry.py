@@ -921,7 +921,7 @@ def test_collector_with_terminal_input_emits_mixed_v2_rollup(
     assert Counter(event["lane_stage"] for event in events)["pr_terminal"] == 1
 
 
-def test_v2_event_and_rollup_schemas_match_closed_runtime_shapes() -> None:
+def test_v2_schemas_align_on_closed_shape_and_finite_vocabulary() -> None:
     event_schema = json.loads(EVENT_V2_SCHEMA.read_text(encoding="utf-8"))
     rollup_schema = json.loads(ROLLUP_V2_SCHEMA.read_text(encoding="utf-8"))
     event = build_creative_code_terminal_telemetry_event(
@@ -934,6 +934,8 @@ def test_v2_event_and_rollup_schemas_match_closed_runtime_shapes() -> None:
 
     assert event_schema["additionalProperties"] is False
     assert rollup_schema["additionalProperties"] is False
+    assert event_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert rollup_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert set(event_schema["required"]) == set(event)
     assert set(rollup_schema["required"]) == set(rollup)
     assert event_schema["properties"]["lane_stage"]["const"] == "pr_terminal"
@@ -942,3 +944,5 @@ def test_v2_event_and_rollup_schemas_match_closed_runtime_shapes() -> None:
         "closed_unmerged",
     ]
     assert rollup_schema["properties"]["policy_version"]["const"] == "creative-code-telemetry-v2"
+    assert validate_creative_code_telemetry_event_any(event) == event
+    assert validate_creative_code_telemetry_rollup_any(rollup) == rollup

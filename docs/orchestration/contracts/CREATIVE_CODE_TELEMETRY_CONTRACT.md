@@ -36,6 +36,17 @@ Reference taxonomy:
 
 - `creative_code_rejection_taxonomy.v1.json`
 
+The JSON Schemas are closed-shape, finite-vocabulary, and finite-implication
+contracts. The Python validators are the normative semantic validators. Draft
+2020-12 cannot express general equality, ordering, or sum relationships between
+sibling numeric properties, so schema-only acceptance does not prove terminal
+semantic validity. In particular, the Python terminal validator remains the
+single owner of source-count equality, disposition-sum equality,
+`commands_passed <= commands_executed <= commands_configured`, derived
+observation tokens, content-bound identities, and idempotency hashes. The v2
+Python validator/rollup builder likewise remains normative for content-bound
+event identity, rollup arithmetic, rates, and single-counted outcome cost.
+
 Validators and collector:
 
 ```bash

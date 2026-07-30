@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pulseplate.local/contracts/creative_code_terminal_outcome.v1.schema.json",
   "title": "CreativeCodeTerminalOutcomeV1",
+  "$comment": "This schema enforces closed shape, finite vocabulary, and standard Draft 2020-12 finite implications. scripts/orchestration/creative_code_terminal_outcome_contract.py is the normative semantic validator for cross-property arithmetic, derived identities, and content hashes.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -213,7 +214,11 @@
                 "minimum": 1,
                 "maximum": 1000000
               },
-              "sources_observed": { "$ref": "#/$defs/count" },
+              "sources_observed": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
               "findings_total": { "$ref": "#/$defs/count" },
               "fixed": { "$ref": "#/$defs/count" },
               "not_a_bug": { "$ref": "#/$defs/count" },
@@ -261,6 +266,63 @@
           "else": {
             "properties": {
               "current_main_sha": { "$ref": "#/$defs/git_sha" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "commands_configured": { "const": 0 }
+            },
+            "required": ["commands_configured"]
+          },
+          "then": {
+            "properties": {
+              "commands_executed": { "const": 0 },
+              "commands_passed": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "commands_executed": { "const": 0 }
+            },
+            "required": ["commands_executed"]
+          },
+          "then": {
+            "properties": {
+              "commands_passed": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "commands_configured": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": ["commands_configured"]
+              },
+              {
+                "properties": {
+                  "current_main_ci": {
+                    "enum": ["success", "failure"]
+                  }
+                },
+                "required": ["current_main_ci"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "validation_inventory_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              }
             }
           }
         }
@@ -360,6 +422,223 @@
             }
           },
           "post_merge_observation": { "const": "not_applicable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "unavailable" }
+            },
+            "required": ["collection_state"]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "evidence_unavailable" },
+          "governance_observation": { "const": "evidence_unavailable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "complete" },
+              "unresolved_actionable": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "collection_state",
+              "unresolved_actionable"
+            ]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "actionables_observed" },
+          "governance_observation": { "const": "blockers_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "complete" },
+              "unresolved_actionable": { "const": 0 },
+              "review_seal_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": [
+              "collection_state",
+              "unresolved_actionable",
+              "review_seal_fingerprint"
+            ]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "no_actionables_observed" },
+          "governance_observation": { "const": "no_blockers_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "complete" },
+              "unresolved_actionable": { "const": 0 },
+              "review_seal_fingerprint": { "type": "null" }
+            },
+            "required": [
+              "collection_state",
+              "unresolved_actionable",
+              "review_seal_fingerprint"
+            ]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "evidence_unavailable" },
+          "governance_observation": { "const": "evidence_unavailable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_evidence": {
+            "properties": {
+              "commands_configured": { "const": 0 },
+              "current_main_ci": { "const": "not_observed" }
+            },
+            "required": [
+              "commands_configured",
+              "current_main_ci"
+            ]
+          }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_evidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_observation": { "const": "evidence_unavailable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_evidence": {
+            "properties": {
+              "current_main_ci": { "const": "failure" }
+            },
+            "required": ["current_main_ci"]
+          }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_evidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_observation": { "const": "incomplete_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "post_merge_observation": {
+            "enum": ["complete_observed", "incomplete_observed"]
+          }
+        },
+        "required": ["post_merge_observation"]
+      },
+      "then": {
+        "properties": {
+          "post_merge_evidence": {
+            "properties": {
+              "validation_inventory_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": ["validation_inventory_fingerprint"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "post_merge_observation": { "const": "complete_observed" }
+        },
+        "required": ["post_merge_observation"]
+      },
+      "then": {
+        "properties": {
+          "post_merge_evidence": {
+            "properties": {
+              "current_main_ci": {
+                "enum": ["success", "not_observed"]
+              }
+            },
+            "required": ["current_main_ci"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_observation": { "const": "evidence_unavailable" }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_observation"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_evidence": {
+            "properties": {
+              "commands_configured": { "const": 0 },
+              "commands_executed": { "const": 0 },
+              "commands_passed": { "const": 0 },
+              "current_main_ci": { "const": "not_observed" }
+            },
+            "required": [
+              "commands_configured",
+              "commands_executed",
+              "commands_passed",
+              "current_main_ci"
+            ]
+          }
         }
       }
     }

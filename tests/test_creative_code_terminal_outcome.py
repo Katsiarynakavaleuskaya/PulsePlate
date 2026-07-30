@@ -364,6 +364,70 @@ def test_impossible_and_malformed_observations_fail_closed(
         normalize_terminal_observation(observation)
 
 
+@pytest.mark.parametrize(
+    ("mutator", "message"),
+    [
+        (
+            lambda value: value["review"].update(sources_observed=2),
+            "fully observed",
+        ),
+        (
+            lambda value: value["review"].update(findings_total=99),
+            "disposition counters",
+        ),
+        (
+            lambda value: value["post_merge"].update(commands_passed=3),
+            "passed <= executed",
+        ),
+        (
+            lambda value: value["post_merge"].update(commands_executed=3),
+            "passed <= executed",
+        ),
+    ],
+)
+def test_python_validator_is_normative_for_cross_property_arithmetic(
+    mutator: Any,
+    message: str,
+) -> None:
+    observation = _observation()
+    mutator(observation)
+
+    with pytest.raises(CreativeCodeTerminalOutcomeError, match=message):
+        normalize_terminal_observation(observation)
+
+
+@pytest.mark.parametrize(
+    ("field", "forged_value", "message"),
+    [
+        (
+            "review_observation",
+            "actionables_observed",
+            "review_observation does not match",
+        ),
+        (
+            "governance_observation",
+            "blockers_observed",
+            "governance_observation does not match",
+        ),
+        (
+            "post_merge_observation",
+            "incomplete_observed",
+            "post_merge_observation does not match",
+        ),
+    ],
+)
+def test_python_validator_rederives_observation_tokens(
+    field: str,
+    forged_value: str,
+    message: str,
+) -> None:
+    outcome = _outcome()
+    outcome[field] = forged_value
+
+    with pytest.raises(CreativeCodeTerminalOutcomeError, match=message):
+        validate_creative_code_terminal_outcome(outcome)
+
+
 def test_lineage_mismatches_fail_before_outcome_creation() -> None:
     plan, receipt = _promotion_lineage()
     cases: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
@@ -904,14 +968,19 @@ def test_cli_rejects_symlink_and_non_regular_inputs(tmp_path: Path) -> None:
         )
 
 
-def test_runtime_and_json_schema_closed_shape_parity() -> None:
+def test_runtime_and_schema_closed_shape_finite_implication_alignment() -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     outcome = _outcome()
 
+    assert "normative semantic validator" in schema["$comment"]
+    assert "$data" not in json.dumps(schema, sort_keys=True)
     assert schema["additionalProperties"] is False
     assert set(schema["required"]) == OUTCOME_KEYS
     assert set(schema["$defs"]["review_evidence"]["required"]) == REVIEW_KEYS
     assert set(schema["$defs"]["post_merge_evidence"]["required"]) == POST_MERGE_KEYS
+    complete_review_shape = schema["$defs"]["review_evidence"]["allOf"][0]["else"]["properties"]
+    assert complete_review_shape["sources_configured"]["minimum"] == 1
+    assert complete_review_shape["sources_observed"]["minimum"] == 1
     assert schema["properties"]["terminal_state"]["enum"] == [
         "merged",
         "closed_unmerged",
@@ -922,6 +991,82 @@ def test_runtime_and_json_schema_closed_shape_parity() -> None:
         "evidence_unavailable",
     ]
     assert schema["$defs"]["lineage"]["properties"]["repository"]["const"] == CANONICAL_REPOSITORY
+
+    review_implications = [
+        clause
+        for clause in schema["allOf"]
+        if "review_evidence" in clause.get("if", {}).get("properties", {})
+    ]
+    assert len(review_implications) == 4
+    review_conditions = [
+        clause["if"]["properties"]["review_evidence"]["properties"]
+        for clause in review_implications
+    ]
+    assert review_conditions[0]["collection_state"] == {"const": "unavailable"}
+    assert review_conditions[1]["unresolved_actionable"] == {
+        "type": "integer",
+        "minimum": 1,
+    }
+    assert review_conditions[2]["unresolved_actionable"] == {"const": 0}
+    assert review_conditions[2]["review_seal_fingerprint"] == {"$ref": "#/$defs/sha256"}
+    assert review_conditions[3]["unresolved_actionable"] == {"const": 0}
+    assert review_conditions[3]["review_seal_fingerprint"] == {"type": "null"}
+    assert [
+        (
+            clause["then"]["properties"]["review_observation"]["const"],
+            clause["then"]["properties"]["governance_observation"]["const"],
+        )
+        for clause in review_implications
+    ] == [
+        ("evidence_unavailable", "evidence_unavailable"),
+        ("actionables_observed", "blockers_observed"),
+        ("no_actionables_observed", "no_blockers_observed"),
+        ("evidence_unavailable", "evidence_unavailable"),
+    ]
+
+    post_merge_shape_implications = schema["$defs"]["post_merge_evidence"]["allOf"]
+    assert len(post_merge_shape_implications) == 4
+    assert post_merge_shape_implications[1]["then"]["properties"] == {
+        "commands_executed": {"const": 0},
+        "commands_passed": {"const": 0},
+    }
+    assert post_merge_shape_implications[2]["then"]["properties"] == {
+        "commands_passed": {"const": 0}
+    }
+    assert post_merge_shape_implications[3]["then"]["properties"][
+        "validation_inventory_fingerprint"
+    ] == {"$ref": "#/$defs/sha256"}
+
+    post_merge_implications = [
+        clause
+        for clause in schema["allOf"]
+        if (
+            "post_merge_evidence" in clause.get("if", {}).get("properties", {})
+            or "post_merge_observation" in clause.get("if", {}).get("properties", {})
+        )
+    ]
+    assert len(post_merge_implications) == 5
+    assert post_merge_implications[0]["then"]["properties"]["post_merge_observation"] == {
+        "const": "evidence_unavailable"
+    }
+    assert post_merge_implications[1]["then"]["properties"]["post_merge_observation"] == {
+        "const": "incomplete_observed"
+    }
+    assert post_merge_implications[2]["then"]["properties"]["post_merge_evidence"]["properties"][
+        "validation_inventory_fingerprint"
+    ] == {"$ref": "#/$defs/sha256"}
+    assert post_merge_implications[3]["then"]["properties"]["post_merge_evidence"]["properties"][
+        "current_main_ci"
+    ] == {"enum": ["success", "not_observed"]}
+    assert post_merge_implications[4]["then"]["properties"]["post_merge_evidence"][
+        "properties"
+    ] == {
+        "commands_configured": {"const": 0},
+        "commands_executed": {"const": 0},
+        "commands_passed": {"const": 0},
+        "current_main_ci": {"const": "not_observed"},
+    }
+
     assert set(outcome) == set(schema["required"])
     assert validate_creative_code_terminal_outcome(outcome) == outcome
     assert canonical_json_bytes(outcome).endswith(b"\n")
