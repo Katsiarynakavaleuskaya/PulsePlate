@@ -31,7 +31,7 @@ from app.effective_routes import (
 )
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
-from tests._client import open_test_client
+from tests import _client as test_client_helpers
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -404,6 +404,45 @@ def setup_test_environment() -> Generator[None, None, None]:
             del os.environ[key]
 
 
+@contextmanager
+def _legacy_singleton_limiter_isolation() -> Iterator[None]:
+    """Keep direct TC2 client debt from leaking canonical limiter state."""
+
+    if test_client_helpers._rate_limiting_opted_in():
+        yield
+        return
+
+    from app.security import rate_limit as rate_limit_mod
+
+    limiter_instance = getattr(rate_limit_mod, "limiter", None)
+    if limiter_instance is None:
+        yield
+        return
+
+    snapshot = test_client_helpers._snapshot_limiter_attributes(limiter_instance)
+    try:
+        test_client_helpers._reset_and_disable_limiter(limiter_instance)
+    except BaseException:
+        test_client_helpers._restore_limiter_attributes(limiter_instance, snapshot)
+        raise
+
+    try:
+        yield
+    finally:
+        try:
+            limiter_instance.reset()
+        finally:
+            test_client_helpers._restore_limiter_attributes(limiter_instance, snapshot)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_legacy_singleton_rate_limiter() -> Iterator[None]:
+    """Retain one finite compatibility boundary until direct clients move in TC2."""
+
+    with _legacy_singleton_limiter_isolation():
+        yield
+
+
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
     """Import app package and return stable module instance."""
@@ -435,7 +474,7 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
     Using TestClient as a context manager ensures lifespan startup/shutdown runs
     deterministically and prevents leaking background threads across tests.
     """
-    with open_test_client(app) as test_client:
+    with test_client_helpers.open_test_client(app) as test_client:
         yield test_client
 
 
@@ -443,7 +482,7 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
 def test_client(app: FastAPI) -> Generator[TestClient, None, None]:
     """Compatibility fixture backed by the managed client lifecycle."""
 
-    with open_test_client(app) as managed_client:
+    with test_client_helpers.open_test_client(app) as managed_client:
         yield managed_client
 
 
@@ -451,7 +490,7 @@ def test_client(app: FastAPI) -> Generator[TestClient, None, None]:
 def app_client(app: FastAPI) -> Generator[TestClient, None, None]:
     """Compatibility alias with independent managed lifecycle ownership."""
 
-    with open_test_client(app) as managed_client:
+    with test_client_helpers.open_test_client(app) as managed_client:
         yield managed_client
 
 
@@ -556,9 +595,14 @@ def _isolated_sqlite_database_context(
     finally:
         try:
             core_db.reset_db_for_tests()
-            if sqlite_path.exists():
-                current_stat = sqlite_path.stat(follow_symlinks=False)
-                if sqlite_path.is_symlink() or current_stat.st_ino != owned_inode:
+            try:
+                current_stat = sqlite_path.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                import stat
+
+                if not stat.S_ISREG(current_stat.st_mode) or current_stat.st_ino != owned_inode:
                     raise RuntimeError("refusing to delete a replaced isolated SQLite path")
                 sqlite_path.unlink()
         finally:
@@ -585,7 +629,7 @@ def isolated_test_client(
     """Return a managed client bound to a function-owned SQLite database."""
 
     del isolated_sqlite_database
-    with open_test_client(app) as managed_client:
+    with test_client_helpers.open_test_client(app) as managed_client:
         yield managed_client
 
 
@@ -665,7 +709,7 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
         for dep_fn in route_level_deps:
             app_instance.dependency_overrides[dep_fn] = mock_api_key
 
-        with open_test_client(app_instance) as managed_client:
+        with test_client_helpers.open_test_client(app_instance) as managed_client:
             yield managed_client
     finally:
         app_instance.dependency_overrides.clear()

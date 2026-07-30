@@ -3,6 +3,7 @@
 import os
 
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 
 import app as app_mod
 from tests._client import disable_rate_limiting_for_test_app, get_client, open_test_client
+from tests.conftest import _legacy_singleton_limiter_isolation
 
 
 def test_get_client_disables_shared_rate_limiter() -> None:
@@ -57,6 +59,29 @@ def test_disable_rate_limiting_helper_covers_app_surface() -> None:
         assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is False
 
         assert shared_limiter is None or getattr(shared_limiter, "enabled", False) is False
+
+
+def test_legacy_singleton_limiter_isolation_restores_poisoned_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: direct TC2 callers cannot leak singleton toggles or counters."""
+
+    from app.security import rate_limit as rate_limit_mod
+
+    shared_limiter = getattr(rate_limit_mod, "limiter", None)
+    if shared_limiter is None:
+        pytest.skip("SlowAPI limiter is unavailable")
+
+    reset = Mock()
+    monkeypatch.setattr(shared_limiter, "reset", reset)
+    monkeypatch.setattr(shared_limiter, "enabled", False)
+
+    with _legacy_singleton_limiter_isolation():
+        assert shared_limiter.enabled is False
+        shared_limiter.enabled = True
+
+    assert shared_limiter.enabled is False
+    assert reset.call_count == 2
 
 
 def test_app_fixture_defers_temporary_limiter_ownership_to_managed_client(

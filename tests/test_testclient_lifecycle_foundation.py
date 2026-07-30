@@ -160,6 +160,32 @@ def test_open_test_client_restores_exact_dependency_overrides() -> None:
     assert app.dependency_overrides[first_dependency] is original_override
 
 
+def test_open_test_client_restores_dependency_override_mapping_identity() -> None:
+    app = _lifespan_app([])
+
+    async def dependency() -> str:
+        return "dependency"
+
+    async def original_override() -> str:
+        return "original"
+
+    async def replacement_override() -> str:
+        return "replacement"
+
+    overrides_owner = app.dependency_overrides
+    overrides_owner[dependency] = original_override
+    snapshot = dict(overrides_owner)
+    replacement = {dependency: replacement_override}
+
+    with open_test_client(app):
+        app.dependency_overrides = replacement
+
+    assert app.dependency_overrides is overrides_owner
+    assert overrides_owner == snapshot
+    assert overrides_owner[dependency] is original_override
+    assert replacement[dependency] is replacement_override
+
+
 def _limiter_app(
     state_limiter: Limiter,
     route_limiter: Limiter,
@@ -530,6 +556,24 @@ def test_isolated_sqlite_teardown_refuses_replaced_path(
 
     assert sqlite_path.is_symlink()
     assert replacement_target.exists()
+
+
+def test_isolated_sqlite_teardown_refuses_dangling_symlink(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    missing_target = tmp_path / "missing.sqlite3"
+
+    with pytest.raises(
+        RuntimeError,
+        match="refusing to delete a replaced isolated SQLite path",
+    ):
+        with _isolated_sqlite_database_context(tmp_path, request) as sqlite_path:
+            sqlite_path.unlink()
+            sqlite_path.symlink_to(missing_target)
+
+    assert sqlite_path.is_symlink()
+    assert not sqlite_path.exists()
 
 
 def test_isolated_test_client_uses_fixture_engine(

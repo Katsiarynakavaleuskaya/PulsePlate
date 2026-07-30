@@ -219,7 +219,8 @@ def open_test_client(
 
         app_instance = app.main.app
 
-    overrides_snapshot = dict(app_instance.dependency_overrides)
+    overrides_owner = app_instance.dependency_overrides
+    overrides_snapshot = dict(overrides_owner)
     limiter_snapshots: list[tuple[Any, dict[str, tuple[bool, Any]]]] = []
     limiter_opt_in = _rate_limiting_opted_in()
     primary_error: _CapturedError | None = None
@@ -243,11 +244,16 @@ def open_test_client(
         primary_error = (error, error.__traceback__)
     finally:
         try:
-            app_instance.dependency_overrides.clear()
+            if app_instance.dependency_overrides is not overrides_owner:
+                app_instance.dependency_overrides = overrides_owner
         except BaseException as error:
             cleanup_errors.append((error, error.__traceback__))
         try:
-            app_instance.dependency_overrides.update(overrides_snapshot)
+            overrides_owner.clear()
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+        try:
+            overrides_owner.update(overrides_snapshot)
         except BaseException as error:
             cleanup_errors.append((error, error.__traceback__))
 
