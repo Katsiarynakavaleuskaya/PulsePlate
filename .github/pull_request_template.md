@@ -26,7 +26,7 @@
 
 <!-- Decisions whose trade-offs a reviewer must understand. -->
 
-## Tests / validation
+## Tests
 
 <!-- Exact local commands and current-head CI evidence; distinguish pending from passed. Review relevant guidance in docs/ENGINEERING_LESSONS.md. -->
 
@@ -38,6 +38,8 @@
 
 <!-- Failure modes, observability, and the exact safe rollback. -->
 
+<!-- phase2-pre-closeout: final-security-pending -->
+
 ## Discussion Thread Pass
 
 <!-- Change both boxes to [x] only after the canonical artifact is complete. -->
@@ -47,6 +49,7 @@
 
 ### Fixed in Commit Mapping
 
+- Pending final clean scan and the single mapping/closeout commit.
 - canonical artifact: `docs/review/PR_<N>_FIXED_MAPPING.md`
 - URL→SHA and disposition details belong only in the canonical artifact.
 

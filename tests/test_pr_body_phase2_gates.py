@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import scripts.ci.check_pr_body_phase2_gates as gates
+import scripts.ci.check_pr_size_governance as size_gate
 
 LANE_START_PACKET_ID = "a733b2e09986"
 LANE_START_PACKET_PATH = f"{gates.LANE_START_PACKET_PREFIX}{LANE_START_PACKET_ID}.json"
@@ -229,6 +230,19 @@ def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> Non
     )
 
     assert errors == []
+
+
+def test_default_pr_template_satisfies_body_gate_contracts() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+
+    assert size_gate.missing_standard_sections(template) == []
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=template,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
 
 
 def test_phase2_guard_rejects_checked_pre_closeout_boxes() -> None:
