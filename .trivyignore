@@ -606,42 +606,6 @@ CVE-2025-9230
 
 CVE-2023-50495
 
-## CVE-2025-8869 – pip symlink extraction vulnerability (MEDIUM)
-##
-## This CVE affects pip <25.3 when extracting tar archives on Python versions
-## without PEP 706. Our application is NOT vulnerable:
-##
-## 1. Container uses pip 25.1.1 (base image includes pip >= 25.1.1)
-## 2. Python 3.13.13 implements PEP 706 (secure tar extraction)
-## 3. CVE fixed in pip 25.3, but PEP 706 provides primary mitigation
-##
-## Vulnerability details:
-##   - pip's fallback tar extraction may not check symlinks
-##   - Only affects Python without PEP 706 (<3.9.17, <3.10.12, <3.11.4, <3.12)
-##   - Can allow symlink attacks during sdist installation
-##
-## Why we are NOT vulnerable:
-##   - Python 3.13.13 implements PEP 706 → secure tarfile by default
-##   - pip 25.1.1 DOES contain vulnerable fallback code (unfixed until 25.3)
-##   - BUT Python 3.13.13's PEP 706 prevents fallback code from being used
-##   - PEP 706 provides interpreter-level protection at tarfile module
-##   - Production installs from wheels, not sdists
-##   - Controlled dependencies from PyPI (no untrusted sources)
-##
-## Debian/upstream status:
-##   - NVD advisory recommends pip 25.3 OR Python with PEP 706
-##   - We have Python 3.13.13 (PEP 706) → primary mitigation satisfied
-##   - pip 25.1.1 < 25.3 but fallback code never executes
-##
-## Defense in depth layers:
-##   1. ✅ Python 3.13 implements PEP 706 (primary mitigation)
-##   2. ✅ Wheels-only production deployments
-##   3. ✅ Controlled dependency sources
-##
-## Container is NOT vulnerable - Python 3.13.13 with PEP 706 prevents exploitation.
-
-CVE-2025-8869
-
 ## CVE-2024-10041 – PAM speculative execution password leak (MEDIUM)
 ##
 ## This CVE affects PAM (speculative execution side-channel). Application
