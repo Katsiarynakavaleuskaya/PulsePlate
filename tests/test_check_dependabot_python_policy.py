@@ -993,16 +993,22 @@ def test_external_code_execution_is_rejected_at_every_other_mapping_position(
         assert expected_error in errors
 
 
-def test_external_code_execution_rejects_recursively_nested_unknown_mapping(
+@pytest.mark.parametrize(
+    "untrusted_container",
+    [
+        {"nested": {policy.EXTERNAL_CODE_EXECUTION_KEY: "allow"}},
+        [{"nested": {policy.EXTERNAL_CODE_EXECUTION_KEY: "allow"}}],
+    ],
+)
+def test_external_code_execution_rejects_recursively_nested_unknown_container(
     tmp_path: Path,
+    untrusted_container: object,
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
     schedule = _pip_update(config)["schedule"]
     assert isinstance(schedule, dict)
-    schedule["untrusted"] = {
-        "nested": {policy.EXTERNAL_CODE_EXECUTION_KEY: "allow"},
-    }
+    schedule["untrusted"] = untrusted_container
     _write_config(repo, config)
 
     errors = policy.validate_repo(repo)

@@ -864,27 +864,35 @@ Classify the new review item before choosing the recovery path:
    this closeout state. A same-digest reseal and a second mapping-only commit
    are forbidden.
 3. Wait for every current-head CI job to reach a terminal state before
-   promoting the review fix. If the finding exposes a real defect in code,
-   tests, policy, or documentation, correct that defect in a material commit.
-   The correction creates the new material head and digest; it is not a
-   synthetic carrier.
-4. Run the required narrow local bundle, push the material correction, and
+   promoting the review fix.
+4. If no mapping-only successor exists yet and the finding exposes a real
+   defect in code, tests, policy, or documentation, correct that defect by
+   advancing the current material commit. The correction creates the new
+   material head and digest; it is not a synthetic carrier.
+5. Run the required narrow local bundle, push the material correction, and
    again wait for terminal current-head technical CI. Only then freeze the new
    digest, run exact-material self-review, collect the stable live review
-   inventory, author dispositions, and publish one direct mapping-only
+   inventory, author dispositions, and publish exactly one direct mapping-only
    successor.
-5. If there is no honest material defect to correct, do not manufacture one.
-   Keep the finding unresolved and supersede the PR from a clean current base
-   through the normal coordinator-owned replacement flow.
-6. Do not wait for an unrelated `main` advance, enumerate reviewer execution
+6. If a mapping-only successor already exists, no real correction may be
+   appended on top of it. Keep the finding unresolved and supersede the PR from
+   a clean current base through the normal coordinator-owned replacement flow,
+   where the correction advances material before that PR's sole mapping-only
+   successor.
+7. If there is no honest material defect to correct, do not manufacture one.
+   Use the validated reply-only path when its fingerprint contract applies;
+   otherwise keep the finding unresolved and use the same clean replacement
+   flow.
+8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
    refs, force-push history, or use operator approval to bypass the hard
    disposition gate.
 
-The mapping artifact remains excluded from the material digest. A prior
-mapping-only live head may host the real correction, but it cannot by itself
-become a new material cycle. This preserves the one-successor invariant without
-freezing an obsolete head or turning every new reviewer ref into another parser
-variant.
+The mapping artifact remains excluded from the material digest. Every real
+correction must be based on and advance material, invalidate the prior seal,
+and be followed by exactly one mapping-only successor. A prior mapping-only
+live head must never host the correction. This preserves the one-successor
+invariant without freezing an obsolete head or turning every new reviewer ref
+into another parser variant.
 
 ### Use instead
 
