@@ -42,6 +42,7 @@
     "events_by_status": { "$ref": "#/$defs/status_count_map" },
     "source_artifacts": {
       "type": "array",
+      "uniqueItems": true,
       "items": { "$ref": "#/$defs/source_artifact" }
     },
     "terminal": { "$ref": "#/$defs/terminal" },

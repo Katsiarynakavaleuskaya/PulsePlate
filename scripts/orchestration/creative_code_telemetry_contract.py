@@ -535,6 +535,15 @@ def _require_id(payload: Mapping[str, Any], key: str, *, label: str) -> str:
     return normalized
 
 
+def _require_v2_id(payload: Mapping[str, Any], key: str, *, label: str) -> str:
+    normalized = _require_id(payload, key, label=label)
+    if payload.get(key) != normalized:
+        raise CreativeCodeTelemetryContractError(
+            f"{label}.{key} must use canonical identifier spelling."
+        )
+    return normalized
+
+
 def _require_token(payload: Mapping[str, Any], key: str, *, label: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str):
@@ -1411,8 +1420,8 @@ def validate_creative_code_telemetry_event_v2(
         "schema_version": _require_const(payload, "schema_version", V2_SCHEMA_VERSION, label=label),
         "artifact_type": _require_const(payload, "artifact_type", EVENT_TYPE, label=label),
         "policy_version": _require_const(payload, "policy_version", V2_POLICY_VERSION, label=label),
-        "event_id": _require_id(payload, "event_id", label=label),
-        "idempotency_key": _require_id(payload, "idempotency_key", label=label),
+        "event_id": _require_v2_id(payload, "event_id", label=label),
+        "idempotency_key": _require_v2_id(payload, "idempotency_key", label=label),
         "lane_stage": _require_const(payload, "lane_stage", "pr_terminal", label=label),
         "source_artifact_type": _require_const(
             payload,
@@ -1420,7 +1429,11 @@ def validate_creative_code_telemetry_event_v2(
             "creative_code_terminal_outcome",
             label=label,
         ),
-        "source_artifact_id": _require_id(payload, "source_artifact_id", label=label),
+        "source_artifact_id": _require_v2_id(
+            payload,
+            "source_artifact_id",
+            label=label,
+        ),
         "source_fingerprint": _require_fingerprint(payload, "source_fingerprint", label=label),
         "status": status,
         "terminal_projection": projection,
@@ -1550,7 +1563,11 @@ def _normalize_v2_source_rows(raw_rows: Any) -> list[dict[str, str]]:
             raise CreativeCodeTelemetryContractError(
                 f"source_artifacts[{index}].source_artifact_type is unsupported."
             )
-        artifact_id = _require_id(row, "source_artifact_id", label=f"source_artifacts[{index}]")
+        artifact_id = _require_v2_id(
+            row,
+            "source_artifact_id",
+            label=f"source_artifacts[{index}]",
+        )
         fingerprint = _require_fingerprint(
             row, "source_fingerprint", label=f"source_artifacts[{index}]"
         )
@@ -1744,6 +1761,31 @@ def _validate_v2_legacy_aggregates(
     ):
         raise CreativeCodeTelemetryContractError(
             "legacy funnel statuses exceed represented event statuses."
+        )
+    tracked_accepted_stage_total = (
+        funnel["patch_results"]
+        + events_by_stage.get("promotion_validation", 0)
+        + events_by_stage.get("promotion_approval", 0)
+    )
+    minimum_tracked_accepted = max(
+        0,
+        tracked_accepted_stage_total + events_by_status.get("accepted", 0) - legacy_event_count,
+    )
+    minimum_patch_rejected = max(
+        0,
+        funnel["patch_results"] + events_by_status.get("rejected", 0) - legacy_event_count,
+    )
+    minimum_pr_opened = max(
+        0,
+        events_by_stage.get("pr_open", 0) + events_by_status.get("opened", 0) - legacy_event_count,
+    )
+    if (
+        accepted_funnel_total < minimum_tracked_accepted
+        or funnel["patch_results_rejected"] < minimum_patch_rejected
+        or funnel["pull_requests_opened"] < minimum_pr_opened
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "legacy funnel statuses underrepresent represented event marginals."
         )
     expected_rates = {
         "first_pass_acceptance_rate_bps": compute_bps(
