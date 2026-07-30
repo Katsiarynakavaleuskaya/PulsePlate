@@ -398,10 +398,16 @@ def _direct_fixture_with_targets(
             if len(body) != 1 or not isinstance(body[0], ast.Expr):
                 return False
             yielded = body[0].value
+            fixture_yields = [
+                candidate
+                for candidate in ast.walk(function)
+                if isinstance(candidate, (ast.Yield, ast.YieldFrom))
+            ]
             return (
                 isinstance(yielded, ast.Yield)
                 and isinstance(yielded.value, ast.Name)
                 and yielded.value.id == bound_name
+                and fixture_yields == [yielded]
             )
 
         def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
@@ -424,7 +430,9 @@ def _direct_fixture_with_targets(
                     if require_yielded_binding:
                         optional_vars = item.optional_vars
                         if not (
-                            isinstance(optional_vars, ast.Name)
+                            len(node.items) == 1
+                            and item is node.items[0]
+                            and isinstance(optional_vars, ast.Name)
                             and self._body_yields_bound_name(node.body, optional_vars.id)
                         ):
                             continue
@@ -950,11 +958,29 @@ def client(app, unmanaged_client):
                 pass
         yield managed_client
 """
+    extra_yield_source = """
+from tests import _client as test_client_helpers
+def client(app, unmanaged_client):
+    yield unmanaged_client
+    with test_client_helpers.open_test_client(app) as managed_client:
+        yield managed_client
+"""
+    later_context_rebound_source = """
+from tests import _client as test_client_helpers
+def client(app, other_manager):
+    with (
+        test_client_helpers.open_test_client(app) as managed_client,
+        other_manager as managed_client,
+    ):
+        yield managed_client
+"""
 
     assert targets(managed_source) == [OPEN_CLIENT_SYMBOL]
     assert targets(unmanaged_source) == []
     assert targets(rebound_source) == []
     assert targets(pattern_rebound_source) == []
+    assert targets(extra_yield_source) == []
+    assert targets(later_context_rebound_source) == []
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:
