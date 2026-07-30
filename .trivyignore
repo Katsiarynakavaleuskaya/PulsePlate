@@ -19,7 +19,7 @@
 
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
-## Our images are based on Debian bookworm (python:3.13-slim). Debian's
+## Our images are based on Debian bookworm (python:3.13.14-slim-bookworm). Debian's
 ## security tracker explicitly marks src:zlib in trixie as "ignored"
 ## for this CVE because the vulnerable contrib/minizip code is not built
 ## into any binary packages:
