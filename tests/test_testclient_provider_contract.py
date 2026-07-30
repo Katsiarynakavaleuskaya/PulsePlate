@@ -43,6 +43,7 @@ RAW_TESTCLIENT_MODULES = {
     FASTAPI_TESTCLIENT_MODULE,
     STARLETTE_TESTCLIENT_MODULE,
 }
+RAW_TESTCLIENT_ROOT_MODULES = {module.partition(".")[0] for module in RAW_TESTCLIENT_MODULES}
 TRACKED_SYMBOLS = {
     *RAW_TESTCLIENT_SYMBOLS,
     METRICS_CLIENT_SYMBOL,
@@ -51,7 +52,7 @@ TRACKED_SYMBOLS = {
     GET_CLIENT_SYMBOL,
 }
 TRACKED_MODULES = {
-    "fastapi",
+    *RAW_TESTCLIENT_ROOT_MODULES,
     *RAW_TESTCLIENT_MODULES,
     "tests",
     CLIENT_HELPERS_MODULE,
@@ -760,6 +761,23 @@ starlette_clients.TestClient(app)
 
     assert _resolved_call_targets(source) == {STARLETTE_TESTCLIENT_SYMBOL}
     assert _resolved_unsupported_carriers(source) == []
+
+
+def test_bounded_resolver_recognizes_testclient_root_aliases() -> None:
+    for raw_module in sorted(RAW_TESTCLIENT_MODULES):
+        root_module, separator, child_module = raw_module.partition(".")
+        assert separator and child_module
+        source = f"""
+import {raw_module}
+from tests._client import MetricsAwareTestClient
+root_alias = {root_module}
+root_alias.{child_module}.TestClient(app)
+root_alias.{child_module}.TestClient = MetricsAwareTestClient
+"""
+
+        assert _resolved_call_targets(source) == {f"{raw_module}.TestClient"}
+        assert len(_resolved_patch_lines(source)) == 1
+        assert _resolved_unsupported_carriers(source) == []
 
 
 def test_bounded_resolver_fails_closed_when_tracked_bindings_are_rebound() -> None:
