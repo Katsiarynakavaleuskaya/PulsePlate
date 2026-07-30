@@ -674,6 +674,42 @@ def test_phase2_replacement_preserves_h2_after_inline_html(
     assert "## Split justification" in rendered
 
 
+@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea"])
+def test_persistent_raw_html_requires_exact_closing_tag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    tag: str,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Split justification",
+        (
+            f"<{tag}>\n"
+            "## Hidden raw heading one\n"
+            f"</{tag}lude>\n"
+            "## Hidden raw heading two\n"
+            f"</{tag}>\n"
+            "## Split justification"
+        ),
+        1,
+    )
+
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert "## Hidden raw heading one" not in rendered
+    assert "## Hidden raw heading two" not in rendered
+    assert "## Split justification" in rendered
+
+
 def test_phase2_gate_rejects_swapped_checkbox_order() -> None:
     body = PRE_CLOSEOUT_BODY.replace(
         "- [ ] Discussion-thread pass completed\n- [ ] Fixed in commit mapping completed",
@@ -688,6 +724,17 @@ def test_phase2_gate_rejects_swapped_checkbox_order() -> None:
     assert any(
         "must appear in discussion-pass then fixed-mapping order" in error for error in errors
     )
+
+
+def test_phase2_gate_rejects_unrenderable_block_at_eof() -> None:
+    body = PRE_CLOSEOUT_BODY.split("## Experiment Runner Evidence", maxsplit=1)[0]
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert "Phase2 block must be followed by another H2 section." in errors
 
 
 def test_phase2_gate_and_renderer_reject_mapping_before_discussion(
@@ -2240,6 +2287,9 @@ Artifact-first validation fixture.
 
 ### Fixed in Commit Mapping
 - canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`
+
+## Deferred / Follow-ups
+None.
 """
     event = {"pull_request": {"number": 998, "body": mirror_body}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")

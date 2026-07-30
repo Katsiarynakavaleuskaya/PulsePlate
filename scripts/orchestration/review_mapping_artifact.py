@@ -131,7 +131,7 @@ def _raw_html_block_start(line: str) -> tuple[str, bool]:
     if match := MARKDOWN_RAW_HTML_BLOCK_TAG_RE.match(line):
         tag = match.group("tag").casefold()
         if not stripped.startswith("</") and tag in MARKDOWN_RAW_HTML_PERSISTENT_TAGS:
-            return f"</{tag}", False
+            return f"</{tag}>", False
         return "", True
     if MARKDOWN_RAW_HTML_STANDALONE_TAG_RE.fullmatch(line):
         return "", True

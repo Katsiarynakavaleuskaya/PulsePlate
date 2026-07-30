@@ -815,14 +815,14 @@ def check_pr_body_phase2_gates(
         discussion_start = discussion_sections[0].source_offset + len(
             discussion_sections[0].raw_line
         )
-        discussion_end = next(
-            (
-                line.source_offset
-                for line in rendered_lines
-                if line.source_offset >= discussion_start and markdown_heading_level(line) == 2
-            ),
-            len(body),
-        )
+        following_h2_offsets = [
+            line.source_offset
+            for line in rendered_lines
+            if line.source_offset >= discussion_start and markdown_heading_level(line) == 2
+        ]
+        if not following_h2_offsets:
+            errors.append("Phase2 block must be followed by another H2 section.")
+        discussion_end = following_h2_offsets[0] if following_h2_offsets else len(body)
         mapping_start = mapping_sections[0].source_offset
         if discussion_start <= mapping_start < discussion_end:
             checklist_text = _normalize_phase2_body(body[discussion_start:mapping_start])
