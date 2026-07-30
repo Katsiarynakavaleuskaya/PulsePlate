@@ -90,6 +90,7 @@
         },
         "promoted_head_sha": { "$ref": "#/$defs/git_sha" },
         "closure_epoch": {
+          "description": "Bounded logical closure sequence; not a wall-clock or Unix timestamp.",
           "type": "integer",
           "minimum": 1,
           "maximum": 1000000

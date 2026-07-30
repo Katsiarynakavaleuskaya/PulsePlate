@@ -33,6 +33,7 @@
     "idempotency_key": { "$ref": "#/$defs/sha256" },
     "lineage": { "$ref": "#/$defs/lineage" },
     "closure_epoch": {
+      "description": "Bounded logical closure sequence; not a wall-clock or Unix timestamp.",
       "type": "integer",
       "minimum": 1,
       "maximum": 1000000

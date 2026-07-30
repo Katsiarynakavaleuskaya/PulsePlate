@@ -1604,6 +1604,20 @@ def _normalize_v2_terminal(raw_terminal: Any) -> dict[str, Any]:
             raise CreativeCodeTelemetryContractError(
                 f"terminal.{key} must account for every terminal outcome."
             )
+    review = terminal["review_observations"]
+    governance = terminal["governance_observations"]
+    if (
+        review["actionables_observed"] != governance["blockers_observed"]
+        or review["no_actionables_observed"] != governance["no_blockers_observed"]
+        or review["evidence_unavailable"] != governance["evidence_unavailable"]
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "terminal review and governance observation counts must stay paired."
+        )
+    if terminal["post_merge_observations"]["not_applicable"] != terminal["closed_unmerged"]:
+        raise CreativeCodeTelemetryContractError(
+            "closed_unmerged outcomes require not_applicable post-merge observations."
+        )
     return terminal
 
 
@@ -1877,19 +1891,25 @@ def validate_creative_code_telemetry_rollup_v2(
         raise CreativeCodeTelemetryContractError(
             "post_merge_complete_rate_bps does not match observed validation counts."
         )
+    cost = normalized["cost"]
+    total_cost_available = cost["cost_metadata_available_count"]
+    total_token_usage_available = cost["token_usage_available_count"]
+    terminal_cost_available = cost["terminal_cost_metadata_available_count"]
+    terminal_token_usage_available = cost["terminal_token_usage_available_count"]
+    legacy_cost_available = total_cost_available - terminal_cost_available
+    legacy_token_usage_available = total_token_usage_available - terminal_token_usage_available
     if (
-        normalized["cost"]["terminal_cost_metadata_available_count"] > terminal["outcome_count"]
-        or normalized["cost"]["terminal_token_usage_available_count"]
-        > normalized["cost"]["terminal_cost_metadata_available_count"]
-        or normalized["cost"]["token_usage_available_count"]
-        > normalized["cost"]["cost_metadata_available_count"]
-        or normalized["cost"]["terminal_cost_metadata_available_count"]
-        > normalized["cost"]["cost_metadata_available_count"]
-        or normalized["cost"]["terminal_token_usage_available_count"]
-        > normalized["cost"]["token_usage_available_count"]
+        total_cost_available > normalized["event_count"]
+        or total_token_usage_available > total_cost_available
+        or terminal_cost_available > terminal["outcome_count"]
+        or terminal_token_usage_available > terminal_cost_available
+        or terminal_cost_available > total_cost_available
+        or terminal_token_usage_available > total_token_usage_available
+        or legacy_cost_available > normalized["legacy_event_count"]
+        or legacy_token_usage_available > legacy_cost_available
     ):
         raise CreativeCodeTelemetryContractError(
-            "terminal cost availability counts are inconsistent."
+            "cost availability counts are inconsistent with represented events."
         )
     reject_unsafe_telemetry_value(normalized, label=label)
     return normalized

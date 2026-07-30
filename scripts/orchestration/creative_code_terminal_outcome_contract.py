@@ -31,6 +31,7 @@ POLICY_VERSION = "creative-code-terminal-outcome-v1"
 ARTIFACT_TYPE = "creative_code_terminal_outcome"
 SUCCESS_OUTPUT = "PASS: creative-code terminal outcome valid"
 MAX_JSON_OBJECT_BYTES = 1_048_576
+MAX_CLOSURE_EPOCH = 1_000_000
 CANONICAL_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -450,9 +451,7 @@ def _normalize_post_merge(
         )
     if current_main_ci == "failure" or executed < configured or passed < executed:
         return normalized, "incomplete_observed"
-    if current_main_ci == "success" or (configured > 0 and configured == executed == passed):
-        return normalized, "complete_observed"
-    return normalized, "evidence_unavailable"
+    return normalized, "complete_observed"
 
 
 def _normalize_process(raw_process: Any) -> dict[str, int]:
@@ -519,7 +518,7 @@ def normalize_terminal_observation(payload: Mapping[str, Any]) -> dict[str, Any]
             payload,
             "closure_epoch",
             min_value=1,
-            max_value=1_000_000,
+            max_value=MAX_CLOSURE_EPOCH,
             label=label,
         ),
         "terminal_state": terminal_state,
@@ -614,22 +613,6 @@ def terminal_outcome_id(
         ),
     )
     return outcome_id
-
-
-def terminal_lineage_key(lineage: Mapping[str, Any]) -> str:
-    """Return the terminal lineage key used to reject duplicate projections."""
-
-    normalized = _normalize_lineage(lineage)
-    identity: dict[str, Any] = {
-        "repository": normalized["repository"],
-        "pull_request_number": normalized["pull_request_number"],
-        "promotion_id": normalized["promotion_id"],
-        "promoted_head_sha": normalized["promoted_head_sha"],
-    }
-    lineage_key: str = fingerprint_payload(
-        identity,
-    )
-    return lineage_key
 
 
 def _idempotency_payload(outcome: Mapping[str, Any]) -> dict[str, Any]:
@@ -768,7 +751,7 @@ def validate_creative_code_terminal_outcome(
             payload,
             "closure_epoch",
             min_value=1,
-            max_value=1_000_000,
+            max_value=MAX_CLOSURE_EPOCH,
             label=label,
         ),
         "terminal_state": terminal_state,

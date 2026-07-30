@@ -86,13 +86,15 @@ safe read-error events with fingerprint-only identifiers; raw exception text,
 paths, prompts, patches, provider payloads, and command output are not copied.
 
 The terminal observation is an input object, not a second canonical artifact
-type. It contains only promotion/PR/head binding, a positive closure epoch,
-one observed terminal branch, bounded aggregate review/post-merge/process
-evidence, the existing closed cost shape, and `sanitized=true`. It cannot
-contain PR bodies, comments, prompts, patches, snippets, oracle output,
-free-form notes, URLs, or paths. Terminal state collection failure emits no
-outcome; `terminal_evidence_unavailable` is an input/collection error, not a
-third terminal state.
+type. It contains only promotion/PR/head binding, a bounded logical
+`closure_epoch` sequence in `[1, 1_000_000]`, one observed terminal branch,
+bounded aggregate review/post-merge/process evidence, the existing closed cost
+shape, and `sanitized=true`. `closure_epoch` distinguishes terminal collection
+attempts for replay detection; it is not a wall-clock or Unix timestamp. The
+observation cannot contain PR bodies, comments, prompts, patches, snippets,
+oracle output, free-form notes, URLs, or paths. Terminal state collection
+failure emits no outcome; `terminal_evidence_unavailable` is an input/collection
+error, not a third terminal state.
 
 ## Terminal Outcome Envelope
 

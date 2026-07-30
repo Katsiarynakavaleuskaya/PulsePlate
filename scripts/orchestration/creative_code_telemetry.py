@@ -452,11 +452,20 @@ def _load_promotion_event(path: Path) -> dict[str, Any] | None:
         return safe_read_error_event(path)
 
 
-def _load_terminal_event(path: Path) -> dict[str, Any] | None:
+def _load_terminal_event(
+    path: Path,
+    *,
+    terminal_root: Path,
+) -> dict[str, Any] | None:
     if path.name != "terminal_outcome.json":
         return None
     try:
         outcome = validate_creative_code_terminal_outcome(read_terminal_json_object(path))
+        canonical_path = terminal_root / outcome["outcome_id"] / "terminal_outcome.json"
+        if path != canonical_path:
+            raise CreativeCodeTelemetryError(
+                "terminal outcome must use its canonical outcome directory."
+            )
         event: dict[str, Any] = build_creative_code_terminal_telemetry_event(outcome)
         return event
     except CreativeCodeTerminalOutcomeError as exc:
@@ -516,7 +525,7 @@ def collect_events(
 
     if terminal_root is not None:
         for path in _iter_json_files(terminal_root):
-            event = _load_terminal_event(path)
+            event = _load_terminal_event(path, terminal_root=terminal_root)
             if event is not None:
                 events.append(event)
 

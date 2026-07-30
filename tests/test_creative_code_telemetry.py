@@ -853,6 +853,111 @@ def test_mixed_v1_v2_rollup_counts_terminal_cost_and_process_once() -> None:
     assert rollup["cost"]["token_usage_available_count"] == 1
 
 
+def test_closed_unmerged_projects_not_applicable_and_zero_merge_rate() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            _reference_patch_result(),
+            terminal_state="closed_unmerged",
+        )
+    )
+
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+
+    assert event["status"] == "closed_unmerged"
+    assert event["terminal_projection"]["post_merge_observation"] == "not_applicable"
+    assert rollup["terminal"]["merged"] == 0
+    assert rollup["terminal"]["closed_unmerged"] == 1
+    assert rollup["rates"]["merge_rate_bps"] == 0
+    assert rollup["rates"]["post_merge_complete_rate_bps"] is None
+
+
+def test_v2_rollup_rejects_unpaired_review_and_governance_counts() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    governance = rollup["terminal"]["governance_observations"]
+    governance["no_blockers_observed"] = 0
+    governance["blockers_observed"] = 1
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="review and governance observation counts must stay paired",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_rejects_closed_outcome_with_post_merge_completion() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            _reference_patch_result(),
+            terminal_state="closed_unmerged",
+        )
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    post_merge = rollup["terminal"]["post_merge_observations"]
+    post_merge["not_applicable"] = 0
+    post_merge["complete_observed"] = 1
+    rollup["rates"]["post_merge_complete_rate_bps"] = 10_000
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="closed_unmerged outcomes require not_applicable",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+@pytest.mark.parametrize(
+    "cost_patch",
+    [
+        {
+            "cost_metadata_available_count": 2,
+            "token_usage_available_count": 1,
+            "terminal_cost_metadata_available_count": 1,
+            "terminal_token_usage_available_count": 1,
+        },
+        {
+            "cost_metadata_available_count": 1,
+            "token_usage_available_count": 1,
+            "terminal_cost_metadata_available_count": 0,
+            "terminal_token_usage_available_count": 0,
+        },
+        {
+            "cost_metadata_available_count": 1,
+            "token_usage_available_count": 1,
+            "terminal_cost_metadata_available_count": 1,
+            "terminal_token_usage_available_count": 0,
+        },
+    ],
+)
+def test_v2_rollup_cost_counts_must_fit_event_partitions(
+    cost_patch: dict[str, int],
+) -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup["cost"].update(cost_patch)
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="cost availability counts are inconsistent with represented events",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
 def test_terminal_duplicate_and_source_drift_fail_closed() -> None:
     patch_result = _reference_patch_result()
     first = build_creative_code_terminal_telemetry_event(
@@ -919,6 +1024,33 @@ def test_collector_with_terminal_input_emits_mixed_v2_rollup(
     assert rollup["schema_version"] == "2.0"
     assert rollup["terminal"]["outcome_count"] == 1
     assert Counter(event["lane_stage"] for event in events)["pr_terminal"] == 1
+
+
+def test_terminal_collector_requires_canonical_outcome_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    terminal_root = root / "terminal_outcomes"
+    outcome = _terminal_outcome(_reference_patch_result())
+    _write_json(
+        terminal_root / "misplaced-outcome" / "terminal_outcome.json",
+        outcome,
+    )
+
+    with pytest.raises(
+        creative_code_telemetry.CreativeCodeTelemetryError,
+        match="canonical outcome directory",
+    ):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=spec_runs,
+            patch_runs_dir=patch_runs,
+            promotions_dir=promotions,
+            terminal_outcomes_dir=terminal_root,
+        )
 
 
 def test_v2_schemas_align_on_closed_shape_and_finite_vocabulary() -> None:

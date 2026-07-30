@@ -302,17 +302,20 @@ def test_terminal_unavailable_is_collection_error_and_emits_no_outcome(
 ) -> None:
     observation = _observation()
     observation["terminal_state"] = "unavailable"
+    paths = _write_build_inputs(tmp_path)
+    paths["observation"].write_text(json.dumps(observation), encoding="utf-8")
     output_root = tmp_path / "terminal_outcomes"
 
     with pytest.raises(
         CreativeCodeTerminalOutcomeError,
         match="terminal_evidence_unavailable",
     ):
-        plan, receipt = _promotion_lineage()
-        build_creative_code_terminal_outcome(
-            promotion_plan=plan,
-            promotion_receipt=receipt,
-            observation=observation,
+        creative_code_terminal_outcome.build_and_publish(
+            promotion_plan_path=paths["promotion_plan"],
+            promotion_receipt_path=paths["promotion_receipt"],
+            observation_path=paths["observation"],
+            input_root=tmp_path,
+            output_root=output_root,
         )
     assert not output_root.exists()
 
