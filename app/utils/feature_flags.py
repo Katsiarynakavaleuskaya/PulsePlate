@@ -45,6 +45,11 @@ def is_premium_nutrition_enabled() -> bool:
     return is_explicit_truthy_env_var("FEATURE_PREMIUM_NUTRITION")
 
 
+def is_insight_enabled() -> bool:
+    """Check if the Insight compatibility routes are enabled."""
+    return _is_truthy(os.getenv("FEATURE_INSIGHT", "false"))
+
+
 def is_rag_vector_enabled() -> bool:
     """Check if vector-based RAG retrieval is enabled.
 
@@ -112,6 +117,7 @@ __all__ = [
     "is_business_module_enabled",
     "is_creative_research_pilot_enabled",
     "is_explicit_truthy_env_var",
+    "is_insight_enabled",
     "is_premium_nutrition_enabled",
     "is_vip_module_enabled",
     "is_rag_vector_enabled",

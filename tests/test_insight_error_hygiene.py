@@ -3,6 +3,20 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from tests._client import disable_rate_limiting_for_test_app
+from tests.helpers.module_resolve import resolve_module
+
+
+def _patch_insight_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: object,
+) -> None:
+    insight_compat = resolve_module("app.services.insight_compat")
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: provider),
+        raising=True,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -29,8 +43,6 @@ def test_insight_legacy_does_not_leak_provider_exception(
 ) -> None:
     """Ensure /insight never returns raw provider exception text."""
 
-    import llm
-
     class FailingProvider:
         name = "test_provider"
 
@@ -38,7 +50,7 @@ def test_insight_legacy_does_not_leak_provider_exception(
             raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: FailingProvider(), raising=True)
+    _patch_insight_provider(monkeypatch, FailingProvider())
 
     resp = client.post("/insight", json={"text": "hello"}, headers=vip_headers)
     assert resp.status_code == 503
@@ -53,8 +65,6 @@ def test_insight_v1_does_not_leak_provider_exception(
 ) -> None:
     """Ensure /api/v1/insight never returns raw provider exception text."""
 
-    import llm
-
     class FailingProvider:
         name = "test_provider"
 
@@ -62,7 +72,7 @@ def test_insight_v1_does_not_leak_provider_exception(
             raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: FailingProvider(), raising=True)
+    _patch_insight_provider(monkeypatch, FailingProvider())
 
     resp = client.post(
         "/api/v1/insight",
@@ -81,7 +91,6 @@ def test_insight_redacts_rag_source_headers(
 ) -> None:
     """Ensure RAG context source lines are not forwarded to the LLM prompt."""
 
-    import llm
     from dataclasses import dataclass
     from typing import Optional
 
@@ -136,7 +145,7 @@ def test_insight_redacts_rag_source_headers(
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_RAG", "true")
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: EchoProvider(), raising=True)
+    _patch_insight_provider(monkeypatch, EchoProvider())
     monkeypatch.setattr(
         "core.rag.vector_rag.retrieve_context_structured",
         fake_structured,

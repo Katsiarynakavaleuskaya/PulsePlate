@@ -19,8 +19,9 @@ import pytest
 from app.effective_routes import route_include_in_schema, route_responses
 from app.bootstrap.route_family import route_has_dependency_call
 from app.middleware.api_tiers import require_vip_tier
+from app.schemas.insight import INSIGHT_TEXT_MAX_LENGTH
 from tests.helpers.fake_llm_provider import FakeLLMProvider
-from tests.helpers.module_resolve import resolve_legacy_app
+from tests.helpers.module_resolve import resolve_legacy_app, resolve_module
 from tests.helpers.route_lookup import find_single_route
 
 _INSIGHT_V1_PATH = "/api/v1/insight"
@@ -37,13 +38,14 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make provider/quota deterministic so tests validate only route behavior."""
 
     legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
 
     def _noop_quota(*_args: object, **_kwargs: object) -> None:
         return None
 
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_load_llm_get_provider",
         lambda: (lambda: FakeLLMProvider()),
         raising=True,
@@ -120,6 +122,32 @@ def test_insight_feature_flag_disabled_returns_503(
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "FEATURE_INSIGHT is disabled"}
+
+
+@pytest.mark.parametrize("path", _INSIGHT_PATHS)
+@pytest.mark.parametrize(
+    ("text", "expected_status"),
+    [
+        ("", 422),
+        ("x" * INSIGHT_TEXT_MAX_LENGTH, 200),
+        ("x" * (INSIGHT_TEXT_MAX_LENGTH + 1), 422),
+    ],
+)
+def test_insight_text_boundaries_are_preserved(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
+    text: str,
+    expected_status: int,
+) -> None:
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    if expected_status == 200:
+        _patch_insight_success(monkeypatch)
+
+    resp = client.post(path, json={"text": text}, headers=vip_headers)
+
+    assert resp.status_code == expected_status
 
 
 @pytest.mark.parametrize("path", _INSIGHT_PATHS)
@@ -207,6 +235,7 @@ def test_insight_quota_exceeded_returns_429(
     """Monthly hard quota exhaustion returns deterministic 429 before provider."""
 
     legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
     def _quota_exceeded(*_args: object, **_kwargs: object) -> None:
@@ -217,7 +246,10 @@ def test_insight_quota_exceeded_returns_429(
 
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _quota_exceeded, raising=True)
     monkeypatch.setattr(
-        legacy_app, "_execute_insight_request", _provider_must_not_run, raising=True
+        insight_compat,
+        "_execute_insight_request",
+        _provider_must_not_run,
+        raising=True,
     )
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
@@ -258,6 +290,7 @@ def test_insight_provider_failure_returns_stable_503_envelope(
     """Provider failures must degrade to the stable 503 envelope without leaks."""
 
     legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
         legacy_app,
@@ -269,7 +302,7 @@ def test_insight_provider_failure_returns_stable_503_envelope(
     async def _boom(*_args: object, **_kwargs: object) -> object:
         raise RuntimeError("provider exploded with secret details")
 
-    monkeypatch.setattr(legacy_app, "_execute_insight_request", _boom, raising=True)
+    monkeypatch.setattr(insight_compat, "_execute_insight_request", _boom, raising=True)
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 

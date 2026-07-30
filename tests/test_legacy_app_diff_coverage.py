@@ -26,6 +26,7 @@ import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 from app.services import pro_nutrition_plate as plate_service
 import legacy_app
+from tests.helpers.module_resolve import resolve_module
 
 
 class _InsightProviderStub:
@@ -57,9 +58,13 @@ class _StructuredRAGContextStub:
 
 
 def _patch_stub_insight_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    import llm
-
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: _InsightProviderStub())
+    insight_compat = resolve_module("app.services.insight_compat")
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: _InsightProviderStub()),
+        raising=True,
+    )
 
 
 def _patch_structured_rag_context(
@@ -519,51 +524,6 @@ def test_add_visualization_calls_generate_bmi_visualization(
     result: dict[str, Any] = {"bmi": 24.2}
     legacy_app.add_visualization_if_requested(result, req)
     assert result.get("visualization", {}).get("available") is True
-
-
-def test_insight_prompt_helpers_cover_limits() -> None:
-    """Cover _ensure_insight_text_length and _build_insight_prompt trimming paths."""
-    too_long = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 1)
-    with pytest.raises(HTTPException) as exc:
-        legacy_app._ensure_insight_text_length(too_long)
-    assert exc.value.status_code == 413
-    assert legacy_app._ensure_insight_text_length("ok") == "ok"
-
-    # Build prompt with context trimming
-    text = "hello"
-    context = "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2)
-    prompt = legacy_app._build_insight_prompt(text, context)
-    assert isinstance(prompt, str)
-    assert len(prompt) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
-
-    # Cover "no context" branch
-    assert legacy_app._build_insight_prompt("q", "") == "q"
-
-    # Cover max_context_len <= 0 branch
-    huge_text = "x" * legacy_app.INSIGHT_TEXT_MAX_LENGTH
-    out = legacy_app._build_insight_prompt(huge_text, "ctx")
-    assert len(out) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
-
-
-def test_build_insight_prompt_final_truncation_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force the final prompt_text length check branch (line ~2124) via a side-effect context."""
-    original_max = legacy_app.INSIGHT_TEXT_MAX_LENGTH
-
-    class _WeirdContext:
-        def __bool__(self) -> bool:
-            return True
-
-        def __getitem__(self, _s: slice) -> str:
-            # Shrink max length after max_context_len is computed.
-            monkeypatch.setattr(legacy_app, "INSIGHT_TEXT_MAX_LENGTH", 10, raising=False)
-            return "c" * 50
-
-    try:
-        monkeypatch.setattr(legacy_app, "INSIGHT_TEXT_MAX_LENGTH", 200, raising=False)
-        prompt = legacy_app._build_insight_prompt("question", _WeirdContext())  # type: ignore[arg-type]
-        assert len(prompt) <= 10
-    finally:
-        monkeypatch.setattr(legacy_app, "INSIGHT_TEXT_MAX_LENGTH", original_max, raising=False)
 
 
 def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
