@@ -5,6 +5,7 @@ Global test configuration and fixtures for the project.
 import faulthandler
 import os
 import signal
+import sys
 import pytest
 from pathlib import Path
 from typing import Iterator
@@ -160,9 +161,19 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
 
 @pytest.fixture
 def reset_sys_modules() -> Iterator[None]:
-    """Deprecated inert fixture retained until coverage-only callers migrate."""
+    """Restore the VIP module only for explicit coverage-only compatibility callers."""
 
-    yield
+    module_name = "app.routers.vip"
+    original_present = module_name in sys.modules
+    original_module = sys.modules.get(module_name)
+
+    try:
+        yield
+    finally:
+        if original_present:
+            sys.modules[module_name] = original_module
+        else:
+            sys.modules.pop(module_name, None)
 
 
 @pytest.fixture

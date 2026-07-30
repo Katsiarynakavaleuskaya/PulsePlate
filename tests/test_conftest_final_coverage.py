@@ -6,6 +6,7 @@ import os
 import sys
 from types import ModuleType
 
+import conftest as root_conftest
 import pytest
 from fastapi.testclient import TestClient
 
@@ -51,6 +52,34 @@ class TestConftestFinalCoverage:
         # This test uses the reset_sys_modules fixture directly
         # which ensures line 58 (yield) is covered
         assert reset_sys_modules is None
+
+    @pytest.mark.parametrize("original_present", (False, True))
+    def test_reset_sys_modules_restores_exact_opt_in_binding(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        original_present: bool,
+    ) -> None:
+        """The opt-in compatibility fixture must not leak a replacement module."""
+
+        module_name = "app.routers.vip"
+        original_module = ModuleType(f"{module_name}.original")
+        replacement_module = ModuleType(f"{module_name}.replacement")
+        if original_present:
+            monkeypatch.setitem(sys.modules, module_name, original_module)
+        else:
+            monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+        fixture_generator = root_conftest.reset_sys_modules.__wrapped__()
+        assert next(fixture_generator) is None
+        monkeypatch.setitem(sys.modules, module_name, replacement_module)
+
+        with pytest.raises(StopIteration):
+            next(fixture_generator)
+
+        if original_present:
+            assert sys.modules[module_name] is original_module
+        else:
+            assert module_name not in sys.modules
 
     def test_conftest_all_environments_fixture(
         self, production_environment, test_environment, premium_disabled_environment
