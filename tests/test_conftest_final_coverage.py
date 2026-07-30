@@ -79,6 +79,7 @@ class TestConftestFinalCoverage:
         request.addfinalizer(assert_original_binding_restored)
         assert request.getfixturevalue("reset_sys_modules") is None
         monkeypatch.setitem(sys.modules, module_name, replacement_module)
+        assert sys.modules[module_name] is replacement_module
 
     def test_conftest_all_environments_fixture(
         self, production_environment, test_environment, premium_disabled_environment
