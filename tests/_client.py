@@ -114,36 +114,48 @@ def _reset_and_disable_limiter(limiter_instance: Any) -> None:
     limiter_instance.enabled = False
 
 
-def _cleanup_error_context(errors: list[_CapturedError]) -> BaseException:
+def _cleanup_error_context(
+    errors: list[_CapturedError],
+    *,
+    operation: str,
+) -> BaseException:
     """Build one ordered context without changing the primary failure."""
 
     prepared = [error.with_traceback(traceback) for error, traceback in errors]
     if len(prepared) == 1:
         return prepared[0]
-    return BaseExceptionGroup("open_test_client cleanup failures", prepared)
+    return BaseExceptionGroup(f"{operation} cleanup failures", prepared)
 
 
 def _raise_after_cleanup(
     primary_error: _CapturedError | None,
     cleanup_errors: list[_CapturedError],
+    *,
+    operation: str = "open_test_client",
 ) -> NoReturn:
     """Raise the primary failure, or the first cleanup failure after restore-all."""
 
     if primary_error is not None:
         error, traceback = primary_error
         if cleanup_errors:
-            error.add_note(f"open_test_client cleanup encountered {len(cleanup_errors)} failure(s)")
-            raise error.with_traceback(traceback) from _cleanup_error_context(cleanup_errors)
+            error.add_note(f"{operation} cleanup encountered {len(cleanup_errors)} failure(s)")
+            raise error.with_traceback(traceback) from _cleanup_error_context(
+                cleanup_errors,
+                operation=operation,
+            )
         raise error.with_traceback(traceback)
 
     first_error, *remaining_errors = cleanup_errors
     error, traceback = first_error
     if remaining_errors:
         error.add_note(
-            "open_test_client preserved the first cleanup failure after "
+            f"{operation} preserved the first cleanup failure after "
             f"{len(remaining_errors)} additional failure(s)"
         )
-        raise error.with_traceback(traceback) from _cleanup_error_context(remaining_errors)
+        raise error.with_traceback(traceback) from _cleanup_error_context(
+            remaining_errors,
+            operation=operation,
+        )
     raise error.with_traceback(traceback)
 
 

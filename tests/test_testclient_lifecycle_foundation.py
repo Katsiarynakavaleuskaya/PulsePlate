@@ -13,6 +13,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 from slowapi import Limiter
 
@@ -589,6 +590,38 @@ def test_isolated_sqlite_teardown_refuses_dangling_symlink(
 
     assert sqlite_path.is_symlink()
     assert not sqlite_path.exists()
+
+
+def test_isolated_sqlite_preserves_body_error_when_baseline_reinit_fails(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.db as core_db
+
+    original_init_db = core_db.init_db
+    body_error = RuntimeError("isolated body failed")
+    baseline_error = RuntimeError("baseline reinit failed")
+    init_calls = 0
+
+    def flaky_init_db() -> Engine:
+        nonlocal init_calls
+        init_calls += 1
+        if init_calls == 2:
+            raise baseline_error
+        return original_init_db()
+
+    monkeypatch.setattr(core_db, "init_db", flaky_init_db)
+    try:
+        with pytest.raises(RuntimeError, match="isolated body failed") as raised:
+            with _isolated_sqlite_database_context(tmp_path, request):
+                raise body_error
+
+        assert raised.value is body_error
+        assert raised.value.__cause__ is baseline_error
+    finally:
+        monkeypatch.setattr(core_db, "init_db", original_init_db)
+        original_init_db()
 
 
 def test_isolated_test_client_uses_fixture_engine(

@@ -4,9 +4,23 @@ Final targeted tests to improve conftest.py coverage to 97%.
 
 import os
 import sys
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
+
+from tests.conftest_app import assert_vip_response
+
+
+def test_assert_vip_response_reports_invalid_json() -> None:
+    response = Mock(status_code=200, text="not-json")
+    response.json.side_effect = ValueError("invalid JSON")
+
+    with pytest.raises(pytest.fail.Exception, match="Failed to parse JSON response"):
+        assert_vip_response(
+            response,
+            expected_data_fields={"required": "exists"},
+        )
 
 
 class TestConftestFinalCoverage:

@@ -1,7 +1,17 @@
 """Reusable response assertions for app-group compatibility tests."""
 
+from collections.abc import Collection, Mapping
+from typing import Any
 
-def assert_vip_response(response, expected_status_codes=None, expected_data_fields=None):
+import pytest
+from httpx import Response
+
+
+def assert_vip_response(
+    response: Response,
+    expected_status_codes: Collection[int] | None = None,
+    expected_data_fields: Mapping[str, Any] | None = None,
+) -> None:
     """
     Helper function to assert VIP API responses without conditionals in tests.
 
@@ -21,10 +31,10 @@ def assert_vip_response(response, expected_status_codes=None, expected_data_fiel
         # Safely parse JSON response
         try:
             data = response.json()
-        except Exception as e:
-            assert (
-                False
-            ), f"Failed to parse JSON response: {e}. Response text: {response.text[:200]}"
+        except Exception as error:
+            pytest.fail(
+                f"Failed to parse JSON response: {error}. " f"Response text: {response.text[:200]}"
+            )
 
         for field, expected_value in expected_data_fields.items():
             # Check that the field exists in the response data

@@ -587,6 +587,8 @@ def _isolated_sqlite_database_context(
     _assert_async_database_inactive(core_db)
     sqlite_path, owned_inode = _create_owned_sqlite_file(tmp_path, request)
     sqlite_url = f"sqlite:///{sqlite_path}"
+    primary_error: test_client_helpers._CapturedError | None = None
+    cleanup_errors: list[test_client_helpers._CapturedError] = []
 
     try:
         core_db.reset_db_for_tests()
@@ -602,9 +604,15 @@ def _isolated_sqlite_database_context(
         _args, connect_args = engine.dialect.create_connect_args(engine.url)
         assert connect_args.get("check_same_thread") is False
         yield sqlite_path
+    except BaseException as error:
+        primary_error = (error, error.__traceback__)
     finally:
         try:
             core_db.reset_db_for_tests()
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+
+        try:
             try:
                 current_stat = sqlite_path.lstat()
             except FileNotFoundError:
@@ -615,9 +623,25 @@ def _isolated_sqlite_database_context(
                 if not stat.S_ISREG(current_stat.st_mode) or current_stat.st_ino != owned_inode:
                     raise RuntimeError("refusing to delete a replaced isolated SQLite path")
                 sqlite_path.unlink()
-        finally:
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+
+        try:
             _restore_database_environment(environment_snapshot)
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+
+        try:
             core_db.init_db()
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+
+    if primary_error is not None or cleanup_errors:
+        test_client_helpers._raise_after_cleanup(
+            primary_error,
+            cleanup_errors,
+            operation="isolated_sqlite_database",
+        )
 
 
 @pytest.fixture

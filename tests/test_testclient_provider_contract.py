@@ -7,6 +7,11 @@ import symtable
 from dataclasses import dataclass
 from pathlib import Path
 
+from tests.test_repo_policy_sys_modules import (
+    _find_violations as _find_sys_modules_violations,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 PROVIDER_PATHS = (
     Path("conftest.py"),
     Path("tests/_client.py"),
@@ -51,7 +56,7 @@ LOCAL_CLIENT_HELPERS = {
 
 def _trees() -> dict[Path, ast.Module]:
     return {
-        path: ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        path: ast.parse((REPO_ROOT / path).read_text(encoding="utf-8"), filename=str(path))
         for path in PROVIDER_PATHS
     }
 
@@ -278,18 +283,6 @@ class _BoundedModuleResolver:
         return assignments
 
 
-def _is_sys_modules_target(node: ast.AST) -> bool:
-    if isinstance(node, (ast.Tuple, ast.List)):
-        return any(_is_sys_modules_target(element) for element in node.elts)
-    return (
-        isinstance(node, ast.Subscript)
-        and isinstance(node.value, ast.Attribute)
-        and isinstance(node.value.value, ast.Name)
-        and node.value.value.id == "sys"
-        and node.value.attr == "modules"
-    )
-
-
 def _function_map(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
     return {
         node.name: node
@@ -328,6 +321,7 @@ def _direct_fixture_with_targets(
     owner_target: str,
     attribute_name: str | None,
     call_target: str,
+    require_yielded_binding: bool = False,
 ) -> list[str]:
     """Credit only one compiler-stable direct provider call shape.
 
@@ -396,6 +390,42 @@ def _direct_fixture_with_targets(
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
             return
 
+        @staticmethod
+        def _body_yields_bound_name(
+            body: list[ast.stmt],
+            bound_name: str,
+        ) -> bool:
+            class BindingVisitor(ast.NodeVisitor):
+                def __init__(self) -> None:
+                    self.direct_yield = False
+                    self.rebound = False
+
+                def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                    return
+
+                def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                    return
+
+                def visit_ClassDef(self, node: ast.ClassDef) -> None:
+                    return
+
+                def visit_Lambda(self, node: ast.Lambda) -> None:
+                    return
+
+                def visit_Name(self, node: ast.Name) -> None:
+                    if node.id == bound_name and isinstance(node.ctx, (ast.Store, ast.Del)):
+                        self.rebound = True
+
+                def visit_Yield(self, node: ast.Yield) -> None:
+                    if isinstance(node.value, ast.Name) and node.value.id == bound_name:
+                        self.direct_yield = True
+                    self.generic_visit(node)
+
+            binding_visitor = BindingVisitor()
+            for statement in body:
+                binding_visitor.visit(statement)
+            return binding_visitor.direct_yield and not binding_visitor.rebound
+
         def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
             for item in node.items:
                 context = item.context_expr
@@ -413,6 +443,13 @@ def _direct_fixture_with_targets(
                         and context.func.value.id == owner_name
                     )
                 if direct_call:
+                    if require_yielded_binding:
+                        optional_vars = item.optional_vars
+                        if not (
+                            isinstance(optional_vars, ast.Name)
+                            and self._body_yields_bound_name(node.body, optional_vars.id)
+                        ):
+                            continue
                     self.targets.append(call_target)
             self.generic_visit(node)
 
@@ -476,7 +513,7 @@ def _resolved_unsupported_carriers(
 
 
 def test_provider_surface_is_closed_and_exists() -> None:
-    assert all(path.is_file() for path in PROVIDER_PATHS)
+    assert all((REPO_ROOT / path).is_file() for path in PROVIDER_PATHS)
     assert len(PROVIDER_PATHS) == 4
 
 
@@ -503,19 +540,11 @@ def test_provider_surface_has_no_unsupported_client_carriers() -> None:
 
 def test_provider_surface_has_no_sys_modules_mutation() -> None:
     violations: list[str] = []
-    for path, tree in _trees().items():
-        for node in ast.walk(tree):
-            targets: list[ast.AST] = []
-            if isinstance(node, ast.Assign):
-                targets.extend(node.targets)
-            elif isinstance(node, ast.AnnAssign):
-                targets.append(node.target)
-            elif isinstance(node, ast.AugAssign):
-                targets.append(node.target)
-            elif isinstance(node, ast.Delete):
-                targets.extend(node.targets)
-            if any(_is_sys_modules_target(target) for target in targets):
-                violations.append(f"{path}:{node.lineno}")
+    for path in PROVIDER_PATHS:
+        source = (REPO_ROOT / path).read_text(encoding="utf-8")
+        violations.extend(
+            f"{path}:{line}:{message}" for line, message in _find_sys_modules_violations(source)
+        )
 
     assert violations == []
 
@@ -618,8 +647,8 @@ def test_managed_client_contract_and_fixture_ownership() -> None:
     root_functions = _function_map(trees[Path("conftest.py")])
     shared_functions = _function_map(trees[Path("tests/conftest.py")])
     client_functions = _function_map(trees[Path("tests/_client.py")])
-    shared_source = Path("tests/conftest.py").read_text(encoding="utf-8")
-    client_source = Path("tests/_client.py").read_text(encoding="utf-8")
+    shared_source = (REPO_ROOT / "tests/conftest.py").read_text(encoding="utf-8")
+    client_source = (REPO_ROOT / "tests/_client.py").read_text(encoding="utf-8")
 
     assert ROOT_FORBIDDEN_FIXTURES.isdisjoint(root_functions)
     assert SHARED_CLIENT_FIXTURES <= set(shared_functions)
@@ -644,6 +673,7 @@ def test_managed_client_contract_and_fixture_ownership() -> None:
             owner_target=CLIENT_HELPERS_MODULE,
             attribute_name="open_test_client",
             call_target=OPEN_CLIENT_SYMBOL,
+            require_yielded_binding=True,
         )
         if targets != [OPEN_CLIENT_SYMBOL]:
             unmanaged.append(fixture_name)
@@ -893,7 +923,50 @@ def client(app):
 
     assert targets(direct_source) == [OPEN_CLIENT_SYMBOL]
     assert targets(nested_scope_source) == [OPEN_CLIENT_SYMBOL]
-    assert all(targets(source) == [] for source in invalid_sources)
+    leaked = [
+        (index, targets(source))
+        for index, source in enumerate(invalid_sources)
+        if targets(source) != []
+    ]
+    assert leaked == []
+
+
+def test_direct_fixture_guard_requires_the_managed_binding_to_be_yielded() -> None:
+    def targets(source: str) -> list[str]:
+        return _direct_fixture_with_targets(
+            source,
+            path=Path("tests/conftest.py"),
+            function_name="client",
+            owner_name="test_client_helpers",
+            owner_target=CLIENT_HELPERS_MODULE,
+            attribute_name="open_test_client",
+            call_target=OPEN_CLIENT_SYMBOL,
+            require_yielded_binding=True,
+        )
+
+    managed_source = """
+from tests import _client as test_client_helpers
+def client(app):
+    with test_client_helpers.open_test_client(app) as managed_client:
+        yield managed_client
+"""
+    unmanaged_source = """
+from tests import _client as test_client_helpers
+def client(app, unmanaged_client):
+    with test_client_helpers.open_test_client(app) as managed_client:
+        yield unmanaged_client
+"""
+    rebound_source = """
+from tests import _client as test_client_helpers
+def client(app, unmanaged_client):
+    with test_client_helpers.open_test_client(app) as managed_client:
+        managed_client = unmanaged_client
+        yield managed_client
+"""
+
+    assert targets(managed_source) == [OPEN_CLIENT_SYMBOL]
+    assert targets(unmanaged_source) == []
+    assert targets(rebound_source) == []
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:
