@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import urllib.parse
 from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
@@ -302,6 +303,26 @@ def test_commit_classification_requires_commit_api_existence(
 
     assert isinstance(resolution, RepositoryCommitRef)
     assert resolution.kind is expected_kind
+
+
+def test_global_commit_classifier_rejects_short_sha_without_api_request() -> None:
+    calls = 0
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        raise AssertionError("global classifier must reject short SHA before API access")
+
+    resolution = classify_commit_ref(
+        "a" * 7,
+        _snapshot(),
+        token="opaque",
+        request_json=request_json,
+    )
+
+    assert isinstance(resolution, ReviewExecutionRef)
+    assert resolution.kind is CommitRefKind.API_UNKNOWN
+    assert calls == 0
 
 
 @pytest.mark.parametrize(
@@ -5371,12 +5392,18 @@ def test_sanitized_pr_2137_abbreviated_fix_dedupes_three_unavailable_refs(
             CommitRefKind.PR_HEAD if value == real_head else CommitRefKind.PR_COMMIT,
         )
 
+    def resolve_short_fix(url: str, **_kwargs: Any) -> dict[str, str]:
+        candidate = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+        assert real_fix.startswith(candidate)
+        return {"sha": real_fix}
+
     def ancestor(left: RepositoryCommitRef, right: RepositoryCommitRef, **_kwargs: Any) -> bool:
         ancestry_calls.append((left.sha, right.sha))
         assert left.sha not in unavailable_refs
         assert right.sha not in unavailable_refs
         return True
 
+    monkeypatch.setattr(identity_module, "github_api_request", resolve_short_fix)
     monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
     monkeypatch.setattr(identity_module, "is_ancestor", ancestor)
     monkeypatch.setattr(
@@ -5729,6 +5756,8 @@ def _validate_duplicate_finding_body(
     *,
     unavailable_shas: tuple[str, ...] = (UNAVAILABLE_SHA,),
     api_unknown_shas: tuple[str, ...] = (),
+    classified_values: list[str] | None = None,
+    ancestry_values: list[tuple[str, str]] | None = None,
 ) -> set[str]:
     canonical_url = "https://github.com/owner/repo/pull/42#discussion_canonical"
     duplicate_url = "https://github.com/owner/repo/pull/42#discussion_duplicate"
@@ -5774,9 +5803,11 @@ def _validate_duplicate_finding_body(
     )
 
     def classify(
-        value: str, snapshot: PrSnapshot, *, token: str
+        value: str, snapshot: PrSnapshot, *, token: str, **_kwargs: Any
     ) -> RepositoryCommitRef | ReviewExecutionRef:
         del token
+        if classified_values is not None:
+            classified_values.append(value)
         if value in api_unknown_shas:
             return ReviewExecutionRef(value, CommitRefKind.API_UNKNOWN, "rate limited")
         if value in unavailable_shas:
@@ -5801,6 +5832,8 @@ def _validate_duplicate_finding_body(
         token: str,
     ) -> bool:
         del repository, token
+        if ancestry_values is not None:
+            ancestry_values.append((_left.sha, _right.sha))
         return True
 
     def material_manifest(
@@ -5831,6 +5864,642 @@ def _validate_duplicate_finding_body(
 
 
 @pytest.mark.parametrize(
+    ("reference", "expected"),
+    [
+        (FIX_SHA, (FIX_SHA,)),
+        ("a" * 7 + "...", ("a" * 7,)),
+        ("b" * 39 + "…", ("b" * 39,)),
+    ],
+    ids=["full-baseline", "ascii-ellipsis-min", "unicode-ellipsis-max"],
+)
+def test_review_finding_commit_ref_parser_accepts_only_bounded_carriers(
+    reference: str,
+    expected: tuple[str, ...],
+) -> None:
+    assert (
+        evidence_module.review_finding_sha_candidates(
+            f"Commit ancestry reports {reference} as unreachable."
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "a" * 6 + "...",
+        "a" * 7,
+        "A" * 7 + "...",
+        "a" * 40 + "...",
+        "a" * 7 + "....",
+        "a" * 7 + "……",
+        "a" * 7 + "...…",
+        "a" * 7 + "…...",
+        "a" * 7 + "….",
+    ],
+    ids=[
+        "six",
+        "bare-short",
+        "uppercase",
+        "forty-short-carrier",
+        "four-ascii-dots",
+        "double-unicode-ellipsis",
+        "ascii-then-unicode-ellipsis",
+        "unicode-then-ascii-ellipsis",
+        "unicode-ellipsis-then-dot",
+    ],
+)
+def test_review_finding_commit_ref_parser_rejects_outside_class(reference: str) -> None:
+    with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
+        evidence_module.review_finding_sha_candidates(
+            f"Commit ancestry reports {reference} as unreachable."
+        )
+
+
+@pytest.mark.parametrize(
+    "malformed_reference",
+    [
+        "a" * 7 + "...…",
+        "A" * 7 + "...",
+        "A" * 40,
+        "a" * 40 + "…",
+        "a" * 41,
+        "a" * 41 + "...",
+        "a...",
+        "a" * 6 + "...",
+        "ABCDEF…",
+        "a" * 7 + "g",
+        "a" * 39 + "_tail",
+        "a" * 40 + "g",
+        "a" * 40 + "\u0301tail",
+        "a" * 40 + "\u200dtail",
+        "a" * 7 + "...c",
+        "a" * 7 + "…A",
+        "abcdef1...garbage",
+        "abcdef1...хвост",
+        "abcdef1...\u0301tail",
+        "abcdef1...\u200dtail",
+        "abcdef1...\u200btail",
+        "abcdef1...\x00tail",
+        "abcdef1...\x07tail",
+        "abcdef1...\ue000tail",
+        "abcdef1...\u0378tail",
+    ],
+    ids=[
+        "mixed-carrier",
+        "uppercase-short",
+        "uppercase-full-bare",
+        "full-with-carrier",
+        "overlong-bare",
+        "overlong-with-carrier",
+        "one-character-carried-core",
+        "six-character-carried-core",
+        "uppercase-subminimum-carried-core",
+        "min-core-letter-suffix",
+        "max-short-core-underscore-suffix",
+        "full-core-letter-suffix",
+        "full-core-combining-mark-suffix",
+        "full-core-joiner-suffix",
+        "ascii-carrier-trailing-lower-hex",
+        "unicode-carrier-trailing-upper-hex",
+        "ascii-carrier-trailing-word",
+        "ascii-carrier-trailing-unicode-word",
+        "ascii-carrier-trailing-combining-mark",
+        "ascii-carrier-trailing-joiner",
+        "ascii-carrier-trailing-zero-width-space",
+        "ascii-carrier-trailing-null-control",
+        "ascii-carrier-trailing-bell-control",
+        "ascii-carrier-trailing-private-use",
+        "ascii-carrier-trailing-unassigned",
+    ],
+)
+def test_review_finding_parser_rejects_malformed_token_beside_valid_candidates(
+    malformed_reference: str,
+) -> None:
+    body = (
+        f"Commit ancestry reports verified FIX {FIX_SHA} and unavailable "
+        f"{UNAVAILABLE_SHA}; malformed ref {malformed_reference} is also cited."
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
+        evidence_module.review_finding_sha_candidates(body)
+
+
+@pytest.mark.parametrize("punctuation", [",", ";", ")", "]", "`", ":", "=", "/"])
+def test_review_finding_parser_accepts_short_ref_before_ordinary_punctuation(
+    punctuation: str,
+) -> None:
+    short_ref = "a" * 7
+
+    assert evidence_module.review_finding_sha_candidates(
+        f"Commit ancestry reports {short_ref}...{punctuation} then continues."
+    ) == (short_ref,)
+
+
+@pytest.mark.parametrize(
+    "ordinary_atom",
+    [
+        "a",
+        "abcdef",
+        "prefixabcdef1...",
+        "prefixabcdef...",
+        "prefixabcdef1",
+        "_abcdef1..._",
+        "e\u0301abcdef1...",
+        "prefix\u200dabcdef1...",
+    ],
+    ids=[
+        "single-bare-hex",
+        "subminimum-bare-hex",
+        "word-prefix",
+        "word-prefixed-subminimum-carrier",
+        "ordinary-word",
+        "underscore-identifier",
+        "decomposed-unicode-word",
+        "format-joined-word",
+    ],
+)
+def test_review_finding_parser_does_not_extract_refs_from_word_atoms(
+    ordinary_atom: str,
+) -> None:
+    assert evidence_module.review_finding_sha_candidates(
+        f"Commit ancestry reports {FIX_SHA}. Ordinary prose: {ordinary_atom}"
+    ) == (FIX_SHA,)
+
+
+def test_review_finding_parser_accepts_full_sha_before_sentence_period() -> None:
+    assert evidence_module.review_finding_sha_candidates(f"Commit ancestry reports {FIX_SHA}.") == (
+        FIX_SHA,
+    )
+
+
+@pytest.mark.parametrize("separator", ["\n", "\r", "\t"], ids=["lf", "cr", "tab"])
+def test_review_finding_parser_accepts_short_ref_before_control_whitespace(
+    separator: str,
+) -> None:
+    short_ref = "a" * 7
+
+    assert evidence_module.review_finding_sha_candidates(
+        f"Commit ancestry reports {short_ref}...{separator}then continues."
+    ) == (short_ref,)
+
+
+def test_review_finding_parser_rejects_unpaired_surrogate() -> None:
+    with pytest.raises(ReviewEvidenceError, match="review finding body is malformed"):
+        evidence_module.review_finding_sha_candidates("Commit ancestry reports abcdef1...\ud800")
+
+
+def test_short_finding_ref_resolves_to_one_matching_full_sha_before_classification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    short_ref = "a" * 7
+    full_ref = short_ref + "b" * 33
+    requested_urls: list[str] = []
+    classified_values: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> dict[str, str]:
+        requested_urls.append(url)
+        return {"sha": full_ref}
+
+    def classify(value: str, *_args: Any, **_kwargs: Any) -> RepositoryCommitRef:
+        classified_values.append(value)
+        return RepositoryCommitRef(value, CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        short_ref,
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert resolution == RepositoryCommitRef(full_ref, CommitRefKind.REPO_COMMIT_OUTSIDE_PR)
+    assert requested_urls == [f"https://api.github.com/repos/owner/repo/commits/{short_ref}"]
+    assert classified_values == [full_ref]
+
+
+@pytest.mark.parametrize(
+    "contradictory_second_outcome",
+    [
+        GitHubHttpError(404, "Not Found"),
+        GitHubHttpError(422, "Unprocessable", "No commit found for SHA"),
+    ],
+    ids=["second-404", "second-422"],
+)
+def test_short_finding_ref_reuses_successful_binding_for_canonical_classification(
+    monkeypatch: pytest.MonkeyPatch,
+    contradictory_second_outcome: GitHubHttpError,
+) -> None:
+    short_ref = FIX_SHA[:8]
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> dict[str, str]:
+        requested_urls.append(url)
+        if len(requested_urls) > 1:
+            raise contradictory_second_outcome
+        return {"sha": FIX_SHA}
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        short_ref,
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert resolution == RepositoryCommitRef(
+        FIX_SHA,
+        CommitRefKind.PR_COMMIT,
+        pushed_at="2026-07-15T10:00:00Z",
+    )
+    assert requested_urls == [f"https://api.github.com/repos/owner/repo/commits/{short_ref}"]
+
+
+def test_short_finding_ref_rejects_malformed_repository_before_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot()
+    malformed_snapshot = PrSnapshot(
+        repository="owner",
+        pr_number=snapshot.pr_number,
+        base_sha=snapshot.base_sha,
+        head_sha=snapshot.head_sha,
+        commits=snapshot.commits,
+    )
+    api_calls: list[str] = []
+    monkeypatch.setattr(
+        identity_module,
+        "github_api_request",
+        lambda url, **_kwargs: api_calls.append(url),
+    )
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        "a" * 7,
+        malformed_snapshot,
+        token="opaque",
+    )
+
+    assert resolution == ReviewExecutionRef(
+        value="a" * 7,
+        kind=CommitRefKind.API_UNKNOWN,
+        reason="repository identity is malformed",
+    )
+    assert api_calls == []
+
+
+def test_short_finding_ref_accepts_only_definitive_404_unavailable_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classify_calls: list[str] = []
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise GitHubHttpError(404, "Not Found")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    monkeypatch.setattr(
+        identity_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: classify_calls.append(value),
+    )
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        "a" * 7,
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert isinstance(resolution, ReviewExecutionRef)
+    assert resolution.kind is CommitRefKind.REVIEW_REF_UNAVAILABLE
+    assert classify_calls == []
+
+
+@pytest.mark.parametrize(
+    "known_sha",
+    [BASE_SHA, HEAD_SHA, FIX_SHA],
+    ids=["base", "head", "pr-commit"],
+)
+def test_short_finding_ref_keeps_snapshot_known_404_api_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+    known_sha: str,
+) -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise GitHubHttpError(404, "Not Found")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        known_sha[:8],
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert resolution == ReviewExecutionRef(
+        value=known_sha[:8],
+        kind=CommitRefKind.API_UNKNOWN,
+        reason="Commit API contradicts the live PR snapshot",
+    )
+
+
+@pytest.mark.parametrize(
+    ("known_shas", "returned_sha"),
+    [
+        (("a" * 8 + "b" * 32,), "a" * 8 + "c" * 32),
+        (
+            ("a" * 8 + "b" * 32, "a" * 8 + "c" * 32),
+            "a" * 8 + "b" * 32,
+        ),
+    ],
+    ids=["different-known-match", "multiple-known-matches"],
+)
+def test_short_finding_ref_rejects_commit_api_snapshot_conflicts(
+    monkeypatch: pytest.MonkeyPatch,
+    known_shas: tuple[str, ...],
+    returned_sha: str,
+) -> None:
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=BASE_SHA,
+        head_sha=HEAD_SHA,
+        commits=tuple(PrCommitEvidence(sha, "2026-07-15T10:00:00Z") for sha in known_shas),
+    )
+    classify_calls: list[str] = []
+    monkeypatch.setattr(
+        identity_module,
+        "github_api_request",
+        lambda *_args, **_kwargs: {"sha": returned_sha},
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "classify_commit_ref",
+        lambda value, *_args, **_kwargs: classify_calls.append(value),
+    )
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        "a" * 8,
+        snapshot,
+        token="opaque",
+    )
+
+    assert resolution == ReviewExecutionRef(
+        value="a" * 8,
+        kind=CommitRefKind.API_UNKNOWN,
+        reason="Commit API contradicts the live PR snapshot",
+    )
+    assert classify_calls == []
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        [{"sha": "a" * 40}, {"sha": "a" * 39 + "b"}],
+        {"sha": "b" * 40},
+        {"sha": "a" * 39},
+        {"sha": "A" * 40},
+        GitHubHttpError(422, "Unprocessable", "No commit found for SHA"),
+        GitHubHttpError(
+            422,
+            "Unprocessable",
+            "No commit found for SHA: " + "a" * 7,
+        ),
+        GitHubHttpError(422, "Unprocessable", "ambiguous short ref"),
+        GitHubHttpError(403, "Forbidden"),
+        GitHubHttpError(429, "Rate Limited"),
+        GitHubHttpError(503, "Unavailable"),
+        TimeoutError(),
+        http.client.BadStatusLine("malformed status"),
+        http.client.IncompleteRead(b"partial", 10),
+        http.client.HTTPException("protocol failure"),
+    ],
+    ids=[
+        "ambiguous",
+        "non-prefix",
+        "partial",
+        "uppercase",
+        "bounded-422",
+        "bounded-422-with-ref",
+        "unbounded-422",
+        "forbidden",
+        "rate-limit",
+        "server",
+        "timeout",
+        "bad-status-line",
+        "incomplete-read",
+        "http-exception",
+    ],
+)
+def test_short_finding_ref_keeps_unproven_responses_api_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: Any,
+) -> None:
+    classify_calls: list[str] = []
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    monkeypatch.setattr(
+        identity_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: classify_calls.append(value),
+    )
+
+    resolution = evidence_module._classify_finding_commit_candidate(
+        "a" * 7,
+        _snapshot(),
+        token="opaque",
+    )
+
+    assert isinstance(resolution, ReviewExecutionRef)
+    assert resolution.kind is CommitRefKind.API_UNKNOWN
+    assert classify_calls == []
+
+
+@pytest.mark.parametrize(
+    "body_template",
+    [
+        (
+            "Commit ancestry finding: verified FIX {fix}… descends from base {base}; "
+            "reviewer execution ref {unavailable}... is not reachable from the "
+            "reviewed head [policy](https://github.com/owner/repo/blob/{head}/AGENTS.md)."
+        ),
+        (
+            "The commit graph cannot prove reviewer ref {unavailable}…; current "
+            "head is {head}, base is {base}, and the already verified FIX is {fix}..., "
+            "as recorded."
+        ),
+    ],
+    ids=["policy-link-order", "reordered-wording"],
+)
+def test_pr_shaped_findings_distinguish_short_fix_from_short_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    body_template: str,
+) -> None:
+    short_fix = FIX_SHA[:8]
+    short_unavailable = "6" * 8
+    requested_refs: list[str] = []
+    classified_values: list[str] = []
+    ancestry_values: list[tuple[str, str]] = []
+
+    def request_json(url: str, **_kwargs: Any) -> dict[str, str]:
+        candidate = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+        requested_refs.append(candidate)
+        if candidate == short_fix:
+            return {"sha": FIX_SHA}
+        if candidate == short_unavailable:
+            raise GitHubHttpError(404, "Not Found")
+        raise AssertionError(f"unexpected short candidate: {candidate}")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    body = body_template.format(
+        base=BASE_SHA,
+        fix=short_fix,
+        head=HEAD_SHA,
+        unavailable=short_unavailable,
+    )
+
+    assert _validate_duplicate_finding_body(
+        monkeypatch,
+        body,
+        unavailable_shas=(),
+        classified_values=classified_values,
+        ancestry_values=ancestry_values,
+    ) == {"https://github.com/owner/repo/pull/42#discussion_duplicate"}
+    assert requested_refs.count(short_fix) == 2
+    assert requested_refs.count(short_unavailable) == 2
+    assert short_unavailable not in classified_values
+    assert all(
+        short_unavailable not in endpoint
+        for ancestry_pair in ancestry_values
+        for endpoint in ancestry_pair
+    )
+
+
+def test_short_unavailable_422_remains_api_unknown_end_to_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    short_unavailable = "6" * 8
+
+    def request_json(url: str, **_kwargs: Any) -> dict[str, str]:
+        candidate = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+        if candidate == short_unavailable:
+            raise GitHubHttpError(
+                422,
+                "Unprocessable",
+                f"No commit found for SHA: {candidate}",
+            )
+        raise AssertionError(f"unexpected short candidate: {candidate}")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    body = (
+        f"Commit ancestry finding: verified FIX {FIX_SHA}; "
+        f"reviewer execution ref {short_unavailable}... is not reachable."
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            unavailable_shas=(),
+        )
+
+
+@pytest.mark.parametrize(
+    "malformed_reference",
+    [
+        "a" * 7 + "...…",
+        "A" * 40,
+        "a" * 41,
+        "a" * 6 + "...",
+        "a" * 40 + "g",
+        "a" * 7 + "...c",
+        "a" * 7 + "…A",
+        "abcdef1...garbage",
+        "abcdef1...хвост",
+        "abcdef1...\u0301tail",
+        "abcdef1...\u200dtail",
+        "abcdef1...\u200btail",
+        "abcdef1...\x00tail",
+        "abcdef1...\x07tail",
+        "abcdef1...\ue000tail",
+        "abcdef1...\u0378tail",
+    ],
+    ids=[
+        "mixed-carrier",
+        "uppercase-full-bare",
+        "overlong-bare",
+        "subminimum-carried-core",
+        "full-core-letter-suffix",
+        "ascii-carrier-trailing-hex",
+        "unicode-carrier-trailing-hex",
+        "ascii-carrier-trailing-word",
+        "ascii-carrier-trailing-unicode-word",
+        "ascii-carrier-trailing-combining-mark",
+        "ascii-carrier-trailing-joiner",
+        "ascii-carrier-trailing-zero-width-space",
+        "ascii-carrier-trailing-null-control",
+        "ascii-carrier-trailing-bell-control",
+        "ascii-carrier-trailing-private-use",
+        "ascii-carrier-trailing-unassigned",
+    ],
+)
+def test_malformed_token_beside_valid_candidates_is_terminal_before_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    malformed_reference: str,
+) -> None:
+    classified_values: list[str] = []
+    ancestry_values: list[tuple[str, str]] = []
+    body = (
+        f"Commit ancestry finding: verified FIX {FIX_SHA}; "
+        f"reviewer execution ref {UNAVAILABLE_SHA} is not reachable; "
+        f"malformed ref {malformed_reference} is also cited."
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "_classify_finding_commit_candidate",
+        lambda *_args, **_kwargs: pytest.fail(
+            "malformed finding reached candidate identity classification"
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="ambiguous commit references"):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            classified_values=classified_values,
+            ancestry_values=ancestry_values,
+        )
+
+    assert classified_values == []
+    assert ancestry_values == []
+
+
+def test_short_fix_snapshot_known_404_remains_api_unknown_end_to_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    short_fix = FIX_SHA[:8]
+
+    def unavailable_short_fix(*_args: Any, **_kwargs: Any) -> Any:
+        raise GitHubHttpError(404, "Not Found")
+
+    monkeypatch.setattr(identity_module, "github_api_request", unavailable_short_fix)
+    body = f"Commit ancestry finding: verified FIX {short_fix}... " "is reported unreachable."
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="API_UNKNOWN",
+    ):
+        _validate_duplicate_finding_body(
+            monkeypatch,
+            body,
+            unavailable_shas=(),
+        )
+
+
+@pytest.mark.parametrize(
     ("fix_reference", "head_reference"),
     [
         (
@@ -5852,6 +6521,12 @@ def test_duplicate_reply_accepts_exact_fix_base_head_and_one_unavailable(
         f"but reviewer execution ref {UNAVAILABLE_SHA} is reported unreachable."
     )
 
+    def resolve_short_fix(url: str, **_kwargs: Any) -> dict[str, str]:
+        candidate = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+        assert candidate == FIX_SHA[:8], f"unexpected short candidate: {candidate}"
+        return {"sha": FIX_SHA}
+
+    monkeypatch.setattr(identity_module, "github_api_request", resolve_short_fix)
     assert body.count(HEAD_SHA) == 1
     assert _validate_duplicate_finding_body(monkeypatch, body) == {
         "https://github.com/owner/repo/pull/42#discussion_duplicate"

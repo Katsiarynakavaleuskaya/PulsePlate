@@ -316,8 +316,40 @@ The only mapping-less duplicate exception is a trusted Codex/App
 verified real FIX SHA as a canonical fingerprint record. An authorized
 `OWNER|MEMBER|COLLABORATOR` reply must use the exact closed structured fields,
 come after the finding in the same explicitly resolved thread, and the cited
-review ref must resolve as unavailable (not API-unknown). The exception creates
-no docs commit and does not restart review/security scans.
+review ref must resolve as unavailable (not API-unknown). Finding-local commit
+candidates are capped at four unique values and admit only a full lowercase
+40-character SHA or a lowercase 7–39-character hexadecimal ref carried by
+exactly `...` or `…`. One finding-local maximal-token lexer examines each
+standalone maximal ASCII-hex run. A run enters the SHA-like inventory when it
+has at least seven characters or when a non-empty shorter run is immediately
+followed by `...` or `…`. The whole atom must match one of the two accepted
+forms; an adjacent
+Unicode letter, number, mark, underscore, non-whitespace `C*` control, dot, or
+ellipsis tail is part of the same atom, so malformed prefixes cannot be
+admitted while their suffix is ignored. The same `L|N|M|_|C*-nonspace`
+boundary-blocking class prevents substring extraction inside ordinary or
+invisibly joined words. Whitespace controls remain separators. Only other
+punctuation and Markdown delimiters bound atoms; underscore remains an
+identifier character rather than a CommonMark emphasis instruction. Any
+malformed SHA-like atom makes the whole finding ambiguous before API,
+classification, or ancestry work. This conservative rule intentionally treats
+all-hex prose followed by an ellipsis as ambiguous in this privileged
+mapping-less path; ordinary disposition and mapping remain available. A
+shortened ref must resolve
+through the authenticated GitHub Commit API to one matching full SHA, and that
+same successful response is passed to the existing commit classifier without
+a second network lookup. Only authenticated Commit API `404` proves
+finding-local repository unavailability, and only when the prefix matches none of the
+snapshot-proven base, head, or PR commits. A successful binding must agree with
+every snapshot-known prefix match; contradictions remain `API_UNKNOWN`. Every
+shortened-ref `422` remains `API_UNKNOWN`
+because prefix uniqueness is unproven. Ambiguity, malformed or non-prefix
+responses, authorization, rate-limit, server, HTTP protocol, and transport
+failures remain `API_UNKNOWN`. The accepted
+repository identity set remains exactly `{verified FIX}` or
+`{verified FIX, base, head}`, with exactly one unavailable ref; unavailable
+refs never enter ancestry. The exception creates no docs commit and does not
+restart review/security scans.
 
 ### DEFERRED
 
