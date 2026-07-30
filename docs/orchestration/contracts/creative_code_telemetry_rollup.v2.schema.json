@@ -75,7 +75,10 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 96,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$",
+      "not": {
+        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
+      }
     },
     "sha256": {
       "type": "string",
@@ -85,6 +88,11 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 1000000
+    },
+    "aggregate_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000000
     },
     "count_map": {
       "type": "object",
@@ -284,9 +292,9 @@
         "validation_attempts"
       ],
       "properties": {
-        "review_cycles": { "$ref": "#/$defs/count" },
-        "repair_cycles": { "$ref": "#/$defs/count" },
-        "validation_attempts": { "$ref": "#/$defs/count" }
+        "review_cycles": { "$ref": "#/$defs/aggregate_count" },
+        "repair_cycles": { "$ref": "#/$defs/aggregate_count" },
+        "validation_attempts": { "$ref": "#/$defs/aggregate_count" }
       }
     },
     "terminal": {

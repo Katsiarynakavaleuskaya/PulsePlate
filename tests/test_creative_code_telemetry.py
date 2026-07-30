@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from collections import Counter
 import hashlib
 import json
@@ -169,9 +170,11 @@ def _promotion_artifacts(
     result: dict[str, Any],
     *,
     partial_failure: str | None = None,
+    promotion_id: str = "pr4-telemetry-test",
+    pull_request_number: int = 2040,
+    promoted_head_sha: str = "b" * 40,
 ) -> dict[str, dict[str, Any]]:
-    promotion_id = "pr4-telemetry-test"
-    target_branch = "experiment/pr4-telemetry-test"
+    target_branch = f"experiment/{promotion_id}"
     patch_fingerprint = result["patch_summary"]["patch_fingerprint"]
     plan = build_creative_code_pr_promotion_plan(
         promotion_id=promotion_id,
@@ -220,9 +223,11 @@ def _promotion_artifacts(
         source_result_id=result["result_id"],
         patch_fingerprint=patch_fingerprint,
         head_branch=target_branch,
-        commit_sha="b" * 40,
-        pull_request_number=2040,
-        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2040",
+        commit_sha=promoted_head_sha,
+        pull_request_number=pull_request_number,
+        pull_request_url=(
+            "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/" f"{pull_request_number}"
+        ),
         approved_by_login="Katsiarynakavaleuskaya",
         partial_failure=partial_failure,
     )
@@ -715,8 +720,17 @@ def _terminal_outcome(
     *,
     closure_epoch: int = 1,
     terminal_state: str = "merged",
+    promotion_id: str = "pr4-telemetry-test",
+    pull_request_number: int = 2040,
+    promoted_head_sha: str = "b" * 40,
+    process: dict[str, int] | None = None,
 ) -> dict[str, Any]:
-    promotion = _promotion_artifacts(patch_result)
+    promotion = _promotion_artifacts(
+        patch_result,
+        promotion_id=promotion_id,
+        pull_request_number=pull_request_number,
+        promoted_head_sha=promoted_head_sha,
+    )
     plan = promotion[PLAN_FILE]
     receipt = promotion[RECEIPT_FILE]
     closed = terminal_state == "closed_unmerged"
@@ -762,7 +776,8 @@ def _terminal_outcome(
                 "current_main_sha": None,
             }
         ),
-        "process": {
+        "process": process
+        or {
             "review_cycles": 2,
             "repair_cycles": 1,
             "validation_attempts": 3,
@@ -992,6 +1007,81 @@ def test_v2_zero_legacy_partition_rejects_legacy_aggregates(
 
 
 @pytest.mark.parametrize(
+    ("mutator", "message"),
+    [
+        (
+            lambda rollup: rollup["funnel"].update(patch_results=1_000_000),
+            "legacy funnel stage counts",
+        ),
+        (
+            lambda rollup: rollup["funnel"].update(patch_results_accepted=2),
+            "legacy patch disposition counts",
+        ),
+        (
+            lambda rollup: rollup["rates"].update(human_approval_rate_bps=0),
+            "legacy rates",
+        ),
+    ],
+)
+def test_v2_nonempty_legacy_partition_rejects_incoherent_aggregates(
+    mutator: Callable[[dict[str, Any]], None],
+    message: str,
+) -> None:
+    patch_result = _reference_patch_result()
+    legacy_event = creative_code_telemetry.event_from_patch_result(patch_result)
+    terminal_event = build_creative_code_terminal_telemetry_event(_terminal_outcome(patch_result))
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [legacy_event, terminal_event],
+        input_roots=["patch_runs", "terminal_outcomes"],
+    )
+    mutator(rollup)
+
+    with pytest.raises(CreativeCodeTelemetryContractError, match=message):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_process_totals_are_compositional_across_valid_terminal_events() -> None:
+    patch_result = _reference_patch_result()
+    first = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            patch_result,
+            process={
+                "review_cycles": 600_000,
+                "repair_cycles": 0,
+                "validation_attempts": 0,
+            },
+        )
+    )
+    second = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            patch_result,
+            promotion_id="pr4-telemetry-test-2",
+            pull_request_number=2041,
+            promoted_head_sha="d" * 40,
+            process={
+                "review_cycles": 600_000,
+                "repair_cycles": 0,
+                "validation_attempts": 0,
+            },
+        )
+    )
+
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [first, second],
+        input_roots=["terminal_outcomes"],
+    )
+
+    assert rollup["terminal"]["process"]["review_cycles"] == 1_200_000
+    forged = json.loads(json.dumps(rollup))
+    forged["terminal"]["process"]["review_cycles"] = 2_000_001
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="process totals exceed represented terminal outcomes",
+    ):
+        validate_creative_code_telemetry_rollup_any(forged)
+
+
+@pytest.mark.parametrize(
     "cost_patch",
     [
         {
@@ -1153,6 +1243,11 @@ def test_v2_schemas_align_on_closed_shape_and_finite_vocabulary() -> None:
     assert event_schema["$defs"]["terminal_projection"]["properties"]["promotion_id"] == {
         "$ref": "#/$defs/promotion_id"
     }
+    unsafe_pattern = event_schema["$defs"]["safe_id"]["not"]["pattern"]
+    assert event_schema["$defs"]["safe_token"]["not"] == {"pattern": unsafe_pattern}
+    assert event_schema["$defs"]["promotion_id"]["not"] == {"pattern": unsafe_pattern}
+    assert rollup_schema["$defs"]["safe_token"]["not"] == {"pattern": unsafe_pattern}
+    assert re.search(unsafe_pattern, "GH_TOKEN", re.IGNORECASE)
     review_implications = [
         clause
         for clause in event_schema["allOf"]

@@ -1001,6 +1001,9 @@ def test_runtime_and_schema_closed_shape_finite_implication_alignment() -> None:
         "evidence_unavailable",
     ]
     assert schema["$defs"]["lineage"]["properties"]["repository"]["const"] == CANONICAL_REPOSITORY
+    unsafe_pattern = schema["$defs"]["safe_id"]["not"]["pattern"]
+    assert schema["$defs"]["promotion_id"]["not"] == {"pattern": unsafe_pattern}
+    assert re.search(unsafe_pattern, "GH_TOKEN", re.IGNORECASE)
     unavailable_cost_implication = schema["$defs"]["cost_metadata"]["allOf"][0]
     assert unavailable_cost_implication["if"]["properties"]["available"] == {"const": False}
     assert unavailable_cost_implication["then"]["properties"] == {

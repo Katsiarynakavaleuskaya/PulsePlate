@@ -21,6 +21,8 @@ SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "creative-code-telemetry-pr4"
 V2_SCHEMA_VERSION = "2.0"
 V2_POLICY_VERSION = "creative-code-telemetry-v2"
+V2_PROCESS_EVENT_MAX = 1_000_000
+V2_PROCESS_AGGREGATE_MAX = 1_000_000_000_000
 EVENT_TYPE = "creative_code_telemetry_event"
 ROLLUP_TYPE = "creative_code_telemetry_rollup"
 TAXONOMY_TYPE = "creative_code_rejection_taxonomy"
@@ -1217,7 +1219,23 @@ def _normalize_v2_process(raw_process: Any) -> dict[str, int]:
             raw_process,
             key,
             min_value=0,
-            max_value=1_000_000,
+            max_value=V2_PROCESS_EVENT_MAX,
+            label="process",
+        )
+        for key in sorted(V2_PROCESS_KEYS)
+    }
+
+
+def _normalize_v2_process_totals(raw_process: Any) -> dict[str, int]:
+    if not isinstance(raw_process, dict):
+        raise CreativeCodeTelemetryContractError("process must be a JSON object.")
+    _require_exact_keys(raw_process, V2_PROCESS_KEYS, label="process")
+    return {
+        key: _require_int(
+            raw_process,
+            key,
+            min_value=0,
+            max_value=V2_PROCESS_AGGREGATE_MAX,
             label="process",
         )
         for key in sorted(V2_PROCESS_KEYS)
@@ -1591,9 +1609,13 @@ def _normalize_v2_terminal(raw_terminal: Any) -> dict[str, Any]:
             keys=V2_POST_MERGE_OBSERVATIONS,
             label="terminal.post_merge_observations",
         ),
-        "process": _normalize_v2_process(raw_terminal.get("process")),
+        "process": _normalize_v2_process_totals(raw_terminal.get("process")),
     }
     outcome_count = terminal["outcome_count"]
+    if any(total > outcome_count * V2_PROCESS_EVENT_MAX for total in terminal["process"].values()):
+        raise CreativeCodeTelemetryContractError(
+            "terminal process totals exceed represented terminal outcomes."
+        )
     if terminal["merged"] + terminal["closed_unmerged"] != outcome_count:
         raise CreativeCodeTelemetryContractError(
             "terminal outcome count must equal merged plus closed_unmerged."
@@ -1644,6 +1666,81 @@ def _normalize_v2_rollup_cost(raw_cost: Any) -> dict[str, int | None]:
         )
         for key in sorted(V2_ROLLUP_COST_KEYS)
     }
+
+
+def _validate_v2_legacy_aggregates(
+    *,
+    funnel: Mapping[str, int],
+    rates: Mapping[str, int | None],
+    events_by_stage: Mapping[str, int],
+    events_by_status: Mapping[str, int],
+) -> None:
+    stage_funnel_keys = {
+        "specification_bundles": "specification",
+        "patch_results": "patch_evaluation",
+        "promotion_plans": "promotion_plan",
+    }
+    if any(
+        funnel[funnel_key] != events_by_stage.get(stage, 0)
+        for funnel_key, stage in stage_funnel_keys.items()
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "legacy funnel stage counts must match represented legacy events."
+        )
+    if (
+        funnel["patch_results_accepted"] + funnel["patch_results_rejected"]
+        > funnel["patch_results"]
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "legacy patch disposition counts exceed patch results."
+        )
+    if funnel["variants_selected"] > funnel["variants_total"]:
+        raise CreativeCodeTelemetryContractError("legacy selected variants exceed total variants.")
+    stage_upper_bounds = {
+        "promotion_validations_passed": "promotion_validation",
+        "promotion_approvals": "promotion_approval",
+        "pull_requests_opened": "pr_open",
+    }
+    if any(
+        funnel[funnel_key] > events_by_stage.get(stage, 0)
+        for funnel_key, stage in stage_upper_bounds.items()
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "legacy funnel counts exceed their represented stages."
+        )
+    accepted_funnel_total = (
+        funnel["patch_results_accepted"]
+        + funnel["promotion_validations_passed"]
+        + funnel["promotion_approvals"]
+    )
+    if (
+        accepted_funnel_total > events_by_status.get("accepted", 0)
+        or funnel["patch_results_rejected"] > events_by_status.get("rejected", 0)
+        or funnel["pull_requests_opened"] > events_by_status.get("opened", 0)
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "legacy funnel statuses exceed represented event statuses."
+        )
+    expected_rates = {
+        "first_pass_acceptance_rate_bps": compute_bps(
+            funnel["patch_results_accepted"],
+            funnel["patch_results"],
+        ),
+        "human_approval_rate_bps": compute_bps(
+            funnel["promotion_approvals"],
+            funnel["promotion_plans"],
+        ),
+        "oracle_pass_rate_bps": compute_bps(
+            funnel["patch_results_accepted"],
+            funnel["patch_results"],
+        ),
+        "promotion_rate_bps": compute_bps(
+            funnel["pull_requests_opened"],
+            funnel["patch_results_accepted"],
+        ),
+    }
+    if any(rates[key] != expected for key, expected in expected_rates.items()):
+        raise CreativeCodeTelemetryContractError("legacy rates do not match legacy funnel counts.")
 
 
 def build_creative_code_telemetry_rollup_v2(
@@ -1900,6 +1997,13 @@ def validate_creative_code_telemetry_rollup_v2(
     ):
         raise CreativeCodeTelemetryContractError(
             "zero legacy events require empty legacy aggregates."
+        )
+    if normalized["legacy_event_count"] > 0:
+        _validate_v2_legacy_aggregates(
+            funnel=normalized["funnel"],
+            rates=normalized["rates"],
+            events_by_stage=normalized["events_by_stage"],
+            events_by_status=normalized["events_by_status"],
         )
     expected_merge_rate = compute_bps(terminal["merged"], terminal["outcome_count"])
     if normalized["rates"]["merge_rate_bps"] != expected_merge_rate:
