@@ -113,9 +113,27 @@ def test_insight_feature_flag_disabled_returns_503(
     vip_headers: dict[str, str],
     path: str,
 ) -> None:
-    """FEATURE_INSIGHT=false keeps both routes fail-closed with 503."""
+    """FEATURE_INSIGHT=false stops both routes before downstream execution."""
 
+    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "false")
+
+    def _must_not_run(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("disabled Insight must stop before downstream execution")
+
+    for name in (
+        "require_safe_ai_agent_input",
+        "_require_ai_generated_insight_notice",
+        "_enforce_vip_llm_monthly_quota",
+    ):
+        monkeypatch.setattr(legacy_app, name, _must_not_run, raising=True)
+    monkeypatch.setattr(
+        insight_compat,
+        "_execute_insight_request",
+        _must_not_run,
+        raising=True,
+    )
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 

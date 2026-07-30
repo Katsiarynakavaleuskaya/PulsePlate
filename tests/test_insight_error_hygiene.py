@@ -273,10 +273,14 @@ def test_insight_v1_blocks_transparency_failure_before_quota(
     assert resp.json() == {"detail": "transparency_registry_unavailable"}
 
 
-def test_insight_v1_blocks_malformed_transparency_notice_before_quota(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+@pytest.mark.parametrize("path", ("/api/v1/insight", "/insight"))
+def test_insight_blocks_malformed_transparency_notice_before_quota(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
 ) -> None:
-    """Malformed transparency metadata must fail closed before quota."""
+    """Malformed transparency metadata must fail closed before quota on both routes."""
 
     import legacy_app
 
@@ -292,17 +296,21 @@ def test_insight_v1_blocks_malformed_transparency_notice_before_quota(
         raising=True,
     )
 
-    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+    resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "transparency_registry_unavailable"}
 
 
-def test_insight_v1_blocks_transparency_lookup_exception_before_quota(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+@pytest.mark.parametrize("path", ("/api/v1/insight", "/insight"))
+def test_insight_blocks_transparency_lookup_exception_before_quota(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
 ) -> None:
-    """Transparency lookup exceptions must fail closed before quota."""
+    """Transparency lookup exceptions must fail closed before quota on both routes."""
 
     import legacy_app
 
@@ -319,7 +327,7 @@ def test_insight_v1_blocks_transparency_lookup_exception_before_quota(
         raising=True,
     )
 
-    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+    resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")

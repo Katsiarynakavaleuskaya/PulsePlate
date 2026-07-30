@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-import re
 
 from fastapi import FastAPI
 import pytest
@@ -20,15 +19,134 @@ _CANONICAL_MODULES = (
     insight_compat,
     insight_application_service,
 )
-_LEGACY_RUNTIME_PATCH = re.compile(r"""(?sx)
-    (?:
-        setattr\(\s*legacy_app\s*,\s*
-        ["'](?:_load_llm_get_provider|_execute_insight_request|_DirectInsightProviderStub)["']
-      |
-        patch\(\s*
-        ["']legacy_app\.(?:_load_llm_get_provider|_execute_insight_request|_DirectInsightProviderStub)["']
-    )
-    """)
+_LEGACY_RUNTIME_NAMES = frozenset(
+    {
+        "_load_llm_get_provider",
+        "_execute_insight_request",
+        "_DirectInsightProviderStub",
+    }
+)
+_LEGACY_COMPAT_ACCESS_ALLOWLIST = {
+    (
+        "tests/test_insight_ownership.py",
+        "test_legacy_insight_exports_are_exact_canonical_aliases",
+    ): _LEGACY_RUNTIME_NAMES,
+    (
+        "tests/test_philosophical_runtime.py",
+        "test_direct_insight_provider_stub_raises_if_called",
+    ): frozenset({"_DirectInsightProviderStub"}),
+}
+
+
+class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
+    """Find the finite legacy Insight runtime carrier class in test code."""
+
+    def __init__(self) -> None:
+        self.aliases: set[str] = set()
+        self.scope = "<module>"
+        self.accesses: set[tuple[str, str, int]] = set()
+
+    @staticmethod
+    def _leaf_name(node: ast.expr) -> str | None:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        return None
+
+    def _is_legacy_module(self, node: ast.expr) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in self.aliases
+        if isinstance(node, ast.Call):
+            function_name = self._leaf_name(node.func)
+            if function_name == "resolve_legacy_app":
+                return True
+            if function_name in {"resolve_module", "import_module", "__import__"} and node.args:
+                module_name = node.args[0]
+                return isinstance(module_name, ast.Constant) and module_name.value == "legacy_app"
+        return (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Attribute)
+            and isinstance(node.value.value, ast.Name)
+            and node.value.value.id == "sys"
+            and node.value.attr == "modules"
+            and isinstance(node.slice, ast.Constant)
+            and node.slice.value == "legacy_app"
+        )
+
+    def _record(self, node: ast.AST, symbol: str) -> None:
+        self.accesses.add((self.scope, symbol, node.lineno))
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        previous_scope, previous_aliases = self.scope, self.aliases
+        self.scope, self.aliases = node.name, set(previous_aliases)
+        self.generic_visit(node)
+        self.scope, self.aliases = previous_scope, previous_aliases
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        self.aliases.update(
+            alias.asname or "legacy_app" for alias in node.names if alias.name == "legacy_app"
+        )
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module == "legacy_app":
+            for alias in node.names:
+                if alias.name in _LEGACY_RUNTIME_NAMES or alias.name == "*":
+                    self._record(node, alias.name)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        if self._is_legacy_module(node.value):
+            for target in node.targets:
+                self.aliases.update(
+                    name.id for name in ast.walk(target) if isinstance(name, ast.Name)
+                )
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if node.attr in _LEGACY_RUNTIME_NAMES and self._is_legacy_module(node.value):
+            self._record(node, node.attr)
+        self.generic_visit(node)
+
+    def visit_Subscript(self, node: ast.Subscript) -> None:
+        if (
+            isinstance(node.slice, ast.Constant)
+            and node.slice.value in _LEGACY_RUNTIME_NAMES
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "__dict__"
+            and self._is_legacy_module(node.value.value)
+        ):
+            self._record(node, str(node.slice.value))
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        function_name = self._leaf_name(node.func)
+        if (
+            function_name in {"setattr", "getattr", "delattr", "object"}
+            and len(node.args) >= 2
+            and self._is_legacy_module(node.args[0])
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value in _LEGACY_RUNTIME_NAMES
+        ):
+            self._record(node, str(node.args[1].value))
+        if function_name in {"setattr", "patch"} and node.args:
+            target = node.args[0]
+            if isinstance(target, ast.Constant) and isinstance(target.value, str):
+                module_name, separator, symbol = target.value.partition(".")
+                if module_name == "legacy_app" and separator and symbol in _LEGACY_RUNTIME_NAMES:
+                    self._record(node, symbol)
+        self.generic_visit(node)
+
+
+def _legacy_runtime_accesses(source: str) -> set[tuple[str, str, int]]:
+    visitor = _LegacyRuntimeAccessVisitor()
+    visitor.visit(ast.parse(source))
+    return visitor.accesses
 
 
 def test_canonical_insight_modules_do_not_depend_on_legacy_app() -> None:
@@ -85,12 +203,18 @@ def test_insight_router_response_models_are_canonical(app: FastAPI) -> None:
         assert route.response_model is insight_schemas.InsightResponse
 
 
-def test_insight_runtime_tests_patch_the_canonical_consumer() -> None:
+def test_insight_runtime_tests_use_only_allowed_legacy_compat_accesses() -> None:
+    violations: list[str] = []
     for path in Path("tests").rglob("test*.py"):
         if not path.exists():
             continue
         source = path.read_text(encoding="utf-8")
-        assert _LEGACY_RUNTIME_PATCH.search(source) is None, path
+        for scope, symbol, line in _legacy_runtime_accesses(source):
+            allowed = _LEGACY_COMPAT_ACCESS_ALLOWLIST.get((path.as_posix(), scope), frozenset())
+            if symbol not in allowed:
+                violations.append(f"{path}:{line}:{scope}:{symbol}")
+
+    assert violations == []
 
 
 def test_insight_feature_flag_is_read_at_call_time(
