@@ -476,9 +476,10 @@ changes, and public fallback.
 
 Rollback is structural: remove the capability from `.github/dependabot.yml`,
 restore its blanket forbidden-key guard and negative test, and retain
-`replaces-base: true`. Rotate only the dedicated Dependabot credentials when
-exposure is suspected. Temporarily setting the version-update pull-request
-limit to zero is fail-closed containment, not successful dependency intake.
+`replaces-base: true`. When exposure is suspected, remove the capability or
+disable the updater before rotating only the dedicated Dependabot credentials.
+Setting the version-update pull-request limit to zero is not containment:
+security updates are exempt from that cap and can still evaluate manifests.
 The post-merge oracle is an exact-main Dependabot run that advances beyond the
 external-code refusal while remaining private-registry-only; that run still
 does not prove credential confidentiality, dependency-graph or artifact
