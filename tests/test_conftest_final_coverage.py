@@ -68,23 +68,21 @@ class TestConftestFinalCoverage:
             os.environ.get("VIP_MODULE_ENABLED") == "false"
         )  # premium_disabled_environment overrides
 
-    def test_conftest_client_fixtures(self, test_client, isolated_test_client, app_client):
-        """Test all client fixtures together."""
-        # This test ensures all client fixtures work together
-        # and helps improve overall coverage
+    @pytest.mark.parametrize(
+        "client_fixture_name",
+        ("test_client", "isolated_test_client", "app_client"),
+    )
+    def test_conftest_client_fixtures(
+        self,
+        request: pytest.FixtureRequest,
+        client_fixture_name: str,
+    ) -> None:
+        """Exercise one managed client fixture lifecycle per parametrized item."""
 
-        # Check that all clients are TestClient instances
-        assert isinstance(test_client, TestClient)
-        assert isinstance(isolated_test_client, TestClient)
-        assert isinstance(app_client, TestClient)
+        client = request.getfixturevalue(client_fixture_name)
 
-        # Check that they can make requests
-        for client in [test_client, isolated_test_client, app_client]:
-            response = client.get("/health")
-            assert response.status_code in [
-                200,
-                404,
-            ]  # Might be 404 if app is not fully initialized
+        assert isinstance(client, TestClient)
+        assert client.get("/health").status_code == 200
 
     def test_conftest_last_line_coverage(self):
         """Test to ensure the last line of conftest.py is covered."""
