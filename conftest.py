@@ -8,9 +8,7 @@ import signal
 import sys
 import pytest
 from pathlib import Path
-from fastapi.testclient import TestClient
-from typing import Any, cast, Iterator
-from starlette.types import ASGIApp
+from typing import Iterator
 
 # Enable faulthandler for debugging hangs/deadlocks (CI only to avoid noise)
 # In CI: dumps thread stacks after N seconds, repeating every N seconds.
@@ -100,12 +98,6 @@ def pytest_configure(config: pytest.Config) -> None:
     # This prevents dual-Base issues from module reloads and ensures stable Base identity
 
 
-class AppLoadError(ImportError):
-    """Raised when app.py cannot be loaded."""
-
-    pass
-
-
 # NOTE: Database initialization is handled by _init_db_for_api_suite fixture in tests/conftest.py
 # No separate verification fixture needed - _init_db_for_api_suite ensures DB is initialized
 
@@ -119,10 +111,7 @@ def cleanup_async_resources() -> Iterator[None]:
     try:
         import core.db
 
-        if hasattr(core.db, "_RAW_ENGINE") and core.db._RAW_ENGINE:
-            core.db._RAW_ENGINE.dispose()
-        if hasattr(core.db, "engine") and core.db.engine:
-            core.db.engine.dispose()
+        core.db.reset_db_for_tests()
     except Exception:  # nosec B110
         pass  # Best-effort cleanup
 
@@ -130,35 +119,6 @@ def cleanup_async_resources() -> Iterator[None]:
     import gc
 
     gc.collect()
-
-
-@pytest.fixture(scope="session")
-def dynamic_app():
-    """Load FastAPI app from legacy_app.py via standard import."""
-    import legacy_app as app_module
-
-    # Apply API key override for this app instance
-    def mock_get_api_key(api_key: str = ""):
-        if not api_key or len(api_key.strip()) < 3:
-            from fastapi import HTTPException
-
-            raise HTTPException(status_code=403, detail="Invalid API Key")
-        return api_key
-
-    if hasattr(app_module.app, "dependency_overrides"):
-        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
-
-    return app_module.app
-
-
-@pytest.fixture
-def dynamic_client(dynamic_app):
-    """TestClient using dynamically loaded app"""
-    client = TestClient(cast(ASGIApp, dynamic_app))
-    try:
-        yield client
-    finally:
-        client.close()
 
 
 @pytest.fixture(autouse=True)
@@ -179,42 +139,11 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
 
-    # Override API key validation for all tests
-    # CRITICAL: Use sys.modules.get() instead of fresh import to prevent model re-registration.
-    # Importing app in teardown triggers SQLAlchemy declarative mapping re-registration,
-    # which causes "Table already defined" cascade failures in subsequent tests.
-    # See: tests/conftest.py for metadata.clear() strategy for xdist workers.
-    fastapi_app = sys.modules.get("app")
-    app_instance = _loaded_module_attr(fastapi_app, "app")
-    if app_instance is not None:
-        # Simple pass-through that accepts any non-empty API key
-        def mock_get_api_key(api_key: str = "") -> str:
-            if not api_key or len(api_key.strip()) < 3:
-                from fastapi import HTTPException
-
-                raise HTTPException(status_code=403, detail="Invalid API Key")
-            return api_key
-
-        # Override the dependency
-        if hasattr(app_instance, "dependency_overrides"):
-            get_api_key = _loaded_module_attr(fastapi_app, "get_api_key")
-            if get_api_key is not None:
-                app_instance.dependency_overrides[get_api_key] = mock_get_api_key
-
     yield
 
     # Restore environment
     os.environ.clear()
     os.environ.update(old_env)
-
-    # Clear dependency overrides (use sys.modules.get to avoid re-import)
-    app_instance = _loaded_module_attr(
-        sys.modules.get("app"),
-        "app",
-    )
-    if app_instance is not None and hasattr(app_instance, "dependency_overrides"):
-        app_instance.dependency_overrides.clear()
-
     # CRITICAL: Do NOT delete modules from sys.modules
     # This causes dual-Base issues, module identity chaos, and unpredictable test failures.
     # Module cleanup should be done explicitly via module_purge.purge_modules() with protect lists,
@@ -230,19 +159,21 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     # with appropriate protect lists (e.g., protect core.db, core.models).
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def reset_sys_modules() -> Iterator[None]:
-    """Reset sys.modules for VIP module tests."""
-    # Store original VIP module if it exists
-    original_vip_module = sys.modules.get("app.routers.vip")
+    """Restore the VIP module only for explicit coverage-only compatibility callers."""
 
-    yield
+    module_name = "app.routers.vip"
+    original_present = module_name in sys.modules
+    original_module = sys.modules.get(module_name)
 
-    # Restore original VIP module
-    if original_vip_module:
-        sys.modules["app.routers.vip"] = original_vip_module
-    elif "app.routers.vip" in sys.modules:
-        del sys.modules["app.routers.vip"]
+    try:
+        yield
+    finally:
+        if original_present:
+            sys.modules[module_name] = original_module
+        else:
+            sys.modules.pop(module_name, None)
 
 
 @pytest.fixture
@@ -293,16 +224,6 @@ def test_environment():  # sourcery skip: dict-assign-update-to-union
     os.environ.update(old_env)
 
 
-def _loaded_module_attr(module: object | None, name: str) -> Any | None:
-    """Read an already-loaded module attribute without invoking module __getattr__."""
-    if module is None:
-        return None
-    namespace = getattr(module, "__dict__", None)
-    if not isinstance(namespace, dict):
-        return None
-    return namespace.get(name)
-
-
 @pytest.fixture
 def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-union
     """Fixture for testing with premium features disabled."""
@@ -324,46 +245,3 @@ def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-unio
     # Restore environment
     os.environ.clear()
     os.environ.update(old_env)
-
-
-@pytest.fixture
-def test_client():
-    """Fixture for creating and properly closing TestClient instances."""
-    from tests._client import get_client
-
-    client = get_client()
-
-    try:
-        yield client
-    finally:
-        # Properly close the client to clean up resources
-        client.close()
-
-
-@pytest.fixture
-def isolated_test_client():
-    """Fixture for creating isolated TestClient instances with clean app state.
-
-    NOTE: Removed importlib.reload() to prevent dual-Base issues.
-    Instead, create a fresh TestClient and clear dependency_overrides in teardown.
-    """
-    from app.main import app as main_app
-    from tests._client import make_test_client
-
-    # Create canonical metrics-aware client with current app state.
-    client = make_test_client(main_app)
-
-    try:
-        yield client
-    finally:
-        # Properly close the client to clean up resources
-        client.close()
-        # Clear dependency overrides to reset state
-        if hasattr(main_app, "dependency_overrides"):
-            main_app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def app_client(test_client):
-    """Alias for test_client to maintain compatibility with existing tests."""
-    return test_client

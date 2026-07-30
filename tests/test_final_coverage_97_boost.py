@@ -48,13 +48,6 @@ class TestAppInitCoverage:
 class TestConfTestCoverage:
     """Tests for conftest.py uncovered lines."""
 
-    def test_conftest_dynamic_app_loading(self, dynamic_app):
-        """Test dynamic app loading in conftest."""
-        # dynamic_app is a fixture from conftest
-        assert dynamic_app is not None
-        # Check it's a FastAPI app
-        assert hasattr(dynamic_app, "routes")
-
     def test_conftest_isolated_client(self, isolated_test_client):
         """Test isolated_test_client fixture."""
         # Fixture should work without errors

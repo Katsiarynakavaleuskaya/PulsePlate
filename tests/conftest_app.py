@@ -1,19 +1,23 @@
-"""
-Shared fixtures for app group tests.
-Provides reusable setup for environment variables and test clients.
-"""
+"""Reusable response assertions for app-group compatibility tests."""
 
-from typing import Generator, cast
+from collections.abc import Collection, Mapping
+from typing import Any, Protocol
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-import app as app_mod
-from tests._client import disable_rate_limiting_for_test_app
 
 
-def assert_vip_response(response, expected_status_codes=None, expected_data_fields=None):
+class _ResponseLike(Protocol):
+    status_code: int
+    text: str
+
+    def json(self) -> Any: ...
+
+
+def assert_vip_response(
+    response: _ResponseLike,
+    expected_status_codes: Collection[int] | None = None,
+    expected_data_fields: Mapping[str, Any] | None = None,
+) -> None:
     """
     Helper function to assert VIP API responses without conditionals in tests.
 
@@ -33,10 +37,10 @@ def assert_vip_response(response, expected_status_codes=None, expected_data_fiel
         # Safely parse JSON response
         try:
             data = response.json()
-        except Exception as e:
-            assert (
-                False
-            ), f"Failed to parse JSON response: {e}. Response text: {response.text[:200]}"
+        except Exception as error:
+            pytest.fail(
+                f"Failed to parse JSON response: {error}. " f"Response text: {response.text[:200]}"
+            )
 
         for field, expected_value in expected_data_fields.items():
             # Check that the field exists in the response data
@@ -63,72 +67,3 @@ def assert_vip_response(response, expected_status_codes=None, expected_data_fiel
                 assert (
                     data[field] == expected_value
                 ), f"Expected field '{field}' to equal {expected_value}, got {data[field]}"
-
-
-@pytest.fixture
-def app_test_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
-    """
-    Provides a TestClient instance for app tests with proper environment setup.
-
-    Sets up common environment variables and provides a configured TestClient.
-    Environment variables are automatically restored after each test.
-    """
-    # Set up environment variables using monkeypatch for automatic cleanup
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-    # Create test client with proper typing
-    app_instance = cast(FastAPI, app_mod.app)
-    disable_rate_limiting_for_test_app(app_instance)
-    client = TestClient(app_instance)
-
-    try:
-        yield client
-    finally:
-        client.close()
-
-
-@pytest.fixture
-def app_with_api_key(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
-    """
-    Provides a TestClient with API key authentication enabled.
-
-    Sets up strict API key mode for testing authentication flows.
-    Environment variables are automatically restored after each test.
-    """
-    # Set up environment variables for API key testing using monkeypatch
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    monkeypatch.setenv("API_KEY", "test_key")
-
-    # Create test client with proper typing
-    app_instance = cast(FastAPI, app_mod.app)
-    disable_rate_limiting_for_test_app(app_instance)
-    client = TestClient(app_instance)
-
-    try:
-        yield client
-    finally:
-        client.close()
-
-
-@pytest.fixture
-def test_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
-    """
-    Alias for app_test_client for backward compatibility.
-
-    Provides a TestClient instance for app tests with proper environment setup.
-    This fixture is used by test_app_health_and_root.py and test_app_bodyfat_v1.py.
-    """
-    # Set up environment variables using monkeypatch for automatic cleanup
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-    # Create test client with proper typing
-    app_instance = cast(FastAPI, app_mod.app)
-    disable_rate_limiting_for_test_app(app_instance)
-    client = TestClient(app_instance)
-
-    try:
-        yield client
-    finally:
-        client.close()

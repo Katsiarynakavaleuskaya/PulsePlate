@@ -28,8 +28,8 @@ from app.effective_routes import (
 )
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
-from tests._client import make_test_client
 from tests._client import disable_rate_limiting_for_test_app
+from tests._client import open_test_client
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -495,8 +495,6 @@ def app() -> FastAPI:
 
     app_instance = app.main.app
 
-    disable_rate_limiting_for_test_app(app_instance)
-
     return cast(FastAPI, app_instance)
 
 
@@ -507,8 +505,32 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
     Using TestClient as a context manager ensures lifespan startup/shutdown runs
     deterministically and prevents leaking background threads across tests.
     """
-    with make_test_client(app) as test_client:
+    with open_test_client(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def test_client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Compatibility fixture backed by the managed client lifecycle."""
+
+    with open_test_client(app) as managed_client:
+        yield managed_client
+
+
+@pytest.fixture
+def app_client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Compatibility alias with independent managed lifecycle ownership."""
+
+    with open_test_client(app) as managed_client:
+        yield managed_client
+
+
+@pytest.fixture
+def isolated_test_client(app: FastAPI) -> Generator[TestClient, None, None]:
+    """Preserve the legacy app-state fixture; DB isolation is owned by TC1b."""
+
+    with open_test_client(app) as managed_client:
+        yield managed_client
 
 
 # --- VIP shoplist test fixtures ---
@@ -563,6 +585,7 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
     import app.routers.vip_shoplist as vip_router
 
     app_instance = app.main.app
+    overrides_snapshot = dict(app_instance.dependency_overrides)
 
     # ⚠️ NO *args/**kwargs — иначе FastAPI требует query args/kwargs
     async def mock_require_vip_tier() -> str:
@@ -587,12 +610,11 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
         for dep_fn in route_level_deps:
             app_instance.dependency_overrides[dep_fn] = mock_api_key
 
-        with TestClient(app_instance) as client:
-            yield client
+        with open_test_client(app_instance) as managed_client:
+            yield managed_client
     finally:
-        app_instance.dependency_overrides.pop(vip_router.require_vip_tier, None)
-        for dep_fn in route_level_deps:
-            app_instance.dependency_overrides.pop(dep_fn, None)
+        app_instance.dependency_overrides.clear()
+        app_instance.dependency_overrides.update(overrides_snapshot)
 
 
 @pytest.fixture
