@@ -420,19 +420,29 @@ def _legacy_singleton_limiter_isolation() -> Iterator[None]:
         return
 
     snapshot = test_client_helpers._snapshot_limiter_attributes(limiter_instance)
+    primary_error: test_client_helpers._CapturedError | None = None
+    cleanup_errors: list[test_client_helpers._CapturedError] = []
     try:
         test_client_helpers._reset_and_disable_limiter(limiter_instance)
-    except BaseException:
-        test_client_helpers._restore_limiter_attributes(limiter_instance, snapshot)
-        raise
-
-    try:
-        yield
+    except BaseException as error:
+        primary_error = (error, error.__traceback__)
+    else:
+        try:
+            yield
+        except BaseException as error:
+            primary_error = (error, error.__traceback__)
     finally:
         try:
             limiter_instance.reset()
-        finally:
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+        try:
             test_client_helpers._restore_limiter_attributes(limiter_instance, snapshot)
+        except BaseException as error:
+            cleanup_errors.append((error, error.__traceback__))
+
+    if primary_error is not None or cleanup_errors:
+        test_client_helpers._raise_after_cleanup(primary_error, cleanup_errors)
 
 
 @pytest.fixture(autouse=True)

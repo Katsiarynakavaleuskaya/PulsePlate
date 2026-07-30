@@ -144,6 +144,8 @@ class _BoundedModuleResolver:
     def _name_targets(node: ast.AST) -> list[str]:
         if isinstance(node, ast.Name):
             return [node.id]
+        if isinstance(node, ast.Starred):
+            return _BoundedModuleResolver._name_targets(node.value)
         if isinstance(node, (ast.Tuple, ast.List)):
             names: list[str] = []
             for element in node.elts:
@@ -209,6 +211,16 @@ class _BoundedModuleResolver:
                 if argument.arg in self.bindings:
                     self._record_unsupported_carrier(
                         argument.lineno,
+                        "tracked_lexical_rebinding",
+                    )
+
+        for node in ast.walk(self.tree):
+            if not isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+                continue
+            for name in self._name_targets(node.target):
+                if name in self.bindings:
+                    self._record_unsupported_carrier(
+                        node.target.lineno,
                         "tracked_lexical_rebinding",
                     )
 
@@ -327,6 +339,9 @@ def _with_calls(
 ) -> set[str]:
     targets: set[str] = set()
     shadowed_names = {argument.arg for argument in resolver._argument_nodes(function.args)}
+    for node in ast.walk(function):
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            shadowed_names.update(resolver._name_targets(node.target))
     for node in ast.walk(function):
         if not isinstance(node, (ast.With, ast.AsyncWith)):
             continue
@@ -680,6 +695,48 @@ def client():
         unsupported = resolver.unsupported_carriers()
         assert len(unsupported) == 1
         assert unsupported[0][1] == "tracked_lexical_rebinding"
+
+
+def test_bounded_resolver_fails_closed_for_loop_target_shadowing() -> None:
+    loop_target_source = """
+from tests._client import open_test_client
+def client(app, managers):
+    for open_test_client in managers:
+        with open_test_client(app):
+            yield
+"""
+    comprehension_target_source = """
+from tests._client import open_test_client
+def client(app, managers):
+    with next(open_test_client(app) for open_test_client in managers):
+        yield
+"""
+    unrelated_target_source = """
+from tests._client import open_test_client
+def client(app, managers):
+    for manager in managers:
+        with open_test_client(app):
+            yield
+"""
+
+    for source in (loop_target_source, comprehension_target_source):
+        tree = ast.parse(source)
+        resolver = _BoundedModuleResolver(Path("tests/conftest.py"), tree)
+        function = _function_map(tree)["client"]
+
+        assert _with_calls(function, resolver) == set()
+        unsupported = resolver.unsupported_carriers()
+        assert len(unsupported) == 1
+        assert unsupported[0][1] == "tracked_lexical_rebinding"
+
+    unrelated_tree = ast.parse(unrelated_target_source)
+    unrelated_resolver = _BoundedModuleResolver(
+        Path("tests/conftest.py"),
+        unrelated_tree,
+    )
+    unrelated_function = _function_map(unrelated_tree)["client"]
+    assert _with_calls(unrelated_function, unrelated_resolver) == {OPEN_CLIENT_SYMBOL}
+    assert unrelated_resolver.unsupported_carriers() == []
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:

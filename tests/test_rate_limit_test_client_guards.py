@@ -84,6 +84,39 @@ def test_legacy_singleton_limiter_isolation_restores_poisoned_state(
     assert reset.call_count == 2
 
 
+def test_legacy_singleton_limiter_isolation_preserves_body_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: limiter cleanup failures must not replace the primary test failure."""
+
+    from app.security import rate_limit as rate_limit_mod
+
+    class BodyFailure(RuntimeError):
+        pass
+
+    class CleanupFailure(RuntimeError):
+        pass
+
+    shared_limiter = getattr(rate_limit_mod, "limiter", None)
+    if shared_limiter is None:
+        pytest.skip("SlowAPI limiter is unavailable")
+
+    body_error = BodyFailure("body failed")
+    cleanup_error = CleanupFailure("cleanup failed")
+    reset = Mock(side_effect=[None, cleanup_error, None])
+    monkeypatch.setattr(shared_limiter, "reset", reset)
+    monkeypatch.setattr(shared_limiter, "enabled", False)
+
+    with pytest.raises(BodyFailure) as raised:
+        with _legacy_singleton_limiter_isolation():
+            raise body_error
+
+    assert raised.value is body_error
+    assert raised.value.__cause__ is cleanup_error
+    assert shared_limiter.enabled is False
+    assert reset.call_count == 2
+
+
 def test_app_fixture_defers_temporary_limiter_ownership_to_managed_client(
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
