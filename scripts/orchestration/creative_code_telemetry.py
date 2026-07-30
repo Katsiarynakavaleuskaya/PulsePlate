@@ -83,6 +83,15 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     return True
 
 
+def _require_disjoint_mixed_input_roots(roots: tuple[Path, ...]) -> None:
+    for index, left in enumerate(roots):
+        for right in roots[index + 1 :]:
+            if left == right or _is_relative_to(left, right) or _is_relative_to(right, left):
+                raise CreativeCodeTelemetryError(
+                    "mixed telemetry input roots must be path-disjoint."
+                )
+
+
 def _existing_components(path: Path) -> list[Path]:
     components: list[Path] = []
     current_path = Path(path.anchor) if path.anchor else Path(".")
@@ -504,6 +513,8 @@ def collect_events(
         if terminal_outcomes_dir is not None
         else None
     )
+    if terminal_root is not None:
+        _require_disjoint_mixed_input_roots((roots, patch_root, promotion_root, terminal_root))
     events: list[dict[str, Any]] = []
 
     for path in _iter_json_files(roots):

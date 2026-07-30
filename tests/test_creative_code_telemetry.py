@@ -1002,6 +1002,85 @@ def test_v2_rollup_requires_terminal_source_partition() -> None:
         validate_creative_code_telemetry_rollup_any(rollup)
 
 
+@pytest.mark.parametrize(
+    ("legacy_stage", "expected_source_type"),
+    [
+        ("specification", "creative_code_specification"),
+        ("patch_evaluation", "creative_code_patch_result"),
+        ("promotion_plan", "creative_code_pr_promotion_plan"),
+        ("promotion_validation", "creative_code_pr_promotion_validation"),
+        ("promotion_approval", "creative_code_pr_promotion_approval"),
+        ("pr_open", "creative_code_pr_promotion_receipt"),
+        ("artifact_read_error", "creative_code_artifact_read_error"),
+    ],
+)
+def test_v2_rollup_binds_legacy_source_types_to_stage_marginals(
+    legacy_stage: str,
+    expected_source_type: str,
+) -> None:
+    patch_result = _reference_patch_result()
+    promotion = _promotion_artifacts(patch_result)
+    if legacy_stage == "specification":
+        legacy_event = creative_code_telemetry.event_from_specification_bundle(_reference_bundle())
+    elif legacy_stage == "patch_evaluation":
+        legacy_event = creative_code_telemetry.event_from_patch_result(patch_result)
+    elif legacy_stage == "promotion_plan":
+        legacy_event = creative_code_telemetry.event_from_promotion_plan(promotion[PLAN_FILE])
+    elif legacy_stage == "promotion_validation":
+        legacy_event = creative_code_telemetry.event_from_promotion_validation(
+            promotion[VALIDATION_FILE]
+        )
+    elif legacy_stage == "promotion_approval":
+        legacy_event = creative_code_telemetry.event_from_promotion_approval(
+            promotion[APPROVAL_FILE]
+        )
+    elif legacy_stage == "pr_open":
+        legacy_event = creative_code_telemetry.event_from_promotion_receipt(promotion[RECEIPT_FILE])
+    else:
+        legacy_event = build_creative_code_telemetry_event(
+            lane_stage="artifact_read_error",
+            source_artifact_type="creative_code_artifact_read_error",
+            source_artifact_id="read-error:source-lineage",
+            source_fingerprint=fingerprint_payload({"read_error": "source-lineage"}),
+            candidate_ids={
+                "promotion_id": None,
+                "request_id": None,
+                "result_id": None,
+                "selected_variant_id": None,
+                "source_bundle_id": None,
+                "source_packet_id": None,
+            },
+            status="blocked",
+            rejection_class="malformed_artifact",
+            failure_class="malformed_artifact",
+            taxonomy_codes=["malformed_artifact"],
+            metrics=default_metrics(),
+        )
+    assert legacy_event["source_artifact_type"] == expected_source_type
+
+    terminal_event = build_creative_code_terminal_telemetry_event(_terminal_outcome(patch_result))
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [legacy_event, terminal_event],
+        input_roots=["legacy", "terminal_outcomes"],
+    )
+    source = next(
+        row
+        for row in rollup["source_artifacts"]
+        if row["source_artifact_type"] == expected_source_type
+    )
+    source["source_artifact_type"] = (
+        "creative_code_patch_result"
+        if expected_source_type != "creative_code_patch_result"
+        else "creative_code_specification"
+    )
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="legacy source artifact counts must match legacy stage counts",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
 def test_v2_rollup_rejects_open_world_caveat() -> None:
     event = build_creative_code_terminal_telemetry_event(
         _terminal_outcome(_reference_patch_result())
@@ -1322,6 +1401,85 @@ def test_collector_with_terminal_input_emits_mixed_v2_rollup(
     assert rollup["schema_version"] == "2.0"
     assert rollup["terminal"]["outcome_count"] == 1
     assert Counter(event["lane_stage"] for event in events)["pr_terminal"] == 1
+
+
+@pytest.mark.parametrize(
+    ("left_root", "right_root"),
+    [
+        ("spec", "patch"),
+        ("spec", "promotion"),
+        ("spec", "terminal"),
+        ("patch", "promotion"),
+        ("patch", "terminal"),
+        ("promotion", "terminal"),
+    ],
+)
+def test_mixed_collector_rejects_equal_input_roots_before_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    left_root: str,
+    right_root: str,
+) -> None:
+    root, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    roots = {
+        "spec": spec_runs,
+        "patch": patch_runs,
+        "promotion": promotions,
+        "terminal": root / "terminal_outcomes",
+    }
+    roots[right_root] = roots[left_root]
+
+    def unexpected_scan(_root: Path) -> list[Path]:
+        raise AssertionError("overlapping roots reached collection")
+
+    monkeypatch.setattr(creative_code_telemetry, "_iter_json_files", unexpected_scan)
+    with pytest.raises(
+        creative_code_telemetry.CreativeCodeTelemetryError,
+        match="mixed telemetry input roots must be path-disjoint",
+    ):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=roots["spec"],
+            patch_runs_dir=roots["patch"],
+            promotions_dir=roots["promotion"],
+            terminal_outcomes_dir=roots["terminal"],
+            strict=True,
+        )
+
+
+@pytest.mark.parametrize("terminal_is_descendant", [True, False])
+def test_mixed_collector_rejects_nested_spec_and_terminal_roots_before_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    terminal_is_descendant: bool,
+) -> None:
+    root, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    terminal_root = root / "terminal_outcomes"
+    if terminal_is_descendant:
+        terminal_root = spec_runs / "terminal_outcomes"
+    else:
+        spec_runs = terminal_root / "spec_runs"
+
+    def unexpected_scan(_root: Path) -> list[Path]:
+        raise AssertionError("nested roots reached collection")
+
+    monkeypatch.setattr(creative_code_telemetry, "_iter_json_files", unexpected_scan)
+    with pytest.raises(
+        creative_code_telemetry.CreativeCodeTelemetryError,
+        match="mixed telemetry input roots must be path-disjoint",
+    ):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=spec_runs,
+            patch_runs_dir=patch_runs,
+            promotions_dir=promotions,
+            terminal_outcomes_dir=terminal_root,
+            strict=True,
+        )
 
 
 def test_terminal_collector_requires_canonical_outcome_directory(

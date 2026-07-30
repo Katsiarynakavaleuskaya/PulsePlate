@@ -187,7 +187,7 @@ def read_json_object(path: str | Path) -> dict[str, Any]:
         )
     except CreativeCodeTerminalOutcomeError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise CreativeCodeTerminalOutcomeError("terminal_json_read_failed") from exc
     if not isinstance(payload, dict):
         raise CreativeCodeTerminalOutcomeError("terminal JSON must be an object.")

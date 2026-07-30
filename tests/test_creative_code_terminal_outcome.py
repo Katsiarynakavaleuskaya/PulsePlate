@@ -7,6 +7,7 @@ import errno
 import json
 from pathlib import Path
 import re
+import sys
 import threading
 from typing import Any
 
@@ -506,6 +507,42 @@ def test_duplicate_keys_and_unsafe_content_fail_closed(tmp_path: Path) -> None:
     observation["promotion_id"] = "candidate.patch"
     with pytest.raises(CreativeCodeTerminalOutcomeError):
         normalize_terminal_observation(observation)
+
+
+def test_decoder_limit_failures_use_sanitized_reader_and_cli_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    digit_limit = sys.get_int_max_str_digits()
+    assert digit_limit > 0
+    nesting_depth = min(100_000, max(10_000, sys.getrecursionlimit() * 10))
+    candidates = {
+        "oversized-integer.json": '{"value":' + ("9" * (digit_limit + 1)) + "}",
+        "deeply-nested.json": (
+            '{"value":' + ("[" * nesting_depth) + "0" + ("]" * nesting_depth) + "}"
+        ),
+    }
+
+    for filename, raw_json in candidates.items():
+        candidate = tmp_path / filename
+        candidate.write_text(raw_json, encoding="utf-8")
+
+        with pytest.raises(CreativeCodeTerminalOutcomeError) as error:
+            read_json_object(candidate)
+        assert str(error.value) == "terminal_json_read_failed"
+
+        assert (
+            creative_code_terminal_outcome.main(
+                ["validate", "--outcome", str(candidate)],
+                terminal_outcomes_root=tmp_path,
+            )
+            == 1
+        )
+        output = capsys.readouterr().out
+        assert output == "FAIL: terminal_json_read_failed\n"
+        assert "Traceback" not in output
+        assert str(candidate) not in output
+        assert raw_json not in output
 
 
 def test_identical_and_divergent_replay_preserve_original_bytes_and_mtime(

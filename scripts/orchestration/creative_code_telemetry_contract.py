@@ -68,6 +68,15 @@ SOURCE_ARTIFACT_TYPES = frozenset(
         "creative_code_artifact_read_error",
     }
 )
+LEGACY_SOURCE_TYPE_TO_STAGE = {
+    "creative_code_specification": "specification",
+    "creative_code_patch_result": "patch_evaluation",
+    "creative_code_pr_promotion_plan": "promotion_plan",
+    "creative_code_pr_promotion_validation": "promotion_validation",
+    "creative_code_pr_promotion_approval": "promotion_approval",
+    "creative_code_pr_promotion_receipt": "pr_open",
+    "creative_code_artifact_read_error": "artifact_read_error",
+}
 EVENT_STATUSES = frozenset(
     {"accepted", "rejected", "blocked", "promoted", "opened", "not_applicable"}
 )
@@ -2058,6 +2067,18 @@ def validate_creative_code_telemetry_rollup_v2(
     if terminal_source_count != terminal["outcome_count"]:
         raise CreativeCodeTelemetryContractError(
             "terminal source artifact count must equal terminal outcome count."
+        )
+    legacy_source_counts = {source_type: 0 for source_type in LEGACY_SOURCE_TYPE_TO_STAGE}
+    for row in normalized["source_artifacts"]:
+        source_type = row["source_artifact_type"]
+        if source_type in legacy_source_counts:
+            legacy_source_counts[source_type] += 1
+    if any(
+        legacy_source_counts[source_type] != normalized["events_by_stage"].get(stage, 0)
+        for source_type, stage in LEGACY_SOURCE_TYPE_TO_STAGE.items()
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "legacy source artifact counts must match legacy stage counts."
         )
     if normalized["legacy_event_count"] == 0 and (
         any(normalized["funnel"].values())
