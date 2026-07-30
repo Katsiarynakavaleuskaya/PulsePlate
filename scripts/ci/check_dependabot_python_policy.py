@@ -144,12 +144,13 @@ FORBIDDEN_UPDATE_KEYS = {
     "ignore",
     "exclude-paths",
     "target-branch",
-    "insecure-external-code-execution",
 }
+EXTERNAL_CODE_EXECUTION_KEY = "insecure-external-code-execution"
 EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
     "package-ecosystem": "pip",
     "directory": "/",
     "registries": [REGISTRY_NAME],
+    EXTERNAL_CODE_EXECUTION_KEY: "allow",
     "schedule": {"interval": "weekly"},
     "open-pull-requests-limit": 4,
     "commit-message": {"prefix": "deps", "include": "scope"},
@@ -273,7 +274,16 @@ def _walk_mapping(
         safe_keys = (
             EXPECTED_UPDATE_KEYS
             | set(EXPECTED_GROUPS)
-            | {"applies-to", "patterns", "update-types"}
+            | {
+                "version",
+                "registries",
+                "updates",
+                REGISTRY_NAME,
+                *REGISTRY_CONFIG,
+                "applies-to",
+                "patterns",
+                "update-types",
+            }
             | FORBIDDEN_UPDATE_KEYS
         )
         for key, child in value.items():
@@ -780,6 +790,14 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(update, Mapping):
         errors.append(_error(update_path, "must be a mapping"))
         return errors
+    for mapping_path, mapping in _walk_mapping(config, "$"):
+        if EXTERNAL_CODE_EXECUTION_KEY in mapping and mapping is not update:
+            errors.append(
+                _error(
+                    f"{mapping_path}.{EXTERNAL_CODE_EXECUTION_KEY}",
+                    f"key is allowed only at {update_path}",
+                )
+            )
     if set(update) != EXPECTED_UPDATE_KEYS:
         errors.append(
             _error(

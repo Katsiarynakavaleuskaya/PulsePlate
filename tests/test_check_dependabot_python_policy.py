@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import FrozenInstanceError, asdict
 import os
 from pathlib import Path
@@ -89,6 +90,48 @@ def _groups(config: dict[str, object]) -> dict[str, object]:
     groups = _pip_update(config)["groups"]
     assert isinstance(groups, dict)
     return groups
+
+
+MappingSelector = tuple[str | int, ...]
+
+
+def _iter_mapping_selectors(
+    value: object,
+    selector: MappingSelector = (),
+) -> Iterator[MappingSelector]:
+    if isinstance(value, dict):
+        yield selector
+        for key, child in value.items():
+            assert isinstance(key, str)
+            yield from _iter_mapping_selectors(child, (*selector, key))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _iter_mapping_selectors(child, (*selector, index))
+
+
+def _mapping_at_selector(
+    value: object,
+    selector: MappingSelector,
+) -> dict[str, object]:
+    selected = value
+    for component in selector:
+        if isinstance(component, int):
+            assert isinstance(selected, list)
+        else:
+            assert isinstance(selected, dict)
+        selected = selected[component]
+    assert isinstance(selected, dict)
+    return selected
+
+
+def _selector_path(selector: MappingSelector) -> str:
+    path = "$"
+    for component in selector:
+        if isinstance(component, int):
+            path = f"{path}[{component}]"
+        else:
+            path = f"{path}.{component}"
+    return path
 
 
 def test_live_dependabot_policy_passes() -> None:
@@ -771,7 +814,7 @@ def test_malformed_registry_credentials_are_redacted_from_yaml_errors(
     assert sentinel not in captured.err
 
 
-def test_mode_a_rejects_update_suppression_and_external_code_execution(
+def test_mode_a_rejects_update_suppression(
     tmp_path: Path,
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
@@ -780,7 +823,6 @@ def test_mode_a_rejects_update_suppression_and_external_code_execution(
     update["allow"] = [{"dependency-name": "fastapi"}]
     update["ignore"] = [{"dependency-name": "starlette"}]
     update["exclude-paths"] = ["requirements-test.in"]
-    update["insecure-external-code-execution"] = "allow"
     _write_config(repo, config)
 
     errors = policy.validate_repo(repo)
@@ -788,8 +830,117 @@ def test_mode_a_rejects_update_suppression_and_external_code_execution(
     assert any("updates[0].allow:key is forbidden" in error for error in errors)
     assert any("updates[0].ignore:key is forbidden" in error for error in errors)
     assert any("updates[0].exclude-paths:key is forbidden" in error for error in errors)
+
+
+def test_external_code_execution_is_bound_to_exact_private_pip_updater() -> None:
+    config = _load_config(REPO_ROOT)
+    update = _pip_update(config)
+    registries = config["registries"]
+
+    assert update[policy.EXTERNAL_CODE_EXECUTION_KEY] == "allow"
+    assert update["package-ecosystem"] == "pip"
+    assert update["directory"] == "/"
+    assert update["registries"] == [policy.REGISTRY_NAME]
+    assert registries == {policy.REGISTRY_NAME: policy.REGISTRY_CONFIG}
+    assert policy.validate_repo(REPO_ROOT) == []
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [None, "", "deny", "ALLOW", True, False, 1, 0, [], {}, ["allow"]],
+)
+def test_external_code_execution_requires_literal_allow(
+    tmp_path: Path,
+    invalid_value: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _pip_update(config)[policy.EXTERNAL_CODE_EXECUTION_KEY] = invalid_value
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
     assert any(
-        "updates[0].insecure-external-code-execution:key is forbidden" in error for error in errors
+        "updates[0].insecure-external-code-execution:must be exactly 'allow'" in error
+        for error in errors
+    )
+
+
+def test_external_code_execution_is_mandatory(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    _pip_update(config).pop(policy.EXTERNAL_CODE_EXECUTION_KEY)
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.startswith(".github/dependabot.yml:updates[0]:keys must be exactly")
+        for error in errors
+    )
+    assert any(
+        "updates[0].insecure-external-code-execution:must be exactly 'allow'" in error
+        for error in errors
+    )
+
+
+def test_external_code_execution_is_rejected_at_every_other_mapping_position(
+    tmp_path: Path,
+) -> None:
+    canonical_config = _load_config(REPO_ROOT)
+    authorized_selector: MappingSelector = ("updates", 0)
+    forbidden_selectors = [
+        selector
+        for selector in _iter_mapping_selectors(canonical_config)
+        if selector != authorized_selector
+    ]
+
+    assert {
+        (),
+        ("registries",),
+        ("registries", policy.REGISTRY_NAME),
+        ("updates", 0, "schedule"),
+        ("updates", 0, "commit-message"),
+        ("updates", 0, "cooldown"),
+        ("updates", 0, "groups"),
+    }.issubset(forbidden_selectors)
+    assert {("updates", 0, "groups", group_name) for group_name in policy.EXPECTED_GROUPS}.issubset(
+        forbidden_selectors
+    )
+
+    for index, selector in enumerate(forbidden_selectors):
+        repo = _copy_policy_repo(tmp_path / f"position-{index}")
+        config = _load_config(repo)
+        target = _mapping_at_selector(config, selector)
+        target[policy.EXTERNAL_CODE_EXECUTION_KEY] = "allow"
+        _write_config(repo, config)
+
+        errors = policy.validate_repo(repo)
+
+        expected_error = (
+            f".github/dependabot.yml:{_selector_path(selector)}."
+            "insecure-external-code-execution:key is allowed only at updates[0]"
+        )
+        assert expected_error in errors
+
+
+def test_external_code_execution_rejects_recursively_nested_unknown_mapping(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    schedule = _pip_update(config)["schedule"]
+    assert isinstance(schedule, dict)
+    schedule["untrusted"] = {
+        "nested": {policy.EXTERNAL_CODE_EXECUTION_KEY: "allow"},
+    }
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    assert any(
+        error.endswith(".insecure-external-code-execution:key is allowed only at updates[0]")
+        for error in errors
     )
 
 
@@ -815,7 +966,7 @@ def test_update_block_rejects_behavior_and_scope_keys_outside_policy(
 
     assert any(
         error.startswith(".github/dependabot.yml:updates[0]:keys must be exactly")
-        and "got key_count=9" in error
+        and f"got key_count={len(policy.EXPECTED_UPDATE_KEYS) + 1}" in error
         for error in errors
     )
     assert unexpected_key not in "\n".join(errors)
