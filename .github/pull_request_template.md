@@ -52,9 +52,9 @@
 <!--
 Closeout automation must replace the entire Phase2 block from
 `## Discussion Thread Pass` through the line before `## Split justification`
-with the complete block produced by
-scripts.orchestration.review_mapping_artifact.render_phase2_body_mirror(...)
-for the live PR number, repository, and exact head ref.
+with the complete canonical block by running
+`python scripts/orchestration/pr_review_closeout.py render-body`
+with the live PR number, repository, exact head ref, and body file.
 -->
 
 - Pending final clean scan and the single mapping/closeout commit.
@@ -62,7 +62,7 @@ for the live PR number, repository, and exact head ref.
 
 ## Split justification
 
-<!-- Required only above the Tier 1 800 changed-LoC threshold. -->
+<!-- Required for standard PRs above 15 counted files and for approved frontend vertical MVPs; follow current size-governance output. -->
 
 - Why this PR cannot be split safely:
 - Invariant or rollout constraint requiring one PR:

@@ -657,3 +657,30 @@ def render_phase2_body_mirror(pr_number: int, *, repository: str, ref: str) -> s
             f"- [canonical artifact]({artifact_url})",
         ]
     )
+
+
+def replace_phase2_body_mirror(
+    body: str,
+    pr_number: int,
+    *,
+    repository: str,
+    ref: str,
+) -> str:
+    """Replace exactly one complete Phase2 body block with the canonical mirror."""
+
+    start_pattern = re.compile(rf"(?m)^{re.escape(DISCUSSION_THREAD_PASS_HEADING)}[ \t]*$")
+    end_pattern = re.compile(r"(?m)^## Split justification[ \t]*$")
+    starts = list(start_pattern.finditer(body))
+    ends = list(end_pattern.finditer(body))
+    if len(starts) != 1 or len(ends) != 1 or starts[0].start() >= ends[0].start():
+        raise ValueError(
+            "body must contain exactly one ordered Phase2 block from "
+            "`## Discussion Thread Pass` through the line before "
+            "`## Split justification`"
+        )
+    mirror = render_phase2_body_mirror(
+        pr_number,
+        repository=repository,
+        ref=ref,
+    )
+    return body[: starts[0].start()] + mirror + "\n\n" + body[ends[0].start() :]

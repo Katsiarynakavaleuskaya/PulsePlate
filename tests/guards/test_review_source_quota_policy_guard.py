@@ -174,6 +174,7 @@ def test_closeout_exposes_only_current_review_authoring_modes() -> None:
         "add-disposition",
         "freeze",
         "init",
+        "render-body",
         "seal",
         "validate",
     }

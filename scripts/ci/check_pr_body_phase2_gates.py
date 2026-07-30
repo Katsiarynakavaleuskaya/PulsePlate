@@ -67,6 +67,13 @@ _PRE_CLOSEOUT_MARKER = str(PHASE2_CONFIG["pre_closeout_marker"])
 _PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
 _PRE_CLOSEOUT_MARKER_LINE = f"<!-- {_PRE_CLOSEOUT_MARKER} -->"
 _PRE_CLOSEOUT_PENDING_LINE = f"- {_PRE_CLOSEOUT_PENDING_TEXT}"
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+PRE_CLOSEOUT_MARKER_DENY_RE = re.compile(
+    rf"^ {{0,3}}<!--[ \t]*{re.escape(_PRE_CLOSEOUT_MARKER)}[ \t]*-->[ \t]*$"
+)
+PRE_CLOSEOUT_PENDING_DENY_RE = re.compile(
+    rf"^ {{0,3}}-[ \t]+{re.escape(_PRE_CLOSEOUT_PENDING_TEXT)}[ \t]*$"
+)
 HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
@@ -163,15 +170,86 @@ def _experiment_runner_evidence_mode(
         ) from exc
 
 
+def _visible_line_without_comments(line: str, in_html_comment: bool) -> tuple[str, bool]:
+    """Return rendered line content and the next multiline-comment state."""
+
+    visible_parts: list[str] = []
+    cursor = 0
+    while cursor < len(line):
+        if in_html_comment:
+            comment_end = line.find("-->", cursor)
+            if comment_end < 0:
+                return "".join(visible_parts), True
+            in_html_comment = False
+            cursor = comment_end + 3
+            continue
+        comment_start = line.find("<!--", cursor)
+        if comment_start < 0:
+            visible_parts.append(line[cursor:])
+            break
+        visible_parts.append(line[cursor:comment_start])
+        visible_parts.append(" ")
+        in_html_comment = True
+        cursor = comment_start + 4
+    return "".join(visible_parts), in_html_comment
+
+
 def _strip_fenced_code_blocks(text: str) -> str:
-    cleaned = re.sub(r"(?s)```.*?```", "", text)
-    return re.sub(r"(?s)~~~.*?~~~", "", cleaned)
+    """Remove Markdown fenced blocks, including an unmatched fence through EOF."""
+
+    retained: list[str] = []
+    in_html_comment = False
+    fence_char = ""
+    fence_length = 0
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+
+        if fence_char:
+            closing_fence = re.fullmatch(
+                rf" {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
+                line,
+            )
+            if closing_fence:
+                fence_char = ""
+                fence_length = 0
+            continue
+        visible_line, in_html_comment = _visible_line_without_comments(
+            line,
+            in_html_comment,
+        )
+        fence_open = FENCE_OPEN_RE.match(visible_line)
+        if fence_open:
+            fence = fence_open.group("fence")
+            fence_char = fence[0]
+            fence_length = len(fence)
+            continue
+        retained.append(raw_line)
+    return "".join(retained)
 
 
 def _contains_exact_line(text: str, expected_line: str) -> bool:
     """Return whether LF-delimited text contains the exact reserved line."""
 
     return expected_line in text.split("\n")
+
+
+def _stale_pre_closeout_tokens(text: str) -> tuple[bool, bool]:
+    """Find rendered reserved-token equivalents without widening admission."""
+
+    marker_seen = False
+    pending_seen = False
+    in_html_comment = False
+    for raw_line in _strip_fenced_code_blocks(text).splitlines():
+        was_in_html_comment = in_html_comment
+        visible_line, in_html_comment = _visible_line_without_comments(
+            raw_line,
+            in_html_comment,
+        )
+        if not was_in_html_comment and PRE_CLOSEOUT_MARKER_DENY_RE.fullmatch(raw_line):
+            marker_seen = True
+        if PRE_CLOSEOUT_PENDING_DENY_RE.fullmatch(visible_line):
+            pending_seen = True
+    return marker_seen, pending_seen
 
 
 def _normalize_phase2_body(text: str) -> str:
@@ -802,12 +880,13 @@ def check_pr_body_phase2_gates(
                 "Pre-closeout mapping section must not contain completed mapping entries."
             )
     else:
-        if _contains_exact_line(cleaned, _PRE_CLOSEOUT_MARKER_LINE):
+        has_stale_marker, has_stale_pending = _stale_pre_closeout_tokens(body)
+        if has_stale_marker:
             errors.append(
                 "Pre-closeout marker must be removed after the canonical mapping/seal is "
                 "published."
             )
-        if _contains_exact_line(cleaned, _PRE_CLOSEOUT_PENDING_LINE):
+        if has_stale_pending:
             errors.append(
                 "Pre-closeout pending status must be removed after the canonical mapping/seal "
                 "is published."
@@ -955,8 +1034,7 @@ def main() -> int:
 
     if body.strip():
         cleaned_body = _normalize_phase2_body(body)
-        has_pre_closeout_marker = _contains_exact_line(cleaned_body, _PRE_CLOSEOUT_MARKER_LINE)
-        has_stale_pending_status = _contains_exact_line(cleaned_body, _PRE_CLOSEOUT_PENDING_LINE)
+        has_pre_closeout_marker, has_stale_pending_status = _stale_pre_closeout_tokens(body)
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )

@@ -63,7 +63,7 @@ def test_design_pr_templates_have_required_governance_sections() -> None:
             "## Source of truth",
             "## Design automation module classification",
             "## Files changed",
-            "## Tests / bounded checks",
+            "## Tests",
             "## Security notes",
             "## Premortem",
             "## Bug-hunter pass",

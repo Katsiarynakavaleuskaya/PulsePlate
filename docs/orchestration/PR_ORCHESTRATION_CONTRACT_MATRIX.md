@@ -75,8 +75,12 @@ marker requires both Phase 2 boxes to remain unchecked and forbids mapping
 entries; `check_merge_ready.py` still requires the canonical artifact and
 therefore cannot treat this state as merge-ready. Once the canonical
 mapping/seal is published, both the marker and matching pending mapping-status
-line must be removed; either stale token is a Phase 2 body-gate error even when
-the artifact exists.
+line must be removed. Admission remains byte-exact and template-owned; final
+denial also rejects rendered horizontal-whitespace and line-ending equivalents
+of either stale token. Fenced or hidden examples remain non-authoritative.
+After closeout, either stale token is a Phase 2 body-gate error even when the
+artifact exists. The closeout command replaces the complete body block through
+`pr_review_closeout.py render-body`; callers do not splice individual lines.
 
 The historical marker name is retained for wire compatibility only. It does
 not request, invoke, retry, wait for, or claim a Connector/Codex Security

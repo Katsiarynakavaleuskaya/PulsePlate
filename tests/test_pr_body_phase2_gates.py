@@ -253,6 +253,42 @@ def test_phase2_guard_rejects_stale_pending_status_in_final_modes(
     ]
 
 
+@pytest.mark.parametrize(
+    ("reserved_line", "expected_error"),
+    [
+        (
+            "<!--   phase2-pre-closeout: final-security-pending   -->\r",
+            "Pre-closeout marker must be removed",
+        ),
+        (
+            "-  Pending final clean scan and the single mapping/closeout commit. \t\r",
+            "Pre-closeout pending status must be removed",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    ("mode", "body"),
+    [
+        (gates.BodyValidationMode.MIRROR_ONLY, VALID_BODY_MIRROR_ONLY),
+        (gates.BodyValidationMode.FULL_MAPPING, VALID_BODY_WITH_MAPPING),
+    ],
+)
+def test_phase2_final_modes_deny_render_equivalent_reserved_tokens(
+    mode: gates.BodyValidationMode,
+    body: str,
+    reserved_line: str,
+    expected_error: str,
+) -> None:
+    stale_body = body.replace(
+        "## Experiment Runner Evidence",
+        f"{reserved_line}\n\n## Experiment Runner Evidence",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(body=stale_body, mode=mode)
+
+    assert any(expected_error in error for error in errors)
+
+
 def test_phase2_guard_accepts_explicit_non_mergeable_pre_closeout_state() -> None:
     errors = gates.check_pr_body_phase2_gates(
         body=PRE_CLOSEOUT_BODY,
@@ -281,6 +317,44 @@ def test_default_pr_template_satisfies_pre_closeout_contract() -> None:
     errors = gates.check_pr_body_phase2_gates(
         body=template,
         mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert errors == []
+
+
+def test_pre_closeout_template_inside_unmatched_fence_is_not_admitted() -> None:
+    errors = gates.check_pr_body_phase2_gates(
+        body=f"```\n{PRE_CLOSEOUT_BODY}",
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert any("Pre-closeout requires the exact marker" in error for error in errors)
+    assert any("Missing required section" in error for error in errors)
+
+
+def test_indented_fence_literal_cannot_erase_visible_stale_pending_status() -> None:
+    body = VALID_BODY_MIRROR_ONLY.replace(
+        "## Experiment Runner Evidence",
+        "    ~~~\n"
+        "- Pending final clean scan and the single mapping/closeout commit.\n"
+        "~~~\n\n"
+        "## Experiment Runner Evidence",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.MIRROR_ONLY,
+    )
+
+    assert any("Pre-closeout pending status must be removed" in error for error in errors)
+
+
+def test_html_comment_syntax_inside_fence_does_not_leak_parser_state() -> None:
+    body = f"```\n<!--\n```\n{VALID_BODY_MIRROR_ONLY}"
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.MIRROR_ONLY,
     )
 
     assert errors == []
@@ -350,14 +424,12 @@ def test_default_pr_template_closeout_uses_exact_branch_link(
         encoding="utf-8",
     )
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
-    phase2_mirror = mapping_artifact.render_phase2_body_mirror(
+    closeout_body = mapping_artifact.replace_phase2_body_mirror(
+        template,
         pr_number,
         repository=repository,
         ref=head_ref,
     )
-    phase2_start = template.index("## Discussion Thread Pass")
-    phase2_end = template.index("\n## Split justification\n", phase2_start) + 1
-    closeout_body = template[:phase2_start] + phase2_mirror + "\n\n" + template[phase2_end:]
 
     assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
     assert (
@@ -376,6 +448,21 @@ def test_default_pr_template_closeout_uses_exact_branch_link(
         )
         == 1
     )
+
+
+def test_phase2_body_replacement_requires_one_complete_ordered_block(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mapping_artifact, "read_mapping_artifact", lambda _pr_number: "")
+    malformed = "## Discussion Thread Pass\n## Discussion Thread Pass\n## Split justification\n"
+
+    with pytest.raises(ValueError, match="exactly one ordered Phase2 block"):
+        mapping_artifact.replace_phase2_body_mirror(
+            malformed,
+            2192,
+            repository="owner/repo",
+            ref="codex/example",
+        )
 
 
 def test_phase2_guard_rejects_checked_pre_closeout_boxes() -> None:
@@ -2068,11 +2155,11 @@ Starter: scripts/orchestration/start_pr_lane.sh
     ("body", "expected_error"),
     [
         (
-            "<!-- phase2-pre-closeout: final-security-pending -->",
+            "<!--   phase2-pre-closeout: final-security-pending   -->\r",
             "Pre-closeout marker must be removed",
         ),
         (
-            "- Pending final clean scan and the single mapping/closeout commit.",
+            "-  Pending final clean scan and the single mapping/closeout commit. \t\r",
             "Pre-closeout pending status must be removed",
         ),
     ],

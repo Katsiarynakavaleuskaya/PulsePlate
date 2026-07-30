@@ -7085,7 +7085,7 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
     ).read_text(encoding="utf-8")
 
     assert "docs/review/PR_<N>_FIXED_MAPPING.md" not in template
-    assert template.count("review_mapping_artifact.render_phase2_body_mirror") == 1
+    assert template.count("pr_review_closeout.py render-body") == 1
     assert "replace the entire Phase2 block" in template
     assert (
         "`## Discussion Thread Pass` through the line before `## Split justification`" in template
@@ -7094,6 +7094,9 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
     assert "### Fixed in Commit Mapping" in template
     assert "- [ ] Discussion-thread pass completed" in template
     assert "- [ ] Fixed in commit mapping completed" in template
+    assert "standard PRs above 15 counted files" in template
+    assert "approved frontend vertical MVPs" in template
+    assert "800 changed-LoC" not in template
     assert "Tests/validation" not in contract_matrix
     assert "the exact `## Tests` heading" in contract_matrix
     assert "both the marker and matching pending mapping-status" in contract_matrix
@@ -7118,6 +7121,62 @@ def test_closeout_init_is_atomic_and_idempotent(
     first = closeout_module._state_path(42).read_bytes()
     closeout_module._cmd_init(args)
     assert closeout_module._state_path(42).read_bytes() == first
+
+
+def test_closeout_render_body_command_uses_canonical_whole_block_replacer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body_file = tmp_path / "body.md"
+    body_file.write_text("old body\n", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def fake_replace(
+        body: str,
+        pr_number: int,
+        *,
+        repository: str,
+        ref: str,
+    ) -> str:
+        observed.update(
+            body=body,
+            pr_number=pr_number,
+            repository=repository,
+            ref=ref,
+        )
+        return "rendered body\n"
+
+    monkeypatch.setattr(closeout_module, "replace_phase2_body_mirror", fake_replace)
+    args = Namespace(
+        repo="owner/repo",
+        pr_number=42,
+        ref="codex/example",
+        body_file=str(body_file),
+    )
+
+    closeout_module._cmd_render_body(args)
+
+    assert observed == {
+        "body": "old body\n",
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "ref": "codex/example",
+    }
+    assert body_file.read_text(encoding="utf-8") == "rendered body\n"
+    parsed = closeout_module._parser().parse_args(
+        [
+            "render-body",
+            "--repo",
+            "owner/repo",
+            "--pr-number",
+            "42",
+            "--ref",
+            "codex/example",
+            "--body-file",
+            str(body_file),
+        ]
+    )
+    assert parsed.handler is closeout_module._cmd_render_body
 
 
 @pytest.mark.parametrize(

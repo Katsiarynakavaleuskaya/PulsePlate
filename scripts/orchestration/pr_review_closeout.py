@@ -69,6 +69,7 @@ from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
     extract_fixed_mapping_section,
     mapping_artifact_path,
+    replace_phase2_body_mirror,
     validate_mapping_artifact_text,
 )
 
@@ -947,6 +948,25 @@ def _cmd_validate(args: argparse.Namespace) -> None:
     print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
 
 
+def _cmd_render_body(args: argparse.Namespace) -> None:
+    body_file = Path(args.body_file)
+    try:
+        body = body_file.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise CloseoutError(f"missing PR body file: {body_file}") from exc
+    try:
+        rendered = replace_phase2_body_mirror(
+            body,
+            args.pr_number,
+            repository=args.repo,
+            ref=args.ref,
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise CloseoutError(str(exc)) from exc
+    _atomic_write(body_file, rendered)
+    print(f"closeout-render-body: wrote {body_file}")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -981,6 +1001,13 @@ def _parser() -> argparse.ArgumentParser:
     seal.add_argument("--pr-number", required=True, type=int)
     seal.add_argument("--self-review-report", required=True)
     seal.set_defaults(handler=_cmd_seal)
+
+    render_body = subparsers.add_parser("render-body")
+    render_body.add_argument("--repo", required=True)
+    render_body.add_argument("--pr-number", required=True, type=int)
+    render_body.add_argument("--ref", required=True)
+    render_body.add_argument("--body-file", required=True)
+    render_body.set_defaults(handler=_cmd_render_body)
 
     validate = subparsers.add_parser("validate")
     validate.add_argument("--repo", required=True)

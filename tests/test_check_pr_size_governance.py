@@ -479,10 +479,16 @@ def test_standard_sections_ignore_comments_and_nested_headings() -> None:
     ) == ["scope", "out of scope", "tests"]
 
 
-def test_default_pr_template_satisfies_standard_section_contract() -> None:
-    template = (size_gate.REPO_ROOT / ".github/pull_request_template.md").read_text(
-        encoding="utf-8"
-    )
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        ".github/pull_request_template.md",
+        ".github/PULL_REQUEST_TEMPLATE/design.md",
+        "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
+    ],
+)
+def test_standard_pr_template_producers_satisfy_section_contract(relative_path: str) -> None:
+    template = (size_gate.REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
     assert size_gate.missing_standard_sections(template) == []
 

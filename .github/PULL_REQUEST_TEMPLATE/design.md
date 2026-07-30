@@ -46,7 +46,7 @@ Classify the work:
 
 List the files changed after implementation.
 
-## Tests / bounded checks
+## Tests
 
 Do not override the root `AGENTS.md` merge gate. If this is an operator-approved machine-heavy design lane using bounded local checks, document the exception and list only commands actually run.
 
