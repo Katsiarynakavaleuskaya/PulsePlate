@@ -654,7 +654,11 @@ def _validate_groups(
                     )
                 )
         patterns = group.get("patterns")
-        if _exact_value_matches(patterns, list(expected["patterns"])):
+        if (
+            isinstance(patterns, list)
+            and all(isinstance(pattern, str) for pattern in patterns)
+            and _exact_value_matches(patterns, list(expected["patterns"]))
+        ):
             usable_groups[group_name] = tuple(patterns)
 
     direct_packages, known_packages, source_errors = _known_packages(repo_root)
