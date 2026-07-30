@@ -648,6 +648,48 @@ def test_phase2_replacement_ignores_h2_inside_raw_html_blocks(
     assert "## Split justification" in rendered
 
 
+def test_phase2_replacement_preserves_h2_after_inline_html(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Split justification",
+        "<span>inline</span>\n## Split justification",
+        1,
+    )
+
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert "<span>inline</span>" not in rendered
+    assert "## Split justification" in rendered
+
+
+def test_phase2_gate_rejects_swapped_checkbox_order() -> None:
+    body = PRE_CLOSEOUT_BODY.replace(
+        "- [ ] Discussion-thread pass completed\n- [ ] Fixed in commit mapping completed",
+        "- [ ] Fixed in commit mapping completed\n- [ ] Discussion-thread pass completed",
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert any(
+        "must appear in discussion-pass then fixed-mapping order" in error for error in errors
+    )
+
+
 def test_phase2_gate_and_renderer_reject_mapping_before_discussion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -828,6 +828,15 @@ def check_pr_body_phase2_gates(
             checklist_text = _normalize_phase2_body(body[discussion_start:mapping_start])
             discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(checklist_text))
             mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(checklist_text))
+            if (
+                discussion_checks
+                and mapping_checks
+                and discussion_checks[0].start() >= mapping_checks[0].start()
+            ):
+                errors.append(
+                    "Phase2 checklist items must appear in discussion-pass then "
+                    "fixed-mapping order."
+                )
         else:
             errors.append(f"`{m_heading}` must appear inside the `{d_heading}` Phase2 block.")
 

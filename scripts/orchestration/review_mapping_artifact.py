@@ -65,8 +65,20 @@ MARKDOWN_HEADING_PREFIX_RE = re.compile(r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]+|$)")
 MARKDOWN_HEADING_RE = re.compile(
     r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]+(?P<title>\S(?:.*\S)?)?[ \t]*|)$"
 )
-MARKDOWN_RAW_HTML_TAG_RE = re.compile(
-    r"^ {0,3}</?(?P<tag>[A-Za-z][A-Za-z0-9-]*)(?=[ \t/>]|$)",
+MARKDOWN_RAW_HTML_BLOCK_TAG_RE = re.compile(
+    r"^ {0,3}</?(?P<tag>"
+    r"address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|"
+    r"dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|"
+    r"frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|"
+    r"nav|noframes|ol|optgroup|option|p|param|pre|script|search|section|style|summary|"
+    r"table|tbody|td|textarea|tfoot|th|thead|title|tr|track|ul)(?=[ \t/>]|$)",
+    re.IGNORECASE,
+)
+MARKDOWN_RAW_HTML_STANDALONE_TAG_RE = re.compile(
+    r"^ {0,3}(?:"
+    r"</[A-Za-z][A-Za-z0-9-]*[ \t]*>"
+    r"|<[A-Za-z][A-Za-z0-9-]*(?:[ \t]+[^<>]*)?[ \t]*/?>"
+    r")[ \t]*$",
 )
 MARKDOWN_RAW_HTML_PERSISTENT_TAGS = frozenset({"pre", "script", "style", "textarea"})
 
@@ -116,10 +128,12 @@ def _raw_html_block_start(line: str) -> tuple[str, bool]:
     stripped = line.lstrip(" ")
     if len(line) - len(stripped) > 3 or stripped.startswith("<!--"):
         return "", False
-    if match := MARKDOWN_RAW_HTML_TAG_RE.match(line):
+    if match := MARKDOWN_RAW_HTML_BLOCK_TAG_RE.match(line):
         tag = match.group("tag").casefold()
         if not stripped.startswith("</") and tag in MARKDOWN_RAW_HTML_PERSISTENT_TAGS:
             return f"</{tag}", False
+        return "", True
+    if MARKDOWN_RAW_HTML_STANDALONE_TAG_RE.fullmatch(line):
         return "", True
     if stripped.startswith("<?"):
         return "?>", False
