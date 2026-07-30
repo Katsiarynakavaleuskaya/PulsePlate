@@ -83,7 +83,10 @@ def _direct_factory_call_lines(path: Path) -> list[tuple[str, int]]:
     ]
 
 
-def _uses_managed_context(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+def _managed_context_yield_counts(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[int]:
+    counts: list[int] = []
     for candidate in ast.walk(node):
         if not isinstance(candidate, (ast.With, ast.AsyncWith)):
             continue
@@ -93,8 +96,15 @@ def _uses_managed_context(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
                 isinstance(expression, ast.Call)
                 and _direct_call_name(expression) == "open_test_client"
             ):
-                return True
-    return False
+                counts.append(
+                    sum(
+                        isinstance(descendant, (ast.Yield, ast.YieldFrom))
+                        for statement in candidate.body
+                        for descendant in ast.walk(statement)
+                    )
+                )
+                break
+    return counts
 
 
 def test_provider_surface_is_fixed_and_exists() -> None:
@@ -117,8 +127,16 @@ def test_raw_client_construction_has_one_bounded_provider_owner() -> None:
         if path != CLIENT_HELPERS and _raw_constructor_lines(path)
     }
 
+    helper_nodes = _function_nodes(CLIENT_HELPERS)
+    factory_lines = [
+        node.lineno
+        for node in ast.walk(helper_nodes["make_test_client"])
+        if isinstance(node, ast.Call) and _direct_call_name(node) in RAW_CLIENT_NAMES
+    ]
+
     assert violations == {}
-    assert _raw_constructor_lines(CLIENT_HELPERS)
+    assert len(factory_lines) == 1
+    assert _raw_constructor_lines(CLIENT_HELPERS) == factory_lines
 
 
 def test_deprecated_factories_gain_no_provider_callers() -> None:
@@ -141,10 +159,7 @@ def test_shared_fixture_ownership_is_managed_and_root_is_clean() -> None:
     for fixture_name in SHARED_CLIENT_FIXTURES:
         node = test_fixture_nodes[fixture_name]
         assert _is_fixture(node)
-        assert _uses_managed_context(node)
-        assert any(
-            isinstance(candidate, (ast.Yield, ast.YieldFrom)) for candidate in ast.walk(node)
-        )
+        assert _managed_context_yield_counts(node) == [1]
 
 
 def test_app_compatibility_provider_contains_no_fixtures_or_clients() -> None:
