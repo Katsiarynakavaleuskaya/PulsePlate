@@ -23,6 +23,22 @@ PR_TEMPLATE_PRODUCERS = [
     gates.REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
 ]
 
+
+def _write_valid_mapping_artifact(directory: Path, pr_number: int) -> None:
+    (directory / f"PR_{pr_number}_FIXED_MAPPING.md").write_text(
+        f"""# PR {pr_number} — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+- No actionable review comments
+""",
+        encoding="utf-8",
+    )
+
+
 VALID_BODY_WITH_MAPPING = """## Summary
 Phase2 PR body gate implementation.
 
@@ -149,6 +165,22 @@ def _cleanup_lane_start_packet(repo_root: Path) -> None:
 def test_phase2_guard_accepts_valid_mapping() -> None:
     errors = gates.check_pr_body_phase2_gates(body=VALID_BODY_WITH_MAPPING)
     assert errors == []
+
+
+@pytest.mark.parametrize(
+    ("body", "mode"),
+    [
+        (VALID_BODY_WITH_MAPPING, gates.BodyValidationMode.FULL_MAPPING),
+        (PRE_CLOSEOUT_BODY, gates.BodyValidationMode.PRE_CLOSEOUT),
+    ],
+)
+@pytest.mark.parametrize("prefix", ["    ", "<!-- guidance -->"])
+def test_phase2_guard_rejects_non_authoritative_proof(body, mode, prefix) -> None:
+    hidden = body.replace("\n- [", f"\n{prefix}- [").replace("\n- https", f"\n{prefix}- https")
+    errors = gates.check_pr_body_phase2_gates(body=hidden, mode=mode)
+    assert any("checklist item" in error.lower() for error in errors)
+    if mode is gates.BodyValidationMode.FULL_MAPPING:
+        assert any("Add at least one review-thread entry" in error for error in errors)
 
 
 def test_phase2_guard_accepts_url_only_entry() -> None:
@@ -387,6 +419,15 @@ def test_pre_closeout_template_inside_unmatched_fence_is_not_admitted() -> None:
     assert any("Missing required section" in error for error in errors)
 
 
+def test_backtick_in_fence_info_does_not_hide_phase2_contract() -> None:
+    errors = gates.check_pr_body_phase2_gates(
+        body=f"```bad`info\n{PRE_CLOSEOUT_BODY}",
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert errors == []
+
+
 def test_indented_fence_literal_cannot_erase_visible_stale_pending_status() -> None:
     body = VALID_BODY_MIRROR_ONLY.replace(
         "## Experiment Runner Evidence",
@@ -473,18 +514,7 @@ def test_pr_template_producers_closeout_use_exact_branch_link(
     pr_number = 2192
     repository = "Katsiarynakavaleuskaya/PulsePlate"
     head_ref = "codex/align-pr-template-body-gates"
-    (tmp_path / f"PR_{pr_number}_FIXED_MAPPING.md").write_text(
-        f"""# PR {pr_number} — Fixed in Commit Mapping
-
-## Discussion Thread Pass
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
-
-## Fixed in Commit Mapping
-- No actionable review comments
-""",
-        encoding="utf-8",
-    )
+    _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
     closeout_body = mapping_artifact.replace_phase2_body_mirror(
         template,
@@ -513,39 +543,32 @@ def test_pr_template_producers_closeout_use_exact_branch_link(
 
 
 @pytest.mark.parametrize(
-    ("anchor", "replacement"),
+    ("anchor", "replacement", "expected_suffix"),
     [
         (
             "Closeout automation must replace the entire Phase2 block",
             "## Hidden guidance heading\n"
             "Closeout automation must replace the entire Phase2 block",
+            "## Split justification",
         ),
         (
             "- URL→SHA and disposition details belong only in the canonical artifact.",
             "```\n## Fenced example heading\n```\n\n"
             "- URL→SHA and disposition details belong only in the canonical artifact.",
+            "## Split justification",
         ),
+        ("## Split justification", "## ", "## \n"),
     ],
 )
-def test_phase2_replacement_ignores_non_rendered_h2_boundaries(
+def test_phase2_replacement_uses_rendered_h2_boundaries(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     anchor: str,
     replacement: str,
+    expected_suffix: str,
 ) -> None:
     pr_number = 2192
-    (tmp_path / f"PR_{pr_number}_FIXED_MAPPING.md").write_text(
-        f"""# PR {pr_number} — Fixed in Commit Mapping
-
-## Discussion Thread Pass
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
-
-## Fixed in Commit Mapping
-- No actionable review comments
-""",
-        encoding="utf-8",
-    )
+    _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     body = template.replace(anchor, replacement)
@@ -568,6 +591,230 @@ def test_phase2_replacement_ignores_non_rendered_h2_boundaries(
     assert "## Hidden guidance heading" not in rendered
     assert "## Fenced example heading" not in rendered
     assert "Pending final clean scan" not in rendered
+    assert expected_suffix in rendered
+
+
+@pytest.mark.parametrize("indent", [" ", "  ", "   "])
+def test_phase2_gate_and_replacement_share_commonmark_heading_indentation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    indent: str,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Discussion Thread Pass",
+        f"{indent}## Discussion Thread Pass",
+        1,
+    ).replace(
+        "## Split justification",
+        f"{indent}## Split justification",
+        1,
+    )
+
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=body,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
+
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert f"{indent}## Split justification" in rendered
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=rendered,
+            mode=gates.BodyValidationMode.MIRROR_ONLY,
+        )
+        == []
+    )
+
+
+def test_phase2_four_space_code_heading_is_not_admitted() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Discussion Thread Pass",
+        "    ## Discussion Thread Pass",
+        1,
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert "Missing required section: `## Discussion Thread Pass`." in errors
+    with pytest.raises(ValueError, match="exactly one `## Discussion Thread Pass`"):
+        mapping_artifact.replace_phase2_body_mirror(
+            body,
+            2192,
+            repository="Katsiarynakavaleuskaya/PulsePlate",
+            ref="codex/align-pr-template-body-gates",
+        )
+
+
+def test_phase2_unmatched_html_comment_cannot_admit_hidden_contract() -> None:
+    body = """<!-- phase2-pre-closeout: final-security-pending -->
+<!--
+## Discussion Thread Pass
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- Pending final clean scan and the single mapping/closeout commit.
+
+## Split justification
+"""
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert "Missing required section: `## Discussion Thread Pass`." in errors
+    assert "Missing required section: `### Fixed in Commit Mapping`." in errors
+    with pytest.raises(ValueError, match="exactly one `## Discussion Thread Pass`"):
+        mapping_artifact.replace_phase2_body_mirror(
+            body,
+            2192,
+            repository="Katsiarynakavaleuskaya/PulsePlate",
+            ref="codex/align-pr-template-body-gates",
+        )
+
+
+def test_comment_prefixed_pseudo_h2_cannot_start_phase2() -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Discussion Thread Pass",
+        "<!-- guidance -->## Discussion Thread Pass",
+        1,
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=body,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert "Missing required section: `## Discussion Thread Pass`." in errors
+    with pytest.raises(ValueError, match="exactly one `## Discussion Thread Pass`"):
+        mapping_artifact.replace_phase2_body_mirror(
+            body,
+            2192,
+            repository="Katsiarynakavaleuskaya/PulsePlate",
+            ref="codex/align-pr-template-body-gates",
+        )
+
+
+@pytest.mark.parametrize(
+    ("pseudo_syntax", "expected_suffix"),
+    [
+        ("<!-- guidance -->## Split justification", "## Deferred / Follow-ups"),
+        ("<!-- guidance -->```\n## Split justification", "## Split justification"),
+        ("<!-- guidance -->~~~\n## Split justification", "## Split justification"),
+    ],
+)
+def test_comment_prefixed_pseudo_syntax_cannot_truncate_phase2(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    pseudo_syntax: str,
+    expected_suffix: str,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Split justification",
+        pseudo_syntax,
+        1,
+    )
+
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=body,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert pseudo_syntax.splitlines()[0] not in rendered
+    assert expected_suffix in rendered
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=rendered,
+            mode=gates.BodyValidationMode.MIRROR_ONLY,
+        )
+        == []
+    )
+
+
+def test_indented_code_comment_cannot_hide_next_h2(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Split justification",
+        "    <!--\n## Split justification\n-->",
+        1,
+    )
+
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert "## Split justification\n-->" in rendered
+
+
+def test_inline_comment_after_physical_h2_preserves_heading_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Discussion Thread Pass",
+        "## Discussion Thread Pass <!-- guidance -->",
+        1,
+    )
+
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=body,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
     assert "## Split justification" in rendered
 
 

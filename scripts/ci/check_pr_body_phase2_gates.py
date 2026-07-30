@@ -15,7 +15,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.orchestration.review_mapping_artifact import (
+    RenderedMarkdownLine,
+    is_rendered_markdown_heading,
     iter_unfenced_markdown_lines,
+    markdown_heading_level,
     read_mapping_artifact,
     validate_mapping_artifact_text,
 )
@@ -40,21 +43,11 @@ PHASE2_CONFIG = {
 }
 
 
-def _section_heading_re(level: str, title: str) -> re.Pattern[str]:
-    escaped = re.escape(title).replace(r"\ ", r"\s+")
-    return re.compile(rf"(?im)^\s*{level}\s+{escaped}\s*$")
-
-
 def _checkbox_re(label: str) -> re.Pattern[str]:
     escaped = re.escape(label)
     return re.compile(rf"(?im)^\s*-\s*\[(?P<checked>[ xX])\]\s*{escaped}\s*$")
 
 
-DISCUSSION_SECTION_RE = _section_heading_re("##", str(PHASE2_CONFIG["discussion_heading"]))
-MAPPING_SECTION_RE = _section_heading_re("###", str(PHASE2_CONFIG["mapping_heading"]))
-EXPERIMENT_RUNNER_SECTION_RE = _section_heading_re(
-    "##", str(PHASE2_CONFIG["experiment_runner_heading"])
-)
 DISCUSSION_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["discussion_checkbox_label"]))
 MAPPING_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["mapping_checkbox_label"]))
 
@@ -68,7 +61,6 @@ _PRE_CLOSEOUT_MARKER = str(PHASE2_CONFIG["pre_closeout_marker"])
 _PRE_CLOSEOUT_PENDING_TEXT = str(PHASE2_CONFIG["pre_closeout_pending_text"])
 _PRE_CLOSEOUT_MARKER_LINE = f"<!-- {_PRE_CLOSEOUT_MARKER} -->"
 _PRE_CLOSEOUT_PENDING_LINE = f"- {_PRE_CLOSEOUT_PENDING_TEXT}"
-HTML_COMMENT_RE = re.compile(r"(?s)<!--.*?-->")
 EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
     r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
 )
@@ -167,7 +159,7 @@ def _experiment_runner_evidence_mode(
 def _strip_fenced_code_blocks(text: str) -> str:
     """Remove Markdown fenced blocks, including an unmatched fence through EOF."""
 
-    return "".join(raw_line for _offset, raw_line, _visible in iter_unfenced_markdown_lines(text))
+    return "".join(line.raw_line for line in iter_unfenced_markdown_lines(text))
 
 
 def _contains_exact_line(text: str, expected_line: str) -> bool:
@@ -192,13 +184,22 @@ def _stale_pre_closeout_tokens(text: str) -> tuple[bool, bool]:
 def _normalize_phase2_body(text: str) -> str:
     """Remove non-authoritative Markdown content before Phase2 parsing."""
 
-    cleaned = _strip_fenced_code_blocks(text)
+    return "".join(_normalize_phase2_line(line) for line in iter_unfenced_markdown_lines(text))
 
-    def preserve_pre_closeout_marker(match: re.Match[str]) -> str:
-        comment = match.group(0)
-        return comment if comment == _PRE_CLOSEOUT_MARKER_LINE else ""
 
-    return HTML_COMMENT_RE.sub(preserve_pre_closeout_marker, cleaned)
+def _normalize_phase2_line(line: RenderedMarkdownLine) -> str:
+    """Normalize one globally classified Markdown line for Phase2 parsing."""
+
+    raw_content: str = line.raw_line.rstrip("\r\n")
+    line_ending: str = line.raw_line[len(raw_content) :]
+    normalized_content: str
+    if not line.starts_in_html_comment and raw_content == _PRE_CLOSEOUT_MARKER_LINE:
+        normalized_content = raw_content
+    elif not line.source_content_starts_visible:
+        normalized_content = ""
+    else:
+        normalized_content = line.visible_line
+    return normalized_content + line_ending
 
 
 def _extract_checked(match: re.Match[str] | None) -> bool:
@@ -249,26 +250,40 @@ def _extract_pr_body(event_path: Path) -> str:
 def _extract_markdown_section(
     text: str,
     *,
-    level: str,
+    level: int,
     title: str,
     stop_at_heading_level: int,
 ) -> str:
     """Return content of the last matching markdown section."""
-    matches = list(_section_heading_re(level, title).finditer(text))
-    if not matches:
+
+    lines = list(iter_unfenced_markdown_lines(text))
+    matching_lines = [
+        line for line in lines if is_rendered_markdown_heading(line, level=level, title=title)
+    ]
+    if not matching_lines:
         return ""
-    match = matches[-1]
-    start = match.end()
-    next_heading = re.search(rf"(?im)^\s*#{{1,{stop_at_heading_level}}}\s+", text[start:])
-    end = start + next_heading.start() if next_heading else len(text)
-    return text[start:end]
+    heading = matching_lines[-1]
+    start = heading.source_offset + len(heading.raw_line)
+    end = next(
+        (
+            line.source_offset
+            for line in lines
+            if line.source_offset >= start
+            and (heading_level := markdown_heading_level(line)) is not None
+            and heading_level <= stop_at_heading_level
+        ),
+        len(text),
+    )
+    return "".join(
+        _normalize_phase2_line(line) for line in lines if start <= line.source_offset < end
+    )
 
 
 def _extract_mapping_section(text: str) -> str:
     """Return content of the last ### Fixed in Commit Mapping section."""
     return _extract_markdown_section(
         text,
-        level="###",
+        level=3,
         title=str(PHASE2_CONFIG["mapping_heading"]),
         stop_at_heading_level=3,
     )
@@ -278,7 +293,7 @@ def _extract_section_by_h2(text: str, heading: str) -> str:
     """Return content of the last matching H2 section."""
     return _extract_markdown_section(
         text,
-        level="##",
+        level=2,
         title=heading,
         stop_at_heading_level=2,
     )
@@ -766,8 +781,25 @@ def check_pr_body_phase2_gates(
 
     d_heading = f"## {PHASE2_CONFIG['discussion_heading']}"
     m_heading = f"### {PHASE2_CONFIG['mapping_heading']}"
-    discussion_sections = list(DISCUSSION_SECTION_RE.finditer(cleaned))
-    mapping_sections = list(MAPPING_SECTION_RE.finditer(cleaned))
+    rendered_lines = list(iter_unfenced_markdown_lines(body))
+    discussion_sections = [
+        line
+        for line in rendered_lines
+        if is_rendered_markdown_heading(
+            line,
+            level=2,
+            title=str(PHASE2_CONFIG["discussion_heading"]),
+        )
+    ]
+    mapping_sections = [
+        line
+        for line in rendered_lines
+        if is_rendered_markdown_heading(
+            line,
+            level=3,
+            title=str(PHASE2_CONFIG["mapping_heading"]),
+        )
+    ]
     discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(cleaned))
     mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(cleaned))
     if not discussion_sections:
@@ -802,7 +834,7 @@ def check_pr_body_phase2_gates(
                     "Pre-closeout checklist item must remain unchecked until the "
                     f"canonical mapping/seal is published: `{label}`."
                 )
-        mapping_section = _extract_mapping_section(cleaned)
+        mapping_section = _extract_mapping_section(body)
         if not _contains_exact_line(mapping_section, _PRE_CLOSEOUT_PENDING_LINE):
             errors.append(
                 "Pre-closeout mapping section must declare the exact pending final scan "
@@ -838,7 +870,7 @@ def check_pr_body_phase2_gates(
             )
 
     if mode is BodyValidationMode.FULL_MAPPING:
-        mapping_section = _extract_mapping_section(cleaned)
+        mapping_section = _extract_mapping_section(body)
         has_mapping_entries = bool(
             MAPPING_ENTRY_RE.search(mapping_section) or THREAD_ENTRY_RE.search(mapping_section)
         )
@@ -970,16 +1002,24 @@ def main() -> int:
                 lane_start_seen = True
 
     if body.strip():
-        cleaned_body = _normalize_phase2_body(body)
         has_pre_closeout_marker, has_stale_pending_status = _stale_pre_closeout_tokens(body)
-        has_phase2_mirror = bool(
-            DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
+        has_phase2_mirror = any(
+            is_rendered_markdown_heading(
+                line,
+                level=level,
+                title=title,
+            )
+            for line in iter_unfenced_markdown_lines(body)
+            for level, title in (
+                (2, str(PHASE2_CONFIG["discussion_heading"])),
+                (3, str(PHASE2_CONFIG["mapping_heading"])),
+            )
         )
         has_experiment_runner_evidence = bool(
-            _extract_section_by_h2(cleaned_body, str(PHASE2_CONFIG["experiment_runner_heading"]))
+            _extract_section_by_h2(body, str(PHASE2_CONFIG["experiment_runner_heading"]))
         )
         has_lane_start_provenance = bool(
-            _extract_section_by_h2(cleaned_body, str(PHASE2_CONFIG["lane_start_heading"]))
+            _extract_section_by_h2(body, str(PHASE2_CONFIG["lane_start_heading"]))
         )
         if (
             not artifact_checked

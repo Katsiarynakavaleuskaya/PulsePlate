@@ -59,6 +59,23 @@ FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REVIEW_SEAL_VERSION_RE = re.compile(r"(?m)^Review-Seal-Version:\s*(\S+)\s*$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 MARKDOWN_FENCE_OPEN_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
+MARKDOWN_INDENTED_CODE_RE = re.compile(r"^(?: {4}| {0,3}\t)")
+MARKDOWN_HEADING_PREFIX_RE = re.compile(r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]+|$)")
+MARKDOWN_HEADING_RE = re.compile(
+    r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]+(?P<title>\S(?:.*\S)?)?[ \t]*|)$"
+)
+
+
+@dataclass(frozen=True)
+class RenderedMarkdownLine:
+    """One source line with Markdown comments and fences classified."""
+
+    source_offset: int
+    raw_line: str
+    visible_line: str
+    starts_in_html_comment: bool
+    source_content_starts_visible: bool
+    source_heading_level: int | None
 
 
 def _visible_line_without_html_comments(
@@ -88,8 +105,8 @@ def _visible_line_without_html_comments(
     return "".join(visible_parts), in_html_comment
 
 
-def iter_unfenced_markdown_lines(text: str) -> Iterator[tuple[int, str, str]]:
-    """Yield source offsets, raw lines, and rendered text outside fenced code."""
+def iter_unfenced_markdown_lines(text: str) -> Iterator[RenderedMarkdownLine]:
+    """Yield classified source lines outside fenced code."""
 
     offset = 0
     in_html_comment = False
@@ -97,6 +114,7 @@ def iter_unfenced_markdown_lines(text: str) -> Iterator[tuple[int, str, str]]:
     fence_length = 0
     for raw_line in text.splitlines(keepends=True):
         line = raw_line.rstrip("\r\n")
+        starts_in_html_comment = in_html_comment
         if fence_char:
             closing_fence = re.fullmatch(
                 rf" {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
@@ -108,18 +126,75 @@ def iter_unfenced_markdown_lines(text: str) -> Iterator[tuple[int, str, str]]:
             offset += len(raw_line)
             continue
 
-        visible_line, in_html_comment = _visible_line_without_html_comments(
-            line,
-            in_html_comment,
+        indented_code = not starts_in_html_comment and MARKDOWN_INDENTED_CODE_RE.match(line)
+        fence_open = (
+            None if starts_in_html_comment or indented_code else MARKDOWN_FENCE_OPEN_RE.match(line)
         )
-        fence_open = MARKDOWN_FENCE_OPEN_RE.match(visible_line)
+        if fence_open and fence_open.group("fence")[0] == "`" and "`" in line[fence_open.end() :]:
+            fence_open = None
         if fence_open:
             fence = fence_open.group("fence")
             fence_char = fence[0]
             fence_length = len(fence)
+            offset += len(raw_line)
+            continue
+
+        if indented_code:
+            visible_line = ""
         else:
-            yield offset, raw_line, visible_line
+            visible_line, in_html_comment = _visible_line_without_html_comments(
+                line,
+                in_html_comment,
+            )
+        heading_prefix = (
+            None
+            if starts_in_html_comment or indented_code
+            else MARKDOWN_HEADING_PREFIX_RE.match(line)
+        )
+        yield RenderedMarkdownLine(
+            source_offset=offset,
+            raw_line=raw_line,
+            visible_line=visible_line,
+            starts_in_html_comment=starts_in_html_comment,
+            source_content_starts_visible=(
+                not starts_in_html_comment
+                and not indented_code
+                and not line.lstrip(" \t").startswith("<!--")
+            ),
+            source_heading_level=(len(heading_prefix.group("marks")) if heading_prefix else None),
+        )
         offset += len(raw_line)
+
+
+def markdown_heading_level(line: RenderedMarkdownLine) -> int | None:
+    """Return a rendered CommonMark ATX heading level, or None."""
+
+    match = MARKDOWN_HEADING_RE.fullmatch(line.visible_line)
+    if (
+        match is None
+        or line.source_heading_level is None
+        or len(match.group("marks")) != line.source_heading_level
+    ):
+        return None
+    return line.source_heading_level
+
+
+def is_rendered_markdown_heading(
+    line: RenderedMarkdownLine,
+    *,
+    level: int,
+    title: str,
+) -> bool:
+    """Return whether one visible line is the exact rendered heading."""
+
+    match = MARKDOWN_HEADING_RE.fullmatch(line.visible_line)
+    normalized_title = re.sub(r"[ \t]+", " ", title.strip())
+    return bool(
+        match
+        and markdown_heading_level(line) == level
+        and match.group("title") is not None
+        and re.sub(r"[ \t]+", " ", match.group("title").strip()) == normalized_title
+    )
 
 
 def _is_valid_git_branch_ref(ref: str) -> bool:
@@ -732,20 +807,23 @@ def replace_phase2_body_mirror(
     """Replace exactly one complete Phase2 body block with the canonical mirror."""
 
     rendered_lines = list(iter_unfenced_markdown_lines(body))
-    start_pattern = re.compile(rf"{re.escape(DISCUSSION_THREAD_PASS_HEADING)}[ \t]*$")
     starts = [
-        (offset, raw_line)
-        for offset, raw_line, visible_line in rendered_lines
-        if start_pattern.fullmatch(visible_line)
+        line
+        for line in rendered_lines
+        if is_rendered_markdown_heading(
+            line,
+            level=2,
+            title=DISCUSSION_THREAD_PASS_HEADING.removeprefix("## "),
+        )
     ]
     if len(starts) != 1:
         raise ValueError("body must contain exactly one `## Discussion Thread Pass` Phase2 block")
-    start_offset, start_line = starts[0]
-    start_end = start_offset + len(start_line)
+    start_line = starts[0]
+    start_end = start_line.source_offset + len(start_line.raw_line)
     following_h2_offsets = [
-        offset
-        for offset, _raw_line, visible_line in rendered_lines
-        if offset >= start_end and re.fullmatch(r"##[ \t]+\S.*", visible_line)
+        line.source_offset
+        for line in rendered_lines
+        if line.source_offset >= start_end and markdown_heading_level(line) == 2
     ]
     if not following_h2_offsets:
         raise ValueError("Phase2 block must be followed by another H2 section")
@@ -755,4 +833,4 @@ def replace_phase2_body_mirror(
         repository=repository,
         ref=ref,
     )
-    return body[:start_offset] + mirror + "\n\n" + body[end:]
+    return body[: start_line.source_offset] + mirror + "\n\n" + body[end:]
