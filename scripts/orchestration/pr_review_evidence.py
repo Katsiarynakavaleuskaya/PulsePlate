@@ -256,7 +256,7 @@ SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _FINDING_SHORT_REF_PATTERN = r"[0-9a-f]{7,39}"
 _FINDING_ELLIPSIS_CARRIER_PATTERN = r"(?:\.{3}|…)"
-_FINDING_ASCII_HEX_CORE_RE = re.compile(r"[0-9A-Fa-f]{7,}")
+_FINDING_ASCII_HEX_CORE_RE = re.compile(r"[0-9A-Fa-f]+")
 _FINDING_VALID_SHORT_REF_TOKEN_RE = re.compile(
     rf"^(?P<short>{_FINDING_SHORT_REF_PATTERN}){_FINDING_ELLIPSIS_CARRIER_PATTERN}$"
 )
@@ -529,13 +529,21 @@ def _finding_sha_like_tokens(body: str) -> tuple[str, ...]:
         if start > 0 and _is_finding_atom_char(body[start - 1]):
             position = _finding_atom_end(body, core_end)
             continue
+        has_carrier = body.startswith("...", core_end) or body.startswith("…", core_end)
+        if core_end - start < 7 and not has_carrier:
+            position = (
+                _finding_atom_end(body, core_end)
+                if core_end < len(body) and _is_finding_atom_char(body[core_end])
+                else core_end
+            )
+            continue
         if core_end < len(body) and _is_finding_atom_char(body[core_end]):
             token_end = _finding_atom_end(body, core_end)
             tokens.append(body[start:token_end])
             position = token_end
             continue
         token_end = core_end
-        if body.startswith("...", core_end) or body.startswith("…", core_end):
+        if has_carrier:
             token_end = _finding_atom_end(body, core_end)
         tokens.append(body[start:token_end])
         position = token_end
