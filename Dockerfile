@@ -18,7 +18,7 @@ ARG SQLITE_AUTOCONF_SHA3_256_PART_7="d47e98ba"
 ARG SQLITE_AUTOCONF_SHA3_256_PART_8="1b72983b"
 
 # Stage 1: Build stage
-FROM python:3.13.13-slim-bookworm AS builder
+FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -156,7 +156,7 @@ PY
 # library into runtime-base. The tarball is prepared outside Docker by
 # scripts/ci/fetch_docker_source_artifacts.py so Docker builds do not perform
 # hidden live upstream downloads.
-FROM python:3.13.13-slim-bookworm AS sqlite-builder
+FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS sqlite-builder
 
 ARG SQLITE_AUTOCONF_VERSION
 ARG SQLITE_AUTOCONF_SHA3_256_PART_1
@@ -203,7 +203,7 @@ RUN tar -xzf /tmp/sqlite-autoconf.tar.gz -C /tmp \
 
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
-FROM python:3.13.13-slim-bookworm AS runtime-base
+FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS runtime-base
 
 # Re-declare build arg in this stage.
 ARG PIP_VERSION_RANGE
