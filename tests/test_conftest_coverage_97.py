@@ -72,26 +72,37 @@ def test_reset_environment_keyerror_direct_execution():
         pass
 
 
-def test_reset_sys_modules_line_60_execution(reset_sys_modules):
-    """Test execution of line 60 in reset_sys_modules fixture."""
-    if original_vip_module := sys.modules.get("app.routers.vip"):
-        del sys.modules["app.routers.vip"]
+def test_reset_sys_modules_line_60_execution(reset_sys_modules, monkeypatch):
+    """Keep the legacy fixture caller's VIP module override test-scoped."""
+    module_name = "app.routers.vip"
+    had_original = module_name in sys.modules
+    original_module = sys.modules.get(module_name)
 
-    # Add a VIP module during the test
-    sys.modules["app.routers.vip"] = MagicMock()
+    with monkeypatch.context() as module_patch:
+        replacement = MagicMock()
+        module_patch.setitem(sys.modules, module_name, replacement)
+        assert sys.modules[module_name] is replacement
+
+    assert (module_name in sys.modules) is had_original
+    if had_original:
+        assert sys.modules[module_name] is original_module
 
 
-def test_reset_sys_modules_with_original_vip(reset_sys_modules):
-    """Test reset_sys_modules fixture when there's an original VIP module."""
-    # The reset_sys_modules fixture is automatically applied
+def test_reset_sys_modules_with_original_vip(reset_sys_modules, monkeypatch):
+    """Keep a missing VIP module seed scoped to this legacy fixture caller."""
+    module_name = "app.routers.vip"
+    had_original = module_name in sys.modules
+    original_vip_module = sys.modules.get(module_name)
 
-    # Store original VIP module if it exists
-    original_vip_module = sys.modules.get("app.routers.vip")
-
-    # If there's no original VIP module, create one
     if not original_vip_module:
-        test_vip_module = ModuleType("app.routers.vip")
-        sys.modules["app.routers.vip"] = test_vip_module
+        with monkeypatch.context() as module_patch:
+            test_vip_module = ModuleType(module_name)
+            module_patch.setitem(sys.modules, module_name, test_vip_module)
+            assert sys.modules[module_name] is test_vip_module
+
+    assert (module_name in sys.modules) is had_original
+    if had_original:
+        assert sys.modules[module_name] is original_vip_module
 
 
 def test_reset_sys_modules_yield_coverage(reset_sys_modules):

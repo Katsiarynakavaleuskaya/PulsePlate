@@ -26,11 +26,13 @@ TESTCLIENT_SYMBOL = f"{FASTAPI_TESTCLIENT_MODULE}.TestClient"
 METRICS_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.MetricsAwareTestClient"
 OPEN_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.open_test_client"
 MAKE_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.make_test_client"
+GET_CLIENT_SYMBOL = f"{CLIENT_HELPERS_MODULE}.get_client"
 TRACKED_SYMBOLS = {
     TESTCLIENT_SYMBOL,
     METRICS_CLIENT_SYMBOL,
     OPEN_CLIENT_SYMBOL,
     MAKE_CLIENT_SYMBOL,
+    GET_CLIENT_SYMBOL,
 }
 TRACKED_MODULES = {
     "fastapi",
@@ -42,6 +44,7 @@ LOCAL_CLIENT_HELPERS = {
     "MetricsAwareTestClient": METRICS_CLIENT_SYMBOL,
     "open_test_client": OPEN_CLIENT_SYMBOL,
     "make_test_client": MAKE_CLIENT_SYMBOL,
+    "get_client": GET_CLIENT_SYMBOL,
 }
 
 
@@ -433,6 +436,53 @@ def test_raw_client_construction_has_one_provider_owner() -> None:
     assert violations == []
 
 
+def test_deprecated_client_factories_have_only_compatibility_owners() -> None:
+    violations: list[str] = []
+    allowed: list[str] = []
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(
+            self,
+            path: Path,
+            resolver: _BoundedModuleResolver,
+        ) -> None:
+            self.path = path
+            self.resolver = resolver
+            self.functions: list[str] = []
+
+        def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+            self.functions.append(node.name)
+            self.generic_visit(node)
+            self.functions.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self._visit_function(node)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self._visit_function(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_target = self.resolver.call_target(node)
+            if call_target == GET_CLIENT_SYMBOL:
+                violations.append(f"{self.path}:{node.lineno}")
+            elif call_target == MAKE_CLIENT_SYMBOL:
+                location = f"{self.path}:{node.lineno}"
+                if self.path == Path("tests/_client.py") and self.functions in (
+                    ["open_test_client"],
+                    ["get_client"],
+                ):
+                    allowed.append(location)
+                else:
+                    violations.append(location)
+            self.generic_visit(node)
+
+    for path, tree in _trees().items():
+        Visitor(path, _BoundedModuleResolver(path, tree)).visit(tree)
+
+    assert len(allowed) == 2
+    assert violations == []
+
+
 def test_managed_client_contract_and_fixture_ownership() -> None:
     trees = _trees()
     root_functions = _function_map(trees[Path("conftest.py")])
@@ -470,12 +520,15 @@ def test_bounded_resolver_recognizes_supported_client_reference_shapes() -> None
         """
 from fastapi.testclient import TestClient
 from tests._client import (
+    get_client,
     MetricsAwareTestClient,
     make_test_client,
     open_test_client,
 )
 TestClient(app)
 MetricsAwareTestClient(app)
+with get_client():
+    pass
 with open_test_client(app):
     pass
 with make_test_client(app):
@@ -484,10 +537,13 @@ with make_test_client(app):
         """
 from fastapi.testclient import TestClient as ImportedTestClient
 from tests._client import MetricsAwareTestClient as ImportedMetricsClient
+from tests._client import get_client as imported_getter
 from tests._client import make_test_client as imported_factory
 from tests._client import open_test_client as imported_manager
 ImportedTestClient(app)
 ImportedMetricsClient(app)
+with imported_getter():
+    pass
 with imported_manager(app):
     pass
 with imported_factory(app):
@@ -498,6 +554,8 @@ import fastapi.testclient as fastapi_clients
 import tests._client as client_helpers
 fastapi_clients.TestClient(app)
 client_helpers.MetricsAwareTestClient(app)
+with client_helpers.get_client():
+    pass
 with client_helpers.open_test_client(app):
     pass
 with client_helpers.make_test_client(app):
@@ -506,14 +564,18 @@ with client_helpers.make_test_client(app):
         """
 from fastapi.testclient import TestClient as ImportedTestClient
 from tests._client import MetricsAwareTestClient as ImportedMetricsClient
+from tests._client import get_client as imported_getter
 from tests._client import make_test_client as imported_factory
 from tests._client import open_test_client as imported_manager
 raw_alias = ImportedTestClient
 metrics_alias = ImportedMetricsClient
+getter_alias = imported_getter
 factory_alias = imported_factory
 managed_alias = imported_manager
 raw_alias(app)
 metrics_alias(app)
+with getter_alias():
+    pass
 with managed_alias(app):
     pass
 with factory_alias(app):
@@ -563,12 +625,15 @@ def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() ->
 import unrelated_clients as clients
 from unrelated_clients import MetricsAwareTestClient
 from unrelated_clients import TestClient
+from unrelated_clients import get_client
 from unrelated_clients import make_test_client
 from unrelated_clients import open_test_client
 clients.TestClient(app)
 clients.MetricsAwareTestClient(app)
 TestClient(app)
 MetricsAwareTestClient(app)
+with get_client():
+    pass
 with open_test_client(app):
     pass
 with make_test_client(app):
