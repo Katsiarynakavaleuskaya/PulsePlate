@@ -239,9 +239,16 @@ def open_test_client(
                 _reset_and_disable_limiter(limiter_instance)
 
         with make_test_client(app_instance, **kwargs) as client:
-            yield client
+            try:
+                yield client
+            except BaseException as error:
+                primary_error = (error, error.__traceback__)
     except BaseException as error:
-        primary_error = (error, error.__traceback__)
+        lifecycle_error = (error, error.__traceback__)
+        if primary_error is None:
+            primary_error = lifecycle_error
+        else:
+            cleanup_errors.append(lifecycle_error)
     finally:
         try:
             if app_instance.dependency_overrides is not overrides_owner:

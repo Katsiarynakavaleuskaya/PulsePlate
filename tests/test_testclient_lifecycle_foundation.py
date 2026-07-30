@@ -101,6 +101,21 @@ def test_open_test_client_closes_before_propagating_body_exception() -> None:
     assert events == ["startup", "shutdown"]
 
 
+def test_open_test_client_preserves_body_exception_when_shutdown_fails() -> None:
+    events: list[str] = []
+    shutdown_error = _ShutdownFailure("shutdown failed")
+    body_error = _BodyFailure("body failed")
+    app = _lifespan_app(events, shutdown_error=shutdown_error)
+
+    with pytest.raises(_BodyFailure) as raised:
+        with open_test_client(app):
+            raise body_error
+
+    assert raised.value is body_error
+    assert raised.value.__cause__ is shutdown_error
+    assert events == ["startup", "shutdown"]
+
+
 def test_open_test_client_restores_state_after_startup_exception() -> None:
     events: list[str] = []
     app = _lifespan_app(events, startup_error=_StartupFailure("startup failed"))
