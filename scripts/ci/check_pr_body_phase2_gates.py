@@ -603,8 +603,7 @@ def check_experiment_runner_evidence(
 
     if not artifact_matches and not na_matches:
         errors.append(
-            "Experiment Runner Evidence must include `Artifact: ...` or "
-            "`Not applicable: <reason>`."
+            "Experiment Runner Evidence must include `Artifact: ...` or `Not applicable: <reason>`."
         )
 
     return errors, []
@@ -801,8 +800,8 @@ def check_pr_body_phase2_gates(
             title=str(PHASE2_CONFIG["mapping_heading"]),
         )
     ]
-    discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(cleaned))
-    mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(cleaned))
+    discussion_checks: list[re.Match[str]] = []
+    mapping_checks: list[re.Match[str]] = []
     if not discussion_sections:
         errors.append(f"Missing required section: `{d_heading}`.")
     elif len(discussion_sections) > 1:
@@ -812,11 +811,33 @@ def check_pr_body_phase2_gates(
     elif len(mapping_sections) > 1:
         errors.append(f"Duplicate required section: `{m_heading}`.")
 
+    if len(discussion_sections) == 1 and len(mapping_sections) == 1:
+        discussion_start = discussion_sections[0].source_offset + len(
+            discussion_sections[0].raw_line
+        )
+        discussion_end = next(
+            (
+                line.source_offset
+                for line in rendered_lines
+                if line.source_offset >= discussion_start and markdown_heading_level(line) == 2
+            ),
+            len(body),
+        )
+        mapping_start = mapping_sections[0].source_offset
+        if discussion_start <= mapping_start < discussion_end:
+            checklist_text = _normalize_phase2_body(body[discussion_start:mapping_start])
+            discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(checklist_text))
+            mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(checklist_text))
+        else:
+            errors.append(f"`{m_heading}` must appear inside the `{d_heading}` Phase2 block.")
+
+    global_discussion_checks = list(DISCUSSION_CHECKBOX_RE.finditer(cleaned))
+    global_mapping_checks = list(MAPPING_CHECKBOX_RE.finditer(cleaned))
     discussion_check = discussion_checks[0] if discussion_checks else None
     mapping_check = mapping_checks[0] if mapping_checks else None
     for checks, label in (
-        (discussion_checks, str(PHASE2_CONFIG["discussion_checkbox_label"])),
-        (mapping_checks, str(PHASE2_CONFIG["mapping_checkbox_label"])),
+        (global_discussion_checks, str(PHASE2_CONFIG["discussion_checkbox_label"])),
+        (global_mapping_checks, str(PHASE2_CONFIG["mapping_checkbox_label"])),
     ):
         if len(checks) > 1:
             errors.append(f"Duplicate checklist item: `{label}`.")
@@ -853,8 +874,7 @@ def check_pr_body_phase2_gates(
         has_stale_marker, has_stale_pending = _stale_pre_closeout_tokens(body)
         if has_stale_marker:
             errors.append(
-                "Pre-closeout marker must be removed after the canonical mapping/seal is "
-                "published."
+                "Pre-closeout marker must be removed after the canonical mapping/seal is published."
             )
         if has_stale_pending:
             errors.append(

@@ -84,7 +84,10 @@ avoids a carrier-by-carrier Markdown parser.
 After closeout, either stale token is a Phase 2 body-gate error even when the
 artifact exists. The closeout command
 replaces the complete body block through `pr_review_closeout.py render-body`;
-callers do not splice individual lines.
+callers do not splice individual lines. Rendering requires a valid v1-sealed
+artifact and one ordered body block: the two checkboxes and nested
+`### Fixed in Commit Mapping` belong inside `## Discussion Thread Pass`.
+Headings inside raw HTML blocks are never replacement boundaries.
 
 The historical marker name is retained for wire compatibility only. It does
 not request, invoke, retry, wait for, or claim a Connector/Codex Security

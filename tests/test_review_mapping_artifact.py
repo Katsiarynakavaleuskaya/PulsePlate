@@ -33,6 +33,7 @@ def test_render_phase2_body_mirror_is_stable(
 ) -> None:
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
     monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(artifact, "review_seal_version", lambda _text: "v1")
     body = artifact.render_phase2_body_mirror(
         998, repository="org/repo", ref="codex/review-closeout"
     )
@@ -60,6 +61,7 @@ def test_render_phase2_body_mirror_encodes_valid_git_ref_characters(
 ) -> None:
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
     monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(artifact, "review_seal_version", lambda _text: "v1")
 
     body = artifact.render_phase2_body_mirror(998, repository="org/repo", ref=ref)
 
@@ -76,6 +78,19 @@ def test_render_phase2_body_mirror_fails_for_invalid_artifact(
     monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
 
     with pytest.raises(RuntimeError, match="Cannot render PR body mirror for PR #998"):
+        artifact.render_phase2_body_mirror(998, repository="org/repo", ref="main")
+
+
+def test_render_phase2_body_mirror_requires_v1_seal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(
+        FIXTURE_ARTIFACT,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+
+    with pytest.raises(RuntimeError, match="Review-Seal-Version v1 is required"):
         artifact.render_phase2_body_mirror(998, repository="org/repo", ref="main")
 
 
@@ -96,6 +111,7 @@ def test_render_phase2_body_mirror_rejects_unsafe_link_context(
 ) -> None:
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(FIXTURE_ARTIFACT, encoding="utf-8")
     monkeypatch.setattr(artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(artifact, "review_seal_version", lambda _text: "v1")
 
     with pytest.raises(ValueError):
         artifact.render_phase2_body_mirror(998, repository=repository, ref=ref)

@@ -285,8 +285,7 @@ def test_phase2_guard_rejects_stale_pending_status_in_final_modes(
     )
 
     assert errors == [
-        "Pre-closeout pending status must be removed after the canonical mapping/seal is "
-        "published."
+        "Pre-closeout pending status must be removed after the canonical mapping/seal is published."
     ]
 
 
@@ -522,6 +521,7 @@ def test_pr_template_producers_closeout_use_exact_branch_link(
     head_ref = "codex/align-pr-template-body-gates"
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
     assert (
         gates.check_pr_body_phase2_gates(
             body=template,
@@ -560,8 +560,7 @@ def test_pr_template_producers_closeout_use_exact_branch_link(
     [
         (
             "Closeout automation must replace the entire Phase2 block",
-            "## Hidden guidance heading\n"
-            "Closeout automation must replace the entire Phase2 block",
+            "## Hidden guidance heading\nCloseout automation must replace the entire Phase2 block",
             "## Split justification",
         ),
         (
@@ -583,6 +582,7 @@ def test_phase2_replacement_uses_rendered_h2_boundaries(
     pr_number = 2192
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     body = template.replace(anchor, replacement)
 
@@ -607,6 +607,76 @@ def test_phase2_replacement_uses_rendered_h2_boundaries(
     assert expected_suffix in rendered
 
 
+@pytest.mark.parametrize(
+    "raw_html",
+    [
+        "<pre>\n## Hidden raw heading\n</pre>",
+        "<div>\n## Hidden raw heading\n</div>\n",
+    ],
+)
+def test_phase2_replacement_ignores_h2_inside_raw_html_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    raw_html: str,
+) -> None:
+    pr_number = 2192
+    _write_valid_mapping_artifact(tmp_path, pr_number)
+    monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    body = template.replace(
+        "## Split justification",
+        f"{raw_html}\n## Split justification",
+        1,
+    )
+
+    assert (
+        gates.check_pr_body_phase2_gates(
+            body=body,
+            mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+        )
+        == []
+    )
+    rendered = mapping_artifact.replace_phase2_body_mirror(
+        body,
+        pr_number,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        ref="codex/align-pr-template-body-gates",
+    )
+
+    assert "## Hidden raw heading" not in rendered
+    assert "## Split justification" in rendered
+
+
+def test_phase2_gate_and_renderer_reject_mapping_before_discussion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
+    mapping_start = template.index("### Fixed in Commit Mapping")
+    mapping_end = template.index("## Split justification")
+    mapping_block = template[mapping_start:mapping_end]
+    without_mapping = template[:mapping_start] + template[mapping_end:]
+    discussion_start = without_mapping.index("## Discussion Thread Pass")
+    malformed = (
+        without_mapping[:discussion_start] + mapping_block + without_mapping[discussion_start:]
+    )
+
+    errors = gates.check_pr_body_phase2_gates(
+        body=malformed,
+        mode=gates.BodyValidationMode.PRE_CLOSEOUT,
+    )
+
+    assert any("must appear inside" in error for error in errors)
+    monkeypatch.setattr(mapping_artifact, "read_mapping_artifact", lambda _pr_number: "")
+    with pytest.raises(ValueError, match="must appear exactly once inside"):
+        mapping_artifact.replace_phase2_body_mirror(
+            malformed,
+            2192,
+            repository="owner/repo",
+            ref="codex/example",
+        )
+
+
 @pytest.mark.parametrize("indent", [" ", "  ", "   "])
 def test_phase2_gate_and_replacement_share_commonmark_heading_indentation(
     monkeypatch: pytest.MonkeyPatch,
@@ -616,6 +686,7 @@ def test_phase2_gate_and_replacement_share_commonmark_heading_indentation(
     pr_number = 2192
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     body = template.replace(
         "## Discussion Thread Pass",
@@ -744,6 +815,7 @@ def test_comment_prefixed_pseudo_syntax_cannot_truncate_phase2(
     pr_number = 2192
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     body = template.replace(
         "## Split justification",
@@ -783,6 +855,7 @@ def test_indented_code_comment_cannot_hide_next_h2(
     pr_number = 2192
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     body = template.replace(
         "## Split justification",
@@ -807,6 +880,7 @@ def test_inline_comment_after_physical_h2_preserves_heading_identity(
     pr_number = 2192
     _write_valid_mapping_artifact(tmp_path, pr_number)
     monkeypatch.setattr(mapping_artifact, "_review_dir", lambda: tmp_path)
+    monkeypatch.setattr(mapping_artifact, "review_seal_version", lambda _text: "v1")
     template = (gates.REPO_ROOT / ".github/pull_request_template.md").read_text(encoding="utf-8")
     body = template.replace(
         "## Discussion Thread Pass",

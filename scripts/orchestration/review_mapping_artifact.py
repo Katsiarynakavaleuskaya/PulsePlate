@@ -65,6 +65,10 @@ MARKDOWN_HEADING_PREFIX_RE = re.compile(r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]+|$)")
 MARKDOWN_HEADING_RE = re.compile(
     r"^ {0,3}(?P<marks>#{1,6})(?:[ \t]+(?P<title>\S(?:.*\S)?)?[ \t]*|)$"
 )
+MARKDOWN_RAW_HTML_TAG_RE = re.compile(
+    r"^ {0,3}</?(?P<tag>[A-Za-z][A-Za-z0-9-]*)(?=[ \t/>]|$)",
+)
+MARKDOWN_RAW_HTML_PERSISTENT_TAGS = frozenset({"pre", "script", "style", "textarea"})
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,26 @@ def _visible_line_without_html_comments(
     return "".join(visible_parts), in_html_comment
 
 
+def _raw_html_block_start(line: str) -> tuple[str, bool]:
+    """Return the terminator or blank-line mode for a raw HTML block."""
+
+    stripped = line.lstrip(" ")
+    if len(line) - len(stripped) > 3 or stripped.startswith("<!--"):
+        return "", False
+    if match := MARKDOWN_RAW_HTML_TAG_RE.match(line):
+        tag = match.group("tag").casefold()
+        if not stripped.startswith("</") and tag in MARKDOWN_RAW_HTML_PERSISTENT_TAGS:
+            return f"</{tag}", False
+        return "", True
+    if stripped.startswith("<?"):
+        return "?>", False
+    if stripped.startswith("<![CDATA["):
+        return "]]>", False
+    if re.match(r"^<![A-Z]", stripped):
+        return ">", False
+    return "", False
+
+
 def iter_unfenced_markdown_lines(text: str) -> Iterator[RenderedMarkdownLine]:
     """Yield classified source lines outside fenced code."""
 
@@ -113,8 +137,20 @@ def iter_unfenced_markdown_lines(text: str) -> Iterator[RenderedMarkdownLine]:
     in_html_comment = False
     fence_char = ""
     fence_length = 0
+    raw_html_terminator = ""
+    raw_html_until_blank = False
     for raw_line in text.splitlines(keepends=True):
         line = raw_line.rstrip("\r\n")
+        if raw_html_terminator:
+            if raw_html_terminator in line.casefold():
+                raw_html_terminator = ""
+            offset += len(raw_line)
+            continue
+        if raw_html_until_blank:
+            if not line.strip():
+                raw_html_until_blank = False
+            offset += len(raw_line)
+            continue
         starts_in_html_comment = in_html_comment
         if fence_char:
             closing_fence = re.fullmatch(
@@ -139,6 +175,15 @@ def iter_unfenced_markdown_lines(text: str) -> Iterator[RenderedMarkdownLine]:
             fence_length = len(fence)
             offset += len(raw_line)
             continue
+
+        if not starts_in_html_comment and not indented_code:
+            terminator, until_blank = _raw_html_block_start(line)
+            if terminator or until_blank:
+                if terminator and terminator not in line.casefold()[1:]:
+                    raw_html_terminator = terminator
+                raw_html_until_blank = until_blank
+                offset += len(raw_line)
+                continue
 
         if indented_code:
             visible_line = ""
@@ -773,6 +818,8 @@ def render_phase2_body_mirror(pr_number: int, *, repository: str, ref: str) -> s
 
     artifact_text = read_mapping_artifact(pr_number)
     errors = validate_mapping_artifact_text(artifact_text)
+    if not errors and review_seal_version(artifact_text) != "v1":
+        errors.append("Review-Seal-Version v1 is required before rendering closeout.")
     if errors:
         joined_errors = "; ".join(errors)
         raise RuntimeError(f"Cannot render PR body mirror for PR #{pr_number}: {joined_errors}")
@@ -829,6 +876,21 @@ def replace_phase2_body_mirror(
     if not following_h2_offsets:
         raise ValueError("Phase2 block must be followed by another H2 section")
     end = following_h2_offsets[0]
+    mapping_starts = [
+        line
+        for line in rendered_lines
+        if start_end <= line.source_offset < end
+        and is_rendered_markdown_heading(
+            line,
+            level=3,
+            title=FIXED_MAPPING_HEADINGS[1].removeprefix("### "),
+        )
+    ]
+    if len(mapping_starts) != 1:
+        raise ValueError(
+            "`### Fixed in Commit Mapping` must appear exactly once inside the "
+            "`## Discussion Thread Pass` block"
+        )
     mirror = render_phase2_body_mirror(
         pr_number,
         repository=repository,
