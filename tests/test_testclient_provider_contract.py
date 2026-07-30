@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import symtable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -201,42 +202,6 @@ class _BoundedModuleResolver:
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 self._bind_assignment([node.target], node.value, line=node.lineno)
 
-        for node in ast.walk(self.tree):
-            if not isinstance(
-                node,
-                (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda),
-            ):
-                continue
-            for argument in self._argument_nodes(node.args):
-                if argument.arg in self.bindings:
-                    self._record_unsupported_carrier(
-                        argument.lineno,
-                        "tracked_lexical_rebinding",
-                    )
-
-        for node in ast.walk(self.tree):
-            if not isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
-                continue
-            for name in self._name_targets(node.target):
-                if name in self.bindings:
-                    self._record_unsupported_carrier(
-                        node.target.lineno,
-                        "tracked_lexical_rebinding",
-                    )
-
-    @staticmethod
-    def _argument_nodes(arguments: ast.arguments) -> list[ast.arg]:
-        nodes = [
-            *arguments.posonlyargs,
-            *arguments.args,
-            *arguments.kwonlyargs,
-        ]
-        if arguments.vararg is not None:
-            nodes.append(arguments.vararg)
-        if arguments.kwarg is not None:
-            nodes.append(arguments.kwarg)
-        return nodes
-
     def resolve(self, node: ast.AST) -> _Binding | None:
         if isinstance(node, ast.Name):
             return self.bindings.get(node.id)
@@ -333,35 +298,148 @@ def _function_map(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunc
     }
 
 
-def _with_calls(
-    function: ast.FunctionDef | ast.AsyncFunctionDef,
-    resolver: _BoundedModuleResolver,
-) -> set[str]:
-    targets: set[str] = set()
-    shadowed_names = {argument.arg for argument in resolver._argument_nodes(function.args)}
-    for node in ast.walk(function):
-        if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
-            shadowed_names.update(resolver._name_targets(node.target))
-    for node in ast.walk(function):
-        if not isinstance(node, (ast.With, ast.AsyncWith)):
-            continue
-        for item in node.items:
-            for child in ast.walk(item.context_expr):
-                if isinstance(child, ast.Lambda):
-                    shadowed_names.update(
-                        argument.arg for argument in resolver._argument_nodes(child.args)
-                    )
-            for child in ast.walk(item.context_expr):
-                if isinstance(child, ast.Call):
-                    call_owner = child.func
-                    while isinstance(call_owner, ast.Attribute):
-                        call_owner = call_owner.value
-                    if isinstance(call_owner, ast.Name) and call_owner.id in shadowed_names:
-                        continue
-                    call_target = resolver.call_target(child)
-                    if call_target is not None:
-                        targets.add(call_target)
+def _top_level_import_targets(tree: ast.Module, bound_name: str) -> list[str]:
+    targets: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                runtime_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+                if runtime_name == bound_name:
+                    targets.append(alias.name if alias.asname else runtime_name)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            for alias in node.names:
+                if (alias.asname or alias.name) == bound_name:
+                    targets.append(f"{node.module}.{alias.name}")
     return targets
+
+
+def _tracked_root_name(node: ast.AST) -> str | None:
+    while isinstance(node, (ast.Attribute, ast.Subscript)):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _direct_fixture_with_targets(
+    source: str,
+    *,
+    path: Path,
+    function_name: str,
+    owner_name: str,
+    owner_target: str,
+    attribute_name: str | None,
+    call_target: str,
+) -> list[str]:
+    """Credit only one compiler-stable direct provider call shape.
+
+    Arbitrary alias/import/reflection semantics are intentionally outside this
+    finite TC1 guard. PR-TC2 owns the whole-tree migration and final guard.
+    """
+
+    tree = ast.parse(source, filename=str(path))
+    functions = _function_map(tree)
+    function = functions[function_name]
+    module_table = symtable.symtable(source, str(path), "exec")
+
+    try:
+        module_symbol = module_table.lookup(owner_name)
+    except KeyError:
+        return []
+
+    if owner_target == CLIENT_HELPERS_MODULE:
+        if _top_level_import_targets(tree, owner_name) != [owner_target]:
+            return []
+        if not module_symbol.is_imported() or module_symbol.is_assigned():
+            return []
+    elif (
+        path != Path("tests/_client.py")
+        or LOCAL_CLIENT_HELPERS.get(owner_name) != owner_target
+        or not module_symbol.is_namespace()
+    ):
+        return []
+
+    function_tables = [
+        table
+        for table in module_table.get_children()
+        if table.get_type() == "function"
+        and table.get_name() == function_name
+        and table.get_lineno() == function.lineno
+    ]
+    if len(function_tables) != 1:
+        return []
+
+    try:
+        owner_symbol = function_tables[0].lookup(owner_name)
+    except KeyError:
+        return []
+    if (
+        not owner_symbol.is_global()
+        or not owner_symbol.is_referenced()
+        or owner_symbol.is_assigned()
+        or owner_symbol.is_declared_global()
+        or owner_symbol.is_imported()
+        or owner_symbol.is_nonlocal()
+        or owner_symbol.is_parameter()
+    ):
+        return []
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.targets: list[str] = []
+            self.tracked_root_mutated = False
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            return
+
+        def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
+            for item in node.items:
+                context = item.context_expr
+                if not isinstance(context, ast.Call):
+                    continue
+                if attribute_name is None:
+                    direct_call = (
+                        isinstance(context.func, ast.Name) and context.func.id == owner_name
+                    )
+                else:
+                    direct_call = (
+                        isinstance(context.func, ast.Attribute)
+                        and context.func.attr == attribute_name
+                        and isinstance(context.func.value, ast.Name)
+                        and context.func.value.id == owner_name
+                    )
+                if direct_call:
+                    self.targets.append(call_target)
+            self.generic_visit(node)
+
+        def visit_With(self, node: ast.With) -> None:
+            self._visit_with(node)
+
+        def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+            self._visit_with(node)
+
+        def visit_Attribute(self, node: ast.Attribute) -> None:
+            if isinstance(node.ctx, (ast.Store, ast.Del)) and (
+                _tracked_root_name(node) == owner_name
+            ):
+                self.tracked_root_mutated = True
+            self.generic_visit(node)
+
+        def visit_Subscript(self, node: ast.Subscript) -> None:
+            if isinstance(node.ctx, (ast.Store, ast.Del)) and (
+                _tracked_root_name(node) == owner_name
+            ):
+                self.tracked_root_mutated = True
+            self.generic_visit(node)
+
+    visitor = Visitor()
+    for statement in function.body:
+        visitor.visit(statement)
+    return [] if visitor.tracked_root_mutated else visitor.targets
 
 
 def _resolved_call_targets(
@@ -540,29 +618,34 @@ def test_managed_client_contract_and_fixture_ownership() -> None:
     root_functions = _function_map(trees[Path("conftest.py")])
     shared_functions = _function_map(trees[Path("tests/conftest.py")])
     client_functions = _function_map(trees[Path("tests/_client.py")])
-    shared_resolver = _BoundedModuleResolver(
-        Path("tests/conftest.py"),
-        trees[Path("tests/conftest.py")],
-    )
-    client_resolver = _BoundedModuleResolver(
-        Path("tests/_client.py"),
-        trees[Path("tests/_client.py")],
-    )
+    shared_source = Path("tests/conftest.py").read_text(encoding="utf-8")
+    client_source = Path("tests/_client.py").read_text(encoding="utf-8")
 
     assert ROOT_FORBIDDEN_FIXTURES.isdisjoint(root_functions)
     assert SHARED_CLIENT_FIXTURES <= set(shared_functions)
     assert "open_test_client" in client_functions
-    assert MAKE_CLIENT_SYMBOL in _with_calls(
-        client_functions["open_test_client"],
-        client_resolver,
-    )
+    assert _direct_fixture_with_targets(
+        client_source,
+        path=Path("tests/_client.py"),
+        function_name="open_test_client",
+        owner_name="make_test_client",
+        owner_target=MAKE_CLIENT_SYMBOL,
+        attribute_name=None,
+        call_target=MAKE_CLIENT_SYMBOL,
+    ) == [MAKE_CLIENT_SYMBOL]
 
     unmanaged: list[str] = []
     for fixture_name in sorted(SHARED_CLIENT_FIXTURES):
-        if OPEN_CLIENT_SYMBOL not in _with_calls(
-            shared_functions[fixture_name],
-            shared_resolver,
-        ):
+        targets = _direct_fixture_with_targets(
+            shared_source,
+            path=Path("tests/conftest.py"),
+            function_name=fixture_name,
+            owner_name="test_client_helpers",
+            owner_target=CLIENT_HELPERS_MODULE,
+            attribute_name="open_test_client",
+            call_target=OPEN_CLIENT_SYMBOL,
+        )
+        if targets != [OPEN_CLIENT_SYMBOL]:
             unmanaged.append(fixture_name)
     assert unmanaged == []
 
@@ -672,71 +755,145 @@ from tests._client import open_test_client as TestClient
         assert unsupported[0][1] == "tracked_binding_rebound"
 
 
-def test_bounded_resolver_fails_closed_for_lexical_shadowing() -> None:
-    function_parameter_source = """
-from tests._client import open_test_client
-def client(open_test_client):
-    with open_test_client(app):
-        pass
+def test_direct_fixture_guard_uses_compiler_scope_for_one_exact_call_shape() -> None:
+    def targets(source: str) -> list[str]:
+        return _direct_fixture_with_targets(
+            source,
+            path=Path("tests/conftest.py"),
+            function_name="client",
+            owner_name="test_client_helpers",
+            owner_target=CLIENT_HELPERS_MODULE,
+            attribute_name="open_test_client",
+            call_target=OPEN_CLIENT_SYMBOL,
+        )
+
+    direct_source = """
+from tests import _client as test_client_helpers
+def client(app):
+    with test_client_helpers.open_test_client(app) as managed_client:
+        yield managed_client
 """
-    lambda_parameter_source = """
-import tests._client as client_helpers
-def client():
-    with (lambda client_helpers: client_helpers.open_test_client(app))(raw_client):
-        pass
-"""
-
-    for source in (function_parameter_source, lambda_parameter_source):
-        tree = ast.parse(source)
-        resolver = _BoundedModuleResolver(Path("tests/conftest.py"), tree)
-        function = _function_map(tree)["client"]
-
-        assert _with_calls(function, resolver) == set()
-        unsupported = resolver.unsupported_carriers()
-        assert len(unsupported) == 1
-        assert unsupported[0][1] == "tracked_lexical_rebinding"
-
-
-def test_bounded_resolver_fails_closed_for_loop_target_shadowing() -> None:
-    loop_target_source = """
-from tests._client import open_test_client
+    nested_scope_source = """
+from tests import _client as test_client_helpers
 def client(app, managers):
-    for open_test_client in managers:
-        with open_test_client(app):
-            yield
+    def nested(test_client_helpers):
+        return test_client_helpers
+    local_values = [test_client_helpers for test_client_helpers in managers]
+    with test_client_helpers.open_test_client(app) as managed_client:
+        yield managed_client, nested, local_values
 """
-    comprehension_target_source = """
-from tests._client import open_test_client
-def client(app, managers):
-    with next(open_test_client(app) for open_test_client in managers):
+
+    invalid_sources = (
+        """
+from tests import _client as test_client_helpers
+def client(app, test_client_helpers):
+    with test_client_helpers.open_test_client(app):
         yield
-"""
-    unrelated_target_source = """
-from tests._client import open_test_client
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    with test_client_helpers.open_test_client(app):
+        yield
+    test_client_helpers = object()
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app, manager):
+    with manager as test_client_helpers:
+        pass
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
 def client(app, managers):
-    for manager in managers:
-        with open_test_client(app):
+    for test_client_helpers in managers:
+        with test_client_helpers.open_test_client(app):
             yield
-"""
-
-    for source in (loop_target_source, comprehension_target_source):
-        tree = ast.parse(source)
-        resolver = _BoundedModuleResolver(Path("tests/conftest.py"), tree)
-        function = _function_map(tree)["client"]
-
-        assert _with_calls(function, resolver) == set()
-        unsupported = resolver.unsupported_carriers()
-        assert len(unsupported) == 1
-        assert unsupported[0][1] == "tracked_lexical_rebinding"
-
-    unrelated_tree = ast.parse(unrelated_target_source)
-    unrelated_resolver = _BoundedModuleResolver(
-        Path("tests/conftest.py"),
-        unrelated_tree,
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app, manager):
+    if (test_client_helpers := manager):
+        pass
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    try:
+        pass
+    except Exception as test_client_helpers:
+        pass
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    def test_client_helpers():
+        pass
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    from tests import _client as test_client_helpers
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    global test_client_helpers
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    with test_client_helpers.open_test_client(app):
+        yield
+    del test_client_helpers
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app, value):
+    match value:
+        case test_client_helpers:
+            pass
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app, manager):
+    test_client_helpers.open_test_client = manager
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app, manager):
+    test_client_helpers["open_test_client"] = manager
+    with test_client_helpers.open_test_client(app):
+        yield
+""",
+        """
+from tests import _client as test_client_helpers
+def client(app):
+    manager = test_client_helpers.open_test_client
+    with manager(app):
+        yield
+""",
     )
-    unrelated_function = _function_map(unrelated_tree)["client"]
-    assert _with_calls(unrelated_function, unrelated_resolver) == {OPEN_CLIENT_SYMBOL}
-    assert unrelated_resolver.unsupported_carriers() == []
+
+    assert targets(direct_source) == [OPEN_CLIENT_SYMBOL]
+    assert targets(nested_scope_source) == [OPEN_CLIENT_SYMBOL]
+    assert all(targets(source) == [] for source in invalid_sources)
 
 
 def test_bounded_resolver_ignores_unrelated_names_and_flags_two_hop_aliases() -> None:

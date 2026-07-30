@@ -37,3 +37,8 @@ PR-TC2 mechanically replaces direct construction with one of:
 - Prefer per-test client creation/closure to avoid shared state.
 - TC1's four-provider AST guard is intentionally finite; it is not a
   whole-tree migration claim.
+- TC1 credits only the direct module-qualified fixture call and the direct
+  local helper call. CPython `symtable` owns lexical-name stability; this guard
+  does not model dynamic imports, reflection, or arbitrary runtime mutation.
+  PR-TC2 owns the final whole-tree guard after the compatibility bridge is
+  removed.
