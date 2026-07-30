@@ -74,8 +74,18 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
             and node.slice.value == "legacy_app"
         )
 
-    def _record(self, node: ast.AST, symbol: str) -> None:
+    def _record(self, node: ast.expr | ast.stmt, symbol: str) -> None:
         self.accesses.add((self.scope, symbol, node.lineno))
+
+    def _bind_legacy_aliases(self, target: ast.expr, value: ast.expr | None) -> None:
+        if value is None:
+            return
+        if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
+            for target_item, value_item in zip(target.elts, value.elts, strict=False):
+                self._bind_legacy_aliases(target_item, value_item)
+            return
+        if self._is_legacy_module(value):
+            self.aliases.update(name.id for name in ast.walk(target) if isinstance(name, ast.Name))
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         previous_scope, previous_aliases = self.scope, self.aliases
@@ -101,11 +111,12 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
                     self._record(node, alias.name)
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        if self._is_legacy_module(node.value):
-            for target in node.targets:
-                self.aliases.update(
-                    name.id for name in ast.walk(target) if isinstance(name, ast.Name)
-                )
+        for target in node.targets:
+            self._bind_legacy_aliases(target, node.value)
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._bind_legacy_aliases(node.target, node.value)
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
@@ -147,6 +158,22 @@ def _legacy_runtime_accesses(source: str) -> set[tuple[str, str, int]]:
     visitor = _LegacyRuntimeAccessVisitor()
     visitor.visit(ast.parse(source))
     return visitor.accesses
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "legacy: object = resolve_legacy_app()\nlegacy._execute_insight_request\n",
+        "legacy, other = resolve_legacy_app(), None\nlegacy._execute_insight_request\n",
+        "[legacy, other] = [resolve_legacy_app(), None]\nlegacy._execute_insight_request\n",
+        (
+            "(other, [legacy, tail]) = (None, [resolve_legacy_app(), None])\n"
+            "legacy._execute_insight_request\n"
+        ),
+    ],
+)
+def test_legacy_runtime_access_visitor_detects_assignment_carrier_class(source: str) -> None:
+    assert _legacy_runtime_accesses(source) == {("<module>", "_execute_insight_request", 2)}
 
 
 def test_canonical_insight_modules_do_not_depend_on_legacy_app() -> None:
@@ -200,7 +227,7 @@ def test_legacy_app_no_longer_defines_insight_models_or_dead_helpers() -> None:
 def test_insight_router_response_models_are_canonical(app: FastAPI) -> None:
     for path in ("/api/v1/insight", "/insight"):
         route = find_single_route(app, path, "POST", family_label="legacy insight")
-        assert route.response_model is insight_schemas.InsightResponse
+        assert getattr(route, "response_model", None) is insight_schemas.InsightResponse
 
 
 def test_insight_runtime_tests_use_only_allowed_legacy_compat_accesses() -> None:
