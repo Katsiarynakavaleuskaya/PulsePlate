@@ -796,6 +796,25 @@ def test_cli_build_and_validate_accept_contained_inputs(
     assert creative_code_terminal_outcome.SUCCESS_VALIDATE_OUTPUT in capsys.readouterr().out
 
 
+def test_validate_cli_rejects_noncanonical_outcome_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    terminal_root = tmp_path / "terminal_outcomes"
+    misplaced = terminal_root / "misplaced-outcome" / creative_code_terminal_outcome.OUTCOME_FILE
+    misplaced.parent.mkdir(parents=True)
+    misplaced.write_bytes(canonical_json_bytes(_outcome()))
+
+    assert (
+        creative_code_terminal_outcome.main(
+            ["validate", "--outcome", str(misplaced)],
+            terminal_outcomes_root=terminal_root,
+        )
+        == 1
+    )
+    assert "terminal_outcome_noncanonical_path" in capsys.readouterr().out
+
+
 def test_build_inputs_reject_absolute_outside_and_traversal_paths(
     tmp_path: Path,
 ) -> None:
@@ -1070,20 +1089,30 @@ def test_runtime_and_schema_closed_shape_finite_implication_alignment() -> None:
             or "post_merge_observation" in clause.get("if", {}).get("properties", {})
         )
     ]
-    assert len(post_merge_implications) == 5
+    assert len(post_merge_implications) == 6
     assert post_merge_implications[0]["then"]["properties"]["post_merge_observation"] == {
         "const": "evidence_unavailable"
     }
-    assert post_merge_implications[1]["then"]["properties"]["post_merge_observation"] == {
+    successful_zero_command_ci = post_merge_implications[1]
+    assert successful_zero_command_ci["if"]["properties"]["post_merge_evidence"]["properties"] == {
+        "commands_configured": {"const": 0},
+        "commands_executed": {"const": 0},
+        "commands_passed": {"const": 0},
+        "current_main_ci": {"const": "success"},
+    }
+    assert successful_zero_command_ci["then"]["properties"]["post_merge_observation"] == {
+        "const": "complete_observed"
+    }
+    assert post_merge_implications[2]["then"]["properties"]["post_merge_observation"] == {
         "const": "incomplete_observed"
     }
-    assert post_merge_implications[2]["then"]["properties"]["post_merge_evidence"]["properties"][
+    assert post_merge_implications[3]["then"]["properties"]["post_merge_evidence"]["properties"][
         "validation_inventory_fingerprint"
     ] == {"$ref": "#/$defs/sha256"}
-    assert post_merge_implications[3]["then"]["properties"]["post_merge_evidence"]["properties"][
+    assert post_merge_implications[4]["then"]["properties"]["post_merge_evidence"]["properties"][
         "current_main_ci"
     ] == {"enum": ["success", "not_observed"]}
-    assert post_merge_implications[4]["then"]["properties"]["post_merge_evidence"][
+    assert post_merge_implications[5]["then"]["properties"]["post_merge_evidence"][
         "properties"
     ] == {
         "commands_configured": {"const": 0},

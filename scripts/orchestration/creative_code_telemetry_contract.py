@@ -398,6 +398,14 @@ V2_POST_MERGE_OBSERVATIONS = frozenset(
     }
 )
 V2_TERMINAL_STATUSES = frozenset({"merged", "closed_unmerged"})
+V2_ROLLUP_CAVEATS = frozenset(
+    {
+        "local_only",
+        "not_merge_readiness_evidence",
+        "not_product_runtime_truth",
+        "terminal_observation_only",
+    }
+)
 V2_ROLLUP_KEYS = frozenset(
     {
         "schema_version",
@@ -1668,6 +1676,19 @@ def _normalize_v2_rollup_cost(raw_cost: Any) -> dict[str, int | None]:
     }
 
 
+def _normalize_v2_caveats(raw_caveats: Any) -> list[str]:
+    caveats = _normalize_safe_string_list(
+        raw_caveats,
+        label="caveats",
+        allow_empty=False,
+    )
+    if any(caveat not in V2_ROLLUP_CAVEATS for caveat in caveats):
+        raise CreativeCodeTelemetryContractError(
+            "caveats must use the closed v2 rollup vocabulary."
+        )
+    return caveats
+
+
 def _validate_v2_legacy_aggregates(
     *,
     legacy_event_count: int,
@@ -1962,11 +1983,7 @@ def validate_creative_code_telemetry_rollup_v2(
         "source_artifacts": _normalize_v2_source_rows(payload.get("source_artifacts")),
         "terminal": terminal,
         "cost": _normalize_v2_rollup_cost(payload.get("cost")),
-        "caveats": _normalize_safe_string_list(
-            payload.get("caveats"),
-            label="caveats",
-            allow_empty=False,
-        ),
+        "caveats": _normalize_v2_caveats(payload.get("caveats")),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
     }
     if normalized["event_count"] != sum(normalized["events_by_stage"].values()):

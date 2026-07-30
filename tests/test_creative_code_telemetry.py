@@ -976,6 +976,23 @@ def test_v2_rollup_requires_terminal_source_partition() -> None:
         validate_creative_code_telemetry_rollup_any(rollup)
 
 
+def test_v2_rollup_rejects_open_world_caveat() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup["caveats"] = ["mergeable"]
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="closed v2 rollup vocabulary",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
 @pytest.mark.parametrize(
     ("section", "key", "value"),
     [

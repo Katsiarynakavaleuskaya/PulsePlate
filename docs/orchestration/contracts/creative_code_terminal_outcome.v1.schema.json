@@ -577,6 +577,36 @@
           "terminal_state": { "const": "merged" },
           "post_merge_evidence": {
             "properties": {
+              "commands_configured": { "const": 0 },
+              "commands_executed": { "const": 0 },
+              "commands_passed": { "const": 0 },
+              "current_main_ci": { "const": "success" }
+            },
+            "required": [
+              "commands_configured",
+              "commands_executed",
+              "commands_passed",
+              "current_main_ci"
+            ]
+          }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_evidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_observation": { "const": "complete_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_evidence": {
+            "properties": {
               "current_main_ci": { "const": "failure" }
             },
             "required": ["current_main_ci"]

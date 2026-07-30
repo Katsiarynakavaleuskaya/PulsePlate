@@ -476,7 +476,12 @@ PR-0 is a contract-only start point.
 - Terminal outcome envelope: continue a validated PR-3 `pr_open` lineage
   through exactly one local terminal carrier and one v2 `pr_terminal`
   projection. Preserve all v1 telemetry schemas/identities and the no-terminal
-  collector path unchanged. This is not Pilot 3, OCW, or a product hypothesis.
+  collector path unchanged. Its containment, regular-file, no-replace, and
+  replay checks assume cooperative local artifact users; they do not promise
+  permanent pathname stability against an uncooperative same-UID process.
+  Descriptor-relative hostile-process hardening is a separate reviewed
+  portability and threat-model lane. This is not Pilot 3, OCW, or a product
+  hypothesis.
 - PR-5: add local review-disposition integration through
   `CreativeCodeReviewFeedbackRecord` -> `CreativeCodeReviewDispositionPacket`
   -> `CreativeCodeRepairLaunchPacket`; no review-thread resolution,

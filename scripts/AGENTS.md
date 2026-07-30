@@ -200,7 +200,12 @@
   change workflows, or add probability/cognitive state. Identical replay is
   no-write; divergent replay preserves the original artifact. Existing v1
   telemetry schemas, identities, readers, and no-terminal collector output
-  remain unchanged.
+  remain unchanged. Terminal input and publication hardening assumes cooperative
+  local artifact users: it rejects traversal, symlinks, non-regular files, and
+  replacement of the canonical file, but does not promise pathname stability
+  against an uncooperative same-UID process between checks. Descriptor-relative
+  hostile-process hardening requires a separate reviewed portability and threat-
+  model lane.
 - PR-5 creative-code review-disposition artifacts stay local under
   `artifacts/orchestration/creative_code/review_disposition/`. The
   `creative_code_review_disposition.py` CLI may only read sanitized

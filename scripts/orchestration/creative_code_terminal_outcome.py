@@ -391,12 +391,22 @@ def main(
             replay = "identical" if replayed else "new"
             print(f"{SUCCESS_BUILD_OUTPUT}: outcome_id={outcome['outcome_id']} replay={replay}")
             return 0
+        outcome_path = Path(args.outcome)
         outcome = _read_regular_json(
-            Path(args.outcome),
+            outcome_path,
             label="terminal_outcome",
             allowed_root=outcome_root,
         )
-        validate_creative_code_terminal_outcome(outcome)
+        normalized = validate_creative_code_terminal_outcome(outcome)
+        resolved_outcome = _resolve_contained_input(
+            outcome_path,
+            label="terminal_outcome",
+            allowed_root=outcome_root,
+        )
+        root_path = outcome_root if outcome_root.is_absolute() else Path.cwd() / outcome_root
+        canonical_outcome = root_path.resolve(strict=True) / normalized["outcome_id"] / OUTCOME_FILE
+        if resolved_outcome != canonical_outcome:
+            raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_noncanonical_path")
     except (CreativeCodeTerminalOutcomeError, CreativeCodeTerminalOutcomeIOError) as exc:
         print(f"FAIL: {exc}")
         return 1
