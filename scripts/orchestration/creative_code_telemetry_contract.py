@@ -1670,8 +1670,11 @@ def _normalize_v2_rollup_cost(raw_cost: Any) -> dict[str, int | None]:
 
 def _validate_v2_legacy_aggregates(
     *,
+    legacy_event_count: int,
     funnel: Mapping[str, int],
     rates: Mapping[str, int | None],
+    rejections_by_class: Mapping[str, int],
+    failures_by_class: Mapping[str, int],
     events_by_stage: Mapping[str, int],
     events_by_status: Mapping[str, int],
 ) -> None:
@@ -1741,6 +1744,14 @@ def _validate_v2_legacy_aggregates(
     }
     if any(rates[key] != expected for key, expected in expected_rates.items()):
         raise CreativeCodeTelemetryContractError("legacy rates do not match legacy funnel counts.")
+    if sum(rejections_by_class.values()) > legacy_event_count:
+        raise CreativeCodeTelemetryContractError(
+            "legacy rejection aggregates exceed represented legacy events."
+        )
+    if sum(failures_by_class.values()) > legacy_event_count:
+        raise CreativeCodeTelemetryContractError(
+            "legacy failure aggregates exceed represented legacy events."
+        )
 
 
 def build_creative_code_telemetry_rollup_v2(
@@ -2000,8 +2011,11 @@ def validate_creative_code_telemetry_rollup_v2(
         )
     if normalized["legacy_event_count"] > 0:
         _validate_v2_legacy_aggregates(
+            legacy_event_count=normalized["legacy_event_count"],
             funnel=normalized["funnel"],
             rates=normalized["rates"],
+            rejections_by_class=normalized["rejections_by_class"],
+            failures_by_class=normalized["failures_by_class"],
             events_by_stage=normalized["events_by_stage"],
             events_by_status=normalized["events_by_status"],
         )

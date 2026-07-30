@@ -82,23 +82,25 @@
     "sanitized": { "const": true }
   },
   "$defs": {
+    "leak_free_token": {
+      "type": "string",
+      "not": {
+        "pattern": "([Cc][Aa][Nn][Dd][Ii][Dd][Aa][Tt][Ee](?:[.][Pp][Aa][Tt][Cc][Hh]|_[Pp][Aa][Tt][Cc][Hh])|[Rr][Aa][Ww][_-]?(?:[Pp][Rr][Oo][Mm][Pp][Tt]|[Rr][Ee][Ss][Pp][Oo][Nn][Ss][Ee]|[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Pp][Aa][Tt][Cc][Hh])|[Cc][Hh][Aa][Ii][Nn][_-]?[Oo][Ff][_-]?[Tt][Hh][Oo][Uu][Gg][Hh][Tt]|[Pp][Rr][Oo][Vv][Ii][Dd][Ee][Rr][_-]?[Pp][Aa][Yy][Ll][Oo][Aa][Dd]|[Oo][Rr][Aa][Cc][Ll][Ee][_-]?(?:[Ss][Tt][Dd][Oo][Uu][Tt]|[Ss][Tt][Dd][Ee][Rr][Rr])|[Ww][Oo][Rr][Kk][Tt][Rr][Ee][Ee][Ss](?:[:._-]|$)|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]:[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Gg][Hh]_[Tt][Oo][Kk][Ee][Nn]|[Gg][Ii][Tt][Hh][Uu][Bb]_[Tt][Oo][Kk][Ee][Nn]|[Ss][Kk]-[A-Za-z0-9_-]{12,}|[Gg][Hh][PpSsOoRrUu]_|[Gg][Ii][Tt][Hh][Uu][Bb]_[Pp][Aa][Tt]_|[Xx][Oo][Xx][AaBbPpRrSs]-)"
+      }
+    },
     "safe_id": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
-      "not": {
-        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
-      }
+      "allOf": [{ "$ref": "#/$defs/leak_free_token" }]
     },
     "promotion_id": {
       "type": "string",
       "minLength": 1,
       "maxLength": 96,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$",
-      "not": {
-        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
-      }
+      "allOf": [{ "$ref": "#/$defs/leak_free_token" }]
     },
     "sha256": {
       "type": "string",

@@ -1021,6 +1021,14 @@ def test_v2_zero_legacy_partition_rejects_legacy_aggregates(
             lambda rollup: rollup["rates"].update(human_approval_rate_bps=0),
             "legacy rates",
         ),
+        (
+            lambda rollup: rollup["rejections_by_class"].update(unknown=2),
+            "legacy rejection aggregates",
+        ),
+        (
+            lambda rollup: rollup["failures_by_class"].update(unknown=2),
+            "legacy failure aggregates",
+        ),
     ],
 )
 def test_v2_nonempty_legacy_partition_rejects_incoherent_aggregates(
@@ -1243,11 +1251,23 @@ def test_v2_schemas_align_on_closed_shape_and_finite_vocabulary() -> None:
     assert event_schema["$defs"]["terminal_projection"]["properties"]["promotion_id"] == {
         "$ref": "#/$defs/promotion_id"
     }
-    unsafe_pattern = event_schema["$defs"]["safe_id"]["not"]["pattern"]
-    assert event_schema["$defs"]["safe_token"]["not"] == {"pattern": unsafe_pattern}
-    assert event_schema["$defs"]["promotion_id"]["not"] == {"pattern": unsafe_pattern}
-    assert rollup_schema["$defs"]["safe_token"]["not"] == {"pattern": unsafe_pattern}
-    assert re.search(unsafe_pattern, "GH_TOKEN", re.IGNORECASE)
+    unsafe_pattern = event_schema["$defs"]["leak_free_token"]["not"]["pattern"]
+    assert rollup_schema["$defs"]["leak_free_token"]["not"]["pattern"] == unsafe_pattern
+    leak_free_ref = [{"$ref": "#/$defs/leak_free_token"}]
+    assert event_schema["$defs"]["safe_id"]["allOf"] == leak_free_ref
+    assert event_schema["$defs"]["safe_token"]["allOf"] == leak_free_ref
+    assert event_schema["$defs"]["promotion_id"]["allOf"] == leak_free_ref
+    assert rollup_schema["$defs"]["safe_id"]["allOf"] == leak_free_ref
+    assert rollup_schema["$defs"]["safe_token"]["allOf"] == leak_free_ref
+    for unsafe_token in (
+        "GH_TOKEN",
+        "gh_token",
+        "Gh_ToKeN",
+        "github_token",
+        "GitHub_PaT_value",
+        "OrAcLe_StDoUt",
+    ):
+        assert re.search(unsafe_pattern, unsafe_token)
     review_implications = [
         clause
         for clause in event_schema["allOf"]

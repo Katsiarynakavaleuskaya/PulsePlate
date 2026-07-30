@@ -1001,9 +1001,12 @@ def test_runtime_and_schema_closed_shape_finite_implication_alignment() -> None:
         "evidence_unavailable",
     ]
     assert schema["$defs"]["lineage"]["properties"]["repository"]["const"] == CANONICAL_REPOSITORY
-    unsafe_pattern = schema["$defs"]["safe_id"]["not"]["pattern"]
-    assert schema["$defs"]["promotion_id"]["not"] == {"pattern": unsafe_pattern}
-    assert re.search(unsafe_pattern, "GH_TOKEN", re.IGNORECASE)
+    unsafe_pattern = schema["$defs"]["leak_free_token"]["not"]["pattern"]
+    leak_free_ref = [{"$ref": "#/$defs/leak_free_token"}]
+    assert schema["$defs"]["safe_id"]["allOf"] == leak_free_ref
+    assert schema["$defs"]["promotion_id"]["allOf"] == leak_free_ref
+    for unsafe_token in ("GH_TOKEN", "gh_token", "Gh_ToKeN", "github_token"):
+        assert re.search(unsafe_pattern, unsafe_token)
     unavailable_cost_implication = schema["$defs"]["cost_metadata"]["allOf"][0]
     assert unavailable_cost_implication["if"]["properties"]["available"] == {"const": False}
     assert unavailable_cost_implication["then"]["properties"] == {
