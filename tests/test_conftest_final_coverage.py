@@ -6,7 +6,6 @@ import os
 import sys
 from types import ModuleType
 
-import conftest as root_conftest
 import pytest
 from fastapi.testclient import TestClient
 
@@ -57,6 +56,7 @@ class TestConftestFinalCoverage:
     def test_reset_sys_modules_restores_exact_opt_in_binding(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
         original_present: bool,
     ) -> None:
         """The opt-in compatibility fixture must not leak a replacement module."""
@@ -69,17 +69,17 @@ class TestConftestFinalCoverage:
         else:
             monkeypatch.delitem(sys.modules, module_name, raising=False)
 
-        fixture_generator = root_conftest.reset_sys_modules.__wrapped__()
-        assert next(fixture_generator) is None
+        def assert_original_binding_restored() -> None:
+            if original_present:
+                assert sys.modules[module_name] is original_module
+            else:
+                assert module_name not in sys.modules
+
+        # Register before dynamic setup so pytest's LIFO teardown restores first.
+        request.addfinalizer(assert_original_binding_restored)
+        assert request.getfixturevalue("reset_sys_modules") is None
         monkeypatch.setitem(sys.modules, module_name, replacement_module)
-
-        with pytest.raises(StopIteration):
-            next(fixture_generator)
-
-        if original_present:
-            assert sys.modules[module_name] is original_module
-        else:
-            assert module_name not in sys.modules
+        assert sys.modules[module_name] is replacement_module
 
     def test_conftest_all_environments_fixture(
         self, production_environment, test_environment, premium_disabled_environment
