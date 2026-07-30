@@ -476,6 +476,62 @@ def test_isolated_sqlite_fails_closed_when_async_database_is_configured(
             pytest.fail("async DB configuration must fail before fixture mutation")
 
 
+@pytest.mark.parametrize(
+    "async_state_attribute",
+    ("_ASYNC_ENGINE", "async_engine", "AsyncSessionLocal"),
+)
+def test_isolated_sqlite_fails_closed_when_async_state_is_active(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+    async_state_attribute: str,
+) -> None:
+    import core.db as core_db
+
+    monkeypatch.delenv("DATABASE_ASYNC_URL", raising=False)
+    monkeypatch.delenv("DATABASE_USE_ASYNC", raising=False)
+    environment_snapshot = {
+        key: (key in os.environ, os.environ.get(key))
+        for key in (
+            "DATABASE_URL",
+            "TEST_DB_PATH",
+            "DB_FALLBACK_URL",
+            "DATABASE_ASYNC_URL",
+            "DATABASE_USE_ASYNC",
+        )
+    }
+    initial_tmp_entries = tuple(tmp_path.iterdir())
+    monkeypatch.setattr(core_db, async_state_attribute, object())
+
+    with pytest.raises(RuntimeError, match="inactive async DB"):
+        with _isolated_sqlite_database_context(tmp_path, request):
+            pytest.fail("active async DB state must fail before fixture mutation")
+
+    assert {
+        key: (key in os.environ, os.environ.get(key)) for key in environment_snapshot
+    } == environment_snapshot
+    assert tuple(tmp_path.iterdir()) == initial_tmp_entries
+
+
+def test_isolated_sqlite_teardown_refuses_replaced_path(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    replacement_target = tmp_path / "foreign.sqlite3"
+    replacement_target.touch()
+
+    with pytest.raises(
+        RuntimeError,
+        match="refusing to delete a replaced isolated SQLite path",
+    ):
+        with _isolated_sqlite_database_context(tmp_path, request) as sqlite_path:
+            sqlite_path.unlink()
+            sqlite_path.symlink_to(replacement_target)
+
+    assert sqlite_path.is_symlink()
+    assert replacement_target.exists()
+
+
 def test_isolated_test_client_uses_fixture_engine(
     isolated_test_client: TestClient,
     isolated_sqlite_database: Path,
