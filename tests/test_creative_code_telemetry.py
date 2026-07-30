@@ -281,10 +281,25 @@ def test_reference_taxonomy_and_schemas_are_closed() -> None:
 
 def test_duplicate_json_keys_fail_closed(tmp_path: Path) -> None:
     duplicate = tmp_path / "duplicate.json"
-    duplicate.write_text('{"schema_version":"1.0","schema_version":"2.0"}', encoding="utf-8")
+    duplicate.write_text(
+        '{"GITHUB_TOKEN":"first","GITHUB_TOKEN":"second"}',
+        encoding="utf-8",
+    )
 
-    with pytest.raises(CreativeCodeTelemetryContractError, match="duplicate key"):
+    with pytest.raises(CreativeCodeTelemetryContractError, match="duplicate key") as error:
         read_json_object(duplicate)
+    assert "GITHUB_TOKEN" not in str(error.value)
+
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    event["GITHUB_TOKEN"] = "untrusted"
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="unsupported fields",
+    ) as error:
+        validate_creative_code_telemetry_event_any(event)
+    assert "GITHUB_TOKEN" not in str(error.value)
 
 
 def test_event_rejects_raw_patch_leaks_and_mutating_authority() -> None:
@@ -801,6 +816,19 @@ def test_one_terminal_outcome_projects_to_exactly_one_v2_event() -> None:
         assert forbidden not in emitted
 
 
+def test_v2_event_rejects_noncanonical_promotion_id() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    event["terminal_projection"]["promotion_id"] = "promotion:forged"
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="promotion_id has invalid format",
+    ):
+        validate_creative_code_telemetry_event_any(event)
+
+
 def test_mixed_v1_v2_rollup_counts_terminal_cost_and_process_once() -> None:
     patch_result = _reference_patch_result()
     legacy_events = [
@@ -912,6 +940,53 @@ def test_v2_rollup_rejects_closed_outcome_with_post_merge_completion() -> None:
     with pytest.raises(
         CreativeCodeTelemetryContractError,
         match="closed_unmerged outcomes require not_applicable",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_requires_terminal_source_partition() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup["source_artifacts"][0]["source_artifact_type"] = "creative_code_specification"
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="terminal source artifact count",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+@pytest.mark.parametrize(
+    ("section", "key", "value"),
+    [
+        ("funnel", "patch_results", 1),
+        ("rates", "oracle_pass_rate_bps", 0),
+        ("rejections_by_class", "unknown", 1),
+        ("failures_by_class", "unknown", 1),
+    ],
+)
+def test_v2_zero_legacy_partition_rejects_legacy_aggregates(
+    section: str,
+    key: str,
+    value: int,
+) -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup[section][key] = value
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="zero legacy events require empty legacy aggregates",
     ):
         validate_creative_code_telemetry_rollup_any(rollup)
 
@@ -1074,6 +1149,29 @@ def test_v2_schemas_align_on_closed_shape_and_finite_vocabulary() -> None:
     assert event_schema["properties"]["status"]["enum"] == [
         "merged",
         "closed_unmerged",
+    ]
+    assert event_schema["$defs"]["terminal_projection"]["properties"]["promotion_id"] == {
+        "$ref": "#/$defs/promotion_id"
+    }
+    review_implications = [
+        clause
+        for clause in event_schema["allOf"]
+        if "terminal_projection" in clause.get("if", {}).get("properties", {})
+    ]
+    assert [
+        (
+            clause["if"]["properties"]["terminal_projection"]["properties"]["review_observation"][
+                "const"
+            ],
+            clause["then"]["properties"]["terminal_projection"]["properties"][
+                "governance_observation"
+            ]["const"],
+        )
+        for clause in review_implications
+    ] == [
+        ("actionables_observed", "blockers_observed"),
+        ("no_actionables_observed", "no_blockers_observed"),
+        ("evidence_unavailable", "evidence_unavailable"),
     ]
     assert rollup_schema["properties"]["policy_version"]["const"] == "creative-code-telemetry-v2"
     assert validate_creative_code_telemetry_event_any(event) == event

@@ -450,7 +450,7 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     for key, value in pairs:
         if key in seen:
             raise CreativeCodeTelemetryContractError(
-                f"creative-code telemetry JSON has duplicate key: {key}"
+                "creative-code telemetry JSON has a duplicate key."
             )
         seen.add(key)
         payload[key] = value
@@ -505,9 +505,7 @@ def _require_exact_keys(
             f"{label} is missing required fields: {', '.join(missing)}"
         )
     if extra:
-        raise CreativeCodeTelemetryContractError(
-            f"{label} has unsupported fields: {', '.join(extra)}"
-        )
+        raise CreativeCodeTelemetryContractError(f"{label} has unsupported fields.")
 
 
 def _require_const(payload: Mapping[str, Any], key: str, expected: Any, *, label: str) -> Any:
@@ -1227,6 +1225,10 @@ def _normalize_v2_process(raw_process: Any) -> dict[str, int]:
 
 
 def _normalize_v2_terminal_projection(raw_projection: Any) -> dict[str, Any]:
+    from scripts.orchestration.creative_code_terminal_outcome_contract import (
+        PROMOTION_ID_RE,
+    )
+
     if not isinstance(raw_projection, dict):
         raise CreativeCodeTelemetryContractError("terminal_projection must be a JSON object.")
     _require_exact_keys(
@@ -1259,12 +1261,13 @@ def _normalize_v2_terminal_projection(raw_projection: Any) -> dict[str, Any]:
         raise CreativeCodeTelemetryContractError(
             "terminal_projection.post_merge_observation is unsupported."
         )
+    promotion_id = raw_projection.get("promotion_id")
+    if not isinstance(promotion_id, str) or not PROMOTION_ID_RE.fullmatch(promotion_id):
+        raise CreativeCodeTelemetryContractError(
+            "terminal_projection.promotion_id has invalid format."
+        )
     return {
-        "promotion_id": _require_token(
-            raw_projection,
-            "promotion_id",
-            label="terminal_projection",
-        ),
+        "promotion_id": promotion_id,
         "repository": repository,
         "pull_request_number": _require_int(
             raw_projection,
@@ -1880,6 +1883,23 @@ def validate_creative_code_telemetry_rollup_v2(
     if len(normalized["source_artifacts"]) != normalized["event_count"]:
         raise CreativeCodeTelemetryContractError(
             "source_artifacts must bind every event exactly once."
+        )
+    terminal_source_count = sum(
+        row["source_artifact_type"] == "creative_code_terminal_outcome"
+        for row in normalized["source_artifacts"]
+    )
+    if terminal_source_count != terminal["outcome_count"]:
+        raise CreativeCodeTelemetryContractError(
+            "terminal source artifact count must equal terminal outcome count."
+        )
+    if normalized["legacy_event_count"] == 0 and (
+        any(normalized["funnel"].values())
+        or any(normalized["rates"][key] is not None for key in RATES_KEYS)
+        or any(normalized["rejections_by_class"].values())
+        or any(normalized["failures_by_class"].values())
+    ):
+        raise CreativeCodeTelemetryContractError(
+            "zero legacy events require empty legacy aggregates."
         )
     expected_merge_rate = compute_bps(terminal["merged"], terminal["outcome_count"])
     if normalized["rates"]["merge_rate_bps"] != expected_merge_rate:

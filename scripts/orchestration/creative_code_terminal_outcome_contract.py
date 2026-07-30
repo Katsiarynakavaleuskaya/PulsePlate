@@ -160,9 +160,7 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     payload: dict[str, Any] = {}
     for key, value in pairs:
         if key in seen:
-            raise CreativeCodeTerminalOutcomeError(
-                f"terminal outcome JSON has duplicate key: {key}"
-            )
+            raise CreativeCodeTerminalOutcomeError("terminal outcome JSON has a duplicate key.")
         seen.add(key)
         payload[key] = value
     return payload
@@ -215,9 +213,7 @@ def _require_exact_keys(
             f"{label} is missing required fields: {', '.join(missing)}"
         )
     if extra:
-        raise CreativeCodeTerminalOutcomeError(
-            f"{label} has unsupported fields: {', '.join(extra)}"
-        )
+        raise CreativeCodeTerminalOutcomeError(f"{label} has unsupported fields.")
 
 
 def _require_const(payload: Mapping[str, Any], key: str, expected: Any, *, label: str) -> Any:

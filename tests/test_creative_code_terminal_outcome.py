@@ -489,11 +489,18 @@ def test_repository_is_exact_across_observation_lineage_and_identity() -> None:
 def test_duplicate_keys_and_unsafe_content_fail_closed(tmp_path: Path) -> None:
     duplicate = tmp_path / "duplicate.json"
     duplicate.write_text(
-        '{"terminal_state":"merged","terminal_state":"closed_unmerged"}',
+        '{"GITHUB_TOKEN":"first","GITHUB_TOKEN":"second"}',
         encoding="utf-8",
     )
-    with pytest.raises(CreativeCodeTerminalOutcomeError, match="duplicate key"):
+    with pytest.raises(CreativeCodeTerminalOutcomeError, match="duplicate key") as error:
         read_json_object(duplicate)
+    assert "GITHUB_TOKEN" not in str(error.value)
+
+    outcome = _outcome()
+    outcome["GITHUB_TOKEN"] = "untrusted"
+    with pytest.raises(CreativeCodeTerminalOutcomeError, match="unsupported fields") as error:
+        validate_creative_code_terminal_outcome(outcome)
+    assert "GITHUB_TOKEN" not in str(error.value)
 
     observation = _observation()
     observation["promotion_id"] = "candidate.patch"
@@ -994,6 +1001,15 @@ def test_runtime_and_schema_closed_shape_finite_implication_alignment() -> None:
         "evidence_unavailable",
     ]
     assert schema["$defs"]["lineage"]["properties"]["repository"]["const"] == CANONICAL_REPOSITORY
+    unavailable_cost_implication = schema["$defs"]["cost_metadata"]["allOf"][0]
+    assert unavailable_cost_implication["if"]["properties"]["available"] == {"const": False}
+    assert unavailable_cost_implication["then"]["properties"] == {
+        "input_tokens": {"type": "null"},
+        "cached_input_tokens": {"type": "null"},
+        "output_tokens": {"type": "null"},
+        "reasoning_output_tokens": {"type": "null"},
+        "estimated": {"const": False},
+    }
 
     review_implications = [
         clause

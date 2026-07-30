@@ -122,10 +122,12 @@ Post-merge output is likewise observational:
 - merged: `complete_observed | incomplete_observed | evidence_unavailable`;
 - closed-unmerged: exactly `not_applicable`.
 
-Completion requires a frozen validation inventory and either all configured
-commands executed/passed or an observed successful current-main CI SHA.
-Failure or execution gaps derive `incomplete_observed`. The outcome does not
-claim that a validation provider passed.
+Completion requires a frozen validation inventory, no configured-command
+execution/pass gaps, and at least one observed evidence source: either all
+configured commands were executed and passed or current-main CI succeeded.
+CI failure or any configured/executed/passed gap derives
+`incomplete_observed`; successful CI never overrides a command gap. The outcome
+does not claim that a validation provider passed.
 
 ## Telemetry Event
 

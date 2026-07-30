@@ -377,7 +377,24 @@
           "maximum": 1000000000
         },
         "estimated": { "type": "boolean" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "available": { "const": false } },
+            "required": ["available"]
+          },
+          "then": {
+            "properties": {
+              "input_tokens": { "type": "null" },
+              "cached_input_tokens": { "type": "null" },
+              "output_tokens": { "type": "null" },
+              "reasoning_output_tokens": { "type": "null" },
+              "estimated": { "const": false }
+            }
+          }
+        }
+      ]
     }
   },
   "allOf": [

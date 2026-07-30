@@ -54,6 +54,12 @@
       "maxLength": 96,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
     },
+    "promotion_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"
+    },
     "sha256": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
@@ -81,7 +87,7 @@
         "post_merge_observation"
       ],
       "properties": {
-        "promotion_id": { "$ref": "#/$defs/safe_token" },
+        "promotion_id": { "$ref": "#/$defs/promotion_id" },
         "repository": { "const": "Katsiarynakavaleuskaya/PulsePlate" },
         "pull_request_number": {
           "type": "integer",
@@ -230,6 +236,72 @@
                   "evidence_unavailable"
                 ]
               }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "review_observation": { "const": "actionables_observed" }
+            },
+            "required": ["review_observation"]
+          }
+        },
+        "required": ["terminal_projection"]
+      },
+      "then": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "governance_observation": { "const": "blockers_observed" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "review_observation": { "const": "no_actionables_observed" }
+            },
+            "required": ["review_observation"]
+          }
+        },
+        "required": ["terminal_projection"]
+      },
+      "then": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "governance_observation": { "const": "no_blockers_observed" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "review_observation": { "const": "evidence_unavailable" }
+            },
+            "required": ["review_observation"]
+          }
+        },
+        "required": ["terminal_projection"]
+      },
+      "then": {
+        "properties": {
+          "terminal_projection": {
+            "properties": {
+              "governance_observation": { "const": "evidence_unavailable" }
             }
           }
         }
