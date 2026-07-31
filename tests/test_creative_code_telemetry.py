@@ -114,7 +114,8 @@ def _reference_request(base_sha: str) -> dict[str, Any]:
             "generation_timeout_seconds": 60,
             "evaluation_timeout_seconds": 60,
             "max_changed_files": 3,
-            "max_diff_lines": 200,
+            "max_changed_lines": 200,
+            "line_metric": "numstat_added_plus_deleted_v1",
             "max_patch_bytes": 20000,
         },
     )
@@ -157,7 +158,9 @@ index 8f11111..8f22222 100644
         changed_paths=["core/rag/orchestration.py"],
         patch_fingerprint=fingerprint_payload({"candidate_patch": patch_text}),
         patch_bytes=len(patch_text.encode("utf-8")),
-        diff_lines=len(patch_text.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(patch_text.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result=runner_result,
         checkout_destroyed=True,
         origin_removed=True,
@@ -868,6 +871,25 @@ def test_v1_event_keeps_legacy_padded_identity_normalization() -> None:
         padded[identity_key] = f" {padded[identity_key]} "
 
     assert validate_creative_code_telemetry_event_any(padded) == event
+
+
+def test_patch_telemetry_does_not_mix_changed_lines_into_legacy_diff_lines() -> None:
+    current_result = _reference_patch_result()
+    current_event = creative_code_telemetry.event_from_patch_result(current_result)
+    assert current_event["metrics"]["diff_lines"] is None
+
+    legacy_result = json.loads(json.dumps(current_result))
+    legacy_result["patch_summary"] = {
+        "patch_fingerprint": current_result["patch_summary"]["patch_fingerprint"],
+        "patch_bytes": current_result["patch_summary"]["patch_bytes"],
+        "diff_lines": current_result["patch_summary"]["serialized_patch_lines"],
+    }
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(legacy_result)
+    legacy_result["result_id"] = result_id
+    legacy_result["idempotency_key"] = idempotency_key
+
+    legacy_event = creative_code_telemetry.event_from_patch_result(legacy_result)
+    assert legacy_event["metrics"]["diff_lines"] == legacy_result["patch_summary"]["diff_lines"]
 
 
 def test_mixed_v1_v2_rollup_counts_terminal_cost_and_process_once() -> None:

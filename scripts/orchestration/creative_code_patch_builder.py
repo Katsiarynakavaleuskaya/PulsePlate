@@ -14,10 +14,16 @@ from typing import Any, Iterator, TypeGuard
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
+    CHANGED_LINE_METRIC,
     CreativeCodePatchContractError,
     build_creative_code_patch_result,
+    creative_code_budget_line_family,
+    creative_code_patch_changed_path_statuses,
+    measure_persisted_creative_code_patch,
+    parse_creative_code_numstat,
     read_creative_code_patch_build_request,
     validate_creative_code_patch_build_request,
+    validate_creative_code_patch_metadata,
 )
 from scripts.orchestration.creative_code_patch_executor import (
     CreativeCodePatchExecutorError,
@@ -70,6 +76,16 @@ SAFE_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv")
 
 class CreativeCodePatchBuilderError(ValueError):
     """Raised when the PR-2 patch builder fails closed."""
+
+
+class CreativeCodePatchBudgetError(CreativeCodePatchBuilderError):
+    """Raised with sanitized stable classification for one budget rejection."""
+
+    failure_class = "policy_violation"
+
+    def __init__(self, message: str, *, reason_code: str) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
 
 
 RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
@@ -172,6 +188,10 @@ def prepare(*, spec_bundle_path: Path, request_path: Path, run_id: str) -> dict[
         request,
         source_bundle=source_bundle,
     )
+    if creative_code_budget_line_family(normalized_request["budgets"]) != "current":
+        raise CreativeCodePatchBuilderError(
+            "legacy patch requests are read-only; prepare requires changed-line budgets."
+        )
     normalized_bundle = validate_creative_code_specification_bundle(source_bundle)
     selected_variant = _selected_variant(normalized_bundle)
     workspace_summary = prepare_generation_checkout(
@@ -207,7 +227,16 @@ def _build_generation_prompt(*, request: dict[str, Any], variant: dict[str, Any]
     allowed_new = "\n".join(f"- {path}" for path in request["allowed_new_paths"]) or "- none"
     tests_to_add = "\n".join(f"- {path}" for path in variant["tests_to_add"])
     budgets = request["budgets"]
+    line_family = creative_code_budget_line_family(budgets)
     max_changed_files = int(budgets["max_changed_files"])
+    line_budget_prompt = (
+        f"- max_diff_lines: {budgets['max_diff_lines']}\n"
+        if line_family == "legacy"
+        else (
+            f"- max_changed_lines: {budgets['max_changed_lines']}\n"
+            f"- line_metric: {budgets['line_metric']}\n"
+        )
+    )
     edit_instruction = (
         "Finish immediately after the single allowed file edit; the wrapper validates the patch."
         if max_changed_files == 1
@@ -226,7 +255,7 @@ def _build_generation_prompt(*, request: dict[str, Any], variant: dict[str, Any]
         f"{edit_instruction}\n\n"
         "Hard mutation budget:\n"
         f"- max_changed_files: {max_changed_files}\n"
-        f"- max_diff_lines: {budgets['max_diff_lines']}\n"
+        f"{line_budget_prompt}"
         f"- max_patch_bytes: {budgets['max_patch_bytes']}\n"
         f"- allowed_new_paths_count: {len(request['allowed_new_paths'])}\n\n"
         f"Selected variant: {variant['variant_id']}\n"
@@ -325,16 +354,21 @@ def _changed_paths_by_status(checkout: Path) -> dict[str, str]:
     return changed
 
 
-def _reject_binary_numstat(checkout: Path) -> None:
-    numstat = run_git(["diff", *SAFE_DIFF_FLAGS, "--numstat", "HEAD"], cwd=checkout).stdout
-    for line in numstat.splitlines():
-        if not line.strip():
-            continue
-        added, deleted, path = line.split("\t", 2)
-        if added == "-" or deleted == "-":
-            raise CreativeCodePatchBuilderError(
-                f"candidate patch must not contain binary diff: {path}"
-            )
+def _numstat_summary(checkout: Path, *, expected_paths: list[str]) -> dict[str, Any]:
+    numstat = run_git(
+        ["diff", *SAFE_DIFF_FLAGS, "--numstat", "--no-renames", "HEAD"],
+        cwd=checkout,
+    ).stdout
+    try:
+        summary: object = parse_creative_code_numstat(
+            numstat,
+            expected_paths=expected_paths,
+        )
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchBuilderError(str(exc)) from exc
+    if not _is_string_keyed_dict(summary):
+        raise CreativeCodePatchBuilderError("git numstat summary must be a string-keyed object.")
+    return summary
 
 
 def _reject_modes(checkout: Path) -> None:
@@ -383,7 +417,10 @@ def _validate_paths(
     if not changed_paths:
         raise CreativeCodePatchBuilderError("candidate patch is empty.")
     if len(changed_paths) > request["budgets"]["max_changed_files"]:
-        raise CreativeCodePatchBuilderError("candidate patch exceeds max_changed_files budget.")
+        raise CreativeCodePatchBudgetError(
+            "candidate patch exceeds max_changed_files budget.",
+            reason_code="changed_files_budget_exceeded",
+        )
     for path in changed_paths:
         if path not in allowed_all:
             raise CreativeCodePatchBuilderError(f"candidate patch touches unapproved path: {path}")
@@ -439,21 +476,40 @@ def _patch_metadata(
     _add_intent_for_untracked(checkout, set(request["allowed_new_paths"]))
     _reject_forbidden_name_status(checkout)
     changed_by_status = _changed_paths_by_status(checkout)
-    _reject_binary_numstat(checkout)
+    numstat_summary = _numstat_summary(
+        checkout,
+        expected_paths=sorted(changed_by_status),
+    )
     _reject_modes(checkout)
     run_git(["diff", *SAFE_DIFF_FLAGS, "--check", "HEAD"], cwd=checkout)
     changed_paths = _validate_paths(
         changed_by_status=changed_by_status, request=request, bundle=bundle
     )
-    patch_text = run_git(["diff", *SAFE_DIFF_FLAGS, "--binary", "HEAD"], cwd=checkout).stdout
+    patch_text = run_git(
+        ["diff", *SAFE_DIFF_FLAGS, "--unified=3", "--binary", "HEAD"],
+        cwd=checkout,
+    ).stdout
     if not patch_text.strip():
         raise CreativeCodePatchBuilderError("candidate patch is empty.")
     patch_bytes = len(patch_text.encode("utf-8"))
-    diff_lines = len(patch_text.splitlines())
+    serialized_patch_lines = len(patch_text.splitlines())
     if patch_bytes > request["budgets"]["max_patch_bytes"]:
-        raise CreativeCodePatchBuilderError("candidate patch exceeds max_patch_bytes budget.")
-    if diff_lines > request["budgets"]["max_diff_lines"]:
-        raise CreativeCodePatchBuilderError("candidate patch exceeds max_diff_lines budget.")
+        raise CreativeCodePatchBudgetError(
+            "candidate patch exceeds max_patch_bytes budget.",
+            reason_code="patch_bytes_budget_exceeded",
+        )
+    line_family = creative_code_budget_line_family(request["budgets"])
+    if line_family == "legacy":
+        if serialized_patch_lines > request["budgets"]["max_diff_lines"]:
+            raise CreativeCodePatchBudgetError(
+                "candidate patch exceeds max_diff_lines budget.",
+                reason_code="legacy_diff_line_budget_exceeded",
+            )
+    elif numstat_summary["changed_lines"] > request["budgets"]["max_changed_lines"]:
+        raise CreativeCodePatchBudgetError(
+            "candidate patch exceeds max_changed_lines budget.",
+            reason_code="changed_line_budget_exceeded",
+        )
     _check_patch_applies_cleanly(
         patch_text=patch_text,
         base_commit_sha=request["base_commit_sha"],
@@ -461,13 +517,23 @@ def _patch_metadata(
     )
     patch_file = resolve_run_file(run_dir, CANDIDATE_PATCH_FILE, for_write=True)
     _write_text_atomic(patch_file, patch_text)
-    return {
+    metadata = {
         "changed_paths": changed_paths,
         "changed_path_statuses": changed_by_status,
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": patch_bytes,
-        "diff_lines": diff_lines,
     }
+    if line_family == "legacy":
+        metadata["diff_lines"] = serialized_patch_lines
+    else:
+        metadata.update(
+            {
+                "changed_lines": numstat_summary["changed_lines"],
+                "serialized_patch_lines": serialized_patch_lines,
+                "line_metric": CHANGED_LINE_METRIC,
+            }
+        )
+    return metadata
 
 
 def generate(*, run_id: str) -> dict[str, Any]:
@@ -487,12 +553,19 @@ def generate(*, run_id: str) -> dict[str, Any]:
             prompt=prompt,
             timeout_seconds=normalized_request["budgets"]["generation_timeout_seconds"],
         )
-        metadata = _patch_metadata(
-            checkout=checkout,
-            run_dir=run_dir,
-            request=normalized_request,
-            bundle=bundle,
-        )
+        try:
+            metadata = _patch_metadata(
+                checkout=checkout,
+                run_dir=run_dir,
+                request=normalized_request,
+                bundle=bundle,
+            )
+        except CreativeCodePatchBudgetError as exc:
+            state["generation_failure"] = {
+                "failure_class": exc.failure_class,
+                "reason_code": exc.reason_code,
+            }
+            raise
         state["candidate_patch_generated"] = True
         state["patch_metadata"] = metadata
         write_json_atomic(resolve_run_file(run_dir, PATCH_METADATA_FILE, for_write=True), metadata)
@@ -615,16 +688,22 @@ def _verified_patch_metadata(
     run_dir: Path,
     state: dict[str, Any],
     metadata: dict[str, Any],
-) -> tuple[Path, list[str], str, int, int]:
+    request: dict[str, Any],
+    bundle: dict[str, Any],
+) -> tuple[Path, list[str], str, int, dict[str, Any]]:
     """Return patch metadata only when it matches the current candidate patch."""
 
     if state.get("candidate_patch_generated") is not True:
         raise CreativeCodePatchBuilderError("candidate patch must be generated before evaluate.")
-    changed_paths = metadata.get("changed_paths")
-    if not isinstance(changed_paths, list) or not all(
-        isinstance(path, str) for path in changed_paths
-    ):
-        raise CreativeCodePatchBuilderError("patch metadata changed_paths must be a string list.")
+    try:
+        normalized_metadata = validate_creative_code_patch_metadata(metadata)
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchBuilderError(str(exc)) from exc
+    if state.get("patch_metadata") != normalized_metadata:
+        raise CreativeCodePatchBuilderError(
+            "patch metadata must match generation-recorded state before evaluate."
+        )
+    changed_paths = normalized_metadata["changed_paths"]
     patch_file = resolve_run_file(run_dir, CANDIDATE_PATCH_FILE)
     try:
         patch_text = patch_file.read_text(encoding="utf-8")
@@ -633,15 +712,68 @@ def _verified_patch_metadata(
     current_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
     current_bytes = len(patch_text.encode("utf-8"))
     current_lines = len(patch_text.splitlines())
+    if current_bytes > request["budgets"]["max_patch_bytes"]:
+        raise CreativeCodePatchBuilderError(
+            "candidate patch exceeds request max_patch_bytes budget before evaluate."
+        )
+    try:
+        statuses: object = creative_code_patch_changed_path_statuses(patch_text)
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchBuilderError(str(exc)) from exc
+    if not _is_string_keyed_dict(statuses):
+        raise CreativeCodePatchBuilderError(
+            "candidate patch statuses must be a string-keyed object."
+        )
+    if normalized_metadata["changed_path_statuses"] != statuses:
+        raise CreativeCodePatchBuilderError("candidate patch statuses do not match patch metadata.")
+    validated_paths = _validate_paths(
+        changed_by_status=statuses,
+        request=request,
+        bundle=bundle,
+    )
+    if validated_paths != sorted(changed_paths):
+        raise CreativeCodePatchBuilderError("candidate patch paths do not match patch metadata.")
     expected = {
         "patch_fingerprint": current_fingerprint,
         "patch_bytes": current_bytes,
-        "diff_lines": current_lines,
     }
+    line_family = creative_code_budget_line_family(request["budgets"])
+    metadata_family = "legacy" if "diff_lines" in normalized_metadata else "current"
+    if line_family != metadata_family:
+        raise CreativeCodePatchBuilderError(
+            "request and patch metadata line-measurement families must match."
+        )
+    if line_family == "legacy":
+        raise CreativeCodePatchBuilderError(
+            "legacy patch artifacts are read-only and cannot be evaluated."
+        )
+    try:
+        measured = measure_persisted_creative_code_patch(
+            patch_text,
+            expected_paths=changed_paths,
+        )
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchBuilderError(str(exc)) from exc
+    if measured["changed_lines"] > request["budgets"]["max_changed_lines"]:
+        raise CreativeCodePatchBuilderError(
+            "candidate patch exceeds request max_changed_lines budget before evaluate."
+        )
+    expected.update(
+        {
+            "changed_lines": measured["changed_lines"],
+            "serialized_patch_lines": current_lines,
+            "line_metric": CHANGED_LINE_METRIC,
+        }
+    )
     for key, value in expected.items():
-        if metadata.get(key) != value:
+        if normalized_metadata.get(key) != value:
             raise CreativeCodePatchBuilderError("candidate patch metadata does not match patch.")
-    return patch_file, sorted(changed_paths), current_fingerprint, current_bytes, current_lines
+    measurements = {
+        key: value
+        for key, value in expected.items()
+        if key not in {"patch_fingerprint", "patch_bytes"}
+    }
+    return patch_file, sorted(changed_paths), current_fingerprint, current_bytes, measurements
 
 
 def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
@@ -662,11 +794,13 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     metadata = read_json(resolve_run_file(run_dir, PATCH_METADATA_FILE))
     if not isinstance(metadata, dict):
         raise CreativeCodePatchBuilderError("patch metadata must be a JSON object.")
-    patch_file, changed_paths, patch_fingerprint, patch_bytes, diff_lines = (
+    patch_file, changed_paths, patch_fingerprint, patch_bytes, line_measurements = (
         _verified_patch_metadata(
             run_dir=run_dir,
             state=state,
             metadata=metadata,
+            request=normalized_request,
+            bundle=bundle,
         )
     )
     shared_status_before = shared_tree_status()
@@ -711,12 +845,12 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
         changed_paths=changed_paths,
         patch_fingerprint=patch_fingerprint,
         patch_bytes=patch_bytes,
-        diff_lines=diff_lines,
         runner_result=runner_result,
         checkout_destroyed=bool(state.get("checkout_destroyed") is True),
         origin_removed=bool(state.get("workspace", {}).get("origin_removed") is True),
         shared_tree_untouched=shared_untouched,
         failure_class=failure_class,
+        **line_measurements,
     )
     if not _is_string_keyed_dict(result):
         raise CreativeCodePatchBuilderError("patch result must be a string-keyed object.")

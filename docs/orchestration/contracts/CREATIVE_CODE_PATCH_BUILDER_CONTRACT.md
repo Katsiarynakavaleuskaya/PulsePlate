@@ -230,6 +230,19 @@ Patch validation must inspect git status, name-status, raw mode records,
 numstat, summary, whitespace checks, and clean `git apply --check` before
 Experiment Runner handoff.
 
+Current writers use `max_changed_lines` with
+`line_metric=numstat_added_plus_deleted_v1`. `changed_lines` is the inclusive
+sum of strict decimal additions and deletions from `git diff --numstat
+--no-renames HEAD`; numstat rows must be text-only, have exactly three
+tab-separated fields, and have exact path parity with name-status. Candidate
+patch serialization is explicitly `--unified=3 --binary` and
+`serialized_patch_lines` is observability only, not a mutation limit.
+`patch_bytes` remains the independent hard resource limit. Legacy exact-shape
+artifacts retain `max_diff_lines` / `diff_lines` serialized-patch semantics for
+readback only; validators do not inject markers, rewrite identities, or mix
+them into changed-line calibration. Mixed, partial, or unknown metric shapes
+fail closed.
+
 PR-2 rejects:
 
 - no-op, empty, malformed, or already-applied candidates;
@@ -241,7 +254,9 @@ PR-2 rejects:
 - governance, review, security, CI, tests, AGENTS, OpenAPI/client, frontend,
   iOS, DB, dependency, local artifact, and worktree surfaces;
 - budget breaches: one generation attempt, default max 3 changed files, hard max
-  5 changed files, max diff lines, and max patch bytes.
+  5 changed files, max changed lines, and max patch bytes. Current changed-line
+  breaches record only `failure_class=policy_violation` and
+  `reason_code=changed_line_budget_exceeded` in ignored run state.
 
 ## Runner Integration
 
@@ -269,7 +284,8 @@ readback. It does not change PR-2 authority.
 - status and failure class;
 - selected source identifiers and fingerprints;
 - changed repo-relative paths;
-- patch fingerprint, byte count, and diff-line count;
+- patch fingerprint, byte count, changed-line count, serialized U3 line count,
+  and exact line metric (or the unchanged legacy diff-line field on readback);
 - workspace proof booleans;
 - runner status/count/fingerprint metadata;
 - explicit non-authority flags.
