@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from types import SimpleNamespace
+from unittest import IsolatedAsyncioTestCase
 from unittest.mock import patch
 
 import pytest
@@ -256,8 +258,7 @@ class TestAnalyticalHelpers:
         assert len(report.unfalsifiable_claims) == 2
 
 
-@pytest.mark.asyncio
-class TestPhilosophicalRuntime:
+class TestPhilosophicalRuntime(IsolatedAsyncioTestCase):
     """Runtime should execute direct paths and bounded rewrite/fallback logic."""
 
     async def test_direct_definition_skips_provider_generation(self) -> None:
@@ -1561,11 +1562,10 @@ def test_record_runtime_metrics_swallows_metric_failures(monkeypatch: pytest.Mon
     )
 
 
-@pytest.mark.asyncio
-async def test_direct_insight_provider_stub_raises_if_called() -> None:
+def test_direct_insight_provider_stub_raises_if_called() -> None:
     from core.ai import DirectInsightProviderStub
 
     stub = DirectInsightProviderStub()
 
     with pytest.raises(RuntimeError, match="must not call provider.generate"):
-        await stub.generate("unexpected")
+        asyncio.run(stub.generate("unexpected"))
