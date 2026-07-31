@@ -844,6 +844,68 @@ Before changing code, group new reproducers by the invariant they violate:
 Stop when the bounded claim is true, not when the current examples happen to
 pass. Broader runtime modeling belongs in a separately scoped lane.
 
+## 32) Restart closeout only after a real material correction
+
+### Problem
+A review finding that arrives after the mapping-only closeout can look like a
+deadlock: the existing seal names the pre-closeout material head, another docs
+commit would no longer be its direct successor, and an operator bypass would
+weaken review governance. This becomes a self-created loop when the old
+`material_head_sha` is treated as permanent. It also becomes a loop when an
+agent tries to reseal the same digest or invents a carrier commit merely to
+obtain another mapping-only successor.
+
+### Rule
+Classify the new review item before choosing the recovery path:
+
+1. Use the reply-only path only for a validated same-digest duplicate whose
+   fingerprint already exists in the canonical mapping artifact.
+2. If no matching canonical fingerprint exists, the finding is canonical for
+   this closeout state. A same-digest reseal and a second mapping-only commit
+   are forbidden.
+3. Wait for every current-head CI job to reach a terminal state before
+   promoting the review fix.
+4. If no mapping-only successor exists yet and the finding exposes a real
+   defect in code, tests, policy, or documentation, correct that defect by
+   advancing the current material commit. The correction creates the new
+   material head and digest; it is not a synthetic carrier.
+5. Run the required narrow local bundle, push the material correction, and
+   again wait for terminal current-head technical CI. Only then freeze the new
+   digest, run exact-material self-review, collect the stable live review
+   inventory, author dispositions, and publish exactly one direct mapping-only
+   successor.
+6. If a mapping-only successor already exists, no real correction may be
+   appended on top of it. Keep the finding unresolved and supersede the PR from
+   a clean current base through the normal coordinator-owned replacement flow,
+   where the correction advances material before that PR's sole mapping-only
+   successor.
+7. If there is no honest material defect to correct, do not manufacture one.
+   Use the validated reply-only path when its fingerprint contract applies;
+   otherwise keep the finding unresolved and use the same clean replacement
+   flow.
+8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
+   refs, force-push history, or use operator approval to bypass the hard
+   disposition gate.
+
+The mapping artifact remains excluded from the material digest. Every real
+correction must be based on and advance material, invalidate the prior seal,
+and be followed by exactly one mapping-only successor. A prior mapping-only
+live head must never host the correction. This preserves the one-successor
+invariant without freezing an obsolete head or turning every new reviewer ref
+into another parser variant.
+
+### Use instead
+
+- Finish current-head CI, then query the live thread and canonical fingerprint
+  inventory.
+- Re-freeze only after a real material correction and its current-head
+  technical CI.
+- Reuse a structured reply only when the validator can bind it to an existing
+  same-digest fingerprint record.
+- Treat a strict-wrapper disposition failure as evidence to restart the
+  governed recovery, not as grounds for a carrier commit or operator merge
+  exception.
+
 ---
 
 ## Repo Commands Reference
