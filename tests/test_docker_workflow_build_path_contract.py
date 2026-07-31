@@ -16,6 +16,15 @@ from scripts.ci import fetch_docker_source_artifacts as docker_sources
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+BACKEND_PYTHON_BASE_IMAGE = (
+    "python:3.13.14-slim-bookworm"
+    "@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64"
+)
+EXPECTED_BACKEND_PYTHON_FROM_LINES = (
+    f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS builder",
+    f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS sqlite-builder",
+    f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS runtime-base",
+)
 EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
     ("build.yml", "build", "Build Docker image (local, for tests)"),
     ("build.yml", "publish", "Build Docker image for publish scan"),
@@ -261,6 +270,24 @@ def test_build_workflow_blocks_removed_acl_attr_runtime_packages() -> None:
         assert f"--blocked-debian-package {package}" in run_script
 
 
+def test_dockerfile_pins_all_backend_python_stages_to_one_oci_index() -> None:
+    """All external Python stages use the same immutable, ordered base."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    trivyignore = (REPO_ROOT / ".trivyignore").read_text(encoding="utf-8")
+    python_from_lines = tuple(
+        line.strip()
+        for line in dockerfile.splitlines()
+        if line.lstrip().casefold().startswith("from ") and "python" in line.casefold()
+    )
+
+    assert len(python_from_lines) == 3
+    assert python_from_lines == EXPECTED_BACKEND_PYTHON_FROM_LINES
+    assert "3.13.13" not in dockerfile
+    assert f"FROM {BACKEND_PYTHON_BASE_IMAGE.partition('@')[0]} AS" not in dockerfile
+    assert BACKEND_PYTHON_BASE_IMAGE.partition("@")[0] in trivyignore
+    assert "3.13.13" not in trivyignore
+
+
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
     """Dockerfile builds pre-fetched SQLite 3.53.2 before removing Debian SQLite."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
@@ -268,7 +295,7 @@ def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
     sqlite_builder_section = dockerfile.split("AS sqlite-builder", 1)[1]
     sqlite_builder_section = sqlite_builder_section.split("FROM python", 1)[0]
     runtime_base_section = dockerfile.split(
-        "FROM python:3.13.13-slim-bookworm AS runtime-base",
+        f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS runtime-base",
         1,
     )[1]
     runtime_base_section = runtime_base_section.split("COPY --from=builder", 1)[0]
@@ -471,7 +498,7 @@ def test_runtime_base_requires_fixed_bookworm_glibc_line() -> None:
     """Runtime base fails closed if libc stays below the CVE-2025-8058 fix."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     runtime_base_section = dockerfile.split(
-        "FROM python:3.13.13-slim-bookworm AS runtime-base",
+        f"FROM {BACKEND_PYTHON_BASE_IMAGE} AS runtime-base",
         1,
     )[1]
     runtime_base_section = runtime_base_section.split("COPY --from=builder", 1)[0]
