@@ -374,18 +374,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   gate bypasses, synthetic success stubs, and fallback calorie values are
   forbidden.
 - Legacy AI/insight routes must not own provider orchestration in
-  `legacy_app.py`. When extracting insight routes, route handlers live in
-  `app/routers/*` (canonical owner: `app/routers/legacy_insight.py`), reusable
-  orchestration stays in `app/services/insight_application_service.py` and
-  `core/ai/*`, and `legacy_app.py` may only re-export/delegate for documented
-  direct-import compatibility (e.g. `insight_v1`, `insight`,
-  `_execute_insight_request`). Any AI route extraction must preserve
+  `legacy_app.py`. `app/schemas/insight.py` owns the request/response models,
+  `app/services/insight_compat.py` owns retained compatibility callables and
+  their patchable runtime dependencies, and reusable orchestration stays in
+  `app/services/insight_application_service.py` and `core/ai/*`.
+  `legacy_app.py` may only expose exact canonical aliases for documented
+  direct-import compatibility. Any AI route extraction must preserve
   wellness-only transparency, input guards, quota/rate-limit behavior, provider
   fallbacks, and OpenAPI hiding; do not introduce new provider behavior,
   semantic-cache serving, or medical/therapy claims in a route-ownership PR.
-  Extracted-route handlers must resolve patchable legacy compat callables via
-  module attribute access at call time (never import-time symbol binding), so
-  existing `monkeypatch.setattr(legacy_app, ...)` test seams keep working.
+  Tests patch adapter runtime dependencies on the canonical consumer module,
+  never through facade rebinding, module tables, or per-carrier resolvers.
+  Until the router cutover, only attributes read directly by the unchanged
+  legacy Insight router remain patchable through `legacy_app`.
 
 ## Common pitfalls
 
