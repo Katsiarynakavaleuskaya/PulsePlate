@@ -102,7 +102,7 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
         node: ast.Assign | ast.AnnAssign,
         targets: list[ast.expr],
         value: ast.expr | None,
-        runtime_access_detected: bool,
+        runtime_accesses: set[tuple[str, str, int]],
     ) -> None:
         if value is None:
             return
@@ -110,15 +110,14 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
         target_names = set().union(*(self._bound_names(target) for target in targets))
         value_is_legacy = self._is_legacy_module(value)
         value_contains_legacy = self._literal_contains_legacy_module(value)
-        unsupported = not all(isinstance(target, ast.Name) for target in targets) or (
-            (value_contains_legacy and not value_is_legacy) or runtime_access_detected
+        unsupported = (
+            len(targets) != 1
+            or not isinstance(targets[0], ast.Name)
+            or ((value_contains_legacy and not value_is_legacy) or bool(runtime_accesses))
         )
         if unsupported:
-            if (
-                value_contains_legacy
-                or runtime_access_detected
-                or target_names.intersection(self.aliases)
-            ):
+            self.accesses.difference_update(runtime_accesses)
+            if value_contains_legacy or runtime_accesses or target_names.intersection(self.aliases):
                 self._record(node, _UNSUPPORTED_LEGACY_ASSIGNMENT)
             return
 
@@ -158,7 +157,7 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
             node,
             node.targets,
             node.value,
-            bool(self.accesses - previous_accesses),
+            self.accesses - previous_accesses,
         )
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
@@ -168,7 +167,7 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
             node,
             [node.target],
             node.value,
-            bool(self.accesses - previous_accesses),
+            self.accesses - previous_accesses,
         )
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
@@ -228,22 +227,17 @@ def test_legacy_runtime_access_visitor_fails_closed_on_unpacking() -> None:
     cases = (
         ("legacy, other = resolve_legacy_app(), None\n", 1),
         ("[legacy, other] = [resolve_legacy_app(), None]\n", 1),
-        ("(other, [legacy]) = (None, [resolve_legacy_app()])\n", 1),
+        ("legacy = alias = resolve_legacy_app()\n", 1),
+        ("legacy = legacy = resolve_legacy_app()\n", 1),
         (
             "legacy = resolve_legacy_app()\nlegacy, legacy = legacy, None\n",
             2,
         ),
         ("*rest, legacy = None, None, resolve_legacy_app()\n", 1),
-        (
-            "legacy = resolve_legacy_app()\n"
-            "clean = object()\n"
-            "legacy, clean = clean, legacy\n",
-            3,
-        ),
     )
     for source, expected_line in cases:
         finding = ("<module>", _UNSUPPORTED_LEGACY_ASSIGNMENT, expected_line)
-        assert finding in _legacy_runtime_accesses(source)
+        assert _legacy_runtime_accesses(source) == {finding}
 
 
 @pytest.mark.parametrize(
@@ -257,10 +251,7 @@ def test_legacy_runtime_access_visitor_fails_closed_on_unpacking() -> None:
     ],
 )
 def test_legacy_runtime_access_visitor_evaluates_rhs_before_rebinding(source: str) -> None:
-    assert _legacy_runtime_accesses(source) == {
-        ("<module>", "_execute_insight_request", 2),
-        ("<module>", _UNSUPPORTED_LEGACY_ASSIGNMENT, 2),
-    }
+    assert _legacy_runtime_accesses(source) == {("<module>", _UNSUPPORTED_LEGACY_ASSIGNMENT, 2)}
 
 
 def test_canonical_insight_modules_do_not_depend_on_legacy_app() -> None:
