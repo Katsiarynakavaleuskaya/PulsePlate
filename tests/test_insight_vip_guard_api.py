@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers.fake_llm_provider import FakeLLMProvider
-from tests.helpers.module_resolve import resolve_legacy_app, resolve_llm, resolve_module
+from tests.helpers.module_resolve import resolve_llm, resolve_module
 
 
 def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -30,10 +30,14 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     # IMPORTANT: resolve modules at runtime to avoid stale module references.
     # Some tests intentionally purge/reload modules (see module_purge), and under xdist this can
     # create multiple module instances. Patching a stale module object is a common CI-only flake.
-    legacy_app = resolve_legacy_app()
     insight_compat = resolve_module("app.services.insight_compat")
 
-    monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
+    monkeypatch.setattr(
+        insight_compat,
+        "_enforce_vip_llm_monthly_quota",
+        _noop_quota,
+        raising=True,
+    )
     # Patch the canonical consumer binding used by the compatibility adapter.
     monkeypatch.setattr(
         insight_compat,

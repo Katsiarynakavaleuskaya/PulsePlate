@@ -1563,9 +1563,9 @@ def test_record_runtime_metrics_swallows_metric_failures(monkeypatch: pytest.Mon
 
 @pytest.mark.asyncio
 async def test_direct_insight_provider_stub_raises_if_called() -> None:
-    from legacy_app import _DirectInsightProviderStub
+    from core.ai import DirectInsightProviderStub
 
-    stub = _DirectInsightProviderStub()
+    stub = DirectInsightProviderStub()
 
     with pytest.raises(RuntimeError, match="must not call provider.generate"):
         await stub.generate("unexpected")
