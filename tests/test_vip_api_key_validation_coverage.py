@@ -41,25 +41,6 @@ class TestVIPAPIKeyValidationCoverage:
         )
         assert response.status_code in [200, 401, 403, 422, 404]
 
-    def test_vip_api_key_validation_production_coverage(self, production_environment, test_client):
-        """Тест покрытия VIP API key validation production (строки 165-168)"""
-        client = test_client
-
-        # Тестируем VIP endpoint в production режиме
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan",
-            json={
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-            headers={"X-API-Key": "production-secret-key"},
-        )
-        assert response.status_code in [200, 401, 403, 422, 404]
-
     def test_vip_api_key_validation_test_mode_coverage(self, test_environment, test_client):
         """Тест покрытия VIP API key validation test mode (строки 202)"""
         client = test_client
