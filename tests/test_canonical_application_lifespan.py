@@ -65,6 +65,15 @@ def _run_lifespan(
     asyncio.run(_scenario())
 
 
+def _ordered_indexes(path: str, lines: list[str], expected: list[str]) -> list[int]:
+    indexes: list[int] = []
+    for line in expected:
+        if line not in lines:
+            pytest.fail(f"{path} is missing the expected step: {line!r}")
+        indexes.append(lines.index(line))
+    return indexes
+
+
 def test_canonical_lifespan_uses_exact_startup_and_cleanup_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -344,6 +353,25 @@ def test_failed_scheduler_start_cleanup_never_masks_primary_failure(
         asyncio.run(lifespan_module._stop_after_failed_background_start(_stop))
 
     assert "Error cleaning up a failed background scheduler start" in caplog.text
+
+
+def test_failed_scheduler_start_cleanup_propagates_external_cancellation() -> None:
+    async def _scenario() -> None:
+        stop_started = asyncio.Event()
+
+        async def _stop() -> None:
+            stop_started.set()
+            await asyncio.Event().wait()
+
+        cleanup_task = asyncio.create_task(
+            lifespan_module._stop_after_failed_background_start(_stop)
+        )
+        await stop_started.wait()
+        cleanup_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cleanup_task
+
+    asyncio.run(_scenario())
 
 
 def test_body_exception_is_not_masked_by_cleanup_failures(
@@ -640,7 +668,11 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
         "dc up -d --remove-orphans caddy",
         "  dc up -d --pull never --no-recreate --wait --wait-timeout 30 worker",
     ]
-    production_indexes = [production_lines.index(line) for line in production_order]
+    production_indexes = _ordered_indexes(
+        "scripts/deploy_production.sh",
+        production_lines,
+        production_order,
+    )
     assert production_indexes == sorted(production_indexes)
     assert 'if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then' in production_lines
     assert (
@@ -662,7 +694,11 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
         '"${COMPOSE[@]}" up -d --pull never caddy',
         ('  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker'),
     ]
-    staging_indexes = [staging_lines.index(line) for line in staging_order]
+    staging_indexes = _ordered_indexes(
+        "scripts/deploy.sh",
+        staging_lines,
+        staging_order,
+    )
     assert staging_indexes == sorted(staging_indexes)
     assert 'if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then' in staging_lines
     assert '  echo "Scheduler mode is disabled; worker container remains absent"' in staging_lines
@@ -679,10 +715,11 @@ def test_scheduler_worker_module_has_no_api_ingress_dependencies() -> None:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported_modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module is not None:
             imported_modules.add(node.module)
 
     forbidden_roots = {"app", "fastapi", "starlette", "uvicorn"}
-    assert all(
-        module.split(".", maxsplit=1)[0] not in forbidden_roots for module in imported_modules
-    )
+    violations = {
+        module for module in imported_modules if module.split(".", maxsplit=1)[0] in forbidden_roots
+    }
+    assert not violations, f"scheduler worker must not import API ingress modules: {violations}"

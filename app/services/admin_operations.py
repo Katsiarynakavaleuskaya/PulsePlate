@@ -120,13 +120,13 @@ async def force_database_update(source: str | None = None) -> JSONResponse:
             }
 
         return JSONResponse(content=response)
+    except UpdateLeaseContended as exc:
+        logger.info("Force update skipped because another update attempt holds the lease")
+        raise HTTPException(
+            status_code=409,
+            detail="update_already_in_progress",
+        ) from exc
     except Exception as exc:
-        if isinstance(exc, UpdateLeaseContended):
-            logger.info("Force update skipped because another update attempt holds the lease")
-            raise HTTPException(
-                status_code=409,
-                detail="update_already_in_progress",
-            ) from exc
         logger.exception("Force update failed")
         raise HTTPException(status_code=500, detail="Force update failed") from exc
 

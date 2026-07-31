@@ -220,7 +220,8 @@ class DatabaseUpdateScheduler:
             return completed
 
         try:
-            return await run_with_update_lease(_run_due_check)
+            completed: bool = await run_with_update_lease(_run_due_check)
+            return completed
         except UpdateLeaseContended:
             if propagate_lease_errors:
                 raise
@@ -318,7 +319,8 @@ class DatabaseUpdateScheduler:
 
             return results
 
-        return await run_with_update_lease(_run_forced_update)
+        results: dict[str, Any] = await run_with_update_lease(_run_forced_update)
+        return results
 
     def get_status(self) -> dict[str, Any]:
         """
@@ -473,6 +475,10 @@ async def _run_worker_once() -> int:
 def worker_main(argv: Sequence[str] | None = None) -> int:
     """Synchronous CLI entrypoint for the dedicated scheduler process."""
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     args = _worker_argument_parser().parse_args(argv)
     try:
         if args.serve:

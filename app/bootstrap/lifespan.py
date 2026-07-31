@@ -105,7 +105,7 @@ def build_default_lifespan_hooks(
     from core.db import init_db
     from core.db_fallback import attempt_db_fallback, clear_fallback_active
 
-    resolved_mode = scheduler_mode or resolve_scheduler_mode()
+    resolved_mode = scheduler_mode if scheduler_mode is not None else resolve_scheduler_mode()
     if resolved_mode is SchedulerMode.IN_PROCESS_DEV:
         start_background_updates, stop_background_updates = _load_background_update_hooks()
     else:
@@ -214,6 +214,11 @@ async def _stop_after_failed_background_start(stopper: BackgroundUpdateStopper) 
 
     try:
         await stopper()
+    except asyncio.CancelledError:
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            raise
+        logger.error("Error cleaning up a failed background scheduler start", exc_info=True)
     except BaseException:
         logger.error("Error cleaning up a failed background scheduler start", exc_info=True)
 
@@ -265,7 +270,7 @@ async def _application_lifespan_with_hooks(
 ) -> AsyncIterator[None]:
     """Run the canonical lifecycle with explicit dependencies."""
 
-    resolved_mode = scheduler_mode or resolve_scheduler_mode()
+    resolved_mode = scheduler_mode if scheduler_mode is not None else resolve_scheduler_mode()
     async with AsyncExitStack() as stack:
         hooks.run_startup_guards(app)
         _initialize_database(hooks)

@@ -707,7 +707,9 @@ def test_process_local_lease_requires_explicit_dev_or_test(
     ):
         asyncio.run(scheduler_runtime.run_with_update_lease(operation))
 
-    scheduler_runtime._invalidate_connection(None)
+
+def test_invalidate_connection_ignores_missing_connection() -> None:
+    assert scheduler_runtime._invalidate_connection(None) is None
 
 
 def test_admin_force_update_maps_only_definite_contention_to_409(
@@ -917,11 +919,14 @@ def test_scheduler_status_degrades_invalid_configuration_without_claiming_owner(
 ) -> None:
     from core.food_apis import scheduler as scheduler_module
 
+    def raise_invalid_mode() -> scheduler_runtime.SchedulerMode:
+        raise scheduler_runtime.SchedulerConfigurationError("invalid")
+
     scheduler = scheduler_module.DatabaseUpdateScheduler(install_signal_handlers=False)
     monkeypatch.setattr(
         scheduler_module,
         "resolve_scheduler_mode",
-        lambda: (_ for _ in ()).throw(scheduler_runtime.SchedulerConfigurationError("invalid")),
+        raise_invalid_mode,
     )
     try:
         status = scheduler.get_status()["scheduler"]
@@ -942,10 +947,18 @@ def test_worker_main_selects_one_cli_action_and_maps_failures(
     async def once_success() -> int:
         return 8
 
+    logging_configs: list[dict[str, object]] = []
+
+    def record_logging_config(**kwargs: object) -> None:
+        logging_configs.append(kwargs)
+
+    monkeypatch.setattr(scheduler_module.logging, "basicConfig", record_logging_config)
     monkeypatch.setattr(scheduler_module, "_serve_worker", serve_success)
     monkeypatch.setattr(scheduler_module, "_run_worker_once", once_success)
     assert scheduler_module.worker_main(["--serve"]) == 7
     assert scheduler_module.worker_main(["--once"]) == 8
+    assert logging_configs
+    assert all(config["level"] == scheduler_module.logging.INFO for config in logging_configs)
 
     with pytest.raises(SystemExit):
         scheduler_module.worker_main([])
