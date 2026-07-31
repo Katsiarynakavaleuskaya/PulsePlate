@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import threading
@@ -173,6 +175,17 @@ def _close_session(session: Session) -> None:
         logger.error("Could not close update-lease session", exc_info=True)
 
 
+async def _run_lease_io(
+    executor: ThreadPoolExecutor,
+    operation: Callable[[], T],
+) -> T:
+    """Run synchronous lease I/O on the invocation's single worker thread."""
+
+    loop = asyncio.get_running_loop()
+    result: T = await loop.run_in_executor(executor, operation)
+    return result
+
+
 async def _run_with_postgresql_lease(
     operation: UpdateOperation[T],
     *,
@@ -180,29 +193,33 @@ async def _run_with_postgresql_lease(
 ) -> T:
     """Run an operation while one PostgreSQL session holds the advisory lease."""
 
-    try:
-        session = session_factory()
-    except Exception as exc:
-        raise UpdateLeaseAcquireError("update lease acquisition failed") from exc
-
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="food-update-lease")
+    session: Session | None = None
     connection: Connection | None = None
     acquired = False
     body_error: BaseException | None = None
     try:
         try:
-            connection = session.connection()
-            acquire_result = connection.execute(
-                _TRY_ADVISORY_LOCK_SQL,
-                {"lease_key": FOOD_UPDATE_ADVISORY_LOCK_KEY},
-            ).scalar_one_or_none()
-        except Exception as exc:
-            _invalidate_connection(connection)
+            session = await _run_lease_io(executor, session_factory)
+            lease_connection = await _run_lease_io(executor, session.connection)
+            connection = lease_connection
+            acquire_result = await _run_lease_io(
+                executor,
+                lambda: lease_connection.execute(
+                    _TRY_ADVISORY_LOCK_SQL,
+                    {"lease_key": FOOD_UPDATE_ADVISORY_LOCK_KEY},
+                ).scalar_one_or_none(),
+            )
+        except BaseException as exc:
+            await _run_lease_io(executor, lambda: _invalidate_connection(connection))
+            if not isinstance(exc, Exception):
+                raise
             raise UpdateLeaseAcquireError("update lease acquisition failed") from exc
 
         if acquire_result is False:
             raise UpdateLeaseContended()
         if acquire_result is not True:
-            _invalidate_connection(connection)
+            await _run_lease_io(executor, lambda: _invalidate_connection(connection))
             raise UpdateLeaseAcquireError("update lease acquisition was uncertain")
         acquired = True
 
@@ -213,20 +230,29 @@ async def _run_with_postgresql_lease(
             raise
         finally:
             if acquired and connection is not None:
+                lease_connection = connection
                 release_error: BaseException | None = None
                 try:
-                    release_result = connection.execute(
-                        _ADVISORY_UNLOCK_SQL,
-                        {"lease_key": FOOD_UPDATE_ADVISORY_LOCK_KEY},
-                    ).scalar_one_or_none()
+                    release_result = await _run_lease_io(
+                        executor,
+                        lambda: lease_connection.execute(
+                            _ADVISORY_UNLOCK_SQL,
+                            {"lease_key": FOOD_UPDATE_ADVISORY_LOCK_KEY},
+                        ).scalar_one_or_none(),
+                    )
                     if release_result is not True:
                         raise UpdateLeaseReleaseError("update lease release was uncertain")
                 except BaseException as exc:
                     release_error = exc
-                    _invalidate_connection(connection)
+                    await _run_lease_io(
+                        executor,
+                        lambda: _invalidate_connection(lease_connection),
+                    )
 
                 if release_error is not None:
                     if body_error is None:
+                        if not isinstance(release_error, Exception):
+                            raise release_error
                         if isinstance(release_error, UpdateLeaseReleaseError):
                             raise release_error
                         raise UpdateLeaseReleaseError(
@@ -237,7 +263,12 @@ async def _run_with_postgresql_lease(
                         "the primary failure is preserved"
                     )
     finally:
-        _close_session(session)
+        try:
+            if session is not None:
+                lease_session = session
+                await _run_lease_io(executor, lambda: _close_session(lease_session))
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 async def _run_with_local_lease(operation: UpdateOperation[T]) -> T:
@@ -259,7 +290,10 @@ async def run_with_update_lease(
 ) -> T:
     """Run one update attempt through the canonical coordination boundary."""
 
-    resolved_mode = validate_scheduler_mode(mode) if mode is not None else resolve_scheduler_mode()
+    if mode is None:
+        resolve_scheduler_mode()
+    else:
+        validate_scheduler_mode(mode)
     backend_name = _database_backend_name()
 
     if backend_name == "postgresql":

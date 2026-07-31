@@ -118,7 +118,13 @@ else
           echo "❌ Duplicate FOOD_UPDATE_SCHEDULER_MODE entries in staging env file" >&2
           exit 1
         fi
-        scheduler_mode="${env_line#*=}"
+        raw_scheduler_mode="${env_line#*=}"
+        if [[ "$raw_scheduler_mode" =~ ^[[:space:]]*(external|disabled|in_process_dev)[[:space:]]*$ ]] || \
+           [[ "$raw_scheduler_mode" =~ ^[[:space:]]*(external|disabled|in_process_dev)[[:space:]]+\#.*$ ]]; then
+          scheduler_mode="${BASH_REMATCH[1]}"
+        else
+          scheduler_mode="$raw_scheduler_mode"
+        fi
         scheduler_mode_seen=1
         ;;
     esac

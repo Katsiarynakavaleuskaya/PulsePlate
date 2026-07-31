@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import textwrap
+import threading
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
@@ -414,6 +415,101 @@ def test_postgres_lease_uses_one_public_session_for_acquire_body_release(
         {"lease_key": scheduler_runtime.FOOD_UPDATE_ADVISORY_LOCK_KEY},
     ]
     assert connection.invalidations == 0
+    assert session.closed is True
+
+
+def test_postgres_lease_io_uses_one_worker_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_external_scheduler(monkeypatch)
+    io_thread_ids: list[int] = []
+    body_thread_ids: list[int] = []
+    event_loop_thread_id = threading.get_ident()
+
+    class _TrackingConnection(_LeaseConnection):
+        def execute(self, statement: object, parameters: dict[str, int]) -> _ScalarResult:
+            io_thread_ids.append(threading.get_ident())
+            return super().execute(statement, parameters)
+
+    class _TrackingSession(_LeaseSession):
+        def connection(self) -> _LeaseConnection:
+            io_thread_ids.append(threading.get_ident())
+            return super().connection()
+
+        def close(self) -> None:
+            io_thread_ids.append(threading.get_ident())
+            super().close()
+
+    connection = _TrackingConnection([True, True])
+    session = _TrackingSession(connection)
+
+    def session_factory() -> _TrackingSession:
+        io_thread_ids.append(threading.get_ident())
+        return session
+
+    async def operation() -> str:
+        body_thread_ids.append(threading.get_ident())
+        return "updated"
+
+    assert (
+        asyncio.run(
+            scheduler_runtime.run_with_update_lease(
+                operation,
+                session_factory=cast(Any, session_factory),
+            )
+        )
+        == "updated"
+    )
+
+    assert body_thread_ids == [event_loop_thread_id]
+    assert len(set(io_thread_ids)) == 1
+    assert event_loop_thread_id not in io_thread_ids
+    assert connection.events == ["acquire", "release"]
+    assert session.closed is True
+
+
+def test_postgres_lease_cancellation_during_acquire_invalidates_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_external_scheduler(monkeypatch)
+    acquire_started = threading.Event()
+    allow_acquire_to_finish = threading.Event()
+    operation_called = False
+
+    class _BlockingAcquireConnection(_LeaseConnection):
+        def execute(self, statement: object, parameters: dict[str, int]) -> _ScalarResult:
+            if "pg_try_advisory_lock" in str(statement):
+                acquire_started.set()
+                if not allow_acquire_to_finish.wait(timeout=5):
+                    raise AssertionError("timed out waiting to finish lease acquisition")
+            return super().execute(statement, parameters)
+
+    connection = _BlockingAcquireConnection([True])
+    session = _LeaseSession(connection)
+
+    async def operation() -> None:
+        nonlocal operation_called
+        operation_called = True
+
+    async def scenario() -> None:
+        lease_task = asyncio.create_task(
+            scheduler_runtime.run_with_update_lease(
+                operation,
+                session_factory=cast(Any, lambda: session),
+            )
+        )
+        while not acquire_started.is_set():
+            await asyncio.sleep(0)
+        lease_task.cancel()
+        allow_acquire_to_finish.set()
+        with pytest.raises(asyncio.CancelledError):
+            await lease_task
+
+    asyncio.run(scenario())
+
+    assert operation_called is False
+    assert connection.events == ["acquire"]
+    assert connection.invalidations == 1
     assert session.closed is True
 
 

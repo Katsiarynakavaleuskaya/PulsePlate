@@ -568,6 +568,7 @@ def test_real_postgres_advisory_lease_contends_then_releases(
     pgvector_database: _CompatDatabase,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from core import db as core_db
     from core.food_apis.scheduler_runtime import (
         SchedulerMode,
         UpdateLeaseContended,
@@ -575,11 +576,6 @@ def test_real_postgres_advisory_lease_contends_then_releases(
     )
 
     database = pgvector_database
-    monkeypatch.setenv(
-        "DATABASE_URL",
-        database.owner_engine.url.render_as_string(hide_password=False),
-    )
-    monkeypatch.setenv("FOOD_UPDATE_SCHEDULER_MODE", "external")
     session_factory = sessionmaker(bind=database.owner_engine)
     events: list[str] = []
 
@@ -612,7 +608,19 @@ def test_real_postgres_advisory_lease_contends_then_releases(
             session_factory=session_factory,
         )
 
-    asyncio.run(scenario())
+    baseline_database_url = os.environ["DATABASE_URL"]
+    core_db.reset_db_for_tests()
+    try:
+        with monkeypatch.context() as database_env:
+            database_env.setenv(
+                "DATABASE_URL",
+                database.owner_engine.url.render_as_string(hide_password=False),
+            )
+            database_env.setenv("FOOD_UPDATE_SCHEDULER_MODE", "external")
+            asyncio.run(scenario())
+    finally:
+        core_db.reset_db_for_tests()
+        core_db.init_db(baseline_database_url)
 
     assert events == [
         "owning-body",

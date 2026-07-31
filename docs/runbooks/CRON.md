@@ -83,7 +83,7 @@ For an immediate automatic-update stop, stop the `worker` service while leaving
 the API in `external` mode:
 
 ```bash
-docker compose stop worker
+docker compose --profile scheduler-external stop worker
 ```
 
 For a durable no-automatic-update deployment, set the unquoted exact value
