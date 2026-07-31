@@ -291,10 +291,7 @@ def _build_legacy_export_aliases_router() -> APIRouter:
 
     required_symbol_names = (
         "export_daily_plan_csv",
-        "export_pdf_generic",
         "export_weekly_plan_csv",
-        "export_daily_plan_pdf",
-        "export_weekly_plan_pdf",
     )
     missing = sorted(
         name for name in required_symbol_names if not callable(getattr(_legacy_module, name, None))
@@ -314,10 +311,7 @@ def _build_legacy_export_aliases_router() -> APIRouter:
     return build_legacy_export_aliases_router(
         api_key_dependency=_require_canonical_api_key_dependency("Legacy export aliases"),
         export_daily_plan_csv=lambda: legacy_export_handler("export_daily_plan_csv"),
-        export_pdf_generic=lambda: legacy_export_handler("export_pdf_generic"),
         export_weekly_plan_csv=lambda: legacy_export_handler("export_weekly_plan_csv"),
-        export_daily_plan_pdf=lambda: legacy_export_handler("export_daily_plan_pdf"),
-        export_weekly_plan_pdf=lambda: legacy_export_handler("export_weekly_plan_pdf"),
     )
 
 

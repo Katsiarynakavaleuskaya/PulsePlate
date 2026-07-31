@@ -12,10 +12,7 @@ from app.security.rate_limit import RATE_LIMIT_429_RESPONSES, RATE_LIMIT_EXPORTS
 
 LEGACY_EXPORT_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
     ("/api/v1/premium/exports/day/{plan_id}.csv", "GET", False),
-    ("/api/v1/export/pdf", "POST", False),
     ("/api/v1/premium/exports/week/{plan_id}.csv", "GET", False),
-    ("/api/v1/premium/exports/day/{plan_id}.pdf", "GET", False),
-    ("/api/v1/premium/exports/week/{plan_id}.pdf", "GET", False),
 )
 
 ExportHandler = Callable[..., Awaitable[Response]]
@@ -26,10 +23,7 @@ def build_legacy_export_aliases_router(
     *,
     api_key_dependency: Callable[..., Any],
     export_daily_plan_csv: ExportHandlerResolver,
-    export_pdf_generic: ExportHandlerResolver,
     export_weekly_plan_csv: ExportHandlerResolver,
-    export_daily_plan_pdf: ExportHandlerResolver,
-    export_weekly_plan_pdf: ExportHandlerResolver,
 ) -> APIRouter:
     """Build the gated legacy export-alias router with injected legacy helpers."""
 
@@ -45,19 +39,6 @@ def build_legacy_export_aliases_router(
     async def export_daily_plan_csv_route(request: Request, plan_id: str) -> Response:
         return await export_daily_plan_csv()(plan_id)
 
-    @router.post(
-        "/api/v1/export/pdf",
-        dependencies=[Depends(api_key_dependency)],
-        include_in_schema=False,
-        responses=RATE_LIMIT_429_RESPONSES,
-    )
-    @limit_if_available(RATE_LIMIT_EXPORTS)
-    async def export_pdf_generic_route(
-        request: Request,
-        payload: dict[str, Any],
-    ) -> Response:
-        return await export_pdf_generic()(payload)
-
     @router.get(
         "/api/v1/premium/exports/week/{plan_id}.csv",
         dependencies=[Depends(api_key_dependency)],
@@ -67,26 +48,6 @@ def build_legacy_export_aliases_router(
     @limit_if_available(RATE_LIMIT_EXPORTS)
     async def export_weekly_plan_csv_route(request: Request, plan_id: str) -> Response:
         return await export_weekly_plan_csv()(plan_id)
-
-    @router.get(
-        "/api/v1/premium/exports/day/{plan_id}.pdf",
-        dependencies=[Depends(api_key_dependency)],
-        include_in_schema=False,
-        responses=RATE_LIMIT_429_RESPONSES,
-    )
-    @limit_if_available(RATE_LIMIT_EXPORTS)
-    async def export_daily_plan_pdf_route(request: Request, plan_id: str) -> Response:
-        return await export_daily_plan_pdf()(plan_id)
-
-    @router.get(
-        "/api/v1/premium/exports/week/{plan_id}.pdf",
-        dependencies=[Depends(api_key_dependency)],
-        include_in_schema=False,
-        responses=RATE_LIMIT_429_RESPONSES,
-    )
-    @limit_if_available(RATE_LIMIT_EXPORTS)
-    async def export_weekly_plan_pdf_route(request: Request, plan_id: str) -> Response:
-        return await export_weekly_plan_pdf()(plan_id)
 
     return router
 

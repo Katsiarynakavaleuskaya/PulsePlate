@@ -8,7 +8,12 @@ import os
 
 from fastapi import FastAPI
 
-from app.effective_routes import iter_effective_route_candidates, route_path
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_matches_path_method,
+    route_responses,
+)
 
 
 def test_testing_env_enabled() -> None:
@@ -16,12 +21,34 @@ def test_testing_env_enabled() -> None:
     assert os.getenv("TESTING") == "true", "TESTING env var must be 'true' in tests"
 
 
-def test_export_pdf_route_registered() -> None:
-    """Guard: export/pdf route must be registered when TESTING=true."""
+def test_export_route_registration_contract() -> None:
+    """Guard canonical exports, retained CSV aliases, and retired PDF aliases."""
     import app
 
-    paths = {route_path(route) for route in iter_effective_route_candidates(app.app.routes)}
-    assert "/api/v1/export/pdf" in paths, "Export PDF route not registered"
+    routes = [
+        route
+        for route in iter_effective_route_candidates(app.app.routes)
+        if is_api_route_candidate(route)
+    ]
+    expected_routes = (
+        ("GET", "/api/v1/plan/week/export.pdf"),
+        ("GET", "/api/v1/premium/exports/day/{plan_id}.csv"),
+        ("GET", "/api/v1/premium/exports/week/{plan_id}.csv"),
+    )
+    retired_routes = (
+        ("POST", "/api/v1/export/pdf"),
+        ("GET", "/api/v1/premium/exports/day/{plan_id}.pdf"),
+        ("GET", "/api/v1/premium/exports/week/{plan_id}.pdf"),
+    )
+
+    for method, path in expected_routes:
+        matching_routes = [
+            route for route in routes if route_matches_path_method(route, path, method)
+        ]
+        assert len(matching_routes) == 1
+        assert 429 in route_responses(matching_routes[0])
+    for method, path in retired_routes:
+        assert not any(route_matches_path_method(route, path, method) for route in routes)
 
 
 def test_app_is_legacy_instance() -> None:

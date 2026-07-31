@@ -24,6 +24,10 @@ from app.routers import api_key as canonical_api_key
 import legacy_app
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_RETAINED_LEGACY_EXPORT_ALIAS_SPECS = (
+    ("/api/v1/premium/exports/day/{plan_id}.csv", "GET", False),
+    ("/api/v1/premium/exports/week/{plan_id}.csv", "GET", False),
+)
 
 
 def _matching_routes(path: str, method: str) -> list[object]:
@@ -41,6 +45,7 @@ def _is_canonical_api_key_dependency(dependency: object) -> bool:
 
 def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> None:
     openapi_paths = app_main.app.openapi().get("paths", {})
+    assert app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS == _RETAINED_LEGACY_EXPORT_ALIAS_SPECS
 
     for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
         matching_routes = _matching_routes(path, method)
@@ -68,12 +73,9 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
     [
         ("get", "/api/v1/premium/exports/day/auth.csv", {}),
         ("get", "/api/v1/premium/exports/week/auth.csv", {}),
-        ("get", "/api/v1/premium/exports/day/auth.pdf", {}),
-        ("get", "/api/v1/premium/exports/week/auth.pdf", {}),
-        ("post", "/api/v1/export/pdf", {"json": {"meals": []}}),
     ],
 )
-def test_legacy_export_aliases_reject_missing_api_key(
+def test_retained_legacy_export_aliases_reject_missing_api_key(
     monkeypatch: pytest.MonkeyPatch,
     method: str,
     path: str,
@@ -110,11 +112,9 @@ def test_legacy_export_alias_daily_csv_preserves_response_headers(
     ("helper_name", "path", "content"),
     [
         ("export_weekly_plan_csv", "/api/v1/premium/exports/week/test_plan.csv", b"weekly,csv"),
-        ("export_daily_plan_pdf", "/api/v1/premium/exports/day/test_plan.pdf", b"%PDF daily"),
-        ("export_weekly_plan_pdf", "/api/v1/premium/exports/week/test_plan.pdf", b"%PDF weekly"),
     ],
 )
-def test_legacy_export_alias_get_routes_delegate_to_current_helper(
+def test_retained_legacy_export_alias_get_routes_delegate_to_current_helper(
     monkeypatch: pytest.MonkeyPatch,
     helper_name: str,
     path: str,
@@ -134,43 +134,117 @@ def test_legacy_export_alias_get_routes_delegate_to_current_helper(
     assert response.content == content
 
 
-def test_legacy_export_alias_generic_pdf_preserves_empty_payload_400(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("API_KEY", "test_key")
-    client = TestClient(app_main.app)
+def test_retired_legacy_pdf_aliases_are_absent_with_export_gate_enabled() -> None:
+    code = """
+import json
+import os
+from fastapi.testclient import TestClient
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_matches_path_method,
+)
+import app.main as app_main
 
-    response = client.post(
-        "/api/v1/export/pdf",
-        headers={"X-API-Key": "test_key"},
-        json={},
+retained = (
+    ("GET", "/api/v1/premium/exports/day/{plan_id}.csv", "/api/v1/premium/exports/day/probe.csv"),
+    ("GET", "/api/v1/premium/exports/week/{plan_id}.csv", "/api/v1/premium/exports/week/probe.csv"),
+)
+retired = (
+    ("POST", "/api/v1/export/pdf", "/api/v1/export/pdf"),
+    ("GET", "/api/v1/premium/exports/day/{plan_id}.pdf", "/api/v1/premium/exports/day/probe.pdf"),
+    ("GET", "/api/v1/premium/exports/week/{plan_id}.pdf", "/api/v1/premium/exports/week/probe.pdf"),
+)
+
+def count_routes(method, template):
+    return sum(
+        1
+        for route in iter_effective_route_candidates(app_main.app.routes)
+        if is_api_route_candidate(route) and route_matches_path_method(route, template, method)
     )
 
-    assert response.status_code == 400
-    assert response.headers["content-type"].startswith("application/json")
-    assert response.json()["detail"] == "Empty export payload"
+client = TestClient(app_main.app)
+summary = {
+    "enabled": app_main._legacy_module.EXPORTS_ENABLED,
+    "retained_counts": {},
+    "retained_statuses": {},
+    "retired_counts": {},
+    "retired_statuses": {},
+}
 
+for method, template, concrete_path in retained:
+    key = f"{method} {template}"
+    summary["retained_counts"][key] = count_routes(method, template)
+    missing_key_response = client.get(concrete_path)
+    valid_key_response = client.get(
+        concrete_path,
+        headers={"X-API-Key": os.environ["API_KEY"]},
+    )
+    assert missing_key_response.status_code == 403
+    assert valid_key_response.status_code == 200
+    summary["retained_statuses"][key] = [
+        missing_key_response.status_code,
+        valid_key_response.status_code,
+    ]
 
-def test_legacy_export_alias_route_resolves_rebound_helper(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("API_KEY", "test_key")
+for method, template, concrete_path in retired:
+    key = f"{method} {template}"
+    summary["retired_counts"][key] = count_routes(method, template)
+    for auth_label, headers in (
+        ("without-key", {}),
+        ("with-valid-key", {"X-API-Key": os.environ["API_KEY"]}),
+    ):
+        if method == "POST":
+            response = client.post(concrete_path, headers=headers, json={"meals": []})
+        else:
+            response = client.get(concrete_path, headers=headers)
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"detail": "Not Found"}
+        summary["retired_statuses"][f"{auth_label}:{key}"] = [
+            response.status_code,
+            response.json(),
+        ]
 
-    async def _patched_export_pdf_generic(_payload: dict[str, object]) -> Response:
-        return Response(content=b"%PDF patched", media_type="application/pdf")
-
-    monkeypatch.setattr(legacy_app, "export_pdf_generic", _patched_export_pdf_generic)
-    client = TestClient(app_main.app)
-
-    response = client.post(
-        "/api/v1/export/pdf",
-        headers={"X-API-Key": "test_key"},
-        json={"meals": []},
+print(json.dumps(summary, sort_keys=True))
+"""
+    env = os.environ.copy()
+    env.update(
+        {
+            "APP_ENV": "test",
+            "FEATURE_EXPORTS": "true",
+            "TESTING": "true",
+        }
     )
 
-    assert response.status_code == 200
-    assert response.content == b"%PDF patched"
-    assert response.headers.get("content-type") == "application/pdf"
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=REPO_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    summary = json.loads(result.stdout.strip().splitlines()[-1])
+    assert summary["enabled"] is True
+    assert summary["retained_counts"] == {
+        "GET /api/v1/premium/exports/day/{plan_id}.csv": 1,
+        "GET /api/v1/premium/exports/week/{plan_id}.csv": 1,
+    }
+    assert summary["retained_statuses"] == {
+        "GET /api/v1/premium/exports/day/{plan_id}.csv": [403, 200],
+        "GET /api/v1/premium/exports/week/{plan_id}.csv": [403, 200],
+    }
+    assert summary["retired_counts"] == {
+        "GET /api/v1/premium/exports/day/{plan_id}.pdf": 0,
+        "GET /api/v1/premium/exports/week/{plan_id}.pdf": 0,
+        "POST /api/v1/export/pdf": 0,
+    }
+    assert len(summary["retired_statuses"]) == 6
+    assert all(
+        result == [404, {"detail": "Not Found"}] for result in summary["retired_statuses"].values()
+    )
 
 
 def test_legacy_export_aliases_absent_when_export_gate_is_disabled() -> None:
