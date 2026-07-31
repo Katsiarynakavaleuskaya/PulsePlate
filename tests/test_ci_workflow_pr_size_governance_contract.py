@@ -2096,7 +2096,7 @@ def test_ci_changes_outputs_cover_risk_profile_outputs() -> None:
     )
 
 
-def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane() -> None:
+def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() -> None:
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
     test_feature_groups = _contract_suite_targets_by_group(workflow, job_id="test-feature")
