@@ -131,13 +131,13 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
                     self._record(node, alias.name)
 
     def visit_Assign(self, node: ast.Assign) -> None:
+        self.generic_visit(node)
         for target in node.targets:
             self._bind_legacy_aliases(target, node.value)
-        self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        self._bind_legacy_aliases(node.target, node.value)
         self.generic_visit(node)
+        self._bind_legacy_aliases(node.target, node.value)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if node.attr in _LEGACY_RUNTIME_NAMES and self._is_legacy_module(node.value):
@@ -232,6 +232,30 @@ def test_legacy_runtime_access_visitor_uses_pre_assignment_state_for_swaps() -> 
     )
 
     assert _legacy_runtime_accesses(source) == {("<module>", "_execute_insight_request", 4)}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "legacy = resolve_legacy_app()\n"
+            "legacy = legacy._execute_insight_request\n"
+            "legacy._execute_insight_request\n"
+        ),
+        (
+            "legacy = resolve_legacy_app()\n"
+            'legacy: object = getattr(legacy, "_execute_insight_request")\n'
+            "legacy._execute_insight_request\n"
+        ),
+        (
+            "legacy = resolve_legacy_app()\n"
+            "legacy, captured = (None, legacy._execute_insight_request)\n"
+            "legacy._execute_insight_request\n"
+        ),
+    ],
+)
+def test_legacy_runtime_access_visitor_evaluates_rhs_before_rebinding(source: str) -> None:
+    assert _legacy_runtime_accesses(source) == {("<module>", "_execute_insight_request", 2)}
 
 
 def test_canonical_insight_modules_do_not_depend_on_legacy_app() -> None:
