@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from typing import Any, cast
+from typing import Any
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
@@ -35,13 +35,20 @@ from scripts.orchestration.creative_code_specification import (
 from scripts.orchestration.creative_code_telemetry_contract import (
     CreativeCodeTelemetryContractError,
     build_creative_code_rejection_taxonomy,
+    build_creative_code_telemetry_rollup_v2,
+    build_creative_code_terminal_telemetry_event,
     build_creative_code_telemetry_event,
     build_creative_code_telemetry_rollup,
     default_metrics,
     reject_unsafe_telemetry_value,
     validate_creative_code_rejection_taxonomy,
-    validate_creative_code_telemetry_event,
-    validate_creative_code_telemetry_rollup,
+    validate_creative_code_telemetry_event_any,
+    validate_creative_code_telemetry_rollup_any,
+)
+from scripts.orchestration.creative_code_terminal_outcome_contract import (
+    CreativeCodeTerminalOutcomeError,
+    read_json_object as read_terminal_json_object,
+    validate_creative_code_terminal_outcome,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +56,7 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 SPEC_RUNS_DIR = CREATIVE_CODE_ROOT / "spec_runs"
 PATCH_RUNS_DIR = CREATIVE_CODE_ROOT / "patch_runs"
 PROMOTIONS_DIR = CREATIVE_CODE_ROOT / "promotions"
+TERMINAL_OUTCOMES_DIR = CREATIVE_CODE_ROOT / "terminal_outcomes"
 TELEMETRY_ROOT = CREATIVE_CODE_ROOT / "telemetry"
 
 EVENTS_FILE = "creative_code_telemetry_events.jsonl"
@@ -73,6 +81,15 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _require_disjoint_mixed_input_roots(roots: tuple[Path, ...]) -> None:
+    for index, left in enumerate(roots):
+        for right in roots[index + 1 :]:
+            if left == right or _is_relative_to(left, right) or _is_relative_to(right, left):
+                raise CreativeCodeTelemetryError(
+                    "mixed telemetry input roots must be path-disjoint."
+                )
 
 
 def _existing_components(path: Path) -> list[Path]:
@@ -245,28 +262,26 @@ def event_from_specification_bundle(bundle: dict[str, Any]) -> dict[str, Any]:
     status = "accepted" if selected_variant_id and failure_class is None else "rejected"
     taxonomy_codes = _taxonomy_from_failure(failure_class)
     rejection_class = taxonomy_codes[0] if taxonomy_codes else None
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="specification",
-            source_artifact_type="creative_code_specification",
-            source_artifact_id=normalized["bundle_id"],
-            source_fingerprint=_source_fingerprint(normalized),
-            candidate_ids=_candidate_ids(
-                source_packet_id=normalized["source_packet_id"],
-                source_bundle_id=normalized["bundle_id"],
-                selected_variant_id=selected_variant_id,
-            ),
-            status=status,
-            rejection_class=rejection_class,
-            failure_class=rejection_class,
-            taxonomy_codes=taxonomy_codes,
-            metrics=default_metrics(
-                selected_variant_count=1 if selected_variant_id else 0,
-                variant_count=len(normalized["variants"]),
-            ),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="specification",
+        source_artifact_type="creative_code_specification",
+        source_artifact_id=normalized["bundle_id"],
+        source_fingerprint=_source_fingerprint(normalized),
+        candidate_ids=_candidate_ids(
+            source_packet_id=normalized["source_packet_id"],
+            source_bundle_id=normalized["bundle_id"],
+            selected_variant_id=selected_variant_id,
+        ),
+        status=status,
+        rejection_class=rejection_class,
+        failure_class=rejection_class,
+        taxonomy_codes=taxonomy_codes,
+        metrics=default_metrics(
+            selected_variant_count=1 if selected_variant_id else 0,
+            variant_count=len(normalized["variants"]),
         ),
     )
+    return event
 
 
 def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
@@ -275,95 +290,87 @@ def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
     rejection_class = taxonomy_codes[0] if taxonomy_codes else None
     patch_summary = normalized["patch_summary"]
     runner_summary = normalized["runner_summary"]
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="patch_evaluation",
-            source_artifact_type="creative_code_patch_result",
-            source_artifact_id=normalized["result_id"],
-            source_fingerprint=_source_fingerprint(normalized),
-            candidate_ids=_candidate_ids(
-                source_bundle_id=normalized["source_bundle_id"],
-                selected_variant_id=normalized["selected_variant_id"],
-                request_id=normalized["request_id"],
-                result_id=normalized["result_id"],
-            ),
-            status=normalized["status"],
-            rejection_class=rejection_class,
-            failure_class=rejection_class,
-            taxonomy_codes=taxonomy_codes,
-            metrics=default_metrics(
-                changed_files=len(normalized["changed_paths"]),
-                diff_lines=patch_summary["diff_lines"],
-                generation_attempts=runner_summary["attempts"],
-                oracle_commands_configured=runner_summary["oracle_commands_configured"],
-                oracle_commands_executed=runner_summary["oracle_commands_executed"],
-                patch_bytes=patch_summary["patch_bytes"],
-            ),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="patch_evaluation",
+        source_artifact_type="creative_code_patch_result",
+        source_artifact_id=normalized["result_id"],
+        source_fingerprint=_source_fingerprint(normalized),
+        candidate_ids=_candidate_ids(
+            source_bundle_id=normalized["source_bundle_id"],
+            selected_variant_id=normalized["selected_variant_id"],
+            request_id=normalized["request_id"],
+            result_id=normalized["result_id"],
+        ),
+        status=normalized["status"],
+        rejection_class=rejection_class,
+        failure_class=rejection_class,
+        taxonomy_codes=taxonomy_codes,
+        metrics=default_metrics(
+            changed_files=len(normalized["changed_paths"]),
+            diff_lines=patch_summary["diff_lines"],
+            generation_attempts=runner_summary["attempts"],
+            oracle_commands_configured=runner_summary["oracle_commands_configured"],
+            oracle_commands_executed=runner_summary["oracle_commands_executed"],
+            patch_bytes=patch_summary["patch_bytes"],
         ),
     )
+    return event
 
 
 def event_from_promotion_plan(plan: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_plan(plan)
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="promotion_plan",
-            source_artifact_type="creative_code_pr_promotion_plan",
-            source_artifact_id=normalized["promotion_id"],
-            source_fingerprint=_source_fingerprint(normalized),
-            candidate_ids=_candidate_ids(
-                source_bundle_id=normalized["source_bundle_id"],
-                selected_variant_id=normalized["selected_variant_id"],
-                request_id=normalized["source_request_id"],
-                result_id=normalized["source_result_id"],
-                promotion_id=normalized["promotion_id"],
-            ),
-            status="accepted",
-            metrics=default_metrics(
-                changed_files=len(normalized["changed_paths"]),
-                promotion_plan_count=1,
-            ),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="promotion_plan",
+        source_artifact_type="creative_code_pr_promotion_plan",
+        source_artifact_id=normalized["promotion_id"],
+        source_fingerprint=_source_fingerprint(normalized),
+        candidate_ids=_candidate_ids(
+            source_bundle_id=normalized["source_bundle_id"],
+            selected_variant_id=normalized["selected_variant_id"],
+            request_id=normalized["source_request_id"],
+            result_id=normalized["source_result_id"],
+            promotion_id=normalized["promotion_id"],
+        ),
+        status="accepted",
+        metrics=default_metrics(
+            changed_files=len(normalized["changed_paths"]),
+            promotion_plan_count=1,
         ),
     )
+    return event
 
 
 def event_from_promotion_validation(validation: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_validation(validation)
     oracle_evidence = normalized["oracle_evidence"]
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="promotion_validation",
-            source_artifact_type="creative_code_pr_promotion_validation",
-            source_artifact_id=normalized["promotion_id"],
-            source_fingerprint=_source_fingerprint(normalized),
-            candidate_ids=_candidate_ids(promotion_id=normalized["promotion_id"]),
-            status="accepted",
-            metrics=default_metrics(
-                oracle_commands_configured=oracle_evidence["oracle_commands_configured"],
-                oracle_commands_executed=oracle_evidence["oracle_commands_executed"],
-                promotion_validation_passed=1,
-            ),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="promotion_validation",
+        source_artifact_type="creative_code_pr_promotion_validation",
+        source_artifact_id=normalized["promotion_id"],
+        source_fingerprint=_source_fingerprint(normalized),
+        candidate_ids=_candidate_ids(promotion_id=normalized["promotion_id"]),
+        status="accepted",
+        metrics=default_metrics(
+            oracle_commands_configured=oracle_evidence["oracle_commands_configured"],
+            oracle_commands_executed=oracle_evidence["oracle_commands_executed"],
+            promotion_validation_passed=1,
         ),
     )
+    return event
 
 
 def event_from_promotion_approval(approval: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_approval(approval)
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="promotion_approval",
-            source_artifact_type="creative_code_pr_promotion_approval",
-            source_artifact_id=normalized["approval_id"],
-            source_fingerprint=_source_fingerprint(normalized),
-            candidate_ids=_candidate_ids(promotion_id=normalized["promotion_id"]),
-            status="accepted",
-            metrics=default_metrics(promotion_approval_count=1),
-        ),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="promotion_approval",
+        source_artifact_type="creative_code_pr_promotion_approval",
+        source_artifact_id=normalized["approval_id"],
+        source_fingerprint=_source_fingerprint(normalized),
+        candidate_ids=_candidate_ids(promotion_id=normalized["promotion_id"]),
+        status="accepted",
+        metrics=default_metrics(promotion_approval_count=1),
     )
+    return event
 
 
 def _promotion_receipt_failure_code(receipt: dict[str, Any]) -> str | None:
@@ -382,44 +389,40 @@ def event_from_promotion_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
     failure_code = _promotion_receipt_failure_code(normalized)
     status = "opened" if failure_code is None else "blocked"
     taxonomy_codes = [] if failure_code is None else [failure_code]
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="pr_open",
-            source_artifact_type="creative_code_pr_promotion_receipt",
-            source_artifact_id=normalized["receipt_id"],
-            source_fingerprint=_source_fingerprint(normalized),
-            candidate_ids=_candidate_ids(
-                result_id=normalized["source_result_id"],
-                promotion_id=normalized["promotion_id"],
-            ),
-            status=status,
-            rejection_class=taxonomy_codes[0] if taxonomy_codes else None,
-            failure_class=taxonomy_codes[0] if taxonomy_codes else None,
-            taxonomy_codes=taxonomy_codes,
-            metrics=default_metrics(pull_requests_opened=1 if status == "opened" else 0),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="pr_open",
+        source_artifact_type="creative_code_pr_promotion_receipt",
+        source_artifact_id=normalized["receipt_id"],
+        source_fingerprint=_source_fingerprint(normalized),
+        candidate_ids=_candidate_ids(
+            result_id=normalized["source_result_id"],
+            promotion_id=normalized["promotion_id"],
         ),
+        status=status,
+        rejection_class=taxonomy_codes[0] if taxonomy_codes else None,
+        failure_class=taxonomy_codes[0] if taxonomy_codes else None,
+        taxonomy_codes=taxonomy_codes,
+        metrics=default_metrics(pull_requests_opened=1 if status == "opened" else 0),
     )
+    return event
 
 
 def safe_read_error_event(path: Path) -> dict[str, Any]:
     path_fingerprint = _artifact_locator_fingerprint(path)
     source_id = path_fingerprint.removeprefix("sha256:")[:24]
-    return cast(
-        dict[str, Any],
-        build_creative_code_telemetry_event(
-            lane_stage="artifact_read_error",
-            source_artifact_type="creative_code_artifact_read_error",
-            source_artifact_id=f"read-error:{source_id}",
-            source_fingerprint=path_fingerprint,
-            candidate_ids=_candidate_ids(),
-            status="blocked",
-            rejection_class="malformed_artifact",
-            failure_class="malformed_artifact",
-            taxonomy_codes=["malformed_artifact"],
-            metrics=default_metrics(),
-        ),
+    event: dict[str, Any] = build_creative_code_telemetry_event(
+        lane_stage="artifact_read_error",
+        source_artifact_type="creative_code_artifact_read_error",
+        source_artifact_id=f"read-error:{source_id}",
+        source_fingerprint=path_fingerprint,
+        candidate_ids=_candidate_ids(),
+        status="blocked",
+        rejection_class="malformed_artifact",
+        failure_class="malformed_artifact",
+        taxonomy_codes=["malformed_artifact"],
+        metrics=default_metrics(),
     )
+    return event
 
 
 def _load_spec_event(path: Path) -> dict[str, Any] | None:
@@ -458,11 +461,32 @@ def _load_promotion_event(path: Path) -> dict[str, Any] | None:
         return safe_read_error_event(path)
 
 
+def _load_terminal_event(
+    path: Path,
+    *,
+    terminal_root: Path,
+) -> dict[str, Any] | None:
+    if path.name != "terminal_outcome.json":
+        return None
+    try:
+        outcome = validate_creative_code_terminal_outcome(read_terminal_json_object(path))
+        canonical_path = terminal_root / outcome["outcome_id"] / "terminal_outcome.json"
+        if path != canonical_path:
+            raise CreativeCodeTelemetryError(
+                "terminal outcome must use its canonical outcome directory."
+            )
+        event: dict[str, Any] = build_creative_code_terminal_telemetry_event(outcome)
+        return event
+    except CreativeCodeTerminalOutcomeError as exc:
+        raise CreativeCodeTelemetryError("terminal outcome validation failed.") from exc
+
+
 def collect_events(
     *,
     spec_runs_dir: Path = SPEC_RUNS_DIR,
     patch_runs_dir: Path = PATCH_RUNS_DIR,
     promotions_dir: Path = PROMOTIONS_DIR,
+    terminal_outcomes_dir: Path | None = None,
     strict: bool = False,
 ) -> list[dict[str, Any]]:
     roots = _resolve_optional_dir(
@@ -480,6 +504,17 @@ def collect_events(
         allowed_root=CREATIVE_CODE_ROOT,
         label="promotions directory",
     )
+    terminal_root = (
+        _resolve_optional_dir(
+            terminal_outcomes_dir,
+            allowed_root=CREATIVE_CODE_ROOT,
+            label="terminal outcomes directory",
+        )
+        if terminal_outcomes_dir is not None
+        else None
+    )
+    if terminal_root is not None:
+        _require_disjoint_mixed_input_roots((roots, patch_root, promotion_root, terminal_root))
     events: list[dict[str, Any]] = []
 
     for path in _iter_json_files(roots):
@@ -499,7 +534,13 @@ def collect_events(
         if event is not None:
             events.append(event)
 
-    normalized = [validate_creative_code_telemetry_event(event) for event in events]
+    if terminal_root is not None:
+        for path in _iter_json_files(terminal_root):
+            event = _load_terminal_event(path, terminal_root=terminal_root)
+            if event is not None:
+                events.append(event)
+
+    normalized = [validate_creative_code_telemetry_event_any(event) for event in events]
     return sorted(normalized, key=lambda row: row["event_id"])
 
 
@@ -545,7 +586,7 @@ def write_events_jsonl(path: Path, events: list[dict[str, Any]]) -> None:
 
 
 def render_summary(rollup: dict[str, Any]) -> str:
-    validated = validate_creative_code_telemetry_rollup(rollup)
+    validated = validate_creative_code_telemetry_rollup_any(rollup)
     funnel = validated["funnel"]
     lines = [
         "# Creative-Code Telemetry Summary",
@@ -557,9 +598,17 @@ def render_summary(rollup: dict[str, Any]) -> str:
         f"- Patch results accepted: {funnel['patch_results_accepted']}",
         f"- Patch results rejected: {funnel['patch_results_rejected']}",
         f"- Pull requests opened: {funnel['pull_requests_opened']}",
-        "",
-        "Caveats:",
     ]
+    if validated["schema_version"] == "2.0":
+        terminal = validated["terminal"]
+        lines.extend(
+            [
+                f"- Terminal outcomes: {terminal['outcome_count']}",
+                f"- Merged observations: {terminal['merged']}",
+                f"- Closed-unmerged observations: {terminal['closed_unmerged']}",
+            ]
+        )
+    lines.extend(["", "Caveats:"])
     lines.extend(f"- {caveat}" for caveat in validated["caveats"])
     return "\n".join(lines) + "\n"
 
@@ -569,6 +618,7 @@ def collect_and_write(
     spec_runs_dir: Path = SPEC_RUNS_DIR,
     patch_runs_dir: Path = PATCH_RUNS_DIR,
     promotions_dir: Path = PROMOTIONS_DIR,
+    terminal_outcomes_dir: Path | None = None,
     output_dir: Path = TELEMETRY_ROOT,
     strict: bool = False,
 ) -> dict[str, Any]:
@@ -576,23 +626,33 @@ def collect_and_write(
         spec_runs_dir=spec_runs_dir,
         patch_runs_dir=patch_runs_dir,
         promotions_dir=promotions_dir,
+        terminal_outcomes_dir=terminal_outcomes_dir,
         strict=strict,
     )
-    rollup = build_creative_code_telemetry_rollup(
-        events,
-        input_roots=[
-            _safe_root_label(spec_runs_dir),
-            _safe_root_label(patch_runs_dir),
-            _safe_root_label(promotions_dir),
-        ],
-    )
+    input_roots = [
+        _safe_root_label(spec_runs_dir),
+        _safe_root_label(patch_runs_dir),
+        _safe_root_label(promotions_dir),
+    ]
+    rollup: dict[str, Any]
+    if terminal_outcomes_dir is None:
+        rollup = build_creative_code_telemetry_rollup(
+            events,
+            input_roots=input_roots,
+        )
+    else:
+        input_roots.append(_safe_root_label(terminal_outcomes_dir))
+        rollup = build_creative_code_telemetry_rollup_v2(
+            events,
+            input_roots=input_roots,
+        )
     taxonomy = build_creative_code_rejection_taxonomy()
     output = _resolve_output_dir(output_dir)
     write_events_jsonl(output / EVENTS_FILE, events)
     _write_json_atomic(output / ROLLUP_FILE, rollup)
     _write_json_atomic(output / TAXONOMY_FILE, validate_creative_code_rejection_taxonomy(taxonomy))
     _write_text_atomic(output / SUMMARY_FILE, render_summary(rollup))
-    return cast(dict[str, Any], rollup)
+    return rollup
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -602,6 +662,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--spec-runs-dir", default=str(SPEC_RUNS_DIR))
     parser.add_argument("--patch-runs-dir", default=str(PATCH_RUNS_DIR))
     parser.add_argument("--promotions-dir", default=str(PROMOTIONS_DIR))
+    parser.add_argument("--terminal-outcomes-dir")
     parser.add_argument("--output-dir", default=str(TELEMETRY_ROOT))
     parser.add_argument("--strict", action="store_true")
     return parser.parse_args(argv)
@@ -614,6 +675,9 @@ def main(argv: list[str] | None = None) -> int:
             spec_runs_dir=Path(args.spec_runs_dir),
             patch_runs_dir=Path(args.patch_runs_dir),
             promotions_dir=Path(args.promotions_dir),
+            terminal_outcomes_dir=(
+                Path(args.terminal_outcomes_dir) if args.terminal_outcomes_dir else None
+            ),
             output_dir=Path(args.output_dir),
             strict=args.strict,
         )

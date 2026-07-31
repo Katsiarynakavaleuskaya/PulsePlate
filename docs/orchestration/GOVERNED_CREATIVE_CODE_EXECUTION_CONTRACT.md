@@ -3,14 +3,15 @@
 <!-- markdownlint-disable MD013 -->
 
 **Status:** PR-6 first applied-candidate lane, local private-pilot loop
-operator, local Experiment Runner PR creative-context attachment, and approved
-creative-hypothesis specification bridge. Repo-only governance contract. No
-runtime impact.
+operator, terminal creative-code outcome envelope v1, local Experiment Runner
+PR creative-context attachment, and approved creative-hypothesis specification
+bridge. Repo-only governance contract. No runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
 output, a PR-1 implementation specification, PR-2 local candidate-patch
 generation, PR-3 human-approved non-draft PR handoff tooling, PR-4 telemetry,
-PR-5 read-only review-disposition integration, the PR-6 local
+the terminal outcome continuation after `pr_open`, PR-5 read-only
+review-disposition integration, the PR-6 local
 applied-candidate run-plan wrapper, and a local private-pilot lifecycle
 operator, plus a local PR creative-context artifact layer for Experiment
 Runner hypothesis generation and agent routing, and a local bridge from human
@@ -40,7 +41,11 @@ build a validated `CreativeCodeCandidatePacket`, deterministic local metrics,
 and existing PR-1 prepare artifacts; it does not widen candidate mutable
 surfaces, execute agents, finalize bundles, generate patches, call providers,
 write PR/GitHub/Slack state, write product runtime truth, write graph truth, or
-open the semantic-cache gate.
+open the semantic-cache gate. The terminal envelope may only cross-bind one
+validated PR-3 plan/open receipt to one sanitized
+`merged | closed_unmerged` observation and one immutable local outcome. It
+does not collect GitHub state, parse review text, call a provider, or authorize
+review completion, dispositions, readiness, or merge.
 
 ---
 
@@ -53,6 +58,7 @@ open the semantic-cache gate.
 | `candidate-patch` | Produces isolated candidate patches for local evaluation. | Allowed only through PR-2 `CreativeCodePatchBuildRequest`, deterministic generation gate, sanitized generation receipt, and `CreativeCodePatchResult` artifacts in sandboxed workspaces. |
 | `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden except the PR-3 promoter's narrowly validated new `experiment/*` branch push and non-draft PR creation. |
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
+| `terminal-outcome-observation` | Binds one PR-3 lineage to one sanitized terminal, aggregate review, post-merge, process, and cost observation. | Allowed only through `creative_code_terminal_outcome.py`; observation-only, local, immutable, and no GitHub/provider/runtime/merge authority. |
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
 | `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
 | `approved-hypothesis-spec-bridge` | Converts a human-approved creative hypothesis into a validated PR-0 creative-code candidate and existing PR-1 prepare artifacts. | Allowed only through local `creative_hypothesis_spec_bridge.py`; no mutable-surface widening, provider calls, patch generation, PR writes, role execution, finalization, semantic cache, graph truth, or product runtime authority. |
@@ -79,6 +85,10 @@ private-pilot loop operator adds local lifecycle state, GitHub App read-only
 capability gating, and checklist planning without adding candidate-generation
 or repository-write authority. Product runtime, OpenAPI/client, semantic-cache,
 review-thread, merge, release, and Slack/GitHub authority flags remain closed.
+The terminal envelope adds only a post-`pr_open` observation carrier. Missing
+terminal evidence creates no outcome; unavailable review evidence remains
+`evidence_unavailable`. One outcome projects into one `pr_terminal` telemetry
+event, never three independently countable review/terminal/post-merge events.
 The PR creative-context layer adds bounded hypothesis/routing artifacts only;
 active model/operator intake remains local and validated; auto-workflow
 attachment remains a separate follow-up PR.
@@ -230,6 +240,23 @@ The PR-3 human-approved non-draft PR promotion artifacts are:
 - `docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json`
 - `scripts/orchestration/creative_code_pr_promotion_contract.py`
 - `scripts/orchestration/creative_code_pr_promotion.py`
+
+The terminal creative-code outcome artifacts are:
+
+- `docs/orchestration/contracts/creative_code_terminal_outcome.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_telemetry_event.v2.schema.json`
+- `docs/orchestration/contracts/creative_code_telemetry_rollup.v2.schema.json`
+- `scripts/orchestration/creative_code_terminal_outcome_contract.py`
+- `scripts/orchestration/creative_code_terminal_outcome.py`
+- `artifacts/orchestration/creative_code/terminal_outcomes/<outcome-id>/terminal_outcome.json`
+
+The caller observation is a closed input object, not a second canonical
+artifact. Outcome identity binds repository, PR number, promotion id, and
+promoted head SHA. Identical replay is no-write; a different payload for the
+same identity is `divergent_replay` and preserves the original artifact.
+Review/governance/post-merge tokens are derived observation vocabulary only.
+They are not provider PASS/no-findings, review completion, fixed-mapping
+evidence, merge-readiness evidence, or merge authority.
 
 Candidate-patch promotion evidence is valid only when it is materialized under
 `artifacts/orchestration/creative_code/patch_runs/<run-id>/` with a valid
@@ -446,6 +473,15 @@ PR-0 is a contract-only start point.
 - PR-4: add local candidate evaluation telemetry and rejection taxonomy over
   sanitized PR-1/PR-2/PR-3 artifacts; no public GitHub App backend, Slack beta,
   live review ingestion, or new authority.
+- Terminal outcome envelope: continue a validated PR-3 `pr_open` lineage
+  through exactly one local terminal carrier and one v2 `pr_terminal`
+  projection. Preserve all v1 telemetry schemas/identities and the no-terminal
+  collector path unchanged. Its containment, regular-file, no-replace, and
+  replay checks assume cooperative local artifact users; they do not promise
+  permanent pathname stability against an uncooperative same-UID process.
+  Descriptor-relative hostile-process hardening is a separate reviewed
+  portability and threat-model lane. This is not Pilot 3, OCW, or a product
+  hypothesis.
 - PR-5: add local review-disposition integration through
   `CreativeCodeReviewFeedbackRecord` -> `CreativeCodeReviewDispositionPacket`
   -> `CreativeCodeRepairLaunchPacket`; no review-thread resolution,
@@ -491,14 +527,22 @@ PR-4 telemetry artifacts are defined by:
 - `docs/orchestration/contracts/CREATIVE_CODE_TELEMETRY_CONTRACT.md`
 - `docs/orchestration/contracts/creative_code_telemetry_event.v1.schema.json`
 - `docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_terminal_outcome.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_telemetry_event.v2.schema.json`
+- `docs/orchestration/contracts/creative_code_telemetry_rollup.v2.schema.json`
 - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
 - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
 - `scripts/orchestration/creative_code_telemetry_contract.py`
 - `scripts/orchestration/creative_code_telemetry.py`
+- `scripts/orchestration/creative_code_terminal_outcome_contract.py`
+- `scripts/orchestration/creative_code_terminal_outcome.py`
 
 PR-4 rollups are advisory local measurements only. They are not routing truth,
 review-thread disposition evidence, fixed-mapping evidence, merge-readiness
 evidence, product runtime truth, or release evidence.
+V2 terminal rollups count process and cost once per outcome and reject
+duplicate lineages/source drift. They do not copy merge SHA, closed reason,
+review inventories/counters, or validation inventories/counters into events.
 
 PR-5 review-disposition artifacts are defined by:
 

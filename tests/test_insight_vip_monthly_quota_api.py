@@ -25,7 +25,7 @@ from app.security.llm_monthly_quota import (
 )
 
 from tests.helpers.fake_llm_provider import FakeLLMProvider
-from tests.helpers.module_resolve import resolve_legacy_app
+from tests.helpers.module_resolve import resolve_module
 
 TEST_SERVER_SALT = "TestServerSaltValue-1234567890!abcd!"
 
@@ -40,9 +40,12 @@ def _patch_llm_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_load_llm_get_provider() -> Callable[[], FakeLLMProvider]:
         return lambda: FakeLLMProvider()
 
-    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setattr(
-        legacy_app, "_load_llm_get_provider", _fake_load_llm_get_provider, raising=True
+        insight_compat,
+        "_load_llm_get_provider",
+        _fake_load_llm_get_provider,
+        raising=True,
     )
 
 

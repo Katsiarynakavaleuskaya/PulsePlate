@@ -16,15 +16,13 @@ from typing import (
     List,
     Literal,
     Optional,
-    cast,
 )
 
 import dotenv
-from fastapi import APIRouter, Body, FastAPI, HTTPException, status as fastapi_status
+from fastapi import APIRouter, Body, FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
-    Field,
     ValidationError,
 )
 from settings import get_runtime_env_name
@@ -55,6 +53,12 @@ from app.schemas.bmr import (  # noqa: F401 - compatibility re-exports
     BMRResponse,
 )
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
+from app.schemas.insight import (  # noqa: F401 - compatibility re-exports
+    INSIGHT_TEXT_MAX_LENGTH,
+    InsightRequest,
+    InsightResponse,
+    RAGSourceItem,
+)
 from app.schemas.premium_contracts import (
     Activity,
     DietFlag,
@@ -78,6 +82,15 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
     WeeklyMenuResponse,
 )
 from app.services import pro_nutrition_plate as _canonical_plate_service
+from app.services.insight_compat import (  # noqa: F401 - compatibility re-exports
+    INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
+    _DirectInsightProviderStub,
+    _enforce_vip_llm_monthly_quota,
+    _execute_insight_request,
+    _require_ai_generated_insight_notice,
+    insight,
+    insight_v1,
+)
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
     generate_who_targets_response as _generate_who_targets_response,
@@ -123,8 +136,8 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
-from app.security.llm_monthly_quota import (
-    attempt_consume_vip_llm_monthly_quota,
+from app.security.agent_input_guard import (  # noqa: F401 - router compatibility re-export
+    require_safe_ai_agent_input,
 )
 
 _BMI_COMPAT_REEXPORTS = (
@@ -495,53 +508,6 @@ def _is_rate_limiting_available() -> bool:
 # to avoid import-order issues with FastAPI instance
 
 
-# ---------- Models ----------
-
-INSIGHT_TEXT_MAX_LENGTH = 2000
-
-
-class InsightRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=INSIGHT_TEXT_MAX_LENGTH)
-
-
-class RAGSourceItem(BaseModel):
-    """Single RAG source in Insight response per RAG_CONTRACT.md §2."""
-
-    chunk_id: str
-    file: str
-    preview: str
-    score: float
-
-
-class InsightResponse(BaseModel):
-    """Insight response payload per RAG_CONTRACT.md §2.
-
-    RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
-    EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
-
-    New RAG/runtime fields are optional with safe defaults so old clients keep
-    working without changes.
-    """
-
-    provider: str = Field(..., min_length=1)
-    insight: str = Field(..., min_length=1)
-    sources: list[RAGSourceItem] = Field(default_factory=list)
-    confidence: Optional[float] = None
-    rag_used: bool = False
-    hops: int = 0
-    latency_ms: int = 0
-    route_type: Optional[str] = None
-    depth_used: int = 0
-    verification_rate: Optional[float] = None
-    falsifiability_rate: Optional[float] = None
-    contradiction_count: int = 0
-    reason_codes: list[str] = Field(default_factory=list)
-    optimization_applied: bool = False
-    automated_analysis: bool = False
-    transparency_notice_id: Optional[str] = None
-    wellness_boundary: Optional[str] = None
-
-
 # ---------- Core logic ----------
 
 
@@ -577,171 +543,6 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     from app.services.bmi_compat import bmi_endpoint_v1 as _bmi_endpoint_v1
 
     return await _bmi_endpoint_v1(req)
-
-
-def _ensure_insight_text_length(text: str) -> str:
-    if len(text) > INSIGHT_TEXT_MAX_LENGTH:
-        raise HTTPException(status_code=413, detail="Insight text too long")
-    return text
-
-
-def _build_insight_prompt(text: str, context: Optional[str]) -> str:
-    if not context:
-        return text
-    prefix = "Context:\n"
-    suffix = f"\n\nQuestion: {text}\nAnswer:"
-    max_context_len = INSIGHT_TEXT_MAX_LENGTH - len(prefix) - len(suffix)
-    if max_context_len <= 0:
-        return text[:INSIGHT_TEXT_MAX_LENGTH]
-    trimmed_context = context[:max_context_len]
-    prompt_text = f"{prefix}{trimmed_context}{suffix}"
-    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
-        return prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
-    return prompt_text
-
-
-INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
-INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
-
-
-from core.ai import (  # noqa: E402
-    DirectInsightProviderStub,
-    InsightProviderLoadError,
-    InsightTransparencyUnavailableError,
-    load_insight_provider as _core_load_insight_provider,
-    require_ai_generated_insight_notice as _core_require_ai_generated_insight_notice,
-)
-from core.insight.llm_provider_loader import (  # noqa: E402
-    load_llm_get_provider as _load_llm_get_provider,
-)
-from app.services.insight_application_service import (  # noqa: E402
-    execute_insight_request as _execute_insight_request_via_service,
-)
-from app.security.agent_input_guard import (  # noqa: E402
-    require_safe_ai_agent_input,
-)
-
-
-def _build_rag_source_items(chunks: list[Any]) -> list[RAGSourceItem]:
-    """Thin proxy → core.rag.formatting.build_rag_source_dicts."""
-    from core.rag.formatting import build_rag_source_dicts
-
-    return [RAGSourceItem(**d) for d in build_rag_source_dicts(chunks)]
-
-
-def _load_insight_provider() -> Any:
-    """Load configured LLM provider with legacy error contract preserved."""
-    try:
-        return _core_load_insight_provider(provider_factory_loader=_load_llm_get_provider)
-    except InsightProviderLoadError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-
-def _require_ai_generated_insight_notice() -> tuple[str, str]:
-    """Return the required transparency notice id and boundary or fail closed."""
-    try:
-        notice = _core_require_ai_generated_insight_notice()
-    except InsightTransparencyUnavailableError as exc:
-        raise HTTPException(
-            status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    return notice.surface_id, notice.wellness_boundary
-
-
-_DirectInsightProviderStub = DirectInsightProviderStub
-
-
-async def _execute_insight_request(
-    req: InsightRequest,
-    *,
-    route_path: str,
-    user_tier: str,
-    subject_id: int | None = None,
-) -> InsightResponse:
-    """Shared /insight execution path with philosophical runtime support."""
-    return cast(
-        InsightResponse,
-        await _execute_insight_request_via_service(
-            req,
-            route_path=route_path,
-            user_tier=user_tier,
-            subject_id=subject_id,
-            input_guard=require_safe_ai_agent_input,
-            provider_loader=_load_insight_provider,
-            transparency_loader=_require_ai_generated_insight_notice,
-            direct_provider_factory=_DirectInsightProviderStub,
-            response_factory=InsightResponse,
-            source_item_factory=RAGSourceItem,
-        ),
-    )
-
-
-async def insight_v1(
-    req: InsightRequest,
-    *,
-    subject_id: int | None = None,
-) -> InsightResponse:
-    """Generate insight using LLM provider (v1 with API key).
-
-    Privacy: user text may be sent to external providers; see /privacy.
-
-    Rate limit: 10 requests per minute (configurable via RATE_LIMIT_INSIGHT env var).
-    """
-    flag_value = os.getenv("FEATURE_INSIGHT", "false")
-    if not _is_truthy(flag_value):
-        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
-
-    try:
-        return await _execute_insight_request(
-            req,
-            route_path="/api/v1/insight",
-            user_tier="VIP",
-            subject_id=subject_id,
-        )
-    except HTTPException:
-        raise
-    except Exception:
-        # Log server-side only; never return exception details to client (privacy/safety).
-        logger.exception("Insight provider call failed (/api/v1/insight)")
-        raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
-
-
-async def insight(req: InsightRequest) -> InsightResponse:
-    """Generate insight using LLM provider (legacy path without API key).
-
-    Privacy: user text may be sent to external providers; see /privacy.
-
-    Rate limit: 10 requests per minute (configurable via RATE_LIMIT_INSIGHT env var).
-    """
-    flag_value = os.getenv("FEATURE_INSIGHT", "false")
-    if not _is_truthy(flag_value):
-        # For legacy path, return 503 if feature disabled
-        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
-
-    try:
-        return await _execute_insight_request(
-            req,
-            route_path="/insight",
-            user_tier="VIP",
-        )
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Insight provider call failed (/insight)")
-        raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
-
-
-def _enforce_vip_llm_monthly_quota(vip_key: str) -> None:
-    """Enforce VIP monthly hard quota before any provider call.
-
-    RU: Жёсткий стоп-кран ДО provider.generate(...).
-    EN: Hard stop before provider.generate(...).
-    """
-
-    allowed = attempt_consume_vip_llm_monthly_quota(vip_key)
-    if not allowed:
-        raise HTTPException(status_code=429, detail="quota_exceeded")
 
 
 MenuEngineCallable = Callable[..., Any]
