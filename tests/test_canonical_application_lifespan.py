@@ -605,6 +605,7 @@ def test_compose_uses_one_no_ingress_worker_from_exact_backend_image(
     assert worker["command"] == "python -m core.food_apis.scheduler --serve"
     assert worker["depends_on"]["app"]["condition"] == "service_healthy"
     assert worker["healthcheck"] == {"disable": True}
+    assert worker["restart"] == "unless-stopped"
     assert "ports" not in worker
     assert "expose" not in worker
     assert "env_file" not in worker
@@ -630,6 +631,7 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
         "dc pull app",
         "dc pull worker",
         "dc stop worker",
+        "  dc rm -f worker",
         "if dc run --rm --no-deps app alembic upgrade head; then",
         "sync_shell_bundle",
         "dc up -d --remove-orphans app",
@@ -640,7 +642,9 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
     production_indexes = [production_lines.index(line) for line in production_order]
     assert production_indexes == sorted(production_indexes)
     assert 'if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then' in production_lines
-    assert '  echo "Scheduler mode is disabled; worker remains stopped"' in production_lines
+    assert (
+        '  echo "Scheduler mode is disabled; worker container remains absent"' in production_lines
+    )
     assert (
         '      echo "❌ Production deploy forbids FOOD_UPDATE_SCHEDULER_MODE=in_process_dev" >&2'
     ) in production_lines
@@ -649,6 +653,7 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
     staging_order = [
         '"${COMPOSE[@]}" pull worker',
         '"${COMPOSE[@]}" stop worker',
+        '  "${COMPOSE[@]}" rm -f worker',
         'echo "[3/5] Start Postgres and create a pre-migration backup"',
         'if "${COMPOSE[@]}" run --rm --no-deps app alembic upgrade head; then',
         '"${COMPOSE[@]}" up -d --pull never app',
@@ -659,7 +664,7 @@ def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> Non
     staging_indexes = [staging_lines.index(line) for line in staging_order]
     assert staging_indexes == sorted(staging_indexes)
     assert 'if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then' in staging_lines
-    assert '  echo "Scheduler mode is disabled; worker remains stopped"' in staging_lines
+    assert '  echo "Scheduler mode is disabled; worker container remains absent"' in staging_lines
     assert (
         '    echo "❌ Staging deploy forbids FOOD_UPDATE_SCHEDULER_MODE=in_process_dev" >&2'
     ) in staging_lines

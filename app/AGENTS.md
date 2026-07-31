@@ -430,8 +430,9 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   election, fencing, fairness, worker-health, or multi-host cache coherence.
 - Canonical compose deployments in `external` mode run one `worker` service
   from the exact backend image, without ports or ingress, after migrations and
-  API readiness. In `disabled` mode deploy leaves that service stopped. API and
-  worker share the named food-cache volume; this remains a single-host topology.
+  API readiness. In `disabled` mode deploy removes the stopped worker container
+  so daemon restart cannot revive stale external configuration. API and worker
+  share the named food-cache volume; this remains a single-host topology.
 - `app/services/scheduler_access.py` is a lazy, typed delegator; it must not add
   cache, override registry, fallback state, or lifecycle logic.
 - Admin services import and await the scheduler-access callable at their use
@@ -445,7 +446,7 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   unavailable scheduler to stable `503 Scheduler unavailable`. Database status,
   update check, and non-contention force-update failures must log technical
   failures and expose only stable generic `500` details. Definite canonical
-  lease contention from admin force-update maps to deterministic
+  lease contention from admin force-update or rollback maps to deterministic
   `409 update_already_in_progress`; uncertain lease state remains a generic
   server failure.
 

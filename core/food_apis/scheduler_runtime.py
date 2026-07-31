@@ -11,7 +11,7 @@ from typing import TypeVar
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, make_url
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from settings import (
     is_production_like_env,
@@ -34,7 +34,7 @@ _LOCAL_UPDATE_LEASE = threading.Lock()
 
 T = TypeVar("T")
 UpdateOperation = Callable[[], Awaitable[T]]
-SessionFactory = sessionmaker[Session]
+SessionFactory = Callable[[], Session]
 
 
 class SchedulerMode(str, Enum):
@@ -71,9 +71,10 @@ class UpdateLeaseReleaseError(UpdateLeaseError):
 def _is_explicit_development_or_test() -> bool:
     """Return whether process-local coordination is explicitly permitted."""
 
-    return (
-        is_raw_explicit_developer_env() or is_truthy_env_var("TESTING") or is_truthy_env_var("CI")
-    )
+    explicit_developer = bool(is_raw_explicit_developer_env())
+    explicit_testing = bool(is_truthy_env_var("TESTING"))
+    explicit_ci = bool(is_truthy_env_var("CI"))
+    return explicit_developer or explicit_testing or explicit_ci
 
 
 def _database_backend_name() -> str | None:
@@ -83,7 +84,8 @@ def _database_backend_name() -> str | None:
     if not database_url:
         return None
     try:
-        return make_url(database_url).get_backend_name()
+        backend_name: str = make_url(database_url).get_backend_name()
+        return backend_name
     except Exception as exc:
         raise SchedulerConfigurationError("invalid scheduler database configuration") from exc
 
@@ -147,7 +149,8 @@ def _current_session_factory() -> SessionFactory:
 
     from core.db import get_session_factory
 
-    return get_session_factory()
+    session_factory: SessionFactory = get_session_factory()
+    return session_factory
 
 
 def _invalidate_connection(connection: Connection | None) -> None:

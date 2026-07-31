@@ -496,6 +496,10 @@ dc pull worker
 
 echo "Stopping the previous scheduler worker before migrations..."
 dc stop worker
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
+  echo "Removing disabled scheduler worker container..."
+  dc rm -f worker
+fi
 
 echo "Production DB backups are managed outside the deploy script (provider snapshots / PITR)."
 
@@ -518,7 +522,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   echo "Starting scheduler worker after app readiness..."
   dc up -d --pull never --wait --wait-timeout 30 worker
 else
-  echo "Scheduler mode is disabled; worker remains stopped"
+  echo "Scheduler mode is disabled; worker container remains absent"
 fi
 
 echo "Starting caddy after successful migrations..."

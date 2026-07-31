@@ -165,7 +165,10 @@ class DatabaseUpdateScheduler:
                 current_time = now_utc()
 
                 if self._should_check_for_updates(current_time):
-                    await self._run_update_check()
+                    completed = await self._run_update_check()
+                    if not completed:
+                        await asyncio.sleep(self.retry_interval.total_seconds())
+                        continue
 
                 # Sleep for a short interval before next check
                 await asyncio.sleep(60)  # Check every minute
@@ -176,7 +179,7 @@ class DatabaseUpdateScheduler:
             except Exception as e:
                 logger.error(f"Error in update loop: {e}")
                 # Continue running despite errors
-                await asyncio.sleep(300)  # Wait 5 minutes before retrying
+                await asyncio.sleep(self.retry_interval.total_seconds())
 
     def _should_check_for_updates(self, current_time: datetime) -> bool:
         """Determine if it's time to check for updates."""

@@ -634,6 +634,89 @@ def test_admin_force_update_maps_only_definite_contention_to_409(
     assert exc_info.value.detail == "update_already_in_progress"
 
 
+def test_admin_rollback_runs_inside_lease_and_maps_contention_to_409(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class _Manager:
+        async def rollback_database(self, source: str, target_version: str) -> bool:
+            events.append(f"rollback:{source}:{target_version}")
+            return True
+
+    class _Scheduler:
+        update_manager = _Manager()
+
+    async def getter() -> _Scheduler:
+        return _Scheduler()
+
+    async def run_lease(operation: Any) -> Any:
+        events.append("lease")
+        return await operation()
+
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", getter)
+    monkeypatch.setattr(admin_operations, "run_with_update_lease", run_lease)
+
+    result = asyncio.run(admin_operations.rollback_database("usda", "v1"))
+
+    assert result["success"] is True
+    assert events == ["lease", "rollback:usda:v1"]
+
+    async def contend(_operation: Any) -> Any:
+        raise scheduler_runtime.UpdateLeaseContended()
+
+    events.clear()
+    monkeypatch.setattr(admin_operations, "run_with_update_lease", contend)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(admin_operations.rollback_database("usda", "v1"))
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "update_already_in_progress"
+    assert events == []
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected_delay"),
+    [
+        (True, 60.0),
+        (False, 30.0 * 60.0),
+        (RuntimeError("update check failed"), 30.0 * 60.0),
+    ],
+)
+def test_scheduler_loop_backs_off_after_incomplete_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: bool | Exception,
+    expected_delay: float,
+) -> None:
+    from core.food_apis import scheduler as scheduler_module
+
+    scheduler = scheduler_module.DatabaseUpdateScheduler(
+        retry_interval_minutes=30,
+        install_signal_handlers=False,
+    )
+    scheduler.is_running = True
+    if isinstance(outcome, Exception):
+        scheduler._run_update_check = AsyncMock(side_effect=outcome)
+    else:
+        scheduler._run_update_check = AsyncMock(return_value=outcome)
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+        scheduler.is_running = False
+
+    try:
+        with monkeypatch.context() as context:
+            context.setattr(scheduler_module.asyncio, "sleep", record_sleep)
+            asyncio.run(scheduler._update_loop())
+    finally:
+        asyncio.run(scheduler.update_manager.close())
+
+    assert delays == [expected_delay]
+    scheduler._run_update_check.assert_awaited_once()
+
+
 def test_scheduler_due_cycle_updates_watermark_only_after_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

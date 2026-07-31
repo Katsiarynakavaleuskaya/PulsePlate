@@ -65,7 +65,7 @@ services:
 
   worker:
     image: ${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}
-    restart: always
+    restart: unless-stopped
     networks: [web]
     environment:
       - ENVIRONMENT=staging

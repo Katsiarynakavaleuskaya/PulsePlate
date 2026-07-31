@@ -13,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.services.scheduler_access import get_update_scheduler
 from app.utils.feature_flags import _is_truthy
+from core.food_apis.scheduler_runtime import UpdateLeaseContended, run_with_update_lease
 from core.log_retention import DataClass, get_retention_manager
 from settings import is_explicit_developer_env
 
@@ -120,10 +121,6 @@ async def force_database_update(source: str | None = None) -> JSONResponse:
 
         return JSONResponse(content=response)
     except Exception as exc:
-        # Keep the optional scheduler boundary lazy: only the exact canonical
-        # contention type is a client-visible coordination outcome.
-        from core.food_apis.scheduler_runtime import UpdateLeaseContended
-
         if isinstance(exc, UpdateLeaseContended):
             logger.info("Force update skipped because another update attempt holds the lease")
             raise HTTPException(
@@ -189,14 +186,24 @@ async def rollback_database(source: str, target_version: str) -> dict[str, Any]:
             detail="Rollback operation not supported by update manager",
         )
 
-    try:
+    async def _run_rollback() -> Any:
         if inspect.iscoroutinefunction(rollback_callable):
-            success = await rollback_callable(source, target_version)
+            result = await rollback_callable(source, target_version)
         else:
-            success = await run_in_threadpool(rollback_callable, source, target_version)
+            result = await run_in_threadpool(rollback_callable, source, target_version)
 
-        if inspect.isawaitable(success):
-            success = await success
+        if inspect.isawaitable(result):
+            result = await result
+        return result
+
+    try:
+        success = await run_with_update_lease(_run_rollback)
+    except UpdateLeaseContended as exc:
+        logger.info("Rollback skipped because another update attempt holds the lease")
+        raise HTTPException(
+            status_code=409,
+            detail="update_already_in_progress",
+        ) from exc
     except Exception as exc:
         logger.exception("Rollback callable raised")
         error_msg = "Rollback operation failed; Rollback failed; see server logs for details"

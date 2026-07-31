@@ -209,6 +209,10 @@ unset GHCR_TOKEN GHCR_USER
 
 echo "Quiescing the previous scheduler worker before backup and migrations"
 "${COMPOSE[@]}" stop worker
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
+  echo "Removing disabled scheduler worker container"
+  "${COMPOSE[@]}" rm -f worker
+fi
 
 echo "[3/5] Start Postgres and create a pre-migration backup"
 "${COMPOSE[@]}" up -d postgres
@@ -284,7 +288,7 @@ if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
   echo "Starting scheduler worker after app readiness"
   "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker
 else
-  echo "Scheduler mode is disabled; worker remains stopped"
+  echo "Scheduler mode is disabled; worker container remains absent"
 fi
 
 echo "[5/5] Start Caddy after successful migrations"

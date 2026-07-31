@@ -58,12 +58,13 @@ or run it concurrently with the canonical worker.
 
 ## Coordination guarantee and limits
 
-Scheduled checks, `--once`, and admin force-update use one canonical
-attempt-scoped lease. With PostgreSQL, acquisition, the complete update body,
-and unlock use the same dedicated database session and a stable 64-bit advisory
-key. Definite contention returns `409 update_already_in_progress` from admin
-force-update. Unknown acquisition or release state fails closed and invalidates
-the connection.
+Scheduled checks, `--once`, admin force-update, and admin rollback use one
+canonical attempt-scoped lease. With PostgreSQL, acquisition, the complete
+update or rollback body, and unlock use the same dedicated database session and
+a stable 64-bit advisory key. Definite contention returns
+`409 update_already_in_progress` from either admin mutation. Unknown acquisition
+or release state fails closed and invalidates the connection. A failed
+scheduled attempt waits for the configured retry interval before trying again.
 
 This prevents concurrent guarded bodies only among cooperating processes using
 the same PostgreSQL database and advisory key while the lock session is valid.
@@ -82,9 +83,10 @@ docker compose stop worker
 For a durable no-automatic-update deployment, set the unquoted exact value
 `FOOD_UPDATE_SCHEDULER_MODE=disabled` in the protected deployment `.env` and
 redeploy. The deploy preflight rejects empty, aliased, or `in_process_dev`
-values, starts the API in disabled mode, and leaves the worker stopped. Admin or
-explicit `--once` operations remain lease-protected. To roll back the release,
-deploy the previous attested backend/Compose bundle.
+values, starts the API in disabled mode, and removes the stopped worker
+container so a daemon restart cannot revive stale `external` configuration.
+Admin or explicit `--once` operations remain lease-protected. To roll back the
+release, deploy the previous attested backend/Compose bundle.
 `DISABLE_BACKGROUND_UPDATES` controls only the legacy `in_process_dev` startup
 path and is not an external-worker kill switch.
 
