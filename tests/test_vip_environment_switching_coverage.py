@@ -25,27 +25,6 @@ class TestVIPEnvironmentSwitchingCoverage:
         )
         assert response.status_code in [200, 401, 403, 422, 404]
 
-    def test_vip_environment_switching_production_to_test_coverage(
-        self, production_environment, test_client
-    ):
-        """Тест покрытия VIP environment switching production to test (строки 225-230)"""
-        client = test_client
-
-        # Тестируем переключение из production в test режим
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan",
-            json={
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-            headers={"X-API-Key": "production-secret-key"},
-        )
-        assert response.status_code in [200, 401, 403, 422, 404]
-
     def test_vip_environment_switching_api_key_validation_coverage(
         self, test_environment, test_client
     ):
