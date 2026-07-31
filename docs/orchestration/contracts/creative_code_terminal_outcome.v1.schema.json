@@ -1,0 +1,699 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_terminal_outcome.v1.schema.json",
+  "title": "CreativeCodeTerminalOutcomeV1",
+  "$comment": "This schema enforces closed shape, finite vocabulary, and standard Draft 2020-12 finite implications. scripts/orchestration/creative_code_terminal_outcome_contract.py is the normative semantic validator for cross-property arithmetic, derived identities, and content hashes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "outcome_id",
+    "idempotency_key",
+    "lineage",
+    "closure_epoch",
+    "terminal_state",
+    "merge_sha",
+    "reason_code",
+    "review_evidence",
+    "review_observation",
+    "governance_observation",
+    "post_merge_evidence",
+    "post_merge_observation",
+    "process",
+    "cost_metadata",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_terminal_outcome" },
+    "policy_version": { "const": "creative-code-terminal-outcome-v1" },
+    "outcome_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/sha256" },
+    "lineage": { "$ref": "#/$defs/lineage" },
+    "closure_epoch": {
+      "description": "Bounded logical closure sequence; not a wall-clock or Unix timestamp.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "terminal_state": { "enum": ["merged", "closed_unmerged"] },
+    "merge_sha": {
+      "anyOf": [{ "$ref": "#/$defs/git_sha" }, { "type": "null" }]
+    },
+    "reason_code": {
+      "enum": [
+        "superseded",
+        "abandoned",
+        "validation_failed",
+        "governance_blocked",
+        "rescoped",
+        "unknown",
+        null
+      ]
+    },
+    "review_evidence": { "$ref": "#/$defs/review_evidence" },
+    "review_observation": {
+      "enum": [
+        "actionables_observed",
+        "no_actionables_observed",
+        "evidence_unavailable"
+      ]
+    },
+    "governance_observation": {
+      "enum": [
+        "blockers_observed",
+        "no_blockers_observed",
+        "evidence_unavailable"
+      ]
+    },
+    "post_merge_evidence": { "$ref": "#/$defs/post_merge_evidence" },
+    "post_merge_observation": {
+      "enum": [
+        "complete_observed",
+        "incomplete_observed",
+        "evidence_unavailable",
+        "not_applicable"
+      ]
+    },
+    "process": { "$ref": "#/$defs/process" },
+    "cost_metadata": { "$ref": "#/$defs/cost_metadata" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "leak_free_token": {
+      "type": "string",
+      "not": {
+        "pattern": "([Cc][Aa][Nn][Dd][Ii][Dd][Aa][Tt][Ee](?:[.][Pp][Aa][Tt][Cc][Hh]|_[Pp][Aa][Tt][Cc][Hh])|[Rr][Aa][Ww][_-]?(?:[Pp][Rr][Oo][Mm][Pp][Tt]|[Rr][Ee][Ss][Pp][Oo][Nn][Ss][Ee]|[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Pp][Aa][Tt][Cc][Hh])|[Cc][Hh][Aa][Ii][Nn][_-]?[Oo][Ff][_-]?[Tt][Hh][Oo][Uu][Gg][Hh][Tt]|[Pp][Rr][Oo][Vv][Ii][Dd][Ee][Rr][_-]?[Pp][Aa][Yy][Ll][Oo][Aa][Dd]|[Oo][Rr][Aa][Cc][Ll][Ee][_-]?(?:[Ss][Tt][Dd][Oo][Uu][Tt]|[Ss][Tt][Dd][Ee][Rr][Rr])|[Ww][Oo][Rr][Kk][Tt][Rr][Ee][Ee][Ss](?:[:._-]|$)|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]:[Bb][Ee][Aa][Rr][Ee][Rr]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Gg][Hh]_[Tt][Oo][Kk][Ee][Nn]|[Gg][Ii][Tt][Hh][Uu][Bb]_[Tt][Oo][Kk][Ee][Nn]|[Ss][Kk]-[A-Za-z0-9_-]{12,}|[Gg][Hh][PpSsOoRrUu]_|[Gg][Ii][Tt][Hh][Uu][Bb]_[Pp][Aa][Tt]_|[Xx][Oo][Xx][AaBbPpRrSs]-)"
+      }
+    },
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "allOf": [{ "$ref": "#/$defs/leak_free_token" }]
+    },
+    "promotion_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$",
+      "allOf": [{ "$ref": "#/$defs/leak_free_token" }]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "nullable_sha256": {
+      "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
+    "nullable_git_sha": {
+      "anyOf": [{ "$ref": "#/$defs/git_sha" }, { "type": "null" }]
+    },
+    "nullable_count": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promotion_id",
+        "source_request_id",
+        "source_result_id",
+        "source_bundle_id",
+        "selected_variant_id",
+        "receipt_id",
+        "plan_fingerprint",
+        "validation_fingerprint",
+        "approval_id",
+        "patch_fingerprint",
+        "repository",
+        "pull_request_number",
+        "base_sha",
+        "promoted_head_sha"
+      ],
+      "properties": {
+        "promotion_id": { "$ref": "#/$defs/promotion_id" },
+        "source_request_id": { "$ref": "#/$defs/safe_id" },
+        "source_result_id": { "$ref": "#/$defs/safe_id" },
+        "source_bundle_id": { "$ref": "#/$defs/safe_id" },
+        "selected_variant_id": { "$ref": "#/$defs/safe_id" },
+        "receipt_id": { "$ref": "#/$defs/safe_id" },
+        "plan_fingerprint": { "$ref": "#/$defs/sha256" },
+        "validation_fingerprint": { "$ref": "#/$defs/sha256" },
+        "approval_id": { "$ref": "#/$defs/safe_id" },
+        "patch_fingerprint": { "$ref": "#/$defs/sha256" },
+        "repository": { "const": "Katsiarynakavaleuskaya/PulsePlate" },
+        "pull_request_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999
+        },
+        "base_sha": { "$ref": "#/$defs/git_sha" },
+        "promoted_head_sha": { "$ref": "#/$defs/git_sha" }
+      }
+    },
+    "review_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collection_state",
+        "inventory_fingerprint",
+        "review_seal_fingerprint",
+        "sources_configured",
+        "sources_observed",
+        "findings_total",
+        "fixed",
+        "not_a_bug",
+        "deferred",
+        "unresolved_actionable"
+      ],
+      "properties": {
+        "collection_state": { "enum": ["complete", "unavailable"] },
+        "inventory_fingerprint": { "$ref": "#/$defs/nullable_sha256" },
+        "review_seal_fingerprint": { "$ref": "#/$defs/nullable_sha256" },
+        "sources_configured": { "$ref": "#/$defs/nullable_count" },
+        "sources_observed": { "$ref": "#/$defs/nullable_count" },
+        "findings_total": { "$ref": "#/$defs/nullable_count" },
+        "fixed": { "$ref": "#/$defs/nullable_count" },
+        "not_a_bug": { "$ref": "#/$defs/nullable_count" },
+        "deferred": { "$ref": "#/$defs/nullable_count" },
+        "unresolved_actionable": { "$ref": "#/$defs/nullable_count" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "collection_state": { "const": "unavailable" } },
+            "required": ["collection_state"]
+          },
+          "then": {
+            "properties": {
+              "inventory_fingerprint": { "type": "null" },
+              "review_seal_fingerprint": { "type": "null" },
+              "sources_configured": { "type": "null" },
+              "sources_observed": { "type": "null" },
+              "findings_total": { "type": "null" },
+              "fixed": { "type": "null" },
+              "not_a_bug": { "type": "null" },
+              "deferred": { "type": "null" },
+              "unresolved_actionable": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": {
+              "inventory_fingerprint": { "$ref": "#/$defs/sha256" },
+              "sources_configured": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
+              "sources_observed": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
+              "findings_total": { "$ref": "#/$defs/count" },
+              "fixed": { "$ref": "#/$defs/count" },
+              "not_a_bug": { "$ref": "#/$defs/count" },
+              "deferred": { "$ref": "#/$defs/count" },
+              "unresolved_actionable": { "$ref": "#/$defs/count" }
+            }
+          }
+        }
+      ]
+    },
+    "post_merge_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "validation_inventory_fingerprint",
+        "commands_configured",
+        "commands_executed",
+        "commands_passed",
+        "current_main_ci",
+        "current_main_sha"
+      ],
+      "properties": {
+        "validation_inventory_fingerprint": {
+          "$ref": "#/$defs/nullable_sha256"
+        },
+        "commands_configured": { "$ref": "#/$defs/count" },
+        "commands_executed": { "$ref": "#/$defs/count" },
+        "commands_passed": { "$ref": "#/$defs/count" },
+        "current_main_ci": {
+          "enum": ["success", "failure", "not_observed"]
+        },
+        "current_main_sha": { "$ref": "#/$defs/nullable_git_sha" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "current_main_ci": { "const": "not_observed" }
+            },
+            "required": ["current_main_ci"]
+          },
+          "then": {
+            "properties": { "current_main_sha": { "type": "null" } }
+          },
+          "else": {
+            "properties": {
+              "current_main_sha": { "$ref": "#/$defs/git_sha" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "commands_configured": { "const": 0 }
+            },
+            "required": ["commands_configured"]
+          },
+          "then": {
+            "properties": {
+              "commands_executed": { "const": 0 },
+              "commands_passed": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "commands_executed": { "const": 0 }
+            },
+            "required": ["commands_executed"]
+          },
+          "then": {
+            "properties": {
+              "commands_passed": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "commands_configured": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": ["commands_configured"]
+              },
+              {
+                "properties": {
+                  "current_main_ci": {
+                    "enum": ["success", "failure"]
+                  }
+                },
+                "required": ["current_main_ci"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "validation_inventory_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_cycles",
+        "repair_cycles",
+        "validation_attempts"
+      ],
+      "properties": {
+        "review_cycles": { "$ref": "#/$defs/count" },
+        "repair_cycles": { "$ref": "#/$defs/count" },
+        "validation_attempts": { "$ref": "#/$defs/count" }
+      }
+    },
+    "cost_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "estimated"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "input_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "cached_input_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "output_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "reasoning_output_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "estimated": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "available": { "const": false } },
+            "required": ["available"]
+          },
+          "then": {
+            "properties": {
+              "input_tokens": { "type": "null" },
+              "cached_input_tokens": { "type": "null" },
+              "output_tokens": { "type": "null" },
+              "reasoning_output_tokens": { "type": "null" },
+              "estimated": { "const": false }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "terminal_state": { "const": "merged" } },
+        "required": ["terminal_state"]
+      },
+      "then": {
+        "properties": {
+          "merge_sha": { "$ref": "#/$defs/git_sha" },
+          "reason_code": { "type": "null" },
+          "post_merge_observation": {
+            "enum": [
+              "complete_observed",
+              "incomplete_observed",
+              "evidence_unavailable"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "merge_sha": { "type": "null" },
+          "reason_code": {
+            "enum": [
+              "superseded",
+              "abandoned",
+              "validation_failed",
+              "governance_blocked",
+              "rescoped",
+              "unknown"
+            ]
+          },
+          "post_merge_evidence": {
+            "const": {
+              "validation_inventory_fingerprint": null,
+              "commands_configured": 0,
+              "commands_executed": 0,
+              "commands_passed": 0,
+              "current_main_ci": "not_observed",
+              "current_main_sha": null
+            }
+          },
+          "post_merge_observation": { "const": "not_applicable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "unavailable" }
+            },
+            "required": ["collection_state"]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "evidence_unavailable" },
+          "governance_observation": { "const": "evidence_unavailable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "complete" },
+              "unresolved_actionable": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "collection_state",
+              "unresolved_actionable"
+            ]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "actionables_observed" },
+          "governance_observation": { "const": "blockers_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "complete" },
+              "unresolved_actionable": { "const": 0 },
+              "review_seal_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": [
+              "collection_state",
+              "unresolved_actionable",
+              "review_seal_fingerprint"
+            ]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "no_actionables_observed" },
+          "governance_observation": { "const": "no_blockers_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_evidence": {
+            "properties": {
+              "collection_state": { "const": "complete" },
+              "unresolved_actionable": { "const": 0 },
+              "review_seal_fingerprint": { "type": "null" }
+            },
+            "required": [
+              "collection_state",
+              "unresolved_actionable",
+              "review_seal_fingerprint"
+            ]
+          }
+        },
+        "required": ["review_evidence"]
+      },
+      "then": {
+        "properties": {
+          "review_observation": { "const": "evidence_unavailable" },
+          "governance_observation": { "const": "evidence_unavailable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_evidence": {
+            "properties": {
+              "commands_configured": { "const": 0 },
+              "current_main_ci": { "const": "not_observed" }
+            },
+            "required": [
+              "commands_configured",
+              "current_main_ci"
+            ]
+          }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_evidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_observation": { "const": "evidence_unavailable" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_evidence": {
+            "properties": {
+              "commands_configured": { "const": 0 },
+              "commands_executed": { "const": 0 },
+              "commands_passed": { "const": 0 },
+              "current_main_ci": { "const": "success" }
+            },
+            "required": [
+              "commands_configured",
+              "commands_executed",
+              "commands_passed",
+              "current_main_ci"
+            ]
+          }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_evidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_observation": { "const": "complete_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_evidence": {
+            "properties": {
+              "current_main_ci": { "const": "failure" }
+            },
+            "required": ["current_main_ci"]
+          }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_evidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_observation": { "const": "incomplete_observed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "post_merge_observation": {
+            "enum": ["complete_observed", "incomplete_observed"]
+          }
+        },
+        "required": ["post_merge_observation"]
+      },
+      "then": {
+        "properties": {
+          "post_merge_evidence": {
+            "properties": {
+              "validation_inventory_fingerprint": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": ["validation_inventory_fingerprint"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "post_merge_observation": { "const": "complete_observed" }
+        },
+        "required": ["post_merge_observation"]
+      },
+      "then": {
+        "properties": {
+          "post_merge_evidence": {
+            "properties": {
+              "current_main_ci": {
+                "enum": ["success", "not_observed"]
+              }
+            },
+            "required": ["current_main_ci"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_state": { "const": "merged" },
+          "post_merge_observation": { "const": "evidence_unavailable" }
+        },
+        "required": [
+          "terminal_state",
+          "post_merge_observation"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_evidence": {
+            "properties": {
+              "commands_configured": { "const": 0 },
+              "commands_executed": { "const": 0 },
+              "commands_passed": { "const": 0 },
+              "current_main_ci": { "const": "not_observed" }
+            },
+            "required": [
+              "commands_configured",
+              "commands_executed",
+              "commands_passed",
+              "current_main_ci"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
