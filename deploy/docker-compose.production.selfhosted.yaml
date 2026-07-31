@@ -47,9 +47,12 @@ services:
       # Match SQLAlchemy driver in `.env.example` (`postgresql+psycopg://`). Use URL-safe passwords
       # or percent-encode reserved URI characters in POSTGRES_PASSWORD.
       - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - food_db_cache:/app/cache/food_db
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
@@ -66,6 +69,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  worker:
+    image: ${IMAGE_REF:?IMAGE_REF is required}
+    restart: unless-stopped
+    networks: [web]
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
+    command: python -m core.food_apis.scheduler --serve
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    volumes:
+      - food_db_cache:/app/cache/food_db
+    healthcheck:
+      disable: true
 
   caddy:
     build:
@@ -97,5 +119,6 @@ services:
 volumes:
   postgres_data:
     driver: local
+  food_db_cache:
   caddy_data:
   caddy_config:

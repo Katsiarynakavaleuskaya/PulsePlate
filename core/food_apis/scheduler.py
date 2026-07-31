@@ -10,16 +10,27 @@ databases up to date with minimal impact on application performance.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import signal
 import threading
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from types import FrameType
 from typing import Any
 
 from ..time_utils import now_utc
 from ._testing import is_test_runtime
+from .scheduler_runtime import (
+    SchedulerConfigurationError,
+    SchedulerMode,
+    UpdateLeaseContended,
+    UpdateLeaseError,
+    configured_periodic_owner,
+    resolve_scheduler_mode,
+    run_with_update_lease,
+)
 from .update_manager import DatabaseUpdateManager, UpdateResult
 
 logger = logging.getLogger(__name__)
@@ -43,6 +54,8 @@ class DatabaseUpdateScheduler:
         update_interval_hours: int = 24,
         retry_interval_minutes: int = 30,
         max_retries: int = 3,
+        *,
+        install_signal_handlers: bool = True,
     ) -> None:
         self.update_interval = timedelta(hours=update_interval_hours)
         self.retry_interval = timedelta(minutes=retry_interval_minutes)
@@ -57,13 +70,16 @@ class DatabaseUpdateScheduler:
 
         # Background task
         self._update_task: asyncio.Task[None] | None = None
+        self._shutdown_task: asyncio.Task[None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
 
-        # Setup graceful shutdown
-        self._setup_signal_handlers()
+        # Preserve direct-constructor compatibility while allowing the API
+        # singleton to leave process signal ownership to FastAPI lifespan.
+        if install_signal_handlers:
+            self._setup_signal_handlers()
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
@@ -84,7 +100,8 @@ class DatabaseUpdateScheduler:
                 return
 
             def schedule_stop() -> None:
-                asyncio.create_task(self.stop())
+                if self._shutdown_task is None or self._shutdown_task.done():
+                    self._shutdown_task = asyncio.create_task(self.stop())
 
             try:
                 loop.call_soon_threadsafe(schedule_stop)
@@ -149,7 +166,6 @@ class DatabaseUpdateScheduler:
 
                 if self._should_check_for_updates(current_time):
                     await self._run_update_check()
-                    self.last_update_check = current_time
 
                 # Sleep for a short interval before next check
                 await asyncio.sleep(60)  # Check every minute
@@ -170,27 +186,55 @@ class DatabaseUpdateScheduler:
         time_since_last_check = current_time - self.last_update_check
         return time_since_last_check >= self.update_interval
 
-    async def _run_update_check(self) -> None:
-        """Check for and run any available updates."""
-        try:
+    async def _run_update_check(
+        self,
+        *,
+        propagate_lease_errors: bool = False,
+    ) -> bool:
+        """Check for updates through the canonical attempt-scoped lease."""
+
+        async def _run_due_check() -> bool:
+            # The authoritative due check must happen after lease acquisition.
+            current_time = now_utc()
+            if not self._should_check_for_updates(current_time):
+                return True
+
             logger.info("Checking for database updates...")
 
-            # Check which sources have updates available
             available_updates = await self.update_manager.check_for_updates()
-
             if not any(available_updates.values()):
                 logger.info("No database updates available")
-                return
+                self.last_update_check = current_time
+                return True
 
-            # Run updates for sources that have them
+            completed = True
             for source, has_updates in available_updates.items():
-                if has_updates:
-                    await self._run_source_update(source)
+                if has_updates and not await self._run_source_update(source):
+                    completed = False
 
-        except Exception as e:
-            logger.error(f"Error during update check: {e}")
+            if completed:
+                self.last_update_check = current_time
+            return completed
 
-    async def _run_source_update(self, source: str) -> None:
+        try:
+            return await run_with_update_lease(_run_due_check)
+        except UpdateLeaseContended:
+            if propagate_lease_errors:
+                raise
+            logger.info("Database update attempt skipped because the shared lease is held")
+            return False
+        except UpdateLeaseError:
+            if propagate_lease_errors:
+                raise
+            logger.error("Database update attempt failed at the shared lease boundary")
+            return False
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.error("Error during update check", exc_info=True)
+            return False
+
+    async def _run_source_update(self, source: str) -> bool:
         """Run update for a specific source with retry logic."""
         retry_count = self.retry_counts.get(source, 0)
 
@@ -207,13 +251,16 @@ class DatabaseUpdateScheduler:
                     f"+{result.records_added} ~{result.records_updated} "
                     f"-{result.records_removed} records"
                 )
+                return True
             else:
                 # Handle failure
                 self._handle_update_failure(source, result.errors)
+                return False
 
         except Exception as e:
             # Handle exception
             self._handle_update_failure(source, [str(e)])
+            return False
 
     def _handle_update_failure(self, source: str, errors: list[str]) -> None:
         """Handle update failure with retry logic."""
@@ -250,32 +297,44 @@ class DatabaseUpdateScheduler:
         Returns:
             dict of update results by source
         """
-        results: dict[str, UpdateResult] = {}
 
-        if source:
-            # Update specific source
-            logger.info(f"Force updating {source}...")
-            result = await self.update_manager.update_database(source, force=True)
-            results[source] = result
-        else:
-            # Update all sources
-            logger.info("Force updating all sources...")
-            available_updates = await self.update_manager.check_for_updates()
+        async def _run_forced_update() -> dict[str, UpdateResult]:
+            results: dict[str, UpdateResult] = {}
 
-            for src in available_updates.keys():
-                result = await self.update_manager.update_database(src, force=True)
-                results[src] = result
+            if source:
+                logger.info("Force updating %s...", source)
+                result = await self.update_manager.update_database(source, force=True)
+                results[source] = result
+            else:
+                logger.info("Force updating all sources...")
+                available_updates = await self.update_manager.check_for_updates()
 
-        return results
+                for src in available_updates:
+                    result = await self.update_manager.update_database(src, force=True)
+                    results[src] = result
+
+            return results
+
+        return await run_with_update_lease(_run_forced_update)
 
     def get_status(self) -> dict[str, Any]:
         """
         RU: Получает статус планировщика и баз данных.
         EN: Get scheduler and database status.
         """
+        try:
+            configured_mode = resolve_scheduler_mode()
+            configured_owner = configured_periodic_owner(configured_mode)
+            configured_mode_value = configured_mode.value
+        except SchedulerConfigurationError:
+            configured_mode_value = "invalid"
+            configured_owner = "none"
+
         status = {
             "scheduler": {
                 "is_running": self.is_running,
+                "configured_mode": configured_mode_value,
+                "configured_periodic_owner": configured_owner,
                 "last_update_check": (
                     self.last_update_check.isoformat() if self.last_update_check else None
                 ),
@@ -299,7 +358,7 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
     """
     global _scheduler_instance
     if _scheduler_instance is None:
-        _scheduler_instance = DatabaseUpdateScheduler()
+        _scheduler_instance = DatabaseUpdateScheduler(install_signal_handlers=False)
     return _scheduler_instance
 
 
@@ -343,35 +402,91 @@ def schedule_update(**kwargs: object) -> None:
     """No-op synchronous scheduling facade."""
 
 
-if __name__ == "__main__":  # pragma: no cover
-    # Test the scheduler
-    async def test_scheduler() -> None:
-        scheduler = DatabaseUpdateScheduler(
-            update_interval_hours=1
-        )  # 1 hour for testing (minimum int value)
+def _worker_argument_parser() -> argparse.ArgumentParser:
+    """Build the dedicated no-ingress scheduler worker CLI."""
 
-        try:
-            print("Testing database update scheduler...")
+    parser = argparse.ArgumentParser(description="Run the food update scheduler worker")
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--serve", action="store_true", help="serve periodic update attempts")
+    action.add_argument("--once", action="store_true", help="run one leased due-check cycle")
+    return parser
 
-            # Start scheduler
-            await scheduler.start()
-            print("✓ Scheduler started")
 
-            # Get status
-            status = scheduler.get_status()
-            print(f"✓ Status: {status['scheduler']['is_running']}")
+def _initialize_worker_database() -> None:
+    """Initialize the existing public DB/session factory for lease ownership."""
 
-            # Force an update to test
-            print("Running force update...")
-            results = await scheduler.force_update("usda")
-            print(f"✓ Force update results: {list(results.keys())}")
+    from core.db import init_db
 
-            # Let it run for a short time
-            await asyncio.sleep(10)
+    init_db()
 
-        finally:
+
+async def _serve_worker() -> int:
+    """Run the external periodic worker until a worker-owned signal stops it."""
+
+    mode = resolve_scheduler_mode()
+    if mode is not SchedulerMode.EXTERNAL:
+        raise SchedulerConfigurationError("--serve requires external scheduler mode")
+
+    _initialize_worker_database()
+    scheduler = DatabaseUpdateScheduler(install_signal_handlers=True)
+    update_task: asyncio.Task[None] | None = None
+    try:
+        await scheduler.start()
+        update_task = scheduler._update_task
+        if update_task is None:
+            raise RuntimeError("scheduler worker task was not created")
+        await update_task
+        return 0
+    finally:
+        shutdown_task = scheduler._shutdown_task
+        if shutdown_task is not None:
+            await shutdown_task
+        elif scheduler.is_running:
             await scheduler.stop()
-            print("✓ Scheduler stopped")
+        elif update_task is None:
+            await scheduler.update_manager.close()
 
-    # Run test
-    asyncio.run(test_scheduler())
+
+async def _run_worker_once() -> int:
+    """Run one explicit leased due-check cycle and exit without ingress."""
+
+    mode = resolve_scheduler_mode()
+    if mode is SchedulerMode.IN_PROCESS_DEV:
+        raise SchedulerConfigurationError("--once is unavailable in in_process_dev mode")
+
+    _initialize_worker_database()
+    scheduler = DatabaseUpdateScheduler(install_signal_handlers=False)
+    try:
+        try:
+            completed = await scheduler._run_update_check(propagate_lease_errors=True)
+        except UpdateLeaseContended:
+            logger.info("One-shot update attempt observed shared lease contention")
+            return 0
+        return 0 if completed else 1
+    finally:
+        await scheduler.update_manager.close()
+
+
+def worker_main(argv: Sequence[str] | None = None) -> int:
+    """Synchronous CLI entrypoint for the dedicated scheduler process."""
+
+    args = _worker_argument_parser().parse_args(argv)
+    try:
+        if args.serve:
+            return asyncio.run(_serve_worker())
+        return asyncio.run(_run_worker_once())
+    except SchedulerConfigurationError:
+        logger.error("Scheduler worker configuration is invalid")
+        return 2
+    except UpdateLeaseError:
+        logger.error("Scheduler worker could not establish the update lease")
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    except Exception:
+        logger.error("Scheduler worker failed", exc_info=True)
+        return 1
+
+
+if __name__ == "__main__":  # pragma: no cover - exercised through CLI subprocess checks
+    raise SystemExit(worker_main())

@@ -6860,25 +6860,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-background-scheduler-multi-worker-ownership"></a>
-- [ ] P1: Isolate background food-update scheduling before multi-worker deployment
+- [x] P1: Isolate background food-update scheduling before multi-worker deployment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime correctness / operations)
-  - Target PR: PR-TBD-BACKGROUND-SCHEDULER-OWNERSHIP
-  - Status: Open; explicitly out of scope for the canonical admin scheduler-access slice
-  - Reason: ASGI lifespan runs once per worker process. The current in-process
-    food update scheduler is process-global only, so enabling `WEB_CONCURRENCY`
-    above one can start duplicate update jobs even though each process correctly
-    owns its own lifespan resources.
+  - Target PR: S1 `codex/background-scheduler-ownership`
+  - Status: Implemented in the S1 lane; merge and operator rollout remain required
+  - Reason: Production/staging API lifespans no longer own the periodic loop.
+    Canonical Compose deploys one dedicated no-ingress worker, while scheduled,
+    one-shot, and admin force-update attempts share one PostgreSQL advisory
+    lease boundary.
   - Links:
     - `app/bootstrap/lifespan.py`
-    - `app/services/scheduler_access.py`
     - `core/food_apis/scheduler.py`
+    - `core/food_apis/scheduler_runtime.py`
+    - `docs/runbooks/CRON.md`
   - DoD:
-    - deployment uses one dedicated scheduler worker, a distributed lease/leader
-      election, or an external job scheduler before multi-worker API rollout
-    - duplicate execution is prevented deterministically across processes
-    - failure/recovery and observability behavior are documented and tested
-    - API worker count can increase without multiplying background update jobs
+    - deployment owns automatic updates in one dedicated scheduler worker
+    - cooperating PostgreSQL paths use one stable attempt-scoped advisory lease
+    - failure/recovery, contention, and guarantee limits are documented and tested
+    - API worker count can increase without multiplying periodic update loops
 
 
 - [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)

@@ -120,6 +120,16 @@ async def force_database_update(source: str | None = None) -> JSONResponse:
 
         return JSONResponse(content=response)
     except Exception as exc:
+        # Keep the optional scheduler boundary lazy: only the exact canonical
+        # contention type is a client-visible coordination outcome.
+        from core.food_apis.scheduler_runtime import UpdateLeaseContended
+
+        if isinstance(exc, UpdateLeaseContended):
+            logger.info("Force update skipped because another update attempt holds the lease")
+            raise HTTPException(
+                status_code=409,
+                detail="update_already_in_progress",
+            ) from exc
         logger.exception("Force update failed")
         raise HTTPException(status_code=500, detail="Force update failed") from exc
 

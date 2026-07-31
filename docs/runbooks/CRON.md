@@ -1,44 +1,92 @@
-# CRON Setup for Food Database Updates
+# Food Database Update Worker
 
-## RU: Настройка CRON для обновления базы данных продуктов
-## EN: CRON Setup for Food Database Updates
+Production and staging use one dedicated scheduler worker. The FastAPI
+processes do not own the periodic loop, so increasing API worker count does not
+multiply automatic update attempts.
 
-To automatically update the food database weekly, add the following entry to your crontab:
+## Runtime modes
+
+`FOOD_UPDATE_SCHEDULER_MODE` accepts exact values only:
+
+| Mode | Automatic owner | Allowed runtime |
+|---|---|---|
+| `external` | Dedicated worker | Production, staging, or development with PostgreSQL |
+| `in_process_dev` | One development API process | Explicit non-production development/test only |
+| `disabled` | None | Any runtime; production/staging still require PostgreSQL |
+
+If the variable is absent, an explicit non-production development/test runtime
+uses `in_process_dev`; all other runtimes resolve to `external`. Empty,
+whitespace-padded, aliased, or unknown values fail closed. Production and
+staging always reject `in_process_dev`.
+
+## Canonical deployment
+
+The production and staging Compose files take the exact mode from the protected
+deployment `.env` (default `external`) and define a no-ingress service named
+`worker`:
 
 ```bash
-# Run every Sunday at 2:00 AM
-0 2 * * 0 /usr/bin/python3 /path/to/PulsePlate/scripts/schedule_food_db_update.py >> /path/to/PulsePlate/logs/food_db_update.log 2>&1
+python -m core.food_apis.scheduler --serve
 ```
 
-### How to set up CRON:
+The deploy scripts pull the worker from the exact backend image, stop the
+previous worker before any managed backup or migration, wait for the API to
+become ready, then start and prove the worker process is still running. The API
+and worker mount the same named `food_db_cache` volume. This is intentionally a
+single-host topology.
 
-1. Open your crontab:
-   ```bash
-   crontab -e
-   ```
+`--serve` requires `external` mode and PostgreSQL. Startup rejects invalid mode
+or database configuration before the periodic loop begins.
 
-2. Add the CRON entry above, adjusting the paths to match your installation
+## Explicit one-shot operation
 
-3. Save and exit
+An operator or external job scheduler may request one leased due-check:
 
-### CRON Entry Format:
-```
-* * * * * command
-│ │ │ │ │
-│ │ │ │ └── Day of week (0-7, where 0 and 7 are Sunday)
-│ │ │ └──── Month (1-12)
-│ │ └────── Day of month (1-31)
-│ └──────── Hour (0-23)
-└────────── Minute (0-59)
-```
-
-### Example for daily updates at 3:30 AM:
 ```bash
-30 3 * * * /usr/bin/python3 /path/to/PulsePlate/scripts/schedule_food_db_update.py >> /path/to/PulsePlate/logs/food_db_update.log 2>&1
+python -m core.food_apis.scheduler --once
 ```
 
-### Notes:
-- Make sure the script paths are absolute
-- Ensure the user running the CRON job has the necessary permissions
-- Logs will be written to `/path/to/PulsePlate/logs/food_db_update.log`
-- The log file captures stdout/stderr for debugging
+`--once` is allowed in `external` and `disabled` modes and rejected in
+`in_process_dev`. Exit code `0` means the leased attempt completed, was not yet
+due, or observed definite lock contention; it is not proof that source data
+changed. Exit code `1` means the attempt or lease failed, and `2` means the
+runtime configuration was invalid.
+
+The legacy `scripts/schedule_food_db_update.py` entrypoint is retained only for
+offline/manual compatibility. Do not schedule it against the live shared cache
+or run it concurrently with the canonical worker.
+
+## Coordination guarantee and limits
+
+Scheduled checks, `--once`, and admin force-update use one canonical
+attempt-scoped lease. With PostgreSQL, acquisition, the complete update body,
+and unlock use the same dedicated database session and a stable 64-bit advisory
+key. Definite contention returns `409 update_already_in_progress` from admin
+force-update. Unknown acquisition or release state fails closed and invalidates
+the connection.
+
+This prevents concurrent guarded bodies only among cooperating processes using
+the same PostgreSQL database and advisory key while the lock session is valid.
+It does not provide exactly-once execution, durable leadership, fencing,
+fairness, multi-host file-cache coherence, or a worker health claim.
+
+## Rollback and recovery
+
+For an immediate automatic-update stop, stop the `worker` service while leaving
+the API in `external` mode:
+
+```bash
+docker compose stop worker
+```
+
+For a durable no-automatic-update deployment, set the unquoted exact value
+`FOOD_UPDATE_SCHEDULER_MODE=disabled` in the protected deployment `.env` and
+redeploy. The deploy preflight rejects empty, aliased, or `in_process_dev`
+values, starts the API in disabled mode, and leaves the worker stopped. Admin or
+explicit `--once` operations remain lease-protected. To roll back the release,
+deploy the previous attested backend/Compose bundle.
+`DISABLE_BACKGROUND_UPDATES` controls only the legacy `in_process_dev` startup
+path and is not an external-worker kill switch.
+
+After recovery, confirm the configured mode, PostgreSQL connectivity, API
+readiness, and worker process state before re-enabling automatic updates.

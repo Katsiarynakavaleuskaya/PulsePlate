@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from fastapi import FastAPI
 
 from app.bootstrap.food_search import FoodSearchLifecycleLease
+from core.food_apis.scheduler_runtime import SchedulerMode, resolve_scheduler_mode
 from settings import get_runtime_env_name, is_production_like_env, is_truthy_env_var
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,10 @@ class LifespanHooks:
     stop_background_updates: BackgroundUpdateStopper
 
 
-def build_default_lifespan_hooks() -> LifespanHooks:
+def build_default_lifespan_hooks(
+    *,
+    scheduler_mode: SchedulerMode | None = None,
+) -> LifespanHooks:
     """Resolve canonical lifecycle callables at each lifespan entry."""
 
     from app.bootstrap.food_search import (
@@ -101,7 +105,12 @@ def build_default_lifespan_hooks() -> LifespanHooks:
     from core.db import init_db
     from core.db_fallback import attempt_db_fallback, clear_fallback_active
 
-    start_background_updates, stop_background_updates = _load_background_update_hooks()
+    resolved_mode = scheduler_mode or resolve_scheduler_mode()
+    if resolved_mode is SchedulerMode.IN_PROCESS_DEV:
+        start_background_updates, stop_background_updates = _load_background_update_hooks()
+    else:
+        start_background_updates = _unavailable_background_update_start
+        stop_background_updates = _unavailable_background_update_stop
 
     return LifespanHooks(
         run_startup_guards=run_startup_guards,
@@ -152,7 +161,9 @@ async def _drain_cancelled_task(task: asyncio.Task[None]) -> None:
 
 async def _start_background_updates_best_effort(
     starter: BackgroundUpdateStarter,
-) -> None:
+    *,
+    failed_start_stopper: BackgroundUpdateStopper | None = None,
+) -> bool:
     testing_mode = is_truthy_env_var("TESTING") or is_truthy_env_var("CI")
     force_background = is_truthy_env_var("FORCE_BACKGROUND_UPDATES")
     disable_background = is_truthy_env_var("DISABLE_BACKGROUND_UPDATES")
@@ -165,7 +176,7 @@ async def _start_background_updates_best_effort(
             force_background,
             disable_background,
         )
-        return
+        return False
 
     timeout = _background_start_timeout_seconds()
     task: asyncio.Task[None] = asyncio.create_task(
@@ -176,17 +187,35 @@ async def _start_background_updates_best_effort(
         await asyncio.wait_for(task, timeout=timeout)
     except TimeoutError:
         await _drain_cancelled_task(task)
+        if failed_start_stopper is not None:
+            await _stop_after_failed_background_start(failed_start_stopper)
         logger.error(
             "Background updates startup timed out after %.0f seconds",
             timeout,
         )
+        return False
     except asyncio.CancelledError:
         await _drain_cancelled_task(task)
+        if failed_start_stopper is not None:
+            await _stop_after_failed_background_start(failed_start_stopper)
         raise
     except Exception:
+        if failed_start_stopper is not None:
+            await _stop_after_failed_background_start(failed_start_stopper)
         logger.error("Failed to start background updates", exc_info=True)
+        return False
     else:
         logger.info("Started background database updates")
+        return True
+
+
+async def _stop_after_failed_background_start(stopper: BackgroundUpdateStopper) -> None:
+    """Clean possible partial scheduler ownership without masking startup failure."""
+
+    try:
+        await stopper()
+    except BaseException:
+        logger.error("Error cleaning up a failed background scheduler start", exc_info=True)
 
 
 def _scheduler_stop_exit(
@@ -232,9 +261,11 @@ async def _application_lifespan_with_hooks(
     app: FastAPI,
     *,
     hooks: LifespanHooks,
+    scheduler_mode: SchedulerMode | None = None,
 ) -> AsyncIterator[None]:
     """Run the canonical lifecycle with explicit dependencies."""
 
+    resolved_mode = scheduler_mode or resolve_scheduler_mode()
     async with AsyncExitStack() as stack:
         hooks.run_startup_guards(app)
         _initialize_database(hooks)
@@ -247,9 +278,14 @@ async def _application_lifespan_with_hooks(
             food_search_lease,
             hooks.dispose_food_search,
         )
-        stack.push_async_exit(_scheduler_stop_exit(hooks.stop_background_updates))
 
-        await _start_background_updates_best_effort(hooks.start_background_updates)
+        if resolved_mode is SchedulerMode.IN_PROCESS_DEV:
+            started = await _start_background_updates_best_effort(
+                hooks.start_background_updates,
+                failed_start_stopper=hooks.stop_background_updates,
+            )
+            if started:
+                stack.push_async_exit(_scheduler_stop_exit(hooks.stop_background_updates))
         yield
 
 
@@ -257,8 +293,10 @@ async def _application_lifespan_with_hooks(
 async def application_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """FastAPI lifespan entrypoint using canonical runtime dependencies."""
 
+    scheduler_mode = resolve_scheduler_mode()
     async with _application_lifespan_with_hooks(
         app,
-        hooks=build_default_lifespan_hooks(),
+        hooks=build_default_lifespan_hooks(scheduler_mode=scheduler_mode),
+        scheduler_mode=scheduler_mode,
     ):
         yield

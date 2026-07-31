@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import yaml
 
 import app.bootstrap.lifespan as lifespan_module
 from app.bootstrap.food_search import FoodSearchLifecycleLease
 from app.bootstrap.lifespan import LifespanHooks, _application_lifespan_with_hooks
+from core.food_apis.scheduler_runtime import SchedulerMode
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _base_hooks(events: list[str]) -> LifespanHooks:
@@ -45,9 +51,14 @@ def _run_lifespan(
     hooks: LifespanHooks,
     *,
     body: Callable[[], Awaitable[None]] | None = None,
+    scheduler_mode: SchedulerMode = SchedulerMode.IN_PROCESS_DEV,
 ) -> None:
     async def _scenario() -> None:
-        async with _application_lifespan_with_hooks(FastAPI(), hooks=hooks):
+        async with _application_lifespan_with_hooks(
+            FastAPI(),
+            hooks=hooks,
+            scheduler_mode=scheduler_mode,
+        ):
             if body is not None:
                 await body()
 
@@ -216,7 +227,11 @@ def test_scheduler_environment_precedence(
     _run_lifespan(_base_hooks(events))
 
     assert ("scheduler-start:24" in events) is should_start
-    assert events[-2:] == ["scheduler-stop", "food-dispose"]
+    if should_start:
+        assert events[-2:] == ["scheduler-stop", "food-dispose"]
+    else:
+        assert "scheduler-stop" not in events
+        assert events[-1] == "food-dispose"
 
 
 @pytest.mark.parametrize(
@@ -292,19 +307,43 @@ def test_drain_cancelled_task_cancels_a_pending_task() -> None:
 def test_scheduler_start_cancellation_propagates_after_drain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    stopped = False
+
     async def _start(update_interval_hours: int = 24) -> None:
         assert update_interval_hours == 24
         await asyncio.Event().wait()
 
+    async def _stop() -> None:
+        nonlocal stopped
+        stopped = True
+
     async def _scenario() -> None:
         monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
-        task = asyncio.create_task(lifespan_module._start_background_updates_best_effort(_start))
+        task = asyncio.create_task(
+            lifespan_module._start_background_updates_best_effort(
+                _start,
+                failed_start_stopper=_stop,
+            )
+        )
         await asyncio.sleep(0)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
 
     asyncio.run(_scenario())
+    assert stopped is True
+
+
+def test_failed_scheduler_start_cleanup_never_masks_primary_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def _stop() -> None:
+        raise asyncio.CancelledError
+
+    with caplog.at_level("ERROR", logger="app.bootstrap.lifespan"):
+        asyncio.run(lifespan_module._stop_after_failed_background_start(_stop))
+
+    assert "Error cleaning up a failed background scheduler start" in caplog.text
 
 
 def test_body_exception_is_not_masked_by_cleanup_failures(
@@ -410,8 +449,8 @@ def test_scheduler_start_exception_logs_continues_and_cleans_up(
     assert "Failed to start background updates" in caplog.text
     assert events[-4:] == [
         "scheduler-start-failed",
-        "body",
         "scheduler-stop",
+        "body",
         "food-dispose",
     ]
 
@@ -484,3 +523,160 @@ def test_legacy_created_app_runs_real_food_search_lifecycle(
         assert food_store.get_registered_strategy_search_backend_adapter() is previous_backend
     finally:
         food_store.reset_strategy_search_backend_adapter()
+
+
+@pytest.mark.parametrize(
+    "scheduler_mode",
+    [SchedulerMode.EXTERNAL, SchedulerMode.DISABLED],
+)
+def test_non_in_process_modes_never_start_or_stop_scheduler_hooks(
+    monkeypatch: pytest.MonkeyPatch,
+    scheduler_mode: SchedulerMode,
+) -> None:
+    events: list[str] = []
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+
+    async def _body() -> None:
+        events.append("body")
+
+    _run_lifespan(
+        _base_hooks(events),
+        body=_body,
+        scheduler_mode=scheduler_mode,
+    )
+
+    assert events == [
+        "guards",
+        "database",
+        "fallback-clear",
+        "templates",
+        "food-configure",
+        "body",
+        "food-dispose",
+    ]
+
+
+def test_external_default_hooks_do_not_import_scheduler_execution_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_loaded() -> tuple[object, object]:
+        raise AssertionError("external API process must not load scheduler hooks")
+
+    monkeypatch.setattr(lifespan_module, "_load_background_update_hooks", fail_if_loaded)
+
+    hooks = lifespan_module.build_default_lifespan_hooks(scheduler_mode=SchedulerMode.EXTERNAL)
+
+    assert hooks.start_background_updates is lifespan_module._unavailable_background_update_start
+    assert hooks.stop_background_updates is lifespan_module._unavailable_background_update_stop
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "expected_image", "expected_environment"),
+    [
+        (
+            "deploy/docker-compose.production.yaml",
+            "${IMAGE_REF:?IMAGE_REF is required}",
+            "ENVIRONMENT=production",
+        ),
+        (
+            "deploy/docker-compose.production.selfhosted.yaml",
+            "${IMAGE_REF:?IMAGE_REF is required}",
+            "ENVIRONMENT=production",
+        ),
+        (
+            "deploy/docker-compose.staging.yaml",
+            "${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}",
+            "ENVIRONMENT=staging",
+        ),
+    ],
+)
+def test_compose_uses_one_no_ingress_worker_from_exact_backend_image(
+    relative_path: str,
+    expected_image: str,
+    expected_environment: str,
+) -> None:
+    compose = yaml.safe_load((REPO_ROOT / relative_path).read_text(encoding="utf-8"))
+    services = compose["services"]
+    app_service = services["app"]
+    worker = services["worker"]
+
+    assert worker["image"] == expected_image
+    assert worker["image"] == app_service["image"]
+    assert worker["command"] == "python -m core.food_apis.scheduler --serve"
+    assert worker["depends_on"]["app"]["condition"] == "service_healthy"
+    assert worker["healthcheck"] == {"disable": True}
+    assert "ports" not in worker
+    assert "expose" not in worker
+    assert "env_file" not in worker
+
+    worker_environment = set(worker["environment"])
+    app_environment = set(app_service["environment"])
+    assert expected_environment in worker_environment
+    mode_contract = "FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}"
+    assert mode_contract in worker_environment
+    assert mode_contract in app_environment
+    assert "food_db_cache:/app/cache/food_db" in worker["volumes"]
+    assert "food_db_cache:/app/cache/food_db" in app_service["volumes"]
+    assert "food_db_cache" in compose["volumes"]
+
+
+def test_deploy_scripts_quiesce_migrate_start_and_prove_worker_in_order() -> None:
+    production_lines = (
+        (REPO_ROOT / "scripts/deploy_production.sh").read_text(encoding="utf-8").splitlines()
+    )
+    production_order = [
+        "sync_shell_bundle compose-only",
+        "dc config --quiet",
+        "dc pull app",
+        "dc pull worker",
+        "dc stop worker",
+        "if dc run --rm --no-deps app alembic upgrade head; then",
+        "sync_shell_bundle",
+        "dc up -d --remove-orphans app",
+        "  dc up -d --pull never --wait --wait-timeout 30 worker",
+        "dc up -d --remove-orphans caddy",
+        "  dc up -d --pull never --no-recreate --wait --wait-timeout 30 worker",
+    ]
+    production_indexes = [production_lines.index(line) for line in production_order]
+    assert production_indexes == sorted(production_indexes)
+    assert 'if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then' in production_lines
+    assert '  echo "Scheduler mode is disabled; worker remains stopped"' in production_lines
+    assert (
+        '      echo "❌ Production deploy forbids FOOD_UPDATE_SCHEDULER_MODE=in_process_dev" >&2'
+    ) in production_lines
+
+    staging_lines = (REPO_ROOT / "scripts/deploy.sh").read_text(encoding="utf-8").splitlines()
+    staging_order = [
+        '"${COMPOSE[@]}" pull worker',
+        '"${COMPOSE[@]}" stop worker',
+        'echo "[3/5] Start Postgres and create a pre-migration backup"',
+        'if "${COMPOSE[@]}" run --rm --no-deps app alembic upgrade head; then',
+        '"${COMPOSE[@]}" up -d --pull never app',
+        '  "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker',
+        '"${COMPOSE[@]}" up -d --pull never caddy',
+        ('  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker'),
+    ]
+    staging_indexes = [staging_lines.index(line) for line in staging_order]
+    assert staging_indexes == sorted(staging_indexes)
+    assert 'if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then' in staging_lines
+    assert '  echo "Scheduler mode is disabled; worker remains stopped"' in staging_lines
+    assert (
+        '    echo "❌ Staging deploy forbids FOOD_UPDATE_SCHEDULER_MODE=in_process_dev" >&2'
+    ) in staging_lines
+
+
+def test_scheduler_worker_module_has_no_api_ingress_dependencies() -> None:
+    scheduler_path = REPO_ROOT / "core/food_apis/scheduler.py"
+    tree = ast.parse(scheduler_path.read_text(encoding="utf-8"))
+    imported_modules: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            imported_modules.add(node.module)
+
+    forbidden_roots = {"app", "fastapi", "starlette", "uvicorn"}
+    assert all(
+        module.split(".", maxsplit=1)[0] not in forbidden_roots for module in imported_modules
+    )
