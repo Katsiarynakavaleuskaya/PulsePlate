@@ -111,6 +111,11 @@ def test_legacy_export_alias_daily_csv_preserves_response_headers(
 @pytest.mark.parametrize(
     ("helper_name", "path", "content"),
     [
+        (
+            "export_daily_plan_csv",
+            "/api/v1/premium/exports/day/test_plan.csv",
+            b"daily,csv",
+        ),
         ("export_weekly_plan_csv", "/api/v1/premium/exports/week/test_plan.csv", b"weekly,csv"),
     ],
 )
