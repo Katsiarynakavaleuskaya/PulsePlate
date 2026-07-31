@@ -1,17 +1,17 @@
 ## Trivy vulnerability ignore list
 ##
 ## Last reviewed: 2026-05-28
-## Base image: python:3.13.13-slim-bookworm (Debian 12 bookworm)
+## Base image: python:3.13.14-slim-bookworm (Debian 12 bookworm)
 ## Next review: 2026-06-27
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
-## IMPORTANT: Container uses python:3.13.13-slim-bookworm based on Debian bookworm.
-## Actual versions: Python 3.13.13, pip 25.1.1+, glibc 2.36-9+deb12u13,
+## IMPORTANT: Container uses python:3.13.14-slim-bookworm based on Debian bookworm.
+## Actual versions: Python 3.13.14, pip 25.1.1+, glibc 2.36-9+deb12u13,
 ## PAM 1.5.2-6+deb12u1. Many CVEs below reference "trixie" due to historical
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
 ##
 ## DECISION LOG:
-## - Base image updated from 3.13.6 to 3.13.13 for latest security patches
+## - Base image updated from 3.13.6 to 3.13.14 for latest security patches
 ## - Production target prunes package-manager/GnuTLS runtime surface instead of
 ##   retaining broad Trivy suppressions for apt/gpgv/libgnutls30.
 ## - All Trivy workflows configured with trivyignores: '.trivyignore'
@@ -19,7 +19,7 @@
 
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
-## Our images are based on Debian trixie (python:3.13-slim). Debian's
+## Our images are based on Debian bookworm (python:3.13.14-slim-bookworm). Debian's
 ## security tracker explicitly marks src:zlib in trixie as "ignored"
 ## for this CVE because the vulnerable contrib/minizip code is not built
 ## into any binary packages:
@@ -415,7 +415,7 @@ CVE-2025-48385
 ##
 ## CURRENT STATUS:
 ##   ⚠️  Container uses PAM 1.5.2-6+deb12u1 (bookworm, VULNERABLE)
-##   $ docker run --rm python:3.13.13-slim-bookworm dpkg -l | grep libpam0g
+##   $ docker run --rm python:3.13.14-slim-bookworm dpkg -l | grep libpam0g
 ##   ii  libpam0g:arm64  1.5.2-6+deb12u1  arm64
 ##
 ## This container package version IS vulnerable, BUT application does NOT
@@ -442,7 +442,7 @@ CVE-2025-48385
 ##   - bookworm (1.5.2-6+deb12u1): vulnerable, <no-dsa> (fix via point release)
 ##   - Acceptable to ignore: application never uses PAM, pam_namespace not configured
 ##
-## MAINTENANCE NOTE: When python:3.13.13-slim-bookworm updates to include fixed PAM version
+## MAINTENANCE NOTE: When python:3.13.14-slim-bookworm updates to include fixed PAM version
 ## (or when base image migrates to trixie/sid with PAM 1.7.0-5), this entry can
 ## be removed. Next review: 2026-03-30.
 
@@ -678,9 +678,9 @@ CVE-2024-10041
 ##   - Container runs as single non-root user (pulseplate:pulseplate)
 ##   - No PAM-based authentication mechanisms active
 ##   - No shell access for untrusted users
-##   - Monitoring: Check for python:3.13.13-slim-bookworm updates with pam 1.6.0+
+##   - Monitoring: Check for python:3.13.14-slim-bookworm updates with pam 1.6.0+
 ##
-## MAINTENANCE NOTE: When python:3.13.13-slim-bookworm updates to include PAM 1.6.0+,
+## MAINTENANCE NOTE: When python:3.13.14-slim-bookworm updates to include PAM 1.6.0+,
 ## this entry can be removed. Next review: 2026-03-30.
 ##
 ## Attack surface: ZERO - no PAM logins, single-user container model.
