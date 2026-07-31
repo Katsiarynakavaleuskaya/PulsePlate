@@ -129,6 +129,27 @@ def test_startup_guard_failure_stops_all_later_work() -> None:
     assert events == []
 
 
+def test_scheduler_mode_validation_runs_after_startup_guards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    def _resolve_scheduler_mode() -> SchedulerMode:
+        events.append("scheduler-mode")
+        raise RuntimeError("scheduler configuration")
+
+    monkeypatch.setattr(
+        lifespan_module,
+        "resolve_scheduler_mode",
+        _resolve_scheduler_mode,
+    )
+
+    with pytest.raises(RuntimeError, match="scheduler configuration"):
+        _run_lifespan(_base_hooks(events), scheduler_mode=None)
+
+    assert events == ["guards", "scheduler-mode"]
+
+
 def test_database_failure_delegates_to_public_fallback_without_clearing_state() -> None:
     events: list[str] = []
     database_error = OSError("database unavailable")

@@ -105,8 +105,7 @@ def build_default_lifespan_hooks(
     from core.db import init_db
     from core.db_fallback import attempt_db_fallback, clear_fallback_active
 
-    resolved_mode = scheduler_mode if scheduler_mode is not None else resolve_scheduler_mode()
-    if resolved_mode is SchedulerMode.IN_PROCESS_DEV:
+    if scheduler_mode is SchedulerMode.IN_PROCESS_DEV:
         start_background_updates, stop_background_updates = _load_background_update_hooks()
     else:
         start_background_updates = _unavailable_background_update_start
@@ -267,12 +266,15 @@ async def _application_lifespan_with_hooks(
     *,
     hooks: LifespanHooks,
     scheduler_mode: SchedulerMode | None = None,
+    deferred_background_update_hooks: (
+        Callable[[], tuple[BackgroundUpdateStarter, BackgroundUpdateStopper]] | None
+    ) = None,
 ) -> AsyncIterator[None]:
     """Run the canonical lifecycle with explicit dependencies."""
 
-    resolved_mode = scheduler_mode if scheduler_mode is not None else resolve_scheduler_mode()
     async with AsyncExitStack() as stack:
         hooks.run_startup_guards(app)
+        resolved_mode = scheduler_mode if scheduler_mode is not None else resolve_scheduler_mode()
         _initialize_database(hooks)
         hooks.validate_templates()
 
@@ -285,12 +287,16 @@ async def _application_lifespan_with_hooks(
         )
 
         if resolved_mode is SchedulerMode.IN_PROCESS_DEV:
+            starter = hooks.start_background_updates
+            stopper = hooks.stop_background_updates
+            if deferred_background_update_hooks is not None:
+                starter, stopper = deferred_background_update_hooks()
             started = await _start_background_updates_best_effort(
-                hooks.start_background_updates,
-                failed_start_stopper=hooks.stop_background_updates,
+                starter,
+                failed_start_stopper=stopper,
             )
             if started:
-                stack.push_async_exit(_scheduler_stop_exit(hooks.stop_background_updates))
+                stack.push_async_exit(_scheduler_stop_exit(stopper))
         yield
 
 
@@ -298,10 +304,9 @@ async def _application_lifespan_with_hooks(
 async def application_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """FastAPI lifespan entrypoint using canonical runtime dependencies."""
 
-    scheduler_mode = resolve_scheduler_mode()
     async with _application_lifespan_with_hooks(
         app,
-        hooks=build_default_lifespan_hooks(scheduler_mode=scheduler_mode),
-        scheduler_mode=scheduler_mode,
+        hooks=build_default_lifespan_hooks(),
+        deferred_background_update_hooks=_load_background_update_hooks,
     ):
         yield
