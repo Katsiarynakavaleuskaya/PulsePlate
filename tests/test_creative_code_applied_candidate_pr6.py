@@ -176,6 +176,9 @@ def test_run_plan_is_local_only_and_checklist_only() -> None:
     assert plan["candidate_limits"]["allowed_existing_paths"] == ["docs/prompts/cv/program.md"]
     assert plan["candidate_limits"]["allowed_new_paths"] == []
     assert plan["candidate_limits"]["generation_attempts"] == 1
+    assert plan["candidate_limits"]["max_changed_lines"] == 120
+    assert plan["candidate_limits"]["line_metric"] == "numstat_added_plus_deleted_v1"
+    assert "max_diff_lines" not in plan["candidate_limits"]
     assert plan["candidate_limits"]["network_budget"] == 0
     assert plan["authority"]["validate_launch_packet"] is True
     assert plan["authority"]["emit_run_plan"] is True

@@ -15,8 +15,10 @@ from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
+    CHANGED_LINE_METRIC,
     GENERATION_ATTEMPTS,
     HARD_MAX_CHANGED_FILES,
+    HARD_MAX_CHANGED_LINES,
     HARD_MAX_DIFF_LINES,
     HARD_MAX_PATCH_BYTES,
     HARD_TIMEOUT_SECONDS,
@@ -121,7 +123,7 @@ HUMAN_AUTHORITY_FALSE_KEYS = frozenset(
     }
 )
 HUMAN_AUTHORITY_KEYS = HUMAN_AUTHORITY_TRUE_KEYS | HUMAN_AUTHORITY_FALSE_KEYS
-BUDGET_KEYS = frozenset(
+LEGACY_BUDGET_KEYS = frozenset(
     {
         "generation_attempts",
         "generation_timeout_seconds",
@@ -129,6 +131,17 @@ BUDGET_KEYS = frozenset(
         "max_changed_files",
         "max_diff_lines",
         "max_patch_bytes",
+    }
+)
+CURRENT_BUDGET_KEYS = frozenset(
+    {
+        "generation_attempts",
+        "generation_timeout_seconds",
+        "evaluation_timeout_seconds",
+        "max_changed_files",
+        "max_changed_lines",
+        "max_patch_bytes",
+        "line_metric",
     }
 )
 
@@ -398,6 +411,10 @@ def build_creative_spec_patch_admission(
     bundle = _validated_bundle(source_bundle)
     receipt = _validated_finalize_receipt(finalize_receipt)
     admission = validate_human_admission(human_admission)
+    if "max_diff_lines" in admission["budgets"]:
+        raise CreativeSpecPatchAdmissionError(
+            "legacy human-admission budgets are read-only; new admissions require changed lines."
+        )
     base_sha = _normalize_sha(base_commit_sha, label="base_commit_sha")
     _validate_finalized_binding(
         receipt=receipt,
@@ -926,11 +943,19 @@ def _normalize_string_list(payload: Mapping[str, Any], key: str, *, label: str) 
     return normalized
 
 
-def _normalize_budgets(raw_budgets: Any, *, label: str) -> dict[str, int]:
+def _normalize_budgets(raw_budgets: Any, *, label: str) -> dict[str, int | str]:
     if not isinstance(raw_budgets, dict):
         raise CreativeSpecPatchAdmissionError(f"{label} must be a JSON object.")
-    _require_exact_keys(raw_budgets, BUDGET_KEYS, label=label)
-    budgets = {
+    keys = set(raw_budgets)
+    if keys == LEGACY_BUDGET_KEYS:
+        family = "legacy"
+    elif keys == CURRENT_BUDGET_KEYS:
+        family = "current"
+    else:
+        raise CreativeSpecPatchAdmissionError(
+            f"{label} must use one exact legacy or changed-line shape."
+        )
+    budgets: dict[str, int | str] = {
         "generation_attempts": _require_int(
             raw_budgets,
             "generation_attempts",
@@ -959,13 +984,6 @@ def _normalize_budgets(raw_budgets: Any, *, label: str) -> dict[str, int]:
             max_value=HARD_MAX_CHANGED_FILES,
             label=label,
         ),
-        "max_diff_lines": _require_int(
-            raw_budgets,
-            "max_diff_lines",
-            min_value=1,
-            max_value=HARD_MAX_DIFF_LINES,
-            label=label,
-        ),
         "max_patch_bytes": _require_int(
             raw_budgets,
             "max_patch_bytes",
@@ -974,7 +992,28 @@ def _normalize_budgets(raw_budgets: Any, *, label: str) -> dict[str, int]:
             label=label,
         ),
     }
-    return budgets
+    if family == "legacy":
+        budgets["max_diff_lines"] = _require_int(
+            raw_budgets,
+            "max_diff_lines",
+            min_value=1,
+            max_value=HARD_MAX_DIFF_LINES,
+            label=label,
+        )
+    else:
+        budgets["max_changed_lines"] = _require_int(
+            raw_budgets,
+            "max_changed_lines",
+            min_value=1,
+            max_value=HARD_MAX_CHANGED_LINES,
+            label=label,
+        )
+        if raw_budgets.get("line_metric") != CHANGED_LINE_METRIC:
+            raise CreativeSpecPatchAdmissionError(
+                f"{label}.line_metric must equal {CHANGED_LINE_METRIC!r}."
+            )
+        budgets["line_metric"] = CHANGED_LINE_METRIC
+    return {key: budgets[key] for key in raw_budgets}
 
 
 def _normalize_authority(

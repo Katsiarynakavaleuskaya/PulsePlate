@@ -144,12 +144,13 @@ FORBIDDEN_UPDATE_KEYS = {
     "ignore",
     "exclude-paths",
     "target-branch",
-    "insecure-external-code-execution",
 }
+EXTERNAL_CODE_EXECUTION_KEY = "insecure-external-code-execution"
 EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
     "package-ecosystem": "pip",
     "directory": "/",
     "registries": [REGISTRY_NAME],
+    EXTERNAL_CODE_EXECUTION_KEY: "allow",
     "schedule": {"interval": "weekly"},
     "open-pull-requests-limit": 4,
     "commit-message": {"prefix": "deps", "include": "scope"},
@@ -248,6 +249,25 @@ def _value_shape(value: object) -> str:
     return type(value).__name__
 
 
+def _exact_value_matches(actual: object, expected: object) -> bool:
+    """Compare governed YAML values without Python's cross-type equality."""
+
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(expected, Mapping):
+        if not isinstance(actual, Mapping) or set(actual) != set(expected):
+            return False
+        return all(_exact_value_matches(actual[key], value) for key, value in expected.items())
+    if isinstance(expected, list):
+        if not isinstance(actual, list) or len(actual) != len(expected):
+            return False
+        return all(
+            _exact_value_matches(actual_item, expected_item)
+            for actual_item, expected_item in zip(actual, expected, strict=True)
+        )
+    return actual == expected
+
+
 def _safe_yaml_error_message(exc: yaml.YAMLError) -> str:
     """Describe YAML failures without rendering source buffers or scalar values."""
 
@@ -273,7 +293,16 @@ def _walk_mapping(
         safe_keys = (
             EXPECTED_UPDATE_KEYS
             | set(EXPECTED_GROUPS)
-            | {"applies-to", "patterns", "update-types"}
+            | {
+                "version",
+                "registries",
+                "updates",
+                REGISTRY_NAME,
+                *REGISTRY_CONFIG,
+                "applies-to",
+                "patterns",
+                "update-types",
+            }
             | FORBIDDEN_UPDATE_KEYS
         )
         for key, child in value.items():
@@ -560,7 +589,7 @@ def _validate_exact_mapping(
             )
         )
     for key, expected_value in expected.items():
-        if key in actual and actual[key] != expected_value:
+        if key in actual and not _exact_value_matches(actual[key], expected_value):
             errors.append(
                 _error(
                     f"{key_path}.{key}",
@@ -606,7 +635,7 @@ def _validate_groups(
                 )
             )
         for scalar_key in ("applies-to",):
-            if group.get(scalar_key) != expected[scalar_key]:
+            if not _exact_value_matches(group.get(scalar_key), expected[scalar_key]):
                 errors.append(
                     _error(
                         f"{key_path}.{scalar_key}",
@@ -617,7 +646,7 @@ def _validate_groups(
         for list_key in ("patterns", "update-types"):
             actual = group.get(list_key)
             expected_list = list(expected[list_key])
-            if actual != expected_list:
+            if not _exact_value_matches(actual, expected_list):
                 errors.append(
                     _error(
                         f"{key_path}.{list_key}",
@@ -625,7 +654,11 @@ def _validate_groups(
                     )
                 )
         patterns = group.get("patterns")
-        if patterns == list(expected["patterns"]):
+        if (
+            isinstance(patterns, list)
+            and all(isinstance(pattern, str) for pattern in patterns)
+            and _exact_value_matches(patterns, list(expected["patterns"]))
+        ):
             usable_groups[group_name] = tuple(patterns)
 
     direct_packages, known_packages, source_errors = _known_packages(repo_root)
@@ -731,7 +764,7 @@ def validate_repo(repo_root: Path) -> list[str]:
             f"unregistered candidate carriers are forbidden: {unknown_carriers!r}"
         )
 
-    if config.get("version") != 2:
+    if not _exact_value_matches(config.get("version"), 2):
         errors.append(
             _error(
                 "version",
@@ -780,6 +813,14 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(update, Mapping):
         errors.append(_error(update_path, "must be a mapping"))
         return errors
+    for mapping_path, mapping in _walk_mapping(config, "$"):
+        if EXTERNAL_CODE_EXECUTION_KEY in mapping and mapping is not update:
+            errors.append(
+                _error(
+                    f"{mapping_path}.{EXTERNAL_CODE_EXECUTION_KEY}",
+                    f"key is allowed only at {update_path}",
+                )
+            )
     if set(update) != EXPECTED_UPDATE_KEYS:
         errors.append(
             _error(
@@ -790,7 +831,7 @@ def validate_repo(repo_root: Path) -> list[str]:
         )
     for key, expected_value in EXPECTED_UPDATE_EXACT_VALUES.items():
         actual_value = update.get(key)
-        if actual_value != expected_value:
+        if not _exact_value_matches(actual_value, expected_value):
             errors.append(
                 _error(
                     f"{update_path}.{key}",
