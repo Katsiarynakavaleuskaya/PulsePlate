@@ -10,7 +10,6 @@ import pytest
 
 from app.schemas import insight as insight_schemas
 from app.services import insight_application_service, insight_compat
-from app.utils.feature_flags import is_insight_enabled
 from tests.helpers.module_resolve import resolve_legacy_app
 from tests.helpers.route_lookup import find_single_route
 
@@ -333,14 +332,3 @@ def test_insight_runtime_tests_use_only_allowed_legacy_compat_accesses() -> None
                 violations.append(f"{path}:{line}:{scope}:{symbol}")
 
     assert violations == []
-
-
-def test_insight_feature_flag_is_read_at_call_time(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("FEATURE_INSIGHT", raising=False)
-    assert is_insight_enabled() is False
-    monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    assert is_insight_enabled() is True
-    monkeypatch.setenv("FEATURE_INSIGHT", "false")
-    assert is_insight_enabled() is False

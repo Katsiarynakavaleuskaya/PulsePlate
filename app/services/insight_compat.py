@@ -13,7 +13,7 @@ from app.security.llm_monthly_quota import attempt_consume_vip_llm_monthly_quota
 from app.services.insight_application_service import (
     execute_insight_request as _execute_insight_request_via_service,
 )
-from app.utils.feature_flags import is_insight_enabled
+from app.utils.feature_flags import is_explicit_truthy_env_var
 from core.ai import (
     DirectInsightProviderStub,
     InsightProviderLoadError,
@@ -84,7 +84,7 @@ async def insight_v1(
     subject_id: int | None = None,
 ) -> InsightResponse:
     """Generate an Insight response for the retained v1 callable."""
-    if not is_insight_enabled():
+    if not is_explicit_truthy_env_var("FEATURE_INSIGHT"):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
@@ -103,7 +103,7 @@ async def insight_v1(
 
 async def insight(req: InsightRequest) -> InsightResponse:
     """Generate an Insight response for the retained legacy callable."""
-    if not is_insight_enabled():
+    if not is_explicit_truthy_env_var("FEATURE_INSIGHT"):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     try:
