@@ -335,7 +335,9 @@ def _semantic_binding_inputs(
         "patch_summary": {
             "patch_fingerprint": "sha256:" + ("b" * 64),
             "patch_bytes": 1,
-            "diff_lines": 1,
+            "changed_lines": 1,
+            "serialized_patch_lines": 1,
+            "line_metric": "numstat_added_plus_deleted_v1",
         },
         "runner_summary": {
             "experiment_id": "experiment:test",
@@ -1555,7 +1557,7 @@ def test_finalize_dispatched_result_rereads_gate_under_finalize_lock(
         load_calls += 1
         if load_calls == 1:
             replacement = json.loads(gate_path.read_text(encoding="utf-8"))
-            replacement["budget_limits"]["max_diff_lines"] -= 1
+            replacement["budget_limits"]["max_changed_lines"] -= 1
             generation_cli._set_identity(
                 replacement,
                 id_key="gate_id",
@@ -3066,7 +3068,9 @@ def test_validate_artifacts_rejects_forged_sidecars_outside_request_allowlist(
         changed_paths=["core/rag/other.py"],
         patch_fingerprint=patch_fingerprint,
         patch_bytes=len(patch_text.encode("utf-8")),
-        diff_lines=len(patch_text.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(patch_text.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result={
             "experiment_id": "exp-reference",
             "status": "accepted",
@@ -3090,7 +3094,9 @@ def test_validate_artifacts_rejects_forged_sidecars_outside_request_allowlist(
         "changed_path_statuses": {"core/rag/other.py": "M"},
         "patch_fingerprint": patch_fingerprint,
         "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
+        "changed_lines": 2,
+        "serialized_patch_lines": len(patch_text.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
     }
     (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).write_text(
         patch_text,
@@ -3481,7 +3487,10 @@ def test_generate_candidate_rejects_changed_patch_metadata_before_evaluate(
     monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_evaluate_candidate)
 
     assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 1
-    assert "candidate patch metadata does not match patch" in capsys.readouterr().err
+    assert (
+        "patch metadata must match generation-recorded state before evaluate"
+        in capsys.readouterr().err
+    )
     assert called["evaluator"] is False
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
