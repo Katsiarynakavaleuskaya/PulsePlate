@@ -3,16 +3,19 @@
 Includes tenant-based sharding configuration for memory-efficient parallel testing.
 """
 
+import hashlib
 import importlib
 import importlib.util
 import logging
 import os
+import re
+import stat
 import sys
+import tempfile
 import warnings
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, TracebackType
 from typing import Any, Callable, Generator, Iterable, cast
-import tempfile
 
 import pytest
 from fastapi import FastAPI
@@ -20,6 +23,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionError
+from sqlalchemy.pool import NullPool
 
 from app.effective_routes import (
     is_api_route_candidate,
@@ -428,6 +432,270 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
         logger.error(f"Error during database cleanup: {e}")
 
 
+_ISOLATED_DB_ENV_KEYS = (
+    "DATABASE_URL",
+    "TEST_DB_PATH",
+    "DB_FALLBACK_URL",
+    "DATABASE_ASYNC_URL",
+    "DATABASE_USE_ASYNC",
+)
+
+
+def _bounded_isolation_identity(raw_value: str, *, prefix_limit: int) -> str:
+    """Return one filesystem-safe, bounded identity with collision resistance."""
+
+    sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw_value).strip("._-") or "unknown"
+    digest = hashlib.sha256(raw_value.encode("utf-8")).hexdigest()[:10]
+    return f"{sanitized[:prefix_limit]}-{digest}"
+
+
+def _snapshot_isolated_db_env() -> dict[str, tuple[bool, str | None]]:
+    """Capture exact presence and value for the finite DB environment surface."""
+
+    return {key: (key in os.environ, os.environ.get(key)) for key in _ISOLATED_DB_ENV_KEYS}
+
+
+def _restore_isolated_db_env(snapshot: dict[str, tuple[bool, str | None]]) -> None:
+    """Restore the finite DB environment surface without broad cleanup."""
+
+    for key, (was_present, value) in snapshot.items():
+        if was_present:
+            if value is None:
+                raise RuntimeError(f"Environment snapshot for {key} lost its present value")
+            os.environ[key] = value
+        else:
+            os.environ.pop(key, None)
+
+
+def _assert_isolated_db_async_inactive(core_db: ModuleType) -> None:
+    """Fail before mutation when any async DB owner is active."""
+
+    active_sources = [
+        source
+        for source, is_active in (
+            ("DATABASE_ASYNC_URL", bool(os.environ.get("DATABASE_ASYNC_URL"))),
+            ("DATABASE_USE_ASYNC", os.environ.get("DATABASE_USE_ASYNC") == "1"),
+            ("core.db._ASYNC_ENGINE", getattr(core_db, "_ASYNC_ENGINE", None) is not None),
+            ("core.db.AsyncSessionLocal", getattr(core_db, "AsyncSessionLocal", None) is not None),
+            ("core.db.async_engine", getattr(core_db, "async_engine", None) is not None),
+        )
+        if is_active
+    ]
+    if active_sources:
+        raise RuntimeError(
+            "isolated_sqlite_database requires inactive async DB state; active: "
+            + ", ".join(active_sources)
+        )
+
+
+def _create_isolated_sqlite_file(
+    tmp_root: Path,
+    *,
+    worker_id: str,
+    test_id: str,
+    no_follow_flag: int,
+) -> tuple[Path, tuple[int, int]]:
+    """Create one exclusive regular SQLite file under the resolved pytest tmp root."""
+
+    resolved_root = tmp_root.resolve(strict=True)
+    worker_part = _bounded_isolation_identity(worker_id, prefix_limit=16)
+    test_part = _bounded_isolation_identity(test_id, prefix_limit=32)
+    db_path = resolved_root / f"isolated-{worker_part}-{test_part}.sqlite3"
+    if not resolved_root.is_dir() or db_path.parent != resolved_root:
+        raise RuntimeError("isolated SQLite path escaped the resolved pytest tmp_path")
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow_flag
+    file_descriptor = os.open(db_path, flags, 0o600)
+    try:
+        created_stat = os.fstat(file_descriptor)
+    finally:
+        os.close(file_descriptor)
+
+    mode = stat.S_IMODE(created_stat.st_mode)
+    if not stat.S_ISREG(created_stat.st_mode) or mode != 0o600:
+        validation_error = RuntimeError(
+            "isolated SQLite file must be a regular file created with exact mode 0600"
+        )
+        try:
+            _unlink_owned_isolated_sqlite_file(
+                db_path,
+                resolved_root,
+                (created_stat.st_dev, created_stat.st_ino),
+            )
+        except Exception as cleanup_error:
+            raise validation_error from ExceptionGroup(
+                "isolated SQLite validation cleanup failed",
+                [cleanup_error],
+            )
+        raise validation_error
+    return db_path, (created_stat.st_dev, created_stat.st_ino)
+
+
+def _verify_isolated_sqlite_engine(engine: Any, db_path: Path, database_url: str) -> None:
+    """Verify the exact engine URL, path, pool, and SQLite thread contract."""
+
+    _args, connect_kwargs = engine.dialect.create_connect_args(engine.url)
+    engine_database = engine.url.database
+    validation_errors = [
+        message
+        for valid, message in (
+            (str(engine.url) == database_url, "engine URL differs from fixture URL"),
+            (
+                engine_database is not None
+                and Path(engine_database).resolve(strict=True) == db_path,
+                "engine path differs from fixture path",
+            ),
+            (isinstance(engine.pool, NullPool), "file-backed test engine must use NullPool"),
+            (
+                connect_kwargs.get("check_same_thread") is False,
+                "SQLite engine must use check_same_thread=False",
+            ),
+        )
+        if not valid
+    ]
+    if validation_errors:
+        raise RuntimeError("Invalid isolated SQLite engine: " + "; ".join(validation_errors))
+
+
+def _unlink_owned_isolated_sqlite_file(
+    db_path: Path,
+    resolved_root: Path,
+    identity: tuple[int, int],
+) -> None:
+    """Unlink only the original regular file at the exact fixture-owned path."""
+
+    if db_path.parent != resolved_root:
+        raise RuntimeError("Refusing to unlink an isolated SQLite path outside pytest tmp_path")
+    try:
+        current_stat = db_path.lstat()
+    except FileNotFoundError:
+        return
+
+    current_identity = (current_stat.st_dev, current_stat.st_ino)
+    if not stat.S_ISREG(current_stat.st_mode) or current_identity != identity:
+        raise RuntimeError("Refusing to unlink replaced isolated SQLite file")
+    db_path.unlink()
+
+
+def _run_isolated_db_cleanup_step(
+    cleanup_errors: list[Exception],
+    operation: str,
+    action: Callable[[], None],
+) -> None:
+    """Run one cleanup step while preserving later restore/reinit attempts."""
+
+    try:
+        action()
+    except Exception as error:
+        error.add_note(f"isolated_sqlite_database cleanup step failed: {operation}")
+        cleanup_errors.append(error)
+
+
+def _isolated_sqlite_database_lifecycle(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> Generator[Path, None, None]:
+    """Own one opt-in function-scoped SQLite engine and file lifecycle."""
+
+    import core.db as core_db
+
+    env_snapshot = _snapshot_isolated_db_env()
+    _assert_isolated_db_async_inactive(core_db)
+
+    worker_info = getattr(request.config, "workerinput", {}) or {}
+    worker_id = str(worker_info.get("workerid") or os.getenv("PYTEST_XDIST_WORKER") or "master")
+    test_id = request.node.nodeid
+    resolved_root = tmp_path.resolve(strict=True)
+    if "?" in str(resolved_root):
+        raise RuntimeError("isolated_sqlite_database refuses tmp_path containing '?'")
+    no_follow_flag = getattr(os, "O_NOFOLLOW", None)
+    if (
+        not isinstance(no_follow_flag, int)
+        or isinstance(no_follow_flag, bool)
+        or no_follow_flag == 0
+    ):
+        raise RuntimeError("isolated_sqlite_database requires os.O_NOFOLLOW support")
+    db_path, file_identity = _create_isolated_sqlite_file(
+        resolved_root,
+        worker_id=worker_id,
+        test_id=test_id,
+        no_follow_flag=no_follow_flag,
+    )
+    database_url = f"sqlite:///{db_path}"
+
+    primary_error: tuple[BaseException, TracebackType | None] | None = None
+    try:
+        try:
+            core_db.reset_db_for_tests()
+            os.environ["DATABASE_URL"] = database_url
+            os.environ["TEST_DB_PATH"] = str(db_path)
+            os.environ["DB_FALLBACK_URL"] = database_url
+            os.environ.pop("DATABASE_ASYNC_URL", None)
+            os.environ.pop("DATABASE_USE_ASYNC", None)
+
+            engine = core_db.init_db()
+            _verify_isolated_sqlite_engine(engine, db_path, database_url)
+
+            current_stat = db_path.lstat()
+            if (
+                not stat.S_ISREG(current_stat.st_mode)
+                or (current_stat.st_dev, current_stat.st_ino) != file_identity
+            ):
+                raise RuntimeError("isolated SQLite file identity changed during initialization")
+
+            yield db_path
+        except BaseException as error:
+            primary_error = (error, error.__traceback__)
+    finally:
+        cleanup_errors: list[Exception] = []
+        _run_isolated_db_cleanup_step(
+            cleanup_errors,
+            "reset isolated engine",
+            core_db.reset_db_for_tests,
+        )
+        _run_isolated_db_cleanup_step(
+            cleanup_errors,
+            "unlink owned fixture file",
+            lambda: _unlink_owned_isolated_sqlite_file(
+                db_path,
+                resolved_root,
+                file_identity,
+            ),
+        )
+        _run_isolated_db_cleanup_step(
+            cleanup_errors,
+            "restore DB environment",
+            lambda: _restore_isolated_db_env(env_snapshot),
+        )
+        _run_isolated_db_cleanup_step(
+            cleanup_errors,
+            "reinitialize baseline session DB",
+            lambda: core_db.init_db(),
+        )
+        cleanup_group = (
+            ExceptionGroup("isolated_sqlite_database cleanup failed", cleanup_errors)
+            if cleanup_errors
+            else None
+        )
+        if primary_error is not None:
+            error, traceback = primary_error
+            if cleanup_group is not None:
+                raise error.with_traceback(traceback) from cleanup_group
+            raise error.with_traceback(traceback)
+        if cleanup_group is not None:
+            raise cleanup_group
+
+
+@pytest.fixture
+def isolated_sqlite_database(
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> Generator[Path, None, None]:
+    """Provide opt-in function-scoped file-backed SQLite isolation."""
+
+    yield from _isolated_sqlite_database_lifecycle(tmp_path, request)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment() -> Generator[None, None, None]:
     """Set up test environment variables before any tests run.
@@ -526,8 +794,13 @@ def app_client(app: FastAPI) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture
-def isolated_test_client(app: FastAPI) -> Generator[TestClient, None, None]:
-    """Preserve the legacy app-state fixture; DB isolation is owned by TC1b."""
+def isolated_test_client(
+    app: FastAPI,
+    isolated_sqlite_database: Path,
+) -> Generator[TestClient, None, None]:
+    """Open one managed client while the opt-in isolated DB fixture is active."""
+
+    del isolated_sqlite_database
 
     with open_test_client(app) as managed_client:
         yield managed_client
