@@ -77,15 +77,35 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
     def _record(self, node: ast.expr | ast.stmt, symbol: str) -> None:
         self.accesses.add((self.scope, symbol, node.lineno))
 
-    def _bind_legacy_aliases(self, target: ast.expr, value: ast.expr | None) -> None:
+    @classmethod
+    def _bound_names(cls, target: ast.expr) -> set[str]:
+        if isinstance(target, ast.Name):
+            return {target.id}
+        if isinstance(target, (ast.Tuple, ast.List)):
+            return set().union(*(cls._bound_names(item) for item in target.elts))
+        if isinstance(target, ast.Starred):
+            return cls._bound_names(target.value)
+        return set()
+
+    def _legacy_bound_names(self, target: ast.expr, value: ast.expr | None) -> set[str]:
         if value is None:
-            return
+            return set()
         if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
-            for target_item, value_item in zip(target.elts, value.elts, strict=False):
-                self._bind_legacy_aliases(target_item, value_item)
-            return
+            return set().union(
+                *(
+                    self._legacy_bound_names(target_item, value_item)
+                    for target_item, value_item in zip(target.elts, value.elts, strict=False)
+                )
+            )
         if self._is_legacy_module(value):
-            self.aliases.update(name.id for name in ast.walk(target) if isinstance(name, ast.Name))
+            return self._bound_names(target)
+        return set()
+
+    def _bind_legacy_aliases(self, target: ast.expr, value: ast.expr | None) -> None:
+        target_names = self._bound_names(target)
+        legacy_names = self._legacy_bound_names(target, value)
+        self.aliases.difference_update(target_names)
+        self.aliases.update(legacy_names)
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         previous_scope, previous_aliases = self.scope, self.aliases
@@ -174,6 +194,44 @@ def _legacy_runtime_accesses(source: str) -> set[tuple[str, str, int]]:
 )
 def test_legacy_runtime_access_visitor_detects_assignment_carrier_class(source: str) -> None:
     assert _legacy_runtime_accesses(source) == {("<module>", "_execute_insight_request", 2)}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "legacy = resolve_legacy_app()\n"
+            "legacy = object()\n"
+            "legacy._execute_insight_request\n"
+        ),
+        (
+            "legacy: object = resolve_legacy_app()\n"
+            "legacy: object = object()\n"
+            "legacy._execute_insight_request\n"
+        ),
+        (
+            "(other, [legacy, tail]) = (None, [resolve_legacy_app(), None])\n"
+            "(other, [legacy, tail]) = (None, [None, None])\n"
+            "legacy._execute_insight_request\n"
+        ),
+        "legacy, other = None, resolve_legacy_app()\nlegacy._execute_insight_request\n",
+    ],
+)
+def test_legacy_runtime_access_visitor_clears_rebound_assignment_carriers(
+    source: str,
+) -> None:
+    assert _legacy_runtime_accesses(source) == set()
+
+
+def test_legacy_runtime_access_visitor_uses_pre_assignment_state_for_swaps() -> None:
+    source = (
+        "legacy = resolve_legacy_app()\n"
+        "clean = object()\n"
+        "legacy, clean = clean, legacy\n"
+        "clean._execute_insight_request\n"
+    )
+
+    assert _legacy_runtime_accesses(source) == {("<module>", "_execute_insight_request", 4)}
 
 
 def test_canonical_insight_modules_do_not_depend_on_legacy_app() -> None:
