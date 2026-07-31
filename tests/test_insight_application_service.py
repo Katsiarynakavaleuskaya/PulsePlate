@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -102,8 +103,7 @@ def _recursive_rollout_policy(
     )
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_uses_injected_dependencies(
+def test_execute_insight_request_uses_injected_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Service must preserve injected patch-points and response mapping."""
@@ -219,17 +219,19 @@ async def test_execute_insight_request_uses_injected_dependencies(
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        subject_id=123,
-        input_guard=_input_guard,
-        provider_loader=_provider_loader,
-        transparency_loader=_transparency_loader,
-        direct_provider_factory=_direct_provider_factory,
-        response_factory=_response_factory,
-        source_item_factory=_source_item_factory,
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=123,
+            input_guard=_input_guard,
+            provider_loader=_provider_loader,
+            transparency_loader=_transparency_loader,
+            direct_provider_factory=_direct_provider_factory,
+            response_factory=_response_factory,
+            source_item_factory=_source_item_factory,
+        )
     )
 
     assert observed["guard_text"] == "hello"
@@ -260,8 +262,7 @@ async def test_execute_insight_request_uses_injected_dependencies(
     assert "rollout_policy" not in response
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_rejects_oversized_prompt(
+def test_execute_insight_request_rejects_oversized_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Oversized prompt text must fail fast with 413 instead of silent truncation."""
@@ -294,15 +295,17 @@ async def test_execute_insight_request_rejects_oversized_prompt(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await execute_insight_request(
-            _Request(text="x" * (INSIGHT_TEXT_MAX_LENGTH + 1)),
-            route_path="/api/v1/insight",
-            user_tier="VIP",
-            input_guard=_input_guard,
-            provider_loader=_provider_loader,
-            transparency_loader=_transparency_loader,
-            response_factory=_response_factory,
-            source_item_factory=_source_item_factory,
+        asyncio.run(
+            execute_insight_request(
+                _Request(text="x" * (INSIGHT_TEXT_MAX_LENGTH + 1)),
+                route_path="/api/v1/insight",
+                user_tier="VIP",
+                input_guard=_input_guard,
+                provider_loader=_provider_loader,
+                transparency_loader=_transparency_loader,
+                response_factory=_response_factory,
+                source_item_factory=_source_item_factory,
+            )
         )
 
     assert observed["guard_text"] == "x" * (INSIGHT_TEXT_MAX_LENGTH + 1)
@@ -311,8 +314,7 @@ async def test_execute_insight_request_rejects_oversized_prompt(
     assert exc_info.value.detail == "Prompt too long"
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution_authority(
+def test_execute_insight_request_uses_prepared_rollout_policy_as_execution_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Prepared rollout truth must flow downstream even if env-backed rollout readers disagree."""
@@ -408,15 +410,17 @@ async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["generate_kwargs"]["rollout_policy"] is prepared_runtime.rollout_policy
@@ -430,8 +434,7 @@ async def test_execute_insight_request_uses_prepared_rollout_policy_as_execution
     assert "rollout_policy" not in response
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as_execution_authority(
+def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as_execution_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Prepared recursive rollout truth must win over disagreeing env-backed readers."""
@@ -522,15 +525,17 @@ async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
@@ -544,8 +549,7 @@ async def test_execute_insight_request_uses_prepared_recursive_rollout_policy_as
     assert "recursive_rollout_policy" not in response
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_does_not_build_legacy_recursive_policy_when_prepared_policy_exists(
+def test_execute_insight_request_does_not_build_legacy_recursive_policy_when_prepared_policy_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Prepared recursive rollout policy must not trigger the legacy fallback path."""
@@ -641,15 +645,17 @@ async def test_execute_insight_request_does_not_build_legacy_recursive_policy_wh
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["generate_kwargs"]["recursive_rollout_policy"] is (
@@ -661,8 +667,7 @@ async def test_execute_insight_request_does_not_build_legacy_recursive_policy_wh
     assert response["rag_used"] is True
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag_disabled(
+def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Legacy prepared-runtime doubles must stay fail-closed when request RAG is off."""
@@ -729,15 +734,17 @@ async def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["generate_kwargs"]["use_rag"] is False
@@ -747,8 +754,7 @@ async def test_execute_insight_request_clamps_legacy_recursive_fallback_when_rag
     assert "recursive_rollout_policy" not in response
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_prefers_active_fallback_provider_name(
+def test_execute_insight_request_prefers_active_fallback_provider_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Service response must expose the actual fallback winner, not wrapper metadata."""
@@ -801,22 +807,23 @@ async def test_execute_insight_request_prefers_active_fallback_provider_name(
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert response["provider"] == "stub"
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_hands_internal_candidates_to_store_without_payload_drift(
+def test_execute_insight_request_hands_internal_candidates_to_store_without_payload_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Thin service may promote internal candidates without changing public payload."""
@@ -889,17 +896,19 @@ async def test_execute_insight_request_hands_internal_candidates_to_store_withou
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        subject_id=42,
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        knowledge_store=_Store(),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=42,
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            knowledge_store=_Store(),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["promoted"] == [candidate]
@@ -928,8 +937,7 @@ async def test_execute_insight_request_hands_internal_candidates_to_store_withou
         assert forbidden_key not in response
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_skips_store_when_no_candidates(
+def test_execute_insight_request_skips_store_when_no_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Empty candidate handoff must not touch the store seam."""
@@ -999,25 +1007,26 @@ async def test_execute_insight_request_skips_store_when_no_candidates(
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        subject_id=42,
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        knowledge_store=_Store(),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=42,
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            knowledge_store=_Store(),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["promote_called"] is False
     assert response["provider"] == "stub"
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_survives_store_promotion_failure(
+def test_execute_insight_request_survives_store_promotion_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Knowledge promotion errors must not fail an otherwise valid response."""
@@ -1087,24 +1096,25 @@ async def test_execute_insight_request_survives_store_promotion_failure(
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        subject_id=42,
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        knowledge_store=_AsyncFailingStore(),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=42,
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            knowledge_store=_AsyncFailingStore(),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert response["provider"] == "stub"
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_skips_store_when_bundle_denies_admission(
+def test_execute_insight_request_skips_store_when_bundle_denies_admission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Denied admission bundle must block persistence without changing the response."""
@@ -1176,25 +1186,26 @@ async def test_execute_insight_request_skips_store_when_bundle_denies_admission(
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        subject_id=42,
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        knowledge_store=_Store(),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=42,
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            knowledge_store=_Store(),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["promote_called"] is False
     assert response["provider"] == "stub"
 
 
-@pytest.mark.asyncio
-async def test_execute_insight_request_skips_store_when_bundle_is_missing(
+def test_execute_insight_request_skips_store_when_bundle_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing admission bundle must fail closed before persistence."""
@@ -1266,17 +1277,19 @@ async def test_execute_insight_request_skips_store_when_bundle_is_missing(
         raising=True,
     )
 
-    response = await execute_insight_request(
-        _Request(text="hello"),
-        route_path="/api/v1/insight",
-        user_tier="VIP",
-        subject_id=42,
-        input_guard=lambda text: None,
-        provider_loader=lambda: _FakeProvider(),
-        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-        knowledge_store=_Store(),
-        response_factory=lambda **payload: dict(payload),
-        source_item_factory=lambda **payload: dict(payload),
+    response = asyncio.run(
+        execute_insight_request(
+            _Request(text="hello"),
+            route_path="/api/v1/insight",
+            user_tier="VIP",
+            subject_id=42,
+            input_guard=lambda text: None,
+            provider_loader=lambda: _FakeProvider(),
+            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+            knowledge_store=_Store(),
+            response_factory=lambda **payload: dict(payload),
+            source_item_factory=lambda **payload: dict(payload),
+        )
     )
 
     assert observed["promote_called"] is False
