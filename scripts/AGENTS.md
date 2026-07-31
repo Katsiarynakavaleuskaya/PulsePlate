@@ -142,7 +142,10 @@
   may call Experiment Runner candidate-patch mode for local candidate evaluation,
   but that result is not the mandatory PR oracle-only governance evidence and
   must not be used as fixed-mapping, review-disposition, or merge-readiness
-  proof.
+  proof. New PR-2 writers must budget mutation as Git numstat additions plus
+  deletions with `line_metric=numstat_added_plus_deleted_v1`; serialized U3
+  patch lines are observability only. Legacy `max_diff_lines` artifacts remain
+  exact-shape read-only evidence and must never be relabeled as changed lines.
 - PR-2 creative-code generation gate artifacts stay local under
   `artifacts/orchestration/creative_code/patch_generation/`. The
   `creative_code_patch_generation.py` CLI may only validate an already prepared
