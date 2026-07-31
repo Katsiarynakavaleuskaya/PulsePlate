@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from app.middleware.api_tiers import TEST_KEY_VIP, derive_subject_id_from_api_key
 from core.rag.orchestration import RAGOrchestrationResult
 from tests._client import disable_rate_limiting_for_test_app
+from tests.helpers.module_resolve import resolve_module
 
 
 @dataclass
@@ -69,6 +70,16 @@ class _EchoProvider:
         return text
 
 
+def _patch_insight_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    insight_compat = resolve_module("app.services.insight_compat")
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: _EchoProvider()),
+        raising=True,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _disable_rate_limiting_for_rag_flag_tests(
     monkeypatch: pytest.MonkeyPatch,
@@ -76,12 +87,12 @@ def _disable_rate_limiting_for_rag_flag_tests(
 ) -> None:
     """Keep RAG flag integration tests focused on routing, not quota/rate-limit policy."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
     disable_rate_limiting_for_test_app(client.app)
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: None,
         raising=True,
@@ -134,12 +145,10 @@ class TestFeatureFlagIntegration:
         vip_headers: dict[str, str],
     ) -> None:
         """FEATURE_RAG=false → no RAG at all, regardless of vector flag."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
 
         resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
@@ -155,12 +164,10 @@ class TestFeatureFlagIntegration:
         vip_headers: dict[str, str],
     ) -> None:
         """FEATURE_RAG=true + FEATURE_RAG_VECTOR=true → vector_rag module called."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _vector_fake,
@@ -185,14 +192,12 @@ class TestFeatureFlagIntegration:
     ) -> None:
         """FEATURE_RAG=true + FEATURE_RAG_VECTOR=false → vector_rag still called,
         but internally delegates to Jaccard."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "false")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
 
-        # Patch vector_rag.retrieve_context_structured (the entry point in legacy_app)
+        # Patch vector_rag.retrieve_context_structured, the canonical retrieval entry point.
         # to simulate Jaccard fallback path
         def _jaccard_fallback(
             query: str,
@@ -230,11 +235,9 @@ class TestFeatureFlagIntegration:
         vip_headers: dict[str, str],
     ) -> None:
         """Authenticated /api/v1/insight propagates derived subject_id into RAG orchestration."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         rag_result = AsyncMock()
         rag_result.return_value = RAGOrchestrationResult(
             chunks=[],
@@ -264,11 +267,9 @@ class TestFeatureFlagIntegration:
         vip_headers: dict[str, str],
     ) -> None:
         """Legacy /insight keeps vector user corpus disabled by omitting subject_id."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         rag_result = AsyncMock()
         rag_result.return_value = RAGOrchestrationResult(
             chunks=[],

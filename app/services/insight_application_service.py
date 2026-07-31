@@ -15,6 +15,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from app.schemas.insight import INSIGHT_TEXT_MAX_LENGTH
 from app.services.insight_runtime import generate_traced_insight
 from app.utils.feature_flags import (
     is_philosophy_linguistic_enabled,
@@ -32,7 +33,6 @@ from core.insight.llm_provider_loader import LLMProvider
 from core.ai import prepare_insight_runtime
 from core.verification.contracts import VerificationBundle
 
-INSIGHT_TEXT_MAX_LENGTH = 2000
 KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS = 0.25
 logger = logging.getLogger(__name__)
 

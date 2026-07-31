@@ -169,13 +169,18 @@ def test_insight_import_failure(
     vip_headers: dict[str, str],
 ) -> None:
     """Test coverage for llm import exception in main.py."""
-    import legacy_app
+    from app.services import insight_compat
 
     def _raise_import_error() -> NoReturn:
         raise ImportError("boom")
 
     # Deterministic import-failure branch without sys.modules mutation.
-    monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        _raise_import_error,
+        raising=True,
+    )
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
     response = client.post(
@@ -269,7 +274,7 @@ def test_api_insight_provider_generate_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
-    import llm
+    from app.services import insight_compat
 
     class _GenerateFailureProvider:
         name = "test"
@@ -279,9 +284,9 @@ def test_api_insight_provider_generate_failure(
             raise Exception("Generate failed")
 
     monkeypatch.setattr(
-        llm,
-        "get_insight_provider",
-        lambda: _GenerateFailureProvider(),
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: _GenerateFailureProvider()),
         raising=True,
     )
 
@@ -302,9 +307,14 @@ def test_api_insight_provider_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test coverage for provider is None in insight endpoint."""
-    import llm
+    from app.services import insight_compat
 
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: None, raising=True)
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: None),
+        raising=True,
+    )
 
     # Deterministic env setup with auto-cleanup
     monkeypatch.setenv("FEATURE_INSIGHT", "true")

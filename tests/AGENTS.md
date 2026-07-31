@@ -33,6 +33,15 @@
   `_application_lifespan_with_hooks(...)` through synchronous `asyncio.run(...)`
   tests. Inject `LifespanHooks`; do not patch `lifespan.__wrapped__.__globals__`
   or fan one scheduler mock across `app`, `legacy_app`, and `app_module`.
+- Shared client fixtures (`client`, `test_client`, `app_client`,
+  `isolated_test_client`, and `client_with_vip_access`) live only in
+  `tests/conftest.py` and must enter `tests._client.open_test_client(...)`.
+  The managed wrapper owns one lifespan, exact `dependency_overrides`
+  restoration, and temporary finite SlowAPI limiter isolation.
+- The root `MetricsAwareTestClient` assignment is a temporary PR-TC2
+  compatibility bridge. Do not add another patch owner or new callers of raw
+  `make_test_client()`, `get_client()`, or `TestClient(...)` in shared provider
+  modules.
 - Direct alias patching remains allowed only in focused compatibility tests for
   the legacy synchronous scheduler wrappers; it is not lifecycle evidence.
 - Admin scheduler tests must patch only the consumer binding
@@ -61,11 +70,16 @@
   nutrition-wrapper symbols. Assert exact feature/auth ordering, finite input
   and dependency-output boundaries, sanitized errors/logs, and response parity
   for both retained routes.
-- For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
-  behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
-  are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or
-  `app/services`. Extracted-route handlers resolve legacy compat callables via module attributes,
-  so `monkeypatch.setattr(legacy_app, "<symbol>", ...)` remains the supported patch seam.
+- For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer
+  client/route behavior tests against `app.main` or the canonical router.
+  Direct `legacy_app` access is limited to focused exact-alias compatibility
+  tests. Patch transparency, quota, provider, and execution dependencies on
+  their request-time consumer, `app.services.insight_compat`, and patch the
+  route input guard on `app.security.agent_input_guard`; do not patch facade
+  bindings, package dictionaries, `sys.modules`, or private per-carrier
+  resolvers. Keep the ownership oracle finite over canonical modules, exact
+  aliases, the two route models, and the sibling runtime-test family; do not
+  grow a partial Python interpreter to chase assignment or spelling variants.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.

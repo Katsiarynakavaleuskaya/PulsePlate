@@ -1,9 +1,9 @@
 """Behavior-freeze tests for the legacy direct insight routes.
 
-RU: Фиксируем поведение POST /insight и POST /api/v1/insight до и после
-переноса ownership маршрутов из legacy_app.py в app/routers/legacy_insight.py.
-EN: Freeze POST /insight and POST /api/v1/insight behavior before and after the
-route-ownership extraction from legacy_app.py into app/routers/legacy_insight.py.
+RU: Фиксируем поведение POST /insight и POST /api/v1/insight после переноса
+ownership маршрутов из legacy facade в app/routers/legacy_insight.py.
+EN: Freeze POST /insight and POST /api/v1/insight behavior after the
+route-ownership extraction from the legacy facade into app/routers/legacy_insight.py.
 
 These tests are ownership-agnostic on purpose: they assert route metadata and
 request behavior through ``app.main:app`` so the same contract holds for the
@@ -19,8 +19,10 @@ import pytest
 from app.effective_routes import route_include_in_schema, route_responses
 from app.bootstrap.route_family import route_has_dependency_call
 from app.middleware.api_tiers import require_vip_tier
+from app.schemas.insight import INSIGHT_TEXT_MAX_LENGTH, InsightResponse
+from app.services.insight_compat import INSIGHT_TEMP_UNAVAILABLE_MESSAGE
 from tests.helpers.fake_llm_provider import FakeLLMProvider
-from tests.helpers.module_resolve import resolve_legacy_app
+from tests.helpers.module_resolve import resolve_module
 from tests.helpers.route_lookup import find_single_route
 
 _INSIGHT_V1_PATH = "/api/v1/insight"
@@ -36,14 +38,19 @@ def _insight_route(target_app: FastAPI, path: str) -> object:
 def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make provider/quota deterministic so tests validate only route behavior."""
 
-    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
 
     def _noop_quota(*_args: object, **_kwargs: object) -> None:
         return None
 
-    monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _noop_quota, raising=True)
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
+        "_enforce_vip_llm_monthly_quota",
+        _noop_quota,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        insight_compat,
         "_load_llm_get_provider",
         lambda: (lambda: FakeLLMProvider()),
         raising=True,
@@ -67,27 +74,8 @@ def test_insight_routes_hidden_from_public_openapi(app: FastAPI) -> None:
         assert path not in paths
 
 
-def _assert_same_response_model(actual: object, expected: object) -> None:
-    """Compare response models by stable identity, not object ``is``.
-
-    RU: После ``importlib.reload(legacy_app)`` в том же pytest-процессе класс
-    ``InsightResponse`` пересоздаётся; route держит старый объект, а
-    ``resolve_legacy_app()`` отдаёт новый — ``is`` ломается при том же
-    ``__module__``/``__qualname__``. Сравниваем семантически (как в bootstrap).
-    EN: After ``importlib.reload(legacy_app)`` in the same pytest process the
-    ``InsightResponse`` class is recreated; the route keeps the old object while
-    ``resolve_legacy_app()`` returns the new one, so ``is`` fails despite matching
-    ``__module__``/``__qualname__``. Compare semantically (same as bootstrap).
-    """
-
-    assert getattr(actual, "__module__", None) == getattr(expected, "__module__", None)
-    assert getattr(actual, "__qualname__", None) == getattr(expected, "__qualname__", None)
-
-
 def test_insight_route_metadata_preserved(app: FastAPI) -> None:
     """Route metadata contract: 429 responses, VIP guard, deprecation flags."""
-
-    legacy_app = resolve_legacy_app()
 
     v1_route = _insight_route(app, _INSIGHT_V1_PATH)
     legacy_route = _insight_route(app, _INSIGHT_LEGACY_PATH)
@@ -95,10 +83,7 @@ def test_insight_route_metadata_preserved(app: FastAPI) -> None:
     for route in (v1_route, legacy_route):
         assert 429 in route_responses(route)
         assert route_has_dependency_call(route, require_vip_tier)
-        _assert_same_response_model(
-            getattr(route, "response_model", None),
-            legacy_app.InsightResponse,
-        )
+        assert getattr(route, "response_model", None) is InsightResponse
 
     assert bool(getattr(v1_route, "deprecated", False)) is False
     assert bool(getattr(legacy_route, "deprecated", False)) is True
@@ -111,15 +96,64 @@ def test_insight_feature_flag_disabled_returns_503(
     vip_headers: dict[str, str],
     path: str,
 ) -> None:
-    """FEATURE_INSIGHT=false keeps both routes fail-closed with 503."""
+    """FEATURE_INSIGHT=false stops both routes before downstream execution."""
 
+    agent_input_guard = resolve_module("app.security.agent_input_guard")
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "false")
+
+    def _must_not_run(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("disabled Insight must stop before downstream execution")
+
+    monkeypatch.setattr(
+        agent_input_guard,
+        "require_safe_ai_agent_input",
+        _must_not_run,
+        raising=True,
+    )
+    for name in (
+        "_require_ai_generated_insight_notice",
+        "_enforce_vip_llm_monthly_quota",
+    ):
+        monkeypatch.setattr(insight_compat, name, _must_not_run, raising=True)
+    monkeypatch.setattr(
+        insight_compat,
+        "_execute_insight_request",
+        _must_not_run,
+        raising=True,
+    )
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "FEATURE_INSIGHT is disabled"}
+
+
+@pytest.mark.parametrize("path", _INSIGHT_PATHS)
+@pytest.mark.parametrize(
+    ("text", "expected_status"),
+    [
+        ("", 422),
+        ("x" * INSIGHT_TEXT_MAX_LENGTH, 200),
+        ("x" * (INSIGHT_TEXT_MAX_LENGTH + 1), 422),
+    ],
+)
+def test_insight_text_boundaries_are_preserved(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
+    text: str,
+    expected_status: int,
+) -> None:
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
+    if expected_status == 200:
+        _patch_insight_success(monkeypatch)
+
+    resp = client.post(path, json={"text": text}, headers=vip_headers)
+
+    assert resp.status_code == expected_status
 
 
 @pytest.mark.parametrize("path", _INSIGHT_PATHS)
@@ -146,10 +180,10 @@ def test_insight_blocks_unsafe_input_before_quota(
 ) -> None:
     """Unsafe AI-agent input fails closed with 400 before quota consumption."""
 
-    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota must not run for blocked input"),
         raising=True,
@@ -171,20 +205,20 @@ def test_insight_transparency_failure_blocks_before_quota(
 ) -> None:
     """Missing transparency notice fails closed with 503 before quota."""
 
-    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
     def _raise_transparency_unavailable() -> tuple[str, str]:
         raise HTTPException(status_code=503, detail="transparency_registry_unavailable")
 
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_require_ai_generated_insight_notice",
         _raise_transparency_unavailable,
         raising=True,
     )
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota must not run for transparency failure"),
         raising=True,
@@ -206,7 +240,7 @@ def test_insight_quota_exceeded_returns_429(
 ) -> None:
     """Monthly hard quota exhaustion returns deterministic 429 before provider."""
 
-    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
     def _quota_exceeded(*_args: object, **_kwargs: object) -> None:
@@ -215,9 +249,17 @@ def test_insight_quota_exceeded_returns_429(
     async def _provider_must_not_run(*_args: object, **_kwargs: object) -> object:
         pytest.fail("provider must not run after quota exhaustion")
 
-    monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _quota_exceeded, raising=True)
     monkeypatch.setattr(
-        legacy_app, "_execute_insight_request", _provider_must_not_run, raising=True
+        insight_compat,
+        "_enforce_vip_llm_monthly_quota",
+        _quota_exceeded,
+        raising=True,
+    )
+    monkeypatch.setattr(
+        insight_compat,
+        "_execute_insight_request",
+        _provider_must_not_run,
+        raising=True,
     )
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
@@ -257,10 +299,10 @@ def test_insight_provider_failure_returns_stable_503_envelope(
 ) -> None:
     """Provider failures must degrade to the stable 503 envelope without leaks."""
 
-    legacy_app = resolve_legacy_app()
+    insight_compat = resolve_module("app.services.insight_compat")
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: None,
         raising=True,
@@ -269,11 +311,11 @@ def test_insight_provider_failure_returns_stable_503_envelope(
     async def _boom(*_args: object, **_kwargs: object) -> object:
         raise RuntimeError("provider exploded with secret details")
 
-    monkeypatch.setattr(legacy_app, "_execute_insight_request", _boom, raising=True)
+    monkeypatch.setattr(insight_compat, "_execute_insight_request", _boom, raising=True)
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")
-    assert resp.json() == {"detail": legacy_app.INSIGHT_TEMP_UNAVAILABLE_MESSAGE}
+    assert resp.json() == {"detail": INSIGHT_TEMP_UNAVAILABLE_MESSAGE}
     assert "secret" not in resp.text

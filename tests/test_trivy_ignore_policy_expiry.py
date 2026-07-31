@@ -310,6 +310,7 @@ def test_remediated_container_cves_are_not_broadly_ignored_in_trivyignore() -> N
     trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
 
     assert "CVE-2025-8058" not in trivyignore
+    assert "CVE-2025-8869" not in trivyignore
     for cve in (
         REMOVED_PERL_RUNTIME_CVES
         + REMEDIATED_SQLITE_CVES

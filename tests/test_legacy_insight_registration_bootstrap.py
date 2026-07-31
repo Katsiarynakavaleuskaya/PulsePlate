@@ -7,7 +7,6 @@ import pytest
 from fastapi import Depends, FastAPI
 
 import app.main as app_main
-import legacy_app
 from app.bootstrap.route_family import route_has_dependency_call
 from app.effective_routes import (
     is_api_route_candidate,
@@ -18,6 +17,7 @@ from app.effective_routes import (
     route_responses,
 )
 from app.middleware.api_tiers import require_vip_tier
+from app.schemas.insight import InsightResponse
 from tests.helpers.route_lookup import (
     all_api_paths,
     family_routes,
@@ -42,11 +42,6 @@ _EXPECTED_DEPRECATED = {
 _INSIGHT_V1_PATH = "/api/v1/insight"
 _INSIGHT_LEGACY_PATH = "/insight"
 _INSIGHT_METHOD = "POST"
-
-
-def _assert_same_response_model(actual: object, expected: object) -> None:
-    assert getattr(actual, "__module__", None) == getattr(expected, "__module__", None)
-    assert getattr(actual, "__qualname__", None) == getattr(expected, "__qualname__", None)
 
 
 def _all_api_paths(target_app: FastAPI) -> set[str]:
@@ -121,7 +116,7 @@ def _assert_insight_routes_registered_once(target_app: FastAPI) -> None:
         endpoint = route_endpoint(route)
         assert getattr(endpoint, "__module__", None) == _EXPECTED_ENDPOINT_MODULE
         assert getattr(endpoint, "__name__", None) == _EXPECTED_ENDPOINTS[key]
-        _assert_same_response_model(route.response_model, legacy_app.InsightResponse)
+        assert route.response_model is InsightResponse
         assert bool(getattr(route, "deprecated", False)) is _EXPECTED_DEPRECATED[key]
         assert 429 in route_responses(route)
         assert route_has_dependency_call(route, require_vip_tier)
@@ -166,7 +161,7 @@ def test_legacy_insight_source_routes_preserve_metadata() -> None:
         key = (path, method)
 
         assert route_include_in_schema(route) is False
-        _assert_same_response_model(route.response_model, legacy_app.InsightResponse)
+        assert route.response_model is InsightResponse
         assert bool(getattr(route, "deprecated", False)) is _EXPECTED_DEPRECATED[key]
         assert 429 in route_responses(route)
         assert route_has_dependency_call(route, require_vip_tier)
@@ -310,7 +305,7 @@ def test_legacy_insight_registration_accepts_reloaded_canonical_handlers() -> No
             path,
             endpoint,
             methods=[method],
-            response_model=legacy_app.InsightResponse,
+            response_model=InsightResponse,
             include_in_schema=False,
             deprecated=_EXPECTED_DEPRECATED[(path, method)],
             responses={429: {"description": "Rate limit exceeded"}},

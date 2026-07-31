@@ -6822,16 +6822,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR-TBD-INSIGHT-CUTOVER -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
     canonical. PR #2170 merged at `8b30b82f47c818dec5eb8aec5824e4627fc5d084`,
-    completing direct-core Plate ownership. The current BMR lane moves both retained
-    BMR routes to `app/services/pro_nutrition_bmr.py`, removes the legacy dynamic
-    resolver/stub path, and preserves their distinct auth shapes behind one feature
-    gate. BMI PRO alias retirement, test/demo export retirement, Insight cutover,
-    app-factory inversion, and final facade deletion remain separate ordered lanes.
+    completing direct-core Plate ownership. PR #2209 merged at
+    `b611682cf4d09eac8b4a124aff07e91c57f83f59`, establishing canonical Insight
+    schema, adapter, and application-service ownership. The bounded successor moves
+    both hidden Insight routes off the legacy facade and onto the canonical adapter
+    seam. BMI PRO alias retirement, test/demo export retirement, app-factory
+    inversion, and final facade deletion remain separate ordered lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -11238,8 +11239,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot`
-  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, and promotion-integrity slices remain canonical. The active adaptive production-adjacent pilot adds a strict v2 planning rail over exact tracked `core/rag` or `core/insight` targets, structured independent review, one targeted rebuttal, deterministic synthesis, TTY approval, control-plane evidence events, and candidate-v1 / PR-1 prepare handoff without changing product code or mutation authority.
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot` -> terminal outcome envelope `codex/creative-code-terminal-outcome-envelope-v1`
+  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope is the active intermediate control-plane continuation after `pr_open`: one validated PR-3 lineage, one immutable `merged | closed_unmerged` carrier, and one v2 `pr_terminal` telemetry projection without product code, GitHub/provider/runtime, or merge authority.
   - Carryover remediation:
     - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
     - Priority: P1
@@ -11285,6 +11286,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/CREATIVE_CODE_TELEMETRY_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_telemetry_event.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_terminal_outcome.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_telemetry_event.v2.schema.json`
+    - `docs/orchestration/contracts/creative_code_telemetry_rollup.v2.schema.json`
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
     - `docs/orchestration/contracts/creative_hypothesis_specification_bridge.v1.schema.json`
@@ -11320,6 +11324,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/creative_code_pr_promotion.py`
     - `scripts/orchestration/creative_code_telemetry_contract.py`
     - `scripts/orchestration/creative_code_telemetry.py`
+    - `scripts/orchestration/creative_code_terminal_outcome_contract.py`
+    - `scripts/orchestration/creative_code_terminal_outcome.py`
     - `scripts/orchestration/creative_code_review_disposition_contract.py`
     - `scripts/orchestration/creative_code_review_disposition.py`
     - `scripts/orchestration/creative_code_applied_candidate_pr6.py`
@@ -11336,6 +11342,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_creative_code_patch_builder.py`
     - `tests/test_creative_code_pr_promotion.py`
     - `tests/test_creative_code_telemetry.py`
+    - `tests/test_creative_code_terminal_outcome.py`
     - `tests/test_creative_code_review_disposition.py`
     - `tests/test_creative_code_applied_candidate_pr6.py`
     - `tests/test_creative_code_private_pilot_loop.py`
@@ -11348,6 +11355,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces with exact PR-1 bundle fingerprint binding, exact `origin/main` base SHA, human admission, fixed Codex CLI argv/env, strict patch policy validation, direct Experiment Runner candidate-mode evaluation, and sanitized result metadata.
     - PR-3: allow human-approved non-draft PR creation from one accepted PR-2 patch through separate plan, isolated validation, TTY approval, promotion checkout, new `experiment/*` branch, GitHub readback, and local sanitized receipt; no real promoted candidate PR is opened during PR-3 tooling implementation.
     - PR-4: add local candidate evaluation telemetry and rejection taxonomy over sanitized PR-1/PR-2/PR-3 artifacts; no public GitHub App backend, Slack beta, live review ingestion, review-thread resolution, fixed-mapping automation, or new mutation authority.
+    - Terminal outcome envelope: validate one PR-3 plan/open receipt plus one closed sanitized terminal observation, publish one immutable local outcome, and project it into exactly one v2 `pr_terminal` event. Preserve v1 schemas/identities and default collection; no third terminal state, three-event projection, raw review/parser intake, GitHub/network/provider/runtime/Evidence Graph call, workflow, semantic cache, or merge authority.
     - PR-5: add local read-only review-disposition integration through `CreativeCodeReviewFeedbackRecord`, `CreativeCodeReviewDispositionPacket`, and `CreativeCodeRepairLaunchPacket`; only `create_pr1_specification=true` may be prepared for later human review, while patch generation, branch writes, PR creation, review-thread resolution, fixed-mapping edits, merge authority, runtime changes, Slack/GitHub App authority, and readiness claims remain forbidden.
     - PR-6: run the first governed applied creative-code candidate through normal PR governance, starting from a local run-plan wrapper that validates the PR-5 launch packet, binds the target surface exactly to `docs/prompts/cv/program.md`, and then keeps the generated candidate mutation surface to that prompt/program document.
     - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App read-only capability report, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.
@@ -11410,6 +11418,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-1 emits only validated `CreativeCodeSpecificationBundle` artifacts from validated PR-0 packets, with complete skeptic-review coverage and deterministic synthesis
     - PR-2 emits only validated local `CreativeCodePatchBuildRequest`, local `candidate.patch`, and sanitized `CreativeCodePatchResult` artifacts; it does not write the shared repo, open PRs, resolve review threads, promote candidates, or store raw Codex/prompt/oracle output in sanitized results
     - PR-3 emits strict local promotion plan, validation, approval, and receipt artifacts; validates fresh oracle, `pre-commit run --all-files`, and `make validate-changed` in isolated checkouts; requires exact TTY approval; creates only new non-draft `experiment/*` PRs; and never resolves review threads, edits fixed mappings, claims merge readiness, merges, releases, or expands Slack/GitHub App authority
+    - The terminal outcome envelope emits no artifact when terminal evidence is unavailable; binds outcome identity to repository/PR/promotion/promoted head; derives only observation vocabulary from complete frozen inventories; preserves identical replay bytes/mtime; rejects divergent replay without replacing the original; and counts process/cost exactly once in mixed v2 rollups
     - PR-5 emits only sanitized local feedback records, advisory disposition packets, and specification-only repair launch packets; it may classify feedback but never fixes code, resolves review threads, edits fixed mappings, creates branches/PRs, claims readiness, or mutates GitHub state
     - PR-6 emits only local applied-candidate run plans before using the existing PR-1 / PR-2 / PR-3 tools; the wrapper itself never generates patches, writes branches, pushes, opens PRs, resolves review threads, edits fixed mappings, claims readiness, calls providers, calls product runtime, or changes GitHub App / Slack settings
     - The private-pilot loop operator emits only `pilot_state.json` and checklist-only `candidate_plan.json` under `artifacts/orchestration/creative_code/private_pilot/`; it compares current-head check/run SHAs to the PR head SHA, treats stale failures as diagnostic, gates supplied GitHub App private-pilot reports on Pull requests read and Checks read, treats Actions write as optional fixed workflow-dispatch capability only, and keeps all write/push/PR/thread/fixed-mapping/provider/runtime/Slack/GitHub-App authority false

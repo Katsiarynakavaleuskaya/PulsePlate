@@ -103,7 +103,10 @@ class TestTargetedCoverageBoost:
             raise ImportError("LLM module is not available")
 
         # Deterministic optional-dependency failure: patch the lazy loader (no sys.modules mutation).
-        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+        monkeypatch.setattr(
+            "app.services.insight_compat._load_llm_get_provider",
+            _raise_import_error,
+        )
 
         data = {"text": "test"}
         response = self.client.post("/api/v1/insight", json=data, headers=vip_headers)
@@ -118,7 +121,10 @@ class TestTargetedCoverageBoost:
             raise ImportError("LLM module is not available")
 
         # Deterministic optional-dependency failure: patch the lazy loader (no sys.modules mutation).
-        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+        monkeypatch.setattr(
+            "app.services.insight_compat._load_llm_get_provider",
+            _raise_import_error,
+        )
 
         data = {"text": "test"}
         response = self.client.post("/insight", json=data, headers=vip_headers)

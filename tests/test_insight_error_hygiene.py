@@ -1,8 +1,22 @@
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from tests._client import disable_rate_limiting_for_test_app
+from tests.helpers.module_resolve import resolve_module
+
+
+def _patch_insight_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: object,
+) -> None:
+    insight_compat = resolve_module("app.services.insight_compat")
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: provider),
+        raising=True,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -12,12 +26,12 @@ def _disable_rate_limiting_for_insight_error_tests(
 ) -> None:
     """Error hygiene tests validate payload safety, not rate-limit policy."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
     disable_rate_limiting_for_test_app(app)
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: None,
         raising=True,
@@ -29,8 +43,6 @@ def test_insight_legacy_does_not_leak_provider_exception(
 ) -> None:
     """Ensure /insight never returns raw provider exception text."""
 
-    import llm
-
     class FailingProvider:
         name = "test_provider"
 
@@ -38,7 +50,7 @@ def test_insight_legacy_does_not_leak_provider_exception(
             raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: FailingProvider(), raising=True)
+    _patch_insight_provider(monkeypatch, FailingProvider())
 
     resp = client.post("/insight", json={"text": "hello"}, headers=vip_headers)
     assert resp.status_code == 503
@@ -53,8 +65,6 @@ def test_insight_v1_does_not_leak_provider_exception(
 ) -> None:
     """Ensure /api/v1/insight never returns raw provider exception text."""
 
-    import llm
-
     class FailingProvider:
         name = "test_provider"
 
@@ -62,7 +72,7 @@ def test_insight_v1_does_not_leak_provider_exception(
             raise RuntimeError("SENSITIVE: model=sonar path=/tmp/internal secret=abc")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: FailingProvider(), raising=True)
+    _patch_insight_provider(monkeypatch, FailingProvider())
 
     resp = client.post(
         "/api/v1/insight",
@@ -81,7 +91,6 @@ def test_insight_redacts_rag_source_headers(
 ) -> None:
     """Ensure RAG context source lines are not forwarded to the LLM prompt."""
 
-    import llm
     from dataclasses import dataclass
     from typing import Optional
 
@@ -136,7 +145,7 @@ def test_insight_redacts_rag_source_headers(
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_RAG", "true")
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: EchoProvider(), raising=True)
+    _patch_insight_provider(monkeypatch, EchoProvider())
     monkeypatch.setattr(
         "core.rag.vector_rag.retrieve_context_structured",
         fake_structured,
@@ -157,11 +166,11 @@ def test_insight_legacy_blocks_unsafe_input_before_quota(
 ) -> None:
     """Unsafe prompt payload must fail before quota/provider on /insight."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for blocked input"),
         raising=True,
@@ -183,11 +192,11 @@ def test_insight_v1_blocks_unsafe_input_before_quota(
 ) -> None:
     """Unsafe prompt payload must fail before quota/provider on /api/v1/insight."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for blocked input"),
         raising=True,
@@ -209,19 +218,19 @@ def test_insight_legacy_blocks_transparency_failure_before_quota(
 ) -> None:
     """Transparency failures must fail before quota on /insight."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_require_ai_generated_insight_notice",
         lambda: (_ for _ in ()).throw(
-            legacy_app.HTTPException(status_code=503, detail="transparency_registry_unavailable")
+            HTTPException(status_code=503, detail="transparency_registry_unavailable")
         ),
         raising=True,
     )
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for transparency failure"),
         raising=True,
@@ -239,19 +248,19 @@ def test_insight_v1_blocks_transparency_failure_before_quota(
 ) -> None:
     """Transparency failures must fail before quota on /api/v1/insight."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_require_ai_generated_insight_notice",
         lambda: (_ for _ in ()).throw(
-            legacy_app.HTTPException(status_code=503, detail="transparency_registry_unavailable")
+            HTTPException(status_code=503, detail="transparency_registry_unavailable")
         ),
         raising=True,
     )
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for transparency failure"),
         raising=True,
@@ -264,12 +273,16 @@ def test_insight_v1_blocks_transparency_failure_before_quota(
     assert resp.json() == {"detail": "transparency_registry_unavailable"}
 
 
-def test_insight_v1_blocks_malformed_transparency_notice_before_quota(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+@pytest.mark.parametrize("path", ("/api/v1/insight", "/insight"))
+def test_insight_blocks_malformed_transparency_notice_before_quota(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
 ) -> None:
-    """Malformed transparency metadata must fail closed before quota."""
+    """Malformed transparency metadata must fail closed before quota on both routes."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setattr(
@@ -277,25 +290,29 @@ def test_insight_v1_blocks_malformed_transparency_notice_before_quota(
         lambda: {"ai_generated_insight": {"surface_id": None, "boundary": ""}},
     )
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for malformed transparency"),
         raising=True,
     )
 
-    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+    resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "transparency_registry_unavailable"}
 
 
-def test_insight_v1_blocks_transparency_lookup_exception_before_quota(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, vip_headers: dict[str, str]
+@pytest.mark.parametrize("path", ("/api/v1/insight", "/insight"))
+def test_insight_blocks_transparency_lookup_exception_before_quota(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    vip_headers: dict[str, str],
+    path: str,
 ) -> None:
-    """Transparency lookup exceptions must fail closed before quota."""
+    """Transparency lookup exceptions must fail closed before quota on both routes."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
@@ -304,13 +321,13 @@ def test_insight_v1_blocks_transparency_lookup_exception_before_quota(
 
     monkeypatch.setattr("core.compliance.get_transparency_registry", _raise_registry_error)
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: pytest.fail("quota should not run for registry exceptions"),
         raising=True,
     )
 
-    resp = client.post("/api/v1/insight", json={"text": "hello"}, headers=vip_headers)
+    resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
     assert resp.headers.get("content-type", "").startswith("application/json")

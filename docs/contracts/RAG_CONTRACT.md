@@ -16,22 +16,29 @@
 - Бюджет рекурсии и латентности.
 - Tier-политика доступа.
 
-**Текущее состояние:** `InsightResponse` в `legacy_app.py:1174-1183` содержит только `provider` и `insight`. Поля `sources[]`, `confidence`, `rag_used`, `hops`, `latency_ms` — целевые (требуют отдельного PR).
+**Текущее состояние:** канонический `InsightResponse` в
+`app/schemas/insight.py:25` уже реализует `provider`, `insight`, `sources[]`,
+`confidence`, `rag_used`, `hops`, `latency_ms` и расширенные runtime metadata.
+Два скрытых Insight route handler принадлежат `app/routers/legacy_insight.py` и
+используют `app/services/insight_compat.py` напрямую; `legacy_app.py` сохраняет
+точный alias модели и поддерживаемых callables. Response assembly остаётся в
+`app/services/insight_application_service.py`.
 
 ### 1.1 Normative vs example; single source of truth
 
 - **Normative (обязательные к реализации):** секции 2 (Response Schema), 3 (RAGContext/RAGChunk), 4 (константы бюджета), 5 (Tier-политика), 6 (AGENT_CORPUS_MAP), 7 (Feedback Schema DDL). Эти элементы — контракт для рантайм-реализации; при расхождении с аудитом или бэклогом приоритет у данного документа.
 - **Example / reference:** конкретные значения в таблицах (SLA, Tier), примеры JSON и Python — иллюстративные; канонические значения при реализации брать из `core/rag/` (после появления модулей) или из миграций для DDL.
-- **AGENT_CORPUS_MAP и синхронизация с другими мапами:** в этом документе `AGENT_CORPUS_MAP` задаёт маршрутизацию корпусов по агенту. Концептуально он пересекается с `AGENT_CONTEXT_MAP` (`docs/orchestration/AGENT_CONTEXT_MAP.md`) и планируемым `AGENT_KNOWLEDGE_MAP` (`docs/orchestration/AGENT_KNOWLEDGE_MAP.md` — см. аудит §8.1). **Временный шов (две мапы в разных документах):** exit criteria — единый источник в `core/rag/` (или конфиг) после реализации RAG contract; отслеживание — BACKLOG_LEDGER item «RAG contract implementation» (sources[], confidence, budget) с DoD «консолидировать agent→corpus в один модуль и обновить контракт»; ADR — планируется при реализации (см. `docs/roadmap/BACKLOG_LEDGER.md` entry «RAG contract implementation»). До реализации этот файл — норма; при реализации — ADR на консолидацию и обновление контракта.
+- **AGENT_CORPUS_MAP и синхронизация с другими мапами:** реализованный source of truth для текущей agent→corpus маршрутизации находится в `core/rag/contracts.py`; реализованная запись `cbt-agent` и target-state остальных agent mappings явно разделены в §6. `AGENT_CONTEXT_MAP` (`docs/orchestration/AGENT_CONTEXT_MAP.md`) остаётся отдельным orchestration-контрактом, а будущая консолидация требует отдельного ADR и обновления этого документа — текущий Insight ownership cutover её не открывает.
 
 ---
 
 ## 2. Публичный API Response Schema
 
-### 2.1 Insight endpoint (`POST /api/v1/insight`) — целевой
+### 2.1 Insight endpoint (`POST /api/v1/insight`) — реализованный
 
 ```jsonc
 {
+  "provider": "string",
   "insight": "string",
   "sources": [
     {
@@ -59,6 +66,7 @@
 
 ```jsonc
 {
+  "provider": "string",
   "insight": "string",
   "sources": [],
   "confidence": null,
@@ -223,8 +231,8 @@ ALTER TABLE user_knowledge ENABLE ROW LEVEL SECURITY;
 
 Evidence anchors (audit policy: architecture docs must cite `file:line` or mark target-state):
 
-- `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация); при добавлении `sources[]` в response — вызывать перед сериализацией (target-state).
-- `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py:201` (fail-closed on missing `subject_id`), `core/rag/vector_rag.py:317` (fallback to Jaccard on empty/error vector path), `core/rag/orchestration.py:137` and `core/rag/orchestration.py:147` (subject propagation into recursive/vector retrieval), `legacy_app.py:2202` and `legacy_app.py:2332` (authenticated `/api/v1/insight` derives and forwards `subject_id`), `legacy_app.py:2274` (legacy `/insight` passes `subject_id=None`), `app/routers/cbt_insight.py:176` (PRO CBT endpoint derives and forwards `subject_id`).
+- `sources[].preview` проходит через `redact_rag_context_for_insight` перед отправкой клиенту. **Evidence:** `core/insight/safety.py:10` (реализация), `app/services/insight_application_service.py:197` and `app/services/insight_application_service.py:205` (response source assembly).
+- `user_knowledge` разрешён только при authenticated `subject_id`; если subject context отсутствует, vector retrieval обязан fail-closed и перейти на non-personal fallback. **Evidence:** `core/rag/vector_rag.py:201` (fail-closed on missing `subject_id`), `core/rag/vector_rag.py:317` (fallback to Jaccard on empty/error vector path), `core/rag/orchestration.py:137` and `core/rag/orchestration.py:147` (subject propagation into recursive/vector retrieval), `app/routers/legacy_insight.py:49` and `app/services/insight_compat.py:81-95` (authenticated `/api/v1/insight` derives and forwards `subject_id`), `app/services/insight_compat.py:104-114` (legacy `/insight` omits subject context), `app/routers/cbt_insight.py:176` (PRO CBT endpoint derives and forwards `subject_id`).
 - `user_knowledge.embedding` остаётся `VECTOR(768)`, но смена embedding model family требует runtime fence: `RAG_VECTOR_EMBEDDING_MODEL_ACK` должен совпадать с активной моделью после rebuild/reset rows, иначе vector retrieval обязан fail-closed и перейти на Jaccard. **Evidence:** `core/rag/rag_constants.py` (active model and ack env), `core/rag/vector_rag.py` (ack check before provider/DB work).
 - `FastEmbedTextEmbeddings._load_model()` intentionally remains lazy and is first reached from `EmbeddingProvider.encode()` inside `retrieve_context_structured(...)`; production vector deployments should pre-populate the FastEmbed/ONNX cache or expect the first acknowledged vector request to pay model download/initialization cost. Provider failures still degrade through the documented Jaccard fallback.
 - `user_knowledge` и `rag_feedback` изолированы по bigint `user_id` subject principal через PostgreSQL RLS с transaction-local session context `app.current_user_id`. Этот principal представляет authenticated subject, derived from API key today, и не обязан совпадать с `users.id`; app-layer `user_id` filtering остаётся как defense in depth. **Evidence:** `core/db_rls.py:12` (`app.current_user_id` setting contract), `core/db_rls.py:24` (session-local `set_config` helper), `core/rag/vector_rag.py:219` (RLS context before retrieval), `app/routers/feedback.py:157` (RLS context before insert/commit), `core/compliance/dsar_service.py:36`, `core/compliance/dsar_service.py:108`, `core/compliance/dsar_service.py:143` (RLS context before export/delete helpers), `alembic/versions/202603100101_enable_rag_user_rls.py:29`, `alembic/versions/202603100101_enable_rag_user_rls.py:41` (initial ENABLE/FORCE RLS), `alembic/versions/202603110001_harden_rag_subject_principal_bigint.py:1` (bigint subject hardening).
@@ -236,7 +244,8 @@ Evidence anchors (audit policy: architecture docs must cite `file:line` or mark 
 ## 9. Next Steps
 
 1. Реализовать `RAGChunk`, `RAGContext` в `core/rag/contracts.py`.
-2. Добавить `sources[]` и `confidence` в response schema Insight (отдельный PR).
+2. Сохранять реализованные `sources[]` и `confidence` синхронными с
+   `app/schemas/insight.py` и детерминированными response tests.
 3. Добавить integration coverage для live Postgres RLS deny-by-default path.
 4. Обновить `retrieve_context` signature с обратной совместимостью (default args).
 5. Добавить `rag_constants.py` в `core/rag/`.

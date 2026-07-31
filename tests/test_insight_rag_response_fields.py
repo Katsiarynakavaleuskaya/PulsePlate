@@ -20,6 +20,7 @@ from tests._client import (
     disable_rate_limiting_for_test_app,
     override_rate_limit_identity_for_test_app,
 )
+from tests.helpers.module_resolve import resolve_module
 
 
 @dataclass
@@ -195,6 +196,20 @@ class _EchoProvider:
         return text
 
 
+def _patch_insight_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: object | None = None,
+) -> None:
+    active_provider = _EchoProvider() if provider is None else provider
+    insight_compat = resolve_module("app.services.insight_compat")
+    monkeypatch.setattr(
+        insight_compat,
+        "_load_llm_get_provider",
+        lambda: (lambda: active_provider),
+        raising=True,
+    )
+
+
 @pytest.fixture
 def rag_client(app: FastAPI) -> Generator[TestClient, None, None]:
     """Use a unique client host per test to avoid shared rate-limit buckets."""
@@ -231,12 +246,12 @@ def _ensure_rate_limiting_disabled(
 
 def _disable_vip_monthly_quota(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep RAG contract tests focused on response schema, not quota state."""
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     # RU: В этом файле проверяем контракт RAG-ответа, а не месячную VIP-квоту.
     # EN: This file validates the RAG response contract, not VIP monthly quota enforcement.
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: None,
         raising=True,
@@ -264,11 +279,9 @@ class TestInsightV1RAGFields:
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -300,11 +313,9 @@ class TestInsightV1RAGFields:
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_empty_structured,
@@ -330,11 +341,9 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """Late formatting collapse must keep the additive non-RAG response contract."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -367,11 +376,9 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """Late redaction collapse must keep the additive non-RAG response contract."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -404,11 +411,9 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """API confidence should be recomputed from returned chunks, not stale retriever metadata."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_stale_confidence_structured,
@@ -432,7 +437,6 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """Endpoint confidence should follow the filtered subset that survives validation."""
-        import llm
         from core.rag.philosophy_pipeline import PipelineResult
 
         rag_ctx = _make_stale_confidence_structured("What is BMI?")
@@ -447,7 +451,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             lambda *args, **kwargs: rag_ctx,
@@ -477,11 +481,9 @@ class TestInsightV1RAGFields:
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
 
         resp = rag_client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200
@@ -500,11 +502,9 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """sources[].preview must not contain '# Source:' lines (redaction)."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -525,12 +525,10 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """Recursive RAG mode returns same contract with deeper hops metadata."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
             _make_fake_recursive_structured,
@@ -564,8 +562,6 @@ class TestInsightV1RAGFields:
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        import llm
-
         provider = _SequenceEchoProvider(
             responses=[
                 "Draft answer with weak evidence.",
@@ -580,7 +576,7 @@ class TestInsightV1RAGFields:
         monkeypatch.setenv("FEATURE_PHILOSOPHY_ROUTER", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_PHASE12", "true")
         monkeypatch.setenv("FEATURE_PHILOSOPHY_LINGUISTIC", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: provider, raising=True)
+        _patch_insight_provider(monkeypatch, provider)
         monkeypatch.setattr(
             "core.rag.recursive_retrieval.retrieve_recursive_context_structured",
             _make_fake_recursive_structured,
@@ -631,13 +627,11 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """Recursive optimization must preserve the existing public response fields."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE", "true")
         monkeypatch.setenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
 
         seen_optimization_enabled: list[bool] = []
 
@@ -675,11 +669,9 @@ class TestInsightV1RAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """insight text (echoed prompt) must not leak internal file paths."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -706,11 +698,9 @@ class TestInsightLegacyRAGFields:
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -734,11 +724,9 @@ class TestInsightLegacyRAGFields:
         vip_headers: dict[str, str],
     ) -> None:
         """Legacy /insight must match non-RAG-safe contract on late redaction collapse."""
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             _make_fake_structured,
@@ -767,11 +755,9 @@ class TestInsightLegacyRAGFields:
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        import llm
-
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "false")
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
+        _patch_insight_provider(monkeypatch)
 
         resp = rag_client.post("/insight", json={"text": "test"}, headers=vip_headers)
         assert resp.status_code == 200, resp.text
@@ -789,7 +775,7 @@ class TestRAGSourceItemModel:
 
     def test_insight_response_backward_compat(self) -> None:
         """Old-style (provider + insight only) must still work."""
-        from legacy_app import InsightResponse
+        from app.schemas.insight import InsightResponse
 
         r = InsightResponse(provider="test", insight="hello")
         d = r.model_dump()
@@ -807,7 +793,7 @@ class TestRAGSourceItemModel:
         assert d["optimization_applied"] is False
 
     def test_rag_source_item_fields(self) -> None:
-        from legacy_app import RAGSourceItem
+        from app.schemas.insight import RAGSourceItem
 
         item = RAGSourceItem(chunk_id="a:1", file="a.md", preview="text", score=0.77)
         assert item.chunk_id == "a:1"

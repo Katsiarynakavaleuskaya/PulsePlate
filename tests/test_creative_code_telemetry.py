@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from collections import Counter
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -29,11 +31,19 @@ from scripts.orchestration.creative_code_specification import (
 from scripts.orchestration.creative_code_telemetry_contract import (
     CreativeCodeTelemetryContractError,
     build_creative_code_rejection_taxonomy,
+    build_creative_code_telemetry_rollup_v2,
+    build_creative_code_terminal_telemetry_event,
     build_creative_code_telemetry_event,
     build_creative_code_telemetry_rollup,
+    default_cost_metadata,
     default_metrics,
     read_json_object,
     validate_creative_code_rejection_taxonomy,
+    validate_creative_code_telemetry_event_any,
+    validate_creative_code_telemetry_rollup_any,
+)
+from scripts.orchestration.creative_code_terminal_outcome_contract import (
+    build_creative_code_terminal_outcome,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +57,12 @@ EVENT_SCHEMA = (
 )
 ROLLUP_SCHEMA = (
     REPO_ROOT / "docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json"
+)
+EVENT_V2_SCHEMA = (
+    REPO_ROOT / "docs/orchestration/contracts/creative_code_telemetry_event.v2.schema.json"
+)
+ROLLUP_V2_SCHEMA = (
+    REPO_ROOT / "docs/orchestration/contracts/creative_code_telemetry_rollup.v2.schema.json"
 )
 TAXONOMY_SCHEMA = (
     REPO_ROOT / "docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json"
@@ -154,9 +170,11 @@ def _promotion_artifacts(
     result: dict[str, Any],
     *,
     partial_failure: str | None = None,
+    promotion_id: str = "pr4-telemetry-test",
+    pull_request_number: int = 2040,
+    promoted_head_sha: str = "b" * 40,
 ) -> dict[str, dict[str, Any]]:
-    promotion_id = "pr4-telemetry-test"
-    target_branch = "experiment/pr4-telemetry-test"
+    target_branch = f"experiment/{promotion_id}"
     patch_fingerprint = result["patch_summary"]["patch_fingerprint"]
     plan = build_creative_code_pr_promotion_plan(
         promotion_id=promotion_id,
@@ -205,9 +223,11 @@ def _promotion_artifacts(
         source_result_id=result["result_id"],
         patch_fingerprint=patch_fingerprint,
         head_branch=target_branch,
-        commit_sha="b" * 40,
-        pull_request_number=2040,
-        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2040",
+        commit_sha=promoted_head_sha,
+        pull_request_number=pull_request_number,
+        pull_request_url=(
+            "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/" f"{pull_request_number}"
+        ),
         approved_by_login="Katsiarynakavaleuskaya",
         partial_failure=partial_failure,
     )
@@ -266,10 +286,25 @@ def test_reference_taxonomy_and_schemas_are_closed() -> None:
 
 def test_duplicate_json_keys_fail_closed(tmp_path: Path) -> None:
     duplicate = tmp_path / "duplicate.json"
-    duplicate.write_text('{"schema_version":"1.0","schema_version":"2.0"}', encoding="utf-8")
+    duplicate.write_text(
+        '{"GITHUB_TOKEN":"first","GITHUB_TOKEN":"second"}',
+        encoding="utf-8",
+    )
 
-    with pytest.raises(CreativeCodeTelemetryContractError, match="duplicate key"):
+    with pytest.raises(CreativeCodeTelemetryContractError, match="duplicate key") as error:
         read_json_object(duplicate)
+    assert "GITHUB_TOKEN" not in str(error.value)
+
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    event["GITHUB_TOKEN"] = "untrusted"
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="unsupported fields",
+    ) as error:
+        validate_creative_code_telemetry_event_any(event)
+    assert "GITHUB_TOKEN" not in str(error.value)
 
 
 def test_event_rejects_raw_patch_leaks_and_mutating_authority() -> None:
@@ -678,3 +713,865 @@ def test_artifact_roots_must_stay_inside_creative_code_root(
             patch_runs_dir=patch_runs,
             promotions_dir=promotions,
         )
+
+
+def _terminal_outcome(
+    patch_result: dict[str, Any],
+    *,
+    closure_epoch: int = 1,
+    terminal_state: str = "merged",
+    promotion_id: str = "pr4-telemetry-test",
+    pull_request_number: int = 2040,
+    promoted_head_sha: str = "b" * 40,
+    process: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    promotion = _promotion_artifacts(
+        patch_result,
+        promotion_id=promotion_id,
+        pull_request_number=pull_request_number,
+        promoted_head_sha=promoted_head_sha,
+    )
+    plan = promotion[PLAN_FILE]
+    receipt = promotion[RECEIPT_FILE]
+    closed = terminal_state == "closed_unmerged"
+    observation = {
+        "promotion_id": receipt["promotion_id"],
+        "repository": receipt["repository"],
+        "pull_request_number": receipt["pull_request_number"],
+        "promoted_head_sha": receipt["commit_sha"],
+        "closure_epoch": closure_epoch,
+        "terminal_state": terminal_state,
+        "merge_sha": None if closed else "c" * 40,
+        "reason_code": "rescoped" if closed else None,
+        "review": {
+            "collection_state": "complete",
+            "inventory_fingerprint": fingerprint_payload({"review": "inventory"}),
+            "review_seal_fingerprint": fingerprint_payload({"review": "seal"}),
+            "sources_configured": 3,
+            "sources_observed": 3,
+            "findings_total": 1,
+            "fixed": 1,
+            "not_a_bug": 0,
+            "deferred": 0,
+            "unresolved_actionable": 0,
+        },
+        "post_merge": (
+            {
+                "validation_inventory_fingerprint": None,
+                "commands_configured": 0,
+                "commands_executed": 0,
+                "commands_passed": 0,
+                "current_main_ci": "not_observed",
+                "current_main_sha": None,
+            }
+            if closed
+            else {
+                "validation_inventory_fingerprint": fingerprint_payload(
+                    {"post_merge": "inventory"}
+                ),
+                "commands_configured": 2,
+                "commands_executed": 2,
+                "commands_passed": 2,
+                "current_main_ci": "not_observed",
+                "current_main_sha": None,
+            }
+        ),
+        "process": process
+        or {
+            "review_cycles": 2,
+            "repair_cycles": 1,
+            "validation_attempts": 3,
+        },
+        "cost_metadata": {
+            **default_cost_metadata(),
+            "available": True,
+            "input_tokens": 100,
+            "output_tokens": 20,
+        },
+        "sanitized": True,
+    }
+    return build_creative_code_terminal_outcome(
+        promotion_plan=plan,
+        promotion_receipt=receipt,
+        observation=observation,
+    )
+
+
+def test_v1_schema_bytes_remain_unchanged() -> None:
+    assert hashlib.sha256(EVENT_SCHEMA.read_bytes()).hexdigest() == (
+        "55580c49c8192b99d20e09c3887513e51cc77cbeab237406b97cb6c03a0a9c91"  # pragma: allowlist secret
+    )
+    assert hashlib.sha256(ROLLUP_SCHEMA.read_bytes()).hexdigest() == (
+        "24938480fa2cc78e85937938218ddd5cd1ffa3dcb64ca6c9d054b28dad53fd1f"  # pragma: allowlist secret
+    )
+
+
+def test_one_terminal_outcome_projects_to_exactly_one_v2_event() -> None:
+    outcome = _terminal_outcome(_reference_patch_result())
+
+    event = build_creative_code_terminal_telemetry_event(outcome)
+
+    assert validate_creative_code_telemetry_event_any(event) == event
+    assert event["schema_version"] == "2.0"
+    assert event["policy_version"] == "creative-code-telemetry-v2"
+    assert event["lane_stage"] == "pr_terminal"
+    assert event["status"] == "merged"
+    assert event["terminal_projection"]["review_observation"] == ("no_actionables_observed")
+    emitted = json.dumps(event, sort_keys=True)
+    for forbidden in (
+        "merge_sha",
+        "reason_code",
+        "inventory_fingerprint",
+        "findings_total",
+        "commands_configured",
+        "conformant",
+        "post_merge_validation",
+        '"passed"',
+    ):
+        assert forbidden not in emitted
+
+
+def test_v2_event_rejects_noncanonical_promotion_id() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    event["terminal_projection"]["promotion_id"] = "promotion:forged"
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="promotion_id has invalid format",
+    ):
+        validate_creative_code_telemetry_event_any(event)
+
+
+@pytest.mark.parametrize(
+    "identity_key",
+    ["event_id", "idempotency_key", "source_artifact_id"],
+)
+def test_v2_event_rejects_padded_identity(identity_key: str) -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    event[identity_key] = f" {event[identity_key]} "
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match=rf"{identity_key} must use canonical identifier spelling",
+    ):
+        validate_creative_code_telemetry_event_any(event)
+
+
+def test_v1_event_keeps_legacy_padded_identity_normalization() -> None:
+    event = creative_code_telemetry.event_from_patch_result(_reference_patch_result())
+    padded = json.loads(json.dumps(event))
+    for identity_key in ("event_id", "idempotency_key", "source_artifact_id"):
+        padded[identity_key] = f" {padded[identity_key]} "
+
+    assert validate_creative_code_telemetry_event_any(padded) == event
+
+
+def test_mixed_v1_v2_rollup_counts_terminal_cost_and_process_once() -> None:
+    patch_result = _reference_patch_result()
+    legacy_events = [
+        creative_code_telemetry.event_from_patch_result(patch_result),
+        creative_code_telemetry.event_from_promotion_plan(
+            _promotion_artifacts(patch_result)[PLAN_FILE]
+        ),
+    ]
+    terminal_event = build_creative_code_terminal_telemetry_event(_terminal_outcome(patch_result))
+
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [*legacy_events, terminal_event],
+        input_roots=["patch_runs", "promotions", "terminal_outcomes"],
+    )
+
+    assert validate_creative_code_telemetry_rollup_any(rollup) == rollup
+    assert rollup["event_count"] == 3
+    assert rollup["legacy_event_count"] == 2
+    assert rollup["terminal"] == {
+        "outcome_count": 1,
+        "merged": 1,
+        "closed_unmerged": 0,
+        "review_observations": {
+            "actionables_observed": 0,
+            "evidence_unavailable": 0,
+            "no_actionables_observed": 1,
+        },
+        "governance_observations": {
+            "blockers_observed": 0,
+            "evidence_unavailable": 0,
+            "no_blockers_observed": 1,
+        },
+        "post_merge_observations": {
+            "complete_observed": 1,
+            "evidence_unavailable": 0,
+            "incomplete_observed": 0,
+            "not_applicable": 0,
+        },
+        "process": {
+            "repair_cycles": 1,
+            "review_cycles": 2,
+            "validation_attempts": 3,
+        },
+    }
+    assert rollup["rates"]["merge_rate_bps"] == 10_000
+    assert rollup["rates"]["post_merge_complete_rate_bps"] == 10_000
+    assert rollup["cost"]["terminal_cost_metadata_available_count"] == 1
+    assert rollup["cost"]["terminal_token_usage_available_count"] == 1
+    assert rollup["cost"]["cost_metadata_available_count"] == 1
+    assert rollup["cost"]["token_usage_available_count"] == 1
+
+
+def test_closed_unmerged_projects_not_applicable_and_zero_merge_rate() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            _reference_patch_result(),
+            terminal_state="closed_unmerged",
+        )
+    )
+
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+
+    assert event["status"] == "closed_unmerged"
+    assert event["terminal_projection"]["post_merge_observation"] == "not_applicable"
+    assert rollup["terminal"]["merged"] == 0
+    assert rollup["terminal"]["closed_unmerged"] == 1
+    assert rollup["rates"]["merge_rate_bps"] == 0
+    assert rollup["rates"]["post_merge_complete_rate_bps"] is None
+
+
+def test_v2_rollup_rejects_unpaired_review_and_governance_counts() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    governance = rollup["terminal"]["governance_observations"]
+    governance["no_blockers_observed"] = 0
+    governance["blockers_observed"] = 1
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="review and governance observation counts must stay paired",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_rejects_closed_outcome_with_post_merge_completion() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            _reference_patch_result(),
+            terminal_state="closed_unmerged",
+        )
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    post_merge = rollup["terminal"]["post_merge_observations"]
+    post_merge["not_applicable"] = 0
+    post_merge["complete_observed"] = 1
+    rollup["rates"]["post_merge_complete_rate_bps"] = 10_000
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="closed_unmerged outcomes require not_applicable",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_requires_terminal_source_partition() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup["source_artifacts"][0]["source_artifact_type"] = "creative_code_specification"
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="terminal source artifact count",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+@pytest.mark.parametrize(
+    ("legacy_stage", "expected_source_type"),
+    [
+        ("specification", "creative_code_specification"),
+        ("patch_evaluation", "creative_code_patch_result"),
+        ("promotion_plan", "creative_code_pr_promotion_plan"),
+        ("promotion_validation", "creative_code_pr_promotion_validation"),
+        ("promotion_approval", "creative_code_pr_promotion_approval"),
+        ("pr_open", "creative_code_pr_promotion_receipt"),
+        ("artifact_read_error", "creative_code_artifact_read_error"),
+    ],
+)
+def test_v2_rollup_binds_legacy_source_types_to_stage_marginals(
+    legacy_stage: str,
+    expected_source_type: str,
+) -> None:
+    patch_result = _reference_patch_result()
+    promotion = _promotion_artifacts(patch_result)
+    if legacy_stage == "specification":
+        legacy_event = creative_code_telemetry.event_from_specification_bundle(_reference_bundle())
+    elif legacy_stage == "patch_evaluation":
+        legacy_event = creative_code_telemetry.event_from_patch_result(patch_result)
+    elif legacy_stage == "promotion_plan":
+        legacy_event = creative_code_telemetry.event_from_promotion_plan(promotion[PLAN_FILE])
+    elif legacy_stage == "promotion_validation":
+        legacy_event = creative_code_telemetry.event_from_promotion_validation(
+            promotion[VALIDATION_FILE]
+        )
+    elif legacy_stage == "promotion_approval":
+        legacy_event = creative_code_telemetry.event_from_promotion_approval(
+            promotion[APPROVAL_FILE]
+        )
+    elif legacy_stage == "pr_open":
+        legacy_event = creative_code_telemetry.event_from_promotion_receipt(promotion[RECEIPT_FILE])
+    else:
+        legacy_event = build_creative_code_telemetry_event(
+            lane_stage="artifact_read_error",
+            source_artifact_type="creative_code_artifact_read_error",
+            source_artifact_id="read-error:source-lineage",
+            source_fingerprint=fingerprint_payload({"read_error": "source-lineage"}),
+            candidate_ids={
+                "promotion_id": None,
+                "request_id": None,
+                "result_id": None,
+                "selected_variant_id": None,
+                "source_bundle_id": None,
+                "source_packet_id": None,
+            },
+            status="blocked",
+            rejection_class="malformed_artifact",
+            failure_class="malformed_artifact",
+            taxonomy_codes=["malformed_artifact"],
+            metrics=default_metrics(),
+        )
+    assert legacy_event["source_artifact_type"] == expected_source_type
+
+    terminal_event = build_creative_code_terminal_telemetry_event(_terminal_outcome(patch_result))
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [legacy_event, terminal_event],
+        input_roots=["legacy", "terminal_outcomes"],
+    )
+    source = next(
+        row
+        for row in rollup["source_artifacts"]
+        if row["source_artifact_type"] == expected_source_type
+    )
+    source["source_artifact_type"] = (
+        "creative_code_patch_result"
+        if expected_source_type != "creative_code_patch_result"
+        else "creative_code_specification"
+    )
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="legacy source artifact counts must match legacy stage counts",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_rejects_open_world_caveat() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup["caveats"] = ["mergeable"]
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="closed v2 rollup vocabulary",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+@pytest.mark.parametrize(
+    ("section", "key", "value"),
+    [
+        ("funnel", "patch_results", 1),
+        ("rates", "oracle_pass_rate_bps", 0),
+        ("rejections_by_class", "unknown", 1),
+        ("failures_by_class", "unknown", 1),
+    ],
+)
+def test_v2_zero_legacy_partition_rejects_legacy_aggregates(
+    section: str,
+    key: str,
+    value: int,
+) -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup[section][key] = value
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="zero legacy events require empty legacy aggregates",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+@pytest.mark.parametrize(
+    ("mutator", "message"),
+    [
+        (
+            lambda rollup: rollup["funnel"].update(patch_results=1_000_000),
+            "legacy funnel stage counts",
+        ),
+        (
+            lambda rollup: rollup["funnel"].update(patch_results_accepted=2),
+            "legacy patch disposition counts",
+        ),
+        (
+            lambda rollup: rollup["rates"].update(human_approval_rate_bps=0),
+            "legacy rates",
+        ),
+        (
+            lambda rollup: rollup["rejections_by_class"].update(unknown=2),
+            "legacy rejection aggregates",
+        ),
+        (
+            lambda rollup: rollup["failures_by_class"].update(unknown=2),
+            "legacy failure aggregates",
+        ),
+    ],
+)
+def test_v2_nonempty_legacy_partition_rejects_incoherent_aggregates(
+    mutator: Callable[[dict[str, Any]], None],
+    message: str,
+) -> None:
+    patch_result = _reference_patch_result()
+    legacy_event = creative_code_telemetry.event_from_patch_result(patch_result)
+    terminal_event = build_creative_code_terminal_telemetry_event(_terminal_outcome(patch_result))
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [legacy_event, terminal_event],
+        input_roots=["patch_runs", "terminal_outcomes"],
+    )
+    mutator(rollup)
+
+    with pytest.raises(CreativeCodeTelemetryContractError, match=message):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+@pytest.mark.parametrize(
+    ("legacy_event_kind", "funnel_key"),
+    [
+        ("promotion_validation", "promotion_validations_passed"),
+        ("promotion_approval", "promotion_approvals"),
+        ("patch_rejected", "patch_results_rejected"),
+        ("pr_open", "pull_requests_opened"),
+    ],
+)
+def test_v2_legacy_joint_counts_cannot_undercount_status_marginals(
+    legacy_event_kind: str,
+    funnel_key: str,
+) -> None:
+    patch_result = _reference_patch_result(
+        accepted=legacy_event_kind != "patch_rejected",
+    )
+    promotion = _promotion_artifacts(patch_result)
+    if legacy_event_kind == "promotion_validation":
+        legacy_event = creative_code_telemetry.event_from_promotion_validation(
+            promotion[VALIDATION_FILE]
+        )
+    elif legacy_event_kind == "promotion_approval":
+        legacy_event = creative_code_telemetry.event_from_promotion_approval(
+            promotion[APPROVAL_FILE]
+        )
+    elif legacy_event_kind == "patch_rejected":
+        legacy_event = creative_code_telemetry.event_from_patch_result(patch_result)
+    else:
+        legacy_event = creative_code_telemetry.event_from_promotion_receipt(promotion[RECEIPT_FILE])
+    terminal_event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [legacy_event, terminal_event],
+        input_roots=["legacy", "terminal_outcomes"],
+    )
+    rollup["funnel"][funnel_key] = 0
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="legacy funnel statuses underrepresent represented event marginals",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_rejects_padded_source_identity() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    source = rollup["source_artifacts"][0]
+    source["source_artifact_id"] = f" {source['source_artifact_id']} "
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match=r"source_artifact_id must use canonical identifier spelling",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_rollup_runtime_rejects_duplicate_lineage_with_different_fingerprint() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    duplicate = dict(rollup["source_artifacts"][0])
+    duplicate["source_fingerprint"] = "sha256:" + ("f" * 64)
+    rollup["source_artifacts"].append(duplicate)
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="source_artifacts must not contain duplicate lineages",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_v2_process_totals_are_compositional_across_valid_terminal_events() -> None:
+    patch_result = _reference_patch_result()
+    first = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            patch_result,
+            process={
+                "review_cycles": 600_000,
+                "repair_cycles": 0,
+                "validation_attempts": 0,
+            },
+        )
+    )
+    second = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(
+            patch_result,
+            promotion_id="pr4-telemetry-test-2",
+            pull_request_number=2041,
+            promoted_head_sha="d" * 40,
+            process={
+                "review_cycles": 600_000,
+                "repair_cycles": 0,
+                "validation_attempts": 0,
+            },
+        )
+    )
+
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [first, second],
+        input_roots=["terminal_outcomes"],
+    )
+
+    assert rollup["terminal"]["process"]["review_cycles"] == 1_200_000
+    forged = json.loads(json.dumps(rollup))
+    forged["terminal"]["process"]["review_cycles"] = 2_000_001
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="process totals exceed represented terminal outcomes",
+    ):
+        validate_creative_code_telemetry_rollup_any(forged)
+
+
+@pytest.mark.parametrize(
+    "cost_patch",
+    [
+        {
+            "cost_metadata_available_count": 2,
+            "token_usage_available_count": 1,
+            "terminal_cost_metadata_available_count": 1,
+            "terminal_token_usage_available_count": 1,
+        },
+        {
+            "cost_metadata_available_count": 1,
+            "token_usage_available_count": 1,
+            "terminal_cost_metadata_available_count": 0,
+            "terminal_token_usage_available_count": 0,
+        },
+        {
+            "cost_metadata_available_count": 1,
+            "token_usage_available_count": 1,
+            "terminal_cost_metadata_available_count": 1,
+            "terminal_token_usage_available_count": 0,
+        },
+    ],
+)
+def test_v2_rollup_cost_counts_must_fit_event_partitions(
+    cost_patch: dict[str, int],
+) -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+    rollup["cost"].update(cost_patch)
+
+    with pytest.raises(
+        CreativeCodeTelemetryContractError,
+        match="cost availability counts are inconsistent with represented events",
+    ):
+        validate_creative_code_telemetry_rollup_any(rollup)
+
+
+def test_terminal_duplicate_and_source_drift_fail_closed() -> None:
+    patch_result = _reference_patch_result()
+    first = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(patch_result, closure_epoch=1)
+    )
+    changed_same_lineage = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(patch_result, closure_epoch=2)
+    )
+
+    with pytest.raises(CreativeCodeTelemetryContractError, match="duplicate telemetry event_id"):
+        build_creative_code_telemetry_rollup_v2(
+            [first, first],
+            input_roots=["terminal_outcomes"],
+        )
+    with pytest.raises(CreativeCodeTelemetryContractError, match="source fingerprint drift"):
+        build_creative_code_telemetry_rollup_v2(
+            [first, changed_same_lineage],
+            input_roots=["terminal_outcomes"],
+        )
+
+
+def test_unknown_v2_versions_fail_without_coercion() -> None:
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    event["schema_version"] = "2.1"
+    with pytest.raises(CreativeCodeTelemetryContractError, match="unsupported"):
+        validate_creative_code_telemetry_event_any(event)
+
+
+def test_collector_with_terminal_input_emits_mixed_v2_rollup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root, spec_runs, patch_runs, promotions, telemetry_root = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    terminal_root = root / "terminal_outcomes"
+    patch_result = _reference_patch_result()
+    _write_json(patch_runs / "run-a" / "result.json", patch_result)
+    for filename, payload in _promotion_artifacts(patch_result).items():
+        _write_json(promotions / "promotion-a" / filename, payload)
+    outcome = _terminal_outcome(patch_result)
+    _write_json(
+        terminal_root / outcome["outcome_id"] / "terminal_outcome.json",
+        outcome,
+    )
+
+    rollup = creative_code_telemetry.collect_and_write(
+        spec_runs_dir=spec_runs,
+        patch_runs_dir=patch_runs,
+        promotions_dir=promotions,
+        terminal_outcomes_dir=terminal_root,
+        output_dir=telemetry_root,
+    )
+    events = [
+        json.loads(line)
+        for line in (telemetry_root / creative_code_telemetry.EVENTS_FILE)
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+
+    assert rollup["schema_version"] == "2.0"
+    assert rollup["terminal"]["outcome_count"] == 1
+    assert Counter(event["lane_stage"] for event in events)["pr_terminal"] == 1
+
+
+@pytest.mark.parametrize(
+    ("left_root", "right_root"),
+    [
+        ("spec", "patch"),
+        ("spec", "promotion"),
+        ("spec", "terminal"),
+        ("patch", "promotion"),
+        ("patch", "terminal"),
+        ("promotion", "terminal"),
+    ],
+)
+def test_mixed_collector_rejects_equal_input_roots_before_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    left_root: str,
+    right_root: str,
+) -> None:
+    root, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    roots = {
+        "spec": spec_runs,
+        "patch": patch_runs,
+        "promotion": promotions,
+        "terminal": root / "terminal_outcomes",
+    }
+    roots[right_root] = roots[left_root]
+
+    def unexpected_scan(_root: Path) -> list[Path]:
+        raise AssertionError("overlapping roots reached collection")
+
+    monkeypatch.setattr(creative_code_telemetry, "_iter_json_files", unexpected_scan)
+    with pytest.raises(
+        creative_code_telemetry.CreativeCodeTelemetryError,
+        match="mixed telemetry input roots must be path-disjoint",
+    ):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=roots["spec"],
+            patch_runs_dir=roots["patch"],
+            promotions_dir=roots["promotion"],
+            terminal_outcomes_dir=roots["terminal"],
+            strict=True,
+        )
+
+
+@pytest.mark.parametrize("terminal_is_descendant", [True, False])
+def test_mixed_collector_rejects_nested_spec_and_terminal_roots_before_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    terminal_is_descendant: bool,
+) -> None:
+    root, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    terminal_root = root / "terminal_outcomes"
+    if terminal_is_descendant:
+        terminal_root = spec_runs / "terminal_outcomes"
+    else:
+        spec_runs = terminal_root / "spec_runs"
+
+    def unexpected_scan(_root: Path) -> list[Path]:
+        raise AssertionError("nested roots reached collection")
+
+    monkeypatch.setattr(creative_code_telemetry, "_iter_json_files", unexpected_scan)
+    with pytest.raises(
+        creative_code_telemetry.CreativeCodeTelemetryError,
+        match="mixed telemetry input roots must be path-disjoint",
+    ):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=spec_runs,
+            patch_runs_dir=patch_runs,
+            promotions_dir=promotions,
+            terminal_outcomes_dir=terminal_root,
+            strict=True,
+        )
+
+
+def test_terminal_collector_requires_canonical_outcome_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    terminal_root = root / "terminal_outcomes"
+    outcome = _terminal_outcome(_reference_patch_result())
+    _write_json(
+        terminal_root / "misplaced-outcome" / "terminal_outcome.json",
+        outcome,
+    )
+
+    with pytest.raises(
+        creative_code_telemetry.CreativeCodeTelemetryError,
+        match="canonical outcome directory",
+    ):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=spec_runs,
+            patch_runs_dir=patch_runs,
+            promotions_dir=promotions,
+            terminal_outcomes_dir=terminal_root,
+        )
+
+
+def test_v2_schemas_align_on_closed_shape_and_finite_vocabulary() -> None:
+    event_schema = json.loads(EVENT_V2_SCHEMA.read_text(encoding="utf-8"))
+    rollup_schema = json.loads(ROLLUP_V2_SCHEMA.read_text(encoding="utf-8"))
+    event = build_creative_code_terminal_telemetry_event(
+        _terminal_outcome(_reference_patch_result())
+    )
+    rollup = build_creative_code_telemetry_rollup_v2(
+        [event],
+        input_roots=["terminal_outcomes"],
+    )
+
+    assert event_schema["additionalProperties"] is False
+    assert rollup_schema["additionalProperties"] is False
+    assert event_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert rollup_schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert rollup_schema["properties"]["source_artifacts"]["uniqueItems"] is True
+    assert set(event_schema["required"]) == set(event)
+    assert set(rollup_schema["required"]) == set(rollup)
+    assert event_schema["properties"]["lane_stage"]["const"] == "pr_terminal"
+    assert event_schema["properties"]["status"]["enum"] == [
+        "merged",
+        "closed_unmerged",
+    ]
+    assert event_schema["$defs"]["terminal_projection"]["properties"]["promotion_id"] == {
+        "$ref": "#/$defs/promotion_id"
+    }
+    unsafe_pattern = event_schema["$defs"]["leak_free_token"]["not"]["pattern"]
+    assert rollup_schema["$defs"]["leak_free_token"]["not"]["pattern"] == unsafe_pattern
+    leak_free_ref = [{"$ref": "#/$defs/leak_free_token"}]
+    assert event_schema["$defs"]["safe_id"]["allOf"] == leak_free_ref
+    assert event_schema["$defs"]["safe_token"]["allOf"] == leak_free_ref
+    assert event_schema["$defs"]["promotion_id"]["allOf"] == leak_free_ref
+    assert rollup_schema["$defs"]["safe_id"]["allOf"] == leak_free_ref
+    assert rollup_schema["$defs"]["safe_token"]["allOf"] == leak_free_ref
+    for unsafe_token in (
+        "GH_TOKEN",
+        "gh_token",
+        "Gh_ToKeN",
+        "github_token",
+        "GitHub_PaT_value",
+        "OrAcLe_StDoUt",
+    ):
+        assert re.search(unsafe_pattern, unsafe_token)
+    review_implications = [
+        clause
+        for clause in event_schema["allOf"]
+        if "terminal_projection" in clause.get("if", {}).get("properties", {})
+    ]
+    assert [
+        (
+            clause["if"]["properties"]["terminal_projection"]["properties"]["review_observation"][
+                "const"
+            ],
+            clause["then"]["properties"]["terminal_projection"]["properties"][
+                "governance_observation"
+            ]["const"],
+        )
+        for clause in review_implications
+    ] == [
+        ("actionables_observed", "blockers_observed"),
+        ("no_actionables_observed", "no_blockers_observed"),
+        ("evidence_unavailable", "evidence_unavailable"),
+    ]
+    assert rollup_schema["properties"]["policy_version"]["const"] == "creative-code-telemetry-v2"
+    assert validate_creative_code_telemetry_event_any(event) == event
+    assert validate_creative_code_telemetry_rollup_any(rollup) == rollup
