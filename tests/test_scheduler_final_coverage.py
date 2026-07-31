@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 """
@@ -31,8 +32,7 @@ class TestSchedulerFinalCoverage:
                 mock_signal.assert_not_called()
                 mock_logger.warning.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_run_update_check_exception_detailed(self):
+    def test_run_update_check_exception_detailed(self) -> None:
         """Test _run_update_check with exception in check_for_updates."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -40,14 +40,13 @@ class TestSchedulerFinalCoverage:
         scheduler.update_manager.check_for_updates = AsyncMock(side_effect=Exception("Test error"))
 
         with patch("core.food_apis.scheduler.logger") as mock_logger:
-            await scheduler._run_update_check()
+            asyncio.run(scheduler._run_update_check())
             mock_logger.error.assert_called_once_with(
                 "Error during update check",
                 exc_info=True,
             )
 
-    @pytest.mark.asyncio
-    async def test_run_source_update_exception_detailed(self):
+    def test_run_source_update_exception_detailed(self) -> None:
         """Test _run_source_update with exception in update_database."""
         scheduler = DatabaseUpdateScheduler()
 
@@ -55,7 +54,7 @@ class TestSchedulerFinalCoverage:
         scheduler.update_manager.update_database = AsyncMock(side_effect=Exception("Test error"))
 
         with patch("core.food_apis.scheduler.logger"):
-            await scheduler._run_source_update("test_source")
+            asyncio.run(scheduler._run_source_update("test_source"))
             # Should log warning when exception occurs in _handle_update_failure
             # We need to check that retry count was incremented
             assert scheduler.retry_counts.get("test_source", 0) == 1
