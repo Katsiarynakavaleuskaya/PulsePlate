@@ -12,8 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-from module_purge import purge_modules
-
 
 @pytest.fixture
 def vip_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -25,14 +23,6 @@ def vip_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 class TestFinalCoveragePush:
     """Test class focused on covering specific missed lines for maximum impact."""
-
-    def setup_method(self) -> None:
-        """Setup before each test."""
-        # Avoid purging top-level `app` to prevent half-loaded package state.
-        purge_modules(
-            # Important: do NOT purge legacy_app (see note in tests/test_test_router.py).
-            prefixes=("app.routers.vip",),
-        )
 
     def test_app_import_fallbacks(self) -> None:
         """Test main.py import fallback paths."""
