@@ -70,11 +70,16 @@
   nutrition-wrapper symbols. Assert exact feature/auth ordering, finite input
   and dependency-output boundaries, sanitized errors/logs, and response parity
   for both retained routes.
-- For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
-  behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
-  are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or
-  `app/services`. Extracted-route handlers resolve legacy compat callables via module attributes,
-  so `monkeypatch.setattr(legacy_app, "<symbol>", ...)` remains the supported patch seam.
+- For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer
+  client/route behavior tests against `app.main` or the canonical router.
+  Direct `legacy_app` access is limited to focused exact-alias compatibility
+  tests and router attributes that the unchanged compatibility router reads at
+  call time. Patch provider/execution dependencies only on their canonical
+  consumer, `app.services.insight_compat`; do not patch facade bindings,
+  package dictionaries, `sys.modules`, or private per-carrier resolvers.
+  The ownership oracle models only one `Name` target in `Assign`/`AnnAssign`;
+  their other forms and every `AugAssign` involving a legacy carrier fail closed
+  instead of growing a partial Python interpreter.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.

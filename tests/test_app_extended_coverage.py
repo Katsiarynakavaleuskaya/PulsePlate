@@ -254,7 +254,10 @@ class TestInsightEndpoints:
         """Test insight endpoint with no provider configured."""
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
-            patch("llm.get_insight_provider", return_value=None),
+            patch(
+                "app.services.insight_compat._load_llm_get_provider",
+                return_value=lambda: None,
+            ),
         ):
             response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
@@ -268,7 +271,10 @@ class TestInsightEndpoints:
 
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
-            patch("llm.get_insight_provider", return_value=mock_provider),
+            patch(
+                "app.services.insight_compat._load_llm_get_provider",
+                return_value=lambda: mock_provider,
+            ),
         ):
             response = self.client.post("/insight", json={"text": "test"}, headers=self.vip_headers)
             assert response.status_code == 503
@@ -286,7 +292,10 @@ class TestInsightEndpoints:
 
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
-            patch("llm.get_insight_provider", return_value=mock_provider),
+            patch(
+                "app.services.insight_compat._load_llm_get_provider",
+                return_value=lambda: mock_provider,
+            ),
         ):
             response = self.client.post(
                 "/insight", json={"text": "test query"}, headers=self.vip_headers
@@ -307,7 +316,10 @@ class TestInsightEndpoints:
 
         with (
             patch.dict(os.environ, {"API_KEY": "test_key", "FEATURE_INSIGHT": "true"}),
-            patch("llm.get_insight_provider", return_value=mock_provider),
+            patch(
+                "app.services.insight_compat._load_llm_get_provider",
+                return_value=lambda: mock_provider,
+            ),
         ):
             response = self.client.post(
                 "/api/v1/insight", json={"text": "test query"}, headers=self.vip_headers
@@ -323,7 +335,7 @@ class TestInsightEndpoints:
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}, clear=False),
             patch(
-                "legacy_app._load_llm_get_provider",
+                "app.services.insight_compat._load_llm_get_provider",
                 side_effect=ModuleNotFoundError("No module named 'llm'"),
             ) as mocked_loader,
         ):
