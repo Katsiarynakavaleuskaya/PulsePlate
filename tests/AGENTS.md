@@ -73,13 +73,13 @@
 - For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer
   client/route behavior tests against `app.main` or the canonical router.
   Direct `legacy_app` access is limited to focused exact-alias compatibility
-  tests and router attributes that the unchanged compatibility router reads at
-  call time. Patch provider/execution dependencies only on their canonical
-  consumer, `app.services.insight_compat`; do not patch facade bindings,
-  package dictionaries, `sys.modules`, or private per-carrier resolvers.
-  The ownership oracle models only one `Name` target in `Assign`/`AnnAssign`;
-  their other forms and every `AugAssign` involving a legacy carrier fail closed
-  instead of growing a partial Python interpreter.
+  tests. Patch transparency, quota, provider, and execution dependencies on
+  their request-time consumer, `app.services.insight_compat`, and patch the
+  route input guard on `app.security.agent_input_guard`; do not patch facade
+  bindings, package dictionaries, `sys.modules`, or private per-carrier
+  resolvers. Keep the ownership oracle finite over canonical modules, exact
+  aliases, the two route models, and the sibling runtime-test family; do not
+  grow a partial Python interpreter to chase assignment or spelling variants.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.

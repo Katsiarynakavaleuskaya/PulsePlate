@@ -246,12 +246,12 @@ def _ensure_rate_limiting_disabled(
 
 def _disable_vip_monthly_quota(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep RAG contract tests focused on response schema, not quota state."""
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     # RU: В этом файле проверяем контракт RAG-ответа, а не месячную VIP-квоту.
     # EN: This file validates the RAG response contract, not VIP monthly quota enforcement.
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: None,
         raising=True,

@@ -87,12 +87,12 @@ def _disable_rate_limiting_for_rag_flag_tests(
 ) -> None:
     """Keep RAG flag integration tests focused on routing, not quota/rate-limit policy."""
 
-    import legacy_app
+    insight_compat = resolve_module("app.services.insight_compat")
 
     monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
     disable_rate_limiting_for_test_app(client.app)
     monkeypatch.setattr(
-        legacy_app,
+        insight_compat,
         "_enforce_vip_llm_monthly_quota",
         lambda *_args, **_kwargs: None,
         raising=True,
@@ -197,7 +197,7 @@ class TestFeatureFlagIntegration:
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "false")
         _patch_insight_provider(monkeypatch)
 
-        # Patch vector_rag.retrieve_context_structured (the entry point in legacy_app)
+        # Patch vector_rag.retrieve_context_structured, the canonical retrieval entry point.
         # to simulate Jaccard fallback path
         def _jaccard_fallback(
             query: str,

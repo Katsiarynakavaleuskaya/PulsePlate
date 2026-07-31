@@ -84,10 +84,7 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
 from app.services import pro_nutrition_plate as _canonical_plate_service
 from app.services.insight_compat import (  # noqa: F401 - compatibility re-exports
     INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
-    _DirectInsightProviderStub,
-    _enforce_vip_llm_monthly_quota,
     _execute_insight_request,
-    _require_ai_generated_insight_notice,
     insight,
     insight_v1,
 )
@@ -136,9 +133,6 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
-from app.security.agent_input_guard import (  # noqa: F401 - router compatibility re-export
-    require_safe_ai_agent_input,
-)
 
 _BMI_COMPAT_REEXPORTS = (
     MATPLOTLIB_AVAILABLE,
