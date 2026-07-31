@@ -41,11 +41,10 @@ class TestSchedulerFinalCoverage:
 
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await scheduler._run_update_check()
-            # Should log error when exception occurs
-            mock_logger.error.assert_called_once()
-            # Error message should contain the exception details
-            call_args = mock_logger.error.call_args
-            assert "Test error" in str(call_args)
+            mock_logger.error.assert_called_once_with(
+                "Error during update check",
+                exc_info=True,
+            )
 
     @pytest.mark.asyncio
     async def test_run_source_update_exception_detailed(self):
