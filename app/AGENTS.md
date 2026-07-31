@@ -383,10 +383,10 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   wellness-only transparency, input guards, quota/rate-limit behavior, provider
   fallbacks, and OpenAPI hiding; do not introduce new provider behavior,
   semantic-cache serving, or medical/therapy claims in a route-ownership PR.
-  Tests patch adapter runtime dependencies on the canonical consumer module,
-  never through facade rebinding, module tables, or per-carrier resolvers.
-  Until the router cutover, only attributes read directly by the unchanged
-  legacy Insight router remain patchable through `legacy_app`.
+  The canonical router resolves transparency, quota, and retained callables
+  from `app.services.insight_compat` at request time and reads the shared input
+  guard from `app.security.agent_input_guard`; tests patch those exact consumer
+  modules, never facade bindings, module tables, or per-carrier resolvers.
 
 ## Common pitfalls
 

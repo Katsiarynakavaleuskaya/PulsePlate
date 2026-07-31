@@ -86,10 +86,11 @@ Insight request/response schema ownership is canonical in
 `app/services/insight_compat.py` owns retained direct-call behavior, provider
 and transparency adapters, quota enforcement, and sanitized failure envelopes;
 it delegates orchestration to `app/services/insight_application_service.py`.
-`legacy_app.py` exposes exact aliases only. The hidden Insight router
-temporarily consumes those aliases until the bounded router-cutover successor;
-canonical schema, adapter, and service modules must never import or dynamically
-look up `legacy_app`.
+The hidden router in `app/routers/legacy_insight.py` imports canonical schemas,
+security, and rate-limit policy and resolves adapter callables from
+`app.services.insight_compat` at request time. `legacy_app.py` exposes exact
+aliases only; canonical router, schema, adapter, and service modules must never
+import or dynamically look it up.
 
 The current policy is compatibility first:
 
@@ -141,6 +142,7 @@ Forbidden in `legacy_app.py`:
 | Legacy weekly-menu builder access | `core/menu_engine.py` + `app/services/legacy_premium_weekly_plan.py` | Core owns the builder; the service provides lazy exact-callable access and response normalization; facade exports are compatibility only. |
 | Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
 | Insight API contract | `app/schemas/insight.py` | Canonical request/response ownership; legacy compatibility exports preserve exact class identity and wire shape. |
+| Insight compatibility routes | `app/routers/legacy_insight.py` | The two hidden VIP routes own route-level guards and consume canonical adapter attributes at request time; the legacy facade is not a runtime dependency. |
 | Insight compatibility runtime | `app/services/insight_compat.py` + `app/services/insight_application_service.py` | The adapter owns retained callables and HTTP/error seams; the application service and `core/ai` retain orchestration truth. Facade rebinding and reverse imports are forbidden. |
 | PRO targets/gaps API contracts | `app/schemas/premium_contracts.py` | Canonical request/response ownership; legacy imports preserve the existing wire shapes without parallel schema definitions. |
 | PRO targets/gaps runtime | `app/services/pro_nutrition_targets.py` + `core/nutrition_utils.py` | The service owns typed targets/gaps orchestration and stable error envelopes; core owns shared kcal/micronutrient helpers; legacy exports are exact aliases or thin route shims only. |
