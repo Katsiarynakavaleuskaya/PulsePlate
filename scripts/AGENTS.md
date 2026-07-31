@@ -185,6 +185,27 @@
   branches, open PRs, resolve review threads, edit fixed mappings, claim merge
   readiness, merge, release, call providers, call product runtime, or call
   Slack/GitHub authority paths.
+- Terminal creative-code outcome artifacts stay local under
+  `artifacts/orchestration/creative_code/terminal_outcomes/`. The
+  `creative_code_terminal_outcome.py` CLI may only cross-bind one validated
+  PR-3 plan/open receipt to one closed sanitized terminal observation and emit
+  one immutable `CreativeCodeTerminalOutcomeV1`. Terminal states are exactly
+  `merged` or `closed_unmerged`; unavailable terminal evidence emits no
+  outcome. The outcome is the sole semantic carrier and may project into
+  exactly one durable v2 `pr_terminal` telemetry event. It must not persist
+  separate review/terminal/post-merge events, read raw PR/review bodies,
+  comments, patches, prompts, provider/oracle output, arbitrary notes, paths,
+  or URLs, call GitHub/network/providers/product runtime/Evidence Graph, create
+  or write branches, edit mappings, resolve threads, claim readiness, merge,
+  change workflows, or add probability/cognitive state. Identical replay is
+  no-write; divergent replay preserves the original artifact. Existing v1
+  telemetry schemas, identities, readers, and no-terminal collector output
+  remain unchanged. Terminal input and publication hardening assumes cooperative
+  local artifact users: it rejects traversal, symlinks, non-regular files, and
+  replacement of the canonical file, but does not promise pathname stability
+  against an uncooperative same-UID process between checks. Descriptor-relative
+  hostile-process hardening requires a separate reviewed portability and threat-
+  model lane.
 - PR-5 creative-code review-disposition artifacts stay local under
   `artifacts/orchestration/creative_code/review_disposition/`. The
   `creative_code_review_disposition.py` CLI may only read sanitized

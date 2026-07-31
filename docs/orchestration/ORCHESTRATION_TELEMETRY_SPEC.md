@@ -61,6 +61,7 @@ local and gitignored under:
 - `artifacts/orchestration/creative_code/spec_runs/`
 - `artifacts/orchestration/creative_code/patch_runs/`
 - `artifacts/orchestration/creative_code/promotions/`
+- `artifacts/orchestration/creative_code/terminal_outcomes/`
 
 PR-4 adds a creative-code-specific telemetry sidecar:
 
@@ -69,6 +70,12 @@ PR-4 adds a creative-code-specific telemetry sidecar:
   `docs/orchestration/contracts/creative_code_telemetry_event.v1.schema.json`
 - Rollup schema:
   `docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json`
+- Terminal outcome schema:
+  `docs/orchestration/contracts/creative_code_terminal_outcome.v1.schema.json`
+- Terminal event projection schema:
+  `docs/orchestration/contracts/creative_code_telemetry_event.v2.schema.json`
+- Mixed terminal rollup schema:
+  `docs/orchestration/contracts/creative_code_telemetry_rollup.v2.schema.json`
 - Taxonomy schema:
   `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
 - Reference taxonomy:
@@ -78,6 +85,13 @@ This sidecar reads only sanitized PR-1/PR-2/PR-3 creative-code artifacts and
 must not read raw patches, raw prompts, raw provider payloads, oracle
 stdout/stderr, Slack payloads, GitHub API payloads, review thread bodies, PR
 bodies, secrets, token values, or local absolute paths.
+
+The terminal outcome is the only semantic carrier after a PR-3 `pr_open`
+receipt. It accepts a closed sanitized observation and records only
+`merged | closed_unmerged`; missing terminal evidence is a collection error
+and emits no outcome. Review, governance, and post-merge values are derived
+observations, not provider PASS/no-findings, review completion, disposition,
+or merge-readiness truth.
 
 ---
 
@@ -124,6 +138,21 @@ Creative-code rollups contain:
 - counts by stage, status, failure class, and rejection taxonomy class
 - source artifact fingerprints
 - local-only caveats
+
+The collector preserves v1 output when no terminal input is supplied. With an
+explicit terminal-outcomes input it emits a v2 mixed rollup:
+
+- each terminal outcome projects into exactly one `pr_terminal` v2 event;
+- v1 events contribute only the unchanged legacy funnel;
+- terminal counts include merged/closed-unmerged and the closed review,
+  governance, and post-merge observation vocabularies;
+- process and cost metadata are counted once per outcome;
+- `merge_rate_bps` divides merged by all terminal outcomes;
+- `post_merge_complete_rate_bps` divides `complete_observed` by
+  `complete_observed + incomplete_observed`.
+
+Separate persisted review and post-merge events are forbidden because their
+independent countability would duplicate the terminal semantic carrier.
 
 The creative-code sidecar is intentionally separate from
 `telemetry_rollup.py` agent reliability scoring. It is funnel measurement, not
@@ -185,8 +214,11 @@ python -m scripts.orchestration.creative_code_telemetry \
   --spec-runs-dir artifacts/orchestration/creative_code/spec_runs \
   --patch-runs-dir artifacts/orchestration/creative_code/patch_runs \
   --promotions-dir artifacts/orchestration/creative_code/promotions \
+  --terminal-outcomes-dir artifacts/orchestration/creative_code/terminal_outcomes \
   --output-dir artifacts/orchestration/creative_code/telemetry
 ```
+
+Omit `--terminal-outcomes-dir` to retain the exact v1 collection mode.
 
 ### 5.2 Frequency
 
@@ -205,6 +237,9 @@ python -m scripts.orchestration.creative_code_telemetry \
   automation, merge-readiness claims, branch/PR mutation, provider calls,
   product runtime imports, semantic-cache activation, or public platform
   backend from creative-code telemetry.
+- No raw Markdown/comment parser, second telemetry root, three-event terminal
+  projection, Evidence Graph adapter, probability/cognitive state, or
+  terminal-state inference from unavailable evidence.
 
 ---
 
