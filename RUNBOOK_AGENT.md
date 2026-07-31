@@ -964,11 +964,25 @@ pytest -q -k "public_surface or env_guards or import_hygiene"
 
 ### 2.5 ENV gating / порядок установки TESTING
 
-**Problem:** `EXPORTS_ENABLED`/`VIP` computed at import time, env set later → tests get 404/422.
+**Problem:** The legacy alias gate and canonical signed-export security gate have
+different meanings. Setting either one after import can make tests assert the
+wrong registration or authorization contract.
 
 ```bash
-git grep -nE "EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG" -- app legacy_app.py core tests
+git grep -nE "EXPORTS_ENABLED|PRIVATE_EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG" -- app legacy_app.py core tests
 ```
+
+- `EXPORTS_ENABLED` is the import-time test/demo gate for whatever legacy export
+  alias specs still exist. When the legacy alias module is present and the gate
+  is true, each current spec must register exactly once; when false, none may
+  register. Do not treat a retired alias as a required route.
+- `PRIVATE_EXPORTS_ENABLED` controls signed-token enforcement on canonical plan
+  and shoplist exports. It does not control canonical route registration; those
+  canonical routes and their 429 response metadata remain present in either
+  mode. Production/staging invariants still require the private gate enabled.
+- The two gates are independent. Set their environment values before importing
+  `app.main`, and derive any legacy expectations from the current legacy spec
+  rather than from canonical export paths.
 
 **Check pytest_configure:**
 
@@ -1076,10 +1090,13 @@ See section 2 (PR #403 Specific Checks) above for detailed grep commands.
 ### 4.3 ENV gating suspects (exports/vip)
 
 ```bash
-git grep -n "EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG"
+git grep -n "EXPORTS_ENABLED|PRIVATE_EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG"
 ```
 
-Ensure `TESTING=true` is set before importing `legacy_app`.
+Ensure `TESTING=true` and any explicit legacy-alias gate are set before importing
+`legacy_app`. Diagnose canonical signed-export authorization through
+`PRIVATE_EXPORTS_ENABLED`; do not infer canonical route absence from the legacy
+`EXPORTS_ENABLED` value. See section 2.5.
 
 ## 5) If DOCKER Build Fails
 
@@ -1126,7 +1143,7 @@ See `AGENTS.md` for the full checklist. Quick version:
 4. Verify PEP 562 shim in `app/__init__.py`
 5. `TESTING=true` set before app import
 6. Guard tests pass
-7. Export routes registered when feature-flagged
+7. Legacy export aliases follow their current spec when `EXPORTS_ENABLED`; canonical signed exports stay registered and use `PRIVATE_EXPORTS_ENABLED` for token enforcement
 
 ## 10) Common CI Failure Patterns
 

@@ -126,7 +126,6 @@ class TestRebindingModuleSpec:
         optional_exports = [
             "add_visualization_if_requested",
             "to_pdf_day",
-            "export_pdf_generic",
             "make_weekly_menu",
         ]
 

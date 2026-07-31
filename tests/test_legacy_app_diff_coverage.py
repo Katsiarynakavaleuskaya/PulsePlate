@@ -308,13 +308,6 @@ def test_readiness_logs_warning_when_insight_runtime_probe_fails(
     asyncio.run(_run())
 
 
-def test_export_pdf_generic_requires_api_key() -> None:
-    """Security: /api/v1/export/pdf must not be unauthenticated."""
-    client = TestClient(legacy_app.app)
-    resp = client.post("/api/v1/export/pdf", json={"meals": []})
-    assert resp.status_code in {401, 403}
-
-
 def test_export_daily_csv_preserves_503_when_helper_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -820,32 +813,6 @@ def test_export_day_csv_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     asyncio.run(_run())
 
 
-def test_export_pdf_generic_success_and_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover export_pdf_generic helper import and error paths."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        import app as app_pkg
-
-        # Ensure helper resolution sees a callable (it prefers app.to_pdf_day if present).
-        monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"%PDF", raising=False)
-        monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"%PDF", raising=False)
-        resp = await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
-        assert resp.media_type == "application/pdf"
-
-        def boom(_: Any) -> bytes:
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(app_pkg, "to_pdf_day", boom, raising=False)
-        monkeypatch.setattr(legacy_app, "to_pdf_day", boom, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
-        assert exc.value.status_code == 500
-
-    asyncio.run(_run())
-
-
 def test_export_week_csv_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _run() -> None:
         """Cover export_weekly_plan_csv exception -> 500."""
@@ -859,41 +826,6 @@ def test_export_week_csv_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
         with pytest.raises(HTTPException) as exc:
             await legacy_app.export_weekly_plan_csv("p1")
         assert exc.value.status_code == 500
-
-    asyncio.run(_run())
-
-
-def test_export_day_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover export_daily_plan_pdf success, importerror, and generic error paths."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        import app as app_pkg
-
-        # export_daily_plan_pdf may resolve PDF helper via app.to_pdf_day if present.
-        monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"pdf", raising=False)
-        monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"pdf", raising=False)
-        resp = await legacy_app.export_daily_plan_pdf("p1")
-        assert resp.media_type == "application/pdf"
-
-        def raise_import(_: Any) -> bytes:
-            raise ImportError("no reportlab")
-
-        monkeypatch.setattr(app_pkg, "to_pdf_day", raise_import, raising=False)
-        monkeypatch.setattr(legacy_app, "to_pdf_day", raise_import, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_daily_plan_pdf("p1")
-        assert exc.value.status_code == 500
-
-        def raise_generic(_: Any) -> bytes:
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(app_pkg, "to_pdf_day", raise_generic, raising=False)
-        monkeypatch.setattr(legacy_app, "to_pdf_day", raise_generic, raising=False)
-        with pytest.raises(HTTPException) as exc2:
-            await legacy_app.export_daily_plan_pdf("p1")
-        assert exc2.value.status_code == 500
 
     asyncio.run(_run())
 
@@ -929,34 +861,6 @@ def test_export_day_csv_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
     asyncio.run(_run())
 
 
-def test_export_pdf_generic_empty_payload_400() -> None:
-    async def _run() -> None:
-        """Cover empty payload guard (line ~4946)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_pdf_generic({})
-        assert exc.value.status_code == 400
-
-    asyncio.run(_run())
-
-
-def test_export_pdf_generic_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover PDF helper missing -> HTTPException passthrough (lines ~4959, ~4972)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-        import app as app_pkg
-
-        monkeypatch.setattr(app_pkg, "to_pdf_day", None, raising=False)
-        monkeypatch.setattr(legacy_app, "to_pdf_day", None, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_pdf_generic({"x": 1})
-        assert exc.value.status_code == 503
-
-    asyncio.run(_run())
-
-
 def test_export_week_csv_fallback_when_helper_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -969,53 +873,6 @@ def test_export_week_csv_fallback_when_helper_missing(
         resp = await legacy_app.export_weekly_plan_csv("p1")
         assert resp.media_type == "text/csv"
         assert b"plan_id" in resp.body
-
-    asyncio.run(_run())
-
-
-def test_export_day_pdf_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover export_daily_plan_pdf helper-missing path (lines ~5151, ~5165)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-        monkeypatch.setattr(legacy_app, "to_pdf_day", None, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_daily_plan_pdf("p1")
-        assert exc.value.status_code == 503
-
-    asyncio.run(_run())
-
-
-def test_export_week_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover export_weekly_plan_pdf success, missing helper, importerror, and generic error paths."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        monkeypatch.setattr(legacy_app, "to_pdf_week", lambda _p: b"pdf", raising=False)
-        resp = await legacy_app.export_weekly_plan_pdf("p1")
-        assert resp.media_type == "application/pdf"
-
-        monkeypatch.setattr(legacy_app, "to_pdf_week", None, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_weekly_plan_pdf("p1")
-        assert exc.value.status_code == 503
-
-        def raise_import(_: Any) -> bytes:
-            raise ImportError("no reportlab")
-
-        monkeypatch.setattr(legacy_app, "to_pdf_week", raise_import, raising=False)
-        with pytest.raises(HTTPException) as exc2:
-            await legacy_app.export_weekly_plan_pdf("p1")
-        assert exc2.value.status_code == 500
-
-        def raise_generic(_: Any) -> bytes:
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(legacy_app, "to_pdf_week", raise_generic, raising=False)
-        with pytest.raises(HTTPException) as exc3:
-            await legacy_app.export_weekly_plan_pdf("p1")
-        assert exc3.value.status_code == 500
 
     asyncio.run(_run())
 
