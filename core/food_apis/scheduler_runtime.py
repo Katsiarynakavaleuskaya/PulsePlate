@@ -200,8 +200,9 @@ async def _run_with_postgresql_lease(
     body_error: BaseException | None = None
     try:
         try:
-            session = await _run_lease_io(executor, session_factory)
-            lease_connection = await _run_lease_io(executor, session.connection)
+            created_session = await _run_lease_io(executor, session_factory)
+            session = created_session
+            lease_connection = await _run_lease_io(executor, created_session.connection)
             connection = lease_connection
             acquire_result = await _run_lease_io(
                 executor,
