@@ -170,6 +170,18 @@ class _LegacyRuntimeAccessVisitor(ast.NodeVisitor):
             self.accesses - previous_accesses,
         )
 
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        previous_accesses = set(self.accesses)
+        self.generic_visit(node)
+        runtime_accesses = self.accesses - previous_accesses
+        if (
+            runtime_accesses
+            or self._bound_names(node.target).intersection(self.aliases)
+            or self._literal_contains_legacy_module(node.value)
+        ):
+            self.accesses.difference_update(runtime_accesses)
+            self._record(node, _UNSUPPORTED_LEGACY_ASSIGNMENT)
+
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if node.attr in _LEGACY_RUNTIME_NAMES and self._is_legacy_module(node.value):
             self._record(node, node.attr)
@@ -223,7 +235,7 @@ def test_legacy_runtime_access_visitor_models_simple_name_bindings() -> None:
         assert _legacy_runtime_accesses(source) == set()
 
 
-def test_legacy_runtime_access_visitor_fails_closed_on_unpacking() -> None:
+def test_legacy_runtime_access_visitor_fails_closed_on_unsupported_assignments() -> None:
     cases = (
         ("legacy, other = resolve_legacy_app(), None\n", 1),
         ("[legacy, other] = [resolve_legacy_app(), None]\n", 1),
@@ -234,6 +246,7 @@ def test_legacy_runtime_access_visitor_fails_closed_on_unpacking() -> None:
             2,
         ),
         ("*rest, legacy = None, None, resolve_legacy_app()\n", 1),
+        ("legacy = resolve_legacy_app()\nlegacy += object()\n", 2),
     )
     for source, expected_line in cases:
         finding = ("<module>", _UNSUPPORTED_LEGACY_ASSIGNMENT, expected_line)
