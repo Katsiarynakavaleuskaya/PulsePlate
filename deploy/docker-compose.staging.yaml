@@ -65,6 +65,7 @@ services:
 
   worker:
     image: ${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}
+    profiles: ["scheduler-external"]
     restart: unless-stopped
     networks: [web]
     environment:

@@ -430,9 +430,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   election, fencing, fairness, worker-health, or multi-host cache coherence.
 - Canonical compose deployments in `external` mode run one `worker` service
   from the exact backend image, without ports or ingress, after migrations and
-  API readiness. In `disabled` mode deploy removes the stopped worker container
-  so daemon restart cannot revive stale external configuration. API and worker
-  share the named food-cache volume; this remains a single-host topology.
+  API readiness. The worker is behind the opt-in `scheduler-external` profile;
+  deploy scripts explicitly target it only for external ownership. In
+  `disabled` mode deploy removes the stopped worker container, and unprofiled
+  full-stack startup must not select it, so daemon restart cannot revive stale
+  external configuration. API and worker share the named food-cache volume;
+  this remains a single-host topology.
 - `app/services/scheduler_access.py` is a lazy, typed delegator; it must not add
   cache, override registry, fallback state, or lifecycle logic.
 - Admin services import and await the scheduler-access callable at their use

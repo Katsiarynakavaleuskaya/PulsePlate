@@ -35,6 +35,12 @@ become ready, then start and prove the worker process is still running. The API
 and worker mount the same named `food_db_cache` volume. This is intentionally a
 single-host topology.
 
+The worker service is behind the opt-in Compose profile `scheduler-external`.
+The canonical deploy scripts explicitly target that service only in `external`
+mode. A direct full-stack external startup must include
+`--profile scheduler-external`; omit the profile in `disabled` mode so ordinary
+`docker compose up` cannot select or restart the worker.
+
 `--serve` requires `external` mode and PostgreSQL. Startup rejects invalid mode
 or database configuration before the periodic loop begins.
 

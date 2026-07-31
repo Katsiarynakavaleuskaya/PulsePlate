@@ -43,6 +43,7 @@ services:
 
   worker:
     image: ${IMAGE_REF:?IMAGE_REF is required}
+    profiles: ["scheduler-external"]
     restart: unless-stopped
     networks: [web]
     environment:

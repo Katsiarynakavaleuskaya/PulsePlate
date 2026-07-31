@@ -605,6 +605,7 @@ def test_compose_uses_one_no_ingress_worker_from_exact_backend_image(
     assert worker["command"] == "python -m core.food_apis.scheduler --serve"
     assert worker["depends_on"]["app"]["condition"] == "service_healthy"
     assert worker["healthcheck"] == {"disable": True}
+    assert worker["profiles"] == ["scheduler-external"]
     assert worker["restart"] == "unless-stopped"
     assert "ports" not in worker
     assert "expose" not in worker

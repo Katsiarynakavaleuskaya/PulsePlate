@@ -2,7 +2,8 @@
 # For managed PostgreSQL + same host edge, use docker-compose.production.yaml instead.
 #
 # Run from repo root (or set COMPOSE_FILE + PROJECT_DIR for backup scripts):
-#   docker compose --project-directory deploy -f deploy/docker-compose.production.selfhosted.yaml up -d
+#   docker compose --profile scheduler-external --project-directory deploy \
+#     -f deploy/docker-compose.production.selfhosted.yaml up -d
 #
 # Requires deploy/.env with IMAGE_REF, POSTGRES_*, PRODUCTION_DOMAIN, etc.
 # The app service sets DATABASE_URL from POSTGRES_* to force the colocated postgres service.
@@ -72,6 +73,7 @@ services:
 
   worker:
     image: ${IMAGE_REF:?IMAGE_REF is required}
+    profiles: ["scheduler-external"]
     restart: unless-stopped
     networks: [web]
     environment:
