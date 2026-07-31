@@ -134,7 +134,20 @@ def test_retained_legacy_export_alias_get_routes_delegate_to_current_helper(
     assert response.content == content
 
 
-def test_retired_legacy_pdf_aliases_are_absent_with_export_gate_enabled() -> None:
+@pytest.mark.parametrize(
+    "gate_env",
+    [
+        pytest.param({"TESTING": "true"}, id="testing-flag"),
+        pytest.param({"DEBUG": "true"}, id="debug-flag"),
+        pytest.param({"FEATURE_EXPORTS": "true"}, id="feature-flag"),
+        pytest.param({"APP_ENV": "test"}, id="app-env-test"),
+        pytest.param({"APP_ENV": "testing"}, id="app-env-testing"),
+        pytest.param({"APP_ENV": "ci"}, id="app-env-ci"),
+    ],
+)
+def test_retired_legacy_pdf_aliases_are_absent_with_export_gate_enabled(
+    gate_env: dict[str, str],
+) -> None:
     code = """
 import json
 import os
@@ -209,13 +222,11 @@ for method, template, concrete_path in retired:
 print(json.dumps(summary, sort_keys=True))
 """
     env = os.environ.copy()
-    env.update(
-        {
-            "APP_ENV": "test",
-            "FEATURE_EXPORTS": "true",
-            "TESTING": "true",
-        }
-    )
+    for key in ("CI", "DEBUG", "ENVIRONMENT", "FEATURE_EXPORTS", "TESTING"):
+        env.pop(key, None)
+    env["APP_ENV"] = "local"
+    env["PYTEST_CURRENT_TEST"] = "skip-dotenv-for-export-retirement-probe"
+    env.update(gate_env)
 
     result = subprocess.run(
         [sys.executable, "-c", code],
