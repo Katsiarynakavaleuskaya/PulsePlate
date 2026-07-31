@@ -449,22 +449,20 @@ def _bounded_isolation_identity(raw_value: str, *, prefix_limit: int) -> str:
     return f"{sanitized[:prefix_limit]}-{digest}"
 
 
-def _snapshot_isolated_db_env() -> dict[str, tuple[bool, str | None]]:
+def _snapshot_isolated_db_env() -> dict[str, str | None]:
     """Capture exact presence and value for the finite DB environment surface."""
 
-    return {key: (key in os.environ, os.environ.get(key)) for key in _ISOLATED_DB_ENV_KEYS}
+    return {key: os.environ.get(key) for key in _ISOLATED_DB_ENV_KEYS}
 
 
-def _restore_isolated_db_env(snapshot: dict[str, tuple[bool, str | None]]) -> None:
+def _restore_isolated_db_env(snapshot: dict[str, str | None]) -> None:
     """Restore the finite DB environment surface without broad cleanup."""
 
-    for key, (was_present, value) in snapshot.items():
-        if was_present:
-            if value is None:
-                raise RuntimeError(f"Environment snapshot for {key} lost its present value")
-            os.environ[key] = value
-        else:
+    for key, value in snapshot.items():
+        if value is None:
             os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 def _assert_isolated_db_async_inactive(core_db: ModuleType) -> None:

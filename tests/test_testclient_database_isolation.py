@@ -33,8 +33,8 @@ class _PrimaryIsolationFailure(RuntimeError):
     """Sentinel proving cleanup never replaces the primary failure."""
 
 
-def _env_snapshot() -> dict[str, tuple[bool, str | None]]:
-    return {key: (key in os.environ, os.environ.get(key)) for key in _ENV_KEYS}
+def _env_snapshot() -> dict[str, str | None]:
+    return {key: os.environ.get(key) for key in _ENV_KEYS}
 
 
 def _fake_request(nodeid: str) -> pytest.FixtureRequest:
@@ -232,16 +232,42 @@ def test_isolated_sqlite_database_removes_exact_file_after_mode_validation_failu
 ) -> None:
     expected_env = _env_snapshot()
     baseline_engine = core_db._RAW_ENGINE
+    tmp_root = tmp_path.resolve(strict=True)
+    original_open = os.open
     original_fstat = os.fstat
+    created_descriptor: int | None = None
+    invalid_mode_returned = False
+
+    def open_and_record_descriptor(
+        path: Any,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal created_descriptor
+        if dir_fd is None:
+            file_descriptor = original_open(path, flags, mode)
+        else:
+            file_descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
+        candidate = Path(os.fsdecode(path))
+        if candidate.parent == tmp_root and candidate.name.startswith("isolated-"):
+            created_descriptor = file_descriptor
+        return file_descriptor
 
     def fstat_with_invalid_mode(file_descriptor: int) -> Any:
+        nonlocal invalid_mode_returned
         actual = original_fstat(file_descriptor)
+        if file_descriptor != created_descriptor or invalid_mode_returned:
+            return actual
+        invalid_mode_returned = True
         return SimpleNamespace(
             st_mode=(actual.st_mode & ~0o777) | 0o644,
             st_dev=actual.st_dev,
             st_ino=actual.st_ino,
         )
 
+    monkeypatch.setattr(conftest_module.os, "open", open_and_record_descriptor)
     monkeypatch.setattr(conftest_module.os, "fstat", fstat_with_invalid_mode)
     lifecycle = conftest_module._isolated_sqlite_database_lifecycle(
         tmp_path,
@@ -258,6 +284,8 @@ def test_isolated_sqlite_database_removes_exact_file_after_mode_validation_failu
     assert tuple(tmp_path.iterdir()) == ()
     assert _env_snapshot() == expected_env
     assert core_db._RAW_ENGINE is baseline_engine
+    assert created_descriptor is not None
+    assert invalid_mode_returned
 
 
 @pytest.mark.parametrize("failure_phase", ("setup", "body"))
@@ -372,9 +400,8 @@ def test_isolated_client_shutdown_precedes_database_reset(
         events.append("shutdown")
 
     app = FastAPI(lifespan=lifespan)
-    client_lifecycle = conftest_module.isolated_test_client.__wrapped__(app, db_path)
-    next(client_lifecycle)
-    _finish_lifecycle(client_lifecycle)
+    with conftest_module.open_test_client(app):
+        pass
     _finish_lifecycle(db_lifecycle)
 
     assert events[0] == "shutdown"
