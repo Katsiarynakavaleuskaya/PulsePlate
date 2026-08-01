@@ -124,32 +124,32 @@ BRACE_EXPANSION_LOCK_SNAPSHOTS = {
         },
     },
 }
-BRACE_EXPANSION_ADVISORY_RANGES = {
-    "GHSA-3jxr-9vmj-r5cp": (
-        SpecifierSet("<1.1.16"),
-        SpecifierSet(">=2.0.0,<2.1.2"),
-        SpecifierSet(">=3.0.0,<5.0.7"),
-    ),
-    "GHSA-832h-xg76-4gv6": (SpecifierSet("<1.1.7"),),
+BRACE_EXPANSION_ADVISORY_RANGE_TEXT = {
+    "GHSA-3jxr-9vmj-r5cp": ("<1.1.16", ">=2.0.0,<2.1.2", ">=3.0.0,<5.0.7"),
+    "GHSA-832h-xg76-4gv6": ("<1.1.7",),
     "GHSA-f886-m6hf-6m8v": (
-        SpecifierSet("<1.1.13"),
-        SpecifierSet(">=2.0.0,<2.0.3"),
-        SpecifierSet(">=3.0.0,<3.0.2"),
-        SpecifierSet(">=4.0.0,<5.0.5"),
+        "<1.1.13",
+        ">=2.0.0,<2.0.3",
+        ">=3.0.0,<3.0.2",
+        ">=4.0.0,<5.0.5",
     ),
-    "GHSA-jxxr-4gwj-5jf2": (SpecifierSet(">=5.0.0,<5.0.6"),),
+    "GHSA-jxxr-4gwj-5jf2": (">=5.0.0,<5.0.6",),
     "GHSA-mh99-v99m-4gvg": (
-        SpecifierSet("<1.1.17"),
-        SpecifierSet(">=2.0.0,<2.1.3"),
-        SpecifierSet(">=3.0.0,<3.0.3"),
-        SpecifierSet(">=4.0.0,<5.0.8"),
+        "<1.1.17",
+        ">=2.0.0,<2.1.3",
+        ">=3.0.0,<3.0.3",
+        ">=4.0.0,<5.0.8",
     ),
     "GHSA-v6h2-p8h4-qcjw": (
-        SpecifierSet(">=1.0.0,<=1.1.11"),
-        SpecifierSet(">=2.0.0,<=2.0.1"),
-        SpecifierSet("==3.0.0"),
-        SpecifierSet("==4.0.0"),
+        ">=1.0.0,<=1.1.11",
+        ">=2.0.0,<=2.0.1",
+        "==3.0.0",
+        "==4.0.0",
     ),
+}
+BRACE_EXPANSION_ADVISORY_RANGES = {
+    advisory: tuple(SpecifierSet(value) for value in ranges)
+    for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGE_TEXT.items()
 }
 BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
     {
@@ -449,6 +449,43 @@ def _assert_brace_expansion_owner_evidence(
     assert (
         frozenset(advisory_rows) == BRACE_EXPANSION_CUTOFF_ADVISORIES
     ), "owner evidence F_cutoff inventory does not match the executable inventory"
+
+    table_rows = re.findall(
+        r"^\| \[`(?P<advisory>GHSA-[a-z0-9-]+)`\]\([^\n]+?\)"
+        r"(?: / `[^`]+`)? \| (?P<ranges>[^|]+) \| (?P<disposition>[^|]+) \|",
+        inventory,
+        flags=re.MULTILINE,
+    )
+    assert len(table_rows) == len(advisory_rows), "owner evidence F_cutoff row parse drift"
+    parsed_ranges: dict[str, tuple[str, ...]] = {}
+    parsed_applicable: set[str] = set()
+    for advisory, range_cell, disposition in table_rows:
+        parsed_ranges[advisory] = tuple(item.strip().strip("`") for item in range_cell.split(";"))
+        if disposition.strip().startswith("**Applicable**:"):
+            parsed_applicable.add(advisory)
+        else:
+            assert disposition.strip().startswith(
+                "Non-applicable:"
+            ), f"{advisory}: owner evidence disposition is not classified"
+    assert (
+        parsed_ranges == BRACE_EXPANSION_ADVISORY_RANGE_TEXT
+    ), "owner evidence affected ranges do not match the executable inventory"
+    assert (
+        frozenset(parsed_applicable) == BRACE_EXPANSION_APPLICABLE_ADVISORIES
+    ), "owner evidence table applicability does not match the executable subset"
+
+    applicable_section = document.split(applicable_marker, maxsplit=1)[1]
+    applicable_match = re.search(
+        r"```text\s+A = \{(?P<body>.*?)\}\s+```",
+        applicable_section,
+        flags=re.DOTALL,
+    )
+    assert applicable_match is not None, "owner evidence A block missing or malformed"
+    applicable_rows = re.findall(r"GHSA-[a-z0-9-]+", applicable_match.group("body"))
+    assert len(applicable_rows) == len(set(applicable_rows)), "duplicate owner evidence A row"
+    assert (
+        frozenset(applicable_rows) == BRACE_EXPANSION_APPLICABLE_ADVISORIES
+    ), "owner evidence A block does not match the executable subset"
 
     normalized = re.sub(r"\s+", " ", document)
     assert "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100" in document
@@ -859,6 +896,9 @@ def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
         "missing-row",
         "extra-row",
         "response-digest",
+        "applicable-id",
+        "affected-range",
+        "applicable-disposition",
         "head-package-bytes",
         "head-lock-bytes",
     ),
@@ -884,6 +924,16 @@ def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: st
         document = document.replace(marker, f"{extra}{marker}", 1)
     elif case == "response-digest":
         document = document.replace(BRACE_EXPANSION_GAD_RESPONSE_SHA256, "0" * 64, 1)
+    elif case == "applicable-id":
+        document = document.replace(
+            "  GHSA-mh99-v99m-4gvg\n}",
+            "  GHSA-f886-m6hf-6m8v\n}",
+            1,
+        )
+    elif case == "affected-range":
+        document = document.replace("`<1.1.7` | Non-applicable:", "`<1.1.8` | Non-applicable:", 1)
+    elif case == "applicable-disposition":
+        document = document.replace("| **Applicable**:", "| Non-applicable:", 1)
     elif case == "head-package-bytes":
         head_artifact_blobs["frontend/package.json"] += b"\n"
     elif case == "head-lock-bytes":
