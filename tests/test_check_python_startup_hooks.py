@@ -9,11 +9,27 @@ import subprocess
 import sys
 import venv
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 import scripts.ci.check_python_startup_hooks as hook_guard
+
+
+def _run_startup_probe_with_site_setup(
+    setup: str,
+    *,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    probe = "import site\n" + setup + "\n" + hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE
+    return subprocess.run(
+        [sys.executable, "-P", "-S", "-c", probe],
+        check=False,
+        capture_output=True,
+        cwd=cwd,
+        env=hook_guard._startup_probe_environment(),
+        text=True,
+        timeout=30,
+    )
 
 
 def test_extract_executable_lines_returns_only_import_lines() -> None:
@@ -284,82 +300,61 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
     assert result == [Path("/tmp/site-packages")]
 
 
-def test_startup_safe_probe_skips_missing_and_none_site_getters(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    fake_site = SimpleNamespace(
-        ENABLE_USER_SITE=True,
-        getusersitepackages=lambda: None,
-        main=lambda: None,
+def test_startup_safe_probe_skips_missing_and_none_site_getters() -> None:
+    result = _run_startup_probe_with_site_setup(
+        "site.ENABLE_USER_SITE = True\n"
+        "site.getsitepackages = None\n"
+        "site.getusersitepackages = lambda: None\n"
+        "site.main = lambda: None"
     )
-    monkeypatch.setitem(sys.modules, "site", fake_site)
 
-    exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
-
-    payload = json.loads(capsys.readouterr().out)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
     assert payload["site_packages"] == []
 
 
-def test_startup_safe_probe_preserves_unexpected_getter_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def raise_unexpected_failure() -> list[str]:
-        raise RuntimeError("site getter failed")
-
-    fake_site = SimpleNamespace(
-        ENABLE_USER_SITE=False,
-        getsitepackages=raise_unexpected_failure,
-        main=lambda: None,
-    )
-    monkeypatch.setitem(sys.modules, "site", fake_site)
-
-    with pytest.raises(RuntimeError, match="site getter failed"):
-        exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
-
-
-def test_startup_safe_probe_disables_readline_customization(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    fake_site = SimpleNamespace(
-        ENABLE_USER_SITE=False,
-        getsitepackages=lambda: ["/tmp/site-packages"],
+def test_startup_safe_probe_preserves_unexpected_getter_failure() -> None:
+    result = _run_startup_probe_with_site_setup(
+        "def raise_unexpected_failure():\n"
+        "    raise RuntimeError('site getter failed')\n"
+        "site.ENABLE_USER_SITE = False\n"
+        "site.getsitepackages = raise_unexpected_failure\n"
+        "site.main = lambda: None"
     )
 
-    def main() -> None:
-        fake_site.enablerlcompleter()
+    assert result.returncode != 0
+    assert "site getter failed" in result.stderr
 
-    fake_site.enablerlcompleter = lambda: pytest.fail(
-        "readline customization must be disabled before site.main()"
+
+def test_startup_safe_probe_disables_readline_customization() -> None:
+    result = _run_startup_probe_with_site_setup(
+        "def forbidden_readline_customization():\n"
+        "    raise RuntimeError('readline customization executed')\n"
+        "site.ENABLE_USER_SITE = False\n"
+        "site.getsitepackages = lambda: ['/tmp/site-packages']\n"
+        "site.enablerlcompleter = forbidden_readline_customization\n"
+        "site.main = lambda: site.enablerlcompleter()"
     )
-    fake_site.main = main
-    monkeypatch.setitem(sys.modules, "site", fake_site)
 
-    exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
-
-    payload = json.loads(capsys.readouterr().out)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
     assert payload["site_packages"] == ["/tmp/site-packages"]
 
 
 def test_startup_safe_probe_normalizes_relative_site_paths(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     relative_site_packages = Path("relative-userbase") / "site-packages"
-    fake_site = SimpleNamespace(
-        ENABLE_USER_SITE=True,
-        getsitepackages=lambda: [],
-        getusersitepackages=lambda: str(relative_site_packages),
-        main=lambda: None,
+    result = _run_startup_probe_with_site_setup(
+        "site.ENABLE_USER_SITE = True\n"
+        "site.getsitepackages = lambda: []\n"
+        f"site.getusersitepackages = lambda: {str(relative_site_packages)!r}\n"
+        "site.main = lambda: None",
+        cwd=tmp_path,
     )
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setitem(sys.modules, "site", fake_site)
 
-    exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
-
-    payload = json.loads(capsys.readouterr().out)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
     assert payload["site_packages"] == [str(tmp_path / relative_site_packages)]
 
 
