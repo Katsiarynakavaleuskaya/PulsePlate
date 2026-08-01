@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import posixpath
+import re
+import shutil
+import subprocess
+from copy import deepcopy
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import pytest
 from packaging.specifiers import SpecifierSet
@@ -18,6 +23,9 @@ from packaging.version import InvalidVersion, Version
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 FRONTEND_LOCK_JSON = REPO_ROOT / "frontend" / "package-lock.json"
+BRACE_EXPANSION_EVIDENCE_PATH = (
+    REPO_ROOT / "docs" / "security" / "FRONTEND_BRACE_EXPANSION_REMEDIATION_CLASS.md"
+)
 NPM_REGISTRY_HOST = "registry.npmjs.org"
 MIN_DOMPURIFY_VERSION = Version("3.4.11")
 MIN_JS_YAML_VERSION = Version("4.2.0")
@@ -31,10 +39,6 @@ BRACE_EXPANSION_VARIANT_FLOORS = {
 BRACE_EXPANSION_OVERRIDE_CARRIERS = {
     2: "minimatch@3",
     5: "minimatch@10",
-}
-BRACE_EXPANSION_LOCK_PATHS = {
-    2: "node_modules/brace-expansion",
-    5: "node_modules/glob/node_modules/brace-expansion",
 }
 BRACE_EXPANSION_LOCK_SNAPSHOTS = {
     "base": {
@@ -158,6 +162,38 @@ BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
     }
 )
 BRACE_EXPANSION_APPLICABLE_ADVISORIES = frozenset({"GHSA-3jxr-9vmj-r5cp", "GHSA-mh99-v99m-4gvg"})
+BRACE_EXPANSION_GAD_CUTOFF = "2026-08-01T05:41:33Z"
+BRACE_EXPANSION_GAD_RESPONSE_SHA256 = (
+    "07cf9e303aac2c81ac5072d5c0ff1a7e1fd8ec76cdb3af07242db0ac06e38311"  # pragma: allowlist secret
+)
+BRACE_EXPANSION_EXACT_BASE = "906049a03d26dcba05d69f46e0eec85861f3ba70"  # pragma: allowlist secret
+BRACE_EXPANSION_EXACT_BASE_DIGESTS = {
+    "frontend/package.json": (
+        "17235b55570d8137d35b54a6d6a7a605cb7eea23f1acf684f842baf06f85c05b"  # pragma: allowlist secret
+    ),
+    "frontend/package-lock.json": (
+        "059def600151a44cc1feacc40cb2638df23140c6e0de62f8d26291a47f697300"  # pragma: allowlist secret
+    ),
+}
+BRACE_EXPANSION_MANIFEST_INTENT_PATHS = frozenset(
+    {
+        ("overrides", "minimatch@3", "brace-expansion"),
+        ("overrides", "minimatch@10", "brace-expansion"),
+    }
+)
+BRACE_EXPANSION_LOCK_CLOSURE_PATHS = frozenset(
+    {
+        ("packages", "node_modules/brace-expansion", "version"),
+        ("packages", "node_modules/brace-expansion", "resolved"),
+        ("packages", "node_modules/brace-expansion", "integrity"),
+        ("packages", "node_modules/glob/node_modules/brace-expansion", "version"),
+        ("packages", "node_modules/glob/node_modules/brace-expansion", "resolved"),
+        ("packages", "node_modules/glob/node_modules/brace-expansion", "integrity"),
+        ("packages", "node_modules/glob/node_modules/brace-expansion", "engines", "node"),
+    }
+)
+NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
+NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
 EXPECTED_REPO_NPM_SURFACES = frozenset(
     {
         "frontend/package-lock.json",
@@ -184,7 +220,43 @@ IGNORED_NPM_SURFACE_PARTS = frozenset(
 
 
 def _load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    document = json.loads(path.read_text(encoding="utf-8"))
+    assert isinstance(document, dict), f"{path}: npm surface must be a JSON object"
+    return document
+
+
+def _git_stdout(*args: str) -> bytes:
+    git_binary = shutil.which("git")
+    assert git_binary is not None, "git is required for exact-base dependency guards"
+    assert Path(git_binary).is_absolute(), "git binary must resolve to an absolute path"
+    result = subprocess.run(
+        [git_binary, "-C", str(REPO_ROOT), *args],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    return result.stdout
+
+
+def _load_json_at_git_ref(*, ref: str, relative: str) -> tuple[dict, bytes]:
+    blob = _git_stdout("show", f"{ref}:{relative}")
+    document = json.loads(blob)
+    assert isinstance(document, dict), f"{ref}:{relative}: npm surface must be a JSON object"
+    return document, blob
+
+
+def _load_exact_base_frontend_documents() -> tuple[dict, dict]:
+    documents: dict[str, dict] = {}
+    for relative, expected_digest in BRACE_EXPANSION_EXACT_BASE_DIGESTS.items():
+        document, blob = _load_json_at_git_ref(
+            ref=BRACE_EXPANSION_EXACT_BASE,
+            relative=relative,
+        )
+        assert (
+            hashlib.sha256(blob).hexdigest() == expected_digest
+        ), f"{BRACE_EXPANSION_EXACT_BASE}:{relative}: exact-base blob digest drift"
+        documents[relative] = document
+    return documents["frontend/package.json"], documents["frontend/package-lock.json"]
 
 
 def _assert_npm_registry_resolution(*, package_name: str, resolved: str) -> None:
@@ -219,14 +291,42 @@ def _is_brace_expansion_lock_path(path: object) -> bool:
     )
 
 
+def _fully_decode_url_path(path: str) -> str:
+    """Decode a URL path to a finite fixed point and normalize path separators."""
+
+    decoded = path.replace("\\", "/")
+    for _ in range(len(decoded) + 1):
+        next_value = unquote(decoded).replace("\\", "/")
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+    raise AssertionError("URL path percent-decoding did not converge")
+
+
 def _has_brace_expansion_tarball_path_signal(value: object) -> bool:
     """Discover a candidate by package pathname before validating its origin."""
 
     if not isinstance(value, str):
         return False
     parsed = urlparse(value)
-    return parsed.path.startswith("/brace-expansion/-/brace-expansion-") and parsed.path.endswith(
-        ".tgz"
+    raw_paths = {parsed.path}
+    if not parsed.scheme and not parsed.netloc:
+        raw_pathname = value.split("#", maxsplit=1)[0].split("?", maxsplit=1)[0]
+        raw_paths.add(raw_pathname)
+
+    candidate_paths: set[str] = set()
+    for raw_path in raw_paths:
+        decoded_path = _fully_decode_url_path(raw_path)
+        candidate_paths.add(f"/{decoded_path.lstrip('/')}")
+        if not parsed.scheme and not parsed.netloc:
+            _, separator, pathname = decoded_path.lstrip("/").partition("/")
+            if separator and pathname:
+                candidate_paths.add(f"/{pathname.lstrip('/')}")
+
+    candidate_paths.update(posixpath.normpath(path) for path in tuple(candidate_paths))
+    return any(
+        path.startswith("/brace-expansion/-/brace-expansion-") and path.endswith(".tgz")
+        for path in candidate_paths
     )
 
 
@@ -240,7 +340,8 @@ def _find_override_key_paths(
     if isinstance(node, dict):
         for key, value in node.items():
             child_path = (*path, str(key))
-            if key == target:
+            is_target_key = key == target or (isinstance(key, str) and key.startswith(f"{target}@"))
+            if is_target_key:
                 found[child_path] = value
             found.update(_find_override_key_paths(value, target=target, path=child_path))
     elif isinstance(node, list):
@@ -318,51 +419,125 @@ def _assert_brace_expansion_head_postcondition(versions: set[Version]) -> None:
         ), f"{advisory}: governed head occurrence remains affected"
 
 
-def _brace_expansion_manifest_snapshot(outputs: dict[int, str]) -> dict:
-    return {
-        "overrides": {
-            BRACE_EXPANSION_OVERRIDE_CARRIERS[major]: {"brace-expansion": output}
-            for major, output in outputs.items()
-        }
-    }
+def _assert_brace_expansion_owner_evidence(document: str) -> None:
+    """Bind the executable cutoff inventory to its sole current evidence owner."""
+
+    inventory_marker = "That finite reconciled response is `F_cutoff`:"
+    applicable_marker = "The exact non-empty applicable subset"
+    assert document.count(inventory_marker) == 1, "owner evidence F_cutoff marker drift"
+    assert document.count(applicable_marker) == 1, "owner evidence A marker drift"
+    inventory = document.split(inventory_marker, maxsplit=1)[1].split(
+        applicable_marker,
+        maxsplit=1,
+    )[0]
+    advisory_rows = re.findall(
+        r"^\| \[`(GHSA-[a-z0-9-]+)`\]\(",
+        inventory,
+        flags=re.MULTILINE,
+    )
+    assert len(advisory_rows) == len(set(advisory_rows)), "duplicate F_cutoff advisory row"
+    assert (
+        frozenset(advisory_rows) == BRACE_EXPANSION_CUTOFF_ADVISORIES
+    ), "owner evidence F_cutoff inventory does not match the executable inventory"
+
+    normalized = re.sub(r"\s+", " ", document)
+    assert "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100" in document
+    assert f"Cutoff: `{BRACE_EXPANSION_GAD_CUTOFF}`" in document
+    assert "response contained exactly six records and no next page" in normalized
+    assert BRACE_EXPANSION_GAD_RESPONSE_SHA256 in document
+    assert "Node: v24.16.0" in document
+    assert "npm: 11.13.0" in document
+    assert "command: npm install --package-lock-only --ignore-scripts" in document
+    assert (
+        "41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885"  # pragma: allowlist secret
+        in document
+    )
 
 
-def _freeze_transition_value(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+def _changed_json_paths(
+    base: object,
+    head: object,
+    *,
+    path: tuple[str, ...] = (),
+) -> set[tuple[str, ...]]:
+    """Return every changed JSON path without limiting comparison to the target package."""
+
+    if isinstance(base, dict) and isinstance(head, dict):
+        changed: set[tuple[str, ...]] = set()
+        for key in set(base) | set(head):
+            child_path = (*path, str(key))
+            if key not in base or key not in head:
+                changed.add(child_path)
+                continue
+            changed.update(_changed_json_paths(base[key], head[key], path=child_path))
+        return changed
+    if isinstance(base, list) and isinstance(head, list):
+        changed = set()
+        for index in range(max(len(base), len(head))):
+            child_path = (*path, f"[{index}]")
+            if index >= len(base) or index >= len(head):
+                changed.add(child_path)
+                continue
+            changed.update(_changed_json_paths(base[index], head[index], path=child_path))
+        return changed
+    return {path} if base != head else set()
 
 
-def _lock_field_transitions(
-    base_entries: dict[str, dict],
-    head_entries: dict[str, dict],
-) -> set[tuple[str, str, str, str]]:
-    transitions: set[tuple[str, str, str, str]] = set()
-    assert set(base_entries) == set(head_entries), "brace-expansion lock surface delta"
-    for path in base_entries:
-        base_entry = base_entries[path]
-        head_entry = head_entries[path]
-        for field in set(base_entry) | set(head_entry):
-            base_value = base_entry.get(field)
-            head_value = head_entry.get(field)
-            if base_value != head_value:
-                transitions.add(
-                    (
-                        path,
-                        field,
-                        _freeze_transition_value(base_value),
-                        _freeze_transition_value(head_value),
-                    )
-                )
-    return transitions
+def _assert_exact_brace_expansion_json_delta(
+    *,
+    base_package: dict,
+    head_package: dict,
+    base_lock: dict,
+    head_lock: dict,
+) -> None:
+    manifest_paths = _changed_json_paths(base_package, head_package)
+    lock_paths = _changed_json_paths(base_lock, head_lock)
+    assert manifest_paths == BRACE_EXPANSION_MANIFEST_INTENT_PATHS, (
+        "frontend/package.json: complete JSON delta must be exactly the two I_R paths; "
+        f"found {sorted(manifest_paths)!r}"
+    )
+    assert lock_paths == BRACE_EXPANSION_LOCK_CLOSURE_PATHS, (
+        "frontend/package-lock.json: complete JSON delta must be exactly the seven C_R paths; "
+        f"found {sorted(lock_paths)!r}"
+    )
 
 
-def _enumerate_repo_npm_surfaces() -> frozenset[str]:
+def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
+    return (
+        relative.name in NPM_SURFACE_BASENAMES
+        and not set(relative.parts) & IGNORED_NPM_SURFACE_PARTS
+    )
+
+
+def _enumerate_repo_npm_surfaces(*, root: Path = REPO_ROOT) -> frozenset[str]:
     surfaces: set[str] = set()
-    for path in REPO_ROOT.rglob("package*.json"):
-        relative = path.relative_to(REPO_ROOT)
-        if set(relative.parts) & IGNORED_NPM_SURFACE_PARTS:
-            continue
-        surfaces.add(relative.as_posix())
+    for basename in NPM_SURFACE_BASENAMES:
+        for path in root.rglob(basename):
+            relative = PurePosixPath(path.relative_to(root).as_posix())
+            if _is_governed_npm_surface(relative):
+                surfaces.add(relative.as_posix())
     return frozenset(surfaces)
+
+
+def _enumerate_repo_npm_surfaces_at_git_ref(ref: str) -> frozenset[str]:
+    tracked_paths = _git_stdout("ls-tree", "-r", "--name-only", ref).decode("utf-8")
+    return frozenset(
+        relative.as_posix()
+        for raw_path in tracked_paths.splitlines()
+        if _is_governed_npm_surface(relative := PurePosixPath(raw_path))
+    )
+
+
+def _discover_brace_expansion_surface_occurrences(
+    *,
+    relative: str,
+    document: dict,
+) -> tuple[dict[tuple[str, ...], object], dict[str, dict]]:
+    manifest_occurrences = _find_override_key_paths(document, target="brace-expansion")
+    lock_entries: dict[str, dict] = {}
+    if PurePosixPath(relative).name in NPM_LOCK_SURFACE_BASENAMES:
+        lock_entries = _discover_brace_expansion_lock_entries(document.get("packages"))
+    return manifest_occurrences, lock_entries
 
 
 def _assert_brace_expansion_security_class(
@@ -476,15 +651,21 @@ def test_frontend_brace_expansion_class_covers_all_lock_variants() -> None:
 def test_frontend_brace_expansion_class_reconciles_surfaces_and_transitions() -> None:
     """Derive A, partition I_R/C_R, and enforce P over all cutoff candidates."""
 
-    base_package = _brace_expansion_manifest_snapshot(BRACE_EXPANSION_BASE_OUTPUTS)
-    base_lock = {"packages": BRACE_EXPANSION_LOCK_SNAPSHOTS["base"]}
+    base_package, base_lock = _load_exact_base_frontend_documents()
     head_package = _load_json(FRONTEND_PACKAGE_JSON)
     head_lock = _load_json(FRONTEND_LOCK_JSON)
+    _assert_exact_brace_expansion_json_delta(
+        base_package=base_package,
+        head_package=head_package,
+        base_lock=base_lock,
+        head_lock=head_lock,
+    )
 
     base_overrides = _find_override_key_paths(base_package["overrides"], target="brace-expansion")
     head_overrides = _find_override_key_paths(head_package["overrides"], target="brace-expansion")
-    base_entries = _discover_brace_expansion_lock_entries(base_lock["packages"])
+    raw_base_entries = _discover_brace_expansion_lock_entries(base_lock["packages"])
     raw_head_entries = _discover_brace_expansion_lock_entries(head_lock["packages"])
+    base_entries = _normalize_brace_expansion_lock_entries(raw_base_entries)
     head_entries = _normalize_brace_expansion_lock_entries(raw_head_entries)
 
     base_surfaces = {
@@ -542,33 +723,143 @@ def test_frontend_brace_expansion_class_reconciles_surfaces_and_transitions() ->
     assert intent_transitions == expected_intent_transitions
     assert all(base != head for _, base, head in intent_transitions)
 
-    expected_solver_closure = _lock_field_transitions(
-        BRACE_EXPANSION_LOCK_SNAPSHOTS["base"],
-        BRACE_EXPANSION_LOCK_SNAPSHOTS["head"],
-    )
-    actual_solver_closure = _lock_field_transitions(base_entries, head_entries)
-    assert actual_solver_closure == expected_solver_closure
-    assert {(path, field) for path, field, _, _ in actual_solver_closure} == {
-        (BRACE_EXPANSION_LOCK_PATHS[2], "version"),
-        (BRACE_EXPANSION_LOCK_PATHS[2], "resolved"),
-        (BRACE_EXPANSION_LOCK_PATHS[2], "integrity_sha256"),
-        (BRACE_EXPANSION_LOCK_PATHS[5], "version"),
-        (BRACE_EXPANSION_LOCK_PATHS[5], "resolved"),
-        (BRACE_EXPANSION_LOCK_PATHS[5], "integrity_sha256"),
-        (BRACE_EXPANSION_LOCK_PATHS[5], "engines"),
-    }
-
 
 def test_brace_expansion_is_absent_from_other_repo_npm_surfaces() -> None:
     """The frontend class must not silently absorb another repository npm graph."""
 
-    surfaces = _enumerate_repo_npm_surfaces()
-    assert surfaces == EXPECTED_REPO_NPM_SURFACES
-    for relative in surfaces - {"frontend/package.json", "frontend/package-lock.json"}:
-        document = _load_json(REPO_ROOT / relative)
-        assert not _find_override_key_paths(
-            document, target="brace-expansion"
-        ), f"{relative}: brace-expansion belongs to a separate surface/class"
+    base_surfaces = _enumerate_repo_npm_surfaces_at_git_ref(BRACE_EXPANSION_EXACT_BASE)
+    head_surfaces = _enumerate_repo_npm_surfaces()
+    assert base_surfaces == EXPECTED_REPO_NPM_SURFACES
+    assert head_surfaces == EXPECTED_REPO_NPM_SURFACES
+
+    frontend_surfaces = {"frontend/package.json", "frontend/package-lock.json"}
+    for snapshot, surfaces in (("base", base_surfaces), ("head", head_surfaces)):
+        discovered_surfaces: set[str] = set()
+        for relative in surfaces:
+            if snapshot == "base":
+                document, _ = _load_json_at_git_ref(
+                    ref=BRACE_EXPANSION_EXACT_BASE,
+                    relative=relative,
+                )
+            else:
+                document = _load_json(REPO_ROOT / relative)
+            manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
+                relative=relative,
+                document=document,
+            )
+            if manifest_occurrences or lock_entries:
+                discovered_surfaces.add(relative)
+            if relative not in frontend_surfaces:
+                assert not manifest_occurrences, (
+                    f"{snapshot}:{relative}: brace-expansion manifest/override occurrence "
+                    "belongs to a separate surface/class"
+                )
+                assert not lock_entries, (
+                    f"{snapshot}:{relative}: brace-expansion lock occurrence belongs to a "
+                    "separate surface/class"
+                )
+        assert discovered_surfaces == frontend_surfaces
+
+
+def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path) -> None:
+    """Both npm lock basenames must expose lockfile-v3 package occurrences."""
+
+    relative_surfaces = {
+        "graph/package-lock.json",
+        "graph/npm-shrinkwrap.json",
+    }
+    document = {
+        "lockfileVersion": 3,
+        "packages": {"node_modules/brace-expansion": _brace_entry("2.1.3")},
+    }
+    for relative in relative_surfaces:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(document), encoding="utf-8")
+
+    assert _enumerate_repo_npm_surfaces(root=tmp_path) == relative_surfaces
+    for relative in relative_surfaces:
+        _, lock_entries = _discover_brace_expansion_surface_occurrences(
+            relative=relative,
+            document=_load_json(tmp_path / relative),
+        )
+        assert set(lock_entries) == {"node_modules/brace-expansion"}
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "manifest-add",
+        "manifest-remove",
+        "manifest-change",
+        "lock-add",
+        "lock-remove",
+        "lock-change",
+    ),
+)
+def test_brace_expansion_exact_partition_rejects_unrelated_json_delta(case: str) -> None:
+    """Any unrelated add, removal, or change must remain outside I_R/C_R."""
+
+    base_package, base_lock = _load_exact_base_frontend_documents()
+    head_package = deepcopy(_load_json(FRONTEND_PACKAGE_JSON))
+    head_lock = deepcopy(_load_json(FRONTEND_LOCK_JSON))
+
+    if case == "manifest-add":
+        head_package["scripts"]["unrelated-guard-delta"] = "true"
+    elif case == "manifest-remove":
+        del head_package["scripts"]["test"]
+    elif case == "manifest-change":
+        head_package["name"] = "unrelated-guard-delta"
+    elif case == "lock-add":
+        head_lock["packages"][""]["unrelated-guard-delta"] = True
+    elif case == "lock-remove":
+        del head_lock["packages"][""]["name"]
+    elif case == "lock-change":
+        head_lock["lockfileVersion"] = 2
+    else:
+        raise AssertionError(f"unhandled unrelated delta case: {case}")
+
+    expected_message = "two I_R paths" if case.startswith("manifest-") else "seven C_R paths"
+    with pytest.raises(AssertionError, match=expected_message):
+        _assert_exact_brace_expansion_json_delta(
+            base_package=base_package,
+            head_package=head_package,
+            base_lock=base_lock,
+            head_lock=head_lock,
+        )
+
+
+def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
+    """The sole owner must carry the exact finite inventory and replay evidence."""
+
+    _assert_brace_expansion_owner_evidence(
+        BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
+    )
+
+
+@pytest.mark.parametrize("case", ("missing-row", "extra-row", "response-digest"))
+def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: str) -> None:
+    """A changed finite inventory or captured response identity must fail closed."""
+
+    document = BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
+    if case == "missing-row":
+        document = "\n".join(
+            line for line in document.splitlines() if "GHSA-832h-xg76-4gv6" not in line
+        )
+    elif case == "extra-row":
+        marker = "\n\nThe exact non-empty applicable subset"
+        extra = (
+            "\n| [`GHSA-0000-0000-0000`](https://github.com/advisories/"
+            "GHSA-0000-0000-0000) | `<0` | Non-applicable | No governed occurrence |"
+        )
+        document = document.replace(marker, f"{extra}{marker}", 1)
+    elif case == "response-digest":
+        document = document.replace(BRACE_EXPANSION_GAD_RESPONSE_SHA256, "0" * 64, 1)
+    else:
+        raise AssertionError(f"unhandled owner evidence mutation: {case}")
+
+    with pytest.raises(AssertionError):
+        _assert_brace_expansion_owner_evidence(document)
 
 
 def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
@@ -600,6 +891,11 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
         ("traversal", "traversal segments"),
         ("name-alias", "alias/noncanonical installed path"),
         ("url-alias", "alias/noncanonical installed path"),
+        ("schemeless-host-alias", "alias/noncanonical installed path"),
+        ("percent-encoded-path-alias", "alias/noncanonical installed path"),
+        ("double-encoded-path-alias", "alias/noncanonical installed path"),
+        ("dot-segment-path-alias", "alias/noncanonical installed path"),
+        ("backslash-path-alias", "alias/noncanonical installed path"),
         ("query-alias", "alias/noncanonical installed path"),
         ("fragment-alias", "alias/noncanonical installed path"),
         ("params-alias", "alias/noncanonical installed path"),
@@ -612,6 +908,8 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
         ("integrity", "integrity missing"),
         ("manifest-lock", "override target/output set is not approved"),
         ("blanket", "blanket brace-expansion override is forbidden"),
+        ("selector-override", "override target/output set is not approved"),
+        ("empty-selector-override", "override target/output set is not approved"),
     ),
 )
 def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) -> None:
@@ -650,6 +948,34 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         }
     elif case == "url-alias":
         packages["node_modules/url-alias"] = _brace_entry("2.1.3")
+    elif case == "schemeless-host-alias":
+        alias = _brace_entry("2.0.3")
+        alias["resolved"] = "registry.npmjs.org/brace-expansion/-/brace-expansion-2.0.3.tgz"
+        packages["node_modules/schemeless-host-alias"] = alias
+    elif case == "percent-encoded-path-alias":
+        alias = _brace_entry("2.0.3")
+        alias["resolved"] = (
+            "https://registry.npmjs.org/%62race-expansion/-/" "brace-expansion-2.0.3.tgz"
+        )
+        packages["node_modules/percent-encoded-path-alias"] = alias
+    elif case == "double-encoded-path-alias":
+        alias = _brace_entry("2.0.3")
+        alias["resolved"] = (
+            "https://registry.npmjs.org/%2562race-expansion/-/" "brace-expansion-2.0.3.tgz"
+        )
+        packages["node_modules/double-encoded-path-alias"] = alias
+    elif case == "dot-segment-path-alias":
+        alias = _brace_entry("2.0.3")
+        alias["resolved"] = (
+            "https://registry.npmjs.org/other/../brace-expansion/-/" "brace-expansion-2.0.3.tgz"
+        )
+        packages["node_modules/dot-segment-path-alias"] = alias
+    elif case == "backslash-path-alias":
+        alias = _brace_entry("2.0.3")
+        alias["resolved"] = (
+            "https://registry.npmjs.org/other%5c..%5cbrace-expansion/-/" "brace-expansion-2.0.3.tgz"
+        )
+        packages["node_modules/backslash-path-alias"] = alias
     elif case in {
         "query-alias",
         "fragment-alias",
@@ -685,6 +1011,10 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4"
     elif case == "blanket":
         package_json["overrides"]["brace-expansion"] = "5.0.8"
+    elif case == "selector-override":
+        package_json["overrides"]["brace-expansion@<2.1.3"] = "2.1.3"
+    elif case == "empty-selector-override":
+        package_json["overrides"]["brace-expansion@"] = "2.1.3"
     else:
         raise AssertionError(f"unhandled brace-expansion falsification case: {case}")
 
