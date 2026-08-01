@@ -510,6 +510,18 @@ def _normalize_advisory_range_text(value: object) -> str:
     return normalized
 
 
+def _reject_duplicate_brace_expansion_receipt_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    """Reject ambiguous JSON objects before canonical receipt hashing."""
+
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        assert key not in result, f"owner evidence receipt duplicate JSON key: {key}"
+        result[key] = value
+    return result
+
+
 def _extract_brace_expansion_evidence_receipt(document: str) -> dict[str, object]:
     assert (
         document.count(BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN) == 1
@@ -527,7 +539,10 @@ def _extract_brace_expansion_evidence_receipt(document: str) -> dict[str, object
         flags=re.DOTALL,
     )
     assert match is not None, "owner evidence receipt fence missing or malformed"
-    receipt = json.loads(match.group("payload"))
+    receipt = json.loads(
+        match.group("payload"),
+        object_pairs_hook=_reject_duplicate_brace_expansion_receipt_keys,
+    )
     assert isinstance(receipt, dict), "owner evidence receipt must be a JSON object"
 
     digest_matches = re.findall(
@@ -730,24 +745,40 @@ def _assert_brace_expansion_owner_evidence(
         applicable_marker,
         maxsplit=1,
     )[0]
-    advisory_rows = re.findall(
-        r"^\| \[`(GHSA-[a-z0-9-]+)`\]\(",
-        inventory,
-        flags=re.MULTILINE,
+    inventory_lines = inventory.strip().splitlines()
+    expected_header = (
+        "| Advisory | Affected ranges relevant to the database record | "
+        "Base disposition | Universal head evidence |"
     )
+    expected_separator = "| --- | --- | --- | --- |"
+    assert (
+        len(inventory_lines) == len(BRACE_EXPANSION_CUTOFF_ADVISORIES) + 2
+    ), "owner evidence F_cutoff table cardinality drift"
+    assert inventory_lines[0] == expected_header, "owner evidence F_cutoff header drift"
+    assert inventory_lines[1] == expected_separator, "owner evidence F_cutoff separator drift"
+    row_pattern = re.compile(
+        r"^\| \[`(?P<advisory>GHSA-[a-z0-9-]+)`\]\((?P<href>[^)\n]+)\)"
+        r" / `(?P<cve>CVE-\d{4}-\d+)` \| (?P<ranges>[^|]+) \|"
+        r" (?P<disposition>[^|]+) \| (?P<head_evidence>[^|]+) \|$"
+    )
+    table_rows: list[tuple[str, str, str, str, str]] = []
+    for index, rendered_row in enumerate(inventory_lines[2:], start=1):
+        row_match = row_pattern.fullmatch(rendered_row)
+        assert row_match is not None, f"owner evidence F_cutoff row {index} parse drift"
+        table_rows.append(
+            (
+                row_match.group("advisory"),
+                row_match.group("href"),
+                row_match.group("cve"),
+                row_match.group("ranges"),
+                row_match.group("disposition"),
+            )
+        )
+    advisory_rows = [advisory for advisory, *_ in table_rows]
     assert len(advisory_rows) == len(set(advisory_rows)), "duplicate F_cutoff advisory row"
     assert (
         frozenset(advisory_rows) == BRACE_EXPANSION_CUTOFF_ADVISORIES
     ), "owner evidence F_cutoff inventory does not match the executable inventory"
-
-    table_rows = re.findall(
-        r"^\| \[`(?P<advisory>GHSA-[a-z0-9-]+)`\]\((?P<href>[^)\n]+)\)"
-        r" / `(?P<cve>CVE-\d{4}-\d+)` \| (?P<ranges>[^|]+) \|"
-        r" (?P<disposition>[^|]+) \|",
-        inventory,
-        flags=re.MULTILINE,
-    )
-    assert len(table_rows) == len(advisory_rows), "owner evidence F_cutoff row parse drift"
     parsed_ranges: dict[str, tuple[str, ...]] = {}
     parsed_applicable: set[str] = set()
     for advisory, href, cve, range_cell, disposition in table_rows:
@@ -778,19 +809,38 @@ def _assert_brace_expansion_owner_evidence(
     ), "owner evidence table applicability does not match the executable subset"
 
     applicable_section = document.split(applicable_marker, maxsplit=1)[1]
-    applicable_match = re.search(
-        r"```text\s+A = \{(?P<body>.*?)\}\s+```",
+    assert applicable_section.count("A = {") == 1, "owner evidence A block count drift"
+    applicable_blocks = re.findall(
+        r"```text\nA = \{\n(?P<body>.*?)\n\}\n```",
         applicable_section,
         flags=re.DOTALL,
     )
-    assert applicable_match is not None, "owner evidence A block missing or malformed"
-    applicable_rows = re.findall(r"GHSA-[a-z0-9-]+", applicable_match.group("body"))
+    assert len(applicable_blocks) == 1, "owner evidence A block missing or malformed"
+    applicable_lines = applicable_blocks[0].splitlines()
+    assert applicable_lines, "owner evidence A block must not be empty"
+    applicable_rows: list[str] = []
+    for index, line in enumerate(applicable_lines):
+        suffix = "," if index < len(applicable_lines) - 1 else ""
+        row_match = re.fullmatch(rf"  (GHSA-[a-z0-9-]+){re.escape(suffix)}", line)
+        assert row_match is not None, f"owner evidence A row {index + 1} parse drift"
+        applicable_rows.append(row_match.group(1))
     assert len(applicable_rows) == len(set(applicable_rows)), "duplicate owner evidence A row"
     assert (
         frozenset(applicable_rows) == BRACE_EXPANSION_APPLICABLE_ADVISORIES
     ), "owner evidence A block does not match the executable subset"
 
-    normalized = re.sub(r"\s+", " ", document)
+    normalized = re.sub(r"\s+", " ", document).strip()
+    canonical_negative_audit_claim = (
+        "That bounded absence is not an overall audit PASS and does not claim zero "
+        "vulnerabilities."
+    )
+    contradictory_positive_audit_claim = "Overall audit PASS: zero vulnerabilities."
+    assert (
+        normalized.count(canonical_negative_audit_claim) == 1
+    ), "owner evidence canonical negative audit claim drift"
+    assert (
+        contradictory_positive_audit_claim not in normalized
+    ), "owner evidence contradictory positive audit claim"
     assert "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100" in document
     assert f"Cutoff: `{BRACE_EXPANSION_GAD_CUTOFF}`" in document
     assert "response contained exactly six records and no next page" in normalized
@@ -820,8 +870,8 @@ def _assert_brace_expansion_owner_evidence(
         f"`{base_audit['total']}` total findings, and reported `brace-expansion` through "
         f"`{base_advisories[0]}` and `{base_advisories[1]}`. The proposed-head command also "
         f"exited `{head_audit['exit_code']}`, reported `{head_audit['total']}` unrelated "
-        "findings, and returned no `brace-expansion` vulnerability key. That bounded absence "
-        "is not an overall audit PASS and does not claim zero vulnerabilities."
+        "findings, and returned no `brace-expansion` vulnerability key. "
+        f"{canonical_negative_audit_claim}"
     )
     assert (
         re.sub(r"\s+", " ", audit_section).strip() == expected_audit_section
@@ -1273,6 +1323,53 @@ def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
             for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
         },
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "nested-duplicate-receipt-key",
+        "malformed-extra-fcutoff-row",
+        "second-applicable-block",
+        "global-positive-audit-claim",
+    ),
+)
+def test_brace_expansion_owner_evidence_rejects_ambiguous_carriers(case: str) -> None:
+    """Every rendered security carrier must be unique and exhaustively parsed."""
+
+    document = BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
+    if case == "nested-duplicate-receipt-key":
+        document = document.replace(
+            '    "node": "v24.16.0",',
+            '    "node": "v0.0.0",\n    "node": "v24.16.0",',
+            1,
+        )
+    elif case == "malformed-extra-fcutoff-row":
+        marker = "\n\nThe exact non-empty applicable subset"
+        extra = (
+            "\n| Supplemental advisory note | no affected range | "
+            "Non-applicable | not canonical evidence |"
+        )
+        document = document.replace(marker, f"{extra}{marker}", 1)
+    elif case == "second-applicable-block":
+        marker = "```\n\nOnly these two candidates"
+        duplicate = (
+            "```\n\n```text\nA = {\n  GHSA-f886-m6hf-6m8v\n}\n```" "\n\nOnly these two candidates"
+        )
+        document = document.replace(marker, duplicate, 1)
+    elif case == "global-positive-audit-claim":
+        document += "\nOverall audit PASS: zero vulnerabilities.\n"
+    else:
+        raise AssertionError(f"unhandled ambiguous carrier case: {case}")
+
+    with pytest.raises(AssertionError):
+        _assert_brace_expansion_owner_evidence(
+            document,
+            head_artifact_blobs={
+                relative: (REPO_ROOT / relative).read_bytes()
+                for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
+            },
+        )
 
 
 @pytest.mark.parametrize(
