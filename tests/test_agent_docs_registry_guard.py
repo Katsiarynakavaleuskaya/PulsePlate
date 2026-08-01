@@ -12,9 +12,12 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+from markdown_it import MarkdownIt
+from markdown_it.token import Token
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,6 +29,25 @@ SECURITY_PARENT_START = "## Security: Unfixed Distro CVE Policy"
 SECURITY_PARENT_END = "## CI: GitHub Container Registry (GHCR) Policy"
 ADMISSION_AUTHORITY_START = "<!-- dependency-remediation-admission:v1:start -->"
 ADMISSION_AUTHORITY_END = "<!-- dependency-remediation-admission:v1:end -->"
+EVIDENCE_STATUS_START = "<!-- dependency-remediation-evidence-status:v1:start -->"
+EVIDENCE_STATUS_END = "<!-- dependency-remediation-evidence-status:v1:end -->"
+HISTORICAL_EVIDENCE_PATH = (
+    "docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md"
+)
+
+APPLICATION_POLICY_TEXT = "Security: Dependency CVE bumps (application deps):"
+LESSON_33_TEXT = LESSON_33_HEADING.removeprefix("## ")
+LESSON_33_END_TEXT = LESSON_33_END.removeprefix("## ")
+SECURITY_PARENT_TEXT = SECURITY_PARENT_START.removeprefix("## ")
+SECURITY_PARENT_END_TEXT = SECURITY_PARENT_END.removeprefix("## ")
+
+_MARKDOWN = MarkdownIt(
+    "commonmark",
+    {
+        "html": True,
+        "xhtmlOut": True,
+    },
+)
 
 
 @dataclass(frozen=True)
@@ -45,6 +67,267 @@ def _normalized_line_endings(document: str) -> str:
 def _platform_lines(document: str) -> list[str]:
     """Split only on CommonMark/platform endings: LF, CRLF, and lone CR."""
     return _normalized_line_endings(document).split("\n")
+
+
+@dataclass(frozen=True)
+class MarkdownSpan:
+    start: int
+    stop: int
+
+
+@dataclass
+class _RenderedCapture:
+    tag: str
+    parents: tuple[str, ...]
+    parts: list[str]
+
+
+_HTML_VOID_ELEMENTS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+
+
+class _RenderedAncestryProbe(HTMLParser):
+    """Record rendered target ancestry without requiring unrelated XHTML validity."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[str] = []
+        self.captures: list[_RenderedCapture] = []
+        self.nodes: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+            "h2": [],
+            "strong": [],
+        }
+        self.comments: list[tuple[str, tuple[str, ...]]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del attrs
+        tag = tag.lower()
+        if tag in {"h1", "h2", "h3", "h4", "h5", "h6", "p"} and self.stack[-1:] == ["p"]:
+            self.stack.pop()
+        if tag in self.nodes:
+            self.captures.append(_RenderedCapture(tag, tuple(self.stack), []))
+        if tag not in _HTML_VOID_ELEMENTS:
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        for index in range(len(self.captures) - 1, -1, -1):
+            capture = self.captures[index]
+            if capture.tag == tag:
+                del self.captures[index]
+                self.nodes[tag].append(("".join(capture.parts), capture.parents))
+                break
+        if tag in self.stack:
+            index = len(self.stack) - 1 - self.stack[::-1].index(tag)
+            del self.stack[index:]
+
+    def handle_data(self, data: str) -> None:
+        for capture in self.captures:
+            capture.parts.append(data)
+
+    def handle_comment(self, data: str) -> None:
+        self.comments.append((data, tuple(self.stack)))
+
+
+def _token_source(lines: list[str], token: Token) -> str:
+    assert token.map is not None
+    start, stop = token.map
+    return "\n".join(lines[start:stop])
+
+
+def _unique_top_level_block(
+    tokens: list[Token],
+    lines: list[str],
+    *,
+    token_type: str,
+    source: str,
+    tag: str | None = None,
+    markup: str | None = None,
+) -> MarkdownSpan:
+    matches = [
+        index
+        for index, token in enumerate(tokens)
+        if token.type == token_type
+        and token.level == 0
+        and token.map is not None
+        and (tag is None or token.tag == tag)
+        and (markup is None or token.markup == markup)
+        and _token_source(lines, token) == source
+    ]
+    assert len(matches) == 1, f"Expected one exact top-level Markdown block {source!r}"
+    index = matches[0]
+    if token_type in {"heading_open", "paragraph_open"}:
+        expected_close = token_type.removesuffix("_open") + "_close"
+        assert tokens[index + 2].type == expected_close
+        return MarkdownSpan(index, index + 3)
+    return MarkdownSpan(index, index + 1)
+
+
+def _unique_top_level_json_triplet(
+    tokens: list[Token],
+    lines: list[str],
+    *,
+    start_marker: str,
+    end_marker: str,
+) -> MarkdownSpan:
+    start = _unique_top_level_block(
+        tokens,
+        lines,
+        token_type="html_block",
+        source=start_marker,
+    )
+    end = _unique_top_level_block(
+        tokens,
+        lines,
+        token_type="html_block",
+        source=end_marker,
+    )
+    assert end.start == start.stop + 1
+    fence = tokens[start.stop]
+    assert fence.type == "fence"
+    assert fence.level == 0
+    assert fence.markup == "```"
+    assert fence.info.strip() == "json"
+    assert fence.map is not None
+    fence_lines = _token_source(lines, fence).splitlines()
+    assert fence_lines[0] == "```json"
+    assert fence_lines[-1] == "```"
+    assert tokens[start.start].map is not None
+    assert tokens[end.start].map is not None
+    assert tokens[start.start].map[1] == fence.map[0]
+    assert fence.map[1] == tokens[end.start].map[0]
+    return MarkdownSpan(start.start, end.stop)
+
+
+def _assert_next_top_level_section_heading(
+    tokens: list[Token], *, start_index: int, expected_index: int
+) -> None:
+    peer_indices = [
+        index
+        for index, token in enumerate(tokens)
+        if token.type == "heading_open" and token.level == 0 and token.tag in {"h1", "h2"}
+    ]
+    later_peers = [index for index in peer_indices if index > start_index]
+    assert later_peers and later_peers[0] == expected_index
+
+
+def _assert_rendered_root_targets(
+    tokens: list[Token],
+    *,
+    through: int,
+    h2_texts: tuple[str, ...] = (),
+    strong_texts: tuple[str, ...] = (),
+    comment_markers: tuple[str, ...] = (),
+) -> None:
+    rendered = _MARKDOWN.renderer.render(tokens[:through], _MARKDOWN.options, {})
+    probe = _RenderedAncestryProbe()
+    probe.feed(rendered)
+    probe.close()
+    for text in h2_texts:
+        matches = [parents for content, parents in probe.nodes["h2"] if content == text]
+        assert matches == [()], f"Rendered H2 {text!r} is not one direct-root node"
+    for text in strong_texts:
+        matches = [parents for content, parents in probe.nodes["strong"] if content == text]
+        assert matches == [("p",)], f"Rendered strong block {text!r} is not in one root paragraph"
+    for marker in comment_markers:
+        content = marker.removeprefix("<!--").removesuffix("-->")
+        matches = [parents for comment, parents in probe.comments if comment == content]
+        assert matches == [()], f"Rendered marker {marker!r} is not one direct-root comment"
+
+
+def _assert_dependency_policy_markdown_structure(agents_md: str, lessons_md: str) -> None:
+    """Prove canonical policy anchors are exact top-level blocks outside HTML ancestors."""
+    agents_lines = _platform_lines(agents_md)
+    lesson_lines = _platform_lines(lessons_md)
+    agents_tokens = _MARKDOWN.parse("\n".join(agents_lines))
+    lesson_tokens = _MARKDOWN.parse("\n".join(lesson_lines))
+
+    security = _unique_top_level_block(
+        agents_tokens,
+        agents_lines,
+        token_type="heading_open",
+        tag="h2",
+        markup="##",
+        source=SECURITY_PARENT_START,
+    )
+    application = _unique_top_level_block(
+        agents_tokens,
+        agents_lines,
+        token_type="paragraph_open",
+        tag="p",
+        source=APPLICATION_POLICY_HEADING,
+    )
+    authority = _unique_top_level_json_triplet(
+        agents_tokens,
+        agents_lines,
+        start_marker=ADMISSION_AUTHORITY_START,
+        end_marker=ADMISSION_AUTHORITY_END,
+    )
+    security_end = _unique_top_level_block(
+        agents_tokens,
+        agents_lines,
+        token_type="heading_open",
+        tag="h2",
+        markup="##",
+        source=SECURITY_PARENT_END,
+    )
+    assert security.start < application.start < authority.start < security_end.start
+    _assert_next_top_level_section_heading(
+        agents_tokens,
+        start_index=security.start,
+        expected_index=security_end.start,
+    )
+    _assert_rendered_root_targets(
+        agents_tokens,
+        through=security_end.stop,
+        h2_texts=(SECURITY_PARENT_TEXT, SECURITY_PARENT_END_TEXT),
+        strong_texts=(APPLICATION_POLICY_TEXT,),
+        comment_markers=(ADMISSION_AUTHORITY_START, ADMISSION_AUTHORITY_END),
+    )
+
+    lesson = _unique_top_level_block(
+        lesson_tokens,
+        lesson_lines,
+        token_type="heading_open",
+        tag="h2",
+        markup="##",
+        source=LESSON_33_HEADING,
+    )
+    lesson_end = _unique_top_level_block(
+        lesson_tokens,
+        lesson_lines,
+        token_type="heading_open",
+        tag="h2",
+        markup="##",
+        source=LESSON_33_END,
+    )
+    assert lesson.start < lesson_end.start
+    _assert_next_top_level_section_heading(
+        lesson_tokens,
+        start_index=lesson.start,
+        expected_index=lesson_end.start,
+    )
+    _assert_rendered_root_targets(
+        lesson_tokens,
+        through=lesson_end.stop,
+        h2_texts=(LESSON_33_TEXT, LESSON_33_END_TEXT),
+    )
 
 
 def _exact_bounded_section(document: str, *, start_line: str, end_line: str) -> str:
@@ -92,21 +375,57 @@ def _extract_dependency_security_sections(agents_md: str, lessons_md: str) -> tu
 # Only platform line-ending differences are normalized. A reviewed normative change
 # must update its document and this digest together.
 _EXPECTED_SECTION_DIGESTS = {
-    "AGENTS Security parent region": "cc77f1d0b53a2197f12f3f8e72bec4cb307c4143bb0e6be8a95b5d7995433b51",  # pragma: allowlist secret
-    "engineering lesson 33": "d101cb0600e173857767abc6ff79d142e35a6e99a2f77bd077f9efa3eb7cec1a",  # pragma: allowlist secret
+    "AGENTS Security parent region": "998fbc1bb5d031325cbdf2604d4ffd28f2fc2b5fe51c6c7c3c8269a68b379942",  # pragma: allowlist secret
+    "engineering lesson 33": "891140735ce88ce3d559178d11f554df62289cf2aab5ad1fbf78aafb1023a77a",  # pragma: allowlist secret
 }
 _EXPECTED_ADMISSION_AUTHORITY = {
     "schema": "pulseplate.dependency_remediation_admission.v1",
     "dependency_identities": 1,
     "ecosystems": 1,
-    "surfaces": "complete_mechanically_enumerated",
-    "advisory_inventory": "finite_reconciled_at_recorded_cutoff",
-    "occurrences": "all_resolved_outside_each_affected_range_or_executable_absence",
-    "unparseable_or_unresolved": "fail",
+    "remediation_action_classes": 1,
+    "remediation_action_domain": (
+        "declared_operator_intent_transitions_not_raw_resolver_occurrence_delta"
+    ),
+    "remediation_action_relation": (
+        "uniform_non_identity_same_authored_operation_kind_and_semantic_intent"
+    ),
+    "operator_intent_delta": "non_empty",
+    "literal_target_versions": "parameters_not_classes",
+    "material_transition_partition": (
+        "exactly_one_of_operator_intent_or_deterministic_solver_closure"
+    ),
+    "solver_closure": ("exact_canonical_replay_from_exact_base_using_only_single_operator_intent"),
+    "solver_closure_transition_shapes": "mixed_presence_shapes_allowed",
+    "solver_closure_independent_intent": "forbidden",
+    "manual_unclassified_or_unreplayable_delta": "fail",
+    "aggregate_goal_is_postcondition_not_intent": True,
+    "surfaces": "non_empty_complete_mechanically_enumerated_base_and_head",
+    "candidate_advisory_inventory": "finite_reconciled_at_recorded_cutoff",
+    "applicable_advisory_inventory": (
+        "non_empty_exactly_all_candidates_with_affected_comparable_base_witness"
+    ),
+    "advisory_applicability_quantifier": (
+        "for_every_advisory_exists_affected_comparable_governed_base_occurrence"
+    ),
+    "non_applicable_candidates": "independently_dispositioned_with_evidence",
+    "disposition_only_lane": (
+        "separate_when_inventory_empty_or_no_applicable_affected_base_occurrence_"
+        "no_mutation_or_remediation_claim"
+    ),
+    "occurrences": ("all_head_resolved_outside_each_affected_range_or_executable_absence"),
+    "base_only_surfaces": "reconciled_by_operator_intent_or_solver_closure_or_fail",
+    "unparseable_unresolved_or_unclassified": "fail",
     "same_floor_required": False,
     "evidence_owner": "exactly_one_docs_security_document",
     "per_advisory_evidence": "required",
     "suppression_may_mix": False,
+}
+_EXPECTED_HISTORICAL_EVIDENCE_STATUS = {
+    "schema": "pulseplate.dependency_remediation_evidence_status.v1",
+    "evidence_status": "historical",
+    "current_scoping_authority": False,
+    "future_multi_dependency_batching_authority": False,
+    "current_authority_ref": "AGENTS.md::dependency-remediation-admission:v1",
 }
 
 
@@ -165,6 +484,49 @@ def _parse_dependency_remediation_authority(
     return parsed
 
 
+def _parse_historical_evidence_status(document: str) -> dict[str, object]:
+    status_block = _exact_bounded_section(
+        document,
+        start_line=EVIDENCE_STATUS_START,
+        end_line=EVIDENCE_STATUS_END,
+    )
+    assert ADMISSION_AUTHORITY_START not in document
+    assert ADMISSION_AUTHORITY_END not in document
+    assert status_block.startswith("```json\n")
+    assert status_block.endswith("\n```")
+    payload = status_block.removeprefix("```json\n").removesuffix("\n```")
+    try:
+        parsed = json.loads(payload, object_pairs_hook=_reject_duplicate_json_keys)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise AssertionError(f"Historical evidence status contains invalid JSON: {exc}") from exc
+    assert isinstance(parsed, dict)
+    assert set(parsed) == set(_EXPECTED_HISTORICAL_EVIDENCE_STATUS)
+    for key, expected in _EXPECTED_HISTORICAL_EVIDENCE_STATUS.items():
+        actual = parsed[key]
+        assert type(actual) is type(expected)
+        assert actual == expected
+    return parsed
+
+
+def _validate_historical_evidence_status(document: str) -> None:
+    parsed = _parse_historical_evidence_status(document)
+    assert parsed == _EXPECTED_HISTORICAL_EVIDENCE_STATUS
+
+    lines = _platform_lines(document)
+    tokens = _MARKDOWN.parse("\n".join(lines))
+    status = _unique_top_level_json_triplet(
+        tokens,
+        lines,
+        start_marker=EVIDENCE_STATUS_START,
+        end_marker=EVIDENCE_STATUS_END,
+    )
+    _assert_rendered_root_targets(
+        tokens,
+        through=status.stop,
+        comment_markers=(EVIDENCE_STATUS_START, EVIDENCE_STATUS_END),
+    )
+
+
 def _validate_dependency_security_policy(agents_md: str, lessons_md: str) -> None:
     """Validate the structured authority and its closed, content-bound parent regions."""
     remediation, lesson, security_parent = _extract_dependency_security_sections(
@@ -186,6 +548,7 @@ def _validate_dependency_security_policy(agents_md: str, lessons_md: str) -> Non
             f"{section_name} changed outside the exact reviewed canonical block; "
             f"expected {_EXPECTED_SECTION_DIGESTS[section_name]}, got {actual_digest}"
         )
+    _assert_dependency_policy_markdown_structure(agents_md, lessons_md)
 
 
 def _rel(path: Path) -> str:
@@ -380,49 +743,44 @@ _SUPPRESSION_MUTATIONS = (
     ),
 )
 _AUTHORITY_FIELD_MUTATIONS = (
+    pytest.param("schema", "pulseplate.dependency_remediation_admission.v2", id="schema"),
+    pytest.param("dependency_identities", 2, id="plural-D"),
+    pytest.param("ecosystems", 2, id="plural-ecosystems"),
+    pytest.param("remediation_action_classes", 0, id="missing-R"),
+    pytest.param("remediation_action_classes", 2, id="plural-R"),
+    pytest.param("remediation_action_domain", "raw_resolver_occurrence_delta", id="raw-delta-R"),
+    pytest.param("remediation_action_relation", "aggregate_goal_make_safe", id="goal-as-R"),
+    pytest.param("operator_intent_delta", "empty_allowed", id="identity-no-op-R"),
+    pytest.param("literal_target_versions", "different_classes", id="target-variant-split"),
+    pytest.param("material_transition_partition", "unclassified_allowed", id="partial-delta"),
+    pytest.param("solver_closure", "unreplayed_claim", id="unreplayed-closure"),
     pytest.param(
-        "pulseplate.dependency_remediation_admission.v1",
-        "pulseplate.dependency_remediation_admission.v2",
-        id="wrong-schema",
+        "solver_closure_transition_shapes",
+        "uniform_presence_shape_required",
+        id="solver-shape-deadlock",
     ),
-    pytest.param('"dependency_identities": 1', '"dependency_identities": 2', id="plural-D"),
-    pytest.param('"ecosystems": 1', '"ecosystems": 2', id="plural-ecosystems"),
+    pytest.param("solver_closure_independent_intent", "allowed", id="second-intent-escape"),
+    pytest.param("manual_unclassified_or_unreplayable_delta", "allow", id="manual-delta"),
+    pytest.param("aggregate_goal_is_postcondition_not_intent", False, id="goal-as-intent"),
+    pytest.param("surfaces", "empty_base_and_head", id="empty-S"),
+    pytest.param("surfaces", "representative_sample", id="partial-S"),
+    pytest.param("surfaces", "head_only", id="missing-base-S"),
+    pytest.param("candidate_advisory_inventory", "unreconciled", id="unreconciled-candidates"),
+    pytest.param("applicable_advisory_inventory", "empty_allowed", id="empty-A"),
     pytest.param(
-        '"surfaces": "complete_mechanically_enumerated"',
-        '"surfaces": "representative_sample"',
-        id="partial-surfaces",
+        "advisory_applicability_quantifier",
+        "exists_one_advisory_with_affected_base",
+        id="existential-A",
     ),
-    pytest.param(
-        '"advisory_inventory": "finite_reconciled_at_recorded_cutoff"',
-        '"advisory_inventory": "declared_without_reconciliation"',
-        id="unreconciled-inventory",
-    ),
-    pytest.param(
-        '"occurrences": "all_resolved_outside_each_affected_range_or_executable_absence"',
-        '"occurrences": "one_representative_resolution"',
-        id="partial-occurrences",
-    ),
-    pytest.param(
-        '"unparseable_or_unresolved": "fail"',
-        '"unparseable_or_unresolved": "allow"',
-        id="allow-unresolved",
-    ),
-    pytest.param('"same_floor_required": false', '"same_floor_required": true', id="same-floor"),
-    pytest.param(
-        '"evidence_owner": "exactly_one_docs_security_document"',
-        '"evidence_owner": "pr_body_or_issue"',
-        id="evidence-owner-escape",
-    ),
-    pytest.param(
-        '"per_advisory_evidence": "required"',
-        '"per_advisory_evidence": "shared_aggregate"',
-        id="shared-evidence",
-    ),
-    pytest.param(
-        '"suppression_may_mix": false',
-        '"suppression_may_mix": true',
-        id="mix-suppression",
-    ),
+    pytest.param("non_applicable_candidates", "ignored", id="omitted-disposition"),
+    pytest.param("disposition_only_lane", "may_mutate_or_mix", id="disposition-escape"),
+    pytest.param("occurrences", "one_representative_head_resolution", id="partial-P"),
+    pytest.param("base_only_surfaces", "ignored", id="unreconciled-base-only-S"),
+    pytest.param("unparseable_unresolved_or_unclassified", "allow", id="allow-unresolved"),
+    pytest.param("same_floor_required", True, id="same-floor"),
+    pytest.param("evidence_owner", "pr_body_or_issue", id="evidence-owner"),
+    pytest.param("per_advisory_evidence", "shared_aggregate", id="shared-evidence"),
+    pytest.param("suppression_may_mix", True, id="mix-suppression"),
 )
 _STRICT_JSON_MUTATIONS = (
     pytest.param(
@@ -436,6 +794,24 @@ _STRICT_JSON_MUTATIONS = (
         '"dependency_identities": 1.0',
         r"dependency_identities.*expected int, got float",
         id="identity-float",
+    ),
+    pytest.param(
+        '"remediation_action_classes": 1',
+        '"remediation_action_classes": true',
+        r"remediation_action_classes.*expected int, got bool",
+        id="action-bool",
+    ),
+    pytest.param(
+        '"remediation_action_classes": 1',
+        '"remediation_action_classes": 1.0',
+        r"remediation_action_classes.*expected int, got float",
+        id="action-float",
+    ),
+    pytest.param(
+        '"aggregate_goal_is_postcondition_not_intent": true',
+        '"aggregate_goal_is_postcondition_not_intent": 1',
+        r"aggregate_goal_is_postcondition_not_intent.*expected bool, got int",
+        id="aggregate-goal-int",
     ),
     pytest.param(
         '"same_floor_required": false',
@@ -488,12 +864,6 @@ _MARKER_MUTATIONS = (
         id="duplicate-end",
     ),
 )
-_OUTSIDE_ENGLISH_VARIANTS = (
-    "Sharing the same minimum fixed version does not authorize or justify batching.",
-    "Identical advisory remediation floors are not required for batching.",
-    "Advisories may batch only when they have the same minimum fixed version.",
-    "A common patched release is necessary before advisories can share a PR.",
-)
 _PLATFORM_LINE_ENDINGS = (
     pytest.param("\n", id="lf"),
     pytest.param("\r", id="cr"),
@@ -514,6 +884,38 @@ _PYTHON_ONLY_SEPARATOR_CARRIERS = (
     pytest.param("fence-padding", id="fence-padding"),
     pytest.param("json-field-boundary", id="json-field-boundary"),
 )
+_MARKDOWN_CONTAINER_WRAPPERS = (
+    pytest.param("````markdown\n", "\n````", id="backtick-fence"),
+    pytest.param("~~~~markdown\n", "\n~~~~", id="tilde-fence"),
+    pytest.param("<details>\n\n", "\n\n</details>", id="raw-html-ancestor"),
+)
+_PROTECTED_MARKDOWN_REGIONS = (
+    pytest.param("agents", id="agents-security-parent"),
+    pytest.param("lessons", id="engineering-lesson-33"),
+    pytest.param("historical", id="historical-evidence-status"),
+)
+_HISTORICAL_STATUS_MUTATIONS = (
+    pytest.param(
+        '"evidence_status": "historical"',
+        '"evidence_status": "current"',
+        id="historical-promoted-to-current",
+    ),
+    pytest.param(
+        '"current_scoping_authority": false',
+        '"current_scoping_authority": true',
+        id="historical-claims-current-authority",
+    ),
+    pytest.param(
+        '"future_multi_dependency_batching_authority": false',
+        '"future_multi_dependency_batching_authority": true',
+        id="historical-claims-future-batching-authority",
+    ),
+    pytest.param(
+        '"current_authority_ref": "AGENTS.md::dependency-remediation-admission:v1"',
+        '"current_authority_ref": "this-document"',
+        id="historical-self-authority",
+    ),
+)
 
 
 def _current_dependency_policy_docs() -> tuple[str, str]:
@@ -526,11 +928,42 @@ def _insert_before_unique(document: str, boundary: str, statement: str) -> str:
 
 
 def _replace_unique(document: str, old: str, new: str) -> str:
+    assert old != new
     assert document.count(old) == 1
-    return document.replace(old, new, 1)
+    mutated = document.replace(old, new, 1)
+    assert mutated != document
+    return mutated
 
 
-def test_dependency_security_policy_scopes_remediation_by_dsp_class() -> None:
+def _mutate_authority_value(document: str, key: str, value: object) -> str:
+    block = _exact_bounded_section(
+        document,
+        start_line=ADMISSION_AUTHORITY_START,
+        end_line=ADMISSION_AUTHORITY_END,
+    )
+    payload = block.removeprefix("```json\n").removesuffix("\n```")
+    parsed = json.loads(payload, object_pairs_hook=_reject_duplicate_json_keys)
+    assert isinstance(parsed, dict)
+    assert key in parsed
+    assert parsed[key] != value
+    parsed[key] = value
+    replacement = f"```json\n{json.dumps(parsed, indent=2, ensure_ascii=False)}\n```"
+    return _replace_unique(document, block, replacement)
+
+
+def _wrap_unique_region(
+    document: str,
+    *,
+    start_line: str,
+    end_line: str,
+    opener: str,
+    closer: str,
+) -> str:
+    mutated = _replace_unique(document, start_line, f"{opener}{start_line}")
+    return _replace_unique(mutated, end_line, f"{end_line}{closer}")
+
+
+def test_dependency_security_policy_scopes_remediation_by_invariant_class() -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
     remediation, _lesson, _parent = _extract_dependency_security_sections(agents_md, lessons_md)
     assert (
@@ -538,6 +971,47 @@ def test_dependency_security_policy_scopes_remediation_by_dsp_class() -> None:
         == _EXPECTED_ADMISSION_AUTHORITY
     )
     _validate_dependency_security_policy(agents_md, lessons_md)
+
+
+def test_dependency_security_historical_batch_is_not_current_scope_authority() -> None:
+    _validate_historical_evidence_status(_read(HISTORICAL_EVIDENCE_PATH))
+
+
+@pytest.mark.parametrize(("old", "new"), _HISTORICAL_STATUS_MUTATIONS)
+def test_dependency_security_historical_status_rejects_authority_mutations(
+    old: str, new: str
+) -> None:
+    historical = _read(HISTORICAL_EVIDENCE_PATH)
+    mutated = _replace_unique(historical, old, new)
+    with pytest.raises(AssertionError):
+        _validate_historical_evidence_status(mutated)
+
+
+def test_dependency_security_historical_status_rejects_duplicate_or_extra_authority() -> None:
+    historical = _read(HISTORICAL_EVIDENCE_PATH)
+    duplicate_key = _replace_unique(
+        historical,
+        '"evidence_status": "historical",',
+        '"evidence_status": "current",\n  "evidence_status": "historical",',
+    )
+    with pytest.raises(AssertionError, match="invalid JSON"):
+        _validate_historical_evidence_status(duplicate_key)
+
+    admission_marker = _insert_before_unique(
+        historical,
+        EVIDENCE_STATUS_START,
+        ADMISSION_AUTHORITY_START,
+    )
+    with pytest.raises(AssertionError):
+        _validate_historical_evidence_status(admission_marker)
+
+
+def test_dependency_security_historical_status_ignores_non_ancestor_html() -> None:
+    historical = _read(HISTORICAL_EVIDENCE_PATH)
+    prefix = "<details><summary>Earlier evidence</summary>closed</details>"
+    mutated = _insert_before_unique(historical, "## Summary", prefix)
+    mutated = f"{mutated}\n<div><input disabled>unrelated suffix"
+    _validate_historical_evidence_status(mutated)
 
 
 @pytest.mark.parametrize("line_ending", _PLATFORM_LINE_ENDINGS)
@@ -562,21 +1036,65 @@ def test_dependency_security_policy_preserves_platform_compound_boundaries() -> 
     ]
 
 
+@pytest.mark.parametrize("region", _PROTECTED_MARKDOWN_REGIONS)
+@pytest.mark.parametrize(("opener", "closer"), _MARKDOWN_CONTAINER_WRAPPERS)
+def test_dependency_security_policy_requires_top_level_markdown_structure(
+    region: str,
+    opener: str,
+    closer: str,
+) -> None:
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    if region == "agents":
+        mutated_agents = _wrap_unique_region(
+            agents_md,
+            start_line=SECURITY_PARENT_START,
+            end_line=SECURITY_PARENT_END,
+            opener=opener,
+            closer=closer,
+        )
+        mutated_lessons = lessons_md
+    elif region == "lessons":
+        mutated_agents = agents_md
+        mutated_lessons = _wrap_unique_region(
+            lessons_md,
+            start_line=LESSON_33_HEADING,
+            end_line=LESSON_33_END,
+            opener=opener,
+            closer=closer,
+        )
+    else:
+        historical = _wrap_unique_region(
+            _read(HISTORICAL_EVIDENCE_PATH),
+            start_line=EVIDENCE_STATUS_START,
+            end_line=EVIDENCE_STATUS_END,
+            opener=opener,
+            closer=closer,
+        )
+        with pytest.raises(AssertionError):
+            _validate_historical_evidence_status(historical)
+        return
+
+    with pytest.raises(AssertionError):
+        _validate_dependency_security_policy(mutated_agents, mutated_lessons)
+
+
 @pytest.mark.parametrize("separator", _PYTHON_ONLY_LINE_SEPARATORS)
 def test_dependency_security_policy_rejects_python_only_separator_in_prose(
     separator: str,
 ) -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
     canonical = (
-        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or remediation\n"
-        "  action requires a separate PR."
+        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored\n"
+        "  operation kind/semantic intent in `R` requires a separate PR. Heterogeneous\n"
+        "  occurrence shapes produced by replay-proven `C_R` stay in that PR. A second\n"
+        "  authored action, manual lock adjustment, resolver/configuration change,\n"
+        "  topology redesign, or second dependency objective is not closure."
     )
     mutated = canonical.replace("\n", separator)
+    mutated_agents = _replace_unique(agents_md, canonical, mutated)
 
     with pytest.raises(AssertionError, match="AGENTS Security parent region changed"):
-        _validate_dependency_security_policy(
-            _replace_unique(agents_md, canonical, mutated), lessons_md
-        )
+        _validate_dependency_security_policy(mutated_agents, lessons_md)
 
 
 @pytest.mark.parametrize("separator", _PYTHON_ONLY_LINE_SEPARATORS)
@@ -612,19 +1130,23 @@ def test_dependency_security_policy_rejects_python_only_separator_in_authority(
 def test_dependency_security_policy_rejects_markdown_significant_indentation() -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
     canonical_rule = (
-        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or remediation\n"
-        "  action requires a separate PR."
+        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored\n"
+        "  operation kind/semantic intent in `R` requires a separate PR. Heterogeneous\n"
+        "  occurrence shapes produced by replay-proven `C_R` stay in that PR. A second\n"
+        "  authored action, manual lock adjustment, resolver/configuration change,\n"
+        "  topology redesign, or second dependency objective is not closure."
     )
     indented_rule = (
-        "\n      - **No-batch boundaries:** any difference in `D`, ecosystem, `S`, "
-        "or remediation\n"
-        "        action requires a separate PR."
+        "\n      - **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored\n"
+        "        operation kind/semantic intent in `R` requires a separate PR. Heterogeneous\n"
+        "        occurrence shapes produced by replay-proven `C_R` stay in that PR. A second\n"
+        "        authored action, manual lock adjustment, resolver/configuration change,\n"
+        "        topology redesign, or second dependency objective is not closure."
     )
+    mutated_agents = _replace_unique(agents_md, canonical_rule, indented_rule)
 
     with pytest.raises(AssertionError, match="AGENTS Security parent region changed"):
-        _validate_dependency_security_policy(
-            _replace_unique(agents_md, canonical_rule, indented_rule), lessons_md
-        )
+        _validate_dependency_security_policy(mutated_agents, lessons_md)
 
 
 def test_dependency_security_policy_rejects_lesson_region_change() -> None:
@@ -638,13 +1160,14 @@ def test_dependency_security_policy_rejects_lesson_region_change() -> None:
         _validate_dependency_security_policy(agents_md, mutated)
 
 
-@pytest.mark.parametrize(("old", "new"), _AUTHORITY_FIELD_MUTATIONS)
+@pytest.mark.parametrize(("key", "value"), _AUTHORITY_FIELD_MUTATIONS)
 def test_dependency_security_policy_rejects_structured_authority_mutations(
-    old: str, new: str
+    key: str, value: object
 ) -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
+    mutated_agents = _mutate_authority_value(agents_md, key, value)
     with pytest.raises(AssertionError):
-        _validate_dependency_security_policy(_replace_unique(agents_md, old, new), lessons_md)
+        _validate_dependency_security_policy(mutated_agents, lessons_md)
 
 
 @pytest.mark.parametrize(("old", "new", "diagnostic"), _STRICT_JSON_MUTATIONS)
@@ -662,8 +1185,9 @@ def test_dependency_security_policy_rejects_missing_or_duplicate_authority_marke
     old: str, new: str
 ) -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
+    mutated_agents = _replace_unique(agents_md, old, new)
     with pytest.raises(AssertionError):
-        _validate_dependency_security_policy(_replace_unique(agents_md, old, new), lessons_md)
+        _validate_dependency_security_policy(mutated_agents, lessons_md)
 
 
 def test_dependency_security_policy_rejects_invalid_authority_json() -> None:
@@ -673,22 +1197,22 @@ def test_dependency_security_policy_rejects_invalid_authority_json() -> None:
         _validate_dependency_security_policy(invalid, lessons_md)
 
 
-# English variants are not admission logic. The exact JSON relation is the sole
-# machine-readable authority; parent-region digests close surrounding policy prose.
-@pytest.mark.parametrize("statement", _OUTSIDE_ENGLISH_VARIANTS)
-def test_dependency_security_policy_ignores_english_variants_outside_authority(
-    statement: str,
-) -> None:
+# Prose outside the closed region is not admission logic. The exact JSON relation
+# is the sole machine-readable authority; parent-region digests bind its mirror.
+def test_dependency_security_policy_ignores_non_authority_prose_outside_region() -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
-    _validate_dependency_security_policy(f"{agents_md}\n{statement}", lessons_md)
+    _validate_dependency_security_policy(
+        f"{agents_md}\nUnrelated prose outside the closed policy region.\n",
+        lessons_md,
+    )
 
 
 @pytest.mark.parametrize(("old", "new"), _SUPPRESSION_MUTATIONS)
 def test_dependency_security_policy_preserves_suppression_scope(old: str, new: str) -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
-    assert agents_md.count(old) == 1
+    mutated_agents = _replace_unique(agents_md, old, new)
     with pytest.raises(AssertionError):
-        _validate_dependency_security_policy(agents_md.replace(old, new, 1), lessons_md)
+        _validate_dependency_security_policy(mutated_agents, lessons_md)
 
 
 def test_dependency_security_policy_rejects_fenced_decoy() -> None:

@@ -2148,20 +2148,41 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **Security: Dependency CVE bumps (application deps):**
 
 - **Application-dependency remediation PR unit:** one PR owns exactly one invariant
-  class defined by `D`, `S`, and `P`, evaluated against one finite advisory
-  inventory `A`:
+  class defined by `D`, `S`, `R`, and `P`, evaluated against one non-empty finite
+  advisory inventory `A`:
   - **`D` — ecosystem-qualified dependency identity:** exactly one dependency
     identity in exactly one ecosystem.
-  - **`S` — governed surface universe:** the complete, mechanically enumerated
-    set of all governed manifest and lock surfaces for `D`.
-  - **`A` — declared advisory inventory:** the finite set reconciled from named
-    authoritative inputs at one recorded snapshot or cutoff.
-  - **`P` — remediation postcondition:** for every advisory in `A` and every
-    surface in `S`, the deterministic guard must resolve every governed
-    occurrence of `D` to an advisory-comparable value and prove each value is
-    outside that advisory's affected range, or prove executable absence of `D`
-    for that surface. Any unparseable or unresolved governed occurrence fails
-    `P`.
+  - **`S` — governed surface universe:** independently enumerate the complete
+    governed manifest and lock surfaces for `D` at the exact base (`S_base`) and
+    head (`S_head`). Their union `S = S_base ∪ S_head` must be non-empty, and
+    every base/head surface delta must be reconciled.
+  - **`A` — applicable advisory inventory:** reconcile a finite candidate set
+    `F_cutoff` from named authoritative inputs at one recorded snapshot or
+    cutoff. `A` is exactly the non-empty subset whose every member has at least
+    one comparable governed base occurrence of `D` inside its affected range.
+    Every candidate outside `A` requires an independently evidenced
+    non-applicable disposition.
+  - **`R` — operator-intent remediation class:** let `I_R` be the non-empty set
+    of intent-bearing dependency transitions explicitly authored or authorized
+    to remediate `D`. Exactly one non-identity equivalence class is admitted
+    over `I_R`: every member has the same authored operation kind and semantic
+    intent. Authored replacement and authored removal are different classes;
+    literal target versions may be parameters of one replacement class. Let
+    `C_R` be the deterministic solver closure produced from the exact base by
+    applying only `I_R` with the recorded canonical resolver version,
+    configuration, and command. `C_R` may contain mixed occurrence shapes from
+    mechanically coupled replacement, addition, hoisting, deduplication, or
+    removal, but carries no independent intent or remediation claim. Every
+    material dependency transition must belong to exactly one of `I_R` or
+    replay-proven `C_R`; manual, unclassified, or unreplayable transitions fail
+    admission. An aggregate goal such as "make safe" is `P`, not `R`.
+  - **`P` — remediation postcondition:** after reconciling `S_base` and `S_head`,
+    for every advisory in `A`, the deterministic guard must resolve every
+    governed occurrence of `D` on every `S_head` surface to an
+    advisory-comparable value outside that advisory's affected range, or prove
+    executable absence of `D` for that surface. Every base-only surface must be
+    reconciled under `R`; any unparseable or unresolved head occurrence or
+    unreconciled surface delta fails `P`.
 
 **Machine-readable admission authority:** the uniquely marked JSON block below
 is the single machine-readable application-remediation admission authority.
@@ -2173,10 +2194,26 @@ Surrounding or adjacent prose cannot redefine its fields.
   "schema": "pulseplate.dependency_remediation_admission.v1",
   "dependency_identities": 1,
   "ecosystems": 1,
-  "surfaces": "complete_mechanically_enumerated",
-  "advisory_inventory": "finite_reconciled_at_recorded_cutoff",
-  "occurrences": "all_resolved_outside_each_affected_range_or_executable_absence",
-  "unparseable_or_unresolved": "fail",
+  "remediation_action_classes": 1,
+  "remediation_action_domain": "declared_operator_intent_transitions_not_raw_resolver_occurrence_delta",
+  "remediation_action_relation": "uniform_non_identity_same_authored_operation_kind_and_semantic_intent",
+  "operator_intent_delta": "non_empty",
+  "literal_target_versions": "parameters_not_classes",
+  "material_transition_partition": "exactly_one_of_operator_intent_or_deterministic_solver_closure",
+  "solver_closure": "exact_canonical_replay_from_exact_base_using_only_single_operator_intent",
+  "solver_closure_transition_shapes": "mixed_presence_shapes_allowed",
+  "solver_closure_independent_intent": "forbidden",
+  "manual_unclassified_or_unreplayable_delta": "fail",
+  "aggregate_goal_is_postcondition_not_intent": true,
+  "surfaces": "non_empty_complete_mechanically_enumerated_base_and_head",
+  "candidate_advisory_inventory": "finite_reconciled_at_recorded_cutoff",
+  "applicable_advisory_inventory": "non_empty_exactly_all_candidates_with_affected_comparable_base_witness",
+  "advisory_applicability_quantifier": "for_every_advisory_exists_affected_comparable_governed_base_occurrence",
+  "non_applicable_candidates": "independently_dispositioned_with_evidence",
+  "disposition_only_lane": "separate_when_inventory_empty_or_no_applicable_affected_base_occurrence_no_mutation_or_remediation_claim",
+  "occurrences": "all_head_resolved_outside_each_affected_range_or_executable_absence",
+  "base_only_surfaces": "reconciled_by_operator_intent_or_solver_closure_or_fail",
+  "unparseable_unresolved_or_unclassified": "fail",
   "same_floor_required": false,
   "evidence_owner": "exactly_one_docs_security_document",
   "per_advisory_evidence": "required",
@@ -2186,28 +2223,42 @@ Surrounding or adjacent prose cannot redefine its fields.
 <!-- dependency-remediation-admission:v1:end -->
 
 - **Inventory reconciliation:** canonical evidence must record the named
-  authoritative input or inputs and snapshot or cutoff used for `A`. Every
-  triggering alert and every current scanner/audit finding for `D` at that
-  cutoff must be included in `A` or independently dispositioned as
-  non-applicable with evidence.
-- The finite reconciled `A` bounds `P`; it makes no claim about genuinely
-  undisclosed or future advisories.
+  authoritative input or inputs and snapshot or cutoff used for `F_cutoff`.
+  Every triggering alert and every current scanner/audit finding for `D` at
+  that cutoff must be in `F_cutoff`. A candidate belongs to `A` if and only if
+  at least one comparable governed base occurrence is inside its affected
+  range; every other candidate is independently dispositioned as non-applicable
+  with evidence. `A` must remain non-empty for remediation admission.
+- **Disposition-only lane:** if reconciliation leaves `A` empty or finds no
+  applicable affected base occurrence for `D`, use a separate disposition-only
+  lane. It must not mutate dependency state, claim remediation or `P`, or mix
+  with a non-empty-`A` remediation lane.
+- The non-empty finite reconciled `A` bounds `P`; it makes no claim about
+  genuinely undisclosed or future advisories.
 - Advisory affected ranges and remediation floors may differ. Equality of
   advisory remediation floors is not a batching prerequisite.
 - **Canonical class evidence:** exactly one owner document under `docs/security/`
-  must own each `D`/`S`/`P` class. Supporting stable in-repo artifacts may exist
-  only when linked from that owner document. A PR body, issue, or ledger entry
-  alone cannot replace the owner document.
+  must own each `D`/`S`/`R`/`P` class. Supporting stable in-repo artifacts may
+  exist only when linked from that owner document. A PR body, issue, or ledger
+  entry alone cannot replace the owner document.
 - **Per-advisory evidence:** each declared advisory retains one independently
   auditable record containing its advisory ID, affected range and remediation
-  floor, selected target, authoritative source, governed surfaces,
-  deterministic proof of `P`, and scanner/audit result.
-- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or remediation
-  action requires a separate PR.
-- A dependency security guard test must enumerate the complete `S`, reconcile
-  `A` against its named inputs and cutoff, and enforce `P` deterministically so
-  that an omitted surface, finding, or unresolved occurrence cannot create a
-  false remediation claim.
+  floor, selected target, authoritative source, governed affected base
+  occurrence, governed base/head surfaces, deterministic proof of `I_R`, `C_R`,
+  and `P`, and scanner/audit result.
+- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored
+  operation kind/semantic intent in `R` requires a separate PR. Heterogeneous
+  occurrence shapes produced by replay-proven `C_R` stay in that PR. A second
+  authored action, manual lock adjustment, resolver/configuration change,
+  topology redesign, or second dependency objective is not closure.
+- A dependency security guard test must independently enumerate `S_base` and
+  `S_head`, prove their union is non-empty, reconcile every surface delta,
+  derive `A` exactly from `F_cutoff`, prove an affected comparable base witness
+  for every advisory in `A`, enumerate non-empty `I_R`, partition every material
+  transition exactly once into `I_R` or replay-proven `C_R`, reject independent,
+  manual, unclassified, or unreplayable transitions, and enforce `R` and `P`
+  deterministically so that an omitted surface, finding, transition, or
+  unresolved occurrence cannot create a false remediation claim.
 - **Suppression rail (unchanged):** Trivy, `.trivyignore`,
   `trivy/ignore-policy.rego`, waiver, and unfixed-upstream suppression work
   remains one dedicated security PR per CVE. Suppression must never mix with
