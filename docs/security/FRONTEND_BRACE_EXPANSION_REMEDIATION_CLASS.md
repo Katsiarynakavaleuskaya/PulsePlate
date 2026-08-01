@@ -30,7 +30,7 @@ different `D`, `S`, or `R` boundaries and cannot be batched by this owner.
 ## Frozen material and surface reconciliation
 
 The exact base is commit
-`906049a03d26dcba05d69f46e0eec85861f3ba70`. The base artifacts are bound by:
+`c46a81d5e41e21eb7cfaf23d687e9e239138be8b`. The base artifacts are bound by:
 
 - `frontend/package.json` SHA-256
   `17235b55570d8137d35b54a6d6a7a605cb7eea23f1acf684f842baf06f85c05b`;
