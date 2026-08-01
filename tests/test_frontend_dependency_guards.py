@@ -511,6 +511,8 @@ def _changed_json_paths(
 ) -> set[tuple[str, ...]]:
     """Return every changed JSON path without limiting comparison to the target package."""
 
+    if type(base) is not type(head):
+        return {path}
     if isinstance(base, dict) and isinstance(head, dict):
         changed: set[tuple[str, ...]] = set()
         for key in set(base) | set(head):
@@ -844,6 +846,7 @@ def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path
         "lock-add",
         "lock-remove",
         "lock-change",
+        "lock-type-change",
     ),
 )
 def test_brace_expansion_exact_partition_rejects_unrelated_json_delta(case: str) -> None:
@@ -865,6 +868,8 @@ def test_brace_expansion_exact_partition_rejects_unrelated_json_delta(case: str)
         del head_lock["packages"][""]["name"]
     elif case == "lock-change":
         head_lock["lockfileVersion"] = 2
+    elif case == "lock-type-change":
+        head_lock["packages"]["node_modules/@adobe/css-tools"]["dev"] = 1
     else:
         raise AssertionError(f"unhandled unrelated delta case: {case}")
 
@@ -876,6 +881,20 @@ def test_brace_expansion_exact_partition_rejects_unrelated_json_delta(case: str)
             base_lock=base_lock,
             head_lock=head_lock,
         )
+
+
+@pytest.mark.parametrize(
+    ("base", "head"),
+    (
+        (True, 1),
+        (False, 0),
+        (1, 1.0),
+    ),
+)
+def test_changed_json_paths_is_json_type_sensitive(base: object, head: object) -> None:
+    """Python scalar equality must not hide a changed JSON representation class."""
+
+    assert _changed_json_paths(base, head) == {()}
 
 
 def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
