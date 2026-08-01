@@ -35,12 +35,21 @@ class AgentSpec:
 
 
 def _read(relpath: str) -> str:
-    return (REPO_ROOT / relpath).read_text(encoding="utf-8", errors="replace")
+    return (REPO_ROOT / relpath).read_text(encoding="utf-8")
+
+
+def _normalized_line_endings(document: str) -> str:
+    return document.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _platform_lines(document: str) -> list[str]:
+    """Split only on CommonMark/platform endings: LF, CRLF, and lone CR."""
+    return _normalized_line_endings(document).split("\n")
 
 
 def _exact_bounded_section(document: str, *, start_line: str, end_line: str) -> str:
     """Return content between unique, ordered, exact standalone boundary lines."""
-    lines = document.splitlines()
+    lines = _platform_lines(document)
     start_matches = [index for index, line in enumerate(lines) if line == start_line]
     end_matches = [index for index, line in enumerate(lines) if line == end_line]
 
@@ -101,10 +110,6 @@ _EXPECTED_ADMISSION_AUTHORITY = {
 }
 
 
-def _normalized_line_endings(document: str) -> str:
-    return document.replace("\r\n", "\n").replace("\r", "\n")
-
-
 def _section_digest(document: str) -> str:
     return hashlib.sha256(_normalized_line_endings(document).encode()).hexdigest()
 
@@ -126,10 +131,11 @@ def _parse_dependency_remediation_authority(
         start_line=ADMISSION_AUTHORITY_START,
         end_line=ADMISSION_AUTHORITY_END,
     )
-    assert remediation_section.splitlines().count(ADMISSION_AUTHORITY_START) == 1
-    assert remediation_section.splitlines().count(ADMISSION_AUTHORITY_END) == 1
+    remediation_lines = _platform_lines(remediation_section)
+    assert remediation_lines.count(ADMISSION_AUTHORITY_START) == 1
+    assert remediation_lines.count(ADMISSION_AUTHORITY_END) == 1
 
-    fenced = authority_block.strip()
+    fenced = authority_block
     assert fenced.startswith("```json\n"), "Admission authority must start with exact ```json fence"
     assert fenced.endswith("\n```"), "Admission authority must end with exact ``` fence"
     payload = fenced.removeprefix("```json\n").removesuffix("\n```")
@@ -488,6 +494,26 @@ _OUTSIDE_ENGLISH_VARIANTS = (
     "Advisories may batch only when they have the same minimum fixed version.",
     "A common patched release is necessary before advisories can share a PR.",
 )
+_PLATFORM_LINE_ENDINGS = (
+    pytest.param("\n", id="lf"),
+    pytest.param("\r", id="cr"),
+    pytest.param("\r\n", id="crlf"),
+)
+_PYTHON_ONLY_LINE_SEPARATORS = (
+    pytest.param("\v", id="vertical-tab"),
+    pytest.param("\f", id="form-feed"),
+    pytest.param("\x1c", id="file-separator"),
+    pytest.param("\x1d", id="group-separator"),
+    pytest.param("\x1e", id="record-separator"),
+    pytest.param("\x85", id="next-line"),
+    pytest.param("\u2028", id="line-separator"),
+    pytest.param("\u2029", id="paragraph-separator"),
+)
+_PYTHON_ONLY_SEPARATOR_CARRIERS = (
+    pytest.param("marker-adjacent", id="marker-adjacent"),
+    pytest.param("fence-padding", id="fence-padding"),
+    pytest.param("json-field-boundary", id="json-field-boundary"),
+)
 
 
 def _current_dependency_policy_docs() -> tuple[str, str]:
@@ -512,6 +538,75 @@ def test_dependency_security_policy_scopes_remediation_by_dsp_class() -> None:
         == _EXPECTED_ADMISSION_AUTHORITY
     )
     _validate_dependency_security_policy(agents_md, lessons_md)
+
+
+@pytest.mark.parametrize("line_ending", _PLATFORM_LINE_ENDINGS)
+def test_dependency_security_policy_accepts_platform_line_endings(line_ending: str) -> None:
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    _validate_dependency_security_policy(
+        agents_md.replace("\n", line_ending),
+        lessons_md.replace("\n", line_ending),
+    )
+
+
+def test_dependency_security_policy_preserves_platform_compound_boundaries() -> None:
+    assert _platform_lines("a\r\nb\rc\nd") == ["a", "b", "c", "d"]
+    assert _platform_lines("a\n\rb\r\r\nc\r\n\nd") == [
+        "a",
+        "",
+        "b",
+        "",
+        "c",
+        "",
+        "d",
+    ]
+
+
+@pytest.mark.parametrize("separator", _PYTHON_ONLY_LINE_SEPARATORS)
+def test_dependency_security_policy_rejects_python_only_separator_in_prose(
+    separator: str,
+) -> None:
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    canonical = (
+        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or remediation\n"
+        "  action requires a separate PR."
+    )
+    mutated = canonical.replace("\n", separator)
+
+    with pytest.raises(AssertionError, match="AGENTS Security parent region changed"):
+        _validate_dependency_security_policy(
+            _replace_unique(agents_md, canonical, mutated), lessons_md
+        )
+
+
+@pytest.mark.parametrize("separator", _PYTHON_ONLY_LINE_SEPARATORS)
+@pytest.mark.parametrize("carrier", _PYTHON_ONLY_SEPARATOR_CARRIERS)
+def test_dependency_security_policy_rejects_python_only_separator_in_authority(
+    separator: str,
+    carrier: str,
+) -> None:
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    if carrier == "marker-adjacent":
+        mutated = _replace_unique(
+            agents_md,
+            f"{ADMISSION_AUTHORITY_START}\n",
+            f"{ADMISSION_AUTHORITY_START}{separator}",
+        )
+    elif carrier == "fence-padding":
+        mutated = _replace_unique(
+            agents_md,
+            f"{ADMISSION_AUTHORITY_START}\n```json",
+            f"{ADMISSION_AUTHORITY_START}\n{separator}\n```json",
+        )
+    else:
+        mutated = _replace_unique(
+            agents_md,
+            '"dependency_identities": 1,\n  "ecosystems": 1',
+            f'"dependency_identities": 1,{separator}  "ecosystems": 1',
+        )
+
+    with pytest.raises(AssertionError):
+        _validate_dependency_security_policy(mutated, lessons_md)
 
 
 def test_dependency_security_policy_rejects_markdown_significant_indentation() -> None:
