@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import importlib
 import os
-import subprocess  # nosec B404: subprocess is required for bounded local guard execution (remove-by: 2026-07-31, ref: PR-1243)
+import subprocess  # nosec B404: subprocess is required for bounded local guard execution (remove-by: 2026-10-31, ref: PR-1243)
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,7 +68,7 @@ def collect_unexpected_startup_hooks() -> list[StartupHookFinding]:
     if not STARTUP_HOOK_GUARD.exists():
         raise RuntimeError(f"Unable to load startup hook guard: {STARTUP_HOOK_GUARD}")
 
-    result = subprocess.run(  # nosec B603: argv uses fixed repo-local Python and guard paths only (remove-by: 2026-07-31, ref: PR-1243)
+    result = subprocess.run(  # nosec B603: argv uses fixed repo-local Python and guard paths only (remove-by: 2026-10-31, ref: PR-1243)
         [
             str(VENV_PYTHON),
             "-S",

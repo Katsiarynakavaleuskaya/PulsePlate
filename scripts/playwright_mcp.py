@@ -7,7 +7,7 @@ import argparse
 import json
 import os
 import shutil
-import subprocess  # nosec B404: subprocess is required for bounded local Node/Playwright diagnostics with absolute binaries only (remove-by: 2026-07-31, ref: PR-playwright-mcp-node22)
+import subprocess  # nosec B404: subprocess is required for bounded local Node/Playwright diagnostics with absolute binaries only (remove-by: 2026-10-31, ref: PR-playwright-mcp-node22)
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -85,7 +85,7 @@ def _resolve_binary(name: str) -> str | None:
 
 def _current_node_version(node_bin: str) -> str | None:
     """Return the current Node runtime version without a leading `v`."""
-    process = subprocess.run(  # nosec B603: argv uses absolute node path from shutil.which() with fixed diagnostic flags only (remove-by: 2026-07-31, ref: PR-playwright-mcp-node22)
+    process = subprocess.run(  # nosec B603: argv uses absolute node path from shutil.which() with fixed diagnostic flags only (remove-by: 2026-10-31, ref: PR-playwright-mcp-node22)
         [node_bin, "-p", "process.versions.node"],
         cwd=REPO_ROOT,
         text=True,
@@ -312,7 +312,7 @@ def _run_install_browser() -> int:
     if npx_bin is None:  # pragma: no cover - defensive fallback after guarded precheck
         print("npx is not available on PATH.", file=sys.stderr)
         return 1
-    process = subprocess.run(  # nosec B603: argv uses absolute npx path from shutil.which() with fixed Playwright install args only (remove-by: 2026-07-31, ref: PR-playwright-mcp-node22)
+    process = subprocess.run(  # nosec B603: argv uses absolute npx path from shutil.which() with fixed Playwright install args only (remove-by: 2026-10-31, ref: PR-playwright-mcp-node22)
         [npx_bin, "playwright", "install", "chromium"],
         cwd=FRONTEND_DIR,
         check=False,
