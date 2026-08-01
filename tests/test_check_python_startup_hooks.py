@@ -318,6 +318,30 @@ def test_startup_safe_probe_preserves_unexpected_getter_failure(
         exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
 
 
+def test_startup_safe_probe_disables_readline_customization(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_site = SimpleNamespace(
+        ENABLE_USER_SITE=False,
+        getsitepackages=lambda: ["/tmp/site-packages"],
+    )
+
+    def main() -> None:
+        fake_site.enablerlcompleter()
+
+    fake_site.enablerlcompleter = lambda: pytest.fail(
+        "readline customization must be disabled before site.main()"
+    )
+    fake_site.main = main
+    monkeypatch.setitem(sys.modules, "site", fake_site)
+
+    exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["site_packages"] == ["/tmp/site-packages"]
+
+
 def test_startup_safe_probe_normalizes_relative_site_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -374,6 +398,20 @@ def test_external_interpreter_normalizes_relative_pythonuserbase_safely(
     assert any(expected_userbase in path.parents for path in discovered)
     assert all(path.is_absolute() for path in discovered)
     assert not shadow_marker.exists()
+
+
+def test_external_interpreter_honors_pythonno_usersite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_python_executable = getattr(sys, "_base_executable", sys.executable)
+    userbase = tmp_path / "disabled-userbase"
+    monkeypatch.setenv("PYTHONUSERBASE", str(userbase))
+    monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+
+    discovered = hook_guard.external_interpreter_site_packages(base_python_executable)
+
+    assert all(userbase not in path.parents for path in discovered)
 
 
 def test_external_interpreter_accepts_verified_resolved_target_identity(
