@@ -251,14 +251,30 @@
       "items": { "$ref": "#/$defs/repo_path" }
     },
     "patch_summary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["patch_fingerprint", "patch_bytes", "diff_lines"],
-      "properties": {
-        "patch_fingerprint": { "$ref": "#/$defs/sha256" },
-        "patch_bytes": { "type": "integer", "minimum": 1, "maximum": 524288 },
-        "diff_lines": { "type": "integer", "minimum": 1, "maximum": 800 }
-      }
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patch_fingerprint", "patch_bytes", "diff_lines"],
+          "properties": {
+            "patch_fingerprint": { "$ref": "#/$defs/sha256" },
+            "patch_bytes": { "type": "integer", "minimum": 1, "maximum": 524288 },
+            "diff_lines": { "type": "integer", "minimum": 1, "maximum": 800 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patch_fingerprint", "patch_bytes", "changed_lines", "serialized_patch_lines", "line_metric"],
+          "properties": {
+            "patch_fingerprint": { "$ref": "#/$defs/sha256" },
+            "patch_bytes": { "type": "integer", "minimum": 1, "maximum": 524288 },
+            "changed_lines": { "type": "integer", "minimum": 1, "maximum": 800 },
+            "serialized_patch_lines": { "type": "integer", "minimum": 1, "maximum": 524288 },
+            "line_metric": { "const": "numstat_added_plus_deleted_v1" }
+          }
+        }
+      ]
     },
     "workspace_summary": {
       "type": "object",

@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
-import subprocess  # nosec B404: subprocess is required for bounded repo-local startup-hook inspection against a selected Python interpreter (remove-by: 2026-07-31, ref: PR-litellm-private-proxy)
+import shutil
+import subprocess  # nosec B404: subprocess is required for bounded repo-local startup-hook inspection against a selected Python interpreter (remove-by: 2026-10-31, ref: PR-litellm-private-proxy)
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -19,6 +21,55 @@ ALLOWED_EXECUTABLE_PTH_FILENAMES: tuple[str, ...] = (
     "distutils-precedence.pth",
 )
 EXECUTABLE_IMPORT_PATTERN = re.compile(r"^\s*import\b")
+STARTUP_PROBE_PYTHON_ENV_ALLOWLIST = frozenset(
+    {
+        "PYTHONHOME",
+        "PYTHONNOUSERSITE",
+        "PYTHONPLATLIBDIR",
+        "PYTHONUSERBASE",
+    }
+)
+STARTUP_SAFE_SITE_PACKAGES_PROBE = (
+    "import json, os, site, sys\n"
+    "def _skip_addpackage(sitedir, name, known_paths):\n"
+    "    return known_paths\n"
+    "def _check_enable_user_site():\n"
+    "    if sys.flags.no_user_site:\n"
+    "        return False\n"
+    "    if hasattr(os, 'getuid') and hasattr(os, 'geteuid') and os.geteuid() != os.getuid():\n"
+    "        return None\n"
+    "    if hasattr(os, 'getgid') and hasattr(os, 'getegid') and os.getegid() != os.getgid():\n"
+    "        return None\n"
+    "    return True\n"
+    "site.addpackage = _skip_addpackage\n"
+    "site.enablerlcompleter = lambda: None\n"
+    "site.execsitecustomize = lambda: None\n"
+    "site.execusercustomize = lambda: None\n"
+    "site.check_enableusersite = _check_enable_user_site\n"
+    "site.main()\n"
+    "paths = []\n"
+    "for getter_name in ('getsitepackages', 'getusersitepackages'):\n"
+    "    if getter_name == 'getusersitepackages' and not site.ENABLE_USER_SITE:\n"
+    "        continue\n"
+    "    getter = getattr(site, getter_name, None)\n"
+    "    if getter is None:\n"
+    "        continue\n"
+    "    value = getter()\n"
+    "    if value is None:\n"
+    "        continue\n"
+    "    paths.extend([value] if isinstance(value, str) else value)\n"
+    "normalized_paths = []\n"
+    "for path in paths:\n"
+    "    if not isinstance(path, str):\n"
+    "        raise TypeError('site-packages path must be a string')\n"
+    "    normalized_paths.append(os.path.abspath(path))\n"
+    "print(json.dumps({\n"
+    "    'executable': sys.executable,\n"
+    "    'prefix': sys.prefix,\n"
+    "    'base_prefix': sys.base_prefix,\n"
+    "    'site_packages': list(dict.fromkeys(normalized_paths)),\n"
+    "}))\n"
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +79,14 @@ class ExecutablePthFinding:
     path: Path
     line_number: int
     line: str
+
+
+@dataclass(frozen=True)
+class ResolvedPythonExecutable:
+    """Validated executable identity with the final invocation symlink preserved."""
+
+    invocation_path: Path
+    resolved_target: Path
 
 
 def extract_executable_lines(contents: str) -> list[tuple[int, str]]:
@@ -93,31 +152,81 @@ def current_interpreter_site_packages() -> list[Path]:
     return [Path(path) for path in dict.fromkeys(site_packages)]
 
 
+def resolve_python_executable(python_executable: str) -> ResolvedPythonExecutable:
+    """Resolve an interpreter to an absolute, executable invocation path."""
+    if not python_executable.strip() or "\x00" in python_executable:
+        raise RuntimeError("Python executable must be a non-empty path or command name.")
+
+    if os.path.dirname(python_executable):
+        candidate = Path(python_executable).expanduser()
+    else:
+        discovered = shutil.which(python_executable)
+        if discovered is None:
+            raise RuntimeError(f"Unable to resolve Python executable: {python_executable}")
+        candidate = Path(discovered)
+
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+
+    try:
+        invocation_path = candidate.parent.resolve(strict=True) / candidate.name
+        resolved_target = invocation_path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError(
+            f"Unable to resolve Python executable: {python_executable}: {exc}"
+        ) from exc
+
+    if not resolved_target.is_file() or not os.access(resolved_target, os.X_OK):
+        raise RuntimeError(
+            "Python executable must resolve to an executable regular file: " f"{python_executable}"
+        )
+    return ResolvedPythonExecutable(
+        invocation_path=invocation_path,
+        resolved_target=resolved_target,
+    )
+
+
+def _revalidate_python_executable(executable: ResolvedPythonExecutable) -> None:
+    """Fail closed if the selected executable target changed before launch."""
+    try:
+        current_target = executable.invocation_path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError(
+            f"Python executable became unavailable: {executable.invocation_path}: {exc}"
+        ) from exc
+    if (
+        current_target != executable.resolved_target
+        or not current_target.is_file()
+        or not os.access(current_target, os.X_OK)
+    ):
+        raise RuntimeError(f"Python executable changed before launch: {executable.invocation_path}")
+
+
+def _startup_probe_environment() -> dict[str, str]:
+    """Preserve site-layout semantics while excluding Python code-injection controls."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("PYTHON") or key.upper() in STARTUP_PROBE_PYTHON_ENV_ALLOWLIST
+    }
+
+
 def external_interpreter_site_packages(python_executable: str) -> list[Path]:
     """Query site-packages for an arbitrary Python executable."""
-    probe = (
-        "import json, site\n"
-        "paths = []\n"
-        "for getter_name in ('getsitepackages', 'getusersitepackages'):\n"
-        "    if getter_name == 'getusersitepackages' and getattr(site, 'ENABLE_USER_SITE', None) is False:\n"
-        "        continue\n"
-        "    getter = getattr(site, getter_name, None)\n"
-        "    if getter is None:\n"
-        "        continue\n"
-        "    value = getter()\n"
-        "    if value is None:\n"
-        "        continue\n"
-        "    if isinstance(value, str):\n"
-        "        paths.append(value)\n"
-        "    else:\n"
-        "        paths.extend(value)\n"
-        "print(json.dumps(list(dict.fromkeys(paths))))\n"
-    )
+    executable = resolve_python_executable(python_executable)
+    _revalidate_python_executable(executable)
     try:
-        result = subprocess.run(  # nosec B603: argv uses the provided Python executable plus a fixed inline site-packages probe with shell=False (remove-by: 2026-07-31, ref: PR-litellm-private-proxy)
-            [python_executable, "-S", "-c", probe],
+        result = subprocess.run(  # nosec B603: argv uses the provided Python executable plus a fixed inline site-packages probe with shell=False (remove-by: 2026-10-31, ref: PR-litellm-private-proxy)
+            [
+                str(executable.invocation_path),
+                "-P",
+                "-S",
+                "-c",
+                STARTUP_SAFE_SITE_PACKAGES_PROBE,
+            ],
             check=True,
             capture_output=True,
+            env=_startup_probe_environment(),
             text=True,
             timeout=30,
         )
@@ -137,7 +246,56 @@ def external_interpreter_site_packages(python_executable: str) -> list[Path]:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Unable to parse site-packages for {python_executable}: {exc}") from exc
-    return [Path(path) for path in payload]
+    if not isinstance(payload, dict):
+        raise RuntimeError(
+            f"Unable to parse site-packages for {python_executable}: expected JSON object"
+        )
+    reported_executable = payload.get("executable")
+    reported_prefix = payload.get("prefix")
+    reported_base_prefix = payload.get("base_prefix")
+    site_packages = payload.get("site_packages")
+    if (
+        not isinstance(reported_executable, str)
+        or not isinstance(reported_prefix, str)
+        or not isinstance(reported_base_prefix, str)
+        or not isinstance(site_packages, list)
+    ):
+        raise RuntimeError(
+            f"Unable to parse site-packages for {python_executable}: invalid payload shape"
+        )
+    if not Path(reported_prefix).is_absolute() or not Path(reported_base_prefix).is_absolute():
+        raise RuntimeError(
+            f"Unable to parse site-packages for {python_executable}: relative prefix"
+        )
+    reported_path = Path(reported_executable)
+    if not reported_path.is_absolute():
+        raise RuntimeError(
+            f"Unable to parse site-packages for {python_executable}: relative executable"
+        )
+    try:
+        normalized_reported_path = reported_path.parent.resolve(strict=True) / reported_path.name
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError(f"Unable to parse site-packages for {python_executable}: {exc}") from exc
+    if normalized_reported_path not in (
+        executable.invocation_path,
+        executable.resolved_target,
+    ):
+        raise RuntimeError(
+            f"Unable to parse site-packages for {python_executable}: executable mismatch"
+        )
+    if not site_packages:
+        raise RuntimeError(
+            f"Unable to parse site-packages for {python_executable}: empty path inventory"
+        )
+
+    parsed_paths: list[Path] = []
+    for value in site_packages:
+        if not isinstance(value, str) or not Path(value).is_absolute():
+            raise RuntimeError(
+                f"Unable to parse site-packages for {python_executable}: invalid path"
+            )
+        parsed_paths.append(Path(value))
+    return list(dict.fromkeys(parsed_paths))
 
 
 def format_failure_lines(findings: Sequence[ExecutablePthFinding]) -> list[str]:

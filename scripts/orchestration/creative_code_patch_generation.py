@@ -24,12 +24,19 @@ from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fi
 from scripts.orchestration import creative_code_patch_builder
 from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
+    CHANGED_LINE_METRIC,
+    CURRENT_PATCH_METADATA_KEYS,
+    CURRENT_PATCH_SUMMARY_KEYS,
     CreativeCodePatchContractError,
     FAILURE_CLASSES,
     HARD_MAX_PATCH_BYTES,
+    LEGACY_PATCH_METADATA_KEYS,
+    LEGACY_PATCH_SUMMARY_KEYS,
     build_creative_code_patch_result,
     classify_failure_class_coherence,
     classify_terminal_outcome_coherence,
+    creative_code_budget_line_family,
+    measure_persisted_creative_code_patch,
     read_creative_code_patch_build_request,
     read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
@@ -180,16 +187,6 @@ GATE_CHECK_KEYS = frozenset(
         "no_preexisting_candidate_artifacts",
     }
 )
-BUDGET_LIMIT_KEYS = frozenset(
-    {
-        "generation_attempts",
-        "generation_timeout_seconds",
-        "evaluation_timeout_seconds",
-        "max_changed_files",
-        "max_diff_lines",
-        "max_patch_bytes",
-    }
-)
 RECEIPT_KEYS = frozenset(
     {
         "schema_version",
@@ -271,10 +268,6 @@ RESULT_RECEIPT_PROVENANCE_KEYS = (
     "selected_variant_id",
     "selected_variant_fingerprint",
     "base_commit_sha",
-)
-PATCH_SUMMARY_KEYS = frozenset({"patch_fingerprint", "patch_bytes", "diff_lines"})
-PATCH_METADATA_KEYS = frozenset(
-    {"changed_paths", "changed_path_statuses", "patch_fingerprint", "patch_bytes", "diff_lines"}
 )
 WORKSPACE_SUMMARY_KEYS = frozenset(
     {
@@ -801,11 +794,14 @@ def _normalize_checks(
     return normalized
 
 
-def _normalize_budget_limits(raw_budgets: Any) -> dict[str, int]:
+def _normalize_budget_limits(raw_budgets: Any) -> dict[str, int | str]:
     if not isinstance(raw_budgets, dict):
         raise CreativeCodePatchGenerationError("budget_limits must be a JSON object.")
-    _require_exact_keys(raw_budgets, BUDGET_LIMIT_KEYS, label="budget_limits")
-    return {
+    try:
+        family = creative_code_budget_line_family(raw_budgets)
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
+    normalized: dict[str, int | str] = {
         "generation_attempts": _normalize_int(
             raw_budgets["generation_attempts"],
             min_value=1,
@@ -830,12 +826,6 @@ def _normalize_budget_limits(raw_budgets: Any) -> dict[str, int]:
             max_value=5,
             label="budget_limits.max_changed_files",
         ),
-        "max_diff_lines": _normalize_int(
-            raw_budgets["max_diff_lines"],
-            min_value=1,
-            max_value=800,
-            label="budget_limits.max_diff_lines",
-        ),
         "max_patch_bytes": _normalize_int(
             raw_budgets["max_patch_bytes"],
             min_value=1,
@@ -843,6 +833,26 @@ def _normalize_budget_limits(raw_budgets: Any) -> dict[str, int]:
             label="budget_limits.max_patch_bytes",
         ),
     }
+    if family == "legacy":
+        normalized["max_diff_lines"] = _normalize_int(
+            raw_budgets["max_diff_lines"],
+            min_value=1,
+            max_value=800,
+            label="budget_limits.max_diff_lines",
+        )
+    else:
+        normalized["max_changed_lines"] = _normalize_int(
+            raw_budgets["max_changed_lines"],
+            min_value=1,
+            max_value=800,
+            label="budget_limits.max_changed_lines",
+        )
+        normalized["line_metric"] = _normalize_const(
+            raw_budgets["line_metric"],
+            CHANGED_LINE_METRIC,
+            label="budget_limits.line_metric",
+        )
+    return {key: normalized[key] for key in raw_budgets}
 
 
 def _set_identity(payload: dict[str, Any], *, id_key: str, asset_type: str) -> None:
@@ -1068,6 +1078,10 @@ def build_generation_gate(
         admission_path, label="creative spec patch admission"
     )
     admission, request, bundle = _read_admission_context(admission_path)
+    if creative_code_budget_line_family(request["budgets"]) != "current":
+        raise CreativeCodePatchGenerationError(
+            "legacy patch requests are read-only; new generation gates require changed lines."
+        )
     verify_origin_main_base(request["base_commit_sha"])
     _require_clean_shared_tree()
     run_dir, state, _selected_variant = _load_prepared_run(
@@ -1365,11 +1379,18 @@ def _build_receipt(
         source_bundle=source_bundle,
         result=result,
     )
-    expected_patch_summary = {
-        "patch_fingerprint": result["patch_summary"]["patch_fingerprint"],
-        "patch_bytes": result["patch_summary"]["patch_bytes"],
-        "diff_lines": result["patch_summary"]["diff_lines"],
-    }
+    request_family = creative_code_budget_line_family(request["budgets"])
+    if request_family != "current":
+        raise CreativeCodePatchGenerationError(
+            "legacy patch artifacts are read-only; new receipts require changed lines."
+        )
+    result_family = "legacy" if "diff_lines" in result["patch_summary"] else "current"
+    metadata_family = "legacy" if "diff_lines" in metadata else "current"
+    if len({request_family, result_family, metadata_family}) != 1:
+        raise CreativeCodePatchGenerationError(
+            "request, result, and patch metadata line-measurement families must match."
+        )
+    expected_patch_summary = dict(result["patch_summary"])
     for key, expected in expected_patch_summary.items():
         if metadata.get(key) != expected:
             raise CreativeCodePatchGenerationError("patch metadata does not match result summary.")
@@ -1666,8 +1687,18 @@ def _normalize_patch_path(value: Any, *, label: str) -> str:
 def _normalize_patch_summary(raw_summary: Any) -> dict[str, Any]:
     if not isinstance(raw_summary, dict):
         raise CreativeCodePatchGenerationError("patch_summary must be a JSON object.")
-    _require_exact_keys(raw_summary, PATCH_SUMMARY_KEYS, label="patch_summary")
-    return {
+    keys = set(raw_summary)
+    if keys == LEGACY_PATCH_SUMMARY_KEYS:
+        family = "legacy"
+    elif keys == CURRENT_PATCH_SUMMARY_KEYS:
+        family = "current"
+    else:
+        if keys - (LEGACY_PATCH_SUMMARY_KEYS | CURRENT_PATCH_SUMMARY_KEYS):
+            raise CreativeCodePatchGenerationError("patch_summary has unsupported fields.")
+        raise CreativeCodePatchGenerationError(
+            "patch_summary must use one exact legacy or changed-line shape."
+        )
+    normalized: dict[str, Any] = {
         "patch_fingerprint": _normalize_fingerprint(
             raw_summary["patch_fingerprint"], label="patch_summary.patch_fingerprint"
         ),
@@ -1677,19 +1708,49 @@ def _normalize_patch_summary(raw_summary: Any) -> dict[str, Any]:
             max_value=524288,
             label="patch_summary.patch_bytes",
         ),
-        "diff_lines": _normalize_int(
+    }
+    if family == "legacy":
+        normalized["diff_lines"] = _normalize_int(
             raw_summary["diff_lines"],
             min_value=1,
             max_value=800,
             label="patch_summary.diff_lines",
-        ),
-    }
+        )
+    else:
+        normalized["changed_lines"] = _normalize_int(
+            raw_summary["changed_lines"],
+            min_value=1,
+            max_value=800,
+            label="patch_summary.changed_lines",
+        )
+        normalized["serialized_patch_lines"] = _normalize_int(
+            raw_summary["serialized_patch_lines"],
+            min_value=1,
+            max_value=HARD_MAX_PATCH_BYTES,
+            label="patch_summary.serialized_patch_lines",
+        )
+        normalized["line_metric"] = _normalize_const(
+            raw_summary["line_metric"],
+            CHANGED_LINE_METRIC,
+            label="patch_summary.line_metric",
+        )
+    return normalized
 
 
 def _normalize_patch_metadata(raw_metadata: Any, *, label: str) -> dict[str, Any]:
     if not isinstance(raw_metadata, dict):
         raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
-    _require_exact_keys(raw_metadata, PATCH_METADATA_KEYS, label=label)
+    keys = set(raw_metadata)
+    if keys == LEGACY_PATCH_METADATA_KEYS:
+        family = "legacy"
+    elif keys == CURRENT_PATCH_METADATA_KEYS:
+        family = "current"
+    else:
+        if keys - (LEGACY_PATCH_METADATA_KEYS | CURRENT_PATCH_METADATA_KEYS):
+            raise CreativeCodePatchGenerationError(f"{label} has unsupported fields.")
+        raise CreativeCodePatchGenerationError(
+            f"{label} must use one exact legacy or changed-line shape."
+        )
     changed_paths = _normalize_path_list(
         raw_metadata["changed_paths"], label=f"{label}.changed_paths"
     )
@@ -1708,7 +1769,7 @@ def _normalize_patch_metadata(raw_metadata: Any, *, label: str) -> dict[str, Any
                 f"{label}.changed_path_statuses values must be A or M."
             )
         changed_path_statuses[path] = status
-    normalized = {
+    normalized: dict[str, Any] = {
         "changed_paths": changed_paths,
         "changed_path_statuses": changed_path_statuses,
         "patch_fingerprint": _normalize_fingerprint(
@@ -1720,15 +1781,67 @@ def _normalize_patch_metadata(raw_metadata: Any, *, label: str) -> dict[str, Any
             max_value=524288,
             label=f"{label}.patch_bytes",
         ),
-        "diff_lines": _normalize_int(
+    }
+    if family == "legacy":
+        normalized["diff_lines"] = _normalize_int(
             raw_metadata["diff_lines"],
             min_value=1,
             max_value=800,
             label=f"{label}.diff_lines",
-        ),
-    }
+        )
+    else:
+        normalized["changed_lines"] = _normalize_int(
+            raw_metadata["changed_lines"],
+            min_value=1,
+            max_value=800,
+            label=f"{label}.changed_lines",
+        )
+        normalized["serialized_patch_lines"] = _normalize_int(
+            raw_metadata["serialized_patch_lines"],
+            min_value=1,
+            max_value=HARD_MAX_PATCH_BYTES,
+            label=f"{label}.serialized_patch_lines",
+        )
+        normalized["line_metric"] = _normalize_const(
+            raw_metadata["line_metric"],
+            CHANGED_LINE_METRIC,
+            label=f"{label}.line_metric",
+        )
     _reject_payload_safety(normalized, label=label)
     return normalized
+
+
+def _actual_patch_summary(
+    patch_text: str,
+    *,
+    expected_paths: list[str],
+    family: str,
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+    }
+    serialized_patch_lines = len(patch_text.splitlines())
+    if family == "legacy":
+        summary["diff_lines"] = serialized_patch_lines
+        return summary
+    if family != "current":
+        raise CreativeCodePatchGenerationError("unsupported patch line-measurement family.")
+    try:
+        measured = measure_persisted_creative_code_patch(
+            patch_text,
+            expected_paths=expected_paths,
+        )
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
+    summary.update(
+        {
+            "changed_lines": measured["changed_lines"],
+            "serialized_patch_lines": serialized_patch_lines,
+            "line_metric": CHANGED_LINE_METRIC,
+        }
+    )
+    return summary
 
 
 def _normalize_workspace_summary(raw_summary: Any) -> dict[str, Any]:
@@ -1845,6 +1958,12 @@ def _validate_result_matches_gate(result: Mapping[str, Any], gate: Mapping[str, 
     ):
         if result[key] != gate[key]:
             raise CreativeCodePatchGenerationError(f"result {key} does not match generation gate.")
+    gate_family = creative_code_budget_line_family(gate["budget_limits"])
+    result_family = "legacy" if "diff_lines" in result["patch_summary"] else "current"
+    if gate_family != result_family:
+        raise CreativeCodePatchGenerationError(
+            "generation gate and result line-measurement families must match."
+        )
 
 
 def _expected_experiment_budgets(request: Mapping[str, Any]) -> dict[str, int | str]:
@@ -2076,11 +2195,12 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         ).decode("utf-8")
     except UnicodeDecodeError as exc:
         raise CreativeCodePatchGenerationError("candidate patch must use valid UTF-8.") from exc
-    actual_patch_summary = {
-        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
-        "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
-    }
+    receipt_family = "legacy" if "diff_lines" in receipt["patch_summary"] else "current"
+    actual_patch_summary = _actual_patch_summary(
+        patch_text,
+        expected_paths=list(receipt["changed_paths"]),
+        family=receipt_family,
+    )
     if actual_patch_summary != receipt["patch_summary"]:
         raise CreativeCodePatchGenerationError("candidate patch does not match receipt summary.")
     try:
@@ -2371,11 +2491,17 @@ def _load_generated_dispatch_context(
         ),
         label="patch metadata",
     )
-    actual_summary = {
-        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
-        "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
-    }
+    request_family = creative_code_budget_line_family(request["budgets"])
+    metadata_family = "legacy" if "diff_lines" in metadata else "current"
+    if request_family != metadata_family:
+        raise CreativeCodePatchGenerationError(
+            "request and patch metadata line-measurement families must match."
+        )
+    actual_summary = _actual_patch_summary(
+        patch_text,
+        expected_paths=list(metadata["changed_paths"]),
+        family=request_family,
+    )
     if any(metadata[key] != value for key, value in actual_summary.items()):
         raise CreativeCodePatchGenerationError("candidate patch metadata is stale.")
     if state.get("patch_metadata") != metadata:
@@ -2687,6 +2813,10 @@ def _finalize_dispatched_result_locked(
         gate,
         allow_partial_publication=True,
     )
+    if creative_code_budget_line_family(request["budgets"]) != "current":
+        raise CreativeCodePatchGenerationError(
+            "legacy patch artifacts are read-only; finalization requires changed lines."
+        )
     metadata_path = resolve_run_file(run_dir, creative_code_patch_builder.PATCH_METADATA_FILE)
     metadata = _normalize_patch_metadata(
         _read_generated_sidecar_json_object(
@@ -2715,11 +2845,13 @@ def _finalize_dispatched_result_locked(
         changed_paths=list(metadata["changed_paths"]),
         patch_fingerprint=str(metadata["patch_fingerprint"]),
         patch_bytes=int(metadata["patch_bytes"]),
-        diff_lines=int(metadata["diff_lines"]),
         runner_result=dispatch_result,
         checkout_destroyed=True,
         origin_removed=True,
         shared_tree_untouched=True,
+        **{
+            key: metadata[key] for key in ("changed_lines", "serialized_patch_lines", "line_metric")
+        },
     )
     try:
         validate_creative_code_patch_run_sidecars(

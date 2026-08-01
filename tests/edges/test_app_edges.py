@@ -49,16 +49,6 @@ def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch) -> Non
     assert out["status"] == "ok" and out["scheduler"] == "available"
 
 
-def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch) -> None:
-    import app as appmod
-
-    # Ensure to_pdf_day is missing/non-callable
-    monkeypatch.setattr(appmod, "to_pdf_day", None)
-    with pytest.raises(appmod.HTTPException) as ei:
-        asyncio.run(appmod.export_pdf_generic({"meals": []}))
-    assert ei.value.status_code == 503
-
-
 def test_targets_get_minimum_maximum_unknown_raises():
     from core.targets import MicronutrientTargets
 

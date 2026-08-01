@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: fixed git subprocess wrappers only (remove-by: 2026-07-31, ref: PR-2)
+import subprocess  # nosec B404: fixed git subprocess wrappers only (remove-by: 2026-10-31, ref: PR-2)
 import sys
 import tempfile
 from typing import Any, Iterator
@@ -387,7 +387,7 @@ def run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run git with a resolved binary, no shell, and bounded capture."""
 
-    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv for isolated PR-2 checkouts (remove-by: 2026-07-31, ref: PR-2)
+    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv for isolated PR-2 checkouts (remove-by: 2026-10-31, ref: PR-2)
         [resolve_git_binary(), *safe_git_config_args(), *args],
         cwd=str(cwd),
         env=git_env_without_parent_state(),

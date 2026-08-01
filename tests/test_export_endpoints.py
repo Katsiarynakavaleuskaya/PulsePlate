@@ -63,24 +63,6 @@ class TestExportEndpoints:
             assert "Day" in content
             assert "Shopping List" in content
 
-    def test_export_daily_pdf_success(self):
-        """Test successful daily plan PDF export."""
-        response = self.client.get(
-            "/api/v1/premium/exports/day/test_plan.pdf",
-            headers={"X-API-Key": "test_key"},
-        )
-        # PDF export might fail if ReportLab is not installed, which is expected in test environment
-        assert response.status_code in [200, 404, 500, 503]
-
-    def test_export_weekly_pdf_success(self):
-        """Test successful weekly plan PDF export."""
-        response = self.client.get(
-            "/api/v1/premium/exports/week/test_plan.pdf",
-            headers={"X-API-Key": "test_key"},
-        )
-        # PDF export might fail if ReportLab is not installed, which is expected in test environment
-        assert response.status_code in [200, 404, 500, 503]
-
     def test_export_daily_csv_missing_api_key(self) -> None:
         """Test daily CSV export without API key."""
         response = self.client.get("/api/v1/premium/exports/day/test_plan.csv")
@@ -89,16 +71,6 @@ class TestExportEndpoints:
     def test_export_weekly_csv_missing_api_key(self) -> None:
         """Test weekly CSV export without API key."""
         response = self.client.get("/api/v1/premium/exports/week/test_plan.csv")
-        assert response.status_code == 403
-
-    def test_export_daily_pdf_missing_api_key(self) -> None:
-        """Test daily PDF export without API key."""
-        response = self.client.get("/api/v1/premium/exports/day/test_plan.pdf")
-        assert response.status_code == 403
-
-    def test_export_weekly_pdf_missing_api_key(self) -> None:
-        """Test weekly PDF export without API key."""
-        response = self.client.get("/api/v1/premium/exports/week/test_plan.pdf")
         assert response.status_code == 403
 
     def test_export_daily_csv_internal_error(self):

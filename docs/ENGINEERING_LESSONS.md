@@ -906,6 +906,111 @@ into another parser variant.
   governed recovery, not as grounds for a carrier commit or operator merge
   exception.
 
+## 33) Scope dependency remediation by invariant class, not advisory variant
+
+### Problem
+One application dependency can carry several advisory variants whose affected
+ranges and remediation floors differ. Treating each advisory as the PR unit
+fragments one mechanical remediation, while requiring identical floors confuses
+variant metadata with the invariant that the repository must establish. The
+opposite error is equally unsafe: batching unrelated dependency identities,
+ecosystems, surface universes, or remediation actions makes evidence ambiguous.
+Suppression is a separate action with a different audit contract.
+
+### Rule
+Define one application-dependency remediation class with `D`, `S`, `R`, and
+`P`, evaluated against one finite reconciled candidate inventory `F_cutoff`,
+whose base-applicable subset `A` must be non-empty:
+
+1. **`D` — ecosystem-qualified dependency identity:** exactly one dependency
+   identity in exactly one ecosystem.
+2. **`S` — governed surface universe:** independently enumerate the complete
+   governed manifest and lock surfaces for `D` at the exact base (`S_base`) and
+   head (`S_head`). Their union `S = S_base ∪ S_head` must be non-empty, and
+   every base/head surface delta must be reconciled.
+3. **`A` — applicable advisory inventory:** reconcile a finite candidate set
+   `F_cutoff` from named authoritative inputs at one recorded snapshot or
+   cutoff. `A` is exactly the non-empty subset whose every member has at least
+   one comparable governed base occurrence of `D` inside its affected range.
+   Every candidate outside `A` requires an independently evidenced
+   non-applicable-at-base disposition and remains inside `P`, which must prove
+   no affected, unresolved, or incomparable governed head occurrence.
+4. **`R` — operator-intent remediation class:** let `I_R` be the non-empty set
+   of intent-bearing dependency transitions explicitly authored or authorized
+   to remediate `D`. Exactly one non-identity equivalence class is admitted over
+   `I_R`: every member has the same authored operation kind and semantic intent.
+   Authored replacement and authored removal are different classes; literal
+   target versions may be parameters of one replacement class. Let `C_R` be the
+   deterministic solver closure produced from the exact base by applying only
+   `I_R` with the recorded canonical resolver version, configuration, and
+   command. `C_R` may contain mixed occurrence shapes from mechanically coupled
+   replacement, addition, hoisting, deduplication, or removal, but carries no
+   independent intent or remediation claim. Every material dependency
+   transition must belong to exactly one of `I_R` or replay-proven `C_R`; manual,
+   unclassified, or unreplayable transitions fail admission. An aggregate goal
+   such as "make safe" is `P`, not `R`.
+5. **`P` — remediation postcondition:** after reconciling `S_base` and `S_head`,
+   for every candidate advisory in `F_cutoff`, the deterministic guard must
+   resolve every governed occurrence of `D` on every `S_head` surface to an
+   advisory-comparable value outside that candidate's affected range, or prove
+   executable absence of `D` for that surface. A candidate outside `A` does not
+   gain a remediation claim, but it still cannot become affected at head. Every
+   base-only surface must be reconciled under `R`; any unparseable or unresolved
+   head occurrence or unreconciled surface delta fails `P`.
+
+The parseable invariant-class relation in the uniquely marked `AGENTS.md` JSON
+authority, not sentence variants, is the guard authority. This lesson mirrors
+that relation for humans and does not create a second machine-readable
+authority.
+
+Advisories are independently auditable variants within that class, not the
+class boundary. Canonical evidence must record the named authoritative input or
+inputs and snapshot or cutoff used for `F_cutoff`. Every triggering alert and
+every current scanner/audit finding for `D` at that cutoff must be in
+`F_cutoff`. A candidate belongs to `A` if and only if at least one comparable
+governed base occurrence is inside its affected range; every other candidate is
+independently dispositioned as non-applicable at base with evidence and remains
+inside the universal head-safety check in `P`. `A` must retain at least one
+applicable advisory for a
+remediation lane. If reconciliation leaves `A` empty or finds no applicable
+affected base occurrence for `D`, use a separate disposition-only lane: it must
+not mutate dependency state, claim remediation or `P`, or mix with a
+non-empty-`A` lane. The non-empty finite reconciled `A` bounds the remediation
+claim; `F_cutoff` bounds `P`. Neither makes a claim about genuinely undisclosed
+or future advisories.
+Advisory affected ranges and remediation floors may differ. Equality of
+advisory remediation floors is not a batching prerequisite.
+
+Exactly one owner document under `docs/security/` must own each `D`/`S`/`R`/`P`
+class. Supporting stable in-repo artifacts may exist only when linked from that
+owner document. A PR body, issue, or ledger entry alone cannot replace the
+owner document. Each candidate in `F_cutoff` retains one independently auditable
+record containing its advisory ID, affected range, authoritative source,
+governed base/head surfaces, base-applicability proof or
+non-applicable-at-base disposition, universal head-safety proof, and
+scanner/audit result. Each member of `A` additionally records its remediation
+floor, selected target, governed affected base occurrence, and deterministic
+proof of `I_R`, `C_R`, and `P`.
+
+Any difference in `D`, ecosystem, `S`, or authored operation kind/semantic
+intent in `R` requires a separate PR. Heterogeneous occurrence shapes produced
+by replay-proven `C_R` stay in that PR. A second authored action, manual lock
+adjustment, resolver/configuration change, topology redesign, or second
+dependency objective is not closure. A dependency security guard test must
+independently enumerate `S_base` and `S_head`, prove their union is non-empty,
+reconcile every surface delta, derive `A` exactly from `F_cutoff`, prove an
+affected comparable base witness for every advisory in `A`, prove every
+governed head occurrence safe against every candidate in `F_cutoff`, enumerate
+non-empty `I_R`, partition every material transition exactly once into `I_R` or
+replay-proven `C_R`, reject independent, manual, unclassified, or unreplayable
+transitions, and enforce `R` and `P` deterministically so that an omitted
+surface, finding, transition, or unresolved occurrence cannot create a false
+remediation claim. Keep
+suppression on its existing rail: Trivy,
+`.trivyignore`, `trivy/ignore-policy.rego`, waiver, and unfixed-upstream
+suppression work remains one dedicated security PR per CVE. Suppression must
+never mix with application-dependency remediation.
+
 ---
 
 ## Repo Commands Reference
