@@ -79,11 +79,12 @@ def _extract_dependency_security_sections(agents_md: str, lessons_md: str) -> tu
     return remediation, lesson, security_parent
 
 
-# SHA-256 binds the whitespace-normalized content of each bounded canonical block.
-# A reviewed normative change must update its document and this digest together.
+# SHA-256 binds the Markdown-significant structure of each bounded canonical block.
+# Only platform line-ending differences are normalized. A reviewed normative change
+# must update its document and this digest together.
 _EXPECTED_SECTION_DIGESTS = {
-    "AGENTS Security parent region": "10b7cdcd82c3dee44245231f6cc93a5bc27820ed77f5d3992c77c1a6a45a73c4",  # pragma: allowlist secret
-    "engineering lesson 33": "09b0e31c1aef3fae96a68d786270b414a4da611fbfa82397bfc3b7c081160a04",  # pragma: allowlist secret
+    "AGENTS Security parent region": "cc77f1d0b53a2197f12f3f8e72bec4cb307c4143bb0e6be8a95b5d7995433b51",  # pragma: allowlist secret
+    "engineering lesson 33": "d101cb0600e173857767abc6ff79d142e35a6e99a2f77bd077f9efa3eb7cec1a",  # pragma: allowlist secret
 }
 _EXPECTED_ADMISSION_AUTHORITY = {
     "schema": "pulseplate.dependency_remediation_admission.v1",
@@ -100,12 +101,12 @@ _EXPECTED_ADMISSION_AUTHORITY = {
 }
 
 
-def _normalized(document: str) -> str:
-    return " ".join(document.split())
+def _normalized_line_endings(document: str) -> str:
+    return document.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _section_digest(document: str) -> str:
-    return hashlib.sha256(_normalized(document).encode()).hexdigest()
+    return hashlib.sha256(_normalized_line_endings(document).encode()).hexdigest()
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -511,6 +512,24 @@ def test_dependency_security_policy_scopes_remediation_by_dsp_class() -> None:
         == _EXPECTED_ADMISSION_AUTHORITY
     )
     _validate_dependency_security_policy(agents_md, lessons_md)
+
+
+def test_dependency_security_policy_rejects_markdown_significant_indentation() -> None:
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    canonical_rule = (
+        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or remediation\n"
+        "  action requires a separate PR."
+    )
+    indented_rule = (
+        "\n      - **No-batch boundaries:** any difference in `D`, ecosystem, `S`, "
+        "or remediation\n"
+        "        action requires a separate PR."
+    )
+
+    with pytest.raises(AssertionError, match="AGENTS Security parent region changed"):
+        _validate_dependency_security_policy(
+            _replace_unique(agents_md, canonical_rule, indented_rule), lessons_md
+        )
 
 
 def test_dependency_security_policy_rejects_lesson_region_change() -> None:
