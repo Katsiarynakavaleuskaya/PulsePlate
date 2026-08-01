@@ -17,7 +17,7 @@ import os
 from pathlib import Path, PurePosixPath
 import shlex
 import shutil
-import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-07-31, ref: PR-1082)
+import subprocess  # nosec B404: git subprocesses are required for isolated temp checkouts (remove-by: 2026-10-31, ref: PR-1082)
 import sys
 import tempfile
 import time
@@ -289,7 +289,7 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
-    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-07-31, ref: PR-1082)
+    process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-10-31, ref: PR-1082)
         [
             _resolve_git_binary(),
             *_safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree),

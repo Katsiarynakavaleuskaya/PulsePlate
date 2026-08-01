@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-by: 2026-07-31, ref: PR-3)
+import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-by: 2026-10-31, ref: PR-3)
 import sys
 import tempfile
 import uuid
@@ -349,7 +349,7 @@ def _run_process(
     timeout_seconds: int = 600,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    process = subprocess.run(  # nosec B603: absolute binaries with bounded argv only (remove-by: 2026-07-31, ref: PR-3)
+    process = subprocess.run(  # nosec B603: absolute binaries with bounded argv only (remove-by: 2026-10-31, ref: PR-3)
         argv,
         cwd=str(cwd),
         env=env,
