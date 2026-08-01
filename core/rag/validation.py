@@ -9,8 +9,8 @@ Rules enforce:
 - **Empty/malformed filter**: remove chunks with no useful content
 
 All rules operate on ``chunk.content`` (case-insensitive word-boundary matching).
-On any internal exception the validator returns original chunks unchanged
-(fail-safe: never block LLM generation).
+On any internal exception the validator rejects all chunks
+(fail-closed: never pass unvalidated evidence to LLM generation).
 
 See: .cursor/agents/philosophy-agent.md (claim semantics, falsifiability)
 """
@@ -117,7 +117,7 @@ def validate_rag_chunks(
     chunk.  Returns a :class:`ValidationResult` with filtered chunks and
     any advisory warnings.
 
-    On internal exception returns original chunks unchanged (fail-safe).
+    On internal exception rejects all chunks (fail-closed).
 
     Parameters
     ----------
@@ -130,14 +130,14 @@ def validate_rag_chunks(
         return _run_validation(chunks, agent_id)
     except Exception:
         logger.warning(
-            "RAG validation failed; returning original chunks",
+            "RAG validation failed; rejecting all chunks",
             exc_info=True,
         )
         return ValidationResult(
-            passed=bool(chunks),
-            filtered_chunks=list(chunks),
-            warnings=["validation_error: internal failure, chunks unfiltered"],
-            rejected_count=0,
+            passed=False,
+            filtered_chunks=[],
+            warnings=["validation_error: internal failure, all chunks rejected"],
+            rejected_count=len(chunks),
             validation_latency_ms=0,
         )
 

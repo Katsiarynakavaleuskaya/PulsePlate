@@ -5,7 +5,7 @@ Covers all V1 rules:
 - Weasel word detection (advisory)
 - Empty / malformed filter (silent removal)
 
-Plus: ValidationResult contract, fail-safe on internal exception, order preservation.
+Plus: ValidationResult contract, fail-closed on internal exception, order preservation.
 """
 
 from __future__ import annotations
@@ -249,26 +249,33 @@ class TestValidationResultContract:
 
 
 # ---------------------------------------------------------------------------
-# Fail-safe on internal exception
+# Fail-closed on internal exception
 # ---------------------------------------------------------------------------
 
 
-class TestValidationFailSafe:
-    """On internal exception, original chunks are returned unchanged."""
+class TestValidationFailClosed:
+    """On internal exception, all unvalidated chunks are rejected."""
 
-    def test_internal_error_returns_originals(self) -> None:
-        chunks = [_chunk("Some normal wellness content.")]
+    def test_internal_error_rejects_all_chunks(self) -> None:
+        chunks = [
+            _chunk("You need a diagnosis from a doctor.", chunk_id="med"),
+            _chunk("Balanced nutrition supports wellness.", chunk_id="clean"),
+        ]
         with patch(
             "core.rag.validation._run_validation",
             side_effect=RuntimeError("boom"),
         ):
             result = validate_rag_chunks(chunks)
-        assert result.passed is True
-        assert len(result.filtered_chunks) == 1
-        assert result.filtered_chunks[0] is chunks[0]
-        assert any("validation_error" in w for w in result.warnings)
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.warnings == ["validation_error: internal failure, all chunks rejected"]
+        assert result.rejected_count == len(chunks)
+        assert result.validation_latency_ms == 0
 
-    def test_internal_error_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_internal_error_logs_fail_closed_warning(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         chunks = [_chunk("More wellness content here.")]
         with (
             caplog.at_level(logging.WARNING, logger="core.rag.validation"),
@@ -278,4 +285,9 @@ class TestValidationFailSafe:
             ),
         ):
             validate_rag_chunks(chunks)
-        assert "RAG validation failed" in caplog.text
+        records = [record for record in caplog.records if record.name == "core.rag.validation"]
+        assert len(records) == 1
+        record = records[0]
+        assert record.getMessage() == "RAG validation failed; rejecting all chunks"
+        assert record.levelno == logging.WARNING
+        assert record.exc_info is not None
