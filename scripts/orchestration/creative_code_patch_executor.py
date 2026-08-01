@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import shutil
-import subprocess  # nosec B404: fixed codex subprocess wrapper only (remove-by: 2026-07-31, ref: PR-2)
+import subprocess  # nosec B404: fixed codex subprocess wrapper only (remove-by: 2026-10-31, ref: PR-2)
 
 SAFE_ENV_KEYS = frozenset(
     {
@@ -123,7 +123,7 @@ def run_codex_exec(
         raise CreativeCodePatchExecutorError("Codex prompt must be non-empty.")
     argv = build_codex_exec_argv(checkout=checkout)
     try:
-        process = subprocess.run(  # nosec B603: fixed absolute codex argv, no shell, stdin prompt only (remove-by: 2026-07-31, ref: PR-2)
+        process = subprocess.run(  # nosec B603: fixed absolute codex argv, no shell, stdin prompt only (remove-by: 2026-10-31, ref: PR-2)
             argv,
             cwd=str(checkout),
             env=sanitized_codex_env(env),
