@@ -956,7 +956,9 @@ jobs:
                   tests/test_food_merge.py \
                   tests/edges/test_unified_db_off_flags.py \
                   tests/test_food_apis_snapshot_w1.py \
-                  tests/test_food_sources_snapshot_manager.py
+                  tests/test_food_sources_snapshot_manager.py \
+                  tests/test_admin_scheduler_access.py \
+                  tests/test_scheduler_final_coverage.py
                 ;;
               route_contract_safety)
                 add_suite \
@@ -1349,7 +1351,9 @@ jobs:
                   tests/test_food_merge.py \
                   tests/edges/test_unified_db_off_flags.py \
                   tests/test_food_apis_snapshot_w1.py \
-                  tests/test_food_sources_snapshot_manager.py
+                  tests/test_food_sources_snapshot_manager.py \
+                  tests/test_admin_scheduler_access.py \
+                  tests/test_scheduler_final_coverage.py
                 ;;
               route_contract_safety)
                 add_suite \
