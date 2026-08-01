@@ -328,7 +328,9 @@ def test_patch_run_paths_outside_request_allowlist_block_promotion(
         changed_paths=["core/rag/other.py"],
         patch_fingerprint=patch_fingerprint,
         patch_bytes=len(patch_text.encode("utf-8")),
-        diff_lines=len(patch_text.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(patch_text.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result={
             "experiment_id": "exp-pr3-reference",
             "status": "accepted",
@@ -355,7 +357,9 @@ def test_patch_run_paths_outside_request_allowlist_block_promotion(
             "changed_path_statuses": {"core/rag/other.py": "M"},
             "patch_fingerprint": patch_fingerprint,
             "patch_bytes": len(patch_text.encode("utf-8")),
-            "diff_lines": len(patch_text.splitlines()),
+            "changed_lines": 2,
+            "serialized_patch_lines": len(patch_text.splitlines()),
+            "line_metric": "numstat_added_plus_deleted_v1",
         },
     )
     (run_dir / CANDIDATE_PATCH_FILE).write_text(patch_text, encoding="utf-8")

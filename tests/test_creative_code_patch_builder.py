@@ -97,6 +97,7 @@ def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
     monkeypatch.setattr(creative_code_patch_workspace, "REPO_ROOT", repo)
     monkeypatch.setattr(creative_code_patch_workspace, "ARTIFACT_ROOT", artifact_root)
     monkeypatch.setattr(creative_code_patch_builder, "REPO_ROOT", repo)
+    monkeypatch.setattr(creative_code_patch_contract, "REPO_ROOT", repo)
 
 
 def _reference_bundle() -> dict[str, Any]:
@@ -170,7 +171,9 @@ def _reference_result() -> dict[str, Any]:
         changed_paths=["core/rag/orchestration.py"],
         patch_fingerprint="sha256:" + ("b" * 64),
         patch_bytes=128,
-        diff_lines=8,
+        changed_lines=2,
+        serialized_patch_lines=8,
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result={
             "experiment_id": "exp-pr2-reference",
             "status": "accepted",
@@ -190,7 +193,13 @@ def _reference_result() -> dict[str, Any]:
     )
 
 
-def _request_for_base(base_sha: str) -> dict[str, Any]:
+def _request_for_base(
+    base_sha: str,
+    *,
+    max_changed_files: int = 3,
+    max_changed_lines: int = 200,
+    max_patch_bytes: int = 20000,
+) -> dict[str, Any]:
     return build_creative_code_patch_build_request(
         source_bundle=_reference_bundle(),
         base_commit_sha=base_sha,
@@ -206,9 +215,10 @@ def _request_for_base(base_sha: str) -> dict[str, Any]:
             "generation_attempts": 1,
             "generation_timeout_seconds": 60,
             "evaluation_timeout_seconds": 60,
-            "max_changed_files": 3,
-            "max_diff_lines": 200,
-            "max_patch_bytes": 20000,
+            "max_changed_files": max_changed_files,
+            "max_changed_lines": max_changed_lines,
+            "line_metric": "numstat_added_plus_deleted_v1",
+            "max_patch_bytes": max_patch_bytes,
         },
     )
 
@@ -217,11 +227,25 @@ def _write_generated_run(
     *,
     run_id: str,
     base_sha: str,
+    max_changed_lines: int = 200,
+    max_patch_bytes: int = 20000,
 ) -> Path:
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=True)
     assert isinstance(run_dir, Path)
-    request = _request_for_base(base_sha)
-    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    request = _request_for_base(
+        base_sha,
+        max_changed_lines=max_changed_lines,
+        max_patch_bytes=max_patch_bytes,
+    )
+    patch_text = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
+index 8f11111..8f22222 100644
+--- a/core/rag/orchestration.py
++++ b/core/rag/orchestration.py
+@@ -1,2 +1,2 @@
+ def value() -> int:
+-    return 1
++    return 2
+"""
     state = {
         "run_id": run_id,
         "request_id": request["request_id"],
@@ -234,10 +258,14 @@ def _write_generated_run(
     }
     metadata = {
         "changed_paths": ["core/rag/orchestration.py"],
+        "changed_path_statuses": {"core/rag/orchestration.py": "M"},
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
+        "changed_lines": 2,
+        "serialized_patch_lines": len(patch_text.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
     }
+    state["patch_metadata"] = metadata
     creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
     creative_code_patch_workspace.write_json_atomic(
         run_dir / "source_bundle.json", _reference_bundle()
@@ -246,6 +274,45 @@ def _write_generated_run(
     creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
     (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
     return run_dir
+
+
+def _current_metadata_for_patch(*, patch_text: str, path: str) -> dict[str, Any]:
+    measured = creative_code_patch_contract.measure_persisted_creative_code_patch(
+        patch_text,
+        expected_paths=[path],
+    )
+    return {
+        "changed_paths": [path],
+        "changed_path_statuses": {path: "M"},
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "changed_lines": measured["changed_lines"],
+        "serialized_patch_lines": len(patch_text.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
+    }
+
+
+def _replace_generated_candidate(
+    run_dir: Path,
+    *,
+    patch_text: str,
+    path: str,
+    replace_state_metadata: bool,
+) -> None:
+    metadata = _current_metadata_for_patch(patch_text=patch_text, path=path)
+    (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).write_text(
+        patch_text,
+        encoding="utf-8",
+    )
+    creative_code_patch_workspace.write_json_atomic(
+        run_dir / creative_code_patch_builder.PATCH_METADATA_FILE,
+        metadata,
+    )
+    if replace_state_metadata:
+        state_path = run_dir / creative_code_patch_builder.STATE_FILE
+        state = creative_code_patch_workspace.read_json(state_path)
+        state["patch_metadata"] = metadata
+        creative_code_patch_workspace.write_json_atomic(state_path, state)
 
 
 def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
@@ -260,7 +327,8 @@ def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
 
     assert "Hard mutation budget:" in prompt
     assert f"- max_changed_files: {request['budgets']['max_changed_files']}" in prompt
-    assert f"- max_diff_lines: {request['budgets']['max_diff_lines']}" in prompt
+    assert f"- max_changed_lines: {request['budgets']['max_changed_lines']}" in prompt
+    assert "- line_metric: numstat_added_plus_deleted_v1" in prompt
     assert f"- max_patch_bytes: {request['budgets']['max_patch_bytes']}" in prompt
     assert "Do not run tests, package managers, broad repository searches" in prompt
     assert "inspect only the allowed existing paths" in prompt
@@ -531,7 +599,9 @@ def test_build_result_rejects_malformed_runner_summary_inputs() -> None:
             changed_paths=["core/rag/orchestration.py"],
             patch_fingerprint="sha256:" + ("b" * 64),
             patch_bytes=128,
-            diff_lines=8,
+            changed_lines=2,
+            serialized_patch_lines=8,
+            line_metric="numstat_added_plus_deleted_v1",
             runner_result=runner_result,
             checkout_destroyed=True,
             origin_removed=True,
@@ -548,7 +618,9 @@ def test_build_result_rejects_malformed_runner_summary_inputs() -> None:
             changed_paths=["core/rag/orchestration.py"],
             patch_fingerprint="sha256:" + ("b" * 64),
             patch_bytes=128,
-            diff_lines=8,
+            changed_lines=2,
+            serialized_patch_lines=8,
+            line_metric="numstat_added_plus_deleted_v1",
             runner_result=runner_result,
             checkout_destroyed=True,
             origin_removed=True,
@@ -581,7 +653,9 @@ def test_build_result_rejects_accepted_capability_mismatch() -> None:
             changed_paths=["core/rag/orchestration.py"],
             patch_fingerprint="sha256:" + ("b" * 64),
             patch_bytes=128,
-            diff_lines=8,
+            changed_lines=2,
+            serialized_patch_lines=8,
+            line_metric="numstat_added_plus_deleted_v1",
             runner_result=runner_result,
             checkout_destroyed=True,
             origin_removed=True,
@@ -916,7 +990,8 @@ def test_patch_request_allows_allowed_new_only_requests() -> None:
             "generation_timeout_seconds": 60,
             "evaluation_timeout_seconds": 60,
             "max_changed_files": 3,
-            "max_diff_lines": 200,
+            "max_changed_lines": 200,
+            "line_metric": "numstat_added_plus_deleted_v1",
             "max_patch_bytes": 20000,
         },
     )
@@ -928,6 +1003,82 @@ def test_patch_request_allows_allowed_new_only_requests() -> None:
 
     assert validated["allowed_existing_paths"] == []
     assert validated["allowed_new_paths"] == ["core/rag/orchestration.py"]
+
+
+def test_legacy_request_and_result_identities_remain_read_only_and_unchanged() -> None:
+    legacy_request = deepcopy(_reference_request())
+    legacy_request["budgets"] = {
+        "generation_attempts": 1,
+        "generation_timeout_seconds": 60,
+        "evaluation_timeout_seconds": 60,
+        "max_changed_files": 3,
+        "max_diff_lines": 200,
+        "max_patch_bytes": 20000,
+    }
+    request_id, request_key = creative_code_patch_contract._build_request_identity(legacy_request)
+    legacy_request["request_id"] = request_id
+    legacy_request["idempotency_key"] = request_key
+
+    normalized_request = validate_creative_code_patch_build_request(
+        legacy_request,
+        source_bundle=_reference_bundle(),
+    )
+    assert normalized_request == legacy_request
+    assert (
+        request_id
+        == "evidence:creative_code_patch_build_request:control_plane:1.0:16cf944781ee53979503fc4b"
+    )
+    assert request_key == "idem:16cf944781ee53979503fc4b4e283589781ee762cebb3fc8e4969d8c9e85b45a"
+    assert fingerprint_payload(normalized_request) == (
+        "sha256:048d1ca1b4b8bccd4d3a2b3a322b1476d8b7685271e596f88cb69f378308c74e"
+    )
+
+    legacy_result = deepcopy(_reference_result())
+    legacy_result["request_id"] = request_id
+    legacy_result["patch_summary"] = {
+        "patch_fingerprint": "sha256:" + ("b" * 64),
+        "patch_bytes": 128,
+        "diff_lines": 8,
+    }
+    result_id, result_key = creative_code_patch_contract._build_result_identity(legacy_result)
+    legacy_result["result_id"] = result_id
+    legacy_result["idempotency_key"] = result_key
+
+    normalized_result = validate_creative_code_patch_result(legacy_result)
+    assert normalized_result == legacy_result
+    assert (
+        result_id
+        == "evidence:creative_code_patch_result:control_plane:1.0:9a8bd606a17a8fbfb4877033"
+    )
+    assert result_key == "idem:9a8bd606a17a8fbfb4877033900cff93204fb13b6d1ebe00f5c35c0872440bdc"
+    assert fingerprint_payload(normalized_result) == (
+        "sha256:43a411ecb477c2e8755aeb1b4bc45a15c28d60e66f30141ad2ce26882367245a"
+    )
+
+
+@pytest.mark.parametrize("mutation", ["missing", "mixed", "unknown_metric"])
+def test_current_line_budget_shape_rejects_partial_or_unknown_markers(mutation: str) -> None:
+    request = deepcopy(_reference_request())
+    if mutation == "missing":
+        request["budgets"].pop("line_metric")
+    elif mutation == "mixed":
+        request["budgets"]["max_diff_lines"] = 200
+    else:
+        request["budgets"]["line_metric"] = "unknown_metric"
+
+    with pytest.raises(CreativeCodePatchContractError):
+        validate_creative_code_patch_build_request(
+            request,
+            source_bundle=_reference_bundle(),
+        )
+
+
+def test_result_line_measurement_families_cannot_be_mixed() -> None:
+    result = deepcopy(_reference_result())
+    result["patch_summary"]["diff_lines"] = result["patch_summary"]["serialized_patch_lines"]
+
+    with pytest.raises(CreativeCodePatchContractError, match="exact legacy or changed-line"):
+        validate_creative_code_patch_result(result)
 
 
 def test_patch_request_rejects_duplicate_keys(tmp_path: Path) -> None:
@@ -1252,6 +1403,229 @@ def test_workspace_json_write_rejects_paths_outside_creative_code_artifacts(
         creative_code_patch_workspace.write_json_atomic(tmp_path / "outside.json", {})
 
 
+def test_strict_numstat_parser_binds_changed_lines_and_exact_paths() -> None:
+    summary = creative_code_patch_contract.parse_creative_code_numstat(
+        "2\t3\tcore/rag/orchestration.py\n",
+        expected_paths=["core/rag/orchestration.py"],
+    )
+
+    assert summary == {
+        "additions": 2,
+        "deletions": 3,
+        "changed_lines": 5,
+        "changed_paths": ["core/rag/orchestration.py"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("numstat", "expected_paths", "message"),
+    [
+        ("1\t0\n", ["core/rag/orchestration.py"], "exactly three"),
+        ("-\t-\tcore/rag/orchestration.py\n", ["core/rag/orchestration.py"], "binary"),
+        ("١\t0\tcore/rag/orchestration.py\n", ["core/rag/orchestration.py"], "ASCII"),
+        ("1\t0\t../orchestration.py\n", ["core/rag/orchestration.py"], "traversal"),
+        (
+            "1\t0\tcore/rag/orchestration.py\n1\t0\tcore/rag/orchestration.py\n",
+            ["core/rag/orchestration.py"],
+            "duplicate",
+        ),
+        ("1\t0\tcore/rag/other.py\n", ["core/rag/orchestration.py"], "exactly match"),
+    ],
+)
+def test_strict_numstat_parser_rejects_malformed_rows(
+    numstat: str,
+    expected_paths: list[str],
+    message: str,
+) -> None:
+    with pytest.raises(CreativeCodePatchContractError, match=message):
+        creative_code_patch_contract.parse_creative_code_numstat(
+            numstat,
+            expected_paths=expected_paths,
+        )
+
+
+def test_r3_structural_fixture_uses_changed_lines_and_explicit_u3(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Synthetic regression fixture only; it is not reconstructed or recovered R3 evidence.
+    repo, _ = _init_patch_repo(tmp_path)
+    target = repo / "core" / "rag" / "orchestration.py"
+    source = """def _mean_chunk_score(chunks: list["RAGChunk"]) -> float:
+    return 0.0
+
+
+def helper_one() -> None:
+    return None
+
+
+def helper_two() -> None:
+    return None
+
+
+def helper_three() -> None:
+    return None
+
+
+def _resolve_confidence(*, chunks_to_use: list["RAGChunk"]) -> float:
+    return 0.0
+"""
+    target.write_text(source, encoding="utf-8")
+    _git(repo, "add", "core/rag/orchestration.py")
+    _git(repo, "commit", "--quiet", "-m", "add r3 structural fixture")
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
+    _patch_modules_to_repo(monkeypatch, repo)
+    bundle = _reference_bundle()
+
+    def run_generation(
+        *,
+        run_id: str,
+        max_changed_lines: int,
+        diff_context: int,
+    ) -> dict[str, Any]:
+        request = _request_for_base(
+            base_sha,
+            max_changed_files=1,
+            max_changed_lines=max_changed_lines,
+            max_patch_bytes=4096,
+        )
+        bundle_path = tmp_path / f"{run_id}-bundle.json"
+        request_path = tmp_path / f"{run_id}-request.json"
+        bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+        request_path.write_text(json.dumps(request), encoding="utf-8")
+        creative_code_patch_builder.prepare(
+            spec_bundle_path=bundle_path,
+            request_path=request_path,
+            run_id=run_id,
+        )
+
+        def fake_run_codex_exec(
+            *, checkout: Path, prompt: str, timeout_seconds: int
+        ) -> dict[str, int]:
+            assert "max_changed_lines" in prompt
+            assert timeout_seconds == 60
+            _git(checkout, "config", "diff.context", str(diff_context))
+            checkout_target = checkout / "core" / "rag" / "orchestration.py"
+            checkout_target.write_text(
+                source.replace('list["RAGChunk"]', 'Sequence["RAGChunk"]'),
+                encoding="utf-8",
+            )
+            return {"returncode": 0, "stdout_lines": 0, "stderr_lines": 0}
+
+        monkeypatch.setattr(
+            creative_code_patch_builder,
+            "run_codex_exec",
+            fake_run_codex_exec,
+        )
+        return creative_code_patch_builder.generate(run_id=run_id)
+
+    context_zero = run_generation(
+        run_id="r3-structural-u3-zero",
+        max_changed_lines=4,
+        diff_context=0,
+    )
+    context_twenty = run_generation(
+        run_id="r3-structural-u3-twenty",
+        max_changed_lines=4,
+        diff_context=20,
+    )
+    context_zero_dir = creative_code_patch_workspace.resolve_run_dir(
+        "r3-structural-u3-zero", create=False
+    )
+    context_twenty_dir = creative_code_patch_workspace.resolve_run_dir(
+        "r3-structural-u3-twenty", create=False
+    )
+    context_zero_measurement = creative_code_patch_contract.measure_persisted_creative_code_patch(
+        (context_zero_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).read_text(
+            encoding="utf-8"
+        ),
+        expected_paths=["core/rag/orchestration.py"],
+    )
+    context_twenty_measurement = creative_code_patch_contract.measure_persisted_creative_code_patch(
+        (context_twenty_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).read_text(
+            encoding="utf-8"
+        ),
+        expected_paths=["core/rag/orchestration.py"],
+    )
+
+    assert context_zero["changed_lines"] == 4
+    assert context_zero["serialized_patch_lines"] > 16
+    assert context_zero["line_metric"] == "numstat_added_plus_deleted_v1"
+    assert context_zero_measurement["additions"] == 2
+    assert context_zero_measurement["deletions"] == 2
+    assert context_twenty_measurement["additions"] == 2
+    assert context_twenty_measurement["deletions"] == 2
+    assert context_twenty == context_zero
+
+    with pytest.raises(
+        creative_code_patch_builder.CreativeCodePatchBudgetError,
+        match="max_changed_lines",
+    ) as exc_info:
+        run_generation(
+            run_id="r3-structural-over-budget",
+            max_changed_lines=3,
+            diff_context=20,
+        )
+
+    assert exc_info.value.failure_class == "policy_violation"
+    assert exc_info.value.reason_code == "changed_line_budget_exceeded"
+    rejected_dir = creative_code_patch_workspace.resolve_run_dir(
+        "r3-structural-over-budget", create=False
+    )
+    rejected_state = creative_code_patch_workspace.read_json(
+        rejected_dir / creative_code_patch_builder.STATE_FILE
+    )
+    assert rejected_state["generation_failure"] == {
+        "failure_class": "policy_violation",
+        "reason_code": "changed_line_budget_exceeded",
+    }
+    assert not (rejected_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).exists()
+    assert not (rejected_dir / creative_code_patch_builder.PATCH_METADATA_FILE).exists()
+    assert not (rejected_dir / creative_code_patch_builder.RESULT_FILE).exists()
+
+
+def test_patch_byte_and_changed_file_budgets_keep_distinct_reason_codes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    request = _request_for_base(base_sha, max_patch_bytes=1)
+    run_dir = creative_code_patch_workspace.resolve_run_dir("patch-byte-budget", create=True)
+    creative_code_patch_workspace.prepare_generation_checkout(
+        run_dir=run_dir,
+        base_commit_sha=base_sha,
+    )
+    checkout = creative_code_patch_workspace.generation_checkout(run_dir)
+    (checkout / "core" / "rag" / "orchestration.py").write_text(
+        "def value() -> int:\n    return 2\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(creative_code_patch_builder.CreativeCodePatchBudgetError) as byte_exc:
+        creative_code_patch_builder._patch_metadata(
+            checkout=checkout,
+            run_dir=run_dir,
+            request=request,
+            bundle=_reference_bundle(),
+        )
+    assert byte_exc.value.reason_code == "patch_bytes_budget_exceeded"
+
+    file_request = deepcopy(request)
+    file_request["budgets"]["max_changed_files"] = 1
+    with pytest.raises(creative_code_patch_builder.CreativeCodePatchBudgetError) as file_exc:
+        creative_code_patch_builder._validate_paths(
+            changed_by_status={
+                "core/rag/orchestration.py": "M",
+                "core/rag/other.py": "M",
+            },
+            request=file_request,
+            bundle=_reference_bundle(),
+        )
+    assert file_exc.value.reason_code == "changed_files_budget_exceeded"
+
+
 def test_patch_metadata_accepts_allowed_modified_file(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1385,7 +1759,8 @@ def test_patch_metadata_rejects_new_executable_file(
             "generation_timeout_seconds": 60,
             "evaluation_timeout_seconds": 60,
             "max_changed_files": 3,
-            "max_diff_lines": 200,
+            "max_changed_lines": 200,
+            "line_metric": "numstat_added_plus_deleted_v1",
             "max_patch_bytes": 20000,
         },
     )
@@ -1426,13 +1801,25 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
         "candidate_patch_generated": True,
         "checkout_destroyed": True,
     }
-    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    patch_text = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
+index 8f11111..8f22222 100644
+--- a/core/rag/orchestration.py
++++ b/core/rag/orchestration.py
+@@ -1,2 +1,2 @@
+ def value() -> int:
+-    return 1
++    return 2
+"""
     metadata = {
         "changed_paths": ["core/rag/orchestration.py"],
+        "changed_path_statuses": {"core/rag/orchestration.py": "M"},
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
+        "changed_lines": 2,
+        "serialized_patch_lines": len(patch_text.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
     }
+    state["patch_metadata"] = metadata
     creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
     creative_code_patch_workspace.write_json_atomic(
         run_dir / "source_bundle.json", _reference_bundle()
@@ -1540,7 +1927,8 @@ def test_evaluate_supplies_cv_context_for_cv_candidate(
             "generation_timeout_seconds": 60,
             "evaluation_timeout_seconds": 60,
             "max_changed_files": 1,
-            "max_diff_lines": 200,
+            "max_changed_lines": 200,
+            "line_metric": "numstat_added_plus_deleted_v1",
             "max_patch_bytes": 20000,
         },
     )
@@ -1565,10 +1953,14 @@ def test_evaluate_supplies_cv_context_for_cv_candidate(
     )
     metadata = {
         "changed_paths": ["docs/prompts/cv/program.md"],
+        "changed_path_statuses": {"docs/prompts/cv/program.md": "M"},
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
+        "changed_lines": 1,
+        "serialized_patch_lines": len(patch_text.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
     }
+    state["patch_metadata"] = metadata
     creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
     creative_code_patch_workspace.write_json_atomic(run_dir / "source_bundle.json", bundle)
     creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
@@ -1631,13 +2023,25 @@ def test_evaluate_fallback_stores_error_class_not_raw_exception(
         "candidate_patch_generated": True,
         "checkout_destroyed": True,
     }
-    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    patch_text = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
+index 8f11111..8f22222 100644
+--- a/core/rag/orchestration.py
++++ b/core/rag/orchestration.py
+@@ -1,2 +1,2 @@
+ def value() -> int:
+-    return 1
++    return 2
+"""
     metadata = {
         "changed_paths": ["core/rag/orchestration.py"],
+        "changed_path_statuses": {"core/rag/orchestration.py": "M"},
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
-        "diff_lines": len(patch_text.splitlines()),
+        "changed_lines": 2,
+        "serialized_patch_lines": len(patch_text.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
     }
+    state["patch_metadata"] = metadata
     creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
     creative_code_patch_workspace.write_json_atomic(
         run_dir / "source_bundle.json", _reference_bundle()
@@ -1802,12 +2206,23 @@ def test_evaluate_rejects_tampered_candidate_patch(
     _patch_modules_to_repo(monkeypatch, repo)
     run_dir = creative_code_patch_workspace.resolve_run_dir("eval-tamper", create=True)
     request = _request_for_base(base_sha)
-    original_patch = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    original_patch = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
+index 8f11111..8f22222 100644
+--- a/core/rag/orchestration.py
++++ b/core/rag/orchestration.py
+@@ -1,2 +1,2 @@
+ def value() -> int:
+-    return 1
++    return 2
+"""
     metadata = {
         "changed_paths": ["core/rag/orchestration.py"],
+        "changed_path_statuses": {"core/rag/orchestration.py": "M"},
         "patch_fingerprint": fingerprint_payload({"candidate_patch": original_patch}),
         "patch_bytes": len(original_patch.encode("utf-8")),
-        "diff_lines": len(original_patch.splitlines()),
+        "changed_lines": 2,
+        "serialized_patch_lines": len(original_patch.splitlines()),
+        "line_metric": "numstat_added_plus_deleted_v1",
     }
     state = {
         "run_id": "eval-tamper",
@@ -1819,6 +2234,7 @@ def test_evaluate_rejects_tampered_candidate_patch(
         "candidate_patch_generated": True,
         "checkout_destroyed": True,
     }
+    state["patch_metadata"] = metadata
     creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
     creative_code_patch_workspace.write_json_atomic(
         run_dir / "source_bundle.json", _reference_bundle()
@@ -1834,6 +2250,172 @@ def test_evaluate_rejects_tampered_candidate_patch(
 
     with pytest.raises(CreativeCodePatchBuilderError, match="metadata does not match"):
         creative_code_patch_builder.evaluate(run_id="eval-tamper")
+
+
+def test_evaluate_rejects_coordinated_patch_and_metadata_tamper_before_runner(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-coordinated-tamper"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    tampered_patch = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
+index 8f11111..8f22222 100644
+--- a/core/rag/orchestration.py
++++ b/core/rag/orchestration.py
+@@ -1,2 +1,2 @@
+ def value() -> int:
+-    return 1
++    return 3
+"""
+    _replace_generated_candidate(
+        run_dir,
+        patch_text=tampered_patch,
+        path="core/rag/orchestration.py",
+        replace_state_metadata=False,
+    )
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run for coordinated tampering")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="must match generation-recorded state before evaluate",
+    ):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert not (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).exists()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+
+
+def test_evaluate_remeasures_changed_lines_after_coordinated_artifact_tamper(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-changed-lines-tamper"
+    run_dir = _write_generated_run(
+        run_id=run_id,
+        base_sha=base_sha,
+        max_changed_lines=3,
+    )
+    tampered_patch = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
+index 8f11111..8f22222 100644
+--- a/core/rag/orchestration.py
++++ b/core/rag/orchestration.py
+@@ -1,2 +1,2 @@
+-def value() -> int:
+-    return 1
++def changed_value() -> int:
++    return 2
+"""
+    _replace_generated_candidate(
+        run_dir,
+        patch_text=tampered_patch,
+        path="core/rag/orchestration.py",
+        replace_state_metadata=True,
+    )
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run over changed-line budget")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="max_changed_lines budget before evaluate",
+    ):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert not (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).exists()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+
+
+def test_evaluate_remeasures_request_patch_bytes_after_coordinated_artifact_tamper(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-patch-bytes-tamper"
+    run_dir = _write_generated_run(
+        run_id=run_id,
+        base_sha=base_sha,
+        max_patch_bytes=512,
+    )
+    oversized_value = "x" * 700
+    tampered_patch = (
+        "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+        "index 8f11111..8f22222 100644\n"
+        "--- a/core/rag/orchestration.py\n"
+        "+++ b/core/rag/orchestration.py\n"
+        "@@ -1,2 +1,2 @@\n"
+        " def value() -> int:\n"
+        "-    return 1\n"
+        f'+    return "{oversized_value}"\n'
+    )
+    assert 512 < len(tampered_patch.encode("utf-8")) < 524288
+    _replace_generated_candidate(
+        run_dir,
+        patch_text=tampered_patch,
+        path="core/rag/orchestration.py",
+        replace_state_metadata=True,
+    )
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run over request patch-byte budget")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="max_patch_bytes budget before evaluate",
+    ):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert not (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).exists()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+
+
+def test_evaluate_revalidates_path_after_coordinated_artifact_tamper(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-path-tamper"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    tampered_path = "core/rag/other.py"
+    tampered_patch = """diff --git a/core/rag/other.py b/core/rag/other.py
+index 8f11111..8f22222 100644
+--- a/core/rag/other.py
++++ b/core/rag/other.py
+@@ -1,2 +1,2 @@
+ def value() -> int:
+-    return 1
++    return 2
+"""
+    _replace_generated_candidate(
+        run_dir,
+        patch_text=tampered_patch,
+        path=tampered_path,
+        replace_state_metadata=True,
+    )
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run for an unapproved path")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="touches unapproved path"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert not (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).exists()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
 
 
 def test_prepare_rejects_non_empty_run_directory(

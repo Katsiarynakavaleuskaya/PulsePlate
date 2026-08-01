@@ -289,6 +289,7 @@ def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
     taxonomy_codes = _taxonomy_from_failure(normalized["failure_class"])
     rejection_class = taxonomy_codes[0] if taxonomy_codes else None
     patch_summary = normalized["patch_summary"]
+    legacy_diff_lines = patch_summary.get("diff_lines")
     runner_summary = normalized["runner_summary"]
     event: dict[str, Any] = build_creative_code_telemetry_event(
         lane_stage="patch_evaluation",
@@ -307,7 +308,7 @@ def event_from_patch_result(result: dict[str, Any]) -> dict[str, Any]:
         taxonomy_codes=taxonomy_codes,
         metrics=default_metrics(
             changed_files=len(normalized["changed_paths"]),
-            diff_lines=patch_summary["diff_lines"],
+            diff_lines=legacy_diff_lines,
             generation_attempts=runner_summary["attempts"],
             oracle_commands_configured=runner_summary["oracle_commands_configured"],
             oracle_commands_executed=runner_summary["oracle_commands_executed"],

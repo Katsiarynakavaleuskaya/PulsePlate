@@ -71,7 +71,8 @@ These routes remain for compatibility and migration. They must not be described 
 | `/api/v1/premium/targets` | POST | PRO | `/api/v1/pro/nutrition/targets` | Legacy shim |
 | `/api/v1/premium/plate` | POST | PRO | `/api/v1/pro/nutrition/plate` | Legacy shim; preserves plate request/response semantics |
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
-| `/api/v1/premium/exports/*` | POST | VIP | `/api/v1/vip/shoplist/export` | Wrong-namespace compatibility exports |
+| `/api/v1/premium/exports/day/{plan_id}.csv` | GET | Legacy API-key compatibility | `/api/v1/vip/shoplist/export` (CSV format) | Hidden test/demo compatibility alias gated by `EXPORTS_ENABLED` |
+| `/api/v1/premium/exports/week/{plan_id}.csv` | GET | Legacy API-key compatibility | `/api/v1/vip/shoplist/export` (CSV format) | Hidden test/demo compatibility alias gated by `EXPORTS_ENABLED` |
 | `/api/v1/vip/weekly-plan` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Deprecated VIP alias |
 | `/insight` | POST | VIP | `/api/v1/insight` | Hidden deprecated legacy alias; owned by `app/routers/legacy_insight.py` |
 

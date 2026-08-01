@@ -116,15 +116,15 @@ def create_rate_limited_app() -> tuple[FastAPI, Limiter]:
     async def export_sign(request: Request) -> dict[str, str]:
         return {"url": "/signed", "exp": "123", "ttl": "60"}
 
-    @router.post("/api/v1/export/pdf")
-    @test_limiter.limit("2/minute")
-    async def legacy_export_pdf(request: Request) -> dict[str, str]:
-        return {"export": "pdf"}
-
     @router.get("/api/v1/plan/week/export.csv")
     @test_limiter.limit("2/minute")
     async def plan_export(request: Request) -> dict[str, str]:
         return {"export": "csv"}
+
+    @router.get("/api/v1/plan/week/export.pdf")
+    @test_limiter.limit("2/minute")
+    async def plan_export_pdf(request: Request) -> dict[str, str]:
+        return {"export": "pdf"}
 
     @router.post("/api/v1/pro/restaurants/partner/orders/adapt/preview")
     @test_limiter.limit("2/minute")
@@ -408,16 +408,15 @@ def test_export_sign_rate_limited_200_then_429() -> None:
     assert s3.json()["detail"] == expected_detail
 
 
-def test_legacy_export_pdf_alias_rate_limited_200_then_429() -> None:
-    """Test /api/v1/export/pdf returns 200 twice, then 429."""
+def test_plan_week_export_pdf_rate_limited_200_then_429() -> None:
+    """Test /api/v1/plan/week/export.pdf returns 200 twice, then 429."""
     app, _ = create_rate_limited_app()
     client = TestClient(app)
-    headers = {"accept-language": "en", "x-test-id": "legacy-export-pdf"}
-    payload = {"meals": []}
+    headers = {"accept-language": "en", "x-test-id": "plan-week-export-pdf"}
 
-    r1 = client.post("/api/v1/export/pdf", json=payload, headers=headers)
-    r2 = client.post("/api/v1/export/pdf", json=payload, headers=headers)
-    r3 = client.post("/api/v1/export/pdf", json=payload, headers=headers)
+    r1 = client.get("/api/v1/plan/week/export.pdf", headers=headers)
+    r2 = client.get("/api/v1/plan/week/export.pdf", headers=headers)
+    r3 = client.get("/api/v1/plan/week/export.pdf", headers=headers)
 
     assert r1.status_code == 200
     assert r2.status_code == 200

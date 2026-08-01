@@ -35,6 +35,11 @@ from scripts.orchestration.experiment_contract import (
     validate_metrics,
     validate_mutable_candidate_surface,
 )
+from scripts.orchestration.creative_code_patch_workspace import (
+    REPO_ROOT,
+    CreativeCodePatchWorkspaceError,
+    run_git,
+)
 
 SCHEMA_VERSION = "1.0"
 REQUEST_TYPE = "creative_code_patch_build_request"
@@ -45,9 +50,11 @@ SUCCESS_OUTPUT = "PASS: creative-code patch contract valid"
 DEFAULT_MAX_CHANGED_FILES = 3
 HARD_MAX_CHANGED_FILES = 5
 HARD_MAX_DIFF_LINES = 800
+HARD_MAX_CHANGED_LINES = 800
 HARD_MAX_PATCH_BYTES = 524288
 HARD_TIMEOUT_SECONDS = 600
 GENERATION_ATTEMPTS = 1
+CHANGED_LINE_METRIC = "numstat_added_plus_deleted_v1"
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
@@ -226,7 +233,7 @@ EXECUTOR_KEYS = frozenset(
         "json_events",
     }
 )
-BUDGET_KEYS = frozenset(
+LEGACY_BUDGET_KEYS = frozenset(
     {
         "generation_attempts",
         "generation_timeout_seconds",
@@ -234,6 +241,17 @@ BUDGET_KEYS = frozenset(
         "max_changed_files",
         "max_diff_lines",
         "max_patch_bytes",
+    }
+)
+CURRENT_BUDGET_KEYS = frozenset(
+    {
+        "generation_attempts",
+        "generation_timeout_seconds",
+        "evaluation_timeout_seconds",
+        "max_changed_files",
+        "max_changed_lines",
+        "max_patch_bytes",
+        "line_metric",
     }
 )
 RESULT_KEYS = frozenset(
@@ -260,9 +278,29 @@ RESULT_KEYS = frozenset(
         "sanitized",
     }
 )
-PATCH_SUMMARY_KEYS = frozenset({"patch_fingerprint", "patch_bytes", "diff_lines"})
-PATCH_METADATA_KEYS = frozenset(
+LEGACY_PATCH_SUMMARY_KEYS = frozenset({"patch_fingerprint", "patch_bytes", "diff_lines"})
+CURRENT_PATCH_SUMMARY_KEYS = frozenset(
+    {
+        "patch_fingerprint",
+        "patch_bytes",
+        "changed_lines",
+        "serialized_patch_lines",
+        "line_metric",
+    }
+)
+LEGACY_PATCH_METADATA_KEYS = frozenset(
     {"changed_paths", "changed_path_statuses", "patch_fingerprint", "patch_bytes", "diff_lines"}
+)
+CURRENT_PATCH_METADATA_KEYS = frozenset(
+    {
+        "changed_paths",
+        "changed_path_statuses",
+        "patch_fingerprint",
+        "patch_bytes",
+        "changed_lines",
+        "serialized_patch_lines",
+        "line_metric",
+    }
 )
 WORKSPACE_SUMMARY_KEYS = frozenset(
     {
@@ -406,6 +444,23 @@ def _require_exact_keys(
         raise CreativeCodePatchContractError(f"{label} has unsupported fields.")
 
 
+def _exact_shape_family(
+    payload: Mapping[str, Any],
+    *,
+    legacy_keys: frozenset[str],
+    current_keys: frozenset[str],
+    label: str,
+) -> Literal["legacy", "current"]:
+    keys = set(payload)
+    if keys == legacy_keys:
+        return "legacy"
+    if keys == current_keys:
+        return "current"
+    raise CreativeCodePatchContractError(
+        f"{label} must use one exact legacy or changed-line shape."
+    )
+
+
 def _require_const(payload: Mapping[str, Any], key: str, expected: Any, *, label: str) -> Any:
     value = payload.get(key)
     if value != expected:
@@ -502,6 +557,88 @@ def _normalize_patch_path(raw_path: Any, *, label: str) -> str:
     ):
         raise CreativeCodePatchContractError(f"{label} points to a forbidden patch surface.")
     return normalized
+
+
+def parse_creative_code_numstat(
+    output: str,
+    *,
+    expected_paths: Sequence[str],
+) -> dict[str, Any]:
+    """Parse one strict text-only Git numstat and bind it to exact paths."""
+
+    if not isinstance(output, str) or not output:
+        raise CreativeCodePatchContractError("git numstat output must be non-empty text.")
+    normalized_expected: list[str] = []
+    expected_seen: set[str] = set()
+    for index, raw_path in enumerate(expected_paths):
+        path = _normalize_patch_path(raw_path, label=f"expected_paths[{index}]")
+        if path in expected_seen:
+            raise CreativeCodePatchContractError("expected numstat paths must not duplicate.")
+        expected_seen.add(path)
+        normalized_expected.append(path)
+
+    additions = 0
+    deletions = 0
+    parsed_paths: list[str] = []
+    seen_paths: set[str] = set()
+    for index, row in enumerate(output.splitlines()):
+        if not row:
+            raise CreativeCodePatchContractError("git numstat output contains a blank row.")
+        fields = row.split("\t")
+        if len(fields) != 3:
+            raise CreativeCodePatchContractError(
+                "git numstat rows must contain exactly three tab-separated fields."
+            )
+        added_text, deleted_text, raw_path = fields
+        if added_text == "-" or deleted_text == "-":
+            raise CreativeCodePatchContractError("candidate patch must not contain binary numstat.")
+        if (
+            re.fullmatch(r"[0-9]+", added_text, flags=re.ASCII) is None
+            or re.fullmatch(r"[0-9]+", deleted_text, flags=re.ASCII) is None
+        ):
+            raise CreativeCodePatchContractError(
+                "git numstat counts must be nonnegative ASCII decimal integers."
+            )
+        path = _normalize_patch_path(raw_path, label=f"numstat[{index}].path")
+        if path in seen_paths:
+            raise CreativeCodePatchContractError("git numstat output contains duplicate paths.")
+        seen_paths.add(path)
+        parsed_paths.append(path)
+        additions += int(added_text)
+        deletions += int(deleted_text)
+
+    if set(parsed_paths) != set(normalized_expected) or len(parsed_paths) != len(
+        normalized_expected
+    ):
+        raise CreativeCodePatchContractError(
+            "git numstat paths must exactly match git name-status paths."
+        )
+    return {
+        "additions": additions,
+        "deletions": deletions,
+        "changed_lines": additions + deletions,
+        "changed_paths": sorted(parsed_paths),
+    }
+
+
+def measure_persisted_creative_code_patch(
+    patch_text: str,
+    *,
+    expected_paths: Sequence[str],
+) -> dict[str, Any]:
+    """Measure one persisted patch without applying or mutating it."""
+
+    try:
+        numstat = run_git(
+            ["apply", "--numstat"],
+            cwd=REPO_ROOT,
+            input_text=patch_text,
+        ).stdout
+    except CreativeCodePatchWorkspaceError as exc:
+        raise CreativeCodePatchContractError(
+            "candidate.patch could not be measured with git apply --numstat."
+        ) from exc
+    return parse_creative_code_numstat(numstat, expected_paths=expected_paths)
 
 
 def _normalize_path_list(
@@ -609,12 +746,25 @@ def _normalize_human_admission(raw_admission: Any) -> dict[str, str]:
     }
 
 
-def _normalize_budgets(raw_budgets: Any) -> dict[str, int]:
+def creative_code_budget_line_family(
+    budgets: Mapping[str, Any],
+) -> Literal["legacy", "current"]:
+    """Return the exact line-measurement family without rewriting the payload."""
+
+    return _exact_shape_family(
+        budgets,
+        legacy_keys=LEGACY_BUDGET_KEYS,
+        current_keys=CURRENT_BUDGET_KEYS,
+        label="CreativeCodePatchBuildRequest.budgets",
+    )
+
+
+def _normalize_budgets(raw_budgets: Any) -> dict[str, int | str]:
     if not isinstance(raw_budgets, dict):
         raise CreativeCodePatchContractError("CreativeCodePatchBuildRequest.budgets is invalid.")
     label = "CreativeCodePatchBuildRequest.budgets"
-    _require_exact_keys(raw_budgets, BUDGET_KEYS, label=label)
-    budgets = {
+    family = creative_code_budget_line_family(raw_budgets)
+    budgets: dict[str, int | str] = {
         "generation_attempts": _require_int(
             raw_budgets,
             "generation_attempts",
@@ -643,13 +793,6 @@ def _normalize_budgets(raw_budgets: Any) -> dict[str, int]:
             max_value=HARD_MAX_CHANGED_FILES,
             label=label,
         ),
-        "max_diff_lines": _require_int(
-            raw_budgets,
-            "max_diff_lines",
-            min_value=1,
-            max_value=HARD_MAX_DIFF_LINES,
-            label=label,
-        ),
         "max_patch_bytes": _require_int(
             raw_budgets,
             "max_patch_bytes",
@@ -658,11 +801,34 @@ def _normalize_budgets(raw_budgets: Any) -> dict[str, int]:
             label=label,
         ),
     }
-    if budgets["max_changed_files"] > DEFAULT_MAX_CHANGED_FILES:
+    if family == "legacy":
+        budgets["max_diff_lines"] = _require_int(
+            raw_budgets,
+            "max_diff_lines",
+            min_value=1,
+            max_value=HARD_MAX_DIFF_LINES,
+            label=label,
+        )
+    else:
+        budgets["max_changed_lines"] = _require_int(
+            raw_budgets,
+            "max_changed_lines",
+            min_value=1,
+            max_value=HARD_MAX_CHANGED_LINES,
+            label=label,
+        )
+        budgets["line_metric"] = _require_const(
+            raw_budgets,
+            "line_metric",
+            CHANGED_LINE_METRIC,
+            label=label,
+        )
+    ordered = {key: budgets[key] for key in raw_budgets}
+    if int(budgets["max_changed_files"]) > DEFAULT_MAX_CHANGED_FILES:
         # PR-2 permits hard-max expansion only when the request records it explicitly.
         # The budget field itself is the auditable expansion; no hidden defaults.
-        return budgets
-    return budgets
+        return ordered
+    return ordered
 
 
 def _normalize_string_list(
@@ -893,12 +1059,17 @@ def build_creative_code_patch_build_request(
     allowed_new_paths: list[str] | None = None,
     oracle_commands: list[str],
     metrics: list[str],
-    budgets: dict[str, int],
+    budgets: dict[str, int | str],
 ) -> dict[str, Any]:
     """Build a deterministic PR-2 request from a validated PR-1 bundle."""
 
     bundle = validate_creative_code_specification_bundle(source_bundle)
     variant = _selected_variant(bundle)
+    normalized_budgets = _normalize_budgets(budgets)
+    if creative_code_budget_line_family(normalized_budgets) != "current":
+        raise CreativeCodePatchContractError(
+            "new patch requests must use the changed-line budget shape."
+        )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "request_type": REQUEST_TYPE,
@@ -932,7 +1103,7 @@ def build_creative_code_patch_build_request(
         "allowed_new_paths": allowed_new_paths or [],
         "oracle_commands": oracle_commands,
         "metrics": metrics,
-        "budgets": budgets,
+        "budgets": normalized_budgets,
     }
     request_id, idempotency_key = _build_request_identity(payload)
     payload["request_id"] = request_id
@@ -1011,12 +1182,15 @@ def build_creative_code_patch_result(
     changed_paths: list[str],
     patch_fingerprint: str,
     patch_bytes: int,
-    diff_lines: int,
     runner_result: Mapping[str, Any],
     checkout_destroyed: bool,
     origin_removed: bool,
     shared_tree_untouched: bool,
     failure_class: str | None = None,
+    diff_lines: int | None = None,
+    changed_lines: int | None = None,
+    serialized_patch_lines: int | None = None,
+    line_metric: str | None = None,
 ) -> dict[str, Any]:
     """Build a sanitized PR-2 patch result from local metadata and runner output."""
 
@@ -1030,6 +1204,29 @@ def build_creative_code_patch_result(
     if not checkout_destroyed or not origin_removed or not shared_tree_untouched:
         status = "rejected"
         result_failure = result_failure or "infra_flake"
+    line_family = creative_code_budget_line_family(request["budgets"])
+    if line_family == "legacy":
+        raise CreativeCodePatchContractError(
+            "legacy patch requests are read-only and cannot author new results."
+        )
+    if (
+        diff_lines is not None
+        or not isinstance(changed_lines, int)
+        or isinstance(changed_lines, bool)
+        or not isinstance(serialized_patch_lines, int)
+        or isinstance(serialized_patch_lines, bool)
+        or line_metric != CHANGED_LINE_METRIC
+    ):
+        raise CreativeCodePatchContractError(
+            "current results require changed_lines, serialized_patch_lines, and line_metric."
+        )
+    patch_summary = {
+        "patch_fingerprint": patch_fingerprint,
+        "patch_bytes": patch_bytes,
+        "changed_lines": changed_lines,
+        "serialized_patch_lines": serialized_patch_lines,
+        "line_metric": line_metric,
+    }
     result: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "result_type": RESULT_TYPE,
@@ -1045,11 +1242,7 @@ def build_creative_code_patch_result(
         "status": status,
         "failure_class": result_failure,
         "changed_paths": sorted(changed_paths),
-        "patch_summary": {
-            "patch_fingerprint": patch_fingerprint,
-            "patch_bytes": patch_bytes,
-            "diff_lines": diff_lines,
-        },
+        "patch_summary": patch_summary,
         "workspace_summary": {
             "detached_base_sha": request["base_commit_sha"],
             "origin_removed": origin_removed,
@@ -1173,7 +1366,7 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError(
             "CreativeCodePatchResult.failure_class is unsupported."
         )
-    _validate_patch_summary(normalized["patch_summary"])
+    normalized["patch_summary"] = _validate_patch_summary(normalized["patch_summary"])
     workspace_summary = _validate_workspace_summary(normalized["workspace_summary"])
     runner_summary = _validate_runner_summary(normalized["runner_summary"])
     _validate_result_authority(normalized["authority"])
@@ -1308,11 +1501,22 @@ def _patch_changed_paths(patch_text: str) -> list[str]:
     return sorted(_patch_changed_path_statuses(patch_text))
 
 
+def creative_code_patch_changed_path_statuses(patch_text: str) -> dict[str, str]:
+    """Return the existing strict path/status projection for persisted patch rechecks."""
+
+    return _patch_changed_path_statuses(patch_text)
+
+
 def validate_creative_code_patch_metadata(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Validate PR-2 patch metadata sidecars with an exact sanitized shape."""
 
     label = "patch_metadata"
-    _require_exact_keys(payload, PATCH_METADATA_KEYS, label=label)
+    family = _exact_shape_family(
+        payload,
+        legacy_keys=LEGACY_PATCH_METADATA_KEYS,
+        current_keys=CURRENT_PATCH_METADATA_KEYS,
+        label=label,
+    )
     changed_paths = _normalize_path_list(payload, "changed_paths", label=label)
     statuses = payload["changed_path_statuses"]
     if not isinstance(statuses, dict):
@@ -1329,7 +1533,7 @@ def validate_creative_code_patch_metadata(payload: Mapping[str, Any]) -> dict[st
                 "patch_metadata.changed_path_statuses values must be A or M."
             )
         normalized_statuses[path] = status
-    normalized = {
+    normalized: dict[str, Any] = {
         "changed_paths": changed_paths,
         "changed_path_statuses": normalized_statuses,
         "patch_fingerprint": _require_fingerprint(payload, "patch_fingerprint", label=label),
@@ -1340,14 +1544,36 @@ def validate_creative_code_patch_metadata(payload: Mapping[str, Any]) -> dict[st
             max_value=HARD_MAX_PATCH_BYTES,
             label=label,
         ),
-        "diff_lines": _require_int(
+    }
+    if family == "legacy":
+        normalized["diff_lines"] = _require_int(
             payload,
             "diff_lines",
             min_value=1,
             max_value=HARD_MAX_DIFF_LINES,
             label=label,
-        ),
-    }
+        )
+    else:
+        normalized["changed_lines"] = _require_int(
+            payload,
+            "changed_lines",
+            min_value=1,
+            max_value=HARD_MAX_CHANGED_LINES,
+            label=label,
+        )
+        normalized["serialized_patch_lines"] = _require_int(
+            payload,
+            "serialized_patch_lines",
+            min_value=1,
+            max_value=HARD_MAX_PATCH_BYTES,
+            label=label,
+        )
+        normalized["line_metric"] = _require_const(
+            payload,
+            "line_metric",
+            CHANGED_LINE_METRIC,
+            label=label,
+        )
     _reject_result_leaks(normalized, label=label)
     return normalized
 
@@ -1441,14 +1667,12 @@ def validate_creative_code_patch_run_sidecars(
         )
     patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
     patch_bytes = len(patch_text.encode("utf-8"))
-    diff_lines = len(patch_text.splitlines())
+    serialized_patch_lines = len(patch_text.splitlines())
     patch_summary = result["patch_summary"]
     if patch_summary["patch_fingerprint"] != patch_fingerprint:
         raise CreativeCodePatchContractError("candidate.patch fingerprint mismatch.")
     if patch_summary["patch_bytes"] != patch_bytes:
         raise CreativeCodePatchContractError("candidate.patch byte count mismatch.")
-    if patch_summary["diff_lines"] != diff_lines:
-        raise CreativeCodePatchContractError("candidate.patch diff line count mismatch.")
     if not result["changed_paths"]:
         raise CreativeCodePatchContractError("PR-2 result must include changed paths.")
     patch_changed_path_statuses = _patch_changed_path_statuses(patch_text)
@@ -1464,25 +1688,77 @@ def validate_creative_code_patch_run_sidecars(
         raise CreativeCodePatchContractError("patch_metadata changed paths mismatch.")
     if metadata["changed_path_statuses"] != patch_changed_path_statuses:
         raise CreativeCodePatchContractError("patch_metadata changed_path_statuses mismatch.")
-    for key, expected in (
-        ("patch_fingerprint", patch_fingerprint),
-        ("patch_bytes", patch_bytes),
-        ("diff_lines", diff_lines),
-    ):
+    request_family = creative_code_budget_line_family(request["budgets"])
+    summary_family = _exact_shape_family(
+        patch_summary,
+        legacy_keys=LEGACY_PATCH_SUMMARY_KEYS,
+        current_keys=CURRENT_PATCH_SUMMARY_KEYS,
+        label="patch_summary",
+    )
+    metadata_family = _exact_shape_family(
+        metadata,
+        legacy_keys=LEGACY_PATCH_METADATA_KEYS,
+        current_keys=CURRENT_PATCH_METADATA_KEYS,
+        label="patch_metadata",
+    )
+    if len({request_family, summary_family, metadata_family}) != 1:
+        raise CreativeCodePatchContractError(
+            "request, result, and patch metadata line-measurement families must match."
+        )
+    expected_measurements: dict[str, Any]
+    if request_family == "legacy":
+        if patch_summary["diff_lines"] != serialized_patch_lines:
+            raise CreativeCodePatchContractError("candidate.patch diff line count mismatch.")
+        if serialized_patch_lines > request["budgets"]["max_diff_lines"]:
+            raise CreativeCodePatchContractError(
+                "candidate.patch exceeds request max_diff_lines budget."
+            )
+        expected_measurements = {"diff_lines": serialized_patch_lines}
+    else:
+        measured = measure_persisted_creative_code_patch(
+            patch_text,
+            expected_paths=patch_changed_paths,
+        )
+        changed_lines = measured["changed_lines"]
+        if changed_lines > request["budgets"]["max_changed_lines"]:
+            raise CreativeCodePatchContractError(
+                "candidate.patch exceeds request max_changed_lines budget."
+            )
+        expected_measurements = {
+            "changed_lines": changed_lines,
+            "serialized_patch_lines": serialized_patch_lines,
+            "line_metric": CHANGED_LINE_METRIC,
+        }
+        for key, expected in expected_measurements.items():
+            if patch_summary[key] != expected:
+                raise CreativeCodePatchContractError(f"candidate.patch {key} measurement mismatch.")
+    if patch_bytes > request["budgets"]["max_patch_bytes"]:
+        raise CreativeCodePatchContractError("candidate.patch exceeds request max_patch_bytes.")
+    expected_metadata = {
+        "patch_fingerprint": patch_fingerprint,
+        "patch_bytes": patch_bytes,
+        **expected_measurements,
+    }
+    for key, expected in expected_metadata.items():
         if metadata[key] != expected:
             raise CreativeCodePatchContractError(f"patch_metadata {key} mismatch.")
     return {
         "patch_fingerprint": patch_fingerprint,
         "patch_bytes": patch_bytes,
-        "diff_lines": diff_lines,
+        **expected_measurements,
     }
 
 
 def _validate_patch_summary(raw_summary: Any) -> dict[str, Any]:
     if not isinstance(raw_summary, dict):
         raise CreativeCodePatchContractError("patch_summary must be a JSON object.")
-    _require_exact_keys(raw_summary, PATCH_SUMMARY_KEYS, label="patch_summary")
-    return {
+    family = _exact_shape_family(
+        raw_summary,
+        legacy_keys=LEGACY_PATCH_SUMMARY_KEYS,
+        current_keys=CURRENT_PATCH_SUMMARY_KEYS,
+        label="patch_summary",
+    )
+    normalized: dict[str, Any] = {
         "patch_fingerprint": _require_fingerprint(
             raw_summary,
             "patch_fingerprint",
@@ -1495,14 +1771,37 @@ def _validate_patch_summary(raw_summary: Any) -> dict[str, Any]:
             max_value=HARD_MAX_PATCH_BYTES,
             label="patch_summary",
         ),
-        "diff_lines": _require_int(
+    }
+    if family == "legacy":
+        normalized["diff_lines"] = _require_int(
             raw_summary,
             "diff_lines",
             min_value=1,
             max_value=HARD_MAX_DIFF_LINES,
             label="patch_summary",
-        ),
-    }
+        )
+    else:
+        normalized["changed_lines"] = _require_int(
+            raw_summary,
+            "changed_lines",
+            min_value=1,
+            max_value=HARD_MAX_CHANGED_LINES,
+            label="patch_summary",
+        )
+        normalized["serialized_patch_lines"] = _require_int(
+            raw_summary,
+            "serialized_patch_lines",
+            min_value=1,
+            max_value=HARD_MAX_PATCH_BYTES,
+            label="patch_summary",
+        )
+        normalized["line_metric"] = _require_const(
+            raw_summary,
+            "line_metric",
+            CHANGED_LINE_METRIC,
+            label="patch_summary",
+        )
+    return normalized
 
 
 def _validate_workspace_summary(raw_summary: Any) -> dict[str, Any]:
