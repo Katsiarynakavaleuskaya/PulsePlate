@@ -175,6 +175,14 @@ BRACE_EXPANSION_EXACT_BASE_DIGESTS = {
         "059def600151a44cc1feacc40cb2638df23140c6e0de62f8d26291a47f697300"  # pragma: allowlist secret
     ),
 }
+BRACE_EXPANSION_EXACT_HEAD_DIGESTS = {
+    "frontend/package.json": (
+        "97bd09c0eec4fd15a582dd6a3fc96f02b29610e7955166796421f3cea703f309"  # pragma: allowlist secret
+    ),
+    "frontend/package-lock.json": (
+        "41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885"  # pragma: allowlist secret
+    ),
+}
 BRACE_EXPANSION_MANIFEST_INTENT_PATHS = frozenset(
     {
         ("overrides", "minimatch@3", "brace-expansion"),
@@ -324,10 +332,8 @@ def _has_brace_expansion_tarball_path_signal(value: object) -> bool:
                 candidate_paths.add(f"/{pathname.lstrip('/')}")
 
     candidate_paths.update(posixpath.normpath(path) for path in tuple(candidate_paths))
-    return any(
-        path.startswith("/brace-expansion/-/brace-expansion-") and path.endswith(".tgz")
-        for path in candidate_paths
-    )
+    tarball_path_signal = "/brace-expansion/-/brace-expansion-"
+    return any(tarball_path_signal in path and path.endswith(".tgz") for path in candidate_paths)
 
 
 def _find_override_key_paths(
@@ -419,7 +425,11 @@ def _assert_brace_expansion_head_postcondition(versions: set[Version]) -> None:
         ), f"{advisory}: governed head occurrence remains affected"
 
 
-def _assert_brace_expansion_owner_evidence(document: str) -> None:
+def _assert_brace_expansion_owner_evidence(
+    document: str,
+    *,
+    head_artifact_blobs: dict[str, bytes],
+) -> None:
     """Bind the executable cutoff inventory to its sole current evidence owner."""
 
     inventory_marker = "That finite reconciled response is `F_cutoff`:"
@@ -448,10 +458,12 @@ def _assert_brace_expansion_owner_evidence(document: str) -> None:
     assert "Node: v24.16.0" in document
     assert "npm: 11.13.0" in document
     assert "command: npm install --package-lock-only --ignore-scripts" in document
-    assert (
-        "41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885"  # pragma: allowlist secret
-        in document
-    )
+    assert set(head_artifact_blobs) == set(BRACE_EXPANSION_EXACT_HEAD_DIGESTS)
+    for relative, expected_digest in BRACE_EXPANSION_EXACT_HEAD_DIGESTS.items():
+        assert expected_digest in document, f"{relative}: head artifact digest missing from owner"
+        assert (
+            hashlib.sha256(head_artifact_blobs[relative]).hexdigest() == expected_digest
+        ), f"{relative}: head artifact raw-byte digest drift"
 
 
 def _changed_json_paths(
@@ -833,15 +845,32 @@ def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
     """The sole owner must carry the exact finite inventory and replay evidence."""
 
     _assert_brace_expansion_owner_evidence(
-        BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
+        BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8"),
+        head_artifact_blobs={
+            relative: (REPO_ROOT / relative).read_bytes()
+            for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
+        },
     )
 
 
-@pytest.mark.parametrize("case", ("missing-row", "extra-row", "response-digest"))
+@pytest.mark.parametrize(
+    "case",
+    (
+        "missing-row",
+        "extra-row",
+        "response-digest",
+        "head-package-bytes",
+        "head-lock-bytes",
+    ),
+)
 def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: str) -> None:
     """A changed finite inventory or captured response identity must fail closed."""
 
     document = BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
+    head_artifact_blobs = {
+        relative: (REPO_ROOT / relative).read_bytes()
+        for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
+    }
     if case == "missing-row":
         document = "\n".join(
             line for line in document.splitlines() if "GHSA-832h-xg76-4gv6" not in line
@@ -855,11 +884,18 @@ def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: st
         document = document.replace(marker, f"{extra}{marker}", 1)
     elif case == "response-digest":
         document = document.replace(BRACE_EXPANSION_GAD_RESPONSE_SHA256, "0" * 64, 1)
+    elif case == "head-package-bytes":
+        head_artifact_blobs["frontend/package.json"] += b"\n"
+    elif case == "head-lock-bytes":
+        head_artifact_blobs["frontend/package-lock.json"] += b"\n"
     else:
         raise AssertionError(f"unhandled owner evidence mutation: {case}")
 
     with pytest.raises(AssertionError):
-        _assert_brace_expansion_owner_evidence(document)
+        _assert_brace_expansion_owner_evidence(
+            document,
+            head_artifact_blobs=head_artifact_blobs,
+        )
 
 
 def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
@@ -892,6 +928,7 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
         ("name-alias", "alias/noncanonical installed path"),
         ("url-alias", "alias/noncanonical installed path"),
         ("schemeless-host-alias", "alias/noncanonical installed path"),
+        ("scheme-backslash-alias", "alias/noncanonical installed path"),
         ("percent-encoded-path-alias", "alias/noncanonical installed path"),
         ("double-encoded-path-alias", "alias/noncanonical installed path"),
         ("dot-segment-path-alias", "alias/noncanonical installed path"),
@@ -952,6 +989,12 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         alias = _brace_entry("2.0.3")
         alias["resolved"] = "registry.npmjs.org/brace-expansion/-/brace-expansion-2.0.3.tgz"
         packages["node_modules/schemeless-host-alias"] = alias
+    elif case == "scheme-backslash-alias":
+        alias = _brace_entry("2.0.3")
+        alias["resolved"] = (
+            "https:\\registry.npmjs.org\\brace-expansion\\-\\brace-expansion-2.0.3.tgz"
+        )
+        packages["node_modules/scheme-backslash-alias"] = alias
     elif case == "percent-encoded-path-alias":
         alias = _brace_entry("2.0.3")
         alias["resolved"] = (
