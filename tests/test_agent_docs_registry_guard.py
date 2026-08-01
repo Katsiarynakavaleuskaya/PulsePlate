@@ -31,6 +31,11 @@ ADMISSION_AUTHORITY_START = "<!-- dependency-remediation-admission:v1:start -->"
 ADMISSION_AUTHORITY_END = "<!-- dependency-remediation-admission:v1:end -->"
 EVIDENCE_STATUS_START = "<!-- dependency-remediation-evidence-status:v1:start -->"
 EVIDENCE_STATUS_END = "<!-- dependency-remediation-evidence-status:v1:end -->"
+HISTORICAL_TITLE = (
+    "# CVE-2026-4926 / CVE-2026-4923 / CVE-2026-33750 — npm transitive override remediation"
+)
+HISTORICAL_SUMMARY_START = "## Summary"
+HISTORICAL_SUMMARY_END = "## Why this remediation exists"
 HISTORICAL_EVIDENCE_PATH = (
     "docs/security/CVE-2026-4926-path-to-regexp-and-CVE-2026-33750-brace-expansion.md"
 )
@@ -40,6 +45,9 @@ LESSON_33_TEXT = LESSON_33_HEADING.removeprefix("## ")
 LESSON_33_END_TEXT = LESSON_33_END.removeprefix("## ")
 SECURITY_PARENT_TEXT = SECURITY_PARENT_START.removeprefix("## ")
 SECURITY_PARENT_END_TEXT = SECURITY_PARENT_END.removeprefix("## ")
+HISTORICAL_TITLE_TEXT = HISTORICAL_TITLE.removeprefix("# ")
+HISTORICAL_SUMMARY_TEXT = HISTORICAL_SUMMARY_START.removeprefix("## ")
+HISTORICAL_SUMMARY_END_TEXT = HISTORICAL_SUMMARY_END.removeprefix("## ")
 
 _MARKDOWN = MarkdownIt(
     "commonmark",
@@ -110,6 +118,7 @@ class _RenderedAncestryProbe(HTMLParser):
         self.stack: list[str] = []
         self.captures: list[_RenderedCapture] = []
         self.nodes: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+            "h1": [],
             "h2": [],
             "strong": [],
         }
@@ -231,6 +240,7 @@ def _assert_rendered_root_targets(
     tokens: list[Token],
     *,
     through: int,
+    h1_texts: tuple[str, ...] = (),
     h2_texts: tuple[str, ...] = (),
     strong_texts: tuple[str, ...] = (),
     comment_markers: tuple[str, ...] = (),
@@ -239,6 +249,9 @@ def _assert_rendered_root_targets(
     probe = _RenderedAncestryProbe()
     probe.feed(rendered)
     probe.close()
+    for text in h1_texts:
+        matches = [parents for content, parents in probe.nodes["h1"] if content == text]
+        assert matches == [()], f"Rendered H1 {text!r} is not one direct-root node"
     for text in h2_texts:
         matches = [parents for content, parents in probe.nodes["h2"] if content == text]
         assert matches == [()], f"Rendered H2 {text!r} is not one direct-root node"
@@ -249,6 +262,25 @@ def _assert_rendered_root_targets(
         content = marker.removeprefix("<!--").removesuffix("-->")
         matches = [parents for comment, parents in probe.comments if comment == content]
         assert matches == [()], f"Rendered marker {marker!r} is not one direct-root comment"
+
+
+def _assert_only_canonical_raw_html(
+    tokens: list[Token], *, through: int, allowed_block_sources: tuple[str, ...]
+) -> None:
+    """Fail closed before protected regions instead of approximating HTML5 repair."""
+    html_blocks: list[str] = []
+    for token in tokens[:through]:
+        assert token.type != "html_inline", "Non-canonical raw HTML precedes protected Markdown"
+        if token.type == "html_block":
+            html_blocks.append(token.content)
+        for child in token.children or ():
+            assert child.type != "html_inline", "Non-canonical raw HTML precedes protected Markdown"
+
+    expected_blocks = [f"{source}\n" for source in allowed_block_sources]
+    assert html_blocks == expected_blocks, (
+        "Protected Markdown prefix contains non-canonical raw HTML blocks: "
+        f"expected {expected_blocks!r}, got {html_blocks!r}"
+    )
 
 
 def _assert_dependency_policy_markdown_structure(agents_md: str, lessons_md: str) -> None:
@@ -293,6 +325,11 @@ def _assert_dependency_policy_markdown_structure(agents_md: str, lessons_md: str
         start_index=security.start,
         expected_index=security_end.start,
     )
+    _assert_only_canonical_raw_html(
+        agents_tokens,
+        through=security_end.stop,
+        allowed_block_sources=(ADMISSION_AUTHORITY_START, ADMISSION_AUTHORITY_END),
+    )
     _assert_rendered_root_targets(
         agents_tokens,
         through=security_end.stop,
@@ -322,6 +359,11 @@ def _assert_dependency_policy_markdown_structure(agents_md: str, lessons_md: str
         lesson_tokens,
         start_index=lesson.start,
         expected_index=lesson_end.start,
+    )
+    _assert_only_canonical_raw_html(
+        lesson_tokens,
+        through=lesson_end.stop,
+        allowed_block_sources=(),
     )
     _assert_rendered_root_targets(
         lesson_tokens,
@@ -377,6 +419,7 @@ def _extract_dependency_security_sections(agents_md: str, lessons_md: str) -> tu
 _EXPECTED_SECTION_DIGESTS = {
     "AGENTS Security parent region": "998fbc1bb5d031325cbdf2604d4ffd28f2fc2b5fe51c6c7c3c8269a68b379942",  # pragma: allowlist secret
     "engineering lesson 33": "891140735ce88ce3d559178d11f554df62289cf2aab5ad1fbf78aafb1023a77a",  # pragma: allowlist secret
+    "historical evidence authority summary": "a68ff8645ace964286c17457820c3dfcc71ad7616378500043ed79600388c1e8",  # pragma: allowlist secret
 }
 _EXPECTED_ADMISSION_AUTHORITY = {
     "schema": "pulseplate.dependency_remediation_admission.v1",
@@ -512,17 +555,92 @@ def _validate_historical_evidence_status(document: str) -> None:
     parsed = _parse_historical_evidence_status(document)
     assert parsed == _EXPECTED_HISTORICAL_EVIDENCE_STATUS
 
+    document_lines = _platform_lines(document)
+    assert document_lines[0] == HISTORICAL_TITLE
+    title_to_summary = _exact_bounded_section(
+        document,
+        start_line=HISTORICAL_TITLE,
+        end_line=HISTORICAL_SUMMARY_START,
+    )
+    assert title_to_summary == "", (
+        "Historical evidence title must be followed directly by its sole "
+        "authority-status Summary"
+    )
+    authority_summary = _exact_bounded_section(
+        document,
+        start_line=HISTORICAL_SUMMARY_START,
+        end_line=HISTORICAL_SUMMARY_END,
+    )
+    summary_lines = _platform_lines(authority_summary)
+    assert summary_lines.count(EVIDENCE_STATUS_START) == 1
+    assert summary_lines.count(EVIDENCE_STATUS_END) == 1
+    actual_digest = _section_digest(authority_summary)
+    assert actual_digest == _EXPECTED_SECTION_DIGESTS["historical evidence authority summary"], (
+        "historical evidence authority summary changed outside the exact reviewed "
+        "canonical block; expected "
+        f"{_EXPECTED_SECTION_DIGESTS['historical evidence authority summary']}, "
+        f"got {actual_digest}"
+    )
+
     lines = _platform_lines(document)
     tokens = _MARKDOWN.parse("\n".join(lines))
+    title = _unique_top_level_block(
+        tokens,
+        lines,
+        token_type="heading_open",
+        tag="h1",
+        markup="#",
+        source=HISTORICAL_TITLE,
+    )
+    summary = _unique_top_level_block(
+        tokens,
+        lines,
+        token_type="heading_open",
+        tag="h2",
+        markup="##",
+        source=HISTORICAL_SUMMARY_START,
+    )
     status = _unique_top_level_json_triplet(
         tokens,
         lines,
         start_marker=EVIDENCE_STATUS_START,
         end_marker=EVIDENCE_STATUS_END,
     )
+    summary_end = _unique_top_level_block(
+        tokens,
+        lines,
+        token_type="heading_open",
+        tag="h2",
+        markup="##",
+        source=HISTORICAL_SUMMARY_END,
+    )
+    peer_indices = [
+        index
+        for index, token in enumerate(tokens)
+        if token.type == "heading_open" and token.level == 0 and token.tag in {"h1", "h2"}
+    ]
+    assert peer_indices and peer_indices[0] == title.start
+    assert title.start < summary.start < status.start < summary_end.start
+    _assert_next_top_level_section_heading(
+        tokens,
+        start_index=title.start,
+        expected_index=summary.start,
+    )
+    _assert_next_top_level_section_heading(
+        tokens,
+        start_index=summary.start,
+        expected_index=summary_end.start,
+    )
+    _assert_only_canonical_raw_html(
+        tokens,
+        through=summary_end.stop,
+        allowed_block_sources=(EVIDENCE_STATUS_START, EVIDENCE_STATUS_END),
+    )
     _assert_rendered_root_targets(
         tokens,
-        through=status.stop,
+        through=summary_end.stop,
+        h1_texts=(HISTORICAL_TITLE_TEXT,),
+        h2_texts=(HISTORICAL_SUMMARY_TEXT, HISTORICAL_SUMMARY_END_TEXT),
         comment_markers=(EVIDENCE_STATUS_START, EVIDENCE_STATUS_END),
     )
 
@@ -1006,12 +1124,59 @@ def test_dependency_security_historical_status_rejects_duplicate_or_extra_author
         _validate_historical_evidence_status(admission_marker)
 
 
-def test_dependency_security_historical_status_ignores_non_ancestor_html() -> None:
+def test_dependency_security_historical_status_rejects_contradictory_authority_prose() -> None:
     historical = _read(HISTORICAL_EVIDENCE_PATH)
-    prefix = "<details><summary>Earlier evidence</summary>closed</details>"
-    mutated = _insert_before_unique(historical, "## Summary", prefix)
-    mutated = f"{mutated}\n<div><input disabled>unrelated suffix"
+    mutated = _replace_unique(
+        historical,
+        "  its version, audit, and alert statements are not current claims. It is not\n"
+        "  current scoping authority and does not authorize future multi-dependency\n"
+        "  batching.",
+        "  its version, audit, and alert statements are current claims. It is the\n"
+        "  current scoping authority and authorizes future multi-dependency\n"
+        "  batching.",
+    )
+    with pytest.raises(AssertionError, match="authority summary changed"):
+        _validate_historical_evidence_status(mutated)
+
+
+def test_dependency_security_historical_status_rejects_markdown_authority_prefix() -> None:
+    historical = _read(HISTORICAL_EVIDENCE_PATH)
+    mutated = _insert_before_unique(
+        historical,
+        HISTORICAL_SUMMARY_START,
+        "## Current dependency remediation authority\n\n"
+        "This document authorizes future multi-dependency batching.",
+    )
+    with pytest.raises(AssertionError, match="followed directly"):
+        _validate_historical_evidence_status(mutated)
+
+
+def test_dependency_security_historical_status_ignores_non_ancestor_suffix_html() -> None:
+    historical = _read(HISTORICAL_EVIDENCE_PATH)
+    mutated = f"{historical}\n<div><input disabled>unrelated suffix"
     _validate_historical_evidence_status(mutated)
+
+
+@pytest.mark.parametrize("region", _PROTECTED_MARKDOWN_REGIONS)
+def test_dependency_security_policy_rejects_noncanonical_raw_html_prefix(
+    region: str,
+) -> None:
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    carrier = "<b><div></b>"
+    if region == "agents":
+        mutated_agents = _insert_before_unique(agents_md, SECURITY_PARENT_START, carrier)
+        with pytest.raises(AssertionError, match="Non-canonical raw HTML"):
+            _validate_dependency_security_policy(mutated_agents, lessons_md)
+    elif region == "lessons":
+        mutated_lessons = _insert_before_unique(lessons_md, LESSON_33_HEADING, carrier)
+        with pytest.raises(AssertionError, match="Non-canonical raw HTML"):
+            _validate_dependency_security_policy(agents_md, mutated_lessons)
+    else:
+        historical = _insert_before_unique(
+            _read(HISTORICAL_EVIDENCE_PATH), HISTORICAL_SUMMARY_START, carrier
+        )
+        with pytest.raises(AssertionError, match="followed directly"):
+            _validate_historical_evidence_status(historical)
 
 
 @pytest.mark.parametrize("line_ending", _PLATFORM_LINE_ENDINGS)
