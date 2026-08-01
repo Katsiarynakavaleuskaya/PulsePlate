@@ -9,6 +9,7 @@ import subprocess
 import sys
 import venv
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -267,6 +268,96 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
     assert observed_kwargs.get("text") is True
     assert observed_kwargs.get("timeout") == 30
     assert result == [Path("/tmp/site-packages")]
+
+
+def test_startup_safe_probe_skips_missing_and_none_site_getters(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_site = SimpleNamespace(
+        ENABLE_USER_SITE=True,
+        getusersitepackages=lambda: None,
+        main=lambda: None,
+    )
+    monkeypatch.setitem(sys.modules, "site", fake_site)
+
+    exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["site_packages"] == []
+
+
+def test_startup_safe_probe_preserves_unexpected_getter_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_unexpected_failure() -> list[str]:
+        raise RuntimeError("site getter failed")
+
+    fake_site = SimpleNamespace(
+        ENABLE_USER_SITE=False,
+        getsitepackages=raise_unexpected_failure,
+        main=lambda: None,
+    )
+    monkeypatch.setitem(sys.modules, "site", fake_site)
+
+    with pytest.raises(RuntimeError, match="site getter failed"):
+        exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
+
+
+def test_external_interpreter_accepts_verified_resolved_target_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invocation = tmp_path / "python"
+    try:
+        invocation.symlink_to(Path(sys.executable).resolve(strict=True))
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+    resolved = hook_guard.resolve_python_executable(str(invocation))
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps(
+            {
+                "executable": str(resolved.resolved_target),
+                "prefix": "/tmp/venv",
+                "base_prefix": "/tmp/base",
+                "site_packages": ["/tmp/site-packages"],
+            }
+        ),
+        stderr="",
+    )
+    monkeypatch.setattr(hook_guard.subprocess, "run", lambda *args, **kwargs: completed)
+
+    result = hook_guard.external_interpreter_site_packages(str(invocation))
+
+    assert result == [Path("/tmp/site-packages")]
+
+
+def test_external_interpreter_rejects_unrelated_executable_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unrelated = tmp_path / "unrelated-python"
+    unrelated.write_text("#!/bin/sh\n", encoding="utf-8")
+    unrelated.chmod(unrelated.stat().st_mode | stat.S_IXUSR)
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps(
+            {
+                "executable": str(unrelated),
+                "prefix": "/tmp/venv",
+                "base_prefix": "/tmp/base",
+                "site_packages": ["/tmp/site-packages"],
+            }
+        ),
+        stderr="",
+    )
+    monkeypatch.setattr(hook_guard.subprocess, "run", lambda *args, **kwargs: completed)
+
+    with pytest.raises(RuntimeError, match="executable mismatch"):
+        hook_guard.external_interpreter_site_packages(sys.executable)
 
 
 def test_external_interpreter_site_packages_rejects_empty_inventory(

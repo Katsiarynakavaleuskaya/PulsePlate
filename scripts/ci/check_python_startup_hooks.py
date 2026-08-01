@@ -36,10 +36,17 @@ STARTUP_SAFE_SITE_PACKAGES_PROBE = (
     "site.execusercustomize = lambda: None\n"
     "site.check_enableusersite = _check_enable_user_site\n"
     "site.main()\n"
-    "paths = list(site.getsitepackages())\n"
-    "if site.ENABLE_USER_SITE:\n"
-    "    user_site = site.getusersitepackages()\n"
-    "    paths.extend([user_site] if isinstance(user_site, str) else user_site)\n"
+    "paths = []\n"
+    "for getter_name in ('getsitepackages', 'getusersitepackages'):\n"
+    "    if getter_name == 'getusersitepackages' and not site.ENABLE_USER_SITE:\n"
+    "        continue\n"
+    "    getter = getattr(site, getter_name, None)\n"
+    "    if getter is None:\n"
+    "        continue\n"
+    "    value = getter()\n"
+    "    if value is None:\n"
+    "        continue\n"
+    "    paths.extend([value] if isinstance(value, str) else value)\n"
     "print(json.dumps({\n"
     "    'executable': sys.executable,\n"
     "    'prefix': sys.prefix,\n"
@@ -243,7 +250,10 @@ def external_interpreter_site_packages(python_executable: str) -> list[Path]:
         normalized_reported_path = reported_path.parent.resolve(strict=True) / reported_path.name
     except (OSError, RuntimeError) as exc:
         raise RuntimeError(f"Unable to parse site-packages for {python_executable}: {exc}") from exc
-    if normalized_reported_path != executable.invocation_path:
+    if normalized_reported_path not in (
+        executable.invocation_path,
+        executable.resolved_target,
+    ):
         raise RuntimeError(
             f"Unable to parse site-packages for {python_executable}: executable mismatch"
         )
