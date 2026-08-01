@@ -244,6 +244,12 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
     )
     observed_command: list[str] = []
     observed_kwargs: dict[str, object] = {}
+    monkeypatch.setenv("PYTHONHOME", "/tmp/runtime-home")
+    monkeypatch.setenv("PYTHONUSERBASE", "relative-userbase")
+    monkeypatch.setenv("PYTHONNOUSERSITE", "1")
+    monkeypatch.setenv("PYTHONPLATLIBDIR", "runtime-lib")
+    monkeypatch.setenv("PYTHONPATH", "/tmp/untrusted-imports")
+    monkeypatch.setenv("PYTHONINSPECT", "1")
 
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         observed_command[:] = command
@@ -257,7 +263,7 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
 
     assert observed_command[:4] == [
         str(resolved.invocation_path),
-        "-I",
+        "-P",
         "-S",
         "-c",
     ]
@@ -265,6 +271,14 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
     assert "site.execsitecustomize = lambda: None" in observed_command[4]
     assert observed_kwargs.get("check") is True
     assert observed_kwargs.get("capture_output") is True
+    observed_env = observed_kwargs.get("env")
+    assert isinstance(observed_env, dict)
+    assert observed_env["PYTHONHOME"] == "/tmp/runtime-home"
+    assert observed_env["PYTHONUSERBASE"] == "relative-userbase"
+    assert observed_env["PYTHONNOUSERSITE"] == "1"
+    assert observed_env["PYTHONPLATLIBDIR"] == "runtime-lib"
+    assert "PYTHONPATH" not in observed_env
+    assert "PYTHONINSPECT" not in observed_env
     assert observed_kwargs.get("text") is True
     assert observed_kwargs.get("timeout") == 30
     assert result == [Path("/tmp/site-packages")]
@@ -302,6 +316,64 @@ def test_startup_safe_probe_preserves_unexpected_getter_failure(
 
     with pytest.raises(RuntimeError, match="site getter failed"):
         exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
+
+
+def test_startup_safe_probe_normalizes_relative_site_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    relative_site_packages = Path("relative-userbase") / "site-packages"
+    fake_site = SimpleNamespace(
+        ENABLE_USER_SITE=True,
+        getsitepackages=lambda: [],
+        getusersitepackages=lambda: str(relative_site_packages),
+        main=lambda: None,
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(sys.modules, "site", fake_site)
+
+    exec(hook_guard.STARTUP_SAFE_SITE_PACKAGES_PROBE, {})
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["site_packages"] == [str(tmp_path / relative_site_packages)]
+
+
+def test_external_interpreter_preserves_pythonhome_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    empty_python_home = tmp_path / "empty-python-home"
+    empty_python_home.mkdir()
+    monkeypatch.setenv("PYTHONHOME", str(empty_python_home))
+
+    with pytest.raises(RuntimeError, match="Unable to probe site-packages"):
+        hook_guard.external_interpreter_site_packages(sys.executable)
+
+
+def test_external_interpreter_normalizes_relative_pythonuserbase_safely(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base_python_executable = getattr(sys, "_base_executable", sys.executable)
+    relative_userbase = Path("relative-userbase")
+    shadow_marker = tmp_path / "shadow-json-imported"
+    (tmp_path / "json.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(shadow_marker)!r}).write_text('executed')\n"
+        "raise RuntimeError('cwd shadow import executed')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PYTHONUSERBASE", str(relative_userbase))
+    monkeypatch.delenv("PYTHONNOUSERSITE", raising=False)
+
+    discovered = hook_guard.external_interpreter_site_packages(base_python_executable)
+
+    expected_userbase = tmp_path / relative_userbase
+    assert any(expected_userbase in path.parents for path in discovered)
+    assert all(path.is_absolute() for path in discovered)
+    assert not shadow_marker.exists()
 
 
 def test_external_interpreter_accepts_verified_resolved_target_identity(

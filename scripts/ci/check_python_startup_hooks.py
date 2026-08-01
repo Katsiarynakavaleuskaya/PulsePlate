@@ -21,6 +21,14 @@ ALLOWED_EXECUTABLE_PTH_FILENAMES: tuple[str, ...] = (
     "distutils-precedence.pth",
 )
 EXECUTABLE_IMPORT_PATTERN = re.compile(r"^\s*import\b")
+STARTUP_PROBE_PYTHON_ENV_ALLOWLIST = frozenset(
+    {
+        "PYTHONHOME",
+        "PYTHONNOUSERSITE",
+        "PYTHONPLATLIBDIR",
+        "PYTHONUSERBASE",
+    }
+)
 STARTUP_SAFE_SITE_PACKAGES_PROBE = (
     "import json, os, site, sys\n"
     "def _skip_addpackage(sitedir, name, known_paths):\n"
@@ -47,11 +55,16 @@ STARTUP_SAFE_SITE_PACKAGES_PROBE = (
     "    if value is None:\n"
     "        continue\n"
     "    paths.extend([value] if isinstance(value, str) else value)\n"
+    "normalized_paths = []\n"
+    "for path in paths:\n"
+    "    if not isinstance(path, str):\n"
+    "        raise TypeError('site-packages path must be a string')\n"
+    "    normalized_paths.append(os.path.abspath(path))\n"
     "print(json.dumps({\n"
     "    'executable': sys.executable,\n"
     "    'prefix': sys.prefix,\n"
     "    'base_prefix': sys.base_prefix,\n"
-    "    'site_packages': list(dict.fromkeys(paths)),\n"
+    "    'site_packages': list(dict.fromkeys(normalized_paths)),\n"
     "}))\n"
 )
 
@@ -186,6 +199,15 @@ def _revalidate_python_executable(executable: ResolvedPythonExecutable) -> None:
         raise RuntimeError(f"Python executable changed before launch: {executable.invocation_path}")
 
 
+def _startup_probe_environment() -> dict[str, str]:
+    """Preserve site-layout semantics while excluding Python code-injection controls."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("PYTHON") or key.upper() in STARTUP_PROBE_PYTHON_ENV_ALLOWLIST
+    }
+
+
 def external_interpreter_site_packages(python_executable: str) -> list[Path]:
     """Query site-packages for an arbitrary Python executable."""
     executable = resolve_python_executable(python_executable)
@@ -194,13 +216,14 @@ def external_interpreter_site_packages(python_executable: str) -> list[Path]:
         result = subprocess.run(  # nosec B603: argv uses the provided Python executable plus a fixed inline site-packages probe with shell=False (remove-by: 2026-10-31, ref: PR-litellm-private-proxy)
             [
                 str(executable.invocation_path),
-                "-I",
+                "-P",
                 "-S",
                 "-c",
                 STARTUP_SAFE_SITE_PACKAGES_PROBE,
             ],
             check=True,
             capture_output=True,
+            env=_startup_probe_environment(),
             text=True,
             timeout=30,
         )
