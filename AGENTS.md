@@ -2147,17 +2147,71 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 **Security: Dependency CVE bumps (application deps):**
 
-- **Scope:** Python application dependencies in this repo (e.g. `requirements*.in`/`requirements*.txt`,
-  `constraints.txt`). Other ecosystems (e.g. iOS SwiftPM, frontend npm) may have separate policies;
-  when in doubt, follow the same principle: all surfaces + guard + evidence.
-- Security CVE dependency bumps must update **all relevant requirement surfaces** for that ecosystem,
-  plus a **dependency security guard test** (deterministic CI check) and **evidence**.
-- **Evidence (canonical):** a doc in `docs/security/` that describes the CVE, fixed version, and
-  remediation (e.g. `docs/security/CVE-<id>-<package>.md`). Alternative locations (e.g. advisory link
-  in ledger only) are acceptable only when documented in the same PR.
-- **Scoping:** One PR per CVE (traceability); exception: one dependency bump may fix multiple CVEs if
-  they share the same minimum fixed version.
-- Reduces drift risk from updating only one manifest.
+- **Application-dependency remediation PR unit:** one PR owns exactly one invariant
+  class defined by `D`, `S`, and `P`, evaluated against one finite advisory
+  inventory `A`:
+  - **`D` — ecosystem-qualified dependency identity:** exactly one dependency
+    identity in exactly one ecosystem.
+  - **`S` — governed surface universe:** the complete, mechanically enumerated
+    set of all governed manifest and lock surfaces for `D`.
+  - **`A` — declared advisory inventory:** the finite set reconciled from named
+    authoritative inputs at one recorded snapshot or cutoff.
+  - **`P` — remediation postcondition:** for every advisory in `A` and every
+    surface in `S`, the deterministic guard must resolve every governed
+    occurrence of `D` to an advisory-comparable value and prove each value is
+    outside that advisory's affected range, or prove executable absence of `D`
+    for that surface. Any unparseable or unresolved governed occurrence fails
+    `P`.
+
+**Machine-readable admission authority:** the uniquely marked JSON block below
+is the single machine-readable application-remediation admission authority.
+Surrounding or adjacent prose cannot redefine its fields.
+
+<!-- dependency-remediation-admission:v1:start -->
+```json
+{
+  "schema": "pulseplate.dependency_remediation_admission.v1",
+  "dependency_identities": 1,
+  "ecosystems": 1,
+  "surfaces": "complete_mechanically_enumerated",
+  "advisory_inventory": "finite_reconciled_at_recorded_cutoff",
+  "occurrences": "all_resolved_outside_each_affected_range_or_executable_absence",
+  "unparseable_or_unresolved": "fail",
+  "same_floor_required": false,
+  "evidence_owner": "exactly_one_docs_security_document",
+  "per_advisory_evidence": "required",
+  "suppression_may_mix": false
+}
+```
+<!-- dependency-remediation-admission:v1:end -->
+
+- **Inventory reconciliation:** canonical evidence must record the named
+  authoritative input or inputs and snapshot or cutoff used for `A`. Every
+  triggering alert and every current scanner/audit finding for `D` at that
+  cutoff must be included in `A` or independently dispositioned as
+  non-applicable with evidence.
+- The finite reconciled `A` bounds `P`; it makes no claim about genuinely
+  undisclosed or future advisories.
+- Advisory affected ranges and remediation floors may differ. Equality of
+  advisory remediation floors is not a batching prerequisite.
+- **Canonical class evidence:** exactly one owner document under `docs/security/`
+  must own each `D`/`S`/`P` class. Supporting stable in-repo artifacts may exist
+  only when linked from that owner document. A PR body, issue, or ledger entry
+  alone cannot replace the owner document.
+- **Per-advisory evidence:** each declared advisory retains one independently
+  auditable record containing its advisory ID, affected range and remediation
+  floor, selected target, authoritative source, governed surfaces,
+  deterministic proof of `P`, and scanner/audit result.
+- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or remediation
+  action requires a separate PR.
+- A dependency security guard test must enumerate the complete `S`, reconcile
+  `A` against its named inputs and cutoff, and enforce `P` deterministically so
+  that an omitted surface, finding, or unresolved occurrence cannot create a
+  false remediation claim.
+- **Suppression rail (unchanged):** Trivy, `.trivyignore`,
+  `trivy/ignore-policy.rego`, waiver, and unfixed-upstream suppression work
+  remains one dedicated security PR per CVE. Suppression must never mix with
+  application-dependency remediation.
 
 **Security: Yanked packages on PyPI:**
 

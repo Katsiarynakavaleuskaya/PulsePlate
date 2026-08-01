@@ -906,6 +906,65 @@ into another parser variant.
   governed recovery, not as grounds for a carrier commit or operator merge
   exception.
 
+## 33) Scope dependency remediation by invariant class, not advisory variant
+
+### Problem
+One application dependency can carry several advisory variants whose affected
+ranges and remediation floors differ. Treating each advisory as the PR unit
+fragments one mechanical remediation, while requiring identical floors confuses
+variant metadata with the invariant that the repository must establish. The
+opposite error is equally unsafe: batching unrelated dependency identities,
+ecosystems, surface universes, or remediation actions makes evidence ambiguous.
+Suppression is a separate action with a different audit contract.
+
+### Rule
+Define one application-dependency remediation class with `D`, `S`, and `P`,
+evaluated against one finite advisory inventory `A`:
+
+1. **`D` — ecosystem-qualified dependency identity:** exactly one dependency
+   identity in exactly one ecosystem.
+2. **`S` — governed surface universe:** the complete, mechanically enumerated
+   set of all governed manifest and lock surfaces for `D`.
+3. **`A` — declared advisory inventory:** the finite set reconciled from named
+   authoritative inputs at one recorded snapshot or cutoff.
+4. **`P` — remediation postcondition:** for every advisory in `A` and every
+   surface in `S`, the deterministic guard must resolve every governed
+   occurrence of `D` to an advisory-comparable value and prove each value is
+   outside that advisory's affected range, or prove executable absence of `D`
+   for that surface. Any unparseable or unresolved governed occurrence fails
+   `P`.
+
+The parseable invariant-class relation in the uniquely marked `AGENTS.md` JSON
+authority, not sentence variants, is the guard authority. This lesson mirrors
+that relation for humans and does not create a second machine-readable
+authority.
+
+Advisories are independently auditable variants within that class, not the
+class boundary. Canonical evidence must record the named authoritative input or
+inputs and snapshot or cutoff used for `A`. Every triggering alert and every
+current scanner/audit finding for `D` at that cutoff must be included in `A` or
+independently dispositioned as non-applicable with evidence. The finite
+reconciled `A` bounds `P`; it makes no claim about genuinely undisclosed or
+future advisories. Advisory affected ranges and remediation floors may differ.
+Equality of advisory remediation floors is not a batching prerequisite.
+
+Exactly one owner document under `docs/security/` must own each `D`/`S`/`P`
+class. Supporting stable in-repo artifacts may exist only when linked from that
+owner document. A PR body, issue, or ledger entry alone cannot replace the
+owner document. Each declared advisory retains one independently auditable
+record containing its advisory ID, affected range and remediation floor,
+selected target, authoritative source, governed surfaces, deterministic proof
+of `P`, and scanner/audit result.
+
+Any difference in `D`, ecosystem, `S`, or remediation action requires a separate
+PR. A dependency security guard test must enumerate the complete `S`, reconcile
+`A` against its named inputs and cutoff, and enforce `P` deterministically so
+that an omitted surface, finding, or unresolved occurrence cannot create a
+false remediation claim. Keep suppression on its existing rail: Trivy,
+`.trivyignore`, `trivy/ignore-policy.rego`, waiver, and unfixed-upstream
+suppression work remains one dedicated security PR per CVE. Suppression must
+never mix with application-dependency remediation.
+
 ---
 
 ## Repo Commands Reference
