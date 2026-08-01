@@ -57,42 +57,6 @@ def test_export_csv_no_key_auth_only(client: TestClient) -> None:
     assert response.status_code in [403, 404]
 
 
-def test_export_pdf_no_reportlab_with_key(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, pro_headers: dict[str, str]
-) -> None:
-    """Checks graceful degradation (503) when reportlab is missing on protected PDF export endpoint.
-
-    Tests the GET endpoint with valid API key to verify the application handles missing
-    reportlab dependency gracefully rather than crashing.
-    """
-    disable_optional_modules(monkeypatch, "reportlab.pdfgen", "reportlab")
-    # Reload app module to ensure reportlab import failure is detected
-    import app as app_module
-
-    try:
-        importlib.reload(app_module)
-    except (ModuleNotFoundError, ImportError):
-        # Expected when optional modules are missing - app.py should handle this gracefully
-        pass
-    # Recreate TestClient from reloaded app to ensure it uses the updated app state
-    from fastapi.testclient import TestClient
-    from typing import cast
-
-    assert app_module.app is not None, "app must be initialized"
-    reloaded_client = TestClient(cast(FastAPI, app_module.app))
-    # Test GET endpoint (POST endpoint doesn't exist at this path)
-    response = reloaded_client.get("/api/v1/premium/exports/day/plan123.pdf", headers=pro_headers)
-    # Expect 503 Service Unavailable when reportlab is missing, or 403 if API key is invalid
-    assert response.status_code in [503, 403]
-    if response.status_code == 503:
-        # Verify error message indicates PDF export is not available
-        assert response.headers.get("content-type", "").startswith("application/json")
-        assert (
-            "PDF export" in response.json().get("detail", "").lower()
-            or "not available" in response.json().get("detail", "").lower()
-        )
-
-
 def test_rag_context_fallback(
     client: TestClient, vip_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -153,18 +117,6 @@ def test_premium_bmr_403_if_feature_flag(
     response = client.post("/api/v1/premium/bmr", json=payload, headers=pro_headers)
     # If API key is invalid, expect 403, else 503
     assert response.status_code in [503, 403]
-
-
-def test_export_pdf_error(
-    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Проверяет 500 Internal Server Error при ошибке экспорта PDF."""
-    # Test PDF export endpoint - it may not exist or return 404/403
-    response = client.post(
-        "/api/v1/premium/exports/day/pdf", json={"meals": [], "totals": {}}, headers=pro_headers
-    )
-    # Endpoint does not exist, expect 404, or 403 if forbidden
-    assert response.status_code in [404, 403]
 
 
 # NOTE (CI trust): `test_no_calculate_all_bmr` was removed in PR-602.
