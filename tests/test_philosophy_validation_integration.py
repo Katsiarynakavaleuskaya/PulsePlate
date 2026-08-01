@@ -232,13 +232,15 @@ class TestPhilosophyValidationV1:
         # Only clean:1 (score=0.85) survives → confidence = 0.85
         assert data["confidence"] == 0.85
 
-    def test_flag_on_validation_error_failsafe(
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_flag_on_validation_error_fails_closed(
         self,
+        path: str,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        """If validation raises, original chunks are returned (fail-safe)."""
+        """If canonical validation raises, both routes reject all RAG chunks."""
         _setup_insight(monkeypatch)
         monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
         monkeypatch.setattr(
@@ -251,15 +253,18 @@ class TestPhilosophyValidationV1:
             "core.rag.validation._run_validation",
             side_effect=RuntimeError("internal"),
         ):
-            resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+            resp = client.post(path, json={"text": "test"}, headers=vip_headers)
 
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
-        # Fail-safe: both chunks should be present
-        chunk_ids = [s["chunk_id"] for s in data["sources"]]
-        assert "med:1" in chunk_ids
-        assert "clean:1" in chunk_ids
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
+        assert data["hops"] == 1
+        assert data["latency_ms"] == 10
+        assert "You need a diagnosis from a doctor." not in data["insight"]
+        assert "Balanced nutrition supports wellness." not in data["insight"]
 
 
 # ---------------------------------------------------------------------------
