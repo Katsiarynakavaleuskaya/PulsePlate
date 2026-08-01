@@ -162,6 +162,32 @@ BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
     }
 )
 BRACE_EXPANSION_APPLICABLE_ADVISORIES = frozenset({"GHSA-3jxr-9vmj-r5cp", "GHSA-mh99-v99m-4gvg"})
+BRACE_EXPANSION_RENDERED_PROJECTIONS = {
+    "GHSA-3jxr-9vmj-r5cp": (
+        "**Applicable**: both `2.0.3` and `5.0.6` are affected",
+        "`2.1.3` and `5.0.8` are outside every affected range",
+    ),
+    "GHSA-mh99-v99m-4gvg": (
+        "**Applicable**: both `2.0.3` and `5.0.6` are affected",
+        "`2.1.3` and `5.0.8` equal their relevant first-patched versions",
+    ),
+    "GHSA-jxxr-4gwj-5jf2": (
+        "Non-applicable: `5.0.6` equals the first-patched version; " "2.x has no affected range",
+        "`5.0.8` remains above the fixed boundary; " "2.x remains outside the advisory domain",
+    ),
+    "GHSA-f886-m6hf-6m8v": (
+        "Non-applicable: `2.0.3` equals its first-patched version and " "`5.0.6` is above `5.0.5`",
+        "both head outputs remain outside every affected range",
+    ),
+    "GHSA-v6h2-p8h4-qcjw": (
+        "Non-applicable: `2.0.3` is above the affected 2.x interval and " "there is no 5.x range",
+        "both head outputs remain outside every affected range",
+    ),
+    "GHSA-832h-xg76-4gv6": (
+        "Non-applicable: neither base major is in the advisory domain",
+        "neither head major is in the advisory domain",
+    ),
+}
 BRACE_EXPANSION_GAD_CUTOFF = "2026-08-01T05:41:33Z"
 BRACE_EXPANSION_EVIDENCE_RECEIPT_SCHEMA = "pulseplate.frontend-brace-expansion-evidence-receipt/v1"
 BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN = "<!-- BEGIN BRACE_EXPANSION_EVIDENCE_RECEIPT -->"
@@ -761,7 +787,7 @@ def _assert_brace_expansion_owner_evidence(
         r" / `(?P<cve>CVE-\d{4}-\d+)` \| (?P<ranges>[^|]+) \|"
         r" (?P<disposition>[^|]+) \| (?P<head_evidence>[^|]+) \|$"
     )
-    table_rows: list[tuple[str, str, str, str, str]] = []
+    table_rows: list[tuple[str, str, str, str, str, str]] = []
     for index, rendered_row in enumerate(inventory_lines[2:], start=1):
         row_match = row_pattern.fullmatch(rendered_row)
         assert row_match is not None, f"owner evidence F_cutoff row {index} parse drift"
@@ -771,7 +797,8 @@ def _assert_brace_expansion_owner_evidence(
                 row_match.group("href"),
                 row_match.group("cve"),
                 row_match.group("ranges"),
-                row_match.group("disposition"),
+                row_match.group("disposition").strip(),
+                row_match.group("head_evidence").strip(),
             )
         )
     advisory_rows = [advisory for advisory, *_ in table_rows]
@@ -779,9 +806,12 @@ def _assert_brace_expansion_owner_evidence(
     assert (
         frozenset(advisory_rows) == BRACE_EXPANSION_CUTOFF_ADVISORIES
     ), "owner evidence F_cutoff inventory does not match the executable inventory"
+    assert (
+        frozenset(BRACE_EXPANSION_RENDERED_PROJECTIONS) == BRACE_EXPANSION_CUTOFF_ADVISORIES
+    ), "owner evidence rendered projection inventory drift"
     parsed_ranges: dict[str, tuple[str, ...]] = {}
     parsed_applicable: set[str] = set()
-    for advisory, href, cve, range_cell, disposition in table_rows:
+    for advisory, href, cve, range_cell, disposition, head_evidence in table_rows:
         receipt_record = receipt_records[advisory]
         assert href == receipt_record["html_url"], f"{advisory}: owner evidence href drift"
         assert cve == receipt_record["cve_id"], f"{advisory}: owner evidence CVE drift"
@@ -791,12 +821,14 @@ def _assert_brace_expansion_owner_evidence(
                 for item in range_cell.split(";")
             )
         )
-        if disposition.strip().startswith("**Applicable**:"):
+        assert (
+            disposition,
+            head_evidence,
+        ) == BRACE_EXPANSION_RENDERED_PROJECTIONS[
+            advisory
+        ], f"{advisory}: owner evidence rendered projection drift"
+        if advisory in BRACE_EXPANSION_APPLICABLE_ADVISORIES:
             parsed_applicable.add(advisory)
-        else:
-            assert disposition.strip().startswith(
-                "Non-applicable:"
-            ), f"{advisory}: owner evidence disposition is not classified"
     assert parsed_ranges == {
         advisory: tuple(sorted(ranges))
         for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGE_TEXT.items()
@@ -1332,6 +1364,8 @@ def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
         "malformed-extra-fcutoff-row",
         "second-applicable-block",
         "global-positive-audit-claim",
+        "contradictory-head-evidence",
+        "contradictory-disposition-suffix",
     ),
 )
 def test_brace_expansion_owner_evidence_rejects_ambiguous_carriers(case: str) -> None:
@@ -1359,6 +1393,20 @@ def test_brace_expansion_owner_evidence_rejects_ambiguous_carriers(case: str) ->
         document = document.replace(marker, duplicate, 1)
     elif case == "global-positive-audit-claim":
         document += "\nOverall audit PASS: zero vulnerabilities.\n"
+    elif case == "contradictory-head-evidence":
+        canonical = BRACE_EXPANSION_RENDERED_PROJECTIONS["GHSA-3jxr-9vmj-r5cp"][1]
+        document = document.replace(
+            canonical,
+            "`2.1.3` and `5.0.8` remain affected and unsafe",
+            1,
+        )
+    elif case == "contradictory-disposition-suffix":
+        canonical = BRACE_EXPANSION_RENDERED_PROJECTIONS["GHSA-3jxr-9vmj-r5cp"][0]
+        document = document.replace(
+            canonical,
+            "**Applicable**: neither `2.0.3` nor `5.0.6` is affected",
+            1,
+        )
     else:
         raise AssertionError(f"unhandled ambiguous carrier case: {case}")
 
