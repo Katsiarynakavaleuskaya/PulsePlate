@@ -163,9 +163,54 @@ BRACE_EXPANSION_CUTOFF_ADVISORIES = frozenset(
 )
 BRACE_EXPANSION_APPLICABLE_ADVISORIES = frozenset({"GHSA-3jxr-9vmj-r5cp", "GHSA-mh99-v99m-4gvg"})
 BRACE_EXPANSION_GAD_CUTOFF = "2026-08-01T05:41:33Z"
-BRACE_EXPANSION_GAD_RESPONSE_SHA256 = (
-    "07cf9e303aac2c81ac5072d5c0ff1a7e1fd8ec76cdb3af07242db0ac06e38311"  # pragma: allowlist secret
+BRACE_EXPANSION_EVIDENCE_RECEIPT_SCHEMA = "pulseplate.frontend-brace-expansion-evidence-receipt/v1"
+BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN = "<!-- BEGIN BRACE_EXPANSION_EVIDENCE_RECEIPT -->"
+BRACE_EXPANSION_EVIDENCE_RECEIPT_END = "<!-- END BRACE_EXPANSION_EVIDENCE_RECEIPT -->"
+BRACE_EXPANSION_EVIDENCE_RECEIPT_SHA256 = (
+    "46ebe242f8db59ef4b3806269378b08df6a1daa4c474430d2487c614c5e0fc21"  # pragma: allowlist secret
 )
+BRACE_EXPANSION_AUDIT_EXPECTATIONS = {
+    "base": {
+        "brace_expansion_advisory_ids": (
+            "GHSA-3jxr-9vmj-r5cp",
+            "GHSA-mh99-v99m-4gvg",
+        ),
+        "brace_expansion_present": True,
+        "exit_code": 1,
+        "total": 12,
+        "vulnerability_keys": (
+            "@eslint/config-array",
+            "@eslint/eslintrc",
+            "@redocly/openapi-core",
+            "brace-expansion",
+            "dompurify",
+            "js-yaml",
+            "jspdf",
+            "minimatch",
+            "postcss",
+            "react-router",
+            "react-router-dom",
+            "style-dictionary",
+        ),
+    },
+    "head": {
+        "brace_expansion_advisory_ids": (),
+        "brace_expansion_present": False,
+        "exit_code": 1,
+        "total": 9,
+        "vulnerability_keys": (
+            "@eslint/eslintrc",
+            "@redocly/openapi-core",
+            "dompurify",
+            "js-yaml",
+            "jspdf",
+            "postcss",
+            "react-router",
+            "react-router-dom",
+            "style-dictionary",
+        ),
+    },
+}
 BRACE_EXPANSION_EXACT_BASE = "906049a03d26dcba05d69f46e0eec85861f3ba70"  # pragma: allowlist secret
 BRACE_EXPANSION_EXACT_BASE_DIGESTS = {
     "frontend/package.json": (
@@ -336,6 +381,14 @@ def _has_brace_expansion_tarball_path_signal(value: object) -> bool:
     return any(tarball_path_signal in path and path.endswith(".tgz") for path in candidate_paths)
 
 
+def _is_npm_alias_for_target(value: object, *, target: str) -> bool:
+    """Recognize only npm's bounded package-alias spelling for the target."""
+
+    return isinstance(value, str) and (
+        value == f"npm:{target}" or value.startswith(f"npm:{target}@")
+    )
+
+
 def _find_override_key_paths(
     node: object,
     *,
@@ -343,6 +396,9 @@ def _find_override_key_paths(
     path: tuple[str, ...] = (),
 ) -> dict[tuple[str, ...], object]:
     found: dict[tuple[str, ...], object] = {}
+    if _is_npm_alias_for_target(node, target=target):
+        found[path] = node
+        return found
     if isinstance(node, dict):
         for key, value in node.items():
             child_path = (*path, str(key))
@@ -425,6 +481,239 @@ def _assert_brace_expansion_head_postcondition(versions: set[Version]) -> None:
         ), f"{advisory}: governed head occurrence remains affected"
 
 
+def _require_exact_object(
+    value: object,
+    *,
+    keys: frozenset[str],
+    label: str,
+) -> dict[str, object]:
+    assert isinstance(value, dict), f"{label}: must be an object"
+    assert set(value) == keys, f"{label}: unexpected or missing keys"
+    return value
+
+
+def _canonicalize_brace_expansion_receipt(receipt: dict[str, object]) -> bytes:
+    return json.dumps(
+        receipt,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _normalize_advisory_range_text(value: object) -> str:
+    assert isinstance(value, str) and value.strip(), "receipt advisory range must be text"
+    normalized = re.sub(r"\s+", "", value)
+    if normalized.startswith("=") and not normalized.startswith(("==", ">=", "<=", "!=", "~=")):
+        normalized = f"={normalized}"
+    SpecifierSet(normalized)
+    return normalized
+
+
+def _extract_brace_expansion_evidence_receipt(document: str) -> dict[str, object]:
+    assert (
+        document.count(BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN) == 1
+    ), "owner evidence receipt begin marker drift"
+    assert (
+        document.count(BRACE_EXPANSION_EVIDENCE_RECEIPT_END) == 1
+    ), "owner evidence receipt end marker drift"
+    section = document.split(BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN, maxsplit=1)[1].split(
+        BRACE_EXPANSION_EVIDENCE_RECEIPT_END,
+        maxsplit=1,
+    )[0]
+    match = re.fullmatch(
+        r"\s*```json\n(?P<payload>.*?)\n```\s*",
+        section,
+        flags=re.DOTALL,
+    )
+    assert match is not None, "owner evidence receipt fence missing or malformed"
+    receipt = json.loads(match.group("payload"))
+    assert isinstance(receipt, dict), "owner evidence receipt must be a JSON object"
+
+    digest_matches = re.findall(
+        r"Canonical normalized receipt SHA-256: `([0-9a-f]{64})`",
+        document,
+    )
+    assert len(digest_matches) == 1, "owner evidence receipt digest marker drift"
+    computed_digest = hashlib.sha256(_canonicalize_brace_expansion_receipt(receipt)).hexdigest()
+    assert (
+        digest_matches[0] == BRACE_EXPANSION_EVIDENCE_RECEIPT_SHA256
+    ), "owner evidence receipt declared digest drift"
+    assert (
+        computed_digest == BRACE_EXPANSION_EVIDENCE_RECEIPT_SHA256
+    ), "owner evidence receipt content digest drift"
+    return receipt
+
+
+def _replace_brace_expansion_evidence_receipt(
+    document: str,
+    receipt: dict[str, object],
+) -> tuple[str, str]:
+    """Render a mutated receipt for fail-closed regression tests."""
+
+    assert document.count(BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN) == 1
+    assert document.count(BRACE_EXPANSION_EVIDENCE_RECEIPT_END) == 1
+    prefix, remainder = document.split(BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN, maxsplit=1)
+    _, suffix = remainder.split(BRACE_EXPANSION_EVIDENCE_RECEIPT_END, maxsplit=1)
+    payload = json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True)
+    updated = (
+        prefix
+        + BRACE_EXPANSION_EVIDENCE_RECEIPT_BEGIN
+        + f"\n```json\n{payload}\n```\n"
+        + BRACE_EXPANSION_EVIDENCE_RECEIPT_END
+        + suffix
+    )
+    digest_matches = re.findall(
+        r"Canonical normalized receipt SHA-256: `([0-9a-f]{64})`",
+        updated,
+    )
+    assert len(digest_matches) == 1
+    new_digest = hashlib.sha256(_canonicalize_brace_expansion_receipt(receipt)).hexdigest()
+    return updated.replace(digest_matches[0], new_digest, 1), new_digest
+
+
+def _parse_brace_expansion_evidence_receipt(
+    document: str,
+) -> tuple[dict[str, dict[str, object]], dict[str, object]]:
+    receipt = _extract_brace_expansion_evidence_receipt(document)
+    _require_exact_object(
+        receipt,
+        keys=frozenset({"schema", "advisory_database", "npm_audit"}),
+        label="owner evidence receipt",
+    )
+    assert receipt["schema"] == BRACE_EXPANSION_EVIDENCE_RECEIPT_SCHEMA
+
+    database = _require_exact_object(
+        receipt["advisory_database"],
+        keys=frozenset(
+            {
+                "accept",
+                "cutoff",
+                "next_page",
+                "query",
+                "record_count",
+                "records",
+            }
+        ),
+        label="owner evidence advisory_database",
+    )
+    assert database["accept"] == "application/vnd.github+json"
+    assert database["cutoff"] == BRACE_EXPANSION_GAD_CUTOFF
+    assert database["next_page"] is None
+    assert database["query"] == (
+        "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100"
+    )
+    assert type(database["record_count"]) is int
+    assert database["record_count"] == 6
+    records = database["records"]
+    assert isinstance(records, list)
+    assert len(records) == database["record_count"]
+
+    record_map: dict[str, dict[str, object]] = {}
+    record_ids: list[str] = []
+    timestamp_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
+    for index, raw_record in enumerate(records):
+        record = _require_exact_object(
+            raw_record,
+            keys=frozenset(
+                {
+                    "cve_id",
+                    "ghsa_id",
+                    "html_url",
+                    "published_at",
+                    "ranges",
+                    "severity",
+                    "summary",
+                    "updated_at",
+                }
+            ),
+            label=f"owner evidence advisory_database.records[{index}]",
+        )
+        ghsa_id = record["ghsa_id"]
+        cve_id = record["cve_id"]
+        published_at = record["published_at"]
+        updated_at = record["updated_at"]
+        assert isinstance(ghsa_id, str) and re.fullmatch(r"GHSA-[a-z0-9-]+", ghsa_id)
+        assert isinstance(cve_id, str) and re.fullmatch(r"CVE-\d{4}-\d+", cve_id)
+        assert record["html_url"] == f"https://github.com/advisories/{ghsa_id}"
+        assert isinstance(published_at, str) and re.fullmatch(timestamp_pattern, published_at)
+        assert isinstance(updated_at, str) and re.fullmatch(timestamp_pattern, updated_at)
+        assert published_at <= updated_at <= BRACE_EXPANSION_GAD_CUTOFF
+        assert record["severity"] in {"low", "medium", "high", "critical"}
+        assert isinstance(record["summary"], str) and record["summary"].strip()
+        ranges = record["ranges"]
+        assert isinstance(ranges, list) and ranges
+        assert all(isinstance(value, str) for value in ranges)
+        assert ranges == sorted(set(ranges)), f"{ghsa_id}: receipt ranges must be unique and sorted"
+        normalized_ranges = tuple(sorted(_normalize_advisory_range_text(value) for value in ranges))
+        assert len(normalized_ranges) == len(set(normalized_ranges))
+        assert ghsa_id not in record_map, f"{ghsa_id}: duplicate receipt advisory"
+        record_ids.append(ghsa_id)
+        record_map[ghsa_id] = {**record, "normalized_ranges": normalized_ranges}
+
+    assert record_ids == sorted(BRACE_EXPANSION_CUTOFF_ADVISORIES)
+    receipt_ranges = {
+        advisory: record["normalized_ranges"] for advisory, record in record_map.items()
+    }
+    expected_ranges = {
+        advisory: tuple(sorted(ranges))
+        for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGE_TEXT.items()
+    }
+    assert receipt_ranges == expected_ranges, "receipt advisory range inventory drift"
+
+    audit = _require_exact_object(
+        receipt["npm_audit"],
+        keys=frozenset(
+            {
+                "base",
+                "command",
+                "head",
+                "node",
+                "npm",
+                "overall_audit_clean",
+                "registry",
+            }
+        ),
+        label="owner evidence npm_audit",
+    )
+    assert audit["command"] == "npm audit --package-lock-only --json"
+    assert audit["node"] == "v24.16.0"
+    assert audit["npm"] == "11.13.0"
+    assert audit["registry"] == "https://registry.npmjs.org/"
+    assert audit["overall_audit_clean"] is False
+    for snapshot_name, expected in BRACE_EXPANSION_AUDIT_EXPECTATIONS.items():
+        snapshot = _require_exact_object(
+            audit[snapshot_name],
+            keys=frozenset(
+                {
+                    "brace_expansion_advisory_ids",
+                    "brace_expansion_present",
+                    "exit_code",
+                    "total",
+                    "vulnerability_keys",
+                }
+            ),
+            label=f"owner evidence npm_audit.{snapshot_name}",
+        )
+        advisory_ids = snapshot["brace_expansion_advisory_ids"]
+        vulnerability_keys = snapshot["vulnerability_keys"]
+        assert isinstance(advisory_ids, list)
+        assert advisory_ids == sorted(set(advisory_ids))
+        assert tuple(advisory_ids) == expected["brace_expansion_advisory_ids"]
+        assert type(snapshot["brace_expansion_present"]) is bool
+        assert snapshot["brace_expansion_present"] is expected["brace_expansion_present"]
+        assert type(snapshot["exit_code"]) is int
+        assert snapshot["exit_code"] == expected["exit_code"]
+        assert type(snapshot["total"]) is int
+        assert snapshot["total"] == expected["total"]
+        assert isinstance(vulnerability_keys, list)
+        assert vulnerability_keys == sorted(set(vulnerability_keys))
+        assert tuple(vulnerability_keys) == expected["vulnerability_keys"]
+        assert snapshot["total"] == len(vulnerability_keys)
+        assert snapshot["brace_expansion_present"] is ("brace-expansion" in vulnerability_keys)
+    return record_map, audit
+
+
 def _assert_brace_expansion_owner_evidence(
     document: str,
     *,
@@ -432,6 +721,7 @@ def _assert_brace_expansion_owner_evidence(
 ) -> None:
     """Bind the executable cutoff inventory to its sole current evidence owner."""
 
+    receipt_records, audit = _parse_brace_expansion_evidence_receipt(document)
     inventory_marker = "That finite reconciled response is `F_cutoff`:"
     applicable_marker = "The exact non-empty applicable subset"
     assert document.count(inventory_marker) == 1, "owner evidence F_cutoff marker drift"
@@ -451,25 +741,38 @@ def _assert_brace_expansion_owner_evidence(
     ), "owner evidence F_cutoff inventory does not match the executable inventory"
 
     table_rows = re.findall(
-        r"^\| \[`(?P<advisory>GHSA-[a-z0-9-]+)`\]\([^\n]+?\)"
-        r"(?: / `[^`]+`)? \| (?P<ranges>[^|]+) \| (?P<disposition>[^|]+) \|",
+        r"^\| \[`(?P<advisory>GHSA-[a-z0-9-]+)`\]\((?P<href>[^)\n]+)\)"
+        r" / `(?P<cve>CVE-\d{4}-\d+)` \| (?P<ranges>[^|]+) \|"
+        r" (?P<disposition>[^|]+) \|",
         inventory,
         flags=re.MULTILINE,
     )
     assert len(table_rows) == len(advisory_rows), "owner evidence F_cutoff row parse drift"
     parsed_ranges: dict[str, tuple[str, ...]] = {}
     parsed_applicable: set[str] = set()
-    for advisory, range_cell, disposition in table_rows:
-        parsed_ranges[advisory] = tuple(item.strip().strip("`") for item in range_cell.split(";"))
+    for advisory, href, cve, range_cell, disposition in table_rows:
+        receipt_record = receipt_records[advisory]
+        assert href == receipt_record["html_url"], f"{advisory}: owner evidence href drift"
+        assert cve == receipt_record["cve_id"], f"{advisory}: owner evidence CVE drift"
+        parsed_ranges[advisory] = tuple(
+            sorted(
+                _normalize_advisory_range_text(item.strip().strip("`"))
+                for item in range_cell.split(";")
+            )
+        )
         if disposition.strip().startswith("**Applicable**:"):
             parsed_applicable.add(advisory)
         else:
             assert disposition.strip().startswith(
                 "Non-applicable:"
             ), f"{advisory}: owner evidence disposition is not classified"
-    assert (
-        parsed_ranges == BRACE_EXPANSION_ADVISORY_RANGE_TEXT
-    ), "owner evidence affected ranges do not match the executable inventory"
+    assert parsed_ranges == {
+        advisory: tuple(sorted(ranges))
+        for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGE_TEXT.items()
+    }, "owner evidence affected ranges do not match the executable inventory"
+    assert parsed_ranges == {
+        advisory: record["normalized_ranges"] for advisory, record in receipt_records.items()
+    }, "owner evidence table ranges do not match the retained receipt"
     assert (
         frozenset(parsed_applicable) == BRACE_EXPANSION_APPLICABLE_ADVISORIES
     ), "owner evidence table applicability does not match the executable subset"
@@ -491,10 +794,38 @@ def _assert_brace_expansion_owner_evidence(
     assert "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100" in document
     assert f"Cutoff: `{BRACE_EXPANSION_GAD_CUTOFF}`" in document
     assert "response contained exactly six records and no next page" in normalized
-    assert BRACE_EXPANSION_GAD_RESPONSE_SHA256 in document
     assert "Node: v24.16.0" in document
     assert "npm: 11.13.0" in document
     assert "command: npm install --package-lock-only --ignore-scripts" in document
+
+    base_audit = audit["base"]
+    head_audit = audit["head"]
+    assert isinstance(base_audit, dict) and isinstance(head_audit, dict)
+    base_advisories = base_audit["brace_expansion_advisory_ids"]
+    assert isinstance(base_advisories, list) and len(base_advisories) == 2
+    audit_marker = "As secondary reconciliation evidence, exact-base"
+    audit_end_marker = "## Operator intent `I_R` and deterministic closure `C_R`"
+    assert document.count(audit_marker) == 1
+    assert document.count(audit_end_marker) == 1
+    audit_section = (
+        audit_marker
+        + document.split(audit_marker, maxsplit=1)[1].split(
+            audit_end_marker,
+            maxsplit=1,
+        )[0]
+    )
+    expected_audit_section = (
+        "As secondary reconciliation evidence, exact-base "
+        f"`{audit['command']}` exited `{base_audit['exit_code']}`, reported "
+        f"`{base_audit['total']}` total findings, and reported `brace-expansion` through "
+        f"`{base_advisories[0]}` and `{base_advisories[1]}`. The proposed-head command also "
+        f"exited `{head_audit['exit_code']}`, reported `{head_audit['total']}` unrelated "
+        "findings, and returned no `brace-expansion` vulnerability key. That bounded absence "
+        "is not an overall audit PASS and does not claim zero vulnerabilities."
+    )
+    assert (
+        re.sub(r"\s+", " ", audit_section).strip() == expected_audit_section
+    ), "owner evidence audit projection does not match the retained receipt"
     assert set(head_artifact_blobs) == set(BRACE_EXPANSION_EXACT_HEAD_DIGESTS)
     for relative, expected_digest in BRACE_EXPANSION_EXACT_HEAD_DIGESTS.items():
         assert expected_digest in document, f"{relative}: head artifact digest missing from owner"
@@ -838,6 +1169,41 @@ def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path
 
 
 @pytest.mark.parametrize(
+    "alias",
+    (
+        "npm:brace-expansion",
+        "npm:brace-expansion@",
+        "npm:brace-expansion@2.1.3",
+    ),
+)
+def test_override_discovery_catches_bounded_npm_alias_values(alias: str) -> None:
+    """Lockless manifests cannot hide the target behind an npm alias value."""
+
+    document = {"overrides": {"future-carrier": {"renamed-package": alias}}}
+    assert _find_override_key_paths(document, target="brace-expansion") == {
+        ("overrides", "future-carrier", "renamed-package"): alias
+    }
+
+
+@pytest.mark.parametrize(
+    "non_alias",
+    (
+        "brace-expansion@2.1.3",
+        "npm:brace-expansions@2.1.3",
+        "https://registry.npmjs.org/brace-expansion",
+        2,
+    ),
+)
+def test_override_discovery_does_not_generalize_beyond_npm_alias_values(non_alias: object) -> None:
+    """The class models npm alias syntax, not arbitrary value heuristics."""
+
+    assert not _find_override_key_paths(
+        {"overrides": {"future-carrier": {"renamed-package": non_alias}}},
+        target="brace-expansion",
+    )
+
+
+@pytest.mark.parametrize(
     "case",
     (
         "manifest-add",
@@ -914,7 +1280,10 @@ def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
     (
         "missing-row",
         "extra-row",
-        "response-digest",
+        "receipt-digest",
+        "advisory-href",
+        "advisory-cve",
+        "audit-projection",
         "applicable-id",
         "affected-range",
         "applicable-disposition",
@@ -941,8 +1310,26 @@ def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: st
             "GHSA-0000-0000-0000) | `<0` | Non-applicable | No governed occurrence |"
         )
         document = document.replace(marker, f"{extra}{marker}", 1)
-    elif case == "response-digest":
-        document = document.replace(BRACE_EXPANSION_GAD_RESPONSE_SHA256, "0" * 64, 1)
+    elif case == "receipt-digest":
+        document = document.replace(BRACE_EXPANSION_EVIDENCE_RECEIPT_SHA256, "0" * 64, 1)
+    elif case == "advisory-href":
+        document = document.replace(
+            "[`GHSA-3jxr-9vmj-r5cp`](https://github.com/advisories/GHSA-3jxr-9vmj-r5cp)",
+            "[`GHSA-3jxr-9vmj-r5cp`](https://example.invalid/GHSA-3jxr-9vmj-r5cp)",
+            1,
+        )
+    elif case == "advisory-cve":
+        document = document.replace(
+            ") / `CVE-2026-13149` |",
+            ") / `CVE-2026-99999` |",
+            1,
+        )
+    elif case == "audit-projection":
+        document = document.replace(
+            "is not an overall audit PASS",
+            "is an overall audit PASS",
+            1,
+        )
     elif case == "applicable-id":
         document = document.replace(
             "  GHSA-mh99-v99m-4gvg\n}",
@@ -964,6 +1351,81 @@ def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: st
         _assert_brace_expansion_owner_evidence(
             document,
             head_artifact_blobs=head_artifact_blobs,
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "audit-exit-code-type",
+        "audit-total-type",
+        "audit-conclusion",
+        "coordinated-omission",
+    ),
+)
+def test_brace_expansion_owner_evidence_rejects_rehashed_semantic_drift(
+    case: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A new digest cannot bless a false receipt class or coordinated omission."""
+
+    document = BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
+    receipt = deepcopy(_extract_brace_expansion_evidence_receipt(document))
+    database = receipt["advisory_database"]
+    audit = receipt["npm_audit"]
+    assert isinstance(database, dict) and isinstance(audit, dict)
+    base_audit = audit["base"]
+    head_audit = audit["head"]
+    assert isinstance(base_audit, dict) and isinstance(head_audit, dict)
+
+    if case == "audit-exit-code-type":
+        base_audit["exit_code"] = True
+    elif case == "audit-total-type":
+        head_audit["total"] = 9.0
+    elif case == "audit-conclusion":
+        audit["overall_audit_clean"] = True
+    elif case == "coordinated-omission":
+        omitted = "GHSA-832h-xg76-4gv6"
+        records = database["records"]
+        assert isinstance(records, list)
+        database["records"] = [record for record in records if record["ghsa_id"] != omitted]
+        database["record_count"] = 5
+        document = "\n".join(line for line in document.splitlines() if omitted not in line)
+        monkeypatch.setitem(
+            globals(),
+            "BRACE_EXPANSION_CUTOFF_ADVISORIES",
+            BRACE_EXPANSION_CUTOFF_ADVISORIES - {omitted},
+        )
+        monkeypatch.setitem(
+            globals(),
+            "BRACE_EXPANSION_ADVISORY_RANGE_TEXT",
+            {
+                advisory: ranges
+                for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGE_TEXT.items()
+                if advisory != omitted
+            },
+        )
+        monkeypatch.setitem(
+            globals(),
+            "BRACE_EXPANSION_ADVISORY_RANGES",
+            {
+                advisory: ranges
+                for advisory, ranges in BRACE_EXPANSION_ADVISORY_RANGES.items()
+                if advisory != omitted
+            },
+        )
+    else:
+        raise AssertionError(f"unhandled rehashed receipt mutation: {case}")
+
+    document, new_digest = _replace_brace_expansion_evidence_receipt(document, receipt)
+    monkeypatch.setitem(globals(), "BRACE_EXPANSION_EVIDENCE_RECEIPT_SHA256", new_digest)
+    with pytest.raises(AssertionError):
+        _assert_brace_expansion_owner_evidence(
+            document,
+            head_artifact_blobs={
+                relative: (REPO_ROOT / relative).read_bytes()
+                for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
+            },
         )
 
 
@@ -1016,6 +1478,7 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
         ("blanket", "blanket brace-expansion override is forbidden"),
         ("selector-override", "override target/output set is not approved"),
         ("empty-selector-override", "override target/output set is not approved"),
+        ("alias-value", "override target/output set is not approved"),
     ),
 )
 def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) -> None:
@@ -1127,6 +1590,10 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         package_json["overrides"]["brace-expansion@<2.1.3"] = "2.1.3"
     elif case == "empty-selector-override":
         package_json["overrides"]["brace-expansion@"] = "2.1.3"
+    elif case == "alias-value":
+        package_json["overrides"]["future-carrier"] = {
+            "renamed-package": "npm:brace-expansion@2.1.3"
+        }
     else:
         raise AssertionError(f"unhandled brace-expansion falsification case: {case}")
 

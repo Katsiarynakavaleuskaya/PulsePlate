@@ -83,10 +83,161 @@ Accept: application/vnd.github+json
 ```
 
 Cutoff: `2026-08-01T05:41:33Z`. The response contained exactly six records and
-no next page. After retaining the advisory identity, publication/update state,
-severity, summary, and npm `brace-expansion` ranges and sorting by GHSA ID, the
-canonical JSON response SHA-256 was
-`07cf9e303aac2c81ac5072d5c0ff1a7e1fd8ec76cdb3af07242db0ac06e38311`.
+no next page. The following retained receipt is the independently auditable
+normalized evidence input. It also retains the exact base/head audit result
+class, so the table and audit prose below are projections of parsed evidence
+rather than a second hand-maintained authority.
+
+<!-- BEGIN BRACE_EXPANSION_EVIDENCE_RECEIPT -->
+```json
+{
+  "advisory_database": {
+    "accept": "application/vnd.github+json",
+    "cutoff": "2026-08-01T05:41:33Z",
+    "next_page": null,
+    "query": "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100",
+    "record_count": 6,
+    "records": [
+      {
+        "cve_id": "CVE-2026-13149",
+        "ghsa_id": "GHSA-3jxr-9vmj-r5cp",
+        "html_url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+        "published_at": "2026-07-20T20:51:09Z",
+        "ranges": [
+          "< 1.1.16",
+          ">= 2.0.0, < 2.1.2",
+          ">= 3.0.0, < 5.0.7"
+        ],
+        "severity": "high",
+        "summary": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+        "updated_at": "2026-07-20T20:51:11Z"
+      },
+      {
+        "cve_id": "CVE-2017-18077",
+        "ghsa_id": "GHSA-832h-xg76-4gv6",
+        "html_url": "https://github.com/advisories/GHSA-832h-xg76-4gv6",
+        "published_at": "2018-01-29T15:50:46Z",
+        "ranges": [
+          "< 1.1.7"
+        ],
+        "severity": "high",
+        "summary": "ReDoS in brace-expansion",
+        "updated_at": "2023-04-11T00:23:11Z"
+      },
+      {
+        "cve_id": "CVE-2026-33750",
+        "ghsa_id": "GHSA-f886-m6hf-6m8v",
+        "html_url": "https://github.com/advisories/GHSA-f886-m6hf-6m8v",
+        "published_at": "2026-03-26T18:29:42Z",
+        "ranges": [
+          "< 1.1.13",
+          ">= 2.0.0, < 2.0.3",
+          ">= 3.0.0, < 3.0.2",
+          ">= 4.0.0, < 5.0.5"
+        ],
+        "severity": "medium",
+        "summary": "brace-expansion: Zero-step sequence causes process hang and memory exhaustion",
+        "updated_at": "2026-03-27T21:38:55Z"
+      },
+      {
+        "cve_id": "CVE-2026-45149",
+        "ghsa_id": "GHSA-jxxr-4gwj-5jf2",
+        "html_url": "https://github.com/advisories/GHSA-jxxr-4gwj-5jf2",
+        "published_at": "2026-05-18T16:22:01Z",
+        "ranges": [
+          ">= 5.0.0, < 5.0.6"
+        ],
+        "severity": "medium",
+        "summary": "brace-expansion: Large numeric range defeats documented `max` DoS protection",
+        "updated_at": "2026-06-09T10:32:29Z"
+      },
+      {
+        "cve_id": "CVE-2026-14257",
+        "ghsa_id": "GHSA-mh99-v99m-4gvg",
+        "html_url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+        "published_at": "2026-07-24T21:53:14Z",
+        "ranges": [
+          "< 1.1.17",
+          ">= 2.0.0, < 2.1.3",
+          ">= 3.0.0, < 3.0.3",
+          ">= 4.0.0, < 5.0.8"
+        ],
+        "severity": "high",
+        "summary": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+        "updated_at": "2026-07-31T19:37:57Z"
+      },
+      {
+        "cve_id": "CVE-2025-5889",
+        "ghsa_id": "GHSA-v6h2-p8h4-qcjw",
+        "html_url": "https://github.com/advisories/GHSA-v6h2-p8h4-qcjw",
+        "published_at": "2025-06-09T21:30:51Z",
+        "ranges": [
+          "= 3.0.0",
+          "= 4.0.0",
+          ">= 1.0.0, <= 1.1.11",
+          ">= 2.0.0, <= 2.0.1"
+        ],
+        "severity": "low",
+        "summary": "brace-expansion Regular Expression Denial of Service vulnerability",
+        "updated_at": "2025-06-11T21:00:29Z"
+      }
+    ]
+  },
+  "npm_audit": {
+    "base": {
+      "brace_expansion_advisory_ids": [
+        "GHSA-3jxr-9vmj-r5cp",
+        "GHSA-mh99-v99m-4gvg"
+      ],
+      "brace_expansion_present": true,
+      "exit_code": 1,
+      "total": 12,
+      "vulnerability_keys": [
+        "@eslint/config-array",
+        "@eslint/eslintrc",
+        "@redocly/openapi-core",
+        "brace-expansion",
+        "dompurify",
+        "js-yaml",
+        "jspdf",
+        "minimatch",
+        "postcss",
+        "react-router",
+        "react-router-dom",
+        "style-dictionary"
+      ]
+    },
+    "command": "npm audit --package-lock-only --json",
+    "head": {
+      "brace_expansion_advisory_ids": [],
+      "brace_expansion_present": false,
+      "exit_code": 1,
+      "total": 9,
+      "vulnerability_keys": [
+        "@eslint/eslintrc",
+        "@redocly/openapi-core",
+        "dompurify",
+        "js-yaml",
+        "jspdf",
+        "postcss",
+        "react-router",
+        "react-router-dom",
+        "style-dictionary"
+      ]
+    },
+    "node": "v24.16.0",
+    "npm": "11.13.0",
+    "overall_audit_clean": false,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "schema": "pulseplate.frontend-brace-expansion-evidence-receipt/v1"
+}
+```
+<!-- END BRACE_EXPANSION_EVIDENCE_RECEIPT -->
+
+Canonicalization is UTF-8 JSON with sorted keys and compact separators
+(`,` and `:`), without an embedded digest field.
+Canonical normalized receipt SHA-256: `46ebe242f8db59ef4b3806269378b08df6a1daa4c474430d2487c614c5e0fc21`.
 
 That finite reconciled response is `F_cutoff`:
 
@@ -114,9 +265,9 @@ remain in `P`; their non-applicability at base is not permission for an affected
 or unresolved head occurrence.
 
 As secondary reconciliation evidence, exact-base
-`npm audit --package-lock-only --json` exited `1`, reported 12 total findings,
+`npm audit --package-lock-only --json` exited `1`, reported `12` total findings,
 and reported `brace-expansion` through `GHSA-3jxr-9vmj-r5cp` and
-`GHSA-mh99-v99m-4gvg`. The proposed-head command also exited `1`, reported nine
+`GHSA-mh99-v99m-4gvg`. The proposed-head command also exited `1`, reported `9`
 unrelated findings, and returned no `brace-expansion` vulnerability key. That
 bounded absence is not an overall audit PASS and does not claim zero
 vulnerabilities.
@@ -165,7 +316,15 @@ base witnesses, verifies the four non-applicable dispositions, and then checks
 both `2.1.3` and `5.0.8` against all six candidates.
 
 Candidate discovery is deliberately separate from provenance validity. Within
-the finite lockfile-v3 `packages` map, an entry is considered a potential
+the finite manifest override tree, a key equal to `brace-expansion`, a selector
+key beginning `brace-expansion@`, or a string value equal to
+`npm:brace-expansion` or beginning `npm:brace-expansion@` is a bounded identity
+signal. An alias value is discovered even when its surrounding key is renamed;
+it then fails this class unless it is one of the two exact approved intent
+paths and outputs. Arbitrary strings and other package-manager syntaxes are not
+treated as npm aliases.
+
+Within the finite lockfile-v3 `packages` map, an entry is considered a potential
 `brace-expansion` occurrence when any of these bounded identity signals exists:
 
 1. a canonical terminal installed path `node_modules/brace-expansion`;
