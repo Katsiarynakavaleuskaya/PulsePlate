@@ -738,6 +738,12 @@ def test_admin_rollback_runs_inside_lease_and_maps_contention_to_409(
     events: list[str] = []
 
     class _Manager:
+        versions: dict[str, object] = {}
+
+        def _load_versions(self) -> dict[str, object]:
+            events.append("refresh")
+            return {}
+
         async def rollback_database(self, source: str, target_version: str) -> bool:
             events.append(f"rollback:{source}:{target_version}")
             return True
@@ -758,7 +764,7 @@ def test_admin_rollback_runs_inside_lease_and_maps_contention_to_409(
     result = asyncio.run(admin_operations.rollback_database("usda", "v1"))
 
     assert result["success"] is True
-    assert events == ["lease", "rollback:usda:v1"]
+    assert events == ["lease", "refresh", "rollback:usda:v1"]
 
     async def contend(_operation: Any) -> Any:
         raise scheduler_runtime.UpdateLeaseContended()
@@ -772,6 +778,82 @@ def test_admin_rollback_runs_inside_lease_and_maps_contention_to_409(
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "update_already_in_progress"
     assert events == []
+
+
+def test_lease_refresh_preserves_sequential_manager_version_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from core.food_apis import scheduler as scheduler_module
+    from core.food_apis.update_manager import (
+        DatabaseUpdateManager,
+        DatabaseVersion,
+        UpdateResult,
+    )
+
+    first_manager = DatabaseUpdateManager(cache_dir=tmp_path)
+    second_manager = DatabaseUpdateManager(cache_dir=tmp_path)
+    first_scheduler = object.__new__(
+        scheduler_module.DatabaseUpdateScheduler,
+    )
+    second_scheduler = object.__new__(
+        scheduler_module.DatabaseUpdateScheduler,
+    )
+    first_scheduler.update_manager = first_manager
+    second_scheduler.update_manager = second_manager
+
+    def version_for(source: str, version: str) -> DatabaseVersion:
+        return DatabaseVersion(
+            source=source,
+            version=version,
+            last_updated="2026-08-01T00:00:00+00:00",
+            record_count=1,
+            checksum=version,
+            metadata={},
+        )
+
+    def install_writer(manager: DatabaseUpdateManager, version: str) -> None:
+        async def write(source: str, force: bool = False) -> UpdateResult:
+            assert force is True
+            manager.versions[source] = version_for(source, version)
+            manager._save_versions()
+            return UpdateResult(
+                success=True,
+                source=source,
+                old_version=None,
+                new_version=version,
+                records_added=1,
+                records_updated=0,
+                records_removed=0,
+                errors=[],
+                duration_seconds=0.0,
+            )
+
+        monkeypatch.setattr(manager, "update_database", write)
+
+    async def run_lease(operation: Any) -> Any:
+        return await operation()
+
+    install_writer(first_manager, "v1")
+    install_writer(second_manager, "v2")
+    monkeypatch.setattr(scheduler_module, "run_with_update_lease", run_lease)
+
+    async def scenario() -> None:
+        observed: DatabaseUpdateManager | None = None
+        try:
+            await first_scheduler.force_update("usda")
+            await second_scheduler.force_update("openfoodfacts")
+            observed = DatabaseUpdateManager(cache_dir=tmp_path)
+            assert sorted(observed.versions) == ["openfoodfacts", "usda"]
+            assert observed.versions["usda"].version == "v1"
+            assert observed.versions["openfoodfacts"].version == "v2"
+        finally:
+            if observed is not None:
+                await observed.close()
+            await first_manager.close()
+            await second_manager.close()
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize(

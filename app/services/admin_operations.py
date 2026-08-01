@@ -13,7 +13,11 @@ from starlette.concurrency import run_in_threadpool
 
 from app.services.scheduler_access import get_update_scheduler
 from app.utils.feature_flags import _is_truthy
-from core.food_apis.scheduler_runtime import UpdateLeaseContended, run_with_update_lease
+from core.food_apis.scheduler_runtime import (
+    UpdateLeaseContended,
+    refresh_update_version_state,
+    run_with_update_lease,
+)
 from core.log_retention import DataClass, get_retention_manager
 from settings import is_explicit_developer_env
 
@@ -187,6 +191,7 @@ async def rollback_database(source: str, target_version: str) -> dict[str, Any]:
         )
 
     async def _run_rollback() -> Any:
+        refresh_update_version_state(update_manager)
         if inspect.iscoroutinefunction(rollback_callable):
             result = await rollback_callable(source, target_version)
         else:

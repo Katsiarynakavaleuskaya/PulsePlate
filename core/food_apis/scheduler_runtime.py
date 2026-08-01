@@ -9,7 +9,7 @@ import os
 import threading
 from collections.abc import Awaitable, Callable
 from enum import Enum
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, make_url
@@ -35,8 +35,17 @@ _ADVISORY_UNLOCK_SQL = text("SELECT pg_advisory_unlock(:lease_key)")
 _LOCAL_UPDATE_LEASE = threading.Lock()
 
 T = TypeVar("T")
+VersionStateT = TypeVar("VersionStateT")
 UpdateOperation = Callable[[], Awaitable[T]]
 SessionFactory = Callable[[], Session]
+
+
+class PersistedVersionStore(Protocol[VersionStateT]):
+    """Version metadata surface that must be refreshed inside the update lease."""
+
+    versions: VersionStateT
+
+    def _load_versions(self) -> VersionStateT: ...
 
 
 class SchedulerMode(str, Enum):
@@ -144,6 +153,20 @@ def configured_periodic_owner(mode: SchedulerMode) -> str:
     if mode is SchedulerMode.IN_PROCESS_DEV:
         return "api_process"
     return "none"
+
+
+def refresh_update_version_state(
+    update_manager: PersistedVersionStore[VersionStateT],
+) -> None:
+    """Reload shared version metadata after acquiring the cross-process lease.
+
+    ``DatabaseUpdateManager`` persists all source versions as one JSON object.
+    Long-lived API and worker processes therefore must replace their in-memory
+    snapshot before any leased mutation, or a later writer can erase metadata
+    saved by an earlier process even though their executions were serialized.
+    """
+
+    update_manager.versions = update_manager._load_versions()
 
 
 def _current_session_factory() -> SessionFactory:
@@ -317,11 +340,13 @@ __all__ = [
     "SchedulerConfigurationError",
     "SchedulerMode",
     "SessionFactory",
+    "PersistedVersionStore",
     "UpdateLeaseAcquireError",
     "UpdateLeaseContended",
     "UpdateLeaseError",
     "UpdateLeaseReleaseError",
     "configured_periodic_owner",
+    "refresh_update_version_state",
     "resolve_scheduler_mode",
     "run_with_update_lease",
     "validate_scheduler_mode",
