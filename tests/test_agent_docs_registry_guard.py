@@ -417,8 +417,8 @@ def _extract_dependency_security_sections(agents_md: str, lessons_md: str) -> tu
 # Only platform line-ending differences are normalized. A reviewed normative change
 # must update its document and this digest together.
 _EXPECTED_SECTION_DIGESTS = {
-    "AGENTS Security parent region": "998fbc1bb5d031325cbdf2604d4ffd28f2fc2b5fe51c6c7c3c8269a68b379942",  # pragma: allowlist secret
-    "engineering lesson 33": "891140735ce88ce3d559178d11f554df62289cf2aab5ad1fbf78aafb1023a77a",  # pragma: allowlist secret
+    "AGENTS Security parent region": "d4d4f41f6835f04dbb324734df742034c86bf355c82100449b67480e7b4dbc0d",  # pragma: allowlist secret
+    "engineering lesson 33": "b5912ae176f5f7d014740a6ec72937fc5176dd2b3d9bf2188d2faf5980d8aa4d",  # pragma: allowlist secret
     "historical evidence authority summary": "a68ff8645ace964286c17457820c3dfcc71ad7616378500043ed79600388c1e8",  # pragma: allowlist secret
 }
 _EXPECTED_ADMISSION_AUTHORITY = {
@@ -450,12 +450,19 @@ _EXPECTED_ADMISSION_AUTHORITY = {
     "advisory_applicability_quantifier": (
         "for_every_advisory_exists_affected_comparable_governed_base_occurrence"
     ),
-    "non_applicable_candidates": "independently_dispositioned_with_evidence",
+    "non_applicable_candidates": (
+        "base_non_applicable_disposition_with_no_affected_unresolved_or_"
+        "incomparable_governed_head_occurrence"
+    ),
     "disposition_only_lane": (
         "separate_when_inventory_empty_or_no_applicable_affected_base_occurrence_"
         "no_mutation_or_remediation_claim"
     ),
-    "occurrences": ("all_head_resolved_outside_each_affected_range_or_executable_absence"),
+    "remediation_postcondition_inventory": "every_candidate_advisory_in_F_cutoff",
+    "occurrences": (
+        "for_every_F_cutoff_advisory_all_head_occurrences_resolved_outside_"
+        "affected_range_or_executable_absence"
+    ),
     "base_only_surfaces": "reconciled_by_operator_intent_or_solver_closure_or_fail",
     "unparseable_unresolved_or_unclassified": "fail",
     "same_floor_required": False,
@@ -892,6 +899,11 @@ _AUTHORITY_FIELD_MUTATIONS = (
     ),
     pytest.param("non_applicable_candidates", "ignored", id="omitted-disposition"),
     pytest.param("disposition_only_lane", "may_mutate_or_mix", id="disposition-escape"),
+    pytest.param(
+        "remediation_postcondition_inventory",
+        "base_applicable_advisories_A_only",
+        id="head-only-advisory-escape",
+    ),
     pytest.param("occurrences", "one_representative_head_resolution", id="partial-P"),
     pytest.param("base_only_surfaces", "ignored", id="unreconciled-base-only-S"),
     pytest.param("unparseable_unresolved_or_unclassified", "allow", id="allow-unresolved"),
@@ -1089,6 +1101,39 @@ def test_dependency_security_policy_scopes_remediation_by_invariant_class() -> N
         == _EXPECTED_ADMISSION_AUTHORITY
     )
     _validate_dependency_security_policy(agents_md, lessons_md)
+
+
+def test_dependency_security_policy_rejects_base_only_head_safety_escape() -> None:
+    """A base-inapplicable known advisory must still reject an affected head."""
+    candidates = {
+        "ADV-base": ((1, 0), (2, 0)),
+        "ADV-head-only": ((2, 0), (3, 0)),
+    }
+    base = (1, 5)
+    head = (2, 5)
+
+    def affected(
+        version: tuple[int, int],
+        advisory: tuple[tuple[int, int], tuple[int, int]],
+    ) -> bool:
+        lower, upper = advisory
+        return lower <= version < upper
+
+    applicable_at_base = tuple(
+        advisory_id
+        for advisory_id, affected_range in candidates.items()
+        if affected(base, affected_range)
+    )
+    assert applicable_at_base == ("ADV-base",)
+    assert all(not affected(head, candidates[item]) for item in applicable_at_base)
+    assert not all(not affected(head, affected_range) for affected_range in candidates.values())
+
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    remediation, _lesson, _parent = _extract_dependency_security_sections(agents_md, lessons_md)
+    authority = _parse_dependency_remediation_authority(agents_md, remediation)
+    assert (
+        authority["remediation_postcondition_inventory"] == "every_candidate_advisory_in_F_cutoff"
+    )
 
 
 def test_dependency_security_historical_batch_is_not_current_scope_authority() -> None:
