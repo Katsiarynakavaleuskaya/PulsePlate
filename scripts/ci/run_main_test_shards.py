@@ -10,7 +10,7 @@ import importlib.util
 import math
 import os
 import signal
-import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
+import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-10-31, ref: PR-1748)
 import sys
 import tempfile
 import time
@@ -509,7 +509,7 @@ def start_shard_process(
         report_chars,
     )
     timeout = shard_timeout_seconds(base_env)
-    process = subprocess.Popen(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
+    process = subprocess.Popen(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-10-31, ref: PR-1748)
         command,
         cwd=repo_root,
         env=env,
@@ -626,7 +626,7 @@ def run_coverage_command(
         env.pop("COVERAGE_FILE", None)
         env.pop("COV_CORE_DATAFILE", None)
         try:
-            result = subprocess.run(  # nosec B603: argv uses sys.executable and coverage module without shell (remove-by: 2026-07-31, ref: PR-2020)
+            result = subprocess.run(  # nosec B603: argv uses sys.executable and coverage module without shell (remove-by: 2026-10-31, ref: PR-2020)
                 [sys.executable, "-m", "coverage", *args],
                 cwd=repo_root,
                 env=env,

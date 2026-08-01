@@ -14,8 +14,9 @@ from datetime import date
 import json
 import os
 import re
+import shutil
 import ssl
-import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-10-31, ref: PR-litellm-hardening)
 import sys
 import sysconfig
 import tempfile
@@ -683,29 +684,42 @@ def _current_supported_wheel_tags() -> set[str]:
     return {str(tag) for tag in packaging_tags.sys_tags()}
 
 
+def resolve_python_executable(python_executable: str) -> str:
+    """Return a validated absolute interpreter path while preserving its final symlink."""
+    candidate_text = python_executable.strip()
+    if not candidate_text or "\x00" in candidate_text:
+        raise RuntimeError("Python executable must be a non-empty path or command name.")
+
+    try:
+        if os.path.dirname(candidate_text):
+            candidate = Path(candidate_text).expanduser()
+        else:
+            discovered = shutil.which(candidate_text)
+            if discovered is None:
+                raise RuntimeError(f"Unable to resolve Python executable: {candidate_text}")
+            candidate = Path(discovered)
+
+        if not candidate.is_absolute():
+            candidate = Path.cwd() / candidate
+        invocation_path = candidate.parent.resolve(strict=True) / candidate.name
+        resolved_target = invocation_path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        if isinstance(exc, RuntimeError) and str(exc).startswith(
+            "Unable to resolve Python executable:"
+        ):
+            raise
+        raise RuntimeError(f"Unable to resolve Python executable: {candidate_text}: {exc}") from exc
+
+    if not resolved_target.is_file() or not os.access(resolved_target, os.X_OK):
+        raise RuntimeError(
+            "Python executable must resolve to an executable regular file: " f"{candidate_text}"
+        )
+    return str(invocation_path)
+
+
 def _path_qualified_python_executable_for_probe(python_executable: str) -> str:
-    """Return a non-PATH-resolved Python executable for wheel-tag probing."""
-    candidate = python_executable.strip()
-    if not candidate:
-        raise RuntimeError("Target Python executable for wheel-tag probe is empty")
-    candidate_path = Path(candidate)
-    if candidate_path.is_absolute():
-        return candidate
-    has_path_separator = os.sep in candidate or (os.altsep is not None and os.altsep in candidate)
-    if has_path_separator:
-        return str(candidate_path.resolve())
-    current_interpreter_aliases = {
-        "python",
-        f"python{sys.version_info.major}",
-        f"python{sys.version_info.major}.{sys.version_info.minor}",
-        Path(sys.executable).name,
-    }
-    if candidate in current_interpreter_aliases:
-        return sys.executable
-    raise RuntimeError(
-        "Target Python executable for wheel-tag probe must be absolute or "
-        f"path-qualified; refusing to resolve through PATH: {python_executable}"
-    )
+    """Return the validated interpreter invocation used for wheel-tag probing."""
+    return resolve_python_executable(python_executable)
 
 
 def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object]:
@@ -734,7 +748,7 @@ def _target_python_wheel_tag_payload(python_executable: str) -> dict[str, object
             "}))",
         )
     )
-    result = subprocess.run(  # nosec B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-07-31, ref: PR-2017)
+    result = subprocess.run(  # nosec B603: argv starts with the selected target Python interpreter and a fixed metadata probe (remove-by: 2026-10-31, ref: PR-2017)
         [probe_python, "-c", probe],
         check=False,
         capture_output=True,
@@ -876,7 +890,7 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
     temp_path = Path(temp_file_name)
     try:
         with os.fdopen(temp_file_descriptor, "wb") as file_handle:
-            with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-07-31, ref: PR-1378)
+            with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-10-31, ref: PR-1378)
                 url,
                 timeout=60,
             ) as response:
@@ -1770,13 +1784,14 @@ def run_dependency_floor_preflight(
 
 def is_virtualenv_python(python_executable: str) -> bool:
     """Return True when the target interpreter runs inside a virtualenv."""
+    resolved_python = resolve_python_executable(python_executable)
     probe = (
         "import json, sys\n"
         "print(json.dumps({'prefix': sys.prefix, 'base_prefix': getattr(sys, 'base_prefix', sys.prefix)}))\n"
     )
     try:
-        result = subprocess.run(  # nosec B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
-            [python_executable, "-c", probe],
+        result = subprocess.run(  # nosec B603: argv uses an explicit Python executable and fixed venv probe code only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+            [resolved_python, "-c", probe],
             check=True,
             capture_output=True,
             text=True,
@@ -1791,10 +1806,20 @@ def is_virtualenv_python(python_executable: str) -> bool:
 
 def run_command(command: Sequence[str]) -> None:
     """Run a subprocess command; include captured stdout/stderr on failure for pip diagnostics."""
-    command_text = " ".join(_redact_url_credentials_in_text(str(part)) for part in command)
+    if not command:
+        raise RuntimeError("Command failed: empty command")
+
+    original_argv = [str(part) for part in command]
+    command_text = " ".join(_redact_url_credentials_in_text(part) for part in original_argv)
     try:
-        result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-07-31, ref: PR-litellm-hardening)
-            list(command),
+        resolved_python = resolve_python_executable(original_argv[0])
+    except RuntimeError as exc:
+        detail = _redact_url_credentials_in_text(str(exc))
+        raise RuntimeError(f"Command failed: {command_text}: {detail}") from exc
+    argv = [resolved_python, *original_argv[1:]]
+    try:
+        result = subprocess.run(  # nosec B603: commands are built internally from pinned requirement/install helpers only (remove-by: 2026-10-31, ref: PR-litellm-hardening)
+            argv,
             check=False,
             capture_output=True,
             text=True,
@@ -1885,13 +1910,14 @@ def collect_startup_hook_failure_lines(
     python_executable: str,
 ) -> list[str]:
     """Run the startup-hook guard as a subprocess for target site-packages."""
-    result = subprocess.run(  # nosec B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-07-31, ref: PR-litellm-hardening)
+    resolved_python = resolve_python_executable(python_executable)
+    result = subprocess.run(  # nosec B603: argv uses the selected Python interpreter plus a fixed repo guard script path (remove-by: 2026-10-31, ref: PR-litellm-hardening)
         [
-            python_executable,
+            resolved_python,
             "-S",
             str(guard_script),
             "--python-executable",
-            python_executable,
+            resolved_python,
         ],
         check=False,
         capture_output=True,
@@ -2323,6 +2349,7 @@ def install_with_guard_from_proxy(
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parse_args(argv)
+        args.python_executable = resolve_python_executable(args.python_executable)
         if args.requirements_profile and (args.install_dev or args.install_test):
             print(
                 "ERROR: requirements-profile cannot be combined with "

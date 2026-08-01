@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
-import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2026-07-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
 from typing import Any
 
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
@@ -334,7 +334,7 @@ def validate_oracle_context_surface(paths: list[str] | tuple[str, ...]) -> list[
     git_binary = shutil.which("git")
     if not git_binary:
         raise ValueError("git binary is required to validate oracle-only context paths.")
-    tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2026-07-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+    tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
         [git_binary, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", *normalized_paths],
         cwd=str(REPO_ROOT),
         env=_git_env_without_parent_state(),

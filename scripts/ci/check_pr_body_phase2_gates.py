@@ -5,7 +5,7 @@ import json
 import os
 import re
 import shutil
-import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2026-10-31, ref: experiment-runner-oracle-attribution-semantics)
 import sys
 from enum import Enum
 from pathlib import Path
@@ -599,7 +599,7 @@ def _git_commit_messages(
         ranges.append(fallback_range)
     for resolved_range in ranges:
         try:
-            completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+            completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-10-31, ref: experiment-runner-oracle-attribution-semantics)
                 [
                     git_bin,
                     "log",
@@ -626,7 +626,7 @@ def _commit_message_has_expected_coauthor_trailer(message: str) -> bool:
     if git_bin is None:
         return False
     try:
-        completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+        completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2026-10-31, ref: experiment-runner-oracle-attribution-semantics)
             [git_bin, "interpret-trailers", "--parse", "--no-divider"],
             cwd=REPO_ROOT,
             input=message,
