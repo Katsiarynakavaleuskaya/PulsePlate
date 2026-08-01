@@ -103,8 +103,9 @@ def _request_for_base(base_sha: str) -> dict[str, Any]:
             "generation_timeout_seconds": 60,
             "evaluation_timeout_seconds": 60,
             "max_changed_files": 3,
-            "max_diff_lines": 200,
+            "max_changed_lines": 200,
             "max_patch_bytes": 20000,
+            "line_metric": "numstat_added_plus_deleted_v1",
         },
     )
 
@@ -267,7 +268,9 @@ def _make_patch_run(
         changed_paths=["core/rag/orchestration.py"],
         patch_fingerprint=patch_fingerprint,
         patch_bytes=len(patch_text.encode("utf-8")),
-        diff_lines=len(patch_text.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(patch_text.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result=runner_result,
         checkout_destroyed=True,
         origin_removed=True,
@@ -284,7 +287,9 @@ def _make_patch_run(
             "changed_path_statuses": {"core/rag/orchestration.py": "M"},
             "patch_fingerprint": patch_fingerprint,
             "patch_bytes": len(patch_text.encode("utf-8")),
-            "diff_lines": len(patch_text.splitlines()),
+            "changed_lines": 2,
+            "serialized_patch_lines": len(patch_text.splitlines()),
+            "line_metric": "numstat_added_plus_deleted_v1",
         },
     )
     _write_json(run_dir / RESULT_FILE, result)
@@ -938,7 +943,10 @@ def test_plan_rejects_patch_metadata_extra_unsafe_fields(
     metadata["raw_prompt"] = "/Users/example diff --git Authorization: Bearer ghp_secret"
     _write_json(metadata_path, metadata)
 
-    with pytest.raises(CreativeCodePRPromotionError, match="unsupported fields"):
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match=r"patch_metadata must use one exact legacy or changed-line shape\.",
+    ):
         creative_code_pr_promotion.plan(
             patch_run=run_id,
             promotion_id="promotion-pr3-metadata-extra",
@@ -994,7 +1002,10 @@ def test_plan_rejects_patch_metadata_extra_unsafe_key_without_echoing_key(
     metadata[unsafe_key] = "ignored"
     _write_json(metadata_path, metadata)
 
-    with pytest.raises(CreativeCodePRPromotionError, match="unsupported fields") as exc_info:
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match=r"patch_metadata must use one exact legacy or changed-line shape\.",
+    ) as exc_info:
         creative_code_pr_promotion.plan(
             patch_run=run_id,
             promotion_id="promotion-pr3-metadata-extra-key",
@@ -1031,7 +1042,9 @@ def test_plan_rejects_patch_changed_paths_mismatch(
         changed_paths=["core/rag/orchestration.py"],
         patch_fingerprint=changed_fingerprint,
         patch_bytes=len(changed_patch.encode("utf-8")),
-        diff_lines=len(changed_patch.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(changed_patch.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result=runner_result,
         checkout_destroyed=True,
         origin_removed=True,
@@ -1045,7 +1058,9 @@ def test_plan_rejects_patch_changed_paths_mismatch(
             "changed_paths": ["core/rag/orchestration.py"],
             "patch_fingerprint": changed_fingerprint,
             "patch_bytes": len(changed_patch.encode("utf-8")),
-            "diff_lines": len(changed_patch.splitlines()),
+            "changed_lines": 2,
+            "serialized_patch_lines": len(changed_patch.splitlines()),
+            "line_metric": "numstat_added_plus_deleted_v1",
         },
     )
     (run_dir / CANDIDATE_PATCH_FILE).write_text(changed_patch, encoding="utf-8")
@@ -1072,7 +1087,9 @@ def test_plan_rejects_patch_paths_outside_request_allowlist(
         changed_paths=["core/rag/other.py"],
         patch_fingerprint=patch_fingerprint,
         patch_bytes=len(patch_text.encode("utf-8")),
-        diff_lines=len(patch_text.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(patch_text.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result={
             "experiment_id": "exp-pr3-reference",
             "status": "accepted",
@@ -1099,7 +1116,9 @@ def test_plan_rejects_patch_paths_outside_request_allowlist(
             "changed_path_statuses": {"core/rag/other.py": "M"},
             "patch_fingerprint": patch_fingerprint,
             "patch_bytes": len(patch_text.encode("utf-8")),
-            "diff_lines": len(patch_text.splitlines()),
+            "changed_lines": 2,
+            "serialized_patch_lines": len(patch_text.splitlines()),
+            "line_metric": "numstat_added_plus_deleted_v1",
         },
     )
     (run_dir / CANDIDATE_PATCH_FILE).write_text(patch_text, encoding="utf-8")
@@ -1806,7 +1825,9 @@ def test_validation_rejects_generation_receipt_for_different_planned_result(
         changed_paths=["core/rag/orchestration.py"],
         patch_fingerprint=fingerprint_payload({"candidate_patch": patch_text}),
         patch_bytes=len(patch_text.encode("utf-8")),
-        diff_lines=len(patch_text.splitlines()),
+        changed_lines=2,
+        serialized_patch_lines=len(patch_text.splitlines()),
+        line_metric="numstat_added_plus_deleted_v1",
         runner_result=dispatch_result,
         checkout_destroyed=True,
         origin_removed=True,
@@ -1879,7 +1900,9 @@ def test_validation_rejects_trusted_dispatch_result_refinalization_after_plan(
                 changed_paths=["core/rag/orchestration.py"],
                 patch_fingerprint=fingerprint_payload({"candidate_patch": patch_text}),
                 patch_bytes=len(patch_text.encode("utf-8")),
-                diff_lines=len(patch_text.splitlines()),
+                changed_lines=2,
+                serialized_patch_lines=len(patch_text.splitlines()),
+                line_metric="numstat_added_plus_deleted_v1",
                 runner_result=dispatch_result,
                 checkout_destroyed=True,
                 origin_removed=True,

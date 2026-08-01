@@ -3315,7 +3315,7 @@ def test_build_legacy_export_aliases_router_rejects_missing_helper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
-    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_pdf", None)
+    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_csv", None)
 
     with pytest.raises(
         RuntimeError,
@@ -3330,14 +3330,14 @@ def test_build_legacy_export_aliases_router_rejects_helper_missing_after_build(
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
     router = app_main._build_legacy_export_aliases_router()
-    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_pdf", None)
+    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_csv", None)
     app = FastAPI()
     app.include_router(router)
     client = TestClient(app)
 
     with pytest.raises(RuntimeError, match="Legacy export helper is unavailable"):
         client.get(
-            "/api/v1/premium/exports/week/unavailable.pdf",
+            "/api/v1/premium/exports/week/unavailable.csv",
             headers={"X-API-Key": "test_key"},
         )
 

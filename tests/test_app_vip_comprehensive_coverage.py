@@ -193,24 +193,6 @@ class TestAppVipComprehensiveCoverage:
         # Should be 200 for success or 503 for unavailable
         assert response.status_code in [200, 503, 500]
 
-    def test_vip_exports_pdf_endpoints(self, test_client):
-        """Test the VIP exports PDF endpoints."""
-        client = test_client
-
-        # Test daily plan PDF export
-        response = client.get(
-            "/api/v1/premium/exports/day/test_plan_id.pdf",
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 503, 500]
-
-        # Test weekly plan PDF export
-        response = client.get(
-            "/api/v1/premium/exports/week/test_plan_id.pdf",
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code in [200, 503, 500]
-
     def test_legacy_endpoints(self, test_client):
         """Test legacy VIP endpoints."""
         client = test_client
@@ -382,28 +364,6 @@ class TestAppVipComprehensiveCoverage:
         with patch("app.to_csv_week", None):
             response = client.get(
                 "/api/v1/premium/exports/week/test_plan_id.csv",
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should be 200, 503 when function is unavailable
-            assert response.status_code in [200, 503, 500]
-
-    def test_to_pdf_functions_unavailable(self, test_client):
-        """Test when PDF export functions are unavailable."""
-        client = test_client
-
-        # Mock to_pdf_day to be None
-        with patch("app.to_pdf_day", None):
-            response = client.get(
-                "/api/v1/premium/exports/day/test_plan_id.pdf",
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should be 200, 503 when function is unavailable
-            assert response.status_code in [200, 503, 500]
-
-        # Mock to_pdf_week to be None
-        with patch("app.to_pdf_week", None):
-            response = client.get(
-                "/api/v1/premium/exports/week/test_plan_id.pdf",
                 headers={"X-API-Key": "test_key"},
             )
             # Should be 200, 503 when function is unavailable

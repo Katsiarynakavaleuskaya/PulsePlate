@@ -88,23 +88,3 @@ def test_admin_status_scheduler_error_paths(monkeypatch: pytest.MonkeyPatch, api
     monkeypatch.setattr(admin_operations, "get_update_scheduler", _boom)
     r2 = client.get("/api/v1/admin/status", headers={"X-API-Key": api_key})
     assert r2.status_code == 503
-
-
-def test_export_pdf_generic_error_branches(monkeypatch):
-    from fastapi.testclient import TestClient
-
-    import app
-
-    client = TestClient(cast(ASGIApp, app.app))
-    headers = {"X-API-Key": "test_key"}
-
-    # RU: Пустой пейлоад → 400
-    # EN: Empty payload → 400
-    r = client.post("/api/v1/export/pdf", json={}, headers=headers)
-    assert r.status_code == 400
-
-    # RU: Отсутствует to_pdf_day → 503
-    # EN: Missing to_pdf_day → 503
-    monkeypatch.setattr(app, "to_pdf_day", None, raising=False)
-    r2 = client.post("/api/v1/export/pdf", json={"meals": []}, headers=headers)
-    assert r2.status_code == 503
