@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import signal
 import shutil
-import subprocess  # nosec B404: subprocess is required for bounded local sandbox execution (remove-by: 2026-07-31, ref: PR-1010)
+import subprocess  # nosec B404: subprocess is required for bounded local sandbox execution (remove-by: 2026-10-31, ref: PR-1010)
 import threading
 from typing import IO
 from typing import Final
@@ -459,7 +459,7 @@ def run_local_sandbox(
     stdout_collector = _StreamingOutputBuffer(budget=output_budget)
     stderr_collector = _StreamingOutputBuffer(budget=output_budget)
 
-    process = subprocess.Popen(  # nosec B603: absolute allowlisted binary; argv bounded by sandbox API (remove-by: 2026-07-31, ref: PR-1010)
+    process = subprocess.Popen(  # nosec B603: absolute allowlisted binary; argv bounded by sandbox API (remove-by: 2026-10-31, ref: PR-1010)
         argv,
         cwd=str(sandbox_cwd),
         env=env,

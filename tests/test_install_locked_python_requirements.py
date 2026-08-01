@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -35,6 +36,9 @@ RAG_VECTOR_EXPECTED_FASTEMBED_VERSION = "0.8.0"
 MAIN_PREFLIGHT_TESTS = {
     "test_main_preflight_only_skips_requirements_file_resolution",
 }
+MAIN_EXECUTABLE_RESOLUTION_TESTS = {
+    "test_main_normalizes_python_executable_once_before_dispatch",
+}
 
 
 @pytest.fixture(autouse=True)
@@ -45,6 +49,33 @@ def _stub_dependency_floor_preflight_for_main_tests(
     """Keep main-flow tests deterministic; dedicated tests cover floor preflight."""
     if request.node.name.startswith("test_main_") and request.node.name not in MAIN_PREFLIGHT_TESTS:
         monkeypatch.setattr(installer, "run_dependency_floor_preflight", lambda **_kwargs: None)
+
+
+@pytest.fixture(autouse=True)
+def _stub_python_executable_resolution_for_unrelated_main_tests(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Keep existing main-flow tests focused on their original dispatch contracts."""
+    if (
+        request.node.name.startswith("test_main_")
+        and request.node.name not in MAIN_EXECUTABLE_RESOLUTION_TESTS
+    ):
+        monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
+
+
+def _write_executable(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlink creation is unavailable on this platform: {exc}")
 
 
 def _repo_emergency_manifest_path() -> Path:
@@ -962,10 +993,66 @@ def test_emergency_artifacts_requested_by_surfaces_uses_target_python_tags(
     assert observed_python_executables == ["/opt/python/3.13/bin/python"]
 
 
-def test_supported_wheel_tags_normalizes_current_python_alias_without_path_lookup(
+def test_resolve_python_executable_resolves_bare_name_through_which(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    executable = _write_executable(tmp_path / "bin" / "python-custom")
+    observed_names: list[str] = []
+
+    def fake_which(name: str) -> str:
+        observed_names.append(name)
+        return str(executable)
+
+    monkeypatch.setattr(installer.shutil, "which", fake_which)
+
+    assert installer.resolve_python_executable("python-custom") == str(executable)
+    assert observed_names == ["python-custom"]
+
+
+def test_resolve_python_executable_preserves_final_symlink(
+    tmp_path: Path,
+) -> None:
+    target = _write_executable(tmp_path / "targets" / "python-real")
+    invocation = tmp_path / "bin" / "python-link"
+    invocation.parent.mkdir(parents=True)
+    _symlink_or_skip(invocation, target)
+
+    assert installer.resolve_python_executable(str(invocation)) == str(invocation)
+
+
+@pytest.mark.parametrize("candidate", ["", "   ", "python\x00malicious"])
+def test_resolve_python_executable_rejects_empty_or_nul(candidate: str) -> None:
+    with pytest.raises(RuntimeError, match="non-empty path or command name"):
+        installer.resolve_python_executable(candidate)
+
+
+def test_resolve_python_executable_rejects_invalid_targets(tmp_path: Path) -> None:
+    missing = tmp_path / "missing-python"
+    dangling = tmp_path / "dangling-python"
+    _symlink_or_skip(dangling, tmp_path / "missing-target")
+    directory = tmp_path / "python-directory"
+    directory.mkdir()
+    nonexecutable = tmp_path / "python-nonexec"
+    nonexecutable.write_text("#!/bin/sh\n", encoding="utf-8")
+    nonexecutable.chmod(0o644)
+
+    invalid_candidates = [missing, dangling, directory, nonexecutable]
+    if hasattr(os, "mkfifo"):
+        nonregular = tmp_path / "python-fifo"
+        os.mkfifo(nonregular)
+        invalid_candidates.append(nonregular)
+
+    for candidate in invalid_candidates:
+        with pytest.raises(RuntimeError, match="Python executable"):
+            installer.resolve_python_executable(str(candidate))
+
+
+def test_supported_wheel_tags_resolves_current_python_alias_through_which(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     observed_commands: list[list[str]] = []
+    observed_names: list[str] = []
 
     def fake_subprocess_run(
         command: list[str],
@@ -983,10 +1070,16 @@ def test_supported_wheel_tags_normalizes_current_python_alias_without_path_looku
         }
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
 
+    def fake_which(name: str) -> str:
+        observed_names.append(name)
+        return sys.executable
+
+    monkeypatch.setattr(installer.shutil, "which", fake_which)
     monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
 
     assert installer._supported_wheel_tags_for_python("python") == {"py3-none-any"}
     assert observed_commands[0][0] == sys.executable
+    assert observed_names == ["python"]
 
 
 def test_supported_wheel_tags_rejects_unknown_bare_target_python_names(
@@ -997,9 +1090,10 @@ def test_supported_wheel_tags_rejects_unknown_bare_target_python_names(
             "unknown bare Python executable must be rejected before subprocess.run"
         )
 
+    monkeypatch.setattr(installer.shutil, "which", lambda _name: None)
     monkeypatch.setattr(installer.subprocess, "run", fail_subprocess_run)
 
-    with pytest.raises(RuntimeError, match="path-qualified"):
+    with pytest.raises(RuntimeError, match="Unable to resolve Python executable"):
         installer._supported_wheel_tags_for_python("python9.99")
 
 
@@ -1025,11 +1119,12 @@ def test_supported_wheel_tags_normalizes_path_qualified_relative_python(
         }
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
 
+    executable = _write_executable(tmp_path / ".venv" / "bin" / "python")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(installer.subprocess, "run", fake_subprocess_run)
 
     assert installer._supported_wheel_tags_for_python(".venv/bin/python") == {"py3-none-any"}
-    assert observed_commands[0][0] == str(tmp_path / ".venv/bin/python")
+    assert observed_commands[0][0] == str(executable)
 
 
 def test_stage_emergency_artifacts_skips_incompatible_parseable_wheels(
@@ -4429,6 +4524,7 @@ def test_is_virtualenv_python_detects_virtualenv(
     class Result:
         stdout = json.dumps({"prefix": "/tmp/.venv", "base_prefix": "/usr/local"})
 
+    monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
     monkeypatch.setattr(installer.subprocess, "run", lambda *a, **k: Result())
 
     assert installer.is_virtualenv_python("python") is True
@@ -4440,6 +4536,7 @@ def test_is_virtualenv_python_wraps_probe_errors(
     def raise_called_process_error(*args: object, **kwargs: object) -> object:
         raise subprocess.CalledProcessError(returncode=1, cmd=["python", "-c", "probe"])
 
+    monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
     monkeypatch.setattr(installer.subprocess, "run", raise_called_process_error)
 
     with pytest.raises(RuntimeError, match="Unable to probe virtualenv state"):
@@ -4457,11 +4554,125 @@ def test_run_command_wraps_subprocess_failures(
             stderr="pip stderr here",
         )
 
+    monkeypatch.setattr(installer, "resolve_python_executable", lambda value: value)
     monkeypatch.setattr(installer.subprocess, "run", fake_run)
 
     with pytest.raises(RuntimeError, match="Command failed: python -m pip") as excinfo:
         installer.run_command(["python", "-m", "pip"])
     assert "pip stderr here" in str(excinfo.value)
+
+
+def test_python_subprocess_sinks_reject_invalid_interpreter_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing-python"
+
+    def fail_subprocess(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("invalid interpreter must be rejected before subprocess.run")
+
+    monkeypatch.setattr(installer.subprocess, "run", fail_subprocess)
+
+    operations = (
+        lambda: installer.is_virtualenv_python(str(missing)),
+        lambda: installer.run_command([str(missing), "-m", "pip"]),
+        lambda: installer.collect_startup_hook_failure_lines(
+            guard_script=tmp_path / "check_python_startup_hooks.py",
+            python_executable=str(missing),
+        ),
+    )
+    for operation in operations:
+        with pytest.raises(RuntimeError, match="Python executable"):
+            operation()
+
+
+def test_is_virtualenv_python_uses_absolute_symlink_invocation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target = _write_executable(tmp_path / "target" / "python-real")
+    invocation = tmp_path / "bin" / "python-link"
+    invocation.parent.mkdir(parents=True)
+    _symlink_or_skip(invocation, target)
+    observed_commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        payload = {"prefix": "/tmp/.venv", "base_prefix": "/usr/local"}
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(payload), stderr="")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    assert installer.is_virtualenv_python(str(invocation)) is True
+    assert observed_commands[0][0] == str(invocation)
+
+
+def test_run_command_uses_absolute_symlink_invocation_without_mutating_caller(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target = _write_executable(tmp_path / "target" / "python-real")
+    invocation = tmp_path / "bin" / "python-link"
+    invocation.parent.mkdir(parents=True)
+    _symlink_or_skip(invocation, target)
+    caller_command = [str(invocation), "-m", "pip"]
+    original_command = list(caller_command)
+    observed_commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    installer.run_command(caller_command)
+
+    assert caller_command == original_command
+    assert observed_commands[0] is not caller_command
+    assert observed_commands[0][0] == str(invocation)
+
+
+def test_run_command_rejects_empty_argv_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_subprocess(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("empty argv must be rejected before subprocess.run")
+
+    monkeypatch.setattr(installer.subprocess, "run", fail_subprocess)
+
+    with pytest.raises(RuntimeError, match="Command failed: empty command"):
+        installer.run_command([])
+
+
+def test_main_normalizes_python_executable_once_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    resolved_python = str(_write_executable(tmp_path / "bin" / "python-resolved"))
+    observed_resolution_inputs: list[str] = []
+    observed_preflight: dict[str, object] = {}
+
+    def fake_resolve(value: str) -> str:
+        observed_resolution_inputs.append(value)
+        return resolved_python
+
+    monkeypatch.setattr(installer, "resolve_python_executable", fake_resolve)
+    monkeypatch.setattr(
+        installer,
+        "resolve_private_proxy_settings",
+        lambda **_kwargs: (APPROVED_PROXY_URL, None),
+    )
+    monkeypatch.setattr(
+        installer,
+        "run_dependency_floor_preflight",
+        lambda **kwargs: observed_preflight.update(kwargs),
+    )
+
+    result = installer.main(["--python-executable", "python-alias", "--preflight-only"])
+
+    assert result == 0
+    assert observed_resolution_inputs == ["python-alias"]
+    assert observed_preflight["python_executable"] == resolved_python
 
 
 def test_main_fails_when_virtualenv_is_required(
@@ -4508,6 +4719,7 @@ def test_collect_startup_hook_failure_lines_uses_guard_subprocess(
         observed_command[:] = command
         return Result()
 
+    monkeypatch.setattr(installer, "resolve_python_executable", lambda _value: "/resolved/python")
     monkeypatch.setattr(installer.subprocess, "run", fake_run)
 
     failure_lines = installer.collect_startup_hook_failure_lines(
@@ -4516,16 +4728,43 @@ def test_collect_startup_hook_failure_lines_uses_guard_subprocess(
     )
 
     assert observed_command == [
-        "python",
+        "/resolved/python",
         "-S",
         "/tmp/check_python_startup_hooks.py",
         "--python-executable",
-        "python",
+        "/resolved/python",
     ]
     assert failure_lines == [
         "ERROR: unexpected executable Python startup hook (.pth) detected.",
         "- /tmp/hook.pth:1 :: import os",
     ]
+
+
+def test_collect_startup_hook_failure_lines_uses_resolved_python_for_both_argv_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    target = _write_executable(tmp_path / "target" / "python-real")
+    invocation = tmp_path / "bin" / "python-link"
+    invocation.parent.mkdir(parents=True)
+    _symlink_or_skip(invocation, target)
+    observed_commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed_commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+
+    assert (
+        installer.collect_startup_hook_failure_lines(
+            guard_script=tmp_path / "check_python_startup_hooks.py",
+            python_executable=str(invocation),
+        )
+        == []
+    )
+    assert observed_commands[0][0] == str(invocation)
+    assert observed_commands[0][-1] == str(invocation)
 
 
 def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
