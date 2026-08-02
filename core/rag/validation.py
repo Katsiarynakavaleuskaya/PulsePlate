@@ -18,6 +18,7 @@ See: .cursor/agents/philosophy-agent.md (claim semantics, falsifiability)
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -198,6 +199,8 @@ def _run_validation(
 def _is_empty_or_malformed(chunk: RAGChunk) -> bool:
     """Return True if chunk has no useful content or near-zero score."""
     if len(chunk.content.strip()) < _MIN_CONTENT_LENGTH:
+        return True
+    if not math.isfinite(chunk.score):
         return True
     if chunk.score < _MIN_SCORE_THRESHOLD:
         return True

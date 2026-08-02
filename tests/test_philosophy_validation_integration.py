@@ -6,6 +6,7 @@ end-to-end via /api/v1/insight and /insight endpoints.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Optional
 from unittest.mock import patch
@@ -82,6 +83,44 @@ def _rag_all_clean(
         confidence=0.85,
         hops=1,
         latency_ms=8,
+    )
+
+
+def _rag_all_nonfinite(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+    subject_id: int | None = None,
+) -> _FakeCtx:
+    """Fake RAG returning only chunks with non-finite scores."""
+    del subject_id
+    return _FakeCtx(
+        query=query,
+        refined_queries=[query],
+        chunks=[
+            _FakeChunk(
+                "nonfinite:nan",
+                "nan.md",
+                "NaN-scored evidence must not reach insight.",
+                math.nan,
+            ),
+            _FakeChunk(
+                "nonfinite:positive-inf",
+                "positive-inf.md",
+                "Positive-infinity evidence must not reach insight.",
+                math.inf,
+            ),
+            _FakeChunk(
+                "nonfinite:negative-inf",
+                "negative-inf.md",
+                "Negative-infinity evidence must not reach insight.",
+                -math.inf,
+            ),
+        ],
+        confidence=0.99,
+        hops=2,
+        latency_ms=12,
     )
 
 
@@ -265,6 +304,40 @@ class TestPhilosophyValidationV1:
         assert data["latency_ms"] == 10
         assert "You need a diagnosis from a doctor." not in data["insight"]
         assert "Balanced nutrition supports wellness." not in data["insight"]
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_flag_on_all_nonfinite_scores_degrades_without_rag(
+        self,
+        path: str,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Both routes exclude all chunks whose retrieval scores are non-finite."""
+        _setup_insight(monkeypatch)
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _rag_all_nonfinite,
+            raising=True,
+        )
+
+        resp = client.post(path, json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
+        assert data["hops"] == 2
+        assert data["latency_ms"] == 12
+        for content in (
+            "NaN-scored evidence must not reach insight.",
+            "Positive-infinity evidence must not reach insight.",
+            "Negative-infinity evidence must not reach insight.",
+        ):
+            assert content not in data["insight"]
 
 
 # ---------------------------------------------------------------------------

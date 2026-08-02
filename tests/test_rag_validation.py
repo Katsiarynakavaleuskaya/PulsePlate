@@ -11,6 +11,8 @@ Plus: ValidationResult contract, fail-closed on internal exception, order preser
 from __future__ import annotations
 
 import logging
+import math
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -181,6 +183,20 @@ class TestEmptyChunkFilter:
         result = validate_rag_chunks([chunk])
         assert result.rejected_count == 1
 
+    def test_negative_zero_score_removed(self) -> None:
+        chunk = _chunk("Normal length content here.", chunk_id="negative-zero", score=-0.0)
+        result = validate_rag_chunks([chunk])
+        assert result.rejected_count == 1
+
+    @pytest.mark.parametrize("score", [math.nan, math.inf, -math.inf])
+    def test_nonfinite_score_removed(self, score: float) -> None:
+        chunk = _chunk("Normal length content here.", chunk_id="nonfinite", score=score)
+        result = validate_rag_chunks([chunk])
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.rejected_count == 1
+        assert result.warnings == []
+
     def test_valid_chunk_passes(self) -> None:
         chunk = _chunk("This content is long enough and has a decent score.", score=0.5)
         result = validate_rag_chunks([chunk])
@@ -199,7 +215,40 @@ class TestEmptyChunkFilter:
             score=_MIN_SCORE_THRESHOLD,
         )
         result = validate_rag_chunks([chunk])
+        assert result.passed is True
+        assert result.filtered_chunks == [chunk]
         assert result.rejected_count == 0
+
+    def test_max_finite_score_passes(self) -> None:
+        chunk = _chunk(
+            "Content with enough characters for the filter.",
+            score=sys.float_info.max,
+        )
+        result = validate_rag_chunks([chunk])
+        assert result.passed is True
+        assert result.filtered_chunks == [chunk]
+        assert result.rejected_count == 0
+
+    def test_mixed_finite_and_nonfinite_scores_preserve_survivor_order(self) -> None:
+        chunks = [
+            _chunk("First finite chunk content.", chunk_id="finite-1", score=0.5),
+            _chunk("NaN chunk content is rejected.", chunk_id="nan", score=math.nan),
+            _chunk("Second finite chunk content.", chunk_id="finite-2", score=0.8),
+            _chunk("Infinity chunk content is rejected.", chunk_id="inf", score=math.inf),
+            _chunk(
+                "Negative infinity chunk content is rejected.",
+                chunk_id="negative-inf",
+                score=-math.inf,
+            ),
+        ]
+        result = validate_rag_chunks(chunks)
+        assert result.passed is True
+        assert [chunk.chunk_id for chunk in result.filtered_chunks] == [
+            "finite-1",
+            "finite-2",
+        ]
+        assert result.rejected_count == 3
+        assert result.warnings == []
 
 
 # ---------------------------------------------------------------------------
