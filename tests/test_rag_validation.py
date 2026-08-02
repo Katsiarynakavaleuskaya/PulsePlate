@@ -13,6 +13,9 @@ from __future__ import annotations
 import logging
 import math
 import sys
+from decimal import Decimal
+from fractions import Fraction
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -38,6 +41,27 @@ def _chunk(
     file: str = "test.md",
 ) -> RAGChunk:
     return RAGChunk(chunk_id=chunk_id, file=file, content=content, score=score)
+
+
+class _IntScore(int):
+    pass
+
+
+class _FloatScore(float):
+    pass
+
+
+class _HostileScore:
+    def __init__(self) -> None:
+        self.invocations: list[str] = []
+
+    def __float__(self) -> float:
+        self.invocations.append("__float__")
+        raise AssertionError("validator must not coerce unsupported scores")
+
+    def __lt__(self, other: object) -> bool:
+        self.invocations.append("__lt__")
+        raise AssertionError("validator must not compare unsupported scores")
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +173,7 @@ class TestWeaselWordRule:
 
 
 class TestEmptyChunkFilter:
-    """Chunks with no useful content or near-zero score are silently removed."""
+    """Chunks with no useful content or invalid scores are silently removed."""
 
     def test_empty_content_removed(self) -> None:
         chunk = _chunk("", chunk_id="empty")
@@ -197,6 +221,46 @@ class TestEmptyChunkFilter:
         assert result.rejected_count == 1
         assert result.warnings == []
 
+    @pytest.mark.parametrize(
+        "score",
+        [
+            pytest.param(False, id="bool-false"),
+            pytest.param(True, id="bool-true"),
+            pytest.param(_IntScore(1), id="int-subclass"),
+            pytest.param(_FloatScore(0.5), id="float-subclass"),
+            pytest.param(Decimal("0.5"), id="decimal"),
+            pytest.param(Fraction(1, 2), id="fraction"),
+            pytest.param("0.5", id="string"),
+            pytest.param(None, id="none"),
+            pytest.param(complex(0.5, 0.0), id="complex"),
+        ],
+    )
+    def test_unsupported_runtime_score_type_removed(self, score: object) -> None:
+        chunk = _chunk(
+            "Normal length content here.",
+            chunk_id="unsupported",
+            score=cast(float, score),
+        )
+        result = validate_rag_chunks([chunk])
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.rejected_count == 1
+        assert result.warnings == []
+
+    def test_hostile_score_removed_without_invoking_its_methods(self) -> None:
+        score = _HostileScore()
+        chunk = _chunk(
+            "Normal length content here.",
+            chunk_id="hostile",
+            score=cast(float, score),
+        )
+        result = validate_rag_chunks([chunk])
+        assert score.invocations == []
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.rejected_count == 1
+        assert result.warnings == []
+
     def test_valid_chunk_passes(self) -> None:
         chunk = _chunk("This content is long enough and has a decent score.", score=0.5)
         result = validate_rag_chunks([chunk])
@@ -209,45 +273,80 @@ class TestEmptyChunkFilter:
         result = validate_rag_chunks([chunk])
         assert result.rejected_count == 0
 
-    def test_borderline_score_passes(self) -> None:
+    @pytest.mark.parametrize(
+        "score",
+        [
+            pytest.param(_MIN_SCORE_THRESHOLD, id="threshold-float"),
+            pytest.param(sys.float_info.max, id="max-finite-float"),
+            pytest.param(1, id="exact-int"),
+            pytest.param(10**300, id="large-finite-int"),
+        ],
+    )
+    def test_exact_builtin_score_at_or_above_threshold_passes(
+        self,
+        score: int | float,
+    ) -> None:
         chunk = _chunk(
             "Content with enough characters for the filter.",
-            score=_MIN_SCORE_THRESHOLD,
+            score=score,
         )
         result = validate_rag_chunks([chunk])
         assert result.passed is True
         assert result.filtered_chunks == [chunk]
         assert result.rejected_count == 0
 
-    def test_max_finite_score_passes(self) -> None:
+    @pytest.mark.parametrize("score", [10**400, -(10**400)])
+    def test_unrepresentable_exact_int_score_removed_locally(self, score: int) -> None:
         chunk = _chunk(
-            "Content with enough characters for the filter.",
-            score=sys.float_info.max,
+            "Content with an unrepresentable integer score.",
+            chunk_id="unrepresentable-int",
+            score=score,
         )
         result = validate_rag_chunks([chunk])
-        assert result.passed is True
-        assert result.filtered_chunks == [chunk]
-        assert result.rejected_count == 0
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.rejected_count == 1
+        assert result.warnings == []
 
-    def test_mixed_finite_and_nonfinite_scores_preserve_survivor_order(self) -> None:
+    def test_mixed_runtime_scores_preserve_exact_survivor_order(self) -> None:
         chunks = [
-            _chunk("First finite chunk content.", chunk_id="finite-1", score=0.5),
-            _chunk("NaN chunk content is rejected.", chunk_id="nan", score=math.nan),
-            _chunk("Second finite chunk content.", chunk_id="finite-2", score=0.8),
-            _chunk("Infinity chunk content is rejected.", chunk_id="inf", score=math.inf),
+            _chunk("First finite chunk content.", chunk_id="exact-float", score=0.5),
             _chunk(
-                "Negative infinity chunk content is rejected.",
-                chunk_id="negative-inf",
-                score=-math.inf,
+                "Boolean score content is rejected.",
+                chunk_id="bool",
+                score=cast(float, True),
+            ),
+            _chunk("Exact integer chunk content.", chunk_id="exact-int", score=1),
+            _chunk("NaN chunk content is rejected.", chunk_id="nan", score=math.nan),
+            _chunk(
+                "Decimal score content is rejected.",
+                chunk_id="decimal",
+                score=cast(float, Decimal("0.8")),
+            ),
+            _chunk(
+                "Large finite integer chunk content.",
+                chunk_id="large-finite-int",
+                score=10**300,
+            ),
+            _chunk(
+                "Unrepresentable integer content is rejected.",
+                chunk_id="unrepresentable-int",
+                score=10**400,
+            ),
+            _chunk(
+                "Float subclass content is rejected.",
+                chunk_id="float-subclass",
+                score=cast(float, _FloatScore(0.9)),
             ),
         ]
         result = validate_rag_chunks(chunks)
         assert result.passed is True
         assert [chunk.chunk_id for chunk in result.filtered_chunks] == [
-            "finite-1",
-            "finite-2",
+            "exact-float",
+            "exact-int",
+            "large-finite-int",
         ]
-        assert result.rejected_count == 3
+        assert result.rejected_count == 5
         assert result.warnings == []
 
 

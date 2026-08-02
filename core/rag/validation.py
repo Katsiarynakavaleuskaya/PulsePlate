@@ -197,11 +197,22 @@ def _run_validation(
 
 
 def _is_empty_or_malformed(chunk: RAGChunk) -> bool:
-    """Return True if chunk has no useful content or near-zero score."""
+    """Return True if chunk has no useful content or an invalid score."""
     if len(chunk.content.strip()) < _MIN_CONTENT_LENGTH:
         return True
-    if not math.isfinite(chunk.score):
+    score = chunk.score
+    score_type = type(score)
+    if score_type is float:
+        if not math.isfinite(score):
+            return True
+    elif score_type is int:
+        try:
+            if not math.isfinite(float(score)):
+                return True
+        except OverflowError:
+            return True
+    else:
         return True
-    if chunk.score < _MIN_SCORE_THRESHOLD:
+    if score < _MIN_SCORE_THRESHOLD:
         return True
     return False
