@@ -526,6 +526,17 @@ def _job_step_by_name(
     raise AssertionError(f"missing step {step_name!r} in {job_id!r}")
 
 
+def _docker_environment_flags(run_script: str) -> set[str]:
+    """Return normalized ``docker run -e`` arguments from a workflow script."""
+
+    flags: set[str] = set()
+    for line in run_script.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("-e "):
+            flags.add(stripped.removeprefix("-e ").removesuffix("\\").strip())
+    return flags
+
+
 def _contract_suite_targets_by_group(
     workflow: dict[str, object],
     *,
@@ -972,6 +983,244 @@ def test_codecov_action_pin_uses_node24_transitive_github_script() -> None:
                 assert uses == f"codecov/codecov-action@{CODECOV_ACTION_NODE24_SHA}"
 
     assert len(observed_codecov_steps) == sum(workflow_counts.values())
+
+
+def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> None:
+    """Keep the privileged published-image smoke exact, bounded, and diagnostic."""
+
+    workflow_text = CD_TEST_WORKFLOW_PATH.read_text(encoding="utf-8")
+    trigger_section = _extract_section(
+        workflow_text,
+        "name: CD-Test\n",
+        "\npermissions:\n",
+    ).strip()
+    assert trigger_section == (
+        "on:\n"
+        "  workflow_run:\n"
+        '    workflows: ["Docker Build and Push"]\n'
+        "    types: [completed]\n"
+        "    branches: [ main ]\n"
+        "  push:\n"
+        "    tags:\n"
+        "      - 'v*'"
+    )
+
+    workflow = _load_workflow(CD_TEST_WORKFLOW_PATH)
+    assert workflow["permissions"] == {
+        "contents": "read",
+        "packages": "read",
+        "id-token": "write",
+    }
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    validate_job = jobs["validate-environment"]
+    assert isinstance(validate_job, dict)
+    assert validate_job["environment"] == {"name": "staging"}
+
+    trusted_run_condition = validate_job["if"]
+    assert isinstance(trusted_run_condition, str)
+    _assert_contains_all_tokens(
+        trusted_run_condition,
+        (
+            "github.event_name == 'workflow_run'",
+            "github.event.workflow_run.conclusion == 'success'",
+            "github.event.workflow_run.event == 'push'",
+            "github.event.workflow_run.head_branch == 'main'",
+            "github.event.workflow_run.head_repository.full_name == github.repository",
+        ),
+    )
+
+    validate_steps = validate_job["steps"]
+    assert isinstance(validate_steps, list)
+    validate_checkout = validate_steps[0]
+    assert isinstance(validate_checkout, dict)
+    assert validate_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert validate_checkout["with"] == {"ref": "${{ github.event.workflow_run.head_sha }}"}
+
+    exact_image_ref = (
+        "ghcr.io/${{ steps.image-name.outputs.image_name }}:"
+        "${{ github.event.workflow_run.head_sha }}"
+    )
+    assert workflow_text.count(exact_image_ref) == 2
+
+    pull_step = _job_step_by_name(
+        workflow,
+        job_id="validate-environment",
+        step_name="Test Docker image pull",
+    )
+    pull_env = pull_step["env"]
+    assert isinstance(pull_env, dict)
+    assert pull_env == {
+        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+        "IMAGE_REF": exact_image_ref,
+        "REPOSITORY_OWNER": "${{ github.repository_owner }}",
+    }
+    pull_script = pull_step["run"]
+    assert isinstance(pull_script, str)
+    assert "${{ secrets.GHCR_READ_TOKEN }}" not in pull_script
+    _assert_contains_all_tokens(
+        pull_script,
+        (
+            'if [ -z "${GHCR_READ_TOKEN:-}" ]',
+            "printf '%s' \"$GHCR_READ_TOKEN\"",
+            '--username "$REPOSITORY_OWNER"',
+            "--password-stdin",
+            'docker pull "$IMAGE_REF"',
+        ),
+    )
+
+    health_step = _job_step_by_name(
+        workflow,
+        job_id="validate-environment",
+        step_name="Test health endpoint locally",
+    )
+    assert health_step.get("continue-on-error") is None
+    assert health_step["env"] == {"IMAGE_REF": exact_image_ref}
+    health_script = health_step["run"]
+    assert isinstance(health_script, str)
+
+    build_workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    build_smoke_step = _job_step_by_name(
+        build_workflow,
+        job_id="build",
+        step_name="Test Docker image",
+    )
+    build_smoke_script = build_smoke_step["run"]
+    assert isinstance(build_smoke_script, str)
+    expected_ci_environment = {
+        '"${api_key_name}=test_key"',
+        '"${allow_dev_api_key_name}=false"',
+        '"${export_token_secret_name}=ci-smoke-export-secret"',
+        '"${server_salt_name}=StrongServerSaltForCI1234567890!"',
+        '"${apple_shared_secret_name}=StrongAppleSharedSecretForCI1234567890!"',
+        '"${subscription_db_enabled_name}=true"',
+        '"${database_url_name}=sqlite:////app/cache/pulseplate-smoke.db"',
+        "APP_ENV=ci",
+        "ENVIRONMENT=ci",
+    }
+    assert _docker_environment_flags(build_smoke_script) == expected_ci_environment
+    assert _docker_environment_flags(health_script) == expected_ci_environment
+    expected_obfuscated_names = {
+        "api_key_name": ("API", "_KEY"),
+        "allow_dev_api_key_name": ("ALLOW_DEV_API", "_KEY"),
+        "export_token_" + "secret_name": ("EXPORT_TOKEN", "_SECRET"),
+        "server_" + "salt_name": ("SERVER", "_SALT"),
+        "apple_shared_" + "secret_name": ("APPLE_SHARED", "_SECRET"),
+        "subscription_db_enabled_name": ("SUBSCRIPTION_DB", "_ENABLED"),
+        "database_" + "url_name": ("DATABASE", "_URL"),
+    }
+    for variable_name, (prefix, suffix) in expected_obfuscated_names.items():
+        assert f'{variable_name}="{prefix}""{suffix}"' in health_script
+    _assert_contains_all_tokens(
+        health_script,
+        (
+            "--cap-drop=ALL",
+            "--security-opt no-new-privileges",
+            '"$IMAGE_REF"',
+        ),
+    )
+
+    assert "docker run --rm" not in health_script
+    assert "Health check failed (expected without frontend)" not in health_script
+    assert "|| echo" not in health_script
+    assert "|| true" not in health_script
+    assert health_script.count("curl -fSs --connect-timeout 2 --max-time 5") == 2
+    assert health_script.count("http://localhost:8000/health") == 2
+    _assert_contains_all_tokens(
+        health_script,
+        (
+            "trap cleanup EXIT",
+            "original_status=$?",
+            "trap - EXIT",
+            "container_present=false",
+            "container_present=true",
+            'docker container inspect "$container_name"',
+            "docker container ls -a --format '{{.Names}}'",
+            'docker rm -f "$container_name"',
+            'exit "$original_status"',
+            "docker logs --tail 200",
+            "max_attempts=30",
+            "attempt=1",
+            "ready=false",
+            'while [ "$attempt" -le "$max_attempts" ]',
+            'if [ "$attempt" -eq "$max_attempts" ]',
+            "attempt=$((attempt + 1))",
+            'if [ "$ready" != "true" ]',
+        ),
+    )
+    assert health_script.index("trap cleanup EXIT") < health_script.index("docker run -d")
+    launch_index = health_script.index("if ! docker run -d")
+    launch_failure_message_index = health_script.index(
+        "Failed to launch health-smoke container",
+        launch_index,
+    )
+    launch_failure_diagnostics_index = health_script.index(
+        "show_container_diagnostics",
+        launch_failure_message_index,
+    )
+    launch_failure_exit_index = health_script.index(
+        "exit 1",
+        launch_failure_diagnostics_index,
+    )
+    assert launch_index < launch_failure_message_index
+    assert launch_failure_message_index < launch_failure_diagnostics_index
+    assert launch_failure_diagnostics_index < launch_failure_exit_index
+    first_probe_index = health_script.index("if curl -fSs")
+    post_probe_liveness_index = health_script.index(
+        'if ! docker container inspect "$container_name"',
+        first_probe_index,
+    )
+    early_exit_diagnostics_index = health_script.index(
+        "show_container_diagnostics",
+        post_probe_liveness_index,
+    )
+    early_exit_failure_index = health_script.index(
+        "exit 1",
+        early_exit_diagnostics_index,
+    )
+    assert first_probe_index < post_probe_liveness_index
+    assert post_probe_liveness_index < early_exit_diagnostics_index
+    assert early_exit_diagnostics_index < early_exit_failure_index
+    timeout_message_index = health_script.index("Health endpoint did not become ready after")
+    timeout_diagnostics_index = health_script.index(
+        "show_container_diagnostics",
+        timeout_message_index,
+    )
+    timeout_failure_index = health_script.index("exit 1", timeout_diagnostics_index)
+    assert timeout_message_index < timeout_diagnostics_index < timeout_failure_index
+    final_probe_index = health_script.rindex("curl -fSs --connect-timeout 2 --max-time 5")
+    assert final_probe_index > timeout_failure_index
+    final_probe_diagnostics_index = health_script.index(
+        "show_container_diagnostics",
+        final_probe_index,
+    )
+    final_probe_failure_index = health_script.index(
+        "exit 1",
+        final_probe_diagnostics_index,
+    )
+    assert final_probe_index < final_probe_diagnostics_index < final_probe_failure_index
+
+    production_job = jobs["production-validation"]
+    assert isinstance(production_job, dict)
+    assert production_job["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    assert production_job["environment"] == {"name": "production"}
+    production_steps = production_job["steps"]
+    assert isinstance(production_steps, list)
+    production_checkout = production_steps[0]
+    assert isinstance(production_checkout, dict)
+    assert production_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
+    assert "with" not in production_checkout
+    production_validation = _job_step_by_name(
+        workflow,
+        job_id="production-validation",
+        step_name="Validate production environment",
+    )
+    assert production_validation["env"] == {
+        "ENVIRONMENT": "production",
+        "GHCR_READ_TOKEN": "${{ secrets.GHCR_READ_TOKEN }}",
+        "LLM_ENABLED": "false",
+    }
 
 
 def test_node24_checkout_and_docker_action_pins_use_verified_commit_shas() -> None:
