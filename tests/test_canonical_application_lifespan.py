@@ -51,7 +51,7 @@ def _run_lifespan(
     hooks: LifespanHooks,
     *,
     body: Callable[[], Awaitable[None]] | None = None,
-    scheduler_mode: SchedulerMode = SchedulerMode.IN_PROCESS_DEV,
+    scheduler_mode: SchedulerMode | None = SchedulerMode.IN_PROCESS_DEV,
 ) -> None:
     async def _scenario() -> None:
         async with _application_lifespan_with_hooks(
@@ -67,11 +67,21 @@ def _run_lifespan(
 
 def _ordered_indexes(path: str, lines: list[str], expected: list[str]) -> list[int]:
     indexes: list[int] = []
+    search_start = 0
     for line in expected:
-        if line not in lines:
+        try:
+            found = lines.index(line, search_start)
+        except ValueError:
             pytest.fail(f"{path} is missing the expected step: {line!r}")
-        indexes.append(lines.index(line))
+        indexes.append(found)
+        search_start = found + 1
     return indexes
+
+
+def test_ordered_indexes_advances_past_duplicate_steps() -> None:
+    lines = ["prepare", "worker", "migrate", "worker"]
+
+    assert _ordered_indexes("deploy.sh", lines, ["worker", "worker"]) == [1, 3]
 
 
 def test_canonical_lifespan_uses_exact_startup_and_cleanup_order(
@@ -111,8 +121,11 @@ def test_missing_optional_scheduler_uses_best_effort_noop_hooks(
     with caplog.at_level(logging.WARNING, logger="app.bootstrap.lifespan"):
         starter, stopper = lifespan_module._load_background_update_hooks()
 
-    asyncio.run(starter())
-    asyncio.run(stopper())
+    async def _run_hooks() -> None:
+        await starter()
+        await stopper()
+
+    asyncio.run(_run_hooks())
     assert "scheduler is unavailable" in caplog.text
 
 
@@ -326,7 +339,10 @@ def test_timeout_cancels_and_drains_start_task(
 
 def test_drain_cancelled_task_cancels_a_pending_task() -> None:
     async def _scenario() -> None:
-        task = asyncio.create_task(asyncio.Event().wait())
+        async def _wait_forever() -> None:
+            await asyncio.Event().wait()
+
+        task = asyncio.create_task(_wait_forever())
         await asyncio.sleep(0)
         await lifespan_module._drain_cancelled_task(task)
         assert task.cancelled()

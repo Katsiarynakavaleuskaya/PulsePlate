@@ -323,9 +323,9 @@ async def _run_with_postgresql_lease(
                     )
 
                 if release_error is not None:
+                    if not isinstance(release_error, Exception):
+                        raise release_error
                     if body_error is None:
-                        if not isinstance(release_error, Exception):
-                            raise release_error
                         if isinstance(release_error, UpdateLeaseReleaseError):
                             raise release_error
                         raise UpdateLeaseReleaseError(

@@ -639,6 +639,29 @@ def test_postgres_lease_preserves_primary_error_when_unlock_is_uncertain(
     assert session.closed is True
 
 
+def test_postgres_lease_release_cancellation_supersedes_primary_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_external_scheduler(monkeypatch)
+    connection = _LeaseConnection([True, asyncio.CancelledError()])
+    session = _LeaseSession(connection)
+
+    async def operation() -> None:
+        raise ValueError("primary update failure")
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(
+            scheduler_runtime.run_with_update_lease(
+                operation,
+                session_factory=cast(Any, lambda: session),
+            )
+        )
+
+    assert connection.events == ["acquire", "release"]
+    assert connection.invalidations == 1
+    assert session.closed is True
+
+
 def test_postgres_lease_best_effort_cleanup_does_not_mask_acquire_error(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
