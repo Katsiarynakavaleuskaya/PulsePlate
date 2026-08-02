@@ -24,7 +24,7 @@ permissions:
 jobs:
   validate-environment:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ fromJSON(vars.CD_TEST_VALIDATE_TIMEOUT_MINUTES || '10') }}
     if: >-
       ${{
         github.event_name == 'workflow_run' &&

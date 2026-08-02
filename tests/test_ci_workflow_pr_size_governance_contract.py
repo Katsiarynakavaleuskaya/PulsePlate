@@ -1016,20 +1016,21 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert isinstance(jobs, dict)
     validate_job = jobs["validate-environment"]
     assert isinstance(validate_job, dict)
-    assert validate_job["timeout-minutes"] == 10
+    assert validate_job["timeout-minutes"] == (
+        "${{ fromJSON(vars.CD_TEST_VALIDATE_TIMEOUT_MINUTES || '10') }}"
+    )
     assert validate_job["environment"] == {"name": "staging"}
 
     trusted_run_condition = validate_job["if"]
     assert isinstance(trusted_run_condition, str)
-    _assert_contains_all_tokens(
-        trusted_run_condition,
-        (
-            "github.event_name == 'workflow_run'",
-            "github.event.workflow_run.conclusion == 'success'",
-            "github.event.workflow_run.event == 'push'",
-            "github.event.workflow_run.head_branch == 'main'",
-            "github.event.workflow_run.head_repository.full_name == github.repository",
-        ),
+    assert trusted_run_condition == (
+        "${{\n"
+        "  github.event_name == 'workflow_run' &&\n"
+        "  github.event.workflow_run.conclusion == 'success' &&\n"
+        "  github.event.workflow_run.event == 'push' &&\n"
+        "  github.event.workflow_run.head_branch == 'main' &&\n"
+        "  github.event.workflow_run.head_repository.full_name == github.repository\n"
+        "}}"
     )
 
     validate_steps = validate_job["steps"]
