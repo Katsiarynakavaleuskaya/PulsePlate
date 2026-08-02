@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import importlib
+from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 from typing import Any, Protocol
@@ -12,6 +13,23 @@ class SchedulerLike(Protocol):
 
 
 BackgroundUpdateCallable = Callable[..., Any]
+
+
+def add_persisted_version_store_stub(update_manager: Any, tmp_path: Path) -> Any:
+    """Add the persisted-version surface required by leased rollback tests."""
+
+    versions_file = tmp_path / "database_versions.json"
+    assert not versions_file.exists()
+
+    versions: dict[str, Any] = {}
+    update_manager.versions_file = versions_file
+    update_manager.versions = versions
+
+    def _load_versions() -> dict[str, Any]:
+        return {}
+
+    update_manager._load_versions = _load_versions
+    return update_manager
 
 
 def make_scheduler_stub(usda_result: Any = None) -> SchedulerLike:
