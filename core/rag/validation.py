@@ -136,7 +136,7 @@ def validate_rag_chunks(
         return ValidationResult(
             passed=False,
             filtered_chunks=[],
-            warnings=["validation_error: internal failure, all chunks rejected"],
+            warnings=["validation_error: internal failure, no chunks accepted"],
             rejected_count=len(chunks),
             validation_latency_ms=0,
         )

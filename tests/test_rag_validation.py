@@ -268,8 +268,20 @@ class TestValidationFailClosed:
             result = validate_rag_chunks(chunks)
         assert result.passed is False
         assert result.filtered_chunks == []
-        assert result.warnings == ["validation_error: internal failure, all chunks rejected"]
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
         assert result.rejected_count == len(chunks)
+        assert result.validation_latency_ms == 0
+
+    def test_internal_error_with_empty_input_accepts_no_chunks(self) -> None:
+        with patch(
+            "core.rag.validation._run_validation",
+            side_effect=RuntimeError("boom"),
+        ):
+            result = validate_rag_chunks([])
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
+        assert result.rejected_count == 0
         assert result.validation_latency_ms == 0
 
     def test_internal_error_logs_fail_closed_warning(
