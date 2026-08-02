@@ -110,7 +110,7 @@ jobs:
       - name: PR Scope Guard
         run: |
           set -euo pipefail
-
+          python3 scripts/ci/guard_actions_pin.py --root .
           echo "Running PR Scope Guard script..."
           bash scripts/ci/pr_scope_guard.sh
 
