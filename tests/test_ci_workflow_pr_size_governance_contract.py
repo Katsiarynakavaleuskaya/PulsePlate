@@ -1058,6 +1058,10 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     }
     pull_script = pull_step["run"]
     assert isinstance(pull_script, str)
+    assert pull_step.get("continue-on-error") is None
+    assert "|| true" not in pull_script
+    assert "|| echo" not in pull_script
+    assert "${{ secrets." not in pull_script
     assert "${{ secrets.GHCR_READ_TOKEN }}" not in pull_script
     _assert_contains_all_tokens(
         pull_script,
@@ -1079,6 +1083,8 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert health_step["env"] == {"IMAGE_REF": exact_image_ref}
     health_script = health_step["run"]
     assert isinstance(health_script, str)
+    assert "${{ secrets." not in health_script
+    assert "GHCR_READ_TOKEN" not in health_script
 
     build_workflow = _load_workflow(BUILD_WORKFLOW_PATH)
     build_smoke_step = _job_step_by_name(
