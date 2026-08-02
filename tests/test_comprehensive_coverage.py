@@ -343,13 +343,15 @@ class TestComprehensiveCoverage:
     ) -> None:
         """Test rollback when rollback_database returns False."""
 
+        rollback_database = AsyncMock(return_value=False)
+
         # Patch get_update_scheduler to return a scheduler with rollback returning False
         async def fake_scheduler() -> SimpleNamespace:
             """Return a persisted-store-aware scheduler for a false rollback result."""
 
             # Return a scheduler whose rollback_database returns False
             mock_update_manager = add_persisted_version_store_stub(
-                SimpleNamespace(rollback_database=AsyncMock(return_value=False)),
+                SimpleNamespace(rollback_database=rollback_database),
                 tmp_path,
             )
             return SimpleNamespace(update_manager=mock_update_manager)
@@ -365,11 +367,8 @@ class TestComprehensiveCoverage:
 
         # Assert deterministic 500 error response when rollback returns False
         assert response.status_code == 500
-        data = response.json()
-        assert "detail" in data
-        assert "Rollback operation failed" in data["detail"]
-        assert "usda" in data["detail"]
-        assert "1.0" in data["detail"]
+        assert response.json() == {"detail": "Rollback operation failed for usda to version 1.0"}
+        rollback_database.assert_awaited_once_with("usda", "1.0")
 
     def test_premium_plate_endpoint_success(
         self,
