@@ -306,7 +306,7 @@ class TestComprehensiveCoverage:
         rollback_database = AsyncMock(side_effect=Exception("Rollback failed"))
 
         # Patch get_update_scheduler to return a scheduler with failing rollback
-        async def fake_scheduler():
+        async def fake_scheduler() -> SimpleNamespace:
             # Return a scheduler whose rollback_database raises an exception
             mock_update_manager = add_persisted_version_store_stub(
                 SimpleNamespace(rollback_database=rollback_database),
@@ -340,7 +340,7 @@ class TestComprehensiveCoverage:
         """Test rollback when rollback_database returns False."""
 
         # Patch get_update_scheduler to return a scheduler with rollback returning False
-        async def fake_scheduler():
+        async def fake_scheduler() -> SimpleNamespace:
             # Return a scheduler whose rollback_database returns False
             mock_update_manager = add_persisted_version_store_stub(
                 SimpleNamespace(rollback_database=AsyncMock(return_value=False)),
