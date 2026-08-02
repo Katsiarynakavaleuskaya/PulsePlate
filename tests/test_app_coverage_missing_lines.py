@@ -3,13 +3,18 @@ Test coverage for missing lines in app.py to improve coverage to 97%.
 """
 
 import os
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import app as app_mod
 from app.services import admin_operations
 from fastapi.testclient import TestClient
-from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_admin_get_update_scheduler
+from tests.helpers.fast_update_stubs import (
+    add_persisted_version_store_stub,
+    make_scheduler_stub,
+    patch_admin_get_update_scheduler,
+)
 
 
 class TestAppMissingLinesCoverage:
@@ -288,12 +293,16 @@ class TestAppMissingLinesCoverage:
         assert response.status_code == 200
 
     def test_rollback_database_endpoint(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ) -> None:
         """Test rollback database endpoint."""
         client = client
 
         scheduler = MagicMock()
+        scheduler.update_manager = add_persisted_version_store_stub(MagicMock(), tmp_path)
         scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
         patch_admin_get_update_scheduler(monkeypatch, scheduler)
         response = client.post(

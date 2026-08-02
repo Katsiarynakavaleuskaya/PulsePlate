@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+from tests.helpers.fast_update_stubs import add_persisted_version_store_stub
 
 
 class TestUpdateManagerEndpoints:
@@ -73,10 +74,10 @@ class TestUpdateManagerEndpoints:
         assert response.json() == {"detail": "Update check failed"}
         assert "secret-token" not in response.text
 
-    def test_rollback_success(self, client: TestClient) -> None:
+    def test_rollback_success(self, client: TestClient, tmp_path: Path) -> None:
         """Test successful database rollback."""
         mock_scheduler = MagicMock()
-        mock_update_manager = MagicMock()
+        mock_update_manager = add_persisted_version_store_stub(MagicMock(), tmp_path)
         mock_update_manager.rollback_database = AsyncMock(return_value=True)
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
@@ -97,10 +98,10 @@ class TestUpdateManagerEndpoints:
         mock_get_scheduler.assert_awaited_once()
         mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_failure(self, client: TestClient) -> None:
+    def test_rollback_failure(self, client: TestClient, tmp_path: Path) -> None:
         """Test failed database rollback."""
         mock_scheduler = MagicMock()
-        mock_update_manager = MagicMock()
+        mock_update_manager = add_persisted_version_store_stub(MagicMock(), tmp_path)
         mock_update_manager.rollback_database = AsyncMock(return_value=False)
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
@@ -119,10 +120,10 @@ class TestUpdateManagerEndpoints:
         mock_get_scheduler.assert_awaited_once()
         mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_exception(self, client: TestClient) -> None:
+    def test_rollback_exception(self, client: TestClient, tmp_path: Path) -> None:
         """Test rollback with exception."""
         mock_scheduler = MagicMock()
-        mock_update_manager = MagicMock()
+        mock_update_manager = add_persisted_version_store_stub(MagicMock(), tmp_path)
         mock_update_manager.rollback_database = AsyncMock(side_effect=ValueError("Invalid version"))
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)

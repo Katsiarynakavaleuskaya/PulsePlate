@@ -3,6 +3,7 @@ Additional tests to improve coverage to 97%+.
 """
 
 import os
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from fastapi.testclient import TestClient
 # Import the FastAPI app from app.py file
 from app import app
 from app.middleware.api_tiers import TEST_KEY_VIP
+from tests.helpers.fast_update_stubs import add_persisted_version_store_stub
 
 
 class TestCoverageImprovement:
@@ -117,31 +119,28 @@ class TestCoverageImprovement:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_update_manager_uncovered_lines(self) -> None:
+    def test_update_manager_uncovered_lines(self, tmp_path: Path) -> None:
         """Test uncovered lines in update_manager.py."""
-        # Test rollback database error handling - fix the class name
-        try:
-            with patch(
-                "core.food_apis.update_manager.DatabaseUpdateManager._load_backup",
-                side_effect=Exception("Test error"),
-            ):
-                with patch(
-                    "app.services.admin_operations.get_update_scheduler",
-                    new_callable=AsyncMock,
-                ) as mock_get_scheduler:
-                    mock_scheduler = AsyncMock()
-                    mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
-                    mock_get_scheduler.return_value = mock_scheduler
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+        ) as mock_get_scheduler:
+            rollback_database = AsyncMock(return_value=False)
+            update_manager = add_persisted_version_store_stub(
+                MagicMock(rollback_database=rollback_database),
+                tmp_path,
+            )
+            mock_get_scheduler.return_value = MagicMock(update_manager=update_manager)
 
-                    _ = self.client.post(
-                        "/api/v1/admin/rollback",
-                        params={"source": "usda", "target_version": "1.0"},
-                        headers={"X-API-Key": "test_key"},
-                    )
-                    # Should handle gracefully
-        except Exception:
-            # Exception is expected, but the code should handle it gracefully
-            pass
+            response = self.client.post(
+                "/api/v1/admin/rollback",
+                params={"source": "usda", "target_version": "1.0"},
+                headers={"X-API-Key": "test_key"},
+            )
+
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Rollback operation failed for usda to version 1.0"}
+        rollback_database.assert_awaited_once_with("usda", "1.0")
 
     def test_menu_engine_uncovered_lines(self) -> None:
         """Test uncovered lines in menu_engine.py."""

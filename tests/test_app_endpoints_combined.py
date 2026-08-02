@@ -710,6 +710,10 @@ class TestAdminOperationsService:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
+        """Exercise persisted rollback success and explicit error outcomes."""
+
+        raising_rollback_calls: list[tuple[str, str]] = []
+
         class _VersionedRollbackManager:
             versions_file = tmp_path / "database-versions.json"
             versions: dict[str, object] = {}
@@ -728,6 +732,9 @@ class TestAdminOperationsService:
 
         class _RaisingRollbackManager(_VersionedRollbackManager):
             def rollback_database(self, source: str, target_version: str) -> bool:
+                """Record the attempted rollback before raising the fixture error."""
+
+                raising_rollback_calls.append((source, target_version))
                 raise RuntimeError("rollback boom")
 
         class _AwaitableRollbackManager(_VersionedRollbackManager):
@@ -802,6 +809,7 @@ class TestAdminOperationsService:
             asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
         assert "Rollback failed" in str(exc_info.value.detail)
+        assert raising_rollback_calls == [("usda", "1.0.0")]
 
         monkeypatch.setattr(
             admin_operations_service,

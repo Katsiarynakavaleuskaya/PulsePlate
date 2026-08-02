@@ -4,6 +4,7 @@ Comprehensive tests to improve coverage to 97%+.
 
 import asyncio
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,6 +18,7 @@ import app as app_mod
 from app import app
 from app.services import admin_operations, pro_nutrition_plate
 from tests.helpers.fast_update_stubs import (
+    add_persisted_version_store_stub,
     make_scheduler_stub,
     patch_admin_get_update_scheduler,
 )
@@ -204,13 +206,22 @@ class TestComprehensiveCoverage:
             assert response.json() == {"detail": "Update check failed"}
 
     @pytest.mark.serial
-    def test_rollback_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_rollback_endpoint_success(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
         """Test rollback endpoint success case."""
         # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
 
         async def fake_scheduler() -> SimpleNamespace:
+            """Return a persisted-store-aware scheduler for rollback success."""
+
             # Return a scheduler with update_manager.rollback_database that returns True
-            mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=True))
+            mock_update_manager = add_persisted_version_store_stub(
+                SimpleNamespace(rollback_database=AsyncMock(return_value=True)),
+                tmp_path,
+            )
             return SimpleNamespace(update_manager=mock_update_manager)
 
         monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler)
@@ -288,17 +299,23 @@ class TestComprehensiveCoverage:
 
     @pytest.mark.serial
     def test_rollback_endpoint_rollback_function_exception(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ) -> None:
         """Test rollback when rollback_database raises exception."""
 
-        # Patch get_update_scheduler to return a scheduler with failing rollback
-        async def fake_scheduler():
-            # Return a scheduler whose rollback_database raises an exception
-            async def failing_rollback(source, target_version):
-                raise Exception("Rollback failed")
+        rollback_database = AsyncMock(side_effect=Exception("Rollback failed"))
 
-            mock_update_manager = SimpleNamespace(rollback_database=failing_rollback)
+        # Patch get_update_scheduler to return a scheduler with failing rollback
+        async def fake_scheduler() -> SimpleNamespace:
+            """Return a persisted-store-aware scheduler whose rollback raises."""
+
+            # Return a scheduler whose rollback_database raises an exception
+            mock_update_manager = add_persisted_version_store_stub(
+                SimpleNamespace(rollback_database=rollback_database),
+                tmp_path,
+            )
             return SimpleNamespace(update_manager=mock_update_manager)
 
         # Patch both the module attribute and globals to ensure the endpoint sees it
@@ -316,15 +333,27 @@ class TestComprehensiveCoverage:
         assert "detail" in data
         assert "Rollback operation failed" in data["detail"]
         assert "Rollback failed" in data["detail"]
+        rollback_database.assert_awaited_once_with("usda", "1.0")
 
     @pytest.mark.serial
-    def test_rollback_endpoint_returns_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_rollback_endpoint_returns_false(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
         """Test rollback when rollback_database returns False."""
 
+        rollback_database = AsyncMock(return_value=False)
+
         # Patch get_update_scheduler to return a scheduler with rollback returning False
-        async def fake_scheduler():
+        async def fake_scheduler() -> SimpleNamespace:
+            """Return a persisted-store-aware scheduler for a false rollback result."""
+
             # Return a scheduler whose rollback_database returns False
-            mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=False))
+            mock_update_manager = add_persisted_version_store_stub(
+                SimpleNamespace(rollback_database=rollback_database),
+                tmp_path,
+            )
             return SimpleNamespace(update_manager=mock_update_manager)
 
         # Patch both the module attribute and globals to ensure the endpoint sees it
@@ -338,11 +367,8 @@ class TestComprehensiveCoverage:
 
         # Assert deterministic 500 error response when rollback returns False
         assert response.status_code == 500
-        data = response.json()
-        assert "detail" in data
-        assert "Rollback operation failed" in data["detail"]
-        assert "usda" in data["detail"]
-        assert "1.0" in data["detail"]
+        assert response.json() == {"detail": "Rollback operation failed for usda to version 1.0"}
+        rollback_database.assert_awaited_once_with("usda", "1.0")
 
     def test_premium_plate_endpoint_success(
         self,
