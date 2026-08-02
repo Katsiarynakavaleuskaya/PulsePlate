@@ -12,7 +12,7 @@ import sys
 import textwrap
 import threading
 from typing import Any, cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -832,6 +832,59 @@ def test_version_refresh_offloads_persisted_store_io_from_event_loop(
     assert set(manager.versions) == {"fresh"}
 
 
+@pytest.mark.parametrize(
+    ("exists_values", "read_values", "loaded_versions", "expected_message"),
+    [
+        ([True], ["[]"], {}, "must be a JSON object"),
+        ([False, True], [], {}, "changed during refresh"),
+        ([True, True], ["{}", OSError("re-read failed")], {}, "could not be revalidated"),
+        ([True, True], ["{}", '{"changed": true}'], {}, "changed during refresh"),
+        (
+            [True, True],
+            ['{"usda": {}}', '{"usda": {}}'],
+            {},
+            "could not be decoded",
+        ),
+    ],
+    ids=[
+        "non-object",
+        "existence-drift",
+        "revalidation-read-error",
+        "content-drift",
+        "loader-empty-fallback",
+    ],
+)
+def test_version_refresh_rejects_unstable_or_undecodable_persisted_state(
+    exists_values: list[bool],
+    read_values: list[str | BaseException],
+    loaded_versions: dict[str, object],
+    expected_message: str,
+) -> None:
+    class _SequencePath:
+        def exists(self) -> bool:
+            return exists_values.pop(0)
+
+        def read_text(self, *, encoding: str) -> str:
+            assert encoding == "utf-8"
+            value = read_values.pop(0)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+
+    class _Manager:
+        versions: dict[str, object] = {}
+        versions_file = _SequencePath()
+
+        def _load_versions(self) -> dict[str, object]:
+            return loaded_versions
+
+    with pytest.raises(
+        scheduler_runtime.VersionStateRefreshError,
+        match=expected_message,
+    ):
+        scheduler_runtime._load_versions_fail_closed(cast(Any, _Manager()))
+
+
 def test_version_refresh_parse_failure_blocks_leased_mutation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -861,6 +914,123 @@ def test_version_refresh_parse_failure_blocks_leased_mutation(
         assert manager.versions == {}
     finally:
         asyncio.run(manager.close())
+
+
+def test_scheduler_source_update_reports_success_and_provider_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.food_apis import scheduler as scheduler_module
+    from core.food_apis.update_manager import UpdateResult
+
+    scheduler = scheduler_module.DatabaseUpdateScheduler(install_signal_handlers=False)
+    success = UpdateResult(
+        success=True,
+        source="usda",
+        old_version="v1",
+        new_version="v2",
+        records_added=2,
+        records_updated=1,
+        records_removed=0,
+        errors=[],
+        duration_seconds=0.1,
+    )
+    failure = UpdateResult(
+        success=False,
+        source="openfoodfacts",
+        old_version="v1",
+        new_version=None,
+        records_added=0,
+        records_updated=0,
+        records_removed=0,
+        errors=["provider unavailable"],
+        duration_seconds=0.1,
+    )
+    update_database = AsyncMock(side_effect=[success, failure])
+    monkeypatch.setattr(scheduler.update_manager, "update_database", update_database)
+
+    try:
+        assert asyncio.run(scheduler._run_source_update("usda")) is True
+        assert asyncio.run(scheduler._run_source_update("openfoodfacts")) is False
+        assert scheduler.retry_counts["usda"] == 0
+        assert scheduler.retry_counts["openfoodfacts"] == 1
+    finally:
+        asyncio.run(scheduler.update_manager.close())
+
+
+def test_scheduler_force_update_all_sources_and_status_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.food_apis import scheduler as scheduler_module
+    from core.food_apis.update_manager import UpdateResult
+
+    scheduler = scheduler_module.DatabaseUpdateScheduler(install_signal_handlers=False)
+    refresh = AsyncMock()
+    check_for_updates = AsyncMock(return_value={"usda": True, "openfoodfacts": True})
+    update_database = AsyncMock(
+        side_effect=[
+            UpdateResult(True, "usda", "v1", "v2", 1, 0, 0, [], 0.1),
+            UpdateResult(True, "openfoodfacts", "v1", "v2", 1, 0, 0, [], 0.1),
+        ]
+    )
+
+    async def run_lease(operation: Any) -> Any:
+        return await operation()
+
+    monkeypatch.setattr(scheduler_module, "refresh_update_version_state", refresh)
+    monkeypatch.setattr(scheduler_module, "run_with_update_lease", run_lease)
+    monkeypatch.setattr(scheduler.update_manager, "check_for_updates", check_for_updates)
+    monkeypatch.setattr(scheduler.update_manager, "update_database", update_database)
+    monkeypatch.setattr(
+        scheduler_module,
+        "resolve_scheduler_mode",
+        lambda: scheduler_runtime.SchedulerMode.EXTERNAL,
+    )
+
+    try:
+        results = asyncio.run(scheduler.force_update())
+        assert list(results) == ["usda", "openfoodfacts"]
+        refresh.assert_awaited_once_with(scheduler.update_manager)
+        check_for_updates.assert_awaited_once_with()
+        assert update_database.await_args_list == [
+            call("usda", force=True),
+            call("openfoodfacts", force=True),
+        ]
+        status = scheduler.get_status()["scheduler"]
+        assert status["configured_mode"] == "external"
+        assert status["configured_periodic_owner"] == "worker"
+    finally:
+        asyncio.run(scheduler.update_manager.close())
+
+
+def test_explicit_scheduler_mode_is_validated_before_local_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validated: list[scheduler_runtime.SchedulerMode] = []
+
+    def validate(mode: scheduler_runtime.SchedulerMode) -> scheduler_runtime.SchedulerMode:
+        validated.append(mode)
+        return mode
+
+    async def operation() -> str:
+        return "completed"
+
+    monkeypatch.setattr(scheduler_runtime, "validate_scheduler_mode", validate)
+    monkeypatch.setattr(scheduler_runtime, "_database_backend_name", lambda: None)
+    monkeypatch.setattr(
+        scheduler_runtime,
+        "_is_explicit_development_or_test",
+        lambda: True,
+    )
+
+    result = asyncio.run(
+        scheduler_runtime.run_with_update_lease(
+            operation,
+            mode=scheduler_runtime.SchedulerMode.DISABLED,
+        )
+    )
+
+    assert result == "completed"
+    assert validated == [scheduler_runtime.SchedulerMode.DISABLED]
 
 
 def test_lease_refresh_preserves_sequential_manager_version_metadata(

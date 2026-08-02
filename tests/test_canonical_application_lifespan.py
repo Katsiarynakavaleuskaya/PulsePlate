@@ -392,6 +392,18 @@ def test_failed_scheduler_start_cleanup_never_masks_primary_failure(
     assert "Error cleaning up a failed background scheduler start" in caplog.text
 
 
+def test_failed_scheduler_start_cleanup_contains_non_cancellation_base_exception(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def _stop() -> None:
+        raise KeyboardInterrupt
+
+    with caplog.at_level("ERROR", logger="app.bootstrap.lifespan"):
+        asyncio.run(lifespan_module._stop_after_failed_background_start(_stop))
+
+    assert "Error cleaning up a failed background scheduler start" in caplog.text
+
+
 def test_failed_scheduler_start_cleanup_propagates_external_cancellation() -> None:
     async def _scenario() -> None:
         stop_started = asyncio.Event()
@@ -633,6 +645,29 @@ def test_external_default_hooks_do_not_import_scheduler_execution_module(
 
     assert hooks.start_background_updates is lifespan_module._unavailable_background_update_start
     assert hooks.stop_background_updates is lifespan_module._unavailable_background_update_stop
+
+
+def test_in_process_default_hooks_load_scheduler_execution_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _start(update_interval_hours: int = 24) -> None:
+        assert update_interval_hours == 24
+
+    async def _stop() -> None:
+        return None
+
+    monkeypatch.setattr(
+        lifespan_module,
+        "_load_background_update_hooks",
+        lambda: (_start, _stop),
+    )
+
+    hooks = lifespan_module.build_default_lifespan_hooks(
+        scheduler_mode=SchedulerMode.IN_PROCESS_DEV,
+    )
+
+    assert hooks.start_background_updates is _start
+    assert hooks.stop_background_updates is _stop
 
 
 @pytest.mark.parametrize(
