@@ -2096,7 +2096,7 @@ def test_ci_changes_outputs_cover_risk_profile_outputs() -> None:
     )
 
 
-def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane() -> None:
+def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() -> None:
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
     test_feature_groups = _contract_suite_targets_by_group(workflow, job_id="test-feature")
@@ -2110,6 +2110,10 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     )
 
     assert test_pr_groups == test_feature_groups
+    assert "tests/test_admin_scheduler_access.py" in test_pr_groups["food_catalog"]
+    assert "tests/test_scheduler_final_coverage.py" in test_pr_groups["food_catalog"]
+    assert "tests/test_admin_scheduler_access.py" in test_feature_groups["food_catalog"]
+    assert "tests/test_scheduler_final_coverage.py" in test_feature_groups["food_catalog"]
     assert set(ci_risk_profile.ALL_RISK_GROUPS).issubset(test_pr_groups)
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
     assert "tests/test_bmi_compat_router.py" in test_pr_groups["route_contract_safety"]
