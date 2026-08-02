@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from pathlib import Path
 import subprocess
 import sys
 
+import yaml
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 GUARD_ACTIONS = REPO_ROOT / "scripts" / "ci" / "guard_actions_pin.py"
 GUARD_NPM = REPO_ROOT / "scripts" / "ci" / "guard_npm_install_scripts.py"
 GUARD_VSCODE = REPO_ROOT / "scripts" / "ci" / "guard_vscode_extensions.py"
+PIN_GUARD_OK = "OK: all recognized external GitHub action refs use full commit SHA pins"
 
 
 def _run(script_path: Path, root: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
@@ -59,7 +64,7 @@ def test_actions_pin_guard_accepts_40_char_sha(tmp_path: Path) -> None:
     result = _run(GUARD_ACTIONS, tmp_path)
 
     assert result.returncode == 0
-    assert "OK: all workflow actions are pinned to full commit SHAs" in result.stdout
+    assert PIN_GUARD_OK in result.stdout
 
 
 def test_actions_pin_guard_rejects_41_char_sha(tmp_path: Path) -> None:
@@ -92,7 +97,152 @@ def test_actions_pin_guard_allows_inline_comments_after_sha_pin(tmp_path: Path) 
     result = _run(GUARD_ACTIONS, tmp_path)
 
     assert result.returncode == 0
-    assert "OK: all workflow actions are pinned to full commit SHAs" in result.stdout
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_actions_pin_guard_rejects_uppercase_sha(tmp_path: Path) -> None:
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "test.yml").write_text(
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@0123456789ABCDEF0123456789ABCDEF01234567\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert "must pin a 40-char commit SHA" in result.stdout
+
+
+def test_actions_pin_guard_rejects_tags_in_nested_composite_metadata(
+    tmp_path: Path,
+) -> None:
+    alpha_dir = tmp_path / ".github" / "actions" / "nested" / "alpha"
+    beta_dir = tmp_path / ".github" / "actions" / "nested" / "beta"
+    alpha_dir.mkdir(parents=True)
+    beta_dir.mkdir(parents=True)
+    (alpha_dir / "action.yml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n",
+        encoding="utf-8",
+    )
+    (beta_dir / "action.yaml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: actions/setup-python@v6\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert result.stdout.splitlines() == [
+        "ERROR: found unpinned GitHub Actions:",
+        ".github/actions/nested/alpha/action.yml:4: action 'actions/checkout@v4' must pin a 40-char commit SHA",
+        ".github/actions/nested/beta/action.yaml:4: action 'actions/setup-python@v6' must pin a 40-char commit SHA",
+    ]
+
+
+def test_actions_pin_guard_accepts_shas_in_nested_composite_metadata(
+    tmp_path: Path,
+) -> None:
+    alpha_dir = tmp_path / ".github" / "actions" / "nested" / "alpha"
+    beta_dir = tmp_path / ".github" / "actions" / "nested" / "beta"
+    alpha_dir.mkdir(parents=True)
+    beta_dir.mkdir(parents=True)
+    (alpha_dir / "action.yml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567\n",
+        encoding="utf-8",
+    )
+    (beta_dir / "action.yaml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: actions/setup-python@abcdef0123456789abcdef0123456789abcdef01\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_actions_pin_guard_allows_local_composite_action(tmp_path: Path) -> None:
+    action_dir = tmp_path / ".github" / "actions" / "nested" / "caller"
+    action_dir.mkdir(parents=True)
+    (action_dir / "action.yml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: ./.github/actions/local-action\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_actions_pin_guard_excludes_docker_references(tmp_path: Path) -> None:
+    action_dir = tmp_path / ".github" / "actions" / "nested" / "container"
+    action_dir.mkdir(parents=True)
+    (action_dir / "action.yaml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: docker://alpine:3.20\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_actions_pin_guard_ignores_arbitrary_action_yaml(tmp_path: Path) -> None:
+    action_dir = tmp_path / ".github" / "actions" / "nested"
+    action_dir.mkdir(parents=True)
+    (action_dir / "config.yaml").write_text(
+        "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 0
+    assert PIN_GUARD_OK in result.stdout
+
+
+def test_pr_scope_guard_runs_actions_pin_guard_before_scope_guard() -> None:
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    pr_scope_guard = workflow["jobs"]["pr_scope_guard"]
+    triggers = workflow.get("on", workflow.get(True))
+    assert isinstance(triggers, Mapping)
+    pull_request = triggers.get("pull_request")
+    assert isinstance(pull_request, Mapping)
+    pull_request_branches = pull_request.get("branches")
+    pull_request_types = pull_request.get("types")
+
+    assert pr_scope_guard["if"] == "github.event_name == 'pull_request'"
+    assert "continue-on-error" not in pr_scope_guard
+    assert isinstance(pull_request_branches, list)
+    assert "main" in pull_request_branches
+    assert isinstance(pull_request_types, list)
+    assert {"opened", "synchronize", "reopened"}.issubset(pull_request_types)
+
+    steps = pr_scope_guard["steps"]
+    checkout_indexes = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == "Checkout"
+    ]
+    expected_guard_step = {
+        "name": "PR Scope Guard",
+        "run": (
+            "set -euo pipefail\n"
+            "python3 scripts/ci/guard_actions_pin.py --root .\n"
+            'echo "Running PR Scope Guard script..."\n'
+            "bash scripts/ci/pr_scope_guard.sh\n"
+        ),
+    }
+    guard_steps = [
+        step for step in steps if isinstance(step, dict) and step.get("name") == "PR Scope Guard"
+    ]
+
+    assert len(checkout_indexes) == 1
+    assert steps[checkout_indexes[0] + 1] == expected_guard_step
+    assert guard_steps == [expected_guard_step]
 
 
 def test_npm_install_guard_rejects_postinstall(tmp_path: Path) -> None:
