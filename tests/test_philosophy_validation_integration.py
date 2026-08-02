@@ -377,7 +377,16 @@ class TestPhilosophyValidationV1:
             "Negative-infinity evidence must not reach insight.",
         ):
             assert content not in data["insight"]
-        for provenance_value in ("invalid:true", "true-score.md"):
+        for provenance_value in (
+            "invalid:true",
+            "true-score.md",
+            "nonfinite:nan",
+            "nan.md",
+            "nonfinite:positive-inf",
+            "positive-inf.md",
+            "nonfinite:negative-inf",
+            "negative-inf.md",
+        ):
             assert provenance_value not in resp.text
 
     @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
