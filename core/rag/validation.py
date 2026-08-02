@@ -9,8 +9,8 @@ Rules enforce:
 - **Empty/malformed filter**: remove chunks with no useful content
 
 All rules operate on ``chunk.content`` (case-insensitive word-boundary matching).
-On any internal exception the validator returns original chunks unchanged
-(fail-safe: never block LLM generation).
+On any internal exception the validator rejects all chunks
+(fail-closed: never pass unvalidated evidence to LLM generation).
 
 See: .cursor/agents/philosophy-agent.md (claim semantics, falsifiability)
 """
@@ -18,6 +18,7 @@ See: .cursor/agents/philosophy-agent.md (claim semantics, falsifiability)
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -117,7 +118,7 @@ def validate_rag_chunks(
     chunk.  Returns a :class:`ValidationResult` with filtered chunks and
     any advisory warnings.
 
-    On internal exception returns original chunks unchanged (fail-safe).
+    On internal exception rejects all chunks (fail-closed).
 
     Parameters
     ----------
@@ -130,14 +131,14 @@ def validate_rag_chunks(
         return _run_validation(chunks, agent_id)
     except Exception:
         logger.warning(
-            "RAG validation failed; returning original chunks",
+            "RAG validation failed; rejecting all chunks",
             exc_info=True,
         )
         return ValidationResult(
-            passed=bool(chunks),
-            filtered_chunks=list(chunks),
-            warnings=["validation_error: internal failure, chunks unfiltered"],
-            rejected_count=0,
+            passed=False,
+            filtered_chunks=[],
+            warnings=["validation_error: internal failure, no chunks accepted"],
+            rejected_count=len(chunks),
             validation_latency_ms=0,
         )
 
@@ -196,9 +197,21 @@ def _run_validation(
 
 
 def _is_empty_or_malformed(chunk: RAGChunk) -> bool:
-    """Return True if chunk has no useful content or near-zero score."""
+    """Return True if chunk has no useful content or an invalid score."""
     if len(chunk.content.strip()) < _MIN_CONTENT_LENGTH:
         return True
-    if chunk.score < _MIN_SCORE_THRESHOLD:
+    score = chunk.score
+    score_type = type(score)
+    if score_type is float:
+        if not math.isfinite(score):
+            return True
+    elif score_type is int:
+        try:
+            float(score)
+        except OverflowError:
+            return True
+    else:
+        return True
+    if score < _MIN_SCORE_THRESHOLD:
         return True
     return False
