@@ -11,6 +11,7 @@
 """
 
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock
@@ -20,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from app.services import admin_operations as admin_operations_service
 from starlette.types import ASGIApp
+from tests.helpers.fast_update_stubs import add_persisted_version_store_stub
 
 
 @pytest.fixture
@@ -70,7 +72,10 @@ class TestAdminEndpoints:
         self,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ) -> None:
+        """Exercise authenticated admin routes with a persisted-store-aware scheduler."""
+
         monkeypatch.setenv("API_KEY", "test_key")
 
         class _UpdateManager:
@@ -80,8 +85,13 @@ class TestAdminEndpoints:
             def rollback_database(self, source: str, target_version: str) -> bool:
                 return source == "usda" and target_version == "1.0.0"
 
+        persisted_update_manager = add_persisted_version_store_stub(
+            _UpdateManager(),
+            tmp_path,
+        )
+
         class _Scheduler:
-            update_manager = _UpdateManager()
+            update_manager = persisted_update_manager
 
             def get_status(self) -> dict[str, str]:
                 return {"status": "ok"}
@@ -269,7 +279,12 @@ class TestAdminEndpoints:
         assert response.status_code == 200
         assert response.json()["total_sources_with_updates"] == 1
 
-    def test_rollback_endpoint(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_rollback_endpoint(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
         """Тест /api/v1/admin/rollback (блок 1640-1662)"""
         monkeypatch.setenv("API_KEY", "test_key")
 
@@ -277,8 +292,15 @@ class TestAdminEndpoints:
             def rollback_database(self, source: str, target_version: str) -> bool:
                 return source == "usda" and target_version == "1.0.0"
 
+        persisted_update_manager = add_persisted_version_store_stub(
+            _UpdateManager(),
+            tmp_path,
+        )
+
         async def get_scheduler() -> object:
-            return SimpleNamespace(update_manager=_UpdateManager())
+            """Return the rollback scheduler fixture for this request."""
+
+            return SimpleNamespace(update_manager=persisted_update_manager)
 
         monkeypatch.setattr(
             admin_operations_service,

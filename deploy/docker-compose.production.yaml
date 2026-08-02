@@ -21,6 +21,9 @@ services:
       - ENVIRONMENT=production
       # Production uses an external managed PostgreSQL instance.
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
+    volumes:
+      - food_db_cache:/app/cache/food_db
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
@@ -37,6 +40,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  worker:
+    image: ${IMAGE_REF:?IMAGE_REF is required}
+    profiles: ["scheduler-external"]
+    restart: unless-stopped
+    networks: [web]
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - FOOD_UPDATE_SCHEDULER_MODE=${FOOD_UPDATE_SCHEDULER_MODE:-external}
+    command: python -m core.food_apis.scheduler --serve
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - food_db_cache:/app/cache/food_db
+    healthcheck:
+      disable: true
 
   caddy:
     build:
@@ -66,5 +87,6 @@ services:
       retries: 3
 
 volumes:
+  food_db_cache:
   caddy_data:
   caddy_config:
