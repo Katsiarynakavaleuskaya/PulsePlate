@@ -877,11 +877,20 @@ def test_export_week_csv_fallback_when_helper_missing(
     asyncio.run(_run())
 
 
-def test_rollback_database_coroutine_callable_path(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rollback_database_coroutine_callable_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
     async def _run() -> None:
         """Cover coroutine rollback_callable branch (line ~4782)."""
 
         class _UpdateManager:
+            versions_file = tmp_path / "database-versions.json"
+            versions: dict[str, object] = {}
+
+            def _load_versions(self) -> dict[str, object]:
+                return {}
+
             async def rollback_database(self, source: str, target_version: str) -> bool:
                 return True
 
