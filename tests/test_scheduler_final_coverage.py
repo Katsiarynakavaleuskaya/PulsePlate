@@ -1,4 +1,3 @@
-import asyncio
 import os
 
 """
@@ -34,6 +33,8 @@ class TestSchedulerFinalCoverage:
 
     def test_run_update_check_exception_detailed(self) -> None:
         """Test _run_update_check with exception in check_for_updates."""
+        import asyncio
+
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.check_for_updates to raise an exception
@@ -48,6 +49,8 @@ class TestSchedulerFinalCoverage:
 
     def test_run_source_update_exception_detailed(self) -> None:
         """Test _run_source_update with exception in update_database."""
+        import asyncio
+
         scheduler = DatabaseUpdateScheduler()
 
         # Mock update_manager.update_database to raise an exception
