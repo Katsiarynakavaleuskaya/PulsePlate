@@ -104,6 +104,50 @@ export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
 export STAGING_CADDY_IMAGE_REF="$CADDY_IMAGE_REF"
 export STAGING_ENV_FILE="$ENV_FILE"
 
+scheduler_mode_seen=0
+scheduler_mode=""
+if [ "${FOOD_UPDATE_SCHEDULER_MODE+x}" = "x" ]; then
+  scheduler_mode="$FOOD_UPDATE_SCHEDULER_MODE"
+  scheduler_mode_seen=1
+else
+  env_line=""
+  while IFS= read -r env_line || [ -n "$env_line" ]; do
+    case "$env_line" in
+      FOOD_UPDATE_SCHEDULER_MODE=*)
+        if [ "$scheduler_mode_seen" -eq 1 ]; then
+          echo "❌ Duplicate FOOD_UPDATE_SCHEDULER_MODE entries in staging env file" >&2
+          exit 1
+        fi
+        raw_scheduler_mode="${env_line#*=}"
+        if [[ "$raw_scheduler_mode" =~ ^[[:space:]]*(external|disabled|in_process_dev)[[:space:]]*$ ]] || \
+           [[ "$raw_scheduler_mode" =~ ^[[:space:]]*(external|disabled|in_process_dev)[[:space:]]+\#.*$ ]]; then
+          scheduler_mode="${BASH_REMATCH[1]}"
+        else
+          scheduler_mode="$raw_scheduler_mode"
+        fi
+        scheduler_mode_seen=1
+        ;;
+    esac
+  done < "$ENV_FILE"
+fi
+if [ "$scheduler_mode_seen" -eq 0 ]; then
+  scheduler_mode="external"
+fi
+case "$scheduler_mode" in
+  external|disabled)
+    ;;
+  in_process_dev)
+    echo "❌ Staging deploy forbids FOOD_UPDATE_SCHEDULER_MODE=in_process_dev" >&2
+    exit 1
+    ;;
+  *)
+    echo "❌ FOOD_UPDATE_SCHEDULER_MODE must be exactly external or disabled" >&2
+    exit 1
+    ;;
+esac
+FOOD_UPDATE_SCHEDULER_MODE="$scheduler_mode"
+export FOOD_UPDATE_SCHEDULER_MODE
+
 STAGING_DOMAIN=${STAGING_DOMAIN:?"STAGING_DOMAIN not set"}
 
 DOCKER_BIN="${DOCKER_BIN:-}"
@@ -162,10 +206,19 @@ printf '%s' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --passwo
 
 echo "[2/5] Pull exact backend and Caddy digests"
 "${COMPOSE[@]}" pull app caddy
+echo "Pull scheduler worker from the exact backend digest"
+"${COMPOSE[@]}" pull worker
 "$DOCKER_BIN" logout ghcr.io >/dev/null
 rm -rf -- "$DOCKER_CONFIG"
 mkdir -m 700 -- "$DOCKER_CONFIG"
 unset GHCR_TOKEN GHCR_USER
+
+echo "Quiescing the previous scheduler worker before backup and migrations"
+"${COMPOSE[@]}" stop worker
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
+  echo "Removing disabled scheduler worker container"
+  "${COMPOSE[@]}" rm -f worker
+fi
 
 echo "[3/5] Start Postgres and create a pre-migration backup"
 "${COMPOSE[@]}" up -d postgres
@@ -237,6 +290,13 @@ if [ "$wait_count" -eq "$max_wait" ]; then
   exit 1
 fi
 
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
+  echo "Starting scheduler worker after app readiness"
+  "${COMPOSE[@]}" up -d --pull never --wait --wait-timeout 30 worker
+else
+  echo "Scheduler mode is disabled; worker container remains absent"
+fi
+
 echo "[5/5] Start Caddy after successful migrations"
 "${COMPOSE[@]}" up -d --pull never caddy
 
@@ -271,6 +331,11 @@ while [ "$attempt" -lt "$HEALTH_MAX_ATTEMPTS" ]; do
     sleep "$HEALTH_SLEEP_S"
   fi
 done
+
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
+  echo "Confirming scheduler worker process is running"
+  "${COMPOSE[@]}" up -d --pull never --no-recreate --wait --wait-timeout 30 worker
+fi
 
 echo "✅ Staging deployed by attested digests"
 echo "Backend: $BACKEND_IMAGE_REF"

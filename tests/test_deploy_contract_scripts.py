@@ -2375,6 +2375,51 @@ def test_staging_deploy_preflight_validates_contract_without_mutation(tmp_path: 
     assert "Staging deploy preflight passed" in completed.stdout
 
 
+@pytest.mark.parametrize(
+    ("scheduler_mode_value", "expected_returncode"),
+    (
+        ("external # scheduler owner", 0),
+        (" disabled\t# maintenance window", 0),
+        ("external#not-a-compose-comment", 1),
+        ('"external"', 1),
+        ("'external'", 1),
+        ("${SCHEDULER_MODE}", 1),
+    ),
+)
+def test_staging_deploy_matches_bounded_compose_scheduler_mode_syntax(
+    tmp_path: Path,
+    scheduler_mode_value: str,
+    expected_returncode: int,
+) -> None:
+    env, _log_file = _staging_deploy_fixture(tmp_path)
+    env.pop("FOOD_UPDATE_SCHEDULER_MODE", None)
+    env_file = Path(env["ENV_FILE"])
+    with env_file.open("a", encoding="utf-8") as handle:
+        handle.write(f"FOOD_UPDATE_SCHEDULER_MODE={scheduler_mode_value}\n")
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts" / "deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == expected_returncode, completed.stderr
+    if expected_returncode == 0:
+        assert "Staging deploy preflight passed" in completed.stdout
+    else:
+        assert "FOOD_UPDATE_SCHEDULER_MODE must be exactly external or disabled" in completed.stderr
+
+
 def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     tmp_path: Path,
 ) -> None:

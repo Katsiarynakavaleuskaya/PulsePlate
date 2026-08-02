@@ -226,6 +226,16 @@ login_to_ghcr_if_configured() {
 }
 
 sync_shell_bundle() {
+  local sync_mode="${1:-full}"
+  case "$sync_mode" in
+    compose-only|full)
+      ;;
+    *)
+      echo "❌ Unsupported shell bundle sync mode: $sync_mode" >&2
+      exit 1
+      ;;
+  esac
+
   if [ -z "$SHELL_BUNDLE_DIR" ]; then
     return 0
   fi
@@ -299,13 +309,18 @@ sync_shell_bundle() {
     exit 1
   fi
 
+  mkdir -p "$(dirname "$target_compose")"
+  cp "$source_compose" "$target_compose"
+  if [ "$sync_mode" = "compose-only" ]; then
+    echo "Synced production Compose contract before worker operations"
+    return 0
+  fi
+
   echo "Syncing production shell bundle from: $SHELL_BUNDLE_DIR"
   rm -rf "$shell_root/frontend"
   mkdir -p "$shell_root/frontend" "$target_scripts_dir"
-  mkdir -p "$(dirname "$target_compose")"
   cp -R "$source_frontend/." "$shell_root/frontend/"
   cp "$source_caddyfile" "$DEPLOY_DIR/Caddyfile.production"
-  cp "$source_compose" "$target_compose"
   rm -f "$target_scripts_dir/diagnose_web.sh" "$target_scripts_dir/redeploy_caddy.sh"
 
   if [ -f "$source_diagnose" ]; then
@@ -364,6 +379,23 @@ validate_managed_postgres_contract() {
     echo "❌ Production compose still references local postgres; canonical lane is managed PostgreSQL only" >&2
     exit 1
   fi
+}
+
+validate_scheduler_mode_contract() {
+  FOOD_UPDATE_SCHEDULER_MODE="${FOOD_UPDATE_SCHEDULER_MODE-external}"
+  case "$FOOD_UPDATE_SCHEDULER_MODE" in
+    external|disabled)
+      ;;
+    in_process_dev)
+      echo "❌ Production deploy forbids FOOD_UPDATE_SCHEDULER_MODE=in_process_dev" >&2
+      exit 1
+      ;;
+    *)
+      echo "❌ FOOD_UPDATE_SCHEDULER_MODE must be exactly external or disabled" >&2
+      exit 1
+      ;;
+  esac
+  export FOOD_UPDATE_SCHEDULER_MODE
 }
 
 validate_shell_bundle_contract() {
@@ -441,6 +473,7 @@ validate_shell_bundle_contract() {
 run_preflight() {
   echo "Validating managed PostgreSQL production contract..."
   validate_managed_postgres_contract
+  validate_scheduler_mode_contract
   validate_shell_bundle_contract
   echo "✅ Production deploy preflight passed"
 }
@@ -452,8 +485,21 @@ fi
 
 login_to_ghcr_if_configured
 
+sync_shell_bundle compose-only
+dc config --quiet
+
 echo "Pulling production app image..."
 dc pull app
+
+echo "Pulling production scheduler worker image..."
+dc pull worker
+
+echo "Stopping the previous scheduler worker before migrations..."
+dc stop worker
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "disabled" ]; then
+  echo "Removing disabled scheduler worker container..."
+  dc rm -f worker
+fi
 
 echo "Production DB backups are managed outside the deploy script (provider snapshots / PITR)."
 
@@ -471,6 +517,13 @@ sync_shell_bundle
 echo "Starting app before exposing traffic..."
 dc up -d --remove-orphans app
 wait_for_app_ready 30
+
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
+  echo "Starting scheduler worker after app readiness..."
+  dc up -d --pull never --wait --wait-timeout 30 worker
+else
+  echo "Scheduler mode is disabled; worker container remains absent"
+fi
 
 echo "Starting caddy after successful migrations..."
 dc build caddy
@@ -503,6 +556,11 @@ until curl -fsS --max-time "${HEALTH_CURL_MAX_TIME_S}" "$HEALTH_URL" \
   attempt=$((attempt + 1))
   sleep "${HEALTH_SLEEP_S}"
 done
+
+if [ "$FOOD_UPDATE_SCHEDULER_MODE" = "external" ]; then
+  echo "Confirming scheduler worker process is running..."
+  dc up -d --pull never --no-recreate --wait --wait-timeout 30 worker
+fi
 
 echo "✅ Healthcheck OK"
 

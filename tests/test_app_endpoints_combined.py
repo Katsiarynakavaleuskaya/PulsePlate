@@ -10,6 +10,7 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 
 import asyncio
 import os
+from pathlib import Path
 import sys
 from types import SimpleNamespace
 from typing import Any, cast
@@ -707,21 +708,29 @@ class TestAdminOperationsService:
     def test_rollback_database_success_and_error_paths(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ) -> None:
-        class _SyncRollbackManager:
+        class _VersionedRollbackManager:
+            versions_file = tmp_path / "database-versions.json"
+            versions: dict[str, object] = {}
+
+            def _load_versions(self) -> dict[str, object]:
+                return {}
+
+        class _SyncRollbackManager(_VersionedRollbackManager):
             def rollback_database(self, source: str, target_version: str) -> bool:
                 assert (source, target_version) == ("usda", "1.0.0")
                 return True
 
-        class _FalseRollbackManager:
+        class _FalseRollbackManager(_VersionedRollbackManager):
             def rollback_database(self, source: str, target_version: str) -> bool:
                 return False
 
-        class _RaisingRollbackManager:
+        class _RaisingRollbackManager(_VersionedRollbackManager):
             def rollback_database(self, source: str, target_version: str) -> bool:
                 raise RuntimeError("rollback boom")
 
-        class _AwaitableRollbackManager:
+        class _AwaitableRollbackManager(_VersionedRollbackManager):
             def rollback_database(self, source: str, target_version: str) -> object:
                 async def _success() -> bool:
                     return True
