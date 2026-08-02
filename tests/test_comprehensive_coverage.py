@@ -215,6 +215,8 @@ class TestComprehensiveCoverage:
         # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
 
         async def fake_scheduler() -> SimpleNamespace:
+            """Return a persisted-store-aware scheduler for rollback success."""
+
             # Return a scheduler with update_manager.rollback_database that returns True
             mock_update_manager = add_persisted_version_store_stub(
                 SimpleNamespace(rollback_database=AsyncMock(return_value=True)),
@@ -307,6 +309,8 @@ class TestComprehensiveCoverage:
 
         # Patch get_update_scheduler to return a scheduler with failing rollback
         async def fake_scheduler() -> SimpleNamespace:
+            """Return a persisted-store-aware scheduler whose rollback raises."""
+
             # Return a scheduler whose rollback_database raises an exception
             mock_update_manager = add_persisted_version_store_stub(
                 SimpleNamespace(rollback_database=rollback_database),
@@ -341,6 +345,8 @@ class TestComprehensiveCoverage:
 
         # Patch get_update_scheduler to return a scheduler with rollback returning False
         async def fake_scheduler() -> SimpleNamespace:
+            """Return a persisted-store-aware scheduler for a false rollback result."""
+
             # Return a scheduler whose rollback_database returns False
             mock_update_manager = add_persisted_version_store_stub(
                 SimpleNamespace(rollback_database=AsyncMock(return_value=False)),

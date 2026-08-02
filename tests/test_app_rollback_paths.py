@@ -81,6 +81,8 @@ def test_rollback_raises_inside_method(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Preserve the endpoint error contract when the rollback callable raises."""
+
     rollback_database = AsyncMock(side_effect=RuntimeError("boom"))
 
     class DummyScheduler:

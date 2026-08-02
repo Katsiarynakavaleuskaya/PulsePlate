@@ -31,6 +31,8 @@ def add_persisted_version_store_stub(
     persisted_store.versions = versions
 
     def _load_versions() -> dict[str, Any]:
+        """Return the stable in-memory versions mapping for this fixture."""
+
         return versions
 
     persisted_store._load_versions = _load_versions

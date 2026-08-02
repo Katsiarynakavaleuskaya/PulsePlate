@@ -74,6 +74,8 @@ class TestAdminEndpoints:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
+        """Exercise authenticated admin routes with a persisted-store-aware scheduler."""
+
         monkeypatch.setenv("API_KEY", "test_key")
 
         class _UpdateManager:
@@ -296,6 +298,8 @@ class TestAdminEndpoints:
         )
 
         async def get_scheduler() -> object:
+            """Return the rollback scheduler fixture for this request."""
+
             return SimpleNamespace(update_manager=persisted_update_manager)
 
         monkeypatch.setattr(
