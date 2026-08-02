@@ -237,7 +237,7 @@ BRACE_EXPANSION_AUDIT_EXPECTATIONS = {
         ),
     },
 }
-BRACE_EXPANSION_EXACT_BASE = "c46a81d5e41e21eb7cfaf23d687e9e239138be8b"  # pragma: allowlist secret
+BRACE_EXPANSION_EXACT_BASE = "9949d01654f365b1ef9df0b9d35b5ddaa69348c0"  # pragma: allowlist secret
 BRACE_EXPANSION_EXACT_BASE_DIGESTS = {
     "frontend/package.json": (
         "17235b55570d8137d35b54a6d6a7a605cb7eea23f1acf684f842baf06f85c05b"  # pragma: allowlist secret
