@@ -24,6 +24,7 @@ permissions:
 jobs:
   validate-environment:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: >-
       ${{
         github.event_name == 'workflow_run' &&
@@ -38,6 +39,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 / Node 24
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       - name: Set lowercase image name
         id: image-name
@@ -126,7 +128,7 @@ jobs:
           subscription_db_enabled_name="SUBSCRIPTION_DB""_ENABLED"
           database_url_name="DATABASE""_URL"
 
-          if ! docker run -d --name "$container_name" -p 8000:8000 \
+          if ! docker run -d --name "$container_name" -p 127.0.0.1:8000:8000 \
             -e "${api_key_name}=test_key" \
             -e "${allow_dev_api_key_name}=false" \
             -e "${export_token_secret_name}=ci-smoke-export-secret" \

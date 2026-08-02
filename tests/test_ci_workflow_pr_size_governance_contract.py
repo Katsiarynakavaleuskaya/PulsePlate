@@ -1016,6 +1016,7 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     assert isinstance(jobs, dict)
     validate_job = jobs["validate-environment"]
     assert isinstance(validate_job, dict)
+    assert validate_job["timeout-minutes"] == 10
     assert validate_job["environment"] == {"name": "staging"}
 
     trusted_run_condition = validate_job["if"]
@@ -1036,7 +1037,10 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     validate_checkout = validate_steps[0]
     assert isinstance(validate_checkout, dict)
     assert validate_checkout["uses"] == f"actions/checkout@{CHECKOUT_NODE24_SHA}"
-    assert validate_checkout["with"] == {"ref": "${{ github.event.workflow_run.head_sha }}"}
+    assert validate_checkout["with"] == {
+        "ref": "${{ github.event.workflow_run.head_sha }}",
+        "persist-credentials": False,
+    }
 
     exact_image_ref = (
         "ghcr.io/${{ steps.image-name.outputs.image_name }}:"
@@ -1128,6 +1132,8 @@ def test_cd_test_published_image_health_smoke_is_trusted_and_fail_closed() -> No
     )
 
     assert "docker run --rm" not in health_script
+    assert "-p 127.0.0.1:8000:8000" in health_script
+    assert "-p 8000:8000" not in health_script
     assert "Health check failed (expected without frontend)" not in health_script
     assert "|| echo" not in health_script
     assert "|| true" not in health_script
