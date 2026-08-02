@@ -191,7 +191,7 @@ async def rollback_database(source: str, target_version: str) -> dict[str, Any]:
         )
 
     async def _run_rollback() -> Any:
-        refresh_update_version_state(update_manager)
+        await refresh_update_version_state(update_manager)
         if inspect.iscoroutinefunction(rollback_callable):
             result = await rollback_callable(source, target_version)
         else:

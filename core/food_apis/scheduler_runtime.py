@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import json
 import logging
 import os
 import threading
 from collections.abc import Awaitable, Callable
 from enum import Enum
+from pathlib import Path
 from typing import Protocol, TypeVar
 
 from sqlalchemy import text
@@ -44,6 +46,7 @@ class PersistedVersionStore(Protocol[VersionStateT]):
     """Version metadata surface that must be refreshed inside the update lease."""
 
     versions: VersionStateT
+    versions_file: Path
 
     def _load_versions(self) -> VersionStateT: ...
 
@@ -77,6 +80,10 @@ class UpdateLeaseAcquireError(UpdateLeaseError):
 
 class UpdateLeaseReleaseError(UpdateLeaseError):
     """The lease release result was unavailable or uncertain."""
+
+
+class VersionStateRefreshError(RuntimeError):
+    """Persisted version metadata could not be refreshed without data-loss risk."""
 
 
 def _is_explicit_development_or_test() -> bool:
@@ -155,7 +162,45 @@ def configured_periodic_owner(mode: SchedulerMode) -> str:
     return "none"
 
 
-def refresh_update_version_state(
+def _load_versions_fail_closed(
+    update_manager: PersistedVersionStore[VersionStateT],
+) -> VersionStateT:
+    """Load one stable persisted snapshot and reject the loader's empty fallback."""
+
+    versions_file = update_manager.versions_file
+    file_existed = versions_file.exists()
+    serialized_text: str | None = None
+    serialized_data: object = None
+
+    if file_existed:
+        try:
+            serialized_text = versions_file.read_text(encoding="utf-8")
+            serialized_data = json.loads(serialized_text)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise VersionStateRefreshError("persisted version metadata could not be read") from exc
+        if not isinstance(serialized_data, dict):
+            raise VersionStateRefreshError("persisted version metadata must be a JSON object")
+
+    persisted_versions = update_manager._load_versions()
+
+    if versions_file.exists() != file_existed:
+        raise VersionStateRefreshError("persisted version metadata changed during refresh")
+    if file_existed:
+        try:
+            current_text = versions_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise VersionStateRefreshError(
+                "persisted version metadata could not be revalidated"
+            ) from exc
+        if current_text != serialized_text:
+            raise VersionStateRefreshError("persisted version metadata changed during refresh")
+        if serialized_data and not persisted_versions:
+            raise VersionStateRefreshError("persisted version metadata could not be decoded")
+
+    return persisted_versions
+
+
+async def refresh_update_version_state(
     update_manager: PersistedVersionStore[VersionStateT],
 ) -> None:
     """Reload shared version metadata after acquiring the cross-process lease.
@@ -166,7 +211,11 @@ def refresh_update_version_state(
     saved by an earlier process even though their executions were serialized.
     """
 
-    update_manager.versions = update_manager._load_versions()
+    persisted_versions = await asyncio.to_thread(
+        _load_versions_fail_closed,
+        update_manager,
+    )
+    update_manager.versions = persisted_versions
 
 
 def _current_session_factory() -> SessionFactory:
@@ -345,6 +394,7 @@ __all__ = [
     "UpdateLeaseContended",
     "UpdateLeaseError",
     "UpdateLeaseReleaseError",
+    "VersionStateRefreshError",
     "configured_periodic_owner",
     "refresh_update_version_state",
     "resolve_scheduler_mode",

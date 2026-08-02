@@ -709,7 +709,7 @@ def test_process_local_lease_requires_explicit_dev_or_test(
 
 
 def test_invalidate_connection_ignores_missing_connection() -> None:
-    assert scheduler_runtime._invalidate_connection(None) is None
+    scheduler_runtime._invalidate_connection(None)
 
 
 def test_admin_force_update_maps_only_definite_contention_to_409(
@@ -734,11 +734,13 @@ def test_admin_force_update_maps_only_definite_contention_to_409(
 
 def test_admin_rollback_runs_inside_lease_and_maps_contention_to_409(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     events: list[str] = []
 
     class _Manager:
         versions: dict[str, object] = {}
+        versions_file = tmp_path / "missing-database-versions.json"
 
         def _load_versions(self) -> dict[str, object]:
             events.append("refresh")
@@ -778,6 +780,64 @@ def test_admin_rollback_runs_inside_lease_and_maps_contention_to_409(
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "update_already_in_progress"
     assert events == []
+
+
+def test_version_refresh_offloads_persisted_store_io_from_event_loop(
+    tmp_path: Path,
+) -> None:
+    load_thread_ids: list[int] = []
+
+    class _Manager:
+        versions: dict[str, object] = {"stale": object()}
+        versions_file = tmp_path / "missing-database-versions.json"
+
+        def _load_versions(self) -> dict[str, object]:
+            load_thread_ids.append(threading.get_ident())
+            return {"fresh": object()}
+
+    manager = _Manager()
+
+    async def scenario() -> int:
+        event_loop_thread_id = threading.get_ident()
+        await scheduler_runtime.refresh_update_version_state(manager)
+        return event_loop_thread_id
+
+    event_loop_thread_id = asyncio.run(scenario())
+
+    assert load_thread_ids
+    assert load_thread_ids[0] != event_loop_thread_id
+    assert set(manager.versions) == {"fresh"}
+
+
+def test_version_refresh_parse_failure_blocks_leased_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from core.food_apis import scheduler as scheduler_module
+    from core.food_apis.update_manager import DatabaseUpdateManager
+
+    manager = DatabaseUpdateManager(cache_dir=tmp_path)
+    manager.versions_file.write_text("{invalid-json", encoding="utf-8")
+    update_database = AsyncMock()
+    monkeypatch.setattr(manager, "update_database", update_database)
+    scheduler = object.__new__(scheduler_module.DatabaseUpdateScheduler)
+    scheduler.update_manager = manager
+
+    async def run_lease(operation: Any) -> Any:
+        return await operation()
+
+    monkeypatch.setattr(scheduler_module, "run_with_update_lease", run_lease)
+
+    try:
+        with pytest.raises(
+            scheduler_runtime.VersionStateRefreshError,
+            match="could not be read",
+        ):
+            asyncio.run(scheduler.force_update("usda"))
+        update_database.assert_not_awaited()
+        assert manager.versions == {}
+    finally:
+        asyncio.run(manager.close())
 
 
 def test_lease_refresh_preserves_sequential_manager_version_metadata(
@@ -877,9 +937,10 @@ def test_scheduler_loop_backs_off_after_incomplete_attempt(
     )
     scheduler.is_running = True
     if isinstance(outcome, Exception):
-        scheduler._run_update_check = AsyncMock(side_effect=outcome)
+        update_check = AsyncMock(side_effect=outcome)
     else:
-        scheduler._run_update_check = AsyncMock(return_value=outcome)
+        update_check = AsyncMock(return_value=outcome)
+    monkeypatch.setattr(scheduler, "_run_update_check", update_check)
     delays: list[float] = []
 
     async def record_sleep(delay: float) -> None:
@@ -894,7 +955,7 @@ def test_scheduler_loop_backs_off_after_incomplete_attempt(
         asyncio.run(scheduler.update_manager.close())
 
     assert delays == [expected_delay]
-    scheduler._run_update_check.assert_awaited_once()
+    update_check.assert_awaited_once()
 
 
 def test_scheduler_due_cycle_updates_watermark_only_after_success(
@@ -903,7 +964,12 @@ def test_scheduler_due_cycle_updates_watermark_only_after_success(
     from core.food_apis import scheduler as scheduler_module
 
     scheduler = scheduler_module.DatabaseUpdateScheduler(install_signal_handlers=False)
-    scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": False})
+    check_for_updates = AsyncMock(return_value={"usda": False})
+    monkeypatch.setattr(
+        scheduler.update_manager,
+        "check_for_updates",
+        check_for_updates,
+    )
     lease_calls = 0
 
     async def run_lease(operation: Any) -> Any:
@@ -916,11 +982,16 @@ def test_scheduler_due_cycle_updates_watermark_only_after_success(
         assert asyncio.run(scheduler._run_update_check()) is True
         assert scheduler.last_update_check is not None
         assert asyncio.run(scheduler._run_update_check()) is True
-        assert scheduler.update_manager.check_for_updates.await_count == 1
+        assert check_for_updates.await_count == 1
         assert lease_calls == 2
 
         scheduler.last_update_check = None
-        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": True})
+        check_for_updates = AsyncMock(return_value={"usda": True})
+        monkeypatch.setattr(
+            scheduler.update_manager,
+            "check_for_updates",
+            check_for_updates,
+        )
         monkeypatch.setattr(scheduler, "_run_source_update", AsyncMock(return_value=False))
         assert asyncio.run(scheduler._run_update_check()) is False
         assert scheduler.last_update_check is None

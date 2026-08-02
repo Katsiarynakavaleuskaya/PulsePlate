@@ -199,7 +199,7 @@ class DatabaseUpdateScheduler:
 
         async def _run_due_check() -> bool:
             # The authoritative due check must happen after lease acquisition.
-            refresh_update_version_state(self.update_manager)
+            await refresh_update_version_state(self.update_manager)
             current_time = now_utc()
             if not self._should_check_for_updates(current_time):
                 return True
@@ -305,7 +305,7 @@ class DatabaseUpdateScheduler:
         """
 
         async def _run_forced_update() -> dict[str, UpdateResult]:
-            refresh_update_version_state(self.update_manager)
+            await refresh_update_version_state(self.update_manager)
             results: dict[str, UpdateResult] = {}
 
             if source:
