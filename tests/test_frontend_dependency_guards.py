@@ -997,11 +997,13 @@ def _discover_brace_expansion_surface_occurrences(
     relative: str,
     document: dict,
 ) -> tuple[dict[tuple[str, ...], object], dict[str, dict]]:
-    manifest_occurrences = _find_override_key_paths(document, target="brace-expansion")
-    lock_entries: dict[str, dict] = {}
-    if PurePosixPath(relative).name in NPM_LOCK_SURFACE_BASENAMES:
-        lock_entries = _discover_brace_expansion_lock_entries(document.get("packages"))
-    return manifest_occurrences, lock_entries
+    basename = PurePosixPath(relative).name
+    if basename == "package.json":
+        return _find_override_key_paths(document, target="brace-expansion"), {}
+    assert (
+        basename in NPM_LOCK_SURFACE_BASENAMES
+    ), f"{relative}: unsupported npm surface basename reached occurrence discovery"
+    return {}, _discover_brace_expansion_lock_entries(document.get("packages"))
 
 
 def _assert_brace_expansion_security_class(
@@ -1243,11 +1245,28 @@ def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path
 
     assert _enumerate_repo_npm_surfaces(root=tmp_path) == relative_surfaces
     for relative in relative_surfaces:
-        _, lock_entries = _discover_brace_expansion_surface_occurrences(
+        manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
             relative=relative,
             document=_load_json(tmp_path / relative),
         )
+        assert manifest_occurrences == {}
         assert set(lock_entries) == {"node_modules/brace-expansion"}
+
+
+@pytest.mark.parametrize("basename", sorted(NPM_LOCK_SURFACE_BASENAMES))
+def test_lock_surface_dependency_edges_are_not_installed_occurrences(basename: str) -> None:
+    """Resolver edges in lock documents are not manifest or installed occurrences."""
+
+    manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
+        relative=f"graph/{basename}",
+        document={
+            "lockfileVersion": 3,
+            "packages": {"": {"dependencies": {"brace-expansion": "^2.0.1"}}},
+        },
+    )
+
+    assert manifest_occurrences == {}
+    assert lock_entries == {}
 
 
 @pytest.mark.parametrize(
