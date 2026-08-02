@@ -207,8 +207,7 @@ def _is_empty_or_malformed(chunk: RAGChunk) -> bool:
             return True
     elif score_type is int:
         try:
-            if not math.isfinite(float(score)):
-                return True
+            float(score)
         except OverflowError:
             return True
     else:
