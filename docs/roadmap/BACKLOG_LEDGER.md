@@ -28,7 +28,7 @@ If it is not recorded here — it does not exist.
 - [ ] P1: RAG-S2 baseline validation boundary
   - Owner: backend-engineer
   - Priority: P1 (AI runtime trust / response continuity)
-  - Target PR: TBD after opening `codex/rag-baseline-validation-boundary`
+  - Target PR: [PR #2232](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2232)
   - Status: In progress on `codex/rag-baseline-validation-boundary`
   - Area: backend / RAG / Insight runtime / knowledge admission
   - Business reason (EN): Keep the available non-medical wellness response when
