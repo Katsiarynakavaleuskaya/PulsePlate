@@ -615,6 +615,7 @@ NODE24_FINAL_STAGE_COPY_ADD_LINES = (
     NODE24_FRONTEND_ASSET_COPY_LINE,
 )
 NODE24_UNSUPPORTED_FROM_ERROR = "FROM stages must use the supported single-line form"
+NODE24_UNSUPPORTED_HEREDOC_ERROR = "Docker heredoc instructions are unsupported"
 NODE24_SUPPORTED_FROM_RE = re.compile(
     r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"(?:\s+AS\s+(?P<alias>[^\s\\`]+))?\s*",
     flags=re.IGNORECASE,
@@ -724,15 +725,15 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     logical_instructions, has_incomplete_logical_instruction = _docker_logical_instructions(
         dockerfile_lines
     )
+    dockerfile_has_heredoc = any(
+        re.search(r"<\s*<", instruction) is not None
+        for _start_index, _end_index, instruction in logical_instructions
+    )
     final_stage_logical_instructions = [
         instruction
         for start_index, _end_index, instruction in logical_instructions
         if start_index > final_stage_start_index
     ]
-    final_stage_has_heredoc = any(
-        re.search(r"<\s*<", instruction) is not None
-        for instruction in final_stage_logical_instructions
-    )
     final_stage_copy_add_lines = [
         line
         for line_index, line in enumerate(dockerfile_lines)
@@ -745,8 +746,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
     if has_incomplete_logical_instruction:
         errors.append("Dockerfile logical instructions must be complete")
-    if final_stage_has_heredoc:
-        errors.append("final-stage Docker heredoc instructions are unsupported")
+    if dockerfile_has_heredoc:
+        errors.append(NODE24_UNSUPPORTED_HEREDOC_ERROR)
     if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
         errors.append("frontend-build must have exactly one immutable Node owner")
     if node_from_stage_lines != [NODE24_FRONTEND_BUILD_LINE]:
@@ -1156,7 +1157,7 @@ def test_node24_frontend_builder_guard_rejects_final_stage_heredoc() -> None:
 
     errors = _node24_frontend_builder_contract_errors(disguised)
 
-    assert "final-stage Docker heredoc instructions are unsupported" in errors
+    assert NODE24_UNSUPPORTED_HEREDOC_ERROR in errors
 
 
 def test_node24_frontend_builder_guard_rejects_split_final_stage_heredoc() -> None:
@@ -1182,7 +1183,27 @@ def test_node24_frontend_builder_guard_rejects_split_final_stage_heredoc() -> No
 
     errors = _node24_frontend_builder_contract_errors(disguised)
 
-    assert "final-stage Docker heredoc instructions are unsupported" in errors
+    assert NODE24_UNSUPPORTED_HEREDOC_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_pre_final_stage_heredoc() -> None:
+    """A heredoc cannot turn the apparent final stage and handoff into data."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    runtime_stage = next(line for line in dockerfile.splitlines() if line.startswith("FROM caddy:"))
+    disguised = dockerfile.replace(
+        runtime_stage,
+        "\n".join(("RUN <<'#OUTER'", ": <<'#INNER'", runtime_stage)),
+        1,
+    ).replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "\n".join((NODE24_FRONTEND_ASSET_COPY_LINE, "#INNER", "#OUTER")),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(disguised)
+
+    assert NODE24_UNSUPPORTED_HEREDOC_ERROR in errors
 
 
 def test_node24_frontend_builder_reset_clears_pre_handoff_seed() -> None:
