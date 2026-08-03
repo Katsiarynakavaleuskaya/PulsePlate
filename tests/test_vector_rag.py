@@ -245,37 +245,132 @@ class TestVectorRetrievalFallback:
         assert ctx.chunks[0].content == "jaccard result"
 
     def test_flag_on_vector_error_falls_back_to_jaccard(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """Vector failure must fall back to Jaccard (no 500)."""
+        """Vector failure must fall back without leaking exception diagnostics."""
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "true")
 
         import core.rag.vector_rag as vector_rag
+
+        query_sentinel = "VECTOR_RAW_QUERY_SENTINEL"
+        exception_sentinel = "VECTOR_RECOVERY_EXCEPTION_SENTINEL"
+        chunk_id_sentinel = "VECTOR_FALLBACK_CHUNK_ID_SENTINEL"
+        chunk_file_sentinel = "VECTOR_FALLBACK_FILE_SENTINEL"
+        chunk_content_sentinel = "VECTOR_FALLBACK_CONTENT_SENTINEL"
+        chunk_score_sentinel = 0.987654321
+        warning_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        original_warning = vector_rag.logger.warning
+
+        def _capture_warning(*args: object, **kwargs: object) -> None:
+            warning_calls.append((args, kwargs))
+            original_warning(*args, **kwargs)
+
+        def _sentinel_jaccard(query: str, **_: object) -> _FakeContext:
+            return _FakeContext(
+                query=query,
+                refined_queries=[query],
+                chunks=[
+                    _FakeChunk(
+                        chunk_id_sentinel,
+                        chunk_file_sentinel,
+                        chunk_content_sentinel,
+                        chunk_score_sentinel,
+                    )
+                ],
+                confidence=chunk_score_sentinel,
+                hops=1,
+                latency_ms=5,
+            )
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
         _ack_vector_embedding_model(monkeypatch)
         monkeypatch.setattr(
             "core.rag.vector_rag._retrieve_vector_from_db",
-            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("DB down")),
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError(exception_sentinel)),
         )
-        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _fake_jaccard)
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _sentinel_jaccard)
+        monkeypatch.setattr(vector_rag.logger, "warning", _capture_warning)
 
-        ctx = vector_rag.retrieve_context_structured("test query")
+        with caplog.at_level("WARNING", logger=vector_rag.logger.name):
+            ctx = vector_rag.retrieve_context_structured(query_sentinel)
+
         assert isinstance(ctx, _FakeContext)
-        assert ctx.chunks[0].chunk_id == "j:1"
+        assert ctx.query == query_sentinel
+        assert ctx.refined_queries == [query_sentinel]
+        assert [
+            (chunk.chunk_id, chunk.file, chunk.content, chunk.score) for chunk in ctx.chunks
+        ] == [
+            (
+                chunk_id_sentinel,
+                chunk_file_sentinel,
+                chunk_content_sentinel,
+                chunk_score_sentinel,
+            )
+        ]
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
+        assert warning_calls == [(("Vector retrieval failed; falling back to Jaccard",), {})]
+        records = [
+            record
+            for record in caplog.records
+            if record.getMessage() == "Vector retrieval failed; falling back to Jaccard"
+        ]
+        assert len(records) == 1
+        assert records[0].args == ()
+        assert records[0].exc_info is None
+        assert records[0].exc_text is None
+        assert records[0].stack_info is None
+        for sentinel in (
+            query_sentinel,
+            exception_sentinel,
+            chunk_id_sentinel,
+            chunk_file_sentinel,
+            chunk_content_sentinel,
+            repr(chunk_score_sentinel),
+        ):
+            assert sentinel not in records[0].getMessage()
+            assert sentinel not in caplog.text
 
-    def test_flag_on_empty_vector_results_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """If vector returns no chunks, fall back to Jaccard."""
+    def test_flag_on_empty_vector_results_falls_back(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Empty vector results preserve fallback carriers without warning leakage."""
         import core.rag.vector_rag as vector_rag
 
+        query_sentinel = "VECTOR_EMPTY_RAW_QUERY_SENTINEL"
+        refined_query_sentinel = "VECTOR_EMPTY_REFINED_QUERY_SENTINEL"
+        chunk_id_sentinel = "VECTOR_EMPTY_FALLBACK_CHUNK_ID_SENTINEL"
+        chunk_file_sentinel = "VECTOR_EMPTY_FALLBACK_FILE_SENTINEL"
+        chunk_content_sentinel = "VECTOR_EMPTY_FALLBACK_CONTENT_SENTINEL"
+        chunk_score_sentinel = 0.876543219
         empty_ctx = RAGContext(
-            query="q",
-            refined_queries=["q"],
+            query=query_sentinel,
+            refined_queries=[refined_query_sentinel],
             chunks=[],
             confidence=0.0,
             hops=1,
             latency_ms=1,
         )
+
+        def _sentinel_jaccard(query: str, **_: object) -> _FakeContext:
+            return _FakeContext(
+                query=query,
+                refined_queries=[refined_query_sentinel],
+                chunks=[
+                    _FakeChunk(
+                        chunk_id_sentinel,
+                        chunk_file_sentinel,
+                        chunk_content_sentinel,
+                        chunk_score_sentinel,
+                    )
+                ],
+                confidence=chunk_score_sentinel,
+                hops=1,
+                latency_ms=5,
+            )
 
         monkeypatch.setattr("core.rag.vector_rag.is_rag_vector_enabled", lambda: True)
         _ack_vector_embedding_model(monkeypatch)
@@ -283,12 +378,35 @@ class TestVectorRetrievalFallback:
             "core.rag.vector_rag._retrieve_vector_from_db",
             lambda *a, **k: empty_ctx,
         )
-        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _fake_jaccard)
+        monkeypatch.setattr("core.rag.simple_rag.retrieve_context_structured", _sentinel_jaccard)
 
-        ctx = vector_rag.retrieve_context_structured("test query")
+        with caplog.at_level("WARNING", logger=vector_rag.logger.name):
+            ctx = vector_rag.retrieve_context_structured(query_sentinel)
+
         assert isinstance(ctx, _FakeContext)
-        assert ctx.chunks[0].chunk_id == "j:1"
+        assert ctx.query == query_sentinel
+        assert ctx.refined_queries == [refined_query_sentinel]
+        assert [
+            (chunk.chunk_id, chunk.file, chunk.content, chunk.score) for chunk in ctx.chunks
+        ] == [
+            (
+                chunk_id_sentinel,
+                chunk_file_sentinel,
+                chunk_content_sentinel,
+                chunk_score_sentinel,
+            )
+        ]
         assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS
+        assert caplog.records == []
+        for sentinel in (
+            query_sentinel,
+            refined_query_sentinel,
+            chunk_id_sentinel,
+            chunk_file_sentinel,
+            chunk_content_sentinel,
+            repr(chunk_score_sentinel),
+        ):
+            assert sentinel not in caplog.text
 
     def test_missing_subject_id_fallback_sets_degraded_reason(
         self,

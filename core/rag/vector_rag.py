@@ -533,10 +533,7 @@ def retrieve_context_structured(
                 logger.debug("Vector retrieval returned no chunks; falling back to Jaccard")
             except Exception:
                 fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
-                logger.warning(
-                    "Vector retrieval failed; falling back to Jaccard",
-                    exc_info=True,
-                )
+                logger.warning("Vector retrieval failed; falling back to Jaccard")
 
     # Fallback to Jaccard
     from core.rag.simple_rag import retrieve_context_structured as _jaccard_retrieve

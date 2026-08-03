@@ -605,8 +605,7 @@ def retrieve_recursive_context_structured(
     except Exception:
         if merged_chunks:
             logger.warning(
-                "Recursive retrieval failed after partial success; returning best partial context",
-                exc_info=True,
+                "Recursive retrieval failed after partial success; returning best partial context"
             )
             final_chunks = _rank_chunks(merged_chunks.values(), limit)
             return RAGContext(
@@ -620,10 +619,7 @@ def retrieve_recursive_context_structured(
                 user_tier=user_tier,
                 optimization_stats=optimization_stats,
             )
-        logger.warning(
-            "Recursive retrieval failed; returning safe empty context",
-            exc_info=True,
-        )
+        logger.warning("Recursive retrieval failed; returning safe empty context")
         return RAGContext(
             query=query,
             refined_queries=[query],

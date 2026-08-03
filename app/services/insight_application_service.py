@@ -113,15 +113,9 @@ async def _maybe_promote_knowledge_candidates(
                 timeout=KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS,
             )
     except asyncio.TimeoutError:
-        logger.warning(
-            "Knowledge promotion timed out; response path continues without persistence",
-            exc_info=True,
-        )
+        logger.warning("Knowledge promotion timed out; response path continues without persistence")
     except Exception:
-        logger.warning(
-            "Knowledge promotion failed; response path continues without persistence",
-            exc_info=True,
-        )
+        logger.warning("Knowledge promotion failed; response path continues without persistence")
 
 
 async def execute_insight_request(

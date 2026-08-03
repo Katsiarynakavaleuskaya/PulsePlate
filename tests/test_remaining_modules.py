@@ -15,7 +15,7 @@ import importlib
 import json
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import asyncio
 
@@ -1328,6 +1328,66 @@ class TestInsightApplicationServiceFastLane:
             ),
         )
 
+    @staticmethod
+    def _sentinel_candidate(
+        prefix: str,
+    ) -> tuple["KnowledgeFactCandidate", tuple[str, ...]]:
+        from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
+
+        fact_key_sentinel = f"{prefix}_FACT_KEY_SENTINEL"
+        subject_sentinel = f"{prefix}_SUBJECT_SENTINEL"
+        predicate_sentinel = f"{prefix}_PREDICATE_SENTINEL"
+        value_sentinel = f"{prefix}_VALUE_SENTINEL"
+        access_scope_sentinel = f"{prefix}_ACCESS_SCOPE_SENTINEL"
+        chunk_id_sentinel = f"{prefix}_PROVENANCE_CHUNK_SENTINEL"
+        chunk_file_sentinel = f"{prefix}_PROVENANCE_FILE_SENTINEL"
+        candidate = KnowledgeFactCandidate(
+            fact_key=fact_key_sentinel,
+            subject=subject_sentinel,
+            predicate=predicate_sentinel,
+            value=value_sentinel,
+            observed_at=datetime(2026, 8, 3, tzinfo=timezone.utc),
+            confidence=0.91,
+            access_scope=access_scope_sentinel,
+            rail="product_ai_runtime",
+            provenance=(
+                KnowledgeEvidenceRef(
+                    chunk_id=chunk_id_sentinel,
+                    file=chunk_file_sentinel,
+                    score=0.91,
+                    hop=1,
+                ),
+            ),
+        )
+        return candidate, (
+            fact_key_sentinel,
+            subject_sentinel,
+            predicate_sentinel,
+            value_sentinel,
+            access_scope_sentinel,
+            chunk_id_sentinel,
+            chunk_file_sentinel,
+        )
+
+    @staticmethod
+    def _assert_fixed_recovery_warning(
+        *,
+        caplog: pytest.LogCaptureFixture,
+        warning_spy: MagicMock,
+        expected_message: str,
+        sentinels: Sequence[str],
+    ) -> None:
+        warning_spy.assert_called_once_with(expected_message)
+        records = [record for record in caplog.records if record.getMessage() == expected_message]
+        assert len(records) == 1
+        assert records[0].args == ()
+        assert records[0].exc_info is None
+        assert records[0].exc_text is None
+        assert records[0].stack_info is None
+        for sentinel in sentinels:
+            assert sentinel not in records[0].getMessage()
+            assert sentinel not in caplog.text
+
     def test_maybe_promote_knowledge_candidates_awaits_async_store(self) -> None:
         """Async stores must be awaited before the response path continues."""
 
@@ -1355,18 +1415,20 @@ class TestInsightApplicationServiceFastLane:
     def test_maybe_promote_knowledge_candidates_logs_and_swallows_store_errors(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Store failures must not break the user response path."""
 
         from app.services import insight_application_service
-        from core.knowledge.contracts import KnowledgeFactCandidate
 
-        warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        candidate, candidate_sentinels = self._sentinel_candidate("KNOWLEDGE_ERROR")
+        exception_sentinel = "KNOWLEDGE_PROMOTION_EXCEPTION_SENTINEL"
+        observed: dict[str, object] = {}
 
         class _BrokenStore:
             def promote(self, candidates: list[object]) -> list[object]:
-                del candidates
-                raise RuntimeError("boom")
+                observed["candidates"] = candidates
+                raise RuntimeError(exception_sentinel)
 
         # Isolate the store-error branch; timeout branches are covered below.
         monkeypatch.setattr(
@@ -1375,39 +1437,44 @@ class TestInsightApplicationServiceFastLane:
             float("inf"),
             raising=True,
         )
-        monkeypatch.setattr(
-            insight_application_service.logger,
-            "warning",
-            lambda *args, **kwargs: warnings.append((args, kwargs)),
-            raising=True,
-        )
+        warning_spy = MagicMock(wraps=insight_application_service.logger.warning)
+        monkeypatch.setattr(insight_application_service.logger, "warning", warning_spy)
 
-        asyncio.run(
-            insight_application_service._maybe_promote_knowledge_candidates(
-                knowledge_store=_BrokenStore(),
-                candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
-                verification_bundle=self._verification_bundle(),
+        with caplog.at_level("WARNING", logger=insight_application_service.logger.name):
+            result = asyncio.run(
+                insight_application_service._maybe_promote_knowledge_candidates(
+                    knowledge_store=_BrokenStore(),
+                    candidates=[candidate],
+                    verification_bundle=self._verification_bundle(),
+                )
             )
-        )
 
-        assert warnings
-        assert "Knowledge promotion failed" in str(warnings[0][0][0])
-        assert warnings[0][1]["exc_info"] is True
+        assert result is None
+        assert observed["candidates"] == [candidate]
+        self._assert_fixed_recovery_warning(
+            caplog=caplog,
+            warning_spy=warning_spy,
+            expected_message=(
+                "Knowledge promotion failed; response path continues without persistence"
+            ),
+            sentinels=(*candidate_sentinels, exception_sentinel),
+        )
 
     def test_maybe_promote_knowledge_candidates_times_out_async_store(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Timed-out promotion must degrade to logging instead of request latency."""
 
-        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
-        from core.knowledge.contracts import KnowledgeFactCandidate
+        from app.services import insight_application_service
 
-        warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        candidate, candidate_sentinels = self._sentinel_candidate("KNOWLEDGE_ASYNC_TIMEOUT")
+        observed: dict[str, object] = {}
 
         class _SlowStore:
             def promote(self, candidates: list[object]) -> object:
-                del candidates
+                observed["candidates"] = candidates
 
                 async def _stall() -> list[object]:
                     await asyncio.Future()
@@ -1415,27 +1482,33 @@ class TestInsightApplicationServiceFastLane:
                 return _stall()
 
         monkeypatch.setattr(
-            "app.services.insight_application_service.KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
+            insight_application_service,
+            "KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
             0.01,
             raising=True,
         )
-        monkeypatch.setattr(
-            "app.services.insight_application_service.logger.warning",
-            lambda *args, **kwargs: warnings.append((args, kwargs)),
-            raising=True,
-        )
+        warning_spy = MagicMock(wraps=insight_application_service.logger.warning)
+        monkeypatch.setattr(insight_application_service.logger, "warning", warning_spy)
 
-        asyncio.run(
-            _maybe_promote_knowledge_candidates(
-                knowledge_store=_SlowStore(),
-                candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
-                verification_bundle=self._verification_bundle(),
+        with caplog.at_level("WARNING", logger=insight_application_service.logger.name):
+            result = asyncio.run(
+                insight_application_service._maybe_promote_knowledge_candidates(
+                    knowledge_store=_SlowStore(),
+                    candidates=[candidate],
+                    verification_bundle=self._verification_bundle(),
+                )
             )
-        )
 
-        assert warnings
-        assert "Knowledge promotion timed out" in str(warnings[0][0][0])
-        assert warnings[0][1]["exc_info"] is True
+        assert result is None
+        assert observed["candidates"] == [candidate]
+        self._assert_fixed_recovery_warning(
+            caplog=caplog,
+            warning_spy=warning_spy,
+            expected_message=(
+                "Knowledge promotion timed out; response path continues without persistence"
+            ),
+            sentinels=candidate_sentinels,
+        )
 
     def test_traced_retriever_uses_prepared_recursive_rollout_policy(
         self,
@@ -1787,42 +1860,49 @@ class TestInsightApplicationServiceFastLane:
     def test_maybe_promote_knowledge_candidates_times_out_sync_store(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Sync promotion must also respect the bounded timeout via thread offload."""
 
-        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
-        from core.knowledge.contracts import KnowledgeFactCandidate
+        from app.services import insight_application_service
 
-        warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        candidate, candidate_sentinels = self._sentinel_candidate("KNOWLEDGE_SYNC_TIMEOUT")
+        observed: dict[str, object] = {}
 
         class _SlowSyncStore:
             def promote(self, candidates: list[object]) -> list[object]:
-                del candidates
+                observed["candidates"] = candidates
                 time.sleep(0.05)
                 return []
 
         monkeypatch.setattr(
-            "app.services.insight_application_service.KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
+            insight_application_service,
+            "KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
             0.01,
             raising=True,
         )
-        monkeypatch.setattr(
-            "app.services.insight_application_service.logger.warning",
-            lambda *args, **kwargs: warnings.append((args, kwargs)),
-            raising=True,
-        )
+        warning_spy = MagicMock(wraps=insight_application_service.logger.warning)
+        monkeypatch.setattr(insight_application_service.logger, "warning", warning_spy)
 
-        asyncio.run(
-            _maybe_promote_knowledge_candidates(
-                knowledge_store=_SlowSyncStore(),
-                candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
-                verification_bundle=self._verification_bundle(),
+        with caplog.at_level("WARNING", logger=insight_application_service.logger.name):
+            result = asyncio.run(
+                insight_application_service._maybe_promote_knowledge_candidates(
+                    knowledge_store=_SlowSyncStore(),
+                    candidates=[candidate],
+                    verification_bundle=self._verification_bundle(),
+                )
             )
-        )
 
-        assert warnings
-        assert "Knowledge promotion timed out" in str(warnings[0][0][0])
-        assert warnings[0][1]["exc_info"] is True
+        assert result is None
+        assert observed["candidates"] == [candidate]
+        self._assert_fixed_recovery_warning(
+            caplog=caplog,
+            warning_spy=warning_spy,
+            expected_message=(
+                "Knowledge promotion timed out; response path continues without persistence"
+            ),
+            sentinels=candidate_sentinels,
+        )
 
 
 class TestPhilosophicalRuntimeFastLane:
