@@ -61,7 +61,7 @@ class TestAppMiddlewareCoverage:
         response = self.client.options("/api/v1/bodyfat", headers=headers)
         assert response.status_code in [200, 405]
 
-    def test_app_middleware_setup_coverage(self, test_environment):
+    def test_app_middleware_setup_coverage(self, test_environment: None) -> None:
         """Тест покрытия app.py middleware setup (строки 1987, 2014, 2061, 2064-2065)"""
         # Тестируем middleware setup через различные запросы
         response = self.client.get("/health")
@@ -70,7 +70,6 @@ class TestAppMiddlewareCoverage:
         response = self.client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 200
 
@@ -117,7 +116,7 @@ class TestAppMiddlewareCoverage:
         response = self.client.get("/docs", headers=headers)
         assert response.status_code == 200
 
-    def test_app_middleware_request_processing_coverage(self, test_environment):
+    def test_app_middleware_request_processing_coverage(self, test_environment: None) -> None:
         """Тест покрытия app.py middleware request processing"""
         # Тестируем middleware request processing
         response = self.client.get("/health")
@@ -126,7 +125,6 @@ class TestAppMiddlewareCoverage:
         response = self.client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 200
 
@@ -167,7 +165,7 @@ class TestAppMiddlewareCoverage:
             response = self.client.get("/health", headers=headers)
             assert response.status_code == 200
 
-    def test_app_middleware_cors_methods_coverage(self, test_environment):
+    def test_app_middleware_cors_methods_coverage(self, test_environment: None) -> None:
         """Тест покрытия app.py middleware CORS methods"""
         # Тестируем CORS methods handling
         methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -179,7 +177,6 @@ class TestAppMiddlewareCoverage:
                 response = self.client.post(
                     "/api/v1/bmi",
                     json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-                    headers={"X-API-Key": "test_key"},
                 )
             elif method == "PUT":
                 response = self.client.put("/health")
@@ -209,7 +206,7 @@ class TestAppMiddlewareCoverage:
             response = self.client.get("/health", headers=headers)
             assert response.status_code == 200
 
-    def test_app_middleware_cors_credentials_coverage(self, test_environment):
+    def test_app_middleware_cors_credentials_coverage(self, test_environment: None) -> None:
         """Тест покрытия app.py middleware CORS credentials"""
         # Тестируем CORS credentials handling
         response = self.client.get("/health")
@@ -218,7 +215,6 @@ class TestAppMiddlewareCoverage:
         response = self.client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 200
 
@@ -267,7 +263,7 @@ class TestAppMiddlewareCoverage:
         response = self.client.options("/api/v1/bodyfat")
         assert response.status_code in [200, 405]
 
-    def test_app_middleware_cors_allow_credentials_coverage(self, test_environment):
+    def test_app_middleware_cors_allow_credentials_coverage(self, test_environment: None) -> None:
         """Тест покрытия app.py middleware CORS allow credentials"""
         # Тестируем CORS allow credentials handling
         response = self.client.get("/health")
@@ -276,6 +272,5 @@ class TestAppMiddlewareCoverage:
         response = self.client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 200

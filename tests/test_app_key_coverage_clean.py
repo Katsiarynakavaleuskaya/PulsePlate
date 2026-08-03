@@ -94,7 +94,7 @@ class TestAPIKeyModes:
 class TestMetricsFallbacks:
     """Тесты fallback'ов метрик"""
 
-    def test_metrics_endpoint_responds(self):
+    def test_metrics_endpoint_responds(self) -> None:
         """Тест, что /metrics эндпоинт отвечает (smoke test, не контролирует наличие prometheus)."""
         # Smoke test: metrics endpoint should respond with 200
         from app.main import app as main_app
@@ -106,7 +106,7 @@ class TestMetricsFallbacks:
             content = response.content.decode()
             assert "python_info" in content or "# HELP" in content or len(content) > 0
 
-    def test_metrics_endpoint_responds_in_current_env(self):
+    def test_metrics_endpoint_responds_in_current_env(self) -> None:
         """Тест, что /metrics отвечает в текущей среде (smoke test, не контролирует prometheus availability)."""
         # Smoke test: metrics endpoint should respond
         from app.main import app as main_app

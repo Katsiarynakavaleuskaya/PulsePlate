@@ -10,7 +10,7 @@ from tests._client import open_test_client
 
 
 @pytest.fixture
-def client(
+def production_client(
     test_environment: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[TestClient, None, None]:
@@ -32,30 +32,34 @@ def disable_optional_modules(monkeypatch: pytest.MonkeyPatch, *modules: str) -> 
         monkeypatch.delitem(sys.modules, module, raising=False)
 
 
-def test_export_csv_no_key_auth_only(client: TestClient) -> None:
+def test_export_csv_no_key_auth_only(production_client: TestClient) -> None:
     """Checks that a 403 is returned when no API key is provided for protected CSV export.
 
     This test only verifies authentication behavior, not dependency handling.
     CSV export uses the standard csv module, not pandas.
     """
-    response = client.get("/api/v1/premium/exports/day/plan123.csv")
+    response = production_client.get("/api/v1/premium/exports/day/plan123.csv")
     # Endpoint requires API key, expect 403 if not provided, or 404 if not found
     assert response.status_code in [403, 404]
 
 
 def test_rag_context_fallback(
-    client: TestClient, vip_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    production_client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Проверяет fallback-ветку RAG (core.rag) — ImportError не должен ломать insight endpoint."""
     disable_optional_modules(monkeypatch, "core.rag.simple_rag")
     payload = {"text": "What is BMI?"}
-    response = client.post("/api/v1/insight", json=payload, headers=vip_headers)
+    response = production_client.post("/api/v1/insight", json=payload, headers=vip_headers)
     # VIP tier gate runs before handler; FEATURE_INSIGHT may still be disabled (503).
     assert response.status_code in [200, 503]
 
 
 def test_premium_nutrient_gaps_fallback(
-    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    production_client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Проверяет fallback-ветку premium nutrient gaps (analyze_nutrient_gaps ImportError)."""
     disable_optional_modules(monkeypatch, "core.menu_engine")
@@ -68,19 +72,18 @@ def test_premium_nutrient_gaps_fallback(
         # Expected when optional modules are missing - app.py should handle this gracefully
         pass
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/gaps", json=payload, headers=pro_headers)
+    response = production_client.post("/api/v1/premium/gaps", json=payload, headers=pro_headers)
     # If API key is invalid, expect 403, else 503/500
     assert response.status_code in (503, 500, 403)
 
 
-def test_bmi_endpoint_invalid_payload(client: TestClient, pro_headers: dict[str, str]) -> None:
+def test_bmi_endpoint_invalid_payload(production_client: TestClient) -> None:
     """Проверяет 422 Unprocessable Entity для невалидного запроса к /api/v1/bmi."""
-    response = client.post("/api/v1/bmi", json={"weight_kg": None}, headers=pro_headers)
-    # If API key is invalid, expect 403, else 422
-    assert response.status_code in [422, 403]
+    response = production_client.post("/api/v1/bmi", json={"weight_kg": None})
+    assert response.status_code == 422
 
 
-def test_bmi_endpoint_value_error(client: TestClient, pro_headers: dict[str, str]) -> None:
+def test_bmi_endpoint_value_error(production_client: TestClient) -> None:
     """Проверяет 400 Bad Request при ValueError в /api/v1/bmi (например, строка вместо числа)."""
     bad_payload = {
         "weight_kg": "not_a_number",
@@ -89,18 +92,19 @@ def test_bmi_endpoint_value_error(client: TestClient, pro_headers: dict[str, str
         "sex": "male",
         "activity": "sedentary",
     }
-    response = client.post("/api/v1/bmi", json=bad_payload, headers=pro_headers)
-    # If API key is invalid, expect 403, else 400/422
-    assert response.status_code in (400, 422, 403)
+    response = production_client.post("/api/v1/bmi", json=bad_payload)
+    assert response.status_code in (400, 422)
 
 
 def test_premium_bmr_403_if_feature_flag(
-    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    production_client: TestClient,
+    pro_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Проверяет 503 Service Unavailable если FEATURE_PREMIUM_NUTRITION=0."""
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "0")
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/bmr", json=payload, headers=pro_headers)
+    response = production_client.post("/api/v1/premium/bmr", json=payload, headers=pro_headers)
     # If API key is invalid, expect 403, else 503
     assert response.status_code in [503, 403]
 
@@ -127,21 +131,21 @@ def test_no_premium_week_router(monkeypatch: pytest.MonkeyPatch) -> None:
     assert app_module.premium_week_router is not None
 
 
-def test_root_endpoint(client: TestClient) -> None:
-    response = client.get("/")
+def test_root_endpoint(production_client: TestClient) -> None:
+    response = production_client.get("/")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
     probe = response.json()
     assert probe.get("service") == "pulseplate-api"
 
 
-def test_invalid_route(client: TestClient) -> None:
-    response = client.get("/nonexistent-endpoint")
+def test_invalid_route(production_client: TestClient) -> None:
+    response = production_client.get("/nonexistent-endpoint")
     assert response.status_code == 404
 
 
-def test_health_endpoint(client: TestClient) -> None:
-    response = client.get("/api/v1/health")
+def test_health_endpoint(production_client: TestClient) -> None:
+    response = production_client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json().get("status") == "ok"
 
@@ -186,8 +190,8 @@ def test_vip_module_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
         raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
 
 
-def test_invalid_method(client: TestClient, pro_headers: dict[str, str]) -> None:
-    response = client.put("/api/v1/health", headers=pro_headers)
+def test_invalid_method(production_client: TestClient, pro_headers: dict[str, str]) -> None:
+    response = production_client.put("/api/v1/health", headers=pro_headers)
     assert response.status_code in (405, 404)
 
 

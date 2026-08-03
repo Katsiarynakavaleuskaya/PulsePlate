@@ -4,9 +4,10 @@ RU: Тесты для интеграции БД для дневного спис
 EN: Tests for day shopping list database integration.
 """
 
+import asyncio
 from contextlib import contextmanager
 from datetime import date
-from typing import TYPE_CHECKING, AsyncGenerator, Callable, Generator, cast
+from typing import TYPE_CHECKING, Callable, Generator, cast
 
 import pytest
 from fastapi import FastAPI
@@ -104,12 +105,8 @@ def _assert_json_response(response: Response) -> dict[str, object]:
     return cast(dict[str, object], body)
 
 
-@pytest.fixture
-async def test_user() -> AsyncGenerator[User, None]:
-    """Create test user in DB for FK constraints.
-
-    Creates user with id=TEST_USER_ID and cleans up after test.
-    """
+async def _create_test_user() -> User:
+    """Create and return the deterministic user required by FK constraints."""
     async_session_local = _get_async_session_local()
 
     async with async_session_local() as session:
@@ -128,9 +125,13 @@ async def test_user() -> AsyncGenerator[User, None]:
             await session.commit()
             await session.refresh(user)
 
-        yield user
+        return user
 
-    # Cleanup: delete test user and related day plans in a fresh session
+
+async def _delete_test_user() -> None:
+    """Delete the deterministic user and every plan owned by the fixture."""
+    async_session_local = _get_async_session_local()
+
     async with async_session_local() as session:
         try:
             await session.execute(delete(DayPlan).where(DayPlan.user_id == TEST_USER_ID))
@@ -140,6 +141,16 @@ async def test_user() -> AsyncGenerator[User, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+@pytest.fixture
+def test_user() -> Generator[User, None, None]:
+    """Create a test user and clean up its FK-owned rows without an async pytest plugin."""
+    user = asyncio.run(_create_test_user())
+    try:
+        yield user
+    finally:
+        asyncio.run(_delete_test_user())
 
 
 @pytest.fixture
@@ -183,8 +194,7 @@ def test_pro_client_restores_preexisting_override(body_fails: bool) -> None:
     assert overrides_owner == {require_pro_tier: original_override}
 
 
-@pytest.mark.asyncio
-async def test_fetch_day_plan_when_exists_in_db(
+def test_fetch_day_plan_when_exists_in_db(
     client_with_pro_access: TestClient,
     test_user: User,
 ) -> None:
@@ -208,27 +218,29 @@ async def test_fetch_day_plan_when_exists_in_db(
         ]
     }
 
-    async_session_local = _get_async_session_local()
+    async def seed_day_plan() -> None:
+        async_session_local = _get_async_session_local()
+        async with async_session_local() as session:
+            # Create weekly plan first (required for day_plan.weekly_plan_id)
+            weekly_plan = WeeklyPlan(
+                user_id=test_user.id,
+                start_date=test_date,
+                end_date=test_date,
+                plan_data={},
+            )
+            session.add(weekly_plan)
+            await session.flush()  # Get weekly_plan.id
 
-    async with async_session_local() as session:
-        # Create weekly plan first (required for day_plan.weekly_plan_id)
-        weekly_plan = WeeklyPlan(
-            user_id=test_user.id,
-            start_date=test_date,
-            end_date=test_date,
-            plan_data={},
-        )
-        session.add(weekly_plan)
-        await session.flush()  # Get weekly_plan.id
+            day_plan = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=weekly_plan.id,
+                date=test_date,
+                plan_data=plan_data,
+            )
+            session.add(day_plan)
+            await session.commit()
 
-        day_plan = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=weekly_plan.id,
-            date=test_date,
-            plan_data=plan_data,
-        )
-        session.add(day_plan)
-        await session.commit()
+    asyncio.run(seed_day_plan())
 
     response = client_with_pro_access.get(
         f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
@@ -240,10 +252,7 @@ async def test_fetch_day_plan_when_exists_in_db(
     assert isinstance(body["items"], list)
 
 
-@pytest.mark.asyncio
-async def test_fetch_day_plan_when_not_in_db(
-    client_with_pro_access: TestClient, test_user: User
-) -> None:
+def test_fetch_day_plan_when_not_in_db(client_with_pro_access: TestClient, test_user: User) -> None:
     """When no plan in DB, fetch_day_plan returns None → empty items + warning."""
     _ = test_user  # Ensure user exists for FK constraint
     test_date = date(2025, 12, 25)
@@ -259,90 +268,96 @@ async def test_fetch_day_plan_when_not_in_db(
     assert body["warnings"] == ["no_day_plan"]
 
 
-@pytest.mark.asyncio
-async def test_day_plan_model_creation(test_user: User) -> None:
+def test_day_plan_model_creation(test_user: User) -> None:
     """Test creating DayPlan model instance."""
-    async_session_local = _get_async_session_local()
-
     test_date = date(2025, 12, 19)
 
-    async with async_session_local() as session:
-        # Create weekly plan first (required for day_plan.weekly_plan_id)
-        weekly_plan = WeeklyPlan(
-            user_id=test_user.id,
-            start_date=test_date,
-            end_date=test_date,
-            plan_data={},
-        )
-        session.add(weekly_plan)
-        await session.flush()  # Get weekly_plan.id
+    async def create_and_fetch_day_plan() -> None:
+        async_session_local = _get_async_session_local()
 
-        day_plan = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=weekly_plan.id,
-            date=test_date,
-            plan_data={"daily_menus": []},
-        )
-        session.add(day_plan)
-        await session.commit()
+        async with async_session_local() as session:
+            # Create weekly plan first (required for day_plan.weekly_plan_id)
+            weekly_plan = WeeklyPlan(
+                user_id=test_user.id,
+                start_date=test_date,
+                end_date=test_date,
+                plan_data={},
+            )
+            session.add(weekly_plan)
+            await session.flush()  # Get weekly_plan.id
 
-    # Query back in separate session
-    async with async_session_local() as session:
-        stmt = (
-            select(DayPlan).where(DayPlan.user_id == test_user.id).where(DayPlan.date == test_date)
-        )
-        result = await session.execute(stmt)
-        fetched = result.scalars().first()
+            day_plan = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=weekly_plan.id,
+                date=test_date,
+                plan_data={"daily_menus": []},
+            )
+            session.add(day_plan)
+            await session.commit()
 
-        assert fetched is not None
-        assert fetched.user_id == test_user.id
-        assert fetched.date == test_date
-        assert fetched.plan_data == {"daily_menus": []}
+        # Query back in separate session
+        async with async_session_local() as session:
+            stmt = (
+                select(DayPlan)
+                .where(DayPlan.user_id == test_user.id)
+                .where(DayPlan.date == test_date)
+            )
+            result = await session.execute(stmt)
+            fetched = result.scalars().first()
+
+            assert fetched is not None
+            assert fetched.user_id == test_user.id
+            assert fetched.date == test_date
+            assert fetched.plan_data == {"daily_menus": []}
+
+    asyncio.run(create_and_fetch_day_plan())
 
 
-@pytest.mark.asyncio
-async def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
+def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
     """Test that (user_id, date) uniqueness is enforced."""
-    async_session_local = _get_async_session_local()
-
     test_date = date(2025, 12, 21)
 
-    # Create first day plan
-    async with async_session_local() as session:
-        # Create weekly plan first (required for day_plan.weekly_plan_id)
-        weekly_plan = WeeklyPlan(
-            user_id=test_user.id,
-            start_date=test_date,
-            end_date=test_date,
-            plan_data={},
-        )
-        session.add(weekly_plan)
-        await session.flush()  # Get weekly_plan.id
+    async def assert_unique_constraint() -> None:
+        async_session_local = _get_async_session_local()
 
-        day_plan_1 = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=weekly_plan.id,
-            date=test_date,
-            plan_data={"daily_menus": []},
-        )
-        session.add(day_plan_1)
-        await session.commit()
+        # Create first day plan
+        async with async_session_local() as session:
+            # Create weekly plan first (required for day_plan.weekly_plan_id)
+            weekly_plan = WeeklyPlan(
+                user_id=test_user.id,
+                start_date=test_date,
+                end_date=test_date,
+                plan_data={},
+            )
+            session.add(weekly_plan)
+            await session.flush()  # Get weekly_plan.id
 
-    # Try to create duplicate — should fail
-    async with async_session_local() as session:
-        # Use same weekly_plan for the duplicate attempt
-        stmt = select(WeeklyPlan).where(WeeklyPlan.user_id == test_user.id)
-        result = await session.execute(stmt)
-        existing_weekly_plan = result.scalars().first()
-        assert existing_weekly_plan is not None
-
-        day_plan_2 = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=existing_weekly_plan.id,
-            date=test_date,
-            plan_data={"daily_menus": [{"meals": []}]},
-        )
-        session.add(day_plan_2)
-        with pytest.raises(IntegrityError):
+            day_plan_1 = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=weekly_plan.id,
+                date=test_date,
+                plan_data={"daily_menus": []},
+            )
+            session.add(day_plan_1)
             await session.commit()
-        await session.rollback()
+
+        # Try to create duplicate — should fail
+        async with async_session_local() as session:
+            # Use same weekly_plan for the duplicate attempt
+            stmt = select(WeeklyPlan).where(WeeklyPlan.user_id == test_user.id)
+            result = await session.execute(stmt)
+            existing_weekly_plan = result.scalars().first()
+            assert existing_weekly_plan is not None
+
+            day_plan_2 = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=existing_weekly_plan.id,
+                date=test_date,
+                plan_data={"daily_menus": [{"meals": []}]},
+            )
+            session.add(day_plan_2)
+            with pytest.raises(IntegrityError):
+                await session.commit()
+            await session.rollback()
+
+    asyncio.run(assert_unique_constraint())

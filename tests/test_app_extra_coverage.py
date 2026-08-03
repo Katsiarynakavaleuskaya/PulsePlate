@@ -91,7 +91,7 @@ class TestEndpointsAndValidation:
 
     def test_bmi_v1_success(self, client: TestClient) -> None:
         payload = {"weight_kg": 70.0, "height_cm": 175.0, "group": "general"}
-        r = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test-key"})
+        r = client.post("/api/v1/bmi", json=payload)
         assert r.status_code == 200
 
     def test_invalid_json_and_missing_fields(self, client: TestClient) -> None:
