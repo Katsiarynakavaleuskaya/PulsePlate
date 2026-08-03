@@ -29,14 +29,33 @@ from app.effective_routes import (
 )
 from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 
+_BOOTSTRAP_COMPAT_ATTRS = (
+    "VIP_MODULE_ENABLED",
+    "vip_router",
+    "pro_router",
+    "premium_week_router",
+    "FEATURE_BMI_PRO_ENABLED",
+    "bmi_router",
+    "bmi_pro_router",
+    "bmi_pro_legacy_alias_router",
+)
+
 
 @pytest.fixture(autouse=True)
-def _restore_app_singleton() -> Generator[None, None, None]:
+def _restore_app_bootstrap_state() -> Generator[None, None, None]:
     original_app = app_main.app
+    original_main_attrs = {name: getattr(app_main, name) for name in _BOOTSTRAP_COMPAT_ATTRS}
+    original_legacy_attrs = {
+        name: getattr(app_main._legacy_module, name) for name in _BOOTSTRAP_COMPAT_ATTRS
+    }
     try:
         yield
     finally:
         app_main.app = original_app
+        for name, value in original_main_attrs.items():
+            setattr(app_main, name, value)
+        for name, value in original_legacy_attrs.items():
+            setattr(app_main._legacy_module, name, value)
 
 
 def _stub_router(path: str, *, method: str = "post", include_in_schema: bool = True) -> APIRouter:
@@ -384,32 +403,6 @@ def _bodyfat_stub_router_with_unrelated_path() -> APIRouter:
     return router
 
 
-def _legacy_export_alias_stub_router(
-    *,
-    omit: frozenset[str] = frozenset(),
-    method_overrides: dict[str, str] | None = None,
-    include_overrides: dict[str, bool] | None = None,
-) -> APIRouter:
-    router = APIRouter()
-    method_override_map = method_overrides or {}
-    include_override_map = include_overrides or {}
-
-    for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        if path in omit:
-            continue
-        route_method = method_override_map.get(path, method).lower()
-        route_include = include_override_map.get(path, include_in_schema)
-
-        async def _legacy_export_alias_handler(path: str = path) -> dict[str, str]:
-            return {"status": path}
-
-        getattr(router, route_method)(path, include_in_schema=route_include)(
-            _legacy_export_alias_handler
-        )
-
-    return router
-
-
 def _plan_export_stub_routers(
     *,
     omit: frozenset[str] = frozenset(),
@@ -625,22 +618,6 @@ def _duplicate_bmi_compat_stub_router() -> APIRouter:
     return router
 
 
-def _duplicate_legacy_export_alias_stub_router() -> APIRouter:
-    router = _legacy_export_alias_stub_router()
-    duplicate_path, duplicate_method, duplicate_include = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[
-        0
-    ]
-
-    async def _second_legacy_export_alias_handler() -> dict[str, str]:
-        return {"status": "duplicate"}
-
-    getattr(router, duplicate_method.lower())(
-        duplicate_path,
-        include_in_schema=duplicate_include,
-    )(_second_legacy_export_alias_handler)
-    return router
-
-
 def _bmi_compat_stub_router_with_unrelated_path() -> APIRouter:
     router = _bmi_compat_stub_router()
 
@@ -669,37 +646,6 @@ def _bmi_compat_stub_router_with_combined_methods() -> APIRouter:
             methods=methods,
             include_in_schema=combined_include if path == combined_path else include_in_schema,
         )
-    return router
-
-
-def _legacy_export_alias_stub_router_with_combined_methods() -> APIRouter:
-    router = APIRouter()
-    combined_path, combined_method, combined_include = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-
-    for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-
-        async def _legacy_export_alias_handler(path: str = path) -> dict[str, str]:
-            return {"status": path}
-
-        methods = [method]
-        if path == combined_path:
-            methods.append("GET" if combined_method == "POST" else "POST")
-        router.add_api_route(
-            path,
-            _legacy_export_alias_handler,
-            methods=methods,
-            include_in_schema=combined_include if path == combined_path else include_in_schema,
-        )
-    return router
-
-
-def _legacy_export_alias_stub_router_with_unrelated_path() -> APIRouter:
-    router = _legacy_export_alias_stub_router()
-
-    async def _unrelated_handler() -> dict[str, str]:
-        return {"status": "unrelated"}
-
-    router.get("/api/v1/unrelated-legacy-export-probe", include_in_schema=False)(_unrelated_handler)
     return router
 
 
@@ -734,36 +680,6 @@ def _app_with_bodyfat_routes_and_extra_method(*, combined_route: bool) -> FastAP
     app = FastAPI()
     extra_path, extra_method, extra_include = app_main._BODYFAT_ROUTE_SPECS[0]
     app.include_router(app_main.bodyfat_router)
-
-    async def _extra_method_handler() -> dict[str, str]:
-        return {"status": "extra-method"}
-
-    opposite_method = "POST" if extra_method == "GET" else "GET"
-    extra_methods = [extra_method, opposite_method] if combined_route else [opposite_method]
-    app.add_api_route(
-        extra_path,
-        _extra_method_handler,
-        methods=extra_methods,
-        include_in_schema=extra_include,
-    )
-    return app
-
-
-def _app_with_legacy_export_alias_routes_and_extra_method(*, combined_route: bool) -> FastAPI:
-    app = FastAPI()
-    extra_path, extra_method, extra_include = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-
-    for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-
-        async def _legacy_export_alias_handler(path: str = path) -> dict[str, str]:
-            return {"status": path}
-
-        app.add_api_route(
-            path,
-            _legacy_export_alias_handler,
-            methods=[method],
-            include_in_schema=include_in_schema,
-        )
 
     async def _extra_method_handler() -> dict[str, str]:
         return {"status": "extra-method"}
@@ -927,13 +843,7 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "feedback_router", _stub_router("/api/v1/feedback/rag"))
     monkeypatch.setattr(app_main, "admin_operations_router", _admin_operations_stub_router())
     monkeypatch.setattr(app_main, "bmi_compat_router", _bmi_compat_stub_router())
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        _legacy_export_alias_stub_router(),
-    )
     monkeypatch.setattr(app_main, "shoplist_export_router", _shoplist_export_stub_router())
-    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
     monkeypatch.setattr(app_main, "favicon_router", _favicon_stub_router())
     monkeypatch.setattr(app_main, "health_router", _health_stub_router())
     monkeypatch.setattr(app_main, "legal_router", _legal_stub_router())
@@ -3269,298 +3179,6 @@ def test_shoplist_export_route_registration_rejects_duplicate_canonical_router_p
     with pytest.raises(
         RuntimeError,
         match="Shoplist export router does not define the expected route family",
-    ):
-        _bootstrap_temp_app(FastAPI())
-
-
-def test_legacy_export_alias_route_registration_is_idempotent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-
-    app = FastAPI()
-
-    _bootstrap_temp_app(app)
-    _bootstrap_temp_app(app)
-
-    for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        matching_routes = _routes_for_path_method(app, path, method)
-        assert len(matching_routes) == 1
-        assert getattr(matching_routes[0], "include_in_schema", True) is include_in_schema
-
-
-def test_legacy_export_alias_route_registration_skips_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", False)
-
-    app = _bootstrap_temp_app(FastAPI())
-
-    for path, method, _include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        assert not _routes_for_path_method(app, path, method)
-
-
-def test_build_legacy_export_aliases_router_returns_empty_router_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", False)
-
-    router = app_main._build_legacy_export_aliases_router()
-
-    assert router.routes == []
-
-
-def test_build_legacy_export_aliases_router_rejects_missing_helper(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
-    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_csv", None)
-
-    with pytest.raises(
-        RuntimeError,
-        match="Legacy export aliases are enabled, but required helpers are unavailable",
-    ):
-        app_main._build_legacy_export_aliases_router()
-
-
-def test_build_legacy_export_aliases_router_rejects_helper_missing_after_build(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
-    router = app_main._build_legacy_export_aliases_router()
-    monkeypatch.setattr(app_main._legacy_module, "export_weekly_plan_csv", None)
-    app = FastAPI()
-    app.include_router(router)
-    client = TestClient(app)
-
-    with pytest.raises(RuntimeError, match="Legacy export helper is unavailable"):
-        client.get(
-            "/api/v1/premium/exports/week/unavailable.csv",
-            headers={"X-API-Key": "test_key"},
-        )
-
-
-def test_legacy_export_alias_route_registration_rejects_partial_state(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    app = FastAPI()
-    path, method, include_in_schema = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-
-    async def _existing_legacy_export_alias_route() -> dict[str, str]:
-        return {"status": "partial"}
-
-    getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
-        _existing_legacy_export_alias_route
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Partial legacy export alias route registration detected",
-    ):
-        _bootstrap_temp_app(app)
-
-
-def test_legacy_export_alias_route_registration_rejects_wrong_method(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    app = FastAPI()
-    path, method, include_in_schema = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-
-    async def _wrong_method_legacy_export_alias_route() -> dict[str, str]:
-        return {"status": "wrong-method"}
-
-    wrong_method = "GET" if method == "POST" else "POST"
-    getattr(app, wrong_method.lower())(path, include_in_schema=include_in_schema)(
-        _wrong_method_legacy_export_alias_route
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Partial legacy export alias route registration detected",
-    ):
-        _bootstrap_temp_app(app)
-
-
-def test_legacy_export_alias_route_registration_rejects_wrong_method_in_router(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    path, method, _include_in_schema = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-    wrong_method = "GET" if method == "POST" else "POST"
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        _legacy_export_alias_stub_router(method_overrides={path: wrong_method}),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Legacy export alias router does not define the expected route family",
-    ):
-        _bootstrap_temp_app(FastAPI())
-
-
-def test_legacy_export_alias_route_registration_rejects_combined_methods_in_router(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        _legacy_export_alias_stub_router_with_combined_methods(),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Legacy export alias router does not define the expected route family",
-    ):
-        _bootstrap_temp_app(FastAPI())
-
-
-def test_legacy_export_alias_route_registration_rejects_existing_wrong_method_after_full_family(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-
-    with pytest.raises(
-        RuntimeError,
-        match="Partial legacy export alias route registration detected",
-    ):
-        _bootstrap_temp_app(
-            _app_with_legacy_export_alias_routes_and_extra_method(combined_route=False)
-        )
-
-
-def test_legacy_export_alias_route_registration_rejects_existing_combined_methods(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-
-    with pytest.raises(
-        RuntimeError,
-        match="Partial legacy export alias route registration detected",
-    ):
-        _bootstrap_temp_app(
-            _app_with_legacy_export_alias_routes_and_extra_method(combined_route=True)
-        )
-
-
-def test_legacy_export_alias_route_registration_allows_unrelated_router_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        _legacy_export_alias_stub_router_with_unrelated_path(),
-    )
-
-    app = _bootstrap_temp_app(FastAPI())
-
-    assert _has_route_path(app, "/api/v1/unrelated-legacy-export-probe")
-
-
-def test_legacy_export_alias_route_registration_allows_reloaded_canonical_handlers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "EXPORTS_ENABLED", True)
-    app = FastAPI()
-    app.include_router(app_main._build_legacy_export_aliases_router())
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        app_main._build_legacy_export_aliases_router(),
-    )
-
-    app_main._include_legacy_export_alias_router_if_needed(app)
-
-    for path, method, _include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-        matching_routes = _routes_for_path_method(app, path, method)
-        assert len(matching_routes) == 1
-
-
-def test_legacy_export_alias_endpoint_equivalence_rejects_non_callables() -> None:
-    expected_endpoint = next(
-        route.endpoint
-        for route in app_main.legacy_export_aliases_router.routes
-        if getattr(route, "path", None) == app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0][0]
-    )
-
-    assert not app_main._is_same_legacy_export_alias_endpoint(None, expected_endpoint)
-    assert not app_main._is_same_legacy_export_alias_endpoint(expected_endpoint, None)
-
-
-def test_legacy_export_alias_route_registration_rejects_foreign_handlers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    app = FastAPI()
-
-    for path, method, include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
-
-        async def _foreign_legacy_export_alias_route(path: str = path) -> dict[str, str]:
-            return {"status": path}
-
-        getattr(app, method.lower())(path, include_in_schema=include_in_schema)(
-            _foreign_legacy_export_alias_route
-        )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Duplicate .* route detected with a different legacy export alias handler",
-    ):
-        _bootstrap_temp_app(app)
-
-
-def test_legacy_export_alias_route_registration_rejects_openapi_visibility_drift(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    path, _method, include_in_schema = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        _legacy_export_alias_stub_router(include_overrides={path: not include_in_schema}),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Legacy export alias router does not preserve OpenAPI visibility",
-    ):
-        _bootstrap_temp_app(FastAPI())
-
-
-def test_legacy_export_alias_route_registration_rejects_existing_openapi_visibility_drift() -> None:
-    app = FastAPI()
-    app.include_router(app_main.legacy_export_aliases_router)
-    path, method, include_in_schema = app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS[0]
-    matching_route = _routes_for_path_method(app, path, method)[0]
-    matching_route.include_in_schema = not include_in_schema
-
-    with pytest.raises(
-        RuntimeError,
-        match="Existing .* route does not preserve legacy export alias OpenAPI visibility",
-    ):
-        app_main._include_legacy_export_alias_router_if_needed(app)
-
-
-def test_legacy_export_alias_route_registration_rejects_duplicate_canonical_router_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(
-        app_main,
-        "legacy_export_aliases_router",
-        _duplicate_legacy_export_alias_stub_router(),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Legacy export alias router does not define the expected route family",
     ):
         _bootstrap_temp_app(FastAPI())
 

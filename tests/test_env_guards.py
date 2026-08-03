@@ -22,7 +22,7 @@ def test_testing_env_enabled() -> None:
 
 
 def test_export_route_registration_contract() -> None:
-    """Guard canonical exports, retained CSV aliases, and retired PDF aliases."""
+    """Guard canonical exports and the retired legacy export route family."""
     import app
 
     routes = [
@@ -31,13 +31,15 @@ def test_export_route_registration_contract() -> None:
         if is_api_route_candidate(route)
     ]
     expected_routes = (
+        ("POST", "/api/v1/export/sign"),
+        ("GET", "/api/v1/plan/week/export.csv"),
         ("GET", "/api/v1/plan/week/export.pdf"),
-        ("GET", "/api/v1/premium/exports/day/{plan_id}.csv"),
-        ("GET", "/api/v1/premium/exports/week/{plan_id}.csv"),
     )
     retired_routes = (
         ("POST", "/api/v1/export/pdf"),
+        ("GET", "/api/v1/premium/exports/day/{plan_id}.csv"),
         ("GET", "/api/v1/premium/exports/day/{plan_id}.pdf"),
+        ("GET", "/api/v1/premium/exports/week/{plan_id}.csv"),
         ("GET", "/api/v1/premium/exports/week/{plan_id}.pdf"),
     )
 

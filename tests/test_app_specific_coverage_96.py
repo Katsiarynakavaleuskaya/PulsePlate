@@ -639,20 +639,3 @@ class TestAppSpecificCoverage96:
         for method, endpoint, params in admin_endpoints:
             response = self.client.request(method, endpoint, params=params)
             assert response.status_code == 403
-
-    def test_premium_export_endpoints(self) -> None:
-        """Test premium export endpoints."""
-        # Test with a dummy plan_id
-        plan_id = "test_plan_123"
-
-        export_endpoints = [
-            f"/api/v1/premium/exports/day/{plan_id}.csv",
-            f"/api/v1/premium/exports/day/{plan_id}.pdf",
-            f"/api/v1/premium/exports/week/{plan_id}.csv",
-            f"/api/v1/premium/exports/week/{plan_id}.pdf",
-        ]
-
-        for endpoint in export_endpoints:
-            response = self.client.get(endpoint)
-            # Should return some response (might be 404 if plan not found)
-            assert response.status_code in [200, 404, 401, 403]

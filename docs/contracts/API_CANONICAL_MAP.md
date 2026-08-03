@@ -71,8 +71,6 @@ These routes remain for compatibility and migration. They must not be described 
 | `/api/v1/premium/targets` | POST | PRO | `/api/v1/pro/nutrition/targets` | Legacy shim |
 | `/api/v1/premium/plate` | POST | PRO | `/api/v1/pro/nutrition/plate` | Legacy shim; preserves plate request/response semantics |
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
-| `/api/v1/premium/exports/day/{plan_id}.csv` | GET | Legacy API-key compatibility | `/api/v1/vip/shoplist/export` (CSV format) | Hidden test/demo compatibility alias gated by `EXPORTS_ENABLED` |
-| `/api/v1/premium/exports/week/{plan_id}.csv` | GET | Legacy API-key compatibility | `/api/v1/vip/shoplist/export` (CSV format) | Hidden test/demo compatibility alias gated by `EXPORTS_ENABLED` |
 | `/api/v1/vip/weekly-plan` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Deprecated VIP alias |
 | `/insight` | POST | VIP | `/api/v1/insight` | Hidden deprecated legacy alias; owned by `app/routers/legacy_insight.py` |
 
@@ -81,6 +79,15 @@ These routes remain for compatibility and migration. They must not be described 
 - `/api/v1/premium/plan/week` is the most important namespace mismatch: it requires VIP semantics while living under `/premium/*`.
 - `/api/v1/premium/plate` and `/api/v1/premium/targets` still exist for migration compatibility, but product docs should direct operators and clients toward `/api/v1/pro/*`.
 - `/api/v1/premium/bmr` and `/api/v1/premium/tdee` remain legacy-compatible premium endpoints. No committed `/api/v1/pro/bmr` or `/api/v1/pro/tdee` replacement is documented yet, so they remain legacy-compatible rather than migrated.
+- The hidden day/week CSV test/demo aliases under `/api/v1/premium/exports/*`
+  are retired, are no longer compatibility surface, and return the ordinary
+  FastAPI 404. Both canonical export families remain registered behind the
+  canonical API-key dependency: plan sign/weekly CSV/PDF (`POST
+  /api/v1/export/sign`, `GET /api/v1/plan/week/export.{csv,pdf}`) and shoplist
+  JSON/CSV/PDF (`GET /api/v1/shoplist`, `GET
+  /api/v1/shoplist/export.{csv,pdf}`). `PRIVATE_EXPORTS_ENABLED` additionally
+  enforces signed tokens only for weekly plan CSV/PDF; it controls neither
+  route-family registration nor any shoplist route.
 
 ## Historical Audit vs Current Map
 

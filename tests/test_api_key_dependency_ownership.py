@@ -41,9 +41,6 @@ _DEFAULT_PROTECTED_ROUTES = frozenset(
         ("POST", "/premium_targets"),
     }
 )
-_CONDITIONAL_PROTECTED_ROUTES = frozenset(
-    (method, path) for path, method, _include_in_schema in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS
-)
 
 
 def _matching_routes(method: str, path: str) -> list[object]:
@@ -245,19 +242,6 @@ def test_all_default_protected_routes_use_canonical_dynamic_dependency() -> None
     for method, path in sorted(_DEFAULT_PROTECTED_ROUTES):
         matching = _matching_routes(method, path)
         assert len(matching) == 1, f"expected one protected route for {method} {path}"
-        assert any(
-            call is canonical_api_key._get_api_key_dynamic
-            for call in _dependency_calls_by_identity(matching[0])
-        ), f"missing canonical API-key dependency on {method} {path}"
-
-
-def test_conditional_export_aliases_use_canonical_dynamic_dependency_when_enabled() -> None:
-    if not legacy_app.EXPORTS_ENABLED:
-        pytest.skip("legacy export aliases are disabled by the runtime dependency profile")
-
-    for method, path in sorted(_CONDITIONAL_PROTECTED_ROUTES):
-        matching = _matching_routes(method, path)
-        assert len(matching) == 1, f"expected one protected alias for {method} {path}"
         assert any(
             call is canonical_api_key._get_api_key_dynamic
             for call in _dependency_calls_by_identity(matching[0])
