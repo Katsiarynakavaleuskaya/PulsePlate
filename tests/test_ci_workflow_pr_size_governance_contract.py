@@ -1013,6 +1013,10 @@ def _assert_node24_frontend_builder_workflow_contract(
         on_section = cast(dict[object, object], workflow).get(True)
     assert isinstance(on_section, dict)
 
+    workflow_env = workflow["env"]
+    assert isinstance(workflow_env, dict)
+    assert "PYTEST_ADDOPTS" not in workflow_env
+
     dockerfile_path = "frontend/Dockerfile.caddy-spa"
     for event_name in ("pull_request", "push"):
         event = on_section[event_name]
@@ -1072,6 +1076,7 @@ def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
         "job_continue_on_error",
         "step_shell",
         "job_default_shell",
+        "workflow_pytest_collect_only",
         "step_pytest_collect_only",
         "job_pytest_collect_only",
     ),
@@ -1116,6 +1121,10 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         run_defaults = defaults["run"]
         assert isinstance(run_defaults, dict)
         run_defaults["shell"] = "bash -c '{0} || true'"
+    if mutation == "workflow_pytest_collect_only":
+        workflow_env = workflow["env"]
+        assert isinstance(workflow_env, dict)
+        workflow_env["PYTEST_ADDOPTS"] = "--collect-only"
     if mutation == "step_pytest_collect_only":
         step["env"] = {"PYTEST_ADDOPTS": "--collect-only"}
     if mutation == "job_pytest_collect_only":
