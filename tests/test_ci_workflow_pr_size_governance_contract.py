@@ -696,6 +696,11 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("production frontend assets must come only from frontend-build")
     elif not from_stage_indices or frontend_asset_write_indices[0] <= from_stage_indices[-1]:
         errors.append("production frontend asset handoff must belong to the final stage")
+    elif not (has_utf8_bom or unsupported_from_lines or has_continued_from_keyword) and any(
+        line.strip() and not line.lstrip().startswith("#")
+        for line in dockerfile_lines[frontend_asset_write_indices[0] + 1 :]
+    ):
+        errors.append("production frontend asset handoff must be the final executable instruction")
     return errors
 
 
@@ -932,12 +937,16 @@ def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
     """Comments and longer identifiers are not Docker FROM instructions."""
 
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
-    non_instructions = "\n".join(
-        (
-            dockerfile,
-            "# FROM node:25-bookworm-slim AS commented-tooling",
-            "FROMAGE node:25-bookworm-slim AS identifier-tooling",
-        )
+    non_instructions = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "\n".join(
+            (
+                "# FROM node:25-bookworm-slim AS commented-tooling",
+                "FROMAGE node:25-bookworm-slim AS identifier-tooling",
+                NODE24_FRONTEND_ASSET_COPY_LINE,
+            )
+        ),
+        1,
     )
 
     assert _node24_frontend_builder_contract_errors(non_instructions) == []
@@ -957,6 +966,23 @@ def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
     errors = _node24_frontend_builder_contract_errors(overwritten)
 
     assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_post_handoff_run() -> None:
+    """No continued RUN may replace an asset after the immutable handoff."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    overwritten = "\n".join(
+        (
+            dockerfile,
+            "RUN printf '<html>alternate</html>' > /srv/front\\",
+            "end/index.html",
+        )
+    )
+
+    errors = _node24_frontend_builder_contract_errors(overwritten)
+
+    assert "production frontend asset handoff must be the final executable instruction" in errors
 
 
 @pytest.mark.parametrize(
