@@ -283,7 +283,10 @@ async def _run_orchestration(
     enrichment_completed = False
     try:
         # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
-        from core.rag.formatting import format_rag_chunks_for_prompt
+        from core.rag.formatting import (
+            _prepare_final_rag_chunk_snapshot,
+            format_rag_chunks_for_prompt,
+        )
 
         if recursive_enabled:
             from core.rag.recursive_retrieval import retrieve_recursive_context_structured
@@ -327,15 +330,12 @@ async def _run_orchestration(
             query=prompt_input,
             enrichment_enabled=philo_enabled,
         )
-        chunks_to_use = _copy_rag_chunks(pipeline_result.filtered_chunks)
-        chunks_filtered = max(0, len(rag_ctx.chunks) - len(chunks_to_use))
-        warnings = pipeline_result.warnings
-        enrichment_completed = (
-            bool(chunks_to_use) and pipeline_result.post_stage1_enrichment_completed
-        )
+        pipeline_survivors = _copy_rag_chunks(pipeline_result.filtered_chunks)
+        chunks_filtered = max(0, len(rag_ctx.chunks) - len(pipeline_survivors))
+        warnings = list(pipeline_result.warnings)
 
         # If no chunks survived validation
-        if not chunks_to_use:
+        if not pipeline_survivors:
             degraded_reason = getattr(rag_ctx, "degraded_reason", None) or (
                 RAGDegradedReason.RETRIEVAL_EMPTY
                 if not rag_ctx.chunks
@@ -365,27 +365,66 @@ async def _run_orchestration(
                 verification_calls=verification_calls,
             )
 
-        confidence = _resolve_confidence(
-            chunks_to_use=chunks_to_use,
+        chunks_to_use, had_sanitized_survivor = _prepare_final_rag_chunk_snapshot(
+            _copy_rag_chunks(pipeline_survivors)
+        )
+        chunks_filtered = max(0, len(rag_ctx.chunks) - len(chunks_to_use))
+        enrichment_completed = (
+            bool(chunks_to_use) and pipeline_result.post_stage1_enrichment_completed
         )
 
         def _degraded_verification_bundle(
             degraded_reason: RAGDegradedReason,
         ) -> VerificationBundle:
-            """Recompute admission truth for post-retrieval degradation branches."""
+            """Build empty admission truth for post-retrieval degradation branches."""
 
             return _build_orchestration_verification_bundle(
                 knowledge_policy=knowledge_policy,
-                confidence=confidence,
+                confidence=None,
                 degraded_reason=degraded_reason,
                 rag_actually_used=False,
                 enrichment_completed=enrichment_completed,
                 recursive_executed=recursive_executed,
                 verification_calls=verification_calls,
-                chunks=chunks_to_use,
+                chunks=(),
                 prompt_input=prompt_input,
                 verification_hops=rag_ctx.hops,
             )
+
+        if not had_sanitized_survivor:
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.FORMATTED_CONTEXT_EMPTY,
+                verification_bundle=_degraded_verification_bundle(
+                    RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
+                ),
+                verification_calls=verification_calls,
+            )
+        if not chunks_to_use:
+            return _non_rag_result(
+                prompt_input,
+                rag_ctx_hops=rag_ctx.hops,
+                rag_ctx_latency_ms=rag_ctx.latency_ms,
+                warnings=warnings,
+                chunks_retrieved=len(rag_ctx.chunks),
+                chunks_filtered=chunks_filtered,
+                recursive_executed=recursive_executed,
+                degraded_reason=RAGDegradedReason.REDACTED_CONTEXT_EMPTY,
+                verification_bundle=_degraded_verification_bundle(
+                    RAGDegradedReason.REDACTED_CONTEXT_EMPTY
+                ),
+                verification_calls=verification_calls,
+            )
+
+        confidence = _resolve_confidence(
+            chunks_to_use=chunks_to_use,
+        )
 
         # Build formatted prompt with RAG context
         from core.insight.safety import redact_rag_context_for_insight

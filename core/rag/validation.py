@@ -164,22 +164,14 @@ def _run_validation(
             continue
 
         # Rule 2: medical boundary (blocking + warning)
-        medical_match = _MEDICAL_RE.search(chunk.content)
-        if medical_match:
-            warnings.append(
-                f"medical_boundary: chunk {chunk.chunk_id} rejected "
-                f"(matched '{medical_match.group()}')"
-            )
+        if _MEDICAL_RE.search(chunk.content):
+            warnings.append("medical_boundary")
             rejected += 1
             continue
 
         # Rule 3: weasel word detection (advisory only)
-        weasel_match = _WEASEL_RE.search(chunk.content)
-        if weasel_match:
-            warnings.append(
-                f"weasel_word: chunk {chunk.chunk_id} contains "
-                f"unverifiable pattern '{weasel_match.group()}'"
-            )
+        if _WEASEL_RE.search(chunk.content):
+            warnings.append("weasel_word")
 
         # Chunk passed blocking rules
         filtered.append(chunk)

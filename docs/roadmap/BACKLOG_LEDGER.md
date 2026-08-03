@@ -54,6 +54,13 @@ If it is not recorded here — it does not exist.
       one stable enrichment warning, and closed knowledge admission
     - Prompt, response evidence, provenance, final bundle, and candidates derive
       from the same survivor snapshot after usable formatting and redaction
+    - A final post-Stage-1 boundary rejects non-built-in, blank, overlong,
+      control/noncharacter-bearing, or mark-only `chunk_id` and `file` values
+      before every content carrier while preserving visible decomposed Unicode
+      and assigned private-use metadata; this does not add Stage 0
+    - Runtime warnings are fixed codes and internal diagnostics contain bounded
+      aggregate counts only, with no raw query/content/identifier/path/score or
+      exception detail
     - Both Insight aliases preserve response schema, status/error behavior,
       provider-call count, guard/quota/rate-limit ordering, and non-RAG fallback
     - Focused tests, typecheck, targeted Bandit, branch-diff backend hook,

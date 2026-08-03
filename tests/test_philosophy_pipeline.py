@@ -181,15 +181,35 @@ class TestStage2ClaimClassification:
 
     def test_speculation_produces_warning(self) -> None:
         chunks = [
-            _chunk("c1", "Some say this diet might be beneficial."),
+            _chunk(
+                "SENTINEL_STAGE2_ID_ONE",
+                "Some say SENTINEL_STAGE2_CONTENT_ONE may help wellness.",
+                0.81,
+                "/private/SENTINEL_STAGE2_PATH_ONE.md",
+            ),
+            _chunk(
+                "SENTINEL_STAGE2_ID_TWO",
+                "Possibly SENTINEL_STAGE2_CONTENT_TWO helps wellness.",
+                0.82,
+                "/private/SENTINEL_STAGE2_PATH_TWO.md",
+            ),
         ]
         result = _stage2_claim_classification(chunks)
 
         assert result.stage_name == "claim_classification"
         assert result.passed is True
-        assert len(result.warnings) == 1
-        assert "claim_speculation" in result.warnings[0]
-        assert "c1" in result.warnings[0]
+        assert result.warnings == ["claim_speculation", "claim_speculation"]
+        assert result.metadata == {"classifications": {"speculation": 2}}
+        diagnostic_payload = repr(result.warnings) + repr(result.metadata)
+        for sentinel in (
+            "SENTINEL_STAGE2",
+            "/private/",
+            "Some say",
+            "Possibly",
+            "0.81",
+            "0.82",
+        ):
+            assert sentinel not in diagnostic_payload
 
     def test_clean_chunks_no_warnings(self) -> None:
         chunks = [
@@ -210,9 +230,11 @@ class TestStage2ClaimClassification:
         result = _stage2_claim_classification(chunks)
 
         dist = result.metadata["classifications"]
-        assert "c1" in dist.get("nutrition_fact", [])
-        assert "c2" in dist.get("recommendation", [])
-        assert "c3" in dist.get("unknown", [])
+        assert dist == {
+            "nutrition_fact": 1,
+            "recommendation": 1,
+            "unknown": 1,
+        }
 
     def test_empty_input(self) -> None:
         result = _stage2_claim_classification([])
@@ -258,17 +280,34 @@ class TestStage3SourceAlignment:
 
     def test_flags_high_score_short_text(self) -> None:
         chunks = [
-            _chunk("c1", "Short.", score=0.9),
-            _chunk("c2", "This is a normal chunk with decent content.", score=0.85),
+            _chunk(
+                "SENTINEL_STAGE3_ID_ONE",
+                "SENTINEL one.",
+                score=0.91,
+                file="/private/SENTINEL_STAGE3_PATH_ONE.md",
+            ),
+            _chunk(
+                "SENTINEL_STAGE3_ID_TWO",
+                "SENTINEL two.",
+                score=0.92,
+                file="/private/SENTINEL_STAGE3_PATH_TWO.md",
+            ),
         ]
         result = _stage3_source_alignment(chunks)
 
         assert result.stage_name == "source_alignment"
         assert result.passed is True  # advisory only
-        assert len(result.warnings) == 1
-        assert "alignment_mismatch" in result.warnings[0]
-        assert "c1" in result.warnings[0]
-        assert "c1" in result.metadata["flagged_chunks"]
+        assert result.warnings == ["alignment_mismatch", "alignment_mismatch"]
+        assert result.metadata == {"flagged_count": 2}
+        diagnostic_payload = repr(result.warnings) + repr(result.metadata)
+        for sentinel in (
+            "SENTINEL_STAGE3",
+            "/private/",
+            "0.91",
+            "0.92",
+            "len=",
+        ):
+            assert sentinel not in diagnostic_payload
 
     def test_no_flags_for_normal_chunks(self) -> None:
         chunks = [
@@ -278,12 +317,12 @@ class TestStage3SourceAlignment:
         result = _stage3_source_alignment(chunks)
 
         assert result.warnings == []
-        assert result.metadata["flagged_chunks"] == []
+        assert result.metadata == {"flagged_count": 0}
 
     def test_empty_input(self) -> None:
         result = _stage3_source_alignment([])
         assert result.warnings == []
-        assert result.metadata["flagged_chunks"] == []
+        assert result.metadata == {"flagged_count": 0}
 
 
 # ===========================================================================
@@ -435,13 +474,33 @@ class TestStage4LogicalConsistency:
 
     def test_contradictory_numeric_ranges(self) -> None:
         chunks = [
-            _chunk("c1", "Healthy BMI is 18.5-24.9 for adults.", 0.9),
-            _chunk("c2", "Normal BMI range is 30-40 in this system.", 0.8),
+            _chunk(
+                "SENTINEL_STAGE4_ID_ONE",
+                "Healthy BMI is 18.5-24.9 for adults SENTINEL_STAGE4_CONTENT_ONE.",
+                0.9,
+                "/private/SENTINEL_STAGE4_SHARED.md",
+            ),
+            _chunk(
+                "SENTINEL_STAGE4_ID_TWO",
+                "Normal BMI range is 30-40 for adults SENTINEL_STAGE4_CONTENT_TWO.",
+                0.8,
+                "/private/SENTINEL_STAGE4_SHARED.md",
+            ),
         ]
         result = _stage4_logical_consistency(chunks, "BMI query")
 
-        assert any("numeric_contradiction" in w for w in result.warnings)
-        assert len(result.metadata["contradictions"]) >= 1
+        assert result.warnings == ["single_source_echo", "numeric_contradiction"]
+        assert result.metadata == {"unique_sources": 1, "contradiction_count": 1}
+        diagnostic_payload = repr(result.warnings) + repr(result.metadata)
+        for sentinel in (
+            "SENTINEL_STAGE4",
+            "/private/",
+            "18.5",
+            "24.9",
+            "30-40",
+            "BMI query",
+        ):
+            assert sentinel not in diagnostic_payload
 
     def test_contradictory_numeric_ranges_detected_for_two_letter_acronym_query(self) -> None:
         chunks = [
@@ -451,7 +510,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What BP range is normal?")
 
         assert any("numeric_contradiction" in w for w in result.warnings)
-        assert len(result.metadata["contradictions"]) >= 1
+        assert result.metadata["contradiction_count"] >= 1
 
     def test_contradiction_suppressed_when_query_targets_other_topic(self) -> None:
         chunks = [
@@ -461,7 +520,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "protein intake query")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_when_query_binding_is_ambiguous(self) -> None:
         chunks = [
@@ -471,7 +530,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What is a normal healthy range?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_mixed_topic_query(self) -> None:
         chunks = [
@@ -484,7 +543,7 @@ class TestStage4LogicalConsistency:
         )
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_same_audience_different_metric(self) -> None:
         chunks = [
@@ -494,7 +553,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What is the BMI range for adults?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_irrelevant_range_inside_multi_topic_chunk(self) -> None:
         chunks = [
@@ -508,7 +567,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What is the BMI range for adults?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_broad_vitamin_query_with_specific_mismatch(self) -> None:
         chunks = [
@@ -518,7 +577,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What vitamin range is normal?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_partial_lexical_overlap(self) -> None:
         chunks = [
@@ -528,7 +587,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What blood pressure range is normal?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_cohort_specific_protein_ranges(self) -> None:
         chunks = [
@@ -538,7 +597,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What protein intake range is normal?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradiction_suppressed_for_per_meal_vs_per_kg_ranges(self) -> None:
         chunks = [
@@ -548,7 +607,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What protein intake range is normal?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_contradictory_numeric_ranges_detected_for_b12_query(self) -> None:
         chunks = [
@@ -558,7 +617,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What B12 range is normal?")
 
         assert any("numeric_contradiction" in w for w in result.warnings)
-        assert len(result.metadata["contradictions"]) >= 1
+        assert result.metadata["contradiction_count"] >= 1
 
     def test_contradictory_numeric_ranges_detected_for_subset_anchor_binding(self) -> None:
         chunks = [
@@ -568,7 +627,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What vitamin B12 range is normal?")
 
         assert any("numeric_contradiction" in w for w in result.warnings)
-        assert len(result.metadata["contradictions"]) >= 1
+        assert result.metadata["contradiction_count"] >= 1
 
     def test_contradictory_numeric_ranges_detected_for_benign_b12_qualifiers(self) -> None:
         chunks = [
@@ -578,7 +637,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What vitamin B12 range is normal?")
 
         assert any("numeric_contradiction" in w for w in result.warnings)
-        assert len(result.metadata["contradictions"]) >= 1
+        assert result.metadata["contradiction_count"] >= 1
 
     def test_contradiction_suppressed_for_cohort_specific_bmi_ranges(self) -> None:
         chunks = [
@@ -588,7 +647,7 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "What BMI range is normal?")
 
         assert not any("numeric_contradiction" in w for w in result.warnings)
-        assert "contradictions" not in result.metadata
+        assert result.metadata["contradiction_count"] == 0
 
     def test_no_contradictions_consistent_ranges(self) -> None:
         chunks = [
@@ -605,11 +664,13 @@ class TestStage4LogicalConsistency:
         result = _stage4_logical_consistency(chunks, "query")
 
         assert result.warnings == []
+        assert result.metadata == {"unique_sources": 1, "contradiction_count": 0}
 
     def test_empty_input(self) -> None:
         result = _stage4_logical_consistency([], "query")
         assert result.warnings == []
         assert result.passed is True
+        assert result.metadata == {"unique_sources": 0, "contradiction_count": 0}
 
 
 # ===========================================================================
@@ -810,6 +871,7 @@ class TestRunPipeline:
                     stage_name="partial_advisory",
                     passed=True,
                     warnings=[partial_warning],
+                    metadata={"unsafe_detail": f"SENTINEL_PARTIAL_{partial_warning}"},
                 ),
             ),
             patch(
@@ -826,6 +888,7 @@ class TestRunPipeline:
         ]
         assert partial_warning not in result.warnings
         assert survivor.chunk_id not in " ".join(result.warnings)
+        assert "SENTINEL_PARTIAL" not in repr(result.stage_results)
         assert result.post_stage1_enrichment_completed is False
 
     def test_mutation_then_raise_cannot_change_baseline_or_leak_diagnostics(
@@ -921,13 +984,11 @@ class TestRunPipeline:
         assert len(result.filtered_chunks) == 1
         assert result.filtered_chunks[0].chunk_id == "c2"
 
-        # Stage 2 classification should only see c2
+        # Stage 2 count metadata proves only the one Stage-1 survivor was classified.
         s2 = result.stage_results[1]
-        all_classified_ids = []
-        for ids in s2.metadata["classifications"].values():
-            all_classified_ids.extend(ids)
-        assert "c1" not in all_classified_ids
-        assert "c2" in all_classified_ids
+        assert s2.metadata == {"classifications": {"unknown": 1}}
+        assert "c1" not in repr(s2)
+        assert "c2" not in repr(s2)
 
     def test_empty_input(self) -> None:
         """Empty input produces empty pipeline result."""

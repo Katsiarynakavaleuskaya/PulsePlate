@@ -361,13 +361,13 @@ def _stage2_claim_classification(chunks: list[RAGChunk]) -> StageResult:
     """Classify each chunk and record distribution in metadata."""
     start = time.perf_counter()
     warnings: list[str] = []
-    classifications: dict[str, list[str]] = {}
+    classifications: dict[str, int] = {}
 
     for chunk in chunks:
         claim_type = classify_chunk(chunk)
-        classifications.setdefault(claim_type.value, []).append(chunk.chunk_id)
+        classifications[claim_type.value] = classifications.get(claim_type.value, 0) + 1
         if claim_type == ClaimType.SPECULATION:
-            warnings.append(f"claim_speculation: chunk {chunk.chunk_id} classified as speculation")
+            warnings.append("claim_speculation")
 
     latency = (time.perf_counter() - start) * 1000
 
@@ -405,16 +405,13 @@ def _stage3_source_alignment(chunks: list[RAGChunk]) -> StageResult:
     """Flag chunks where retrieval score does not match content quality."""
     start = time.perf_counter()
     warnings: list[str] = []
-    flagged: list[str] = []
+    flagged_count = 0
 
     for chunk in chunks:
         score = _alignment_score(chunk)
         if score > _ALIGNMENT_WARNING_THRESHOLD:
-            flagged.append(chunk.chunk_id)
-            warnings.append(
-                f"alignment_mismatch: chunk {chunk.chunk_id} "
-                f"(score={chunk.score:.2f}, len={len(chunk.content.strip())})"
-            )
+            flagged_count += 1
+            warnings.append("alignment_mismatch")
 
     latency = (time.perf_counter() - start) * 1000
 
@@ -422,7 +419,7 @@ def _stage3_source_alignment(chunks: list[RAGChunk]) -> StageResult:
         stage_name="source_alignment",
         passed=True,
         warnings=warnings,
-        metadata={"flagged_chunks": flagged},
+        metadata={"flagged_count": flagged_count},
         latency_ms=round(latency, 2),
     )
 
@@ -579,17 +576,13 @@ def _stage4_logical_consistency(
     """
     start = time.perf_counter()
     warnings: list[str] = []
-    metadata: dict[str, Any] = {}
     query_terms = _extract_query_terms(query)
 
     # Check 1: Single-source echo
+    unique_sources = {c.file for c in chunks}
     if len(chunks) > 1:
-        unique_sources = {c.file for c in chunks}
-        metadata["unique_sources"] = len(unique_sources)
         if len(unique_sources) == 1:
-            warnings.append(
-                f"single_source_echo: all {len(chunks)} chunks from {next(iter(unique_sources))}"
-            )
+            warnings.append("single_source_echo")
 
     # Check 2: Contradictory numeric ranges
     chunk_ranges: list[tuple[str, tuple[float, float], set[str], set[str]]] = []
@@ -607,7 +600,7 @@ def _stage4_logical_consistency(
                 )
             )
 
-    contradictions: list[str] = []
+    contradiction_count = 0
     for i, (id_a, range_a, anchors_a, context_terms_a) in enumerate(chunk_ranges):
         for id_b, range_b, anchors_b, context_terms_b in chunk_ranges[i + 1 :]:
             if (
@@ -621,15 +614,10 @@ def _stage4_logical_consistency(
                 )
                 and _ranges_contradict(range_a, range_b)
             ):
-                contradictions.append(
-                    f"{id_a}({range_a[0]}-{range_a[1]}) vs {id_b}({range_b[0]}-{range_b[1]})"
-                )
+                contradiction_count += 1
 
-    if contradictions:
-        metadata["contradictions"] = contradictions
-        warnings.append(
-            f"numeric_contradiction: {len(contradictions)} conflicting range(s) detected"
-        )
+    if contradiction_count:
+        warnings.append("numeric_contradiction")
 
     latency = (time.perf_counter() - start) * 1000
 
@@ -637,6 +625,9 @@ def _stage4_logical_consistency(
         stage_name="logical_consistency",
         passed=True,
         warnings=warnings,
-        metadata=metadata,
+        metadata={
+            "unique_sources": len(unique_sources),
+            "contradiction_count": contradiction_count,
+        },
         latency_ms=round(latency, 2),
     )

@@ -163,7 +163,22 @@ Normative terms are deliberately bounded:
 Formatting and redaction must finish before the final verification bundle and
 knowledge candidates are built. Disabled or failed enrichment may preserve an
 available wellness response from baseline survivors, but it cannot authorize
-knowledge promotion. The roadmap
+knowledge promotion. After Stage 1, one final request-local hygiene boundary
+rejects chunks whose `chunk_id` or `file` is not an exact built-in string, is
+blank, exceeds 256 code points, or contains control, format, surrogate,
+unassigned/noncharacter, line-separator, or paragraph-separator characters.
+Metadata must contain at least one letter, number, punctuation character,
+symbol, or assigned private-use character; combining marks and variation
+selectors remain allowed when attached to such accepted content. This is a
+post-Stage-1 carrier boundary, not a new Stage 0. The resulting sanitized and
+redacted snapshot is the only source for the prompt, response chunks and
+sources, confidence, evidence references, provenance, verification bundle, and
+knowledge candidates.
+
+Runtime warnings use stable codes only. Internal stage metadata may contain
+bounded aggregate counts, but neither surface may include raw query or chunk
+content, chunk identifiers, file paths, scores, exception messages, or other
+request-specific diagnostics. The roadmap
 [PDF](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
 is product-intent input only; runtime authority remains with this contract, the
 canonical ledger entry, code, and deterministic tests.

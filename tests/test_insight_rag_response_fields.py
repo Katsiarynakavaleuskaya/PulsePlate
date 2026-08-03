@@ -504,7 +504,7 @@ class TestInsightV1RAGFields:
         pipeline_result = PipelineResult(
             filtered_chunks=filtered_subset,
             stage_results=[],
-            warnings=["medical_boundary: chunk faq.md:1 rejected"],
+            warnings=["medical_boundary"],
             total_latency_ms=1.0,
             post_stage1_enrichment_completed=True,
         )
