@@ -634,12 +634,16 @@ def _docker_logical_instructions(
     for line in dockerfile_lines:
         stripped = line.strip()
         if not stripped:
-            continue
-        if not stripped.startswith("#"):
             break
-        escape_match = re.fullmatch(r"#\s*escape\s*=\s*([\\`])", stripped, re.IGNORECASE)
-        if escape_match is not None:
-            escape_character = escape_match.group(1)
+        directive_match = re.fullmatch(
+            r"#\s*(syntax|escape|check)\s*=\s*(\S.*)", stripped, re.IGNORECASE
+        )
+        if directive_match is None:
+            break
+        if directive_match.group(1).lower() == "escape":
+            escape_value = directive_match.group(2).strip()
+            if escape_value in {"\\", "`"}:
+                escape_character = escape_value
 
     instructions: list[tuple[int, int, str]] = []
     current_parts: list[str] = []
@@ -1078,6 +1082,37 @@ def test_node24_frontend_builder_guard_rejects_absorbed_asset_reset() -> None:
 
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
     absorbed = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "WORKDIR /srv",
+                "RUN mkdir -p frontend && printf 'seeded' > frontend/extra.js && true || \\",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert "production frontend asset reset must be an independent logical instruction" in errors
+
+
+def test_node24_frontend_builder_guard_ignores_late_escape_directive() -> None:
+    """An escape comment after the header cannot change Docker continuation rules."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    late_escape = dockerfile.replace(
+        "# Multi-stage image: pinned Caddy build + Vite build → hardened Caddy SPA shell.",
+        "\n".join(
+            (
+                "# Multi-stage image: pinned Caddy build + Vite build → hardened Caddy SPA shell.",
+                "# escape=`",
+            )
+        ),
+        1,
+    )
+    absorbed = late_escape.replace(
         NODE24_FRONTEND_ASSET_RESET_LINE,
         "\n".join(
             (
