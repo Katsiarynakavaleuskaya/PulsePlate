@@ -237,7 +237,7 @@ BRACE_EXPANSION_AUDIT_EXPECTATIONS = {
         ),
     },
 }
-BRACE_EXPANSION_EXACT_BASE = "f34fcc49d1e1d7a676feaeafd8d8b207a6416afd"  # pragma: allowlist secret
+BRACE_EXPANSION_EXACT_BASE = "36cfdb5f64dc8bf2572a287c6d063b67db628bfd"  # pragma: allowlist secret
 BRACE_EXPANSION_EXACT_BASE_DIGESTS = {
     "frontend/package.json": (
         "17235b55570d8137d35b54a6d6a7a605cb7eea23f1acf684f842baf06f85c05b"  # pragma: allowlist secret
@@ -246,14 +246,13 @@ BRACE_EXPANSION_EXACT_BASE_DIGESTS = {
         "059def600151a44cc1feacc40cb2638df23140c6e0de62f8d26291a47f697300"  # pragma: allowlist secret
     ),
 }
-BRACE_EXPANSION_EXACT_HEAD_DIGESTS = {
-    "frontend/package.json": (
-        "97bd09c0eec4fd15a582dd6a3fc96f02b29610e7955166796421f3cea703f309"  # pragma: allowlist secret
-    ),
-    "frontend/package-lock.json": (
-        "41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885"  # pragma: allowlist secret
-    ),
-}
+BRACE_EXPANSION_HEAD_EVIDENCE_SCHEMA = "pulseplate.frontend-brace-expansion-head-evidence/v1"
+BRACE_EXPANSION_HEAD_EVIDENCE_SHA256 = (
+    "b908bb307e4b19629c657e566f0a0ce2b7fc46ffbdf2e4f26c4b8c8a8e60b21e"  # pragma: allowlist secret
+)
+BRACE_EXPANSION_HEAD_EVIDENCE_SURFACES = frozenset(
+    {"frontend/package.json", "frontend/package-lock.json"}
+)
 BRACE_EXPANSION_MANIFEST_INTENT_PATHS = frozenset(
     {
         ("overrides", "minimatch@3", "brace-expansion"),
@@ -484,6 +483,67 @@ def _normalize_brace_expansion_lock_entries(entries: dict[str, dict]) -> dict[st
         record["integrity_sha256"] = hashlib.sha256(integrity.encode("utf-8")).hexdigest()
         normalized[path] = record
     return normalized
+
+
+def _brace_expansion_head_evidence_projection(
+    *,
+    package_json: dict,
+    package_lock: dict,
+) -> dict[str, object]:
+    """Project only the validated, bounded head evidence for this dependency class."""
+
+    _assert_brace_expansion_security_class(
+        package_json=package_json,
+        package_lock=package_lock,
+    )
+    overrides = package_json.get("overrides")
+    assert isinstance(overrides, dict), "frontend/package.json: overrides must be an object"
+    manifest_occurrences = _find_override_key_paths(
+        overrides,
+        target="brace-expansion",
+    )
+    lock_occurrences = _normalize_brace_expansion_lock_entries(
+        _discover_brace_expansion_lock_entries(package_lock.get("packages"))
+    )
+    return {
+        "schema": BRACE_EXPANSION_HEAD_EVIDENCE_SCHEMA,
+        "surfaces": {
+            "frontend/package.json": {
+                "manifest_occurrences": [
+                    {"path": list(path), "output": output}
+                    for path, output in sorted(manifest_occurrences.items())
+                ]
+            },
+            "frontend/package-lock.json": {
+                "lock_occurrences": lock_occurrences,
+            },
+        },
+    }
+
+
+def _brace_expansion_head_evidence_digest(
+    *,
+    package_json: dict,
+    package_lock: dict,
+) -> str:
+    projection = _brace_expansion_head_evidence_projection(
+        package_json=package_json,
+        package_lock=package_lock,
+    )
+    canonical = json.dumps(
+        projection,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _load_brace_expansion_head_evidence_documents() -> dict[str, dict]:
+    return {
+        relative: _load_json(REPO_ROOT / relative)
+        for relative in BRACE_EXPANSION_HEAD_EVIDENCE_SURFACES
+    }
 
 
 def _version_is_affected(*, version: Version, advisory: str) -> bool:
@@ -758,7 +818,7 @@ def _parse_brace_expansion_evidence_receipt(
 def _assert_brace_expansion_owner_evidence(
     document: str,
     *,
-    head_artifact_blobs: dict[str, bytes],
+    head_artifacts: dict[str, dict],
 ) -> None:
     """Bind the executable cutoff inventory to its sole current evidence owner."""
 
@@ -908,12 +968,32 @@ def _assert_brace_expansion_owner_evidence(
     assert (
         re.sub(r"\s+", " ", audit_section).strip() == expected_audit_section
     ), "owner evidence audit projection does not match the retained receipt"
-    assert set(head_artifact_blobs) == set(BRACE_EXPANSION_EXACT_HEAD_DIGESTS)
-    for relative, expected_digest in BRACE_EXPANSION_EXACT_HEAD_DIGESTS.items():
-        assert expected_digest in document, f"{relative}: head artifact digest missing from owner"
-        assert (
-            hashlib.sha256(head_artifact_blobs[relative]).hexdigest() == expected_digest
-        ), f"{relative}: head artifact raw-byte digest drift"
+    targeted_claim = (
+        "This digest binds only the canonical bounded `brace-expansion` evidence projection; "
+        "it is not a whole-file digest or a completeness claim for unrelated manifest/lock "
+        "content."
+    )
+    provider_claim = (
+        "This repository evidence receipt makes no provider review, scan, approval, PASS, or "
+        "no-findings claim."
+    )
+    assert normalized.count(targeted_claim) == 1, "owner targeted-evidence claim drift"
+    assert normalized.count(provider_claim) == 1, "owner provider-neutral claim drift"
+    digest_matches = re.findall(
+        r"Canonical targeted head evidence SHA-256:\s*`([0-9a-f]{64})`",
+        document,
+    )
+    assert digest_matches == [
+        BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
+    ], "owner targeted-evidence digest marker drift"
+    assert set(head_artifacts) == BRACE_EXPANSION_HEAD_EVIDENCE_SURFACES
+    computed_digest = _brace_expansion_head_evidence_digest(
+        package_json=head_artifacts["frontend/package.json"],
+        package_lock=head_artifacts["frontend/package-lock.json"],
+    )
+    assert (
+        computed_digest == BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
+    ), "canonical targeted brace-expansion head evidence drift"
 
 
 def _changed_json_paths(
@@ -1369,11 +1449,113 @@ def test_brace_expansion_owner_evidence_binds_cutoff_and_replay() -> None:
 
     _assert_brace_expansion_owner_evidence(
         BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8"),
-        head_artifact_blobs={
-            relative: (REPO_ROOT / relative).read_bytes()
-            for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
-        },
+        head_artifacts=_load_brace_expansion_head_evidence_documents(),
     )
+
+
+def test_brace_expansion_targeted_head_evidence_ignores_unrelated_json_drift() -> None:
+    """Unrelated manifest/lock edits must not invalidate the bounded evidence receipt."""
+
+    head_artifacts = _load_brace_expansion_head_evidence_documents()
+    package_json = deepcopy(head_artifacts["frontend/package.json"])
+    package_lock = deepcopy(head_artifacts["frontend/package-lock.json"])
+    expected = _brace_expansion_head_evidence_digest(
+        package_json=package_json,
+        package_lock=package_lock,
+    )
+
+    package_json["scripts"]["unrelated-targeted-evidence-control"] = "true"
+    package_lock["packages"][""]["unrelated-targeted-evidence-control"] = True
+    reparsed_package = json.loads(json.dumps(package_json, indent=4, sort_keys=True))
+    reparsed_lock = json.loads(json.dumps(package_lock, indent=4, sort_keys=True))
+
+    assert (
+        _brace_expansion_head_evidence_digest(
+            package_json=reparsed_package,
+            package_lock=reparsed_lock,
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "integrity",
+        "engines",
+        "metadata",
+    ),
+)
+def test_brace_expansion_targeted_head_evidence_binds_discovered_records(case: str) -> None:
+    """Every field on a discovered lock record remains content-bound."""
+
+    head_artifacts = _load_brace_expansion_head_evidence_documents()
+    package_json = deepcopy(head_artifacts["frontend/package.json"])
+    package_lock = deepcopy(head_artifacts["frontend/package-lock.json"])
+    expected = _brace_expansion_head_evidence_digest(
+        package_json=package_json,
+        package_lock=package_lock,
+    )
+    root = package_lock["packages"]["node_modules/brace-expansion"]
+    nested = package_lock["packages"]["node_modules/glob/node_modules/brace-expansion"]
+
+    if case == "integrity":
+        root["integrity"] += "-drift"
+    elif case == "engines":
+        nested["engines"]["node"] = ">=99"
+    elif case == "metadata":
+        root["license"] = "UNRELATED-TO-RECORD"
+    else:
+        raise AssertionError(f"unhandled targeted head evidence case: {case}")
+
+    assert (
+        _brace_expansion_head_evidence_digest(
+            package_json=package_json,
+            package_lock=package_lock,
+        )
+        != expected
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "manifest-alias",
+        "lock-name",
+        "lock-query",
+        "lock-fragment",
+    ),
+)
+def test_brace_expansion_targeted_head_evidence_rejects_extra_carriers(case: str) -> None:
+    """New bounded identity signals must fail validation before evidence hashing."""
+
+    head_artifacts = _load_brace_expansion_head_evidence_documents()
+    package_json = deepcopy(head_artifacts["frontend/package.json"])
+    package_lock = deepcopy(head_artifacts["frontend/package-lock.json"])
+    packages = package_lock["packages"]
+    extra = _brace_entry("2.1.3")
+
+    if case == "manifest-alias":
+        package_json["overrides"]["future-carrier"] = {
+            "renamed-package": "npm:brace-expansion@2.1.3"
+        }
+    elif case == "lock-name":
+        extra["name"] = "brace-expansion"
+        packages["node_modules/renamed-brace"] = extra
+    elif case == "lock-query":
+        extra["resolved"] += "?download=1"
+        packages["node_modules/query-brace"] = extra
+    elif case == "lock-fragment":
+        extra["resolved"] += "#fragment"
+        packages["node_modules/fragment-brace"] = extra
+    else:
+        raise AssertionError(f"unhandled targeted carrier case: {case}")
+
+    with pytest.raises(AssertionError):
+        _brace_expansion_head_evidence_digest(
+            package_json=package_json,
+            package_lock=package_lock,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1432,10 +1614,7 @@ def test_brace_expansion_owner_evidence_rejects_ambiguous_carriers(case: str) ->
     with pytest.raises(AssertionError):
         _assert_brace_expansion_owner_evidence(
             document,
-            head_artifact_blobs={
-                relative: (REPO_ROOT / relative).read_bytes()
-                for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
-            },
+            head_artifacts=_load_brace_expansion_head_evidence_documents(),
         )
 
 
@@ -1451,18 +1630,14 @@ def test_brace_expansion_owner_evidence_rejects_ambiguous_carriers(case: str) ->
         "applicable-id",
         "affected-range",
         "applicable-disposition",
-        "head-package-bytes",
-        "head-lock-bytes",
+        "head-evidence-digest",
     ),
 )
 def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: str) -> None:
     """A changed finite inventory or captured response identity must fail closed."""
 
     document = BRACE_EXPANSION_EVIDENCE_PATH.read_text(encoding="utf-8")
-    head_artifact_blobs = {
-        relative: (REPO_ROOT / relative).read_bytes()
-        for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
-    }
+    head_artifacts = _load_brace_expansion_head_evidence_documents()
     if case == "missing-row":
         document = "\n".join(
             line for line in document.splitlines() if "GHSA-832h-xg76-4gv6" not in line
@@ -1504,17 +1679,15 @@ def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: st
         document = document.replace("`<1.1.7` | Non-applicable:", "`<1.1.8` | Non-applicable:", 1)
     elif case == "applicable-disposition":
         document = document.replace("| **Applicable**:", "| Non-applicable:", 1)
-    elif case == "head-package-bytes":
-        head_artifact_blobs["frontend/package.json"] += b"\n"
-    elif case == "head-lock-bytes":
-        head_artifact_blobs["frontend/package-lock.json"] += b"\n"
+    elif case == "head-evidence-digest":
+        document = document.replace(BRACE_EXPANSION_HEAD_EVIDENCE_SHA256, "0" * 64, 1)
     else:
         raise AssertionError(f"unhandled owner evidence mutation: {case}")
 
     with pytest.raises(AssertionError):
         _assert_brace_expansion_owner_evidence(
             document,
-            head_artifact_blobs=head_artifact_blobs,
+            head_artifacts=head_artifacts,
         )
 
 
@@ -1586,10 +1759,7 @@ def test_brace_expansion_owner_evidence_rejects_rehashed_semantic_drift(
     with pytest.raises(AssertionError):
         _assert_brace_expansion_owner_evidence(
             document,
-            head_artifact_blobs={
-                relative: (REPO_ROOT / relative).read_bytes()
-                for relative in BRACE_EXPANSION_EXACT_HEAD_DIGESTS
-            },
+            head_artifacts=_load_brace_expansion_head_evidence_documents(),
         )
 
 

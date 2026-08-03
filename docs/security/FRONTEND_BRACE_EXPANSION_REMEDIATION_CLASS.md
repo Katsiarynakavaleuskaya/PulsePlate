@@ -30,20 +30,31 @@ different `D`, `S`, or `R` boundaries and cannot be batched by this owner.
 ## Frozen material and surface reconciliation
 
 The exact base is commit
-`f34fcc49d1e1d7a676feaeafd8d8b207a6416afd`. The base artifacts are bound by:
+`36cfdb5f64dc8bf2572a287c6d063b67db628bfd`. The base artifacts are bound by:
 
 - `frontend/package.json` SHA-256
   `17235b55570d8137d35b54a6d6a7a605cb7eea23f1acf684f842baf06f85c05b`;
 - `frontend/package-lock.json` SHA-256
   `059def600151a44cc1feacc40cb2638df23140c6e0de62f8d26291a47f697300`.
 
-The proposed head dependency artifacts are bound independently of the eventual
-Git commit by:
+The proposed head is bound independently of unrelated file bytes by the
+canonical targeted `pulseplate.frontend-brace-expansion-head-evidence/v1`
+projection. After full bounded candidate discovery and exact class/provenance
+validation, that projection contains every discovered manifest override-tree
+path/output record and every discovered lockfile package record. Lock records
+retain every field except that raw npm integrity text is replaced by its
+SHA-256 digest. Canonicalization is UTF-8 JSON with sorted keys and compact
+separators (`,` and `:`).
 
-- `frontend/package.json` SHA-256
-  `97bd09c0eec4fd15a582dd6a3fc96f02b29610e7955166796421f3cea703f309`;
-- `frontend/package-lock.json` SHA-256
-  `41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885`.
+Canonical targeted head evidence SHA-256:
+`b908bb307e4b19629c657e566f0a0ce2b7fc46ffbdf2e4f26c4b8c8a8e60b21e`.
+
+This digest binds only the canonical bounded `brace-expansion` evidence
+projection; it is not a whole-file digest or a completeness claim for
+unrelated manifest/lock content. The executable `I_R`/`C_R` partition below
+separately forbids unrelated material dependency deltas in this remediation
+lane. This repository evidence receipt makes no provider review, scan,
+approval, PASS, or no-findings claim.
 
 The repository npm-surface sweep enumerates exactly:
 
