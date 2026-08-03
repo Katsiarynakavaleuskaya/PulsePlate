@@ -80,5 +80,5 @@ RUN set -eux; \
     caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.5" { found=1 } END { exit found ? 0 : 1 }'; \
     rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 
-RUN rm -rf /srv/frontend
+RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]
 COPY --from=frontend-build /app/dist /srv/frontend

@@ -604,7 +604,7 @@ NODE24_FRONTEND_BUILD_LINE = (
 NODE24_CADDY_BINARY_COPY_LINE = (
     "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
 )
-NODE24_FRONTEND_ASSET_RESET_LINE = "RUN rm -rf /srv/frontend"
+NODE24_FRONTEND_ASSET_RESET_LINE = 'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]'
 NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
 NODE24_FRONTEND_ASSET_WRITE_LINES = (
     NODE24_FRONTEND_ASSET_RESET_LINE,
@@ -623,6 +623,44 @@ NODE24_CONTINUED_FROM_PREFIX_RE = re.compile(
     r"\s*(?:F|FR|FRO|FROM)[\\`]\s*",
     flags=re.IGNORECASE,
 )
+
+
+def _docker_logical_instructions(
+    dockerfile_lines: list[str],
+) -> tuple[list[tuple[int, int, str]], bool]:
+    """Return bounded Docker logical instructions and an incomplete-tail flag."""
+
+    escape_character = "\\"
+    for line in dockerfile_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith("#"):
+            break
+        escape_match = re.fullmatch(r"#\s*escape\s*=\s*([\\`])", stripped, re.IGNORECASE)
+        if escape_match is not None:
+            escape_character = escape_match.group(1)
+
+    instructions: list[tuple[int, int, str]] = []
+    current_parts: list[str] = []
+    current_start: int | None = None
+    for line_index, line in enumerate(dockerfile_lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if current_start is None:
+            current_start = line_index
+        physical_part = line.rstrip()
+        continued = physical_part.endswith(escape_character)
+        if continued:
+            physical_part = physical_part[: -len(escape_character)]
+        current_parts.append(physical_part.strip())
+        if continued:
+            continue
+        instructions.append((current_start, line_index, " ".join(current_parts)))
+        current_parts = []
+        current_start = None
+    return instructions, current_start is not None
 
 
 def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
@@ -679,6 +717,14 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     final_stage_start_index = (
         from_stage_indices[-1] if from_stage_indices else len(dockerfile_lines)
     )
+    logical_instructions, has_incomplete_logical_instruction = _docker_logical_instructions(
+        dockerfile_lines
+    )
+    final_stage_logical_instructions = [
+        instruction
+        for start_index, _end_index, instruction in logical_instructions
+        if start_index > final_stage_start_index
+    ]
     final_stage_copy_add_lines = [
         line
         for line_index, line in enumerate(dockerfile_lines)
@@ -689,6 +735,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     errors: list[str] = []
     if has_utf8_bom or unsupported_from_lines or has_continued_from_keyword:
         errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
+    if has_incomplete_logical_instruction:
+        errors.append("Dockerfile logical instructions must be complete")
     if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
         errors.append("frontend-build must have exactly one immutable Node owner")
     if node_from_stage_lines != [NODE24_FRONTEND_BUILD_LINE]:
@@ -701,13 +749,18 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("production frontend assets must come only from frontend-build")
     elif not from_stage_indices or frontend_asset_write_indices[0] <= from_stage_indices[-1]:
         errors.append("production frontend asset handoff must belong to the final stage")
-    elif frontend_asset_write_indices[1] != frontend_asset_write_indices[0] + 1:
-        errors.append("production frontend asset reset must immediately precede the handoff")
-    elif not (has_utf8_bom or unsupported_from_lines or has_continued_from_keyword) and any(
-        line.strip() and not line.lstrip().startswith("#")
-        for line in dockerfile_lines[frontend_asset_write_indices[1] + 1 :]
-    ):
+    elif has_utf8_bom or unsupported_from_lines or has_continued_from_keyword:
+        pass
+    elif NODE24_FRONTEND_ASSET_RESET_LINE not in final_stage_logical_instructions:
+        errors.append("production frontend asset reset must be an independent logical instruction")
+    elif NODE24_FRONTEND_ASSET_COPY_LINE not in final_stage_logical_instructions:
+        errors.append(
+            "production frontend asset handoff must be an independent logical instruction"
+        )
+    elif final_stage_logical_instructions[-1] != NODE24_FRONTEND_ASSET_COPY_LINE:
         errors.append("production frontend asset handoff must be the final executable instruction")
+    elif final_stage_logical_instructions[-2:] != list(NODE24_FRONTEND_ASSET_WRITE_LINES):
+        errors.append("production frontend asset reset must immediately precede the handoff")
     return errors
 
 
@@ -1018,6 +1071,27 @@ def test_node24_frontend_builder_guard_requires_adjacent_asset_reset(
     errors = _node24_frontend_builder_contract_errors(mutated)
 
     assert expected_error in errors
+
+
+def test_node24_frontend_builder_guard_rejects_absorbed_asset_reset() -> None:
+    """A prior continuation cannot absorb and short-circuit the reset instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    absorbed = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "WORKDIR /srv",
+                "RUN mkdir -p frontend && printf 'seeded' > frontend/extra.js && true || \\",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert "production frontend asset reset must be an independent logical instruction" in errors
 
 
 def test_node24_frontend_builder_reset_clears_pre_handoff_seed() -> None:
