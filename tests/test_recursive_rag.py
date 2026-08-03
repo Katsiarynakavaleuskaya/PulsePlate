@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -392,18 +393,50 @@ def test_low_gain_hop_does_not_pollute_merged_chunks(
     assert [chunk.chunk_id for chunk in result.chunks] == ["a-high"]
 
 
-def test_recursive_fail_safe_on_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Internal retrieval failure must return safe empty context."""
+def test_recursive_fail_safe_on_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Internal failure must return empty context without exception diagnostics."""
+    import core.rag.recursive_retrieval as recursive
+
+    query_sentinel = "RECURSIVE_EMPTY_RAW_QUERY_SENTINEL"
+    exception_sentinel = "RECURSIVE_EMPTY_EXCEPTION_SENTINEL"
+    warning_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    original_warning = recursive.logger.warning
 
     def _boom(*_: Any, **__: Any) -> RAGContext:
-        raise RuntimeError("boom")
+        raise RuntimeError(exception_sentinel)
+
+    def _capture_warning(*args: object, **kwargs: object) -> None:
+        warning_calls.append((args, kwargs))
+        original_warning(*args, **kwargs)
 
     monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _boom)
+    monkeypatch.setattr(recursive.logger, "warning", _capture_warning)
 
-    result = retrieve_recursive_context_structured("safe fallback")
+    with caplog.at_level("WARNING", logger=recursive.logger.name):
+        result = retrieve_recursive_context_structured(query_sentinel)
+
+    assert result.query == query_sentinel
+    assert result.refined_queries == [query_sentinel]
     assert result.chunks == []
     assert result.confidence == 0.0
-    assert result.hops >= 1
+    assert result.hops == 1
+    assert warning_calls == [(("Recursive retrieval failed; returning safe empty context",), {})]
+    records = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "Recursive retrieval failed; returning safe empty context"
+    ]
+    assert len(records) == 1
+    assert records[0].args == ()
+    assert records[0].exc_info is None
+    assert records[0].exc_text is None
+    assert records[0].stack_info is None
+    for sentinel in (query_sentinel, exception_sentinel):
+        assert sentinel not in records[0].getMessage()
+        assert sentinel not in caplog.text
 
 
 def test_compute_confidence_empty_returns_zero() -> None:
@@ -921,9 +954,32 @@ def test_optimized_recursive_fail_safe_on_internal_error_records_stats(
 
 def test_optimized_recursive_preserves_partial_context_when_helper_raises(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Optimization-only helper failures must keep the best partial recursive result."""
+    """Helper failures must keep partial context without exception diagnostics."""
     import core.rag.recursive_retrieval as recursive
+
+    query_sentinel = "RECURSIVE_PARTIAL_RAW_QUERY_SENTINEL"
+    refined_query_sentinel = "RECURSIVE_PARTIAL_REFINED_QUERY_SENTINEL"
+    exception_sentinel = "RECURSIVE_PARTIAL_EXCEPTION_SENTINEL"
+    chunk_id_sentinel = "RECURSIVE_PARTIAL_CHUNK_ID_SENTINEL"
+    chunk_file_sentinel = "RECURSIVE_PARTIAL_FILE_SENTINEL"
+    chunk_content_sentinel = "RECURSIVE_PARTIAL_CONTENT_SENTINEL"
+    chunk_score_sentinel = 0.765432198
+    warning_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    original_warning = recursive.logger.warning
+    material_change_calls = 0
+
+    def _capture_warning(*args: object, **kwargs: object) -> None:
+        warning_calls.append((args, kwargs))
+        original_warning(*args, **kwargs)
+
+    def _fail_after_first_material_change(*_: object, **__: object) -> bool:
+        nonlocal material_change_calls
+        material_change_calls += 1
+        if material_change_calls == 1:
+            return True
+        raise RuntimeError(exception_sentinel)
 
     monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
     monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
@@ -937,28 +993,79 @@ def test_optimized_recursive_preserves_partial_context_when_helper_raises(
             query,
             [
                 RAGChunk(
-                    chunk_id="partial-1",
-                    file="doc.md",
-                    content="fiber protein vegetables satiety",
-                    score=0.8,
+                    chunk_id=chunk_id_sentinel,
+                    file=chunk_file_sentinel,
+                    content=chunk_content_sentinel,
+                    score=chunk_score_sentinel,
                 )
             ],
-            confidence=0.8,
+            confidence=chunk_score_sentinel,
         ),
     )
     monkeypatch.setattr(
         recursive,
-        "_query_changed_materially",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("helper boom")),
+        "_refine_query",
+        lambda *_args, **_kwargs: refined_query_sentinel,
     )
+    monkeypatch.setattr(
+        recursive,
+        "_query_changed_materially",
+        _fail_after_first_material_change,
+    )
+    monkeypatch.setattr(recursive.logger, "warning", _capture_warning)
 
-    result = retrieve_recursive_context_structured("base query", optimization_enabled=True)
+    with caplog.at_level("WARNING", logger=recursive.logger.name):
+        result = retrieve_recursive_context_structured(query_sentinel, optimization_enabled=True)
 
-    assert [chunk.chunk_id for chunk in result.chunks] == ["partial-1"]
-    assert result.confidence == 0.8
-    assert result.refined_queries == ["base query"]
+    assert result.query == query_sentinel
+    assert result.refined_queries == [query_sentinel, refined_query_sentinel]
+    assert [
+        (chunk.chunk_id, chunk.file, chunk.content, chunk.score, chunk.hop)
+        for chunk in result.chunks
+    ] == [
+        (
+            chunk_id_sentinel,
+            chunk_file_sentinel,
+            chunk_content_sentinel,
+            chunk_score_sentinel,
+            1,
+        )
+    ]
+    assert result.confidence == round(chunk_score_sentinel, 4)
+    assert result.hops == 2
     assert result.optimization_stats is not None
     assert result.optimization_stats["enabled"] is True
+    assert warning_calls == [
+        (
+            (
+                "Recursive retrieval failed after partial success; "
+                "returning best partial context",
+            ),
+            {},
+        )
+    ]
+    records = [
+        record
+        for record in caplog.records
+        if record.getMessage()
+        == "Recursive retrieval failed after partial success; returning best partial context"
+    ]
+    assert len(records) == 1
+    assert records[0].args == ()
+    assert records[0].exc_info is None
+    assert records[0].exc_text is None
+    assert records[0].stack_info is None
+    for sentinel in (
+        query_sentinel,
+        refined_query_sentinel,
+        exception_sentinel,
+        chunk_id_sentinel,
+        chunk_file_sentinel,
+        chunk_content_sentinel,
+        repr(chunk_score_sentinel),
+    ):
+        assert sentinel not in records[0].getMessage()
+        assert sentinel not in caplog.text
 
 
 def test_fifo_hop_vector_cache_evicts_oldest_when_full() -> None:
@@ -1173,8 +1280,7 @@ def test_hop_vector_cache_disabled_when_optimization_flag_off(
     assert calls["n"] == 3
 
 
-@pytest.mark.asyncio
-async def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
+def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Recursive request-local memoization must remain optimization-only."""
@@ -1205,22 +1311,24 @@ async def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
     monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
     monkeypatch.setattr(recursive, "_refine_query", lambda current, *_args, **_kwargs: current)
 
-    result = await retrieve_and_validate_rag(
-        "first",
-        philo_validation_enabled=False,
-        recursive_rag_enabled=True,
-        optimization_enabled=True,
-        subject_id=42,
-        knowledge_policy=KnowledgePolicy(
-            enabled=True,
-            allow_reads=True,
-            allow_promotion=True,
-            min_confidence=0.7,
-            require_rag_factual_route=True,
-            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
-            subject_scope_required=True,
-            rail="product_ai_runtime",
-        ),
+    result = asyncio.run(
+        retrieve_and_validate_rag(
+            "first",
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            optimization_enabled=True,
+            subject_id=42,
+            knowledge_policy=KnowledgePolicy(
+                enabled=True,
+                allow_reads=True,
+                allow_promotion=True,
+                min_confidence=0.7,
+                require_rag_factual_route=True,
+                deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+                subject_scope_required=True,
+                rail="product_ai_runtime",
+            ),
+        )
     )
 
     assert calls["n"] >= 1
