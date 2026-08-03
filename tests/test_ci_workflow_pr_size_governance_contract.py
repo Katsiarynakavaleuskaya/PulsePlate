@@ -729,6 +729,9 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         for start_index, _end_index, instruction in logical_instructions
         if start_index > final_stage_start_index
     ]
+    final_stage_has_heredoc = any(
+        "<<" in instruction for instruction in final_stage_logical_instructions
+    )
     final_stage_copy_add_lines = [
         line
         for line_index, line in enumerate(dockerfile_lines)
@@ -741,6 +744,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
     if has_incomplete_logical_instruction:
         errors.append("Dockerfile logical instructions must be complete")
+    if final_stage_has_heredoc:
+        errors.append("final-stage Docker heredoc instructions are unsupported")
     if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
         errors.append("frontend-build must have exactly one immutable Node owner")
     if node_from_stage_lines != [NODE24_FRONTEND_BUILD_LINE]:
@@ -1127,6 +1132,30 @@ def test_node24_frontend_builder_guard_ignores_late_escape_directive() -> None:
     errors = _node24_frontend_builder_contract_errors(absorbed)
 
     assert "production frontend asset reset must be an independent logical instruction" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_final_stage_heredoc() -> None:
+    """Heredoc data cannot impersonate the reset and handoff instructions."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    disguised = dockerfile.replace(
+        "\n".join(NODE24_FRONTEND_ASSET_WRITE_LINES),
+        "\n".join(
+            (
+                "RUN <<'#OUTER'",
+                ": <<'#INNER'",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+                NODE24_FRONTEND_ASSET_COPY_LINE,
+                "#INNER",
+                "#OUTER",
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(disguised)
+
+    assert "final-stage Docker heredoc instructions are unsupported" in errors
 
 
 def test_node24_frontend_builder_reset_clears_pre_handoff_seed() -> None:
