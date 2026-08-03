@@ -725,6 +725,13 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     logical_instructions, has_incomplete_logical_instruction = _docker_logical_instructions(
         dockerfile_lines
     )
+    logical_instruction_start_indices = {
+        start_index for start_index, _end_index, _instruction in logical_instructions
+    }
+    has_absorbed_from_stage = any(
+        from_stage_index not in logical_instruction_start_indices
+        for from_stage_index in from_stage_indices
+    )
     dockerfile_has_heredoc = any(
         re.search(r"<\s*<", instruction) is not None
         for _start_index, _end_index, instruction in logical_instructions
@@ -742,7 +749,12 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     ]
 
     errors: list[str] = []
-    if has_utf8_bom or unsupported_from_lines or has_continued_from_keyword:
+    if (
+        has_utf8_bom
+        or unsupported_from_lines
+        or has_continued_from_keyword
+        or has_absorbed_from_stage
+    ):
         errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
     if has_incomplete_logical_instruction:
         errors.append("Dockerfile logical instructions must be complete")
@@ -883,6 +895,33 @@ def test_node24_frontend_builder_guard_rejects_continued_canonical_owner() -> No
     continued = dockerfile.replace(NODE24_FRONTEND_BUILD_LINE, continued_owner, 1)
 
     errors = _node24_frontend_builder_contract_errors(continued)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+@pytest.mark.parametrize("escape_character", ("\\", "`"))
+@pytest.mark.parametrize("stage_prefix", ("FROM golang:", "FROM node:", "FROM caddy:"))
+def test_node24_frontend_builder_guard_rejects_absorbed_from_stage(
+    escape_character: str,
+    stage_prefix: str,
+) -> None:
+    """A preceding continuation cannot absorb any physical FROM line."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    if escape_character == "`":
+        dockerfile = dockerfile.replace(
+            "# syntax=docker/dockerfile:1",
+            "# syntax=docker/dockerfile:1\n# escape=`",
+            1,
+        )
+    stage = next(line for line in dockerfile.splitlines() if line.startswith(stage_prefix))
+    absorbed = dockerfile.replace(
+        stage,
+        "\n".join((f"RUN : {escape_character}", stage)),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
 
     assert NODE24_UNSUPPORTED_FROM_ERROR in errors
 
