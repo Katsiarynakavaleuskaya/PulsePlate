@@ -604,7 +604,12 @@ NODE24_FRONTEND_BUILD_LINE = (
 NODE24_CADDY_BINARY_COPY_LINE = (
     "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
 )
+NODE24_FRONTEND_ASSET_RESET_LINE = "RUN rm -rf /srv/frontend"
 NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
+NODE24_FRONTEND_ASSET_WRITE_LINES = (
+    NODE24_FRONTEND_ASSET_RESET_LINE,
+    NODE24_FRONTEND_ASSET_COPY_LINE,
+)
 NODE24_FINAL_STAGE_COPY_ADD_LINES = (
     NODE24_CADDY_BINARY_COPY_LINE,
     NODE24_FRONTEND_ASSET_COPY_LINE,
@@ -692,13 +697,15 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
     if final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES):
         errors.append("final-stage COPY/ADD instructions must stay finite and ordered")
-    if frontend_asset_write_lines != [NODE24_FRONTEND_ASSET_COPY_LINE]:
+    if frontend_asset_write_lines != list(NODE24_FRONTEND_ASSET_WRITE_LINES):
         errors.append("production frontend assets must come only from frontend-build")
     elif not from_stage_indices or frontend_asset_write_indices[0] <= from_stage_indices[-1]:
         errors.append("production frontend asset handoff must belong to the final stage")
+    elif frontend_asset_write_indices[1] != frontend_asset_write_indices[0] + 1:
+        errors.append("production frontend asset reset must immediately precede the handoff")
     elif not (has_utf8_bom or unsupported_from_lines or has_continued_from_keyword) and any(
         line.strip() and not line.lstrip().startswith("#")
-        for line in dockerfile_lines[frontend_asset_write_indices[0] + 1 :]
+        for line in dockerfile_lines[frontend_asset_write_indices[1] + 1 :]
     ):
         errors.append("production frontend asset handoff must be the final executable instruction")
     return errors
@@ -938,12 +945,12 @@ def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
 
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
     non_instructions = dockerfile.replace(
-        NODE24_FRONTEND_ASSET_COPY_LINE,
+        NODE24_FRONTEND_ASSET_RESET_LINE,
         "\n".join(
             (
                 "# FROM node:25-bookworm-slim AS commented-tooling",
                 "FROMAGE node:25-bookworm-slim AS identifier-tooling",
-                NODE24_FRONTEND_ASSET_COPY_LINE,
+                NODE24_FRONTEND_ASSET_RESET_LINE,
             )
         ),
         1,
@@ -986,6 +993,54 @@ def test_node24_frontend_builder_guard_rejects_post_handoff_run() -> None:
 
 
 @pytest.mark.parametrize(
+    ("replacement", "expected_error"),
+    (
+        ("", "production frontend assets must come only from frontend-build"),
+        (
+            f"{NODE24_FRONTEND_ASSET_RESET_LINE}\nRUN true",
+            "production frontend asset reset must immediately precede the handoff",
+        ),
+    ),
+)
+def test_node24_frontend_builder_guard_requires_adjacent_asset_reset(
+    replacement: str,
+    expected_error: str,
+) -> None:
+    """The final handoff must immediately follow its structural destination reset."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    mutated = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        replacement,
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(mutated)
+
+    assert expected_error in errors
+
+
+def test_node24_frontend_builder_reset_clears_pre_handoff_seed() -> None:
+    """A relative pre-seed remains harmless because the adjacent reset follows it."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    seeded = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "WORKDIR /srv",
+                "RUN mkdir -p frontend && printf 'alternate' > front\\",
+                "end/extra.js",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    assert _node24_frontend_builder_contract_errors(seeded) == []
+
+
+@pytest.mark.parametrize(
     "asset_write",
     (
         "COPY custom-index.html frontend/index.html",
@@ -1014,14 +1069,15 @@ def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
 
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
     dockerfile_lines = dockerfile.splitlines()
-    handoff_index = dockerfile_lines.index(NODE24_FRONTEND_ASSET_COPY_LINE)
-    handoff_line = dockerfile_lines.pop(handoff_index)
+    reset_index = dockerfile_lines.index(NODE24_FRONTEND_ASSET_RESET_LINE)
+    handoff_lines = dockerfile_lines[reset_index : reset_index + 2]
+    del dockerfile_lines[reset_index : reset_index + 2]
     final_stage_index = max(
         index
         for index, line in enumerate(dockerfile_lines)
         if re.match(r"\s*FROM\s+", line, flags=re.IGNORECASE)
     )
-    dockerfile_lines.insert(final_stage_index, handoff_line)
+    dockerfile_lines[final_stage_index:final_stage_index] = handoff_lines
     relocated = "\n".join(dockerfile_lines)
 
     errors = _node24_frontend_builder_contract_errors(relocated)
