@@ -6,8 +6,9 @@ end-to-end via /api/v1/insight and /insight endpoints.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 from unittest.mock import patch
 
 import pytest
@@ -82,6 +83,82 @@ def _rag_all_clean(
         confidence=0.85,
         hops=1,
         latency_ms=8,
+    )
+
+
+def _rag_all_invalid_scores(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+    subject_id: int | None = None,
+) -> _FakeCtx:
+    """Fake RAG returning only chunks with invalid runtime scores."""
+    del subject_id
+    return _FakeCtx(
+        query=query,
+        refined_queries=[query],
+        chunks=[
+            _FakeChunk(
+                "invalid:true",
+                "true-score.md",
+                "True-scored evidence must not reach insight.",
+                cast(float, True),
+            ),
+            _FakeChunk(
+                "nonfinite:nan",
+                "nan.md",
+                "NaN-scored evidence must not reach insight.",
+                math.nan,
+            ),
+            _FakeChunk(
+                "nonfinite:positive-inf",
+                "positive-inf.md",
+                "Positive-infinity evidence must not reach insight.",
+                math.inf,
+            ),
+            _FakeChunk(
+                "nonfinite:negative-inf",
+                "negative-inf.md",
+                "Negative-infinity evidence must not reach insight.",
+                -math.inf,
+            ),
+        ],
+        confidence=0.99,
+        hops=2,
+        latency_ms=12,
+    )
+
+
+def _rag_mixed_safe_and_unrepresentable_int(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+    subject_id: int | None = None,
+) -> _FakeCtx:
+    """Fake RAG returning one safe chunk and one unrepresentable integer score."""
+    del subject_id
+    return _FakeCtx(
+        query=query,
+        refined_queries=[query],
+        chunks=[
+            _FakeChunk(
+                "safe:finite",
+                "safe.md",
+                "Safe finite evidence reaches insight.",
+                0.75,
+            ),
+            _FakeChunk(
+                "invalid:huge-int",
+                "huge-int.md",
+                "Huge integer evidence must not reach insight.",
+                10**400,
+            ),
+        ],
+        confidence=0.875,
+        hops=2,
+        latency_ms=13,
     )
 
 
@@ -232,13 +309,15 @@ class TestPhilosophyValidationV1:
         # Only clean:1 (score=0.85) survives → confidence = 0.85
         assert data["confidence"] == 0.85
 
-    def test_flag_on_validation_error_failsafe(
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_flag_on_validation_error_fails_closed(
         self,
+        path: str,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        """If validation raises, original chunks are returned (fail-safe)."""
+        """If canonical validation raises, both routes reject all RAG chunks."""
         _setup_insight(monkeypatch)
         monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
         monkeypatch.setattr(
@@ -251,15 +330,99 @@ class TestPhilosophyValidationV1:
             "core.rag.validation._run_validation",
             side_effect=RuntimeError("internal"),
         ):
-            resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+            resp = client.post(path, json={"text": "test"}, headers=vip_headers)
 
         assert resp.status_code == 200
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
-        # Fail-safe: both chunks should be present
-        chunk_ids = [s["chunk_id"] for s in data["sources"]]
-        assert "med:1" in chunk_ids
-        assert "clean:1" in chunk_ids
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
+        assert data["hops"] == 1
+        assert data["latency_ms"] == 10
+        assert "You need a diagnosis from a doctor." not in data["insight"]
+        assert "Balanced nutrition supports wellness." not in data["insight"]
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_flag_on_all_invalid_scores_degrades_without_rag(
+        self,
+        path: str,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Both routes exclude True and non-finite scores from all RAG output."""
+        _setup_insight(monkeypatch)
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _rag_all_invalid_scores,
+            raising=True,
+        )
+
+        resp = client.post(path, json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is False
+        assert data["sources"] == []
+        assert data["confidence"] is None
+        assert data["hops"] == 2
+        assert data["latency_ms"] == 12
+        for content in (
+            "True-scored evidence must not reach insight.",
+            "NaN-scored evidence must not reach insight.",
+            "Positive-infinity evidence must not reach insight.",
+            "Negative-infinity evidence must not reach insight.",
+        ):
+            assert content not in data["insight"]
+        for provenance_value in (
+            "invalid:true",
+            "true-score.md",
+            "nonfinite:nan",
+            "nan.md",
+            "nonfinite:positive-inf",
+            "positive-inf.md",
+            "nonfinite:negative-inf",
+            "negative-inf.md",
+        ):
+            assert provenance_value not in resp.text
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_flag_on_mixed_safe_and_unrepresentable_int_uses_only_safe_rag(
+        self,
+        path: str,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Both routes retain safe evidence while excluding unrepresentable scores."""
+        _setup_insight(monkeypatch)
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _rag_mixed_safe_and_unrepresentable_int,
+            raising=True,
+        )
+
+        resp = client.post(path, json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert len(data["sources"]) == 1
+        assert data["sources"][0]["chunk_id"] == "safe:finite"
+        assert data["sources"][0]["file"] == "safe.md"
+        assert data["sources"][0]["score"] == 0.75
+        assert data["confidence"] == 0.75
+        assert data["hops"] == 2
+        assert data["latency_ms"] == 13
+        assert "Safe finite evidence reaches insight." in data["insight"]
+        assert "Huge integer evidence must not reach insight." not in data["insight"]
+        for provenance_value in ("invalid:huge-int", "huge-int.md"):
+            assert provenance_value not in resp.text
 
 
 # ---------------------------------------------------------------------------

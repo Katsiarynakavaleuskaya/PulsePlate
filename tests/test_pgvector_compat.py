@@ -8,6 +8,7 @@ mandatory with ``PGVECTOR_COMPAT_REQUIRED=1``.
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import os
 from collections.abc import Callable, Iterator
@@ -37,7 +38,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.types import UserDefinedType
 
@@ -561,6 +562,71 @@ def test_rls_context_is_transaction_local_and_does_not_leak(
             assert len(_visible_sources(session, database.table)) == 2
             session.commit()
             assert _visible_sources(session, database.table) == []
+
+
+def test_real_postgres_advisory_lease_contends_then_releases(
+    pgvector_database: _CompatDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core import db as core_db
+    from core.food_apis.scheduler_runtime import (
+        SchedulerMode,
+        UpdateLeaseContended,
+        run_with_update_lease,
+    )
+
+    database = pgvector_database
+    session_factory = sessionmaker(bind=database.owner_engine)
+    events: list[str] = []
+
+    async def scenario() -> None:
+        async def competing_operation() -> None:
+            events.append("competing-body")
+
+        async def owning_operation() -> str:
+            events.append("owning-body")
+            with pytest.raises(UpdateLeaseContended):
+                await run_with_update_lease(
+                    competing_operation,
+                    mode=SchedulerMode.EXTERNAL,
+                    session_factory=session_factory,
+                )
+            events.append("contention-observed")
+            return "owned"
+
+        assert (
+            await run_with_update_lease(
+                owning_operation,
+                mode=SchedulerMode.EXTERNAL,
+                session_factory=session_factory,
+            )
+            == "owned"
+        )
+        await run_with_update_lease(
+            competing_operation,
+            mode=SchedulerMode.EXTERNAL,
+            session_factory=session_factory,
+        )
+
+    baseline_database_url = os.environ["DATABASE_URL"]
+    core_db.reset_db_for_tests()
+    try:
+        with monkeypatch.context() as database_env:
+            database_env.setenv(
+                "DATABASE_URL",
+                database.owner_engine.url.render_as_string(hide_password=False),
+            )
+            database_env.setenv("FOOD_UPDATE_SCHEDULER_MODE", "external")
+            asyncio.run(scenario())
+    finally:
+        core_db.reset_db_for_tests()
+        core_db.init_db(baseline_database_url)
+
+    assert events == [
+        "owning-body",
+        "contention-observed",
+        "competing-body",
+    ]
 
 
 def test_production_vector_retrieval_uses_postgres_and_real_rls(

@@ -2493,6 +2493,20 @@ Do not remove this exclusion without a product decision and a separate PR
 - **Forbidden patterns:** `ls | grep` (SC2010) — use glob + for loop or `find` instead.
 - **Rationale:** Prevents shell script bugs and ensures CI workflow reliability.
 
+**CD-Test exact published-image smoke invariant:**
+
+- `.github/workflows/cd-test.yml` must admit `validate-environment` only for a
+  successful same-repository `Docker Build and Push` `workflow_run` produced by
+  a `push` to `main`. Its deterministic contract must compare the complete
+  admission expression exactly; token-presence checks are insufficient.
+- Checkout, GHCR image selection, and container execution must stay bound to
+  the same `workflow_run.head_sha`. Registry credentials remain step-env/stdin
+  only, while the container receives synthetic CI configuration only.
+- The job timeout is governed by
+  `vars.CD_TEST_VALIDATE_TIMEOUT_MINUTES` through `fromJSON` with a `10`-minute
+  default. The loopback-only, bounded `/health` probe must fail closed, emit
+  bounded diagnostics before cleanup, and preserve the original exit status.
+
 **iOS CI debugging (finding real errors in logs):**
 
 - **SwiftPM compilation noise:** SPM packages (e.g., Lottie) produce verbose compilation logs. This is normal and not an error.

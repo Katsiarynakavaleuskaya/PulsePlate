@@ -406,9 +406,38 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 ### Canonical admin scheduler access
 
-- `core/food_apis/scheduler.py` is the only owner of the scheduler singleton and
-  its lifecycle. `app/services/scheduler_access.py` is a lazy, typed delegator;
-  it must not add cache, override registry, fallback state, or lifecycle logic.
+- `core/food_apis/scheduler_runtime.py` owns scheduler-mode resolution and the
+  attempt-scoped update lease. Exact modes are `external`, `in_process_dev`,
+  and `disabled`; aliases, whitespace-normalized values, and unknown values
+  fail closed. Production/staging forbid `in_process_dev`.
+- `core/food_apis/scheduler.py` owns the scheduler singleton, update algorithms,
+  and the no-ingress worker CLI. `--serve` is external-mode-only; `--once`
+  permits `external` or `disabled` and runs one leased due-check.
+- Production API processes use `external` mode and must not import or own the
+  periodic scheduler loop. `app/bootstrap/lifespan.py` loads scheduler hooks
+  only for explicit non-production `in_process_dev` mode.
+- The API singleton does not install process signal handlers. Direct scheduler
+  construction preserves the compatibility default; the dedicated worker owns
+  its own signal handlers.
+- PostgreSQL coordination uses one stable repository-owned 64-bit advisory key.
+  Acquisition, the complete scheduled/admin update operation, and unlock must
+  use the same dedicated SQLAlchemy session/connection. Unknown acquire or
+  release state invalidates the connection and fails closed. Process-local
+  locking is allowed only in explicit non-production development/test runtime.
+- The lease proves only that cooperating paths using the same PostgreSQL
+  database and key do not execute the guarded body concurrently while the
+  owning session remains valid. It is not exactly-once delivery, leader
+  election, fencing, fairness, worker-health, or multi-host cache coherence.
+- Canonical compose deployments in `external` mode run one `worker` service
+  from the exact backend image, without ports or ingress, after migrations and
+  API readiness. The worker is behind the opt-in `scheduler-external` profile;
+  deploy scripts explicitly target it only for external ownership. In
+  `disabled` mode, the deployment removes the stopped worker container, and
+  unprofiled full-stack startup must not select it, so daemon restart cannot
+  revive stale external configuration. API and worker share the named food-cache
+  volume; this remains a single-host topology.
+- `app/services/scheduler_access.py` is a lazy, typed delegator; it must not add
+  cache, override registry, fallback state, or lifecycle logic.
 - Admin services import and await the scheduler-access callable at their use
   site. Do not reintroduce `sys.modules` lookup, compatibility getter selection,
   or synchronous getter support.
@@ -418,10 +447,11 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   the lazy boundary.
 - `admin_status` preserves intentional `HTTPException` pass-through and maps an
   unavailable scheduler to stable `503 Scheduler unavailable`. Database status,
-  force update, and update check must log technical failures with
-  `logger.exception` and expose only their stable generic `500` details.
-- Scheduler lifecycle, worker topology, and update/rollback algorithms are
-  outside an access-seam refactor and require separately approved scope.
+  update check, and non-contention force-update failures must log technical
+  failures and expose only stable generic `500` details. Definite canonical
+  lease contention from admin force-update or rollback maps to deterministic
+  `409 update_already_in_progress`; uncertain lease state remains a generic
+  server failure.
 
 ### Canonical legacy weekly-menu builder access
 
