@@ -487,8 +487,8 @@ def _normalize_brace_expansion_lock_entries(entries: dict[str, dict]) -> dict[st
 
 def _brace_expansion_head_evidence_projection(
     *,
-    package_json: dict,
-    package_lock: dict,
+    package_json: dict[str, object],
+    package_lock: dict[str, object],
 ) -> dict[str, object]:
     """Project only the validated, bounded head evidence for this dependency class."""
 
@@ -523,8 +523,8 @@ def _brace_expansion_head_evidence_projection(
 
 def _brace_expansion_head_evidence_digest(
     *,
-    package_json: dict,
-    package_lock: dict,
+    package_json: dict[str, object],
+    package_lock: dict[str, object],
 ) -> str:
     projection = _brace_expansion_head_evidence_projection(
         package_json=package_json,
@@ -704,8 +704,12 @@ def _parse_brace_expansion_evidence_receipt(
     assert database["query"] == (
         "GET /advisories?ecosystem=npm&affects=brace-expansion&per_page=100"
     )
-    assert type(database["record_count"]) is int
-    assert database["record_count"] == 6
+    assert (
+        type(database["record_count"]) is int
+    ), "owner evidence advisory_database.record_count must be an integer"
+    assert (
+        database["record_count"] == 6
+    ), "owner evidence advisory_database.record_count must be exactly 6"
     records = database["records"]
     assert isinstance(records, list)
     assert len(records) == database["record_count"]
@@ -781,7 +785,9 @@ def _parse_brace_expansion_evidence_receipt(
     assert audit["node"] == "v24.16.0"
     assert audit["npm"] == "11.13.0"
     assert audit["registry"] == "https://registry.npmjs.org/"
-    assert audit["overall_audit_clean"] is False
+    assert (
+        audit["overall_audit_clean"] is False
+    ), "owner evidence npm_audit.overall_audit_clean must remain false"
     for snapshot_name, expected in BRACE_EXPANSION_AUDIT_EXPECTATIONS.items():
         snapshot = _require_exact_object(
             audit[snapshot_name],
@@ -803,9 +809,13 @@ def _parse_brace_expansion_evidence_receipt(
         assert tuple(advisory_ids) == expected["brace_expansion_advisory_ids"]
         assert type(snapshot["brace_expansion_present"]) is bool
         assert snapshot["brace_expansion_present"] is expected["brace_expansion_present"]
-        assert type(snapshot["exit_code"]) is int
+        assert (
+            type(snapshot["exit_code"]) is int
+        ), f"owner evidence npm_audit.{snapshot_name}.exit_code must be an integer"
         assert snapshot["exit_code"] == expected["exit_code"]
-        assert type(snapshot["total"]) is int
+        assert (
+            type(snapshot["total"]) is int
+        ), f"owner evidence npm_audit.{snapshot_name}.total must be an integer"
         assert snapshot["total"] == expected["total"]
         assert isinstance(vulnerability_keys, list)
         assert vulnerability_keys == sorted(set(vulnerability_keys))
@@ -986,7 +996,9 @@ def _assert_brace_expansion_owner_evidence(
     assert digest_matches == [
         BRACE_EXPANSION_HEAD_EVIDENCE_SHA256
     ], "owner targeted-evidence digest marker drift"
-    assert set(head_artifacts) == BRACE_EXPANSION_HEAD_EVIDENCE_SURFACES
+    assert (
+        set(head_artifacts) == BRACE_EXPANSION_HEAD_EVIDENCE_SURFACES
+    ), "head evidence artifact surfaces drift"
     computed_digest = _brace_expansion_head_evidence_digest(
         package_json=head_artifacts["frontend/package.json"],
         package_lock=head_artifacts["frontend/package-lock.json"],
@@ -1496,8 +1508,16 @@ def test_brace_expansion_targeted_head_evidence_binds_discovered_records(case: s
         package_json=package_json,
         package_lock=package_lock,
     )
-    root = package_lock["packages"]["node_modules/brace-expansion"]
-    nested = package_lock["packages"]["node_modules/glob/node_modules/brace-expansion"]
+    discovered = _discover_brace_expansion_lock_entries(package_lock["packages"])
+    root_path = "node_modules/brace-expansion"
+    assert root_path in discovered, "expected the discovered root brace-expansion record"
+    root = discovered[root_path]
+    nested_records = {path: record for path, record in discovered.items() if path != root_path}
+    assert len(nested_records) == 1, "expected exactly one discovered nested brace-expansion record"
+    nested_path, nested = next(iter(nested_records.items()))
+    assert (
+        nested.get("version") == BRACE_EXPANSION_APPROVED_OUTPUTS[5]
+    ), f"{nested_path}: expected the approved nested brace-expansion record"
 
     if case == "integrity":
         root["integrity"] += "-drift"
@@ -1518,15 +1538,18 @@ def test_brace_expansion_targeted_head_evidence_binds_discovered_records(case: s
 
 
 @pytest.mark.parametrize(
-    "case",
+    ("case", "expected_message"),
     (
-        "manifest-alias",
-        "lock-name",
-        "lock-query",
-        "lock-fragment",
+        ("manifest-alias", "override target/output set is not approved"),
+        ("lock-name", "alias/noncanonical installed path"),
+        ("lock-query", "alias/noncanonical installed path"),
+        ("lock-fragment", "alias/noncanonical installed path"),
     ),
 )
-def test_brace_expansion_targeted_head_evidence_rejects_extra_carriers(case: str) -> None:
+def test_brace_expansion_targeted_head_evidence_rejects_extra_carriers(
+    case: str,
+    expected_message: str,
+) -> None:
     """New bounded identity signals must fail validation before evidence hashing."""
 
     head_artifacts = _load_brace_expansion_head_evidence_documents()
@@ -1551,7 +1574,7 @@ def test_brace_expansion_targeted_head_evidence_rejects_extra_carriers(case: str
     else:
         raise AssertionError(f"unhandled targeted carrier case: {case}")
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=expected_message):
         _brace_expansion_head_evidence_digest(
             package_json=package_json,
             package_lock=package_lock,
@@ -1692,16 +1715,29 @@ def test_brace_expansion_owner_evidence_fails_closed_on_inventory_drift(case: st
 
 
 @pytest.mark.parametrize(
-    "case",
+    ("case", "expected_message"),
     (
-        "audit-exit-code-type",
-        "audit-total-type",
-        "audit-conclusion",
-        "coordinated-omission",
+        (
+            "audit-exit-code-type",
+            "owner evidence npm_audit.base.exit_code must be an integer",
+        ),
+        (
+            "audit-total-type",
+            "owner evidence npm_audit.head.total must be an integer",
+        ),
+        (
+            "audit-conclusion",
+            "owner evidence npm_audit.overall_audit_clean must remain false",
+        ),
+        (
+            "coordinated-omission",
+            "owner evidence advisory_database.record_count must be exactly 6",
+        ),
     ),
 )
 def test_brace_expansion_owner_evidence_rejects_rehashed_semantic_drift(
     case: str,
+    expected_message: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A new digest cannot bless a false receipt class or coordinated omission."""
@@ -1751,12 +1787,21 @@ def test_brace_expansion_owner_evidence_rejects_rehashed_semantic_drift(
                 if advisory != omitted
             },
         )
+        monkeypatch.setitem(
+            globals(),
+            "BRACE_EXPANSION_RENDERED_PROJECTIONS",
+            {
+                advisory: projection
+                for advisory, projection in BRACE_EXPANSION_RENDERED_PROJECTIONS.items()
+                if advisory != omitted
+            },
+        )
     else:
         raise AssertionError(f"unhandled rehashed receipt mutation: {case}")
 
     document, new_digest = _replace_brace_expansion_evidence_receipt(document, receipt)
     monkeypatch.setitem(globals(), "BRACE_EXPANSION_EVIDENCE_RECEIPT_SHA256", new_digest)
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=expected_message):
         _assert_brace_expansion_owner_evidence(
             document,
             head_artifacts=_load_brace_expansion_head_evidence_documents(),
