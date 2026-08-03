@@ -1,6 +1,5 @@
 import os
 from unittest.mock import MagicMock, patch
-from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,17 +9,13 @@ from app.http_error_details import INVALID_PREMIUM_PLATE_INPUT_DETAIL
 from app.middleware.api_tiers import TEST_KEY_VIP
 
 
+@pytest.fixture(autouse=True)
+def _api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the API key before the canonical managed client starts."""
+    monkeypatch.setenv("API_KEY", "test_key")
+
+
 class TestAppMissingLinesExtra:
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        self.client = get_client()
-
-    def teardown_method(self) -> None:
-        os.environ.pop("API_KEY", None)
-        client = getattr(self, "client", None)
-        if client is not None:
-            client.close()
-
     def test_get_update_scheduler_public_identity(self) -> None:
         import legacy_app
         from app.services import scheduler_access
@@ -28,7 +23,7 @@ class TestAppMissingLinesExtra:
         assert app_mod.get_update_scheduler is legacy_app.get_update_scheduler
         assert app_mod.get_update_scheduler is scheduler_access.get_update_scheduler
 
-    def test_insight_implicit_disabled_flag_branch(self):
+    def test_insight_implicit_disabled_flag_branch(self, client: TestClient) -> None:
         # Ensure provider exists so we get to flag check at line 605
         class _Stub:
             name = "stub"
@@ -40,13 +35,11 @@ class TestAppMissingLinesExtra:
             patch.dict(os.environ, {"FEATURE_INSIGHT": "maybe"}, clear=False),
             patch("llm.get_insight_provider", return_value=_Stub()),
         ):
-            r = self.client.post(
-                "/insight", json={"text": "x"}, headers={"X-API-Key": TEST_KEY_VIP}
-            )
+            r = client.post("/insight", json={"text": "x"}, headers={"X-API-Key": TEST_KEY_VIP})
             assert r.status_code == 503
             assert "disabled" in r.json().get("detail", "").lower()
 
-    def test_premium_plate_value_error_is_sanitized(self) -> None:
+    def test_premium_plate_value_error_is_sanitized(self, client: TestClient) -> None:
         from app.services import pro_nutrition_plate as plate_service
 
         with (
@@ -74,7 +67,7 @@ class TestAppMissingLinesExtra:
                 "activity": "light",
                 "goal": "maintain",
             }
-            r = self.client.post(
+            r = client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code == 400
@@ -83,7 +76,7 @@ class TestAppMissingLinesExtra:
             internal_path = "/".join(("", "tmp", "internal", "plate"))
             assert internal_path not in r.json()["detail"]
 
-    def test_premium_plate_missing_bmr_tdee_check(self):
+    def test_premium_plate_missing_bmr_tdee_check(self, client: TestClient) -> None:
         from app.services import pro_nutrition_plate as plate_service
 
         # Force the documented canonical backend fallback.
@@ -101,13 +94,13 @@ class TestAppMissingLinesExtra:
                 "activity": "light",
                 "goal": "maintain",
             }
-            r = self.client.post(
+            r = client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code == 200
             make_plate.assert_not_called()
 
-    def test_nutrient_gaps_value_error(self):
+    def test_nutrient_gaps_value_error(self, client: TestClient) -> None:
         # Hit 1275 by raising ValueError from build_nutrition_targets
         with (
             patch.object(app_mod, "analyze_nutrient_gaps", lambda *a, **k: {}),
@@ -125,7 +118,5 @@ class TestAppMissingLinesExtra:
                     "life_stage": "adult",
                 },
             }
-            r = self.client.post(
-                "/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"}
-            )
+            r = client.post("/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"})
             assert r.status_code in [200, 500, 503]

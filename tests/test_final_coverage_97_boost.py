@@ -5,7 +5,6 @@ Final boost to reach 97% coverage by targeting specific uncovered lines.
 import asyncio
 import os
 from unittest.mock import MagicMock, patch
-from tests._client import get_client
 
 import pytest
 import app as app_mod
@@ -16,12 +15,6 @@ from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_admin_get
 os.environ.setdefault("API_KEY", "test-key")
 os.environ.setdefault("VIP_MODULE_ENABLED", "true")
 os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Test client with fresh app instance."""
-    return get_client()
 
 
 class TestAppInitCoverage:
@@ -133,17 +126,24 @@ class TestRecommendationsCoverage:
 class TestUnifiedDbCoverage:
     """Tests for core/food_apis/unified_db.py uncovered lines."""
 
-    def test_unified_db_search_edge_cases(self) -> None:
+    def test_unified_db_search_edge_cases(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test unified_db search with edge cases."""
-        from core.food_apis.unified_db import search_unified_food
+        from core.food_apis import unified_db as unified_db_mod
 
-        # Test with empty query
-        result = asyncio.run(search_unified_food(""))
-        assert result is not None
+        async def _fake_search(
+            query: str, max_results: int = 5
+        ) -> list[unified_db_mod.UnifiedFoodResult]:
+            _ = (query, max_results)
+            return []
 
-        # Test with special characters
-        result = asyncio.run(search_unified_food("тест !@#"))
-        assert result is not None
+        monkeypatch.setattr(unified_db_mod, "search_foods_unified", _fake_search)
+
+        async def _scenario() -> None:
+            for query in ("", "тест !@#"):
+                result = await unified_db_mod.search_unified_food(query)
+                assert result == []
+
+        asyncio.run(_scenario())
 
     def test_unified_db_language_support(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test unified_db language normalization contract."""
@@ -178,8 +178,11 @@ class TestUpdateManagerCoverage:
         try:
             from core.food_apis.update_manager import DatabaseUpdateScheduler
 
-            scheduler = DatabaseUpdateScheduler()
-            assert scheduler is not None
+            scheduler = DatabaseUpdateScheduler(install_signal_handlers=False)
+            try:
+                assert scheduler is not None
+            finally:
+                asyncio.run(scheduler.update_manager.close())
         except ImportError as exc:
             pytest.fail(f"DatabaseUpdateScheduler import must be available: {exc}")
 
