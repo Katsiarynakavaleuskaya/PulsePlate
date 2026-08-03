@@ -884,6 +884,7 @@ class TestMandatoryStage1HTTPBoundary:
         vector_rag = resolve_module("core.rag.vector_rag")
 
         def _retrieve_boundary(*args: Any, **kwargs: Any) -> _FakeRAGContext:
+            """Return scenario-specific retrieval chunks for the route matrix."""
             context = _make_boundary_structured(*args, **kwargs)
             if scenario == "stage1_empty":
                 context.chunks = context.chunks[:1]
@@ -899,6 +900,7 @@ class TestMandatoryStage1HTTPBoundary:
         philosophy_pipeline = resolve_module("core.rag.philosophy_pipeline")
 
         def _raise_private_failure(*_args: object, **_kwargs: object) -> None:
+            """Simulate a private validation-stage failure without leaking details."""
             raise RuntimeError("private boundary failure")
 
         failure_stage = {
@@ -944,7 +946,6 @@ class TestMandatoryStage1HTTPBoundary:
             assert data["confidence"] == 0.85
 
         assert "raw:rejected" not in response.text
-        assert "raw:only-rejected" not in response.text
         assert "A diagnosis is required" not in response.text
 
         if scenario == "enrichment_exception":

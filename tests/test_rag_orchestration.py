@@ -2013,6 +2013,142 @@ def test_candidate_builder_exception_preserves_rag_response_and_closes_publicati
         assert sentinel not in caplog.text
 
 
+def test_post_retrieval_exception_log_is_fixed_and_confidential(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Outer recovery logs one fixed record without exception or request details."""
+    query_sentinel = "sentinel-private-query"
+    chunk = _make_chunk(
+        chunk_id="sentinel-private-chunk-id",
+        content="sentinel-private chunk content",
+        score=0.876543,
+        file="/private/sentinel-orchestration-path.md",
+    )
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=chunk.score, hops=3)
+    pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
+    exception_message = (
+        f"sentinel-private-formatter-failure {query_sentinel} {chunk.chunk_id} "
+        f"{chunk.file} {chunk.content} {chunk.score}"
+    )
+
+    with (
+        caplog.at_level(logging.DEBUG, logger="core.rag.orchestration"),
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            side_effect=RuntimeError(exception_message),
+        ),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                query_sentinel,
+                philo_validation_enabled=True,
+            )
+        )
+
+    assert result.rag_actually_used is False
+    assert result.formatted_prompt == query_sentinel
+    assert result.chunks == []
+    assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+    records = [record for record in caplog.records if record.name == "core.rag.orchestration"]
+    assert [record.getMessage() for record in records] == [
+        "RAG orchestration failed; returning empty result"
+    ]
+    assert records[0].args == ()
+    assert records[0].exc_info is None
+    for sentinel in (
+        "sentinel-private-formatter-failure",
+        query_sentinel,
+        chunk.chunk_id,
+        chunk.file,
+        chunk.content,
+        str(chunk.score),
+    ):
+        assert sentinel not in caplog.text
+
+
+def test_pipeline_warnings_remain_in_carrier_without_dynamic_debug_logs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Real validation warnings stay observable in results but never enter logs."""
+    query_sentinel = "sentinel-private-query-token"
+    source_path = "/private/sentinel-source-path.md"
+    rejected = _make_chunk(
+        chunk_id="sentinel-medical-id",
+        content="sentinel-content diagnosis guidance",
+        score=0.91,
+        file="/private/sentinel-rejected-path.md",
+    )
+    alignment_survivor = _make_chunk(
+        chunk_id="sentinel-alignment-id",
+        content="Balance habits",
+        score=0.99,
+        file=source_path,
+    )
+    baseline_survivor = _make_chunk(
+        chunk_id="sentinel-baseline-id",
+        content="Steady wellness routines support everyday balanced meals.",
+        score=0.81,
+        file=source_path,
+    )
+    rag_ctx = _make_rag_context(
+        chunks=[rejected, alignment_survivor, baseline_survivor],
+        confidence=0.9,
+        hops=2,
+    )
+
+    with (
+        caplog.at_level(logging.DEBUG),
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            return_value="safe formatted context",
+        ),
+        patch(
+            "core.insight.safety.redact_rag_context_for_insight",
+            return_value="safe formatted context",
+        ),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                query_sentinel,
+                philo_validation_enabled=True,
+            )
+        )
+
+    assert result.rag_actually_used is True
+    assert [chunk.chunk_id for chunk in result.chunks] == [
+        alignment_survivor.chunk_id,
+        baseline_survivor.chunk_id,
+    ]
+    assert result.formatted_prompt == (
+        f"Context:\nsafe formatted context\n\nQuestion: {query_sentinel}\nAnswer:"
+    )
+    assert result.confidence == 0.9
+    assert result.warnings == [
+        "medical_boundary: chunk sentinel-medical-id rejected (matched 'diagnosis')",
+        "alignment_mismatch: chunk sentinel-alignment-id (score=0.99, len=14)",
+        f"single_source_echo: all 2 chunks from {source_path}",
+    ]
+    for sentinel in (
+        query_sentinel,
+        rejected.content,
+        "diagnosis",
+        rejected.chunk_id,
+        alignment_survivor.content,
+        alignment_survivor.chunk_id,
+        baseline_survivor.chunk_id,
+        source_path,
+        "score=0.99",
+        "len=14",
+        "all 2 chunks",
+    ):
+        assert sentinel not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("formatted_context", "redacted_context", "expected_reason"),
     [

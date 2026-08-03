@@ -334,9 +334,6 @@ async def _run_orchestration(
             bool(chunks_to_use) and pipeline_result.post_stage1_enrichment_completed
         )
 
-        for warning in warnings:
-            logger.debug("rag_pipeline: %s", warning)
-
         # If no chunks survived validation
         if not chunks_to_use:
             degraded_reason = getattr(rag_ctx, "degraded_reason", None) or (
@@ -358,7 +355,7 @@ async def _run_orchestration(
                     confidence=None,
                     degraded_reason=degraded_reason,
                     rag_actually_used=False,
-                    philo_validation_enabled=enrichment_completed,
+                    enrichment_completed=enrichment_completed,
                     recursive_executed=recursive_executed,
                     verification_calls=verification_calls,
                     chunks=(),
@@ -382,7 +379,7 @@ async def _run_orchestration(
                 confidence=confidence,
                 degraded_reason=degraded_reason,
                 rag_actually_used=False,
-                philo_validation_enabled=enrichment_completed,
+                enrichment_completed=enrichment_completed,
                 recursive_executed=recursive_executed,
                 verification_calls=verification_calls,
                 chunks=chunks_to_use,
@@ -461,7 +458,7 @@ async def _run_orchestration(
             confidence=confidence,
             degraded_reason=getattr(rag_ctx, "degraded_reason", None),
             rag_actually_used=True,
-            philo_validation_enabled=enrichment_completed,
+            enrichment_completed=enrichment_completed,
             recursive_executed=recursive_executed,
             verification_calls=verification_calls,
             chunks=chunks_to_use,
@@ -512,10 +509,7 @@ async def _run_orchestration(
             verification_calls=verification_calls,
         )
     except Exception:
-        logger.warning(
-            "RAG orchestration failed; returning empty result",
-            exc_info=True,
-        )
+        logger.warning("RAG orchestration failed; returning empty result")
         if rag_ctx is not None:
             return _non_rag_result(
                 prompt_input,
@@ -531,7 +525,7 @@ async def _run_orchestration(
                     confidence=None,
                     degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
                     rag_actually_used=False,
-                    philo_validation_enabled=enrichment_completed,
+                    enrichment_completed=enrichment_completed,
                     recursive_executed=recursive_executed,
                     verification_calls=verification_calls,
                     chunks=(),
@@ -601,7 +595,7 @@ def _build_orchestration_verification_bundle(
     confidence: float | None,
     degraded_reason: RAGDegradedReason | None,
     rag_actually_used: bool,
-    philo_validation_enabled: bool,
+    enrichment_completed: bool,
     recursive_executed: bool,
     verification_calls: int,
     chunks: Sequence["RAGChunk"],
@@ -635,7 +629,7 @@ def _build_orchestration_verification_bundle(
         confidence=confidence,
         degraded_reason=degraded_reason,
         rag_actually_used=rag_actually_used,
-        philo_validation_enabled=philo_validation_enabled,
+        philo_validation_enabled=enrichment_completed,
         recursive_executed=recursive_executed,
         verification_calls=verification_calls,
         evidence_refs=evidence_refs,

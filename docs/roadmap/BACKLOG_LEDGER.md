@@ -29,7 +29,7 @@ If it is not recorded here — it does not exist.
   - Owner: backend-engineer
   - Priority: P1 (AI runtime trust / response continuity)
   - Target PR: [PR #2232](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2232)
-  - Status: In progress on `codex/rag-baseline-validation-boundary`
+  - Status: In review on `codex/rag-baseline-validation-boundary`
   - Area: backend / RAG / Insight runtime / knowledge admission
   - Business reason (EN): Keep the available non-medical wellness response when
     advisory enrichment fails while preventing any unvalidated retrieval chunk
