@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from typing import cast
 
+import pytest
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
@@ -22,6 +23,7 @@ CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-upload.yml"
 CODEQL_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
+FRONTEND_CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight-ios.yml"
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
 NIGHTLY_FULL_TESTS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-tests.yml"
@@ -599,7 +601,14 @@ NODE24_FRONTEND_BUILD_LINE = (
     "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
     " AS frontend-build"
 )
+NODE24_CADDY_BINARY_COPY_LINE = (
+    "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
+)
 NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
+NODE24_FINAL_STAGE_COPY_ADD_LINES = (
+    NODE24_CADDY_BINARY_COPY_LINE,
+    NODE24_FRONTEND_ASSET_COPY_LINE,
+)
 NODE24_UNSUPPORTED_FROM_ERROR = "FROM stages must use the supported single-line form"
 NODE24_SUPPORTED_FROM_RE = re.compile(
     r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"(?:\s+AS\s+(?P<alias>[^\s\\`]+))?\s*",
@@ -662,6 +671,15 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         for line_index, line in enumerate(dockerfile_lines)
         if "/srv/frontend" in line and not line.lstrip().startswith("#")
     ]
+    final_stage_start_index = (
+        from_stage_indices[-1] if from_stage_indices else len(dockerfile_lines)
+    )
+    final_stage_copy_add_lines = [
+        line
+        for line_index, line in enumerate(dockerfile_lines)
+        if line_index > final_stage_start_index
+        and re.match(r"\s*(?:COPY|ADD)(?:\s|$)", line, flags=re.IGNORECASE)
+    ]
 
     errors: list[str] = []
     if has_utf8_bom or unsupported_from_lines or has_continued_from_keyword:
@@ -672,6 +690,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("the immutable frontend-build line must be the only Node FROM stage")
     if from_stage_aliases != ["caddy-build", "frontend-build", None]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
+    if final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES):
+        errors.append("final-stage COPY/ADD instructions must stay finite and ordered")
     if frontend_asset_write_lines != [NODE24_FRONTEND_ASSET_COPY_LINE]:
         errors.append("production frontend assets must come only from frontend-build")
     elif not from_stage_indices or frontend_asset_write_indices[0] <= from_stage_indices[-1]:
@@ -692,9 +712,13 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     devcontainer = json.loads(
         (REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8")
     )
+    public_readme = (REPO_ROOT / "README_V2_PUBLIC_DRAFT.md").read_text(encoding="utf-8")
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
     assert nvmrc == "24.18.1"
+    assert "- Node `24.18.1` for the web client" in public_readme
+    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.18.1`." in public_readme
+    assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.8"
@@ -935,6 +959,30 @@ def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
     assert "production frontend assets must come only from frontend-build" in errors
 
 
+@pytest.mark.parametrize(
+    "asset_write",
+    (
+        "COPY custom-index.html frontend/index.html",
+        "ADD custom-index.html frontend/index.html",
+    ),
+)
+def test_node24_frontend_builder_guard_rejects_relative_asset_overwrite(
+    asset_write: str,
+) -> None:
+    """A final-stage relative COPY or ADD cannot overwrite the served SPA."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    overwritten = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "\n".join((NODE24_FRONTEND_ASSET_COPY_LINE, "WORKDIR /srv", asset_write)),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(overwritten)
+
+    assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
+
+
 def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
     """The canonical handoff must populate the final production stage."""
 
@@ -953,6 +1001,26 @@ def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
     errors = _node24_frontend_builder_contract_errors(relocated)
 
     assert "production frontend asset handoff must belong to the final stage" in errors
+
+
+def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
+    """Frontend CI must execute the bounded guard on Dockerfile-only changes."""
+
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    job = workflow["jobs"]["build-and-test"]
+    assert "if" not in job
+    step = _job_step_by_name(
+        workflow,
+        job_id="build-and-test",
+        step_name="Run frontend builder governance guard",
+    )
+
+    assert step["run"] == (
+        "cd ..\n"
+        "python -m pytest -q \\\n"
+        "  tests/test_ci_workflow_pr_size_governance_contract.py \\\n"
+        "  -k node24\n"
+    )
 
 
 def _extract_shell_conditional_block(
