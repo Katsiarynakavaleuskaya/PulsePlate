@@ -621,6 +621,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     unsupported_from_lines = [
         line for line in from_candidate_lines if NODE24_SUPPORTED_FROM_RE.fullmatch(line) is None
     ]
+    has_utf8_bom = dockerfile.startswith("\ufeff")
     has_continued_from_keyword = any(
         NODE24_CONTINUED_FROM_PREFIX_RE.fullmatch(line) is not None for line in dockerfile_lines
     )
@@ -663,7 +664,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     ]
 
     errors: list[str] = []
-    if unsupported_from_lines or has_continued_from_keyword:
+    if has_utf8_bom or unsupported_from_lines or has_continued_from_keyword:
         errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
     if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
         errors.append("frontend-build must have exactly one immutable Node owner")
@@ -890,6 +891,17 @@ def test_node24_frontend_builder_guard_rejects_crlf_split_from_keyword() -> None
         errors = _node24_frontend_builder_contract_errors(hidden_stage)
 
         assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (escape_character, errors)
+
+
+def test_node24_frontend_builder_guard_rejects_utf8_bom() -> None:
+    """Docker's stripped UTF-8 BOM cannot hide an initial FROM instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    bom_prefixed = "\ufeffFROM node:25-bookworm-slim AS hidden-tooling\n" + dockerfile
+
+    errors = _node24_frontend_builder_contract_errors(bom_prefixed)
+
+    assert errors == [NODE24_UNSUPPORTED_FROM_ERROR]
 
 
 def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
