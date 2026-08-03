@@ -230,6 +230,65 @@ class TestVectorRetrievalFallback:
         )
         assert vector_rag._is_vector_embedding_model_acknowledged() is True
 
+    @pytest.mark.parametrize(
+        (
+            "acknowledgement_env_name",
+            "expected_model_name",
+            "configured_env_name",
+            "configured_model_name",
+        ),
+        [
+            ("TEST_VECTOR_ACK", 123, "TEST_VECTOR_ACK", "123"),
+            (123, "test-vector-model", "123", "test-vector-model"),
+            ("   ", "test-vector-model", "   ", "test-vector-model"),
+            ("TEST_VECTOR_ACK", "   ", "TEST_VECTOR_ACK", "   "),
+        ],
+    )
+    def test_invalid_model_ack_constants_fail_closed_without_vector_work(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        acknowledgement_env_name: object,
+        expected_model_name: object,
+        configured_env_name: str,
+        configured_model_name: str,
+    ) -> None:
+        """Invalid acknowledgement constants must not authorize persisted vectors."""
+        import core.rag.vector_rag as vector_rag
+
+        vector_retrieve_called = False
+
+        def _unexpected_vector_retrieve(*_: object, **__: object) -> RAGContext:
+            nonlocal vector_retrieve_called
+            vector_retrieve_called = True
+            raise AssertionError("invalid acknowledgement must not reach vector retrieval")
+
+        monkeypatch.setattr(
+            vector_rag,
+            "RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV",
+            acknowledgement_env_name,
+        )
+        monkeypatch.setattr(vector_rag, "EMBEDDING_MODEL_NAME", expected_model_name)
+        monkeypatch.setenv(configured_env_name, configured_model_name)
+        monkeypatch.setattr(vector_rag, "is_rag_vector_enabled", lambda: True)
+        monkeypatch.setattr(
+            vector_rag,
+            "_retrieve_vector_from_db",
+            _unexpected_vector_retrieve,
+        )
+        monkeypatch.setattr(
+            "core.rag.simple_rag.retrieve_context_structured",
+            _fake_jaccard,
+        )
+
+        assert vector_rag._is_vector_embedding_model_acknowledged() is False
+
+        ctx = vector_rag.retrieve_context_structured("security acknowledgement", subject_id=21)
+
+        assert isinstance(ctx, _FakeContext)
+        assert [chunk.chunk_id for chunk in ctx.chunks] == ["j:1"]
+        assert not vector_retrieve_called
+        assert ctx.degraded_reason == RAGDegradedReason.VECTOR_FALLBACK_MODEL_UNACKNOWLEDGED
+
     def test_flag_off_uses_jaccard(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """FEATURE_RAG_VECTOR=false must use Jaccard retrieval."""
         monkeypatch.setenv("FEATURE_RAG_VECTOR", "false")
