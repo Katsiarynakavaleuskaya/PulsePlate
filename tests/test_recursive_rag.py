@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -1279,8 +1280,7 @@ def test_hop_vector_cache_disabled_when_optimization_flag_off(
     assert calls["n"] == 3
 
 
-@pytest.mark.asyncio
-async def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
+def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Recursive request-local memoization must remain optimization-only."""
@@ -1311,22 +1311,24 @@ async def test_recursive_nonvalidated_path_never_emits_knowledge_candidates(
     monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
     monkeypatch.setattr(recursive, "_refine_query", lambda current, *_args, **_kwargs: current)
 
-    result = await retrieve_and_validate_rag(
-        "first",
-        philo_validation_enabled=False,
-        recursive_rag_enabled=True,
-        optimization_enabled=True,
-        subject_id=42,
-        knowledge_policy=KnowledgePolicy(
-            enabled=True,
-            allow_reads=True,
-            allow_promotion=True,
-            min_confidence=0.7,
-            require_rag_factual_route=True,
-            deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
-            subject_scope_required=True,
-            rail="product_ai_runtime",
-        ),
+    result = asyncio.run(
+        retrieve_and_validate_rag(
+            "first",
+            philo_validation_enabled=False,
+            recursive_rag_enabled=True,
+            optimization_enabled=True,
+            subject_id=42,
+            knowledge_policy=KnowledgePolicy(
+                enabled=True,
+                allow_reads=True,
+                allow_promotion=True,
+                min_confidence=0.7,
+                require_rag_factual_route=True,
+                deny_degraded_reasons=("retrieval_empty", "all_chunks_filtered"),
+                subject_scope_required=True,
+                rail="product_ai_runtime",
+            ),
+        )
     )
 
     assert calls["n"] >= 1
