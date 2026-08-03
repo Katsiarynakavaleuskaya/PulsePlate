@@ -1003,6 +1003,23 @@ def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
     assert "production frontend asset handoff must belong to the final stage" in errors
 
 
+def _github_workflow_glob_matches(value: str, pattern: str) -> bool:
+    """Match the bounded GitHub ``*``/``**`` forms without crossing slashes."""
+
+    assert not any(token in pattern for token in ("?", "[", "]", "\\"))
+    regex_parts: list[str] = []
+    index = 0
+    while index < len(pattern):
+        if pattern.startswith("**", index):
+            regex_parts.append(".*")
+            index += 2
+            continue
+        character = pattern[index]
+        regex_parts.append("[^/]*" if character == "*" else re.escape(character))
+        index += 1
+    return re.fullmatch("".join(regex_parts), value) is not None
+
+
 def _workflow_patterns_match(value: str, patterns: list[object]) -> bool:
     """Return GitHub-style ordered include/exclude matching for one known value."""
 
@@ -1011,7 +1028,7 @@ def _workflow_patterns_match(value: str, patterns: list[object]) -> bool:
         assert isinstance(pattern, str)
         excluded = pattern.startswith("!")
         candidate = pattern.removeprefix("!")
-        if fnmatch.fnmatchcase(value, candidate):
+        if _github_workflow_glob_matches(value, candidate):
             matched = not excluded
     return matched
 
@@ -1103,6 +1120,8 @@ def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
         "push_paths",
         "pull_request_path_exclusion",
         "push_path_exclusion",
+        "pull_request_root_star_paths",
+        "push_root_star_paths",
         "pull_request_branches",
         "push_branches",
         "pull_request_types",
@@ -1148,6 +1167,11 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         event = on_section[event_name]
         assert isinstance(event, dict)
         event["paths"] = ["frontend/**", "!frontend/Dockerfile.caddy-spa"]
+    if mutation in {"pull_request_root_star_paths", "push_root_star_paths"}:
+        event_name = mutation.removesuffix("_root_star_paths")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["paths"] = ["*"]
     if mutation in {"pull_request_branches", "push_branches"}:
         event_name = mutation.removesuffix("_branches")
         event = on_section[event_name]
