@@ -7,7 +7,7 @@ EN: Tests for remaining modules with low coverage
 """
 
 import sys
-import time
+import threading
 from collections.abc import Sequence
 from pathlib import Path
 from datetime import datetime, timezone
@@ -1868,12 +1868,21 @@ class TestInsightApplicationServiceFastLane:
 
         candidate, candidate_sentinels = self._sentinel_candidate("KNOWLEDGE_SYNC_TIMEOUT")
         observed: dict[str, object] = {}
+        promotion_started = threading.Event()
+        release_promotion = threading.Event()
+        promotion_finished = threading.Event()
 
         class _SlowSyncStore:
             def promote(self, candidates: list[object]) -> list[object]:
                 observed["candidates"] = candidates
-                time.sleep(0.05)
-                return []
+                promotion_started.set()
+                try:
+                    assert release_promotion.wait(
+                        timeout=1.0
+                    ), "test did not release the blocked promotion worker"
+                    return []
+                finally:
+                    promotion_finished.set()
 
         monkeypatch.setattr(
             insight_application_service,
@@ -1884,25 +1893,37 @@ class TestInsightApplicationServiceFastLane:
         warning_spy = MagicMock(wraps=insight_application_service.logger.warning)
         monkeypatch.setattr(insight_application_service.logger, "warning", warning_spy)
 
-        with caplog.at_level("WARNING", logger=insight_application_service.logger.name):
-            result = asyncio.run(
+        async def _exercise_timeout() -> None:
+            promotion_task = asyncio.create_task(
                 insight_application_service._maybe_promote_knowledge_candidates(
                     knowledge_store=_SlowSyncStore(),
                     candidates=[candidate],
                     verification_bundle=self._verification_bundle(),
                 )
             )
+            try:
+                started = await asyncio.to_thread(promotion_started.wait, 1.0)
+                assert started, "promotion worker did not start within the bounded wait"
 
-        assert result is None
-        assert observed["candidates"] == [candidate]
-        self._assert_fixed_recovery_warning(
-            caplog=caplog,
-            warning_spy=warning_spy,
-            expected_message=(
-                "Knowledge promotion timed out; response path continues without persistence"
-            ),
-            sentinels=candidate_sentinels,
-        )
+                result = await promotion_task
+
+                assert result is None
+                assert observed["candidates"] == [candidate]
+                self._assert_fixed_recovery_warning(
+                    caplog=caplog,
+                    warning_spy=warning_spy,
+                    expected_message=(
+                        "Knowledge promotion timed out; response path continues without persistence"
+                    ),
+                    sentinels=candidate_sentinels,
+                )
+            finally:
+                release_promotion.set()
+
+        with caplog.at_level("WARNING", logger=insight_application_service.logger.name):
+            asyncio.run(_exercise_timeout())
+
+        assert promotion_finished.wait(timeout=1.0), "promotion worker did not finish after release"
 
 
 class TestPhilosophicalRuntimeFastLane:
