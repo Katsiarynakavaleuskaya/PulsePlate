@@ -947,6 +947,8 @@ class TestMandatoryStage1HTTPBoundary:
 
         assert "raw:rejected" not in response.text
         assert "A diagnosis is required" not in response.text
+        if scenario in {"stage1_exception", "enrichment_exception"}:
+            assert "private boundary failure" not in response.text
 
         if scenario == "enrichment_exception":
             promotion_observer.assert_awaited_once()
