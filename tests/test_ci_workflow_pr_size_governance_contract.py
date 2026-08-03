@@ -741,12 +741,17 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         for start_index, _end_index, instruction in logical_instructions
         if start_index > final_stage_start_index
     ]
-    final_stage_copy_add_lines = [
-        line
+    final_stage_copy_add_entries = [
+        (line_index, line)
         for line_index, line in enumerate(dockerfile_lines)
         if line_index > final_stage_start_index
         and re.match(r"\s*(?:COPY|ADD)(?:\s|$)", line, flags=re.IGNORECASE)
     ]
+    final_stage_copy_add_lines = [line for _line_index, line in final_stage_copy_add_entries]
+    has_absorbed_final_stage_copy_add = any(
+        line_index not in logical_instruction_start_indices
+        for line_index, _line in final_stage_copy_add_entries
+    )
 
     errors: list[str] = []
     if (
@@ -766,7 +771,10 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("the immutable frontend-build line must be the only Node FROM stage")
     if from_stage_aliases != ["caddy-build", "frontend-build", None]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
-    if final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES):
+    if (
+        final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES)
+        or has_absorbed_final_stage_copy_add
+    ):
         errors.append("final-stage COPY/ADD instructions must stay finite and ordered")
     if frontend_asset_write_lines != list(NODE24_FRONTEND_ASSET_WRITE_LINES):
         errors.append("production frontend assets must come only from frontend-build")
@@ -1060,6 +1068,30 @@ def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
     )
 
     assert _node24_frontend_builder_contract_errors(non_instructions) == []
+
+
+@pytest.mark.parametrize("escape_character", ("\\", "`"))
+def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
+    escape_character: str,
+) -> None:
+    """A preceding continuation cannot absorb the Caddy provenance COPY."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    if escape_character == "`":
+        dockerfile = dockerfile.replace(
+            "# syntax=docker/dockerfile:1",
+            "# syntax=docker/dockerfile:1\n# escape=`",
+            1,
+        )
+    absorbed = dockerfile.replace(
+        NODE24_CADDY_BINARY_COPY_LINE,
+        "\n".join((f"RUN : {escape_character}", NODE24_CADDY_BINARY_COPY_LINE)),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
 
 
 def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
