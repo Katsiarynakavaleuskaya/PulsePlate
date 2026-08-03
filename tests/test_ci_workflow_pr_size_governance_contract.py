@@ -607,10 +607,10 @@ NODE24_SUPPORTED_FROM_RE = re.compile(
 )
 NODE24_FROM_KEYWORD_RE = re.compile(
     r"^[^\S\r\n]*"
-    r"F(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
-    r"R(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
-    r"O(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
-    r"M(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
+    r"F(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
+    r"R(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
+    r"O(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
+    r"M(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
     r"(?=[^\S\r\n]|$)",
     flags=re.IGNORECASE | re.MULTILINE,
 )
@@ -823,19 +823,22 @@ def test_node24_frontend_builder_guard_rejects_split_from_keyword() -> None:
                 "# syntax=docker/dockerfile:1\n# escape=`",
                 1,
             )
-        for split_index in range(1, len("FROM") + 1):
-            continued_keyword = f"{'FROM'[:split_index]}{escape_character}\n{'FROM'[split_index:]}"
-            hidden_stage = (
-                f"{candidate}\n{continued_keyword} node:25-bookworm-slim AS hidden-tooling"
-            )
+        for continuation_count in (1, 2):
+            for split_index in range(1, len("FROM") + 1):
+                continuation = f"{escape_character}\n" * continuation_count
+                continued_keyword = f"{'FROM'[:split_index]}{continuation}{'FROM'[split_index:]}"
+                hidden_stage = (
+                    f"{candidate}\n{continued_keyword} node:25-bookworm-slim AS hidden-tooling"
+                )
 
-            errors = _node24_frontend_builder_contract_errors(hidden_stage)
+                errors = _node24_frontend_builder_contract_errors(hidden_stage)
 
-            assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (
-                escape_character,
-                split_index,
-                errors,
-            )
+                assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (
+                    escape_character,
+                    continuation_count,
+                    split_index,
+                    errors,
+                )
 
 
 def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
