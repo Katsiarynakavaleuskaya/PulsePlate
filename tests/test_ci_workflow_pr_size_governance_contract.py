@@ -594,26 +594,17 @@ def test_nested_minimatch_10_selection_keeps_root_assertion_separate() -> None:
     assert _nested_minimatch_10_paths(packages) == {"node_modules/glob/node_modules/minimatch"}
 
 
-def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
-    """Guard the repo Node baseline across local, frontend, Docker, and devcontainer surfaces."""
+NODE24_FRONTEND_BUILD_LINE = (
+    "FROM node:24.18.1-bookworm-slim@"
+    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    " AS frontend-build"
+)
+NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
 
-    nvmrc = (REPO_ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
-    frontend_package = json.loads(
-        (REPO_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
-    )
-    frontend_lock = json.loads(
-        (REPO_ROOT / "frontend" / "package-lock.json").read_text(encoding="utf-8")
-    )
-    devcontainer = json.loads(
-        (REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8")
-    )
-    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    expected_frontend_build_line = (
-        "FROM node:24.18.1-bookworm-slim@"
-        "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
-        " AS frontend-build"
-    )
+def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
+    """Return finite carrier errors for the known Caddy SPA Dockerfile."""
+
     dockerfile_lines = dockerfile.splitlines()
     frontend_build_owner_lines = [
         line
@@ -633,6 +624,53 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
             flags=re.IGNORECASE,
         )
     ]
+    from_stage_aliases: list[str | None] = []
+    for line in dockerfile_lines:
+        stage_match = re.fullmatch(
+            r"\s*FROM(?:\s+--platform=\S+)?\s+\S+(?:\s+AS\s+(?P<alias>\S+))?\s*",
+            line,
+            flags=re.IGNORECASE,
+        )
+        if stage_match is None:
+            continue
+        alias = stage_match.group("alias")
+        from_stage_aliases.append(alias.lower() if alias else None)
+    frontend_asset_copy_lines = [
+        line
+        for line in dockerfile_lines
+        if re.fullmatch(
+            r"\s*COPY(?:\s+--\S+)*\s+.+\s+/srv/frontend/?\s*",
+            line,
+            flags=re.IGNORECASE,
+        )
+    ]
+
+    errors: list[str] = []
+    if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
+        errors.append("frontend-build must have exactly one immutable Node owner")
+    if node_from_stage_lines != [NODE24_FRONTEND_BUILD_LINE]:
+        errors.append("the immutable frontend-build line must be the only Node FROM stage")
+    if from_stage_aliases != ["caddy-build", "frontend-build", None]:
+        errors.append("Dockerfile stage aliases must stay finite and ordered")
+    if frontend_asset_copy_lines != [NODE24_FRONTEND_ASSET_COPY_LINE]:
+        errors.append("production frontend assets must come only from frontend-build")
+    return errors
+
+
+def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
+    """Guard the repo Node baseline across local, frontend, Docker, and devcontainer surfaces."""
+
+    nvmrc = (REPO_ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
+    frontend_package = json.loads(
+        (REPO_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
+    )
+    frontend_lock = json.loads(
+        (REPO_ROOT / "frontend" / "package-lock.json").read_text(encoding="utf-8")
+    )
+    devcontainer = json.loads(
+        (REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8")
+    )
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
     assert nvmrc == "24.18.1"
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
@@ -650,9 +688,48 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert packages["node_modules/brace-expansion"]["version"] == "2.1.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.21.0"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
-    assert frontend_build_owner_lines == [expected_frontend_build_line]
-    assert node_from_stage_lines == [expected_frontend_build_line]
+    contract_errors = _node24_frontend_builder_contract_errors(dockerfile)
+    assert contract_errors == [], "\n".join(contract_errors)
     assert "node:22.22.1" not in dockerfile
+
+
+def test_node24_frontend_builder_guard_rejects_missing_asset_handoff() -> None:
+    """The immutable builder must remain the production SPA asset owner."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    assert dockerfile.count(NODE24_FRONTEND_ASSET_COPY_LINE) == 1
+    disconnected = dockerfile.replace(NODE24_FRONTEND_ASSET_COPY_LINE, "", 1)
+
+    errors = _node24_frontend_builder_contract_errors(disconnected)
+
+    assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_alternate_asset_owner() -> None:
+    """A decorative pinned stage cannot mask an alternate mutable builder."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    alternate_stage = "\n".join(
+        (
+            NODE24_FRONTEND_BUILD_LINE,
+            "ARG ALT_NODE_IMAGE=node:25-alpine",
+            "FROM ${ALT_NODE_IMAGE} AS alternate-frontend-build",
+        )
+    )
+    redirected = dockerfile.replace(
+        NODE24_FRONTEND_BUILD_LINE,
+        alternate_stage,
+        1,
+    ).replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "COPY --from=alternate-frontend-build /app/dist /srv/frontend",
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(redirected)
+
+    assert "Dockerfile stage aliases must stay finite and ordered" in errors
+    assert "production frontend assets must come only from frontend-build" in errors
 
 
 def _extract_shell_conditional_block(
