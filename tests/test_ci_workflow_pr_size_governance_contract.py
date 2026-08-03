@@ -605,13 +605,8 @@ NODE24_SUPPORTED_FROM_RE = re.compile(
     r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"(?:\s+AS\s+(?P<alias>[^\s\\`]+))?\s*",
     flags=re.IGNORECASE,
 )
-NODE24_FROM_KEYWORD_RE = re.compile(
-    r"^[^\S\r\n]*"
-    r"F(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
-    r"R(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
-    r"O(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
-    r"M(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)*"
-    r"(?=[^\S\r\n]|$)",
+NODE24_CONTINUED_FROM_PREFIX_RE = re.compile(
+    r"^[^\S\r\n]*(?:F|FR|FRO|FROM)[\\`][^\S\r\n]*$",
     flags=re.IGNORECASE | re.MULTILINE,
 )
 
@@ -626,9 +621,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     unsupported_from_lines = [
         line for line in from_candidate_lines if NODE24_SUPPORTED_FROM_RE.fullmatch(line) is None
     ]
-    has_continued_from_keyword = any(
-        "\n" in match.group(0) for match in NODE24_FROM_KEYWORD_RE.finditer(dockerfile)
-    )
+    has_continued_from_keyword = NODE24_CONTINUED_FROM_PREFIX_RE.search(dockerfile) is not None
     frontend_build_owner_lines = [
         line
         for line in dockerfile_lines
@@ -839,6 +832,37 @@ def test_node24_frontend_builder_guard_rejects_split_from_keyword() -> None:
                     split_index,
                     errors,
                 )
+
+
+def test_node24_frontend_builder_guard_rejects_commented_from_bridge() -> None:
+    """A Docker comment cannot hide a continued FROM keyword prefix."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    for escape_character in ("\\", "`"):
+        candidate = dockerfile
+        if escape_character == "`":
+            candidate = candidate.replace(
+                "# syntax=docker/dockerfile:1",
+                "# syntax=docker/dockerfile:1\n# escape=`",
+                1,
+            )
+        for comment_indent in ("", "  "):
+            hidden_stage = "\n".join(
+                (
+                    candidate,
+                    f"FR{escape_character}",
+                    f"{comment_indent}# ignored during Docker continuation",
+                    "OM node:25-bookworm-slim AS hidden-tooling",
+                )
+            )
+
+            errors = _node24_frontend_builder_contract_errors(hidden_stage)
+
+            assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (
+                escape_character,
+                comment_indent,
+                errors,
+            )
 
 
 def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
