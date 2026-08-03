@@ -730,7 +730,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         if start_index > final_stage_start_index
     ]
     final_stage_has_heredoc = any(
-        "<<" in instruction for instruction in final_stage_logical_instructions
+        re.search(r"<\s*<", instruction) is not None
+        for instruction in final_stage_logical_instructions
     )
     final_stage_copy_add_lines = [
         line
@@ -1144,6 +1145,32 @@ def test_node24_frontend_builder_guard_rejects_final_stage_heredoc() -> None:
             (
                 "RUN <<'#OUTER'",
                 ": <<'#INNER'",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+                NODE24_FRONTEND_ASSET_COPY_LINE,
+                "#INNER",
+                "#OUTER",
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(disguised)
+
+    assert "final-stage Docker heredoc instructions are unsupported" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_split_final_stage_heredoc() -> None:
+    """A continued heredoc operator cannot turn reset and handoff into data."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    disguised = dockerfile.replace(
+        "\n".join(NODE24_FRONTEND_ASSET_WRITE_LINES),
+        "\n".join(
+            (
+                "RUN <\\",
+                "<'#OUTER'",
+                ": <\\",
+                "<'#INNER'",
                 NODE24_FRONTEND_ASSET_RESET_LINE,
                 NODE24_FRONTEND_ASSET_COPY_LINE,
                 "#INNER",
