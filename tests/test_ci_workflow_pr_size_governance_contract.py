@@ -1003,24 +1003,128 @@ def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
     assert "production frontend asset handoff must belong to the final stage" in errors
 
 
-def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
-    """Frontend CI must execute the bounded guard on Dockerfile-only changes."""
+def _assert_node24_frontend_builder_workflow_contract(
+    workflow: dict[str, object],
+) -> None:
+    """Assert the finite workflow carriers that keep the Node guard blocking."""
 
-    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
-    job = workflow["jobs"]["build-and-test"]
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+
+    dockerfile_path = "frontend/Dockerfile.caddy-spa"
+    for event_name in ("pull_request", "push"):
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        paths = event["paths"]
+        assert isinstance(paths, list)
+        assert all(isinstance(pattern, str) for pattern in paths)
+        assert any(
+            fnmatch.fnmatchcase(dockerfile_path, pattern) for pattern in paths
+        ), f"{event_name} must route {dockerfile_path} through Frontend CI"
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["build-and-test"]
+    assert isinstance(job, dict)
     assert "if" not in job
+    assert "continue-on-error" not in job
+
+    defaults = job["defaults"]
+    assert isinstance(defaults, dict)
+    run_defaults = defaults["run"]
+    assert isinstance(run_defaults, dict)
+    assert "shell" not in run_defaults
+
+    job_env = job["env"]
+    assert isinstance(job_env, dict)
+    assert "PYTEST_ADDOPTS" not in job_env
+
     step = _job_step_by_name(
         workflow,
         job_id="build-and-test",
         step_name="Run frontend builder governance guard",
     )
-
+    assert set(step) == {"name", "run"}
     assert step["run"] == (
         "cd ..\n"
         "python -m pytest -q \\\n"
         "  tests/test_ci_workflow_pr_size_governance_contract.py \\\n"
         "  -k node24\n"
     )
+
+
+def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
+    """Frontend CI must execute the bounded guard on Dockerfile-only changes."""
+
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    _assert_node24_frontend_builder_workflow_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "pull_request_paths",
+        "push_paths",
+        "step_if",
+        "step_continue_on_error",
+        "job_continue_on_error",
+        "step_shell",
+        "job_default_shell",
+        "step_pytest_collect_only",
+        "job_pytest_collect_only",
+    ),
+)
+def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
+    mutation: str,
+) -> None:
+    """Every bounded trigger or fail-open carrier must make the guard fail."""
+
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["build-and-test"]
+    assert isinstance(job, dict)
+    step = _job_step_by_name(
+        workflow,
+        job_id="build-and-test",
+        step_name="Run frontend builder governance guard",
+    )
+
+    if mutation in {"pull_request_paths", "push_paths"}:
+        event_name = mutation.removesuffix("_paths")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["paths"] = [".nvmrc"]
+    if mutation == "step_if":
+        step["if"] = "${{ false }}"
+    if mutation == "step_continue_on_error":
+        step["continue-on-error"] = True
+    if mutation == "job_continue_on_error":
+        job["continue-on-error"] = True
+    if mutation == "step_shell":
+        step["shell"] = "bash -c '{0} || true'"
+    if mutation == "job_default_shell":
+        defaults = job["defaults"]
+        assert isinstance(defaults, dict)
+        run_defaults = defaults["run"]
+        assert isinstance(run_defaults, dict)
+        run_defaults["shell"] = "bash -c '{0} || true'"
+    if mutation == "step_pytest_collect_only":
+        step["env"] = {"PYTEST_ADDOPTS": "--collect-only"}
+    if mutation == "job_pytest_collect_only":
+        job_env = job["env"]
+        assert isinstance(job_env, dict)
+        job_env["PYTEST_ADDOPTS"] = "--collect-only"
+
+    with pytest.raises(AssertionError):
+        _assert_node24_frontend_builder_workflow_contract(workflow)
 
 
 def _extract_shell_conditional_block(
