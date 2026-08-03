@@ -602,7 +602,7 @@ NODE24_FRONTEND_BUILD_LINE = (
 NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
 NODE24_UNSUPPORTED_FROM_ERROR = "FROM stages must use the supported single-line form"
 NODE24_SUPPORTED_FROM_RE = re.compile(
-    r"\s*FROM(?:\s+--platform=[^\s\\]+)?\s+[^\s\\]+" r"(?:\s+AS\s+(?P<alias>[^\s\\]+))?\s*",
+    r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"(?:\s+AS\s+(?P<alias>[^\s\\`]+))?\s*",
     flags=re.IGNORECASE,
 )
 
@@ -621,7 +621,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         line
         for line in dockerfile_lines
         if re.fullmatch(
-            r"\s*FROM(?:\s+--platform=[^\s\\]+)?\s+[^\s\\]+" r"\s+AS\s+frontend-build\s*",
+            r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"\s+AS\s+frontend-build\s*",
             line,
             flags=re.IGNORECASE,
         )
@@ -630,7 +630,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         line
         for line in dockerfile_lines
         if re.fullmatch(
-            r"\s*FROM(?:\s+--platform=[^\s\\]+)?\s+node:[^\s\\]+" r"(?:\s+AS\s+[^\s\\]+)?\s*",
+            r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+node:[^\s\\`]+" r"(?:\s+AS\s+[^\s\\`]+)?\s*",
             line,
             flags=re.IGNORECASE,
         )
@@ -773,6 +773,26 @@ def test_node24_frontend_builder_guard_rejects_continued_canonical_owner() -> No
         1,
     )
     continued = dockerfile.replace(NODE24_FRONTEND_BUILD_LINE, continued_owner, 1)
+
+    errors = _node24_frontend_builder_contract_errors(continued)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_backtick_continued_stage() -> None:
+    """Docker's alternate escape directive cannot hide a continued FROM stage."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    runtime_stage = next(line for line in dockerfile.splitlines() if line.startswith("FROM caddy:"))
+    continued = dockerfile.replace(
+        "# syntax=docker/dockerfile:1",
+        "# syntax=docker/dockerfile:1\n# escape=`",
+        1,
+    ).replace(
+        runtime_stage,
+        f"{runtime_stage}`\n AS final-runtime",
+        1,
+    )
 
     errors = _node24_frontend_builder_contract_errors(continued)
 
