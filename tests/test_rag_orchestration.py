@@ -178,8 +178,7 @@ class TestExtractRecursiveVerificationCalls:
 class TestRetrieveAndValidateRag:
     """Tests for main orchestration function."""
 
-    @pytest.mark.asyncio
-    async def test_none_retrieval_context_returns_empty_fail_safe_result(self) -> None:
+    def test_none_retrieval_context_returns_empty_fail_safe_result(self) -> None:
         """`None` retrieval output must fail closed to an empty fail-safe result."""
         with (
             patch(
@@ -189,7 +188,7 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = asyncio.run(retrieve_and_validate_rag("test prompt"))
 
         assert result.rag_actually_used is False
         assert result.chunks == []
@@ -199,8 +198,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 0
         assert result.degraded_reason == RAGDegradedReason.ORCHESTRATION_EXCEPTION
 
-    @pytest.mark.asyncio
-    async def test_no_chunks_retrieved_returns_empty(self) -> None:
+    def test_no_chunks_retrieved_returns_empty(self) -> None:
         """When RAG returns no chunks, result has rag_actually_used=False."""
         rag_ctx = _make_rag_context(chunks=[], hops=2, latency_ms=100)
 
@@ -212,7 +210,7 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = asyncio.run(retrieve_and_validate_rag("test prompt"))
 
         assert result.rag_actually_used is False
         assert result.chunks == []
@@ -293,8 +291,7 @@ class TestRetrieveAndValidateRag:
         assert result.rag_actually_used is True
         assert result.confidence == 0.8
 
-    @pytest.mark.asyncio
-    async def test_validation_disabled_ignores_stale_retriever_confidence(self) -> None:
+    def test_validation_disabled_ignores_stale_retriever_confidence(self) -> None:
         """Keep the A2 legacy symbol; flag-off skips enrichment, not mandatory Stage 1."""
         chunks = [_make_chunk("c1", score=0.95), _make_chunk("c2", score=0.55)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
@@ -315,13 +312,14 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+            )
 
         assert result.rag_actually_used is True
         assert result.confidence == 0.75
 
-    @pytest.mark.asyncio
-    async def test_recursive_enabled_uses_recursive_retriever(self) -> None:
+    def test_recursive_enabled_uses_recursive_retriever(self) -> None:
         """When recursive flag is on, orchestration calls recursive retriever path."""
         chunks = [_make_chunk("c1", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
@@ -344,11 +342,13 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=False,
-                recursive_rag_enabled=True,
-                subject_id=55,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                    recursive_rag_enabled=True,
+                    subject_id=55,
+                )
             )
 
         assert to_thread_mock.call_count == 1
@@ -358,8 +358,7 @@ class TestRetrieveAndValidateRag:
         assert result.rag_actually_used is True
         assert result.hops == 2
 
-    @pytest.mark.asyncio
-    async def test_recursive_enabled_forwards_optimization_hints(self) -> None:
+    def test_recursive_enabled_forwards_optimization_hints(self) -> None:
         """Orchestration must pass prepared recursive optimization hints unchanged."""
         chunks = [_make_chunk("c1", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
@@ -381,12 +380,14 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=False,
-                recursive_rag_enabled=True,
-                optimization_enabled=True,
-                recursive_optimization_hints=hints,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                    recursive_rag_enabled=True,
+                    optimization_enabled=True,
+                    recursive_optimization_hints=hints,
+                )
             )
 
         assert to_thread_mock.call_args.kwargs["optimization_enabled"] is True
@@ -435,8 +436,7 @@ class TestRetrieveAndValidateRag:
         assert result.hops == 1
         assert result.refined_queries == ["meal plan"]
 
-    @pytest.mark.asyncio
-    async def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:
+    def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:
         """Recursive empty retrieval must collapse safely without losing hop metadata."""
         rag_ctx = _make_rag_context(chunks=[], hops=2, latency_ms=55)
 
@@ -448,10 +448,12 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=False,
-                recursive_rag_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                    recursive_rag_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -461,8 +463,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 55
         assert result.degraded_reason == RAGDegradedReason.RETRIEVAL_EMPTY
 
-    @pytest.mark.asyncio
-    async def test_recursive_none_retrieval_context_returns_empty_with_recursive_flag(self) -> None:
+    def test_recursive_none_retrieval_context_returns_empty_with_recursive_flag(self) -> None:
         """Рекурсивный путь / Recursive path must fail closed when retriever returns None."""
         with (
             patch(
@@ -472,10 +473,12 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=False,
-                recursive_rag_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                    recursive_rag_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -485,8 +488,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 0
         assert result.degraded_reason == RAGDegradedReason.ORCHESTRATION_EXCEPTION
 
-    @pytest.mark.asyncio
-    async def test_recursive_enabled_passes_explicit_optimization_flag(self) -> None:
+    def test_recursive_enabled_passes_explicit_optimization_flag(self) -> None:
         """Core orchestration should accept the optimization flag as explicit input."""
         chunks = [_make_chunk("c1", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9, hops=2)
@@ -509,11 +511,13 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=False,
-                recursive_rag_enabled=True,
-                optimization_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                    recursive_rag_enabled=True,
+                    optimization_enabled=True,
+                )
             )
 
         assert to_thread_mock.call_count == 1
@@ -521,8 +525,7 @@ class TestRetrieveAndValidateRag:
         assert to_thread_mock.call_args.kwargs["optimization_enabled"] is True
         assert result.rag_actually_used is True
 
-    @pytest.mark.asyncio
-    async def test_vector_path_propagates_subject_id(self) -> None:
+    def test_vector_path_propagates_subject_id(self) -> None:
         """Vector orchestration passes authenticated subject_id to retriever."""
         rag_ctx = _make_rag_context(chunks=[_make_chunk("c1", score=0.9)], confidence=0.9)
 
@@ -542,18 +545,19 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=False,
-                subject_id=77,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                    subject_id=77,
+                )
             )
 
         assert to_thread_mock.call_args.args[0] is retrieve_mock
         assert to_thread_mock.call_args.kwargs["subject_id"] == 77
         assert result.rag_actually_used is True
 
-    @pytest.mark.asyncio
-    async def test_recursive_with_philo_enabled_runs_pipeline_without_double_filter(self) -> None:
+    def test_recursive_with_philo_enabled_runs_pipeline_without_double_filter(self) -> None:
         """Orchestration owns philo filtering; recursive call keeps philo flag off."""
         chunks = [_make_chunk("c1", score=0.85)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.85, hops=2)
@@ -585,10 +589,12 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                philo_validation_enabled=True,
-                recursive_rag_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=True,
+                    recursive_rag_enabled=True,
+                )
             )
 
         pipeline_mock.assert_called_once_with(
@@ -600,8 +606,7 @@ class TestRetrieveAndValidateRag:
         assert result.rag_actually_used is True
         assert result.confidence == 0.85
 
-    @pytest.mark.asyncio
-    async def test_validation_enabled_filters_chunks(self) -> None:
+    def test_validation_enabled_filters_chunks(self) -> None:
         """When validation enabled, pipeline filters chunks."""
         chunks = [
             _make_chunk("c1", content="Clean content here.", score=0.9),
@@ -639,7 +644,9 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            )
 
         assert result.rag_actually_used is True
         assert len(result.chunks) == 1
@@ -648,8 +655,7 @@ class TestRetrieveAndValidateRag:
         assert result.chunks_filtered == 1
         assert "medical_boundary" in result.warnings[0]
 
-    @pytest.mark.asyncio
-    async def test_all_chunks_filtered_returns_not_used(self) -> None:
+    def test_all_chunks_filtered_returns_not_used(self) -> None:
         """When all chunks filtered by pipeline, rag_actually_used=False."""
         chunks = [_make_chunk("c1", content="Medical diagnosis required.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks)
@@ -674,7 +680,9 @@ class TestRetrieveAndValidateRag:
                 return_value=pipeline_result,
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            )
 
         assert result.rag_actually_used is False
         assert result.chunks == []
@@ -682,8 +690,7 @@ class TestRetrieveAndValidateRag:
         assert result.chunks_retrieved == 1
         assert result.chunks_filtered == 1
 
-    @pytest.mark.asyncio
-    async def test_confidence_recalculated_with_validation(self) -> None:
+    def test_confidence_recalculated_with_validation(self) -> None:
         """With validation enabled, confidence is mean of filtered chunk scores."""
         chunks = [
             _make_chunk("c1", score=0.9),
@@ -722,13 +729,14 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk3",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            )
 
         # Mean of 0.9 and 0.8 = 0.85
         assert result.confidence == 0.85
 
-    @pytest.mark.asyncio
-    async def test_validation_enabled_ignores_malformed_chunk_scores(self) -> None:
+    def test_validation_enabled_ignores_malformed_chunk_scores(self) -> None:
         """Validation path should derive confidence from valid filtered scores only."""
         chunks = [
             _make_chunk("c1", score=cast(float, "0.9")),
@@ -763,13 +771,14 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            )
 
         assert result.rag_actually_used is True
         assert result.confidence == 0.9
 
-    @pytest.mark.asyncio
-    async def test_validation_enabled_returns_none_confidence_when_all_scores_invalid(self) -> None:
+    def test_validation_enabled_returns_none_confidence_when_all_scores_invalid(self) -> None:
         """Malformed filtered scores should degrade confidence, not the full RAG result."""
         chunks = [
             _make_chunk("c1", score=cast(float, "bad-score")),
@@ -804,14 +813,15 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            )
 
         assert result.rag_actually_used is True
         assert result.confidence is None
         assert result.warnings == ["score_parse_warning"]
 
-    @pytest.mark.asyncio
-    async def test_warnings_propagated_from_pipeline(self) -> None:
+    def test_warnings_propagated_from_pipeline(self) -> None:
         """Pipeline warnings are included in result."""
         chunks = [_make_chunk("c1", content="Some say this is true.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks)
@@ -847,14 +857,15 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            result = asyncio.run(
+                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+            )
 
         assert len(result.warnings) == 2
         assert "weasel_word" in result.warnings[0]
         assert "claim_speculation" in result.warnings[1]
 
-    @pytest.mark.asyncio
-    async def test_ambiguity_suppression_keeps_output_chunks_and_confidence(self) -> None:
+    def test_ambiguity_suppression_keeps_output_chunks_and_confidence(self) -> None:
         """Ambiguous Stage-4 contradiction checks must not alter output chunk confidence."""
         chunks = [
             _make_chunk("c1", content="Healthy BMI is 18.5-24.9 for adults.", score=0.9),
@@ -878,9 +889,11 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is a normal healthy range?",
-                philo_validation_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "What is a normal healthy range?",
+                    philo_validation_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is True
@@ -888,8 +901,7 @@ class TestRetrieveAndValidateRag:
         assert result.confidence == 0.85
         assert not any("numeric_contradiction" in warning for warning in result.warnings)
 
-    @pytest.mark.asyncio
-    async def test_partial_lexical_overlap_suppression_keeps_output_chunks_and_confidence(
+    def test_partial_lexical_overlap_suppression_keeps_output_chunks_and_confidence(
         self,
     ) -> None:
         """Broad lexical overlap must not trigger Stage-4 contradiction warnings."""
@@ -917,9 +929,11 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What blood pressure range is normal?",
-                philo_validation_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "What blood pressure range is normal?",
+                    philo_validation_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is True
@@ -927,23 +941,21 @@ class TestRetrieveAndValidateRag:
         assert result.confidence == 0.85
         assert not any("numeric_contradiction" in warning for warning in result.warnings)
 
-    @pytest.mark.asyncio
-    async def test_failsafe_on_exception_returns_empty(self) -> None:
+    def test_failsafe_on_exception_returns_empty(self) -> None:
         """On any exception, returns empty result (fail-safe)."""
         with patch(
             "asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=RuntimeError("RAG retrieval failed"),
         ):
-            result = await retrieve_and_validate_rag("test prompt")
+            result = asyncio.run(retrieve_and_validate_rag("test prompt"))
 
         assert result.rag_actually_used is False
         assert result.formatted_prompt == "test prompt"
         assert result.chunks == []
         assert result.recursive_executed is False
 
-    @pytest.mark.asyncio
-    async def test_recursive_failsafe_preserves_execution_metadata(self) -> None:
+    def test_recursive_failsafe_preserves_execution_metadata(self) -> None:
         """Recursive fail-safe should preserve that the recursive path executed."""
         rag_ctx = _make_rag_context(chunks=[_make_chunk("c1", score=0.9)], confidence=0.9, hops=2)
         with (
@@ -958,9 +970,11 @@ class TestRetrieveAndValidateRag:
                 side_effect=RuntimeError("formatting failed after retrieval"),
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                recursive_rag_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    recursive_rag_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -968,17 +982,18 @@ class TestRetrieveAndValidateRag:
         assert result.chunks == []
         assert result.recursive_executed is True
 
-    @pytest.mark.asyncio
-    async def test_recursive_failsafe_does_not_mark_execution_without_confirmation(self) -> None:
+    def test_recursive_failsafe_does_not_mark_execution_without_confirmation(self) -> None:
         """Recursive fail-safe must keep execution false when retrieval never completes."""
         with patch(
             "asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=RuntimeError("RAG retrieval failed"),
         ):
-            result = await retrieve_and_validate_rag(
-                "test prompt",
-                recursive_rag_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    recursive_rag_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -986,8 +1001,7 @@ class TestRetrieveAndValidateRag:
         assert result.chunks == []
         assert result.recursive_executed is False
 
-    @pytest.mark.asyncio
-    async def test_prompt_formatted_with_redacted_context(self) -> None:
+    def test_prompt_formatted_with_redacted_context(self) -> None:
         """Formatted prompt includes redacted RAG context."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks)
@@ -1008,8 +1022,8 @@ class TestRetrieveAndValidateRag:
                 return_value="Knowledge about wellness.",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?", philo_validation_enabled=False
+            result = asyncio.run(
+                retrieve_and_validate_rag("What is wellness?", philo_validation_enabled=False)
             )
 
         assert "Context:" in result.formatted_prompt
@@ -1017,8 +1031,7 @@ class TestRetrieveAndValidateRag:
         assert "Question: What is wellness?" in result.formatted_prompt
         assert "Answer:" in result.formatted_prompt
 
-    @pytest.mark.asyncio
-    async def test_empty_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
+    def test_empty_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
         """Empty formatted context must not mark the result as RAG-used."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, hops=2, latency_ms=75)
@@ -1035,8 +1048,8 @@ class TestRetrieveAndValidateRag:
                 return_value="   ",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?", philo_validation_enabled=False
+            result = asyncio.run(
+                retrieve_and_validate_rag("What is wellness?", philo_validation_enabled=False)
             )
 
         assert result.rag_actually_used is False
@@ -1047,8 +1060,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 75
         assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
 
-    @pytest.mark.asyncio
-    async def test_non_string_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
+    def test_non_string_formatted_context_returns_fail_safe_non_rag_result(self) -> None:
         """Non-string formatted context must collapse to a non-RAG result."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, hops=2, latency_ms=75)
@@ -1065,8 +1077,8 @@ class TestRetrieveAndValidateRag:
                 return_value=["unexpected-context"],
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?", philo_validation_enabled=False
+            result = asyncio.run(
+                retrieve_and_validate_rag("What is wellness?", philo_validation_enabled=False)
             )
 
         assert result.rag_actually_used is False
@@ -1077,8 +1089,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 75
         assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED
 
-    @pytest.mark.asyncio
-    async def test_empty_chunks_preserve_vector_metadata_and_retrieval_reason(self) -> None:
+    def test_empty_chunks_preserve_vector_metadata_and_retrieval_reason(self) -> None:
         """Пустой retrieval context / Empty retrieval context must keep metadata and reason."""
         rag_ctx = _make_rag_context(chunks=[], hops=3, latency_ms=48)
         rag_ctx.degraded_reason = RAGDegradedReason.RETRIEVAL_EMPTY
@@ -1091,9 +1102,11 @@ class TestRetrieveAndValidateRag:
             ),
             patch("core.rag.vector_rag.retrieve_context_structured"),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?",
-                philo_validation_enabled=False,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "What is wellness?",
+                    philo_validation_enabled=False,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -1103,8 +1116,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 48
         assert result.degraded_reason == RAGDegradedReason.RETRIEVAL_EMPTY
 
-    @pytest.mark.asyncio
-    async def test_empty_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
+    def test_empty_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
         """Redaction that removes all context must collapse to a non-RAG result."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, hops=3, latency_ms=60)
@@ -1125,8 +1137,8 @@ class TestRetrieveAndValidateRag:
                 return_value="",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?", philo_validation_enabled=False
+            result = asyncio.run(
+                retrieve_and_validate_rag("What is wellness?", philo_validation_enabled=False)
             )
 
         assert result.rag_actually_used is False
@@ -1137,8 +1149,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 60
         assert result.degraded_reason == RAGDegradedReason.REDACTED_CONTEXT_EMPTY
 
-    @pytest.mark.asyncio
-    async def test_non_string_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
+    def test_non_string_redacted_context_returns_fail_safe_non_rag_result(self) -> None:
         """Non-string redacted context must collapse to a non-RAG result."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, hops=3, latency_ms=60)
@@ -1159,8 +1170,8 @@ class TestRetrieveAndValidateRag:
                 return_value={"unexpected": "context"},
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?", philo_validation_enabled=False
+            result = asyncio.run(
+                retrieve_and_validate_rag("What is wellness?", philo_validation_enabled=False)
             )
 
         assert result.rag_actually_used is False
@@ -1171,8 +1182,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 60
         assert result.degraded_reason == RAGDegradedReason.REDACTED_CONTEXT_MALFORMED
 
-    @pytest.mark.asyncio
-    async def test_post_retrieval_exception_returns_non_rag_result_with_metadata(self) -> None:
+    def test_post_retrieval_exception_returns_non_rag_result_with_metadata(self) -> None:
         """Исключение после retrieval / Post-retrieval exception must degrade with metadata."""
         chunks = [_make_chunk("c1", content="Knowledge about wellness.", score=0.9)]
         rag_ctx = _make_rag_context(chunks=chunks, hops=6, latency_ms=92)
@@ -1193,9 +1203,11 @@ class TestRetrieveAndValidateRag:
                 side_effect=RuntimeError("redaction boom"),
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?",
-                philo_validation_enabled=False,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "What is wellness?",
+                    philo_validation_enabled=False,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -1205,8 +1217,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 92
         assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
 
-    @pytest.mark.asyncio
-    async def test_philo_enabled_late_formatted_context_collapse_preserves_metadata(self) -> None:
+    def test_philo_enabled_late_formatted_context_collapse_preserves_metadata(self) -> None:
         """Late context collapse after validation must keep retrieval metadata and warnings."""
         chunks = [
             _make_chunk("c1", content="Knowledge about wellness.", score=0.9),
@@ -1237,9 +1248,11 @@ class TestRetrieveAndValidateRag:
                 return_value="   ",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?",
-                philo_validation_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "What is wellness?",
+                    philo_validation_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -1251,8 +1264,7 @@ class TestRetrieveAndValidateRag:
         assert result.latency_ms == 88
         assert result.degraded_reason == RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
 
-    @pytest.mark.asyncio
-    async def test_philo_enabled_late_redacted_context_collapse_preserves_metadata(self) -> None:
+    def test_philo_enabled_late_redacted_context_collapse_preserves_metadata(self) -> None:
         """Late redaction collapse after validation must keep retrieval metadata and warnings."""
         chunks = [
             _make_chunk("c1", content="Knowledge about wellness.", score=0.9),
@@ -1287,9 +1299,11 @@ class TestRetrieveAndValidateRag:
                 return_value="",
             ),
         ):
-            result = await retrieve_and_validate_rag(
-                "What is wellness?",
-                philo_validation_enabled=True,
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "What is wellness?",
+                    philo_validation_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -1480,8 +1494,7 @@ def test_simple_rag_skips_chunks_that_become_empty_after_redaction(
     assert result.chunks[0].content == "safe chunk"
 
 
-@pytest.mark.asyncio
-async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() -> None:
+def test_rag_orchestration_builds_candidates_only_from_validated_chunks() -> None:
     """Knowledge candidates must derive from surviving validated chunks only."""
 
     from dataclasses import asdict
@@ -1517,11 +1530,13 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
         patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
         patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
     ):
-        result = await retrieve_and_validate_rag(
-            "test prompt",
-            philo_validation_enabled=True,
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     assert [chunk.chunk_id for chunk in result.chunks] == ["keep"]
@@ -1553,8 +1568,7 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
     assert "Drop chunk" not in provenance_payload
 
 
-@pytest.mark.asyncio
-async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context_paths() -> None:
+def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context_paths() -> None:
     """Fail-closed paths must never emit knowledge candidates."""
 
     chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
@@ -1565,10 +1579,12 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
         patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
         patch("core.rag.vector_rag.retrieve_context_structured"),
     ):
-        degraded_result = await retrieve_and_validate_rag(
-            "test prompt",
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        degraded_result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     filtered_pipeline = PipelineResult(
@@ -1586,11 +1602,13 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
         patch("core.rag.vector_rag.retrieve_context_structured"),
         patch("core.rag.philosophy_pipeline.run_pipeline", return_value=filtered_pipeline),
     ):
-        filtered_result = await retrieve_and_validate_rag(
-            "test prompt",
-            philo_validation_enabled=True,
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        filtered_result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     with (
@@ -1603,10 +1621,12 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
         patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="usable"),
         patch("core.insight.safety.redact_rag_context_for_insight", return_value="   "),
     ):
-        redacted_empty_result = await retrieve_and_validate_rag(
-            "test prompt",
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        redacted_empty_result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     assert degraded_result.knowledge_candidates == []
@@ -1636,8 +1656,7 @@ async def test_rag_orchestration_denies_candidates_on_degraded_and_empty_context
     assert redacted_empty_provenance.prompt_trimmed_char_count is None
 
 
-@pytest.mark.asyncio
-async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_degraded() -> None:
+def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_degraded() -> None:
     """Validated pipelines must not mark degraded retrieval as canonical evidence."""
 
     chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
@@ -1658,11 +1677,13 @@ async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_d
         patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
         patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
     ):
-        result = await retrieve_and_validate_rag(
-            "test prompt",
-            philo_validation_enabled=True,
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     assert result.knowledge_candidates == []
@@ -1671,8 +1692,7 @@ async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_d
     assert result.verification_bundle.admission_allowed is False
 
 
-@pytest.mark.asyncio
-async def test_rag_orchestration_confidence_threshold_gates_candidates() -> None:
+def test_rag_orchestration_confidence_threshold_gates_candidates() -> None:
     """Sub-threshold confidence must keep usable RAG output but deny promotion."""
 
     chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.65)
@@ -1686,11 +1706,13 @@ async def test_rag_orchestration_confidence_threshold_gates_candidates() -> None
         patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
         patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
     ):
-        result = await retrieve_and_validate_rag(
-            "test prompt",
-            philo_validation_enabled=True,
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     assert result.rag_actually_used is True
