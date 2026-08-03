@@ -4,15 +4,24 @@ RU: Тест предупреждений по жизненным этапам �
 EN: Test life stage warnings for /api/v1/premium/targets.
 """
 
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
+
+from tests._client import open_test_client
 
 try:
     import app as app_mod  # type: ignore
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
-client = TestClient(app_mod.app)  # type: ignore
+
+@pytest.fixture
+def premium_targets_lifestage_client() -> Iterator[TestClient]:
+    """Open one managed client for the exact imported application."""
+    with open_test_client(app_mod.app) as managed_client:
+        yield managed_client
 
 
 @pytest.mark.parametrize(
@@ -26,7 +35,7 @@ client = TestClient(app_mod.app)  # type: ignore
     ],
 )
 @pytest.mark.parametrize("lang", ["ru", "en", "es"])
-def test_life_stage_warnings(case, lang):
+def test_life_stage_warnings(premium_targets_lifestage_client: TestClient, case, lang):
     """Test that life stage warnings are generated correctly."""
     payload = {
         "sex": "female",
@@ -38,7 +47,9 @@ def test_life_stage_warnings(case, lang):
         "life_stage": case["life_stage"],
         "lang": lang,
     }
-    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_targets_lifestage_client.post(
+        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
     data = resp.json()
 
@@ -56,8 +67,10 @@ def test_life_stage_warnings(case, lang):
     assert len(warning["message"]) > 0
 
 
-def test_life_stage_warnings_no_warnings():
-    """Test that no warnings are generated for normal adult."""
+def test_life_stage_warnings_no_warnings(
+    premium_targets_lifestage_client: TestClient,
+):
+    """Test that no life-stage warnings are generated for a normal adult."""
     payload = {
         "sex": "female",
         "age": 30,
@@ -68,17 +81,22 @@ def test_life_stage_warnings_no_warnings():
         "life_stage": "adult",
         "lang": "en",
     }
-    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_targets_lifestage_client.post(
+        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
     data = resp.json()
 
-    # Check that warnings are present but empty for normal adult
+    # Other warning categories may still be present for a normal adult.
     assert "warnings" in data
     assert isinstance(data["warnings"], list)
-    # For normal adult, there should be no life stage warnings
+    life_stage_warning_codes = {"teen", "pregnant", "lactating", "elderly", "child"}
+    assert life_stage_warning_codes.isdisjoint(warning.get("code") for warning in data["warnings"])
 
 
-def test_life_stage_warnings_localization():
+def test_life_stage_warnings_localization(
+    premium_targets_lifestage_client: TestClient,
+):
     """Test that warnings are properly localized."""
     payload = {
         "sex": "female",
@@ -90,7 +108,9 @@ def test_life_stage_warnings_localization():
         "life_stage": "teen",
         "lang": "ru",
     }
-    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_targets_lifestage_client.post(
+        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
     data = resp.json()
 

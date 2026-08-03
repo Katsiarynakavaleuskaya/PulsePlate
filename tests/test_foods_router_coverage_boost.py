@@ -4,7 +4,7 @@ RU: Тесты для повышения покрытия app/routers/foods.py
 EN: Coverage boost tests for app/routers/foods.py
 """
 
-import os
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -13,22 +13,36 @@ from fastapi.testclient import TestClient
 from app import app
 import app.metrics as app_metrics
 from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
+from tests._client import open_test_client
 
 try:
     from app.routers.foods import router
 except ImportError:
     router = None
 
-client = TestClient(app)
+
+@pytest.fixture
+def foods_router_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """Open one managed app lifespan with the historical test environment."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    with open_test_client(app) as managed_client:
+        yield managed_client
 
 
 class TestFoodsRouterCoverage:
     """Test class for foods router coverage boost."""
 
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    client: TestClient
+
+    @pytest.fixture(autouse=True)
+    def _managed_client(self, foods_router_client: TestClient) -> Iterator[None]:
+        """Expose the function-scoped managed client to class methods."""
+        self.client = foods_router_client
+        try:
+            yield
+        finally:
+            del self.client
 
     def test_router_configuration(self):
         """Test router configuration."""
@@ -58,7 +72,7 @@ class TestFoodsRouterCoverage:
             },
         ]
 
-        response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?query=apple&limit=10&offset=0")
         assert response.status_code == 200
 
         data = response.json()
@@ -167,7 +181,7 @@ class TestFoodsRouterCoverage:
             ]
 
         monkeypatch.setattr("app.routers.foods.food_store.search_foods", fake_search_foods)
-        response = client.get("/api/v1/foods?query=x&limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?query=x&limit=10&offset=0")
         assert response.status_code == 200
         data = response.json()
         assert data[0]["nutrition_confidence"] == 0.0
@@ -186,7 +200,7 @@ class TestFoodsRouterCoverage:
         """Test list_foods with empty query."""
         mock_search_foods.return_value = []
 
-        response = client.get("/api/v1/foods?query=&limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?query=&limit=10&offset=0")
         assert response.status_code == 200
 
         data = response.json()
@@ -206,7 +220,7 @@ class TestFoodsRouterCoverage:
             }
         ]
 
-        response = client.get("/api/v1/foods?limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?limit=10&offset=0")
         assert response.status_code == 200
 
         data = response.json()
@@ -215,19 +229,19 @@ class TestFoodsRouterCoverage:
 
     def test_list_foods_limit_too_high(self):
         """Test list_foods with limit too high."""
-        response = client.get("/api/v1/foods?limit=101")
+        response = self.client.get("/api/v1/foods?limit=101")
         assert response.status_code == 422
         assert "limit must be in [1,100]" in response.json()["detail"]
 
     def test_list_foods_limit_too_low(self):
         """Test list_foods with limit too low."""
-        response = client.get("/api/v1/foods?limit=0")
+        response = self.client.get("/api/v1/foods?limit=0")
         assert response.status_code == 422
         assert "limit must be in [1,100]" in response.json()["detail"]
 
     def test_list_foods_limit_negative(self):
         """Test list_foods with negative limit."""
-        response = client.get("/api/v1/foods?limit=-1")
+        response = self.client.get("/api/v1/foods?limit=-1")
         assert response.status_code == 422
         assert "limit must be in [1,100]" in response.json()["detail"]
 
@@ -236,7 +250,7 @@ class TestFoodsRouterCoverage:
         with patch("app.routers.foods.food_store.search_foods") as mock_search_foods:
             mock_search_foods.return_value = []
 
-            response = client.get("/api/v1/foods?limit=100")
+            response = self.client.get("/api/v1/foods?limit=100")
             assert response.status_code == 200
 
     def test_list_foods_limit_minimum(self):
@@ -244,7 +258,7 @@ class TestFoodsRouterCoverage:
         with patch("app.routers.foods.food_store.search_foods") as mock_search_foods:
             mock_search_foods.return_value = []
 
-            response = client.get("/api/v1/foods?limit=1")
+            response = self.client.get("/api/v1/foods?limit=1")
             assert response.status_code == 200
 
     @patch("app.routers.foods.food_store.search_foods")
@@ -261,7 +275,7 @@ class TestFoodsRouterCoverage:
             }
         ]
 
-        response = client.get("/api/v1/foods?query=fruit&limit=10&offset=5")
+        response = self.client.get("/api/v1/foods?query=fruit&limit=10&offset=5")
         assert response.status_code == 200
 
         data = response.json()
@@ -274,13 +288,13 @@ class TestFoodsRouterCoverage:
         long_query = "a" * 64  # Exactly 64 characters
         mock_search_foods.return_value = []
 
-        response = client.get(f"/api/v1/foods?query={long_query}")
+        response = self.client.get(f"/api/v1/foods?query={long_query}")
         assert response.status_code == 200
 
     def test_list_foods_query_too_long(self):
         """Test list_foods with query too long."""
         long_query = "a" * 65  # More than 64 characters
-        response = client.get(f"/api/v1/foods?query={long_query}")
+        response = self.client.get(f"/api/v1/foods?query={long_query}")
         assert response.status_code == 422
 
     @patch("app.routers.foods.food_store.get_food")
@@ -308,7 +322,7 @@ class TestFoodsRouterCoverage:
             "version_date": "2024-01-01",
         }
 
-        response = client.get("/api/v1/foods/1")
+        response = self.client.get("/api/v1/foods/1")
         assert response.status_code == 200
 
         data = response.json()
@@ -322,7 +336,7 @@ class TestFoodsRouterCoverage:
         """Test get_food endpoint when food not found."""
         mock_get_food.return_value = None
 
-        response = client.get("/api/v1/foods/999")
+        response = self.client.get("/api/v1/foods/999")
         assert response.status_code == 404
         assert "Food not found" in response.json()["detail"]
 
@@ -351,7 +365,7 @@ class TestFoodsRouterCoverage:
             "version_date": "2024-01-01",
         }
 
-        response = client.get("/api/v1/foods/food-123_abc")
+        response = self.client.get("/api/v1/foods/food-123_abc")
         assert response.status_code == 200
 
         data = response.json()
@@ -383,7 +397,7 @@ class TestFoodsRouterCoverage:
             "version_date": "2024-01-01",
         }
 
-        response = client.get("/api/v1/foods/123")
+        response = self.client.get("/api/v1/foods/123")
         assert response.status_code == 200
 
         data = response.json()
@@ -392,6 +406,7 @@ class TestFoodsRouterCoverage:
 
 
 def test_foods_route_contract_remains_stable_with_meili_backend(
+    foods_router_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     backend = MeiliSearchBackend(
@@ -415,7 +430,7 @@ def test_foods_route_contract_remains_stable_with_meili_backend(
 
     monkeypatch.setattr("app.routers.foods.food_store.get_search_backend", lambda: backend)
 
-    response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
+    response = foods_router_client.get("/api/v1/foods?query=apple&limit=10&offset=0")
 
     assert response.status_code == 200
     assert response.json() == [
@@ -432,6 +447,7 @@ def test_foods_route_contract_remains_stable_with_meili_backend(
 
 
 def test_foods_route_contract_remains_stable_with_shadow_backend(
+    foods_router_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _BaselineBackend:
@@ -477,7 +493,7 @@ def test_foods_route_contract_remains_stable_with_shadow_backend(
 
     monkeypatch.setattr("app.routers.foods.food_store.get_search_backend", lambda: backend)
 
-    response = client.get("/api/v1/foods/search?query=apple&limit=10&offset=0")
+    response = foods_router_client.get("/api/v1/foods/search?query=apple&limit=10&offset=0")
 
     assert response.status_code == 200
     assert response.json() == [
@@ -494,6 +510,7 @@ def test_foods_route_contract_remains_stable_with_shadow_backend(
 
 
 def test_metrics_scrape_includes_meili_observability_series(
+    foods_router_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if app_metrics.FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL is None:
@@ -526,10 +543,10 @@ def test_metrics_scrape_includes_meili_observability_series(
 
     monkeypatch.setattr("app.routers.foods.food_store.get_search_backend", lambda: backend)
 
-    search_response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
+    search_response = foods_router_client.get("/api/v1/foods?query=apple&limit=10&offset=0")
     assert search_response.status_code == 200
 
-    metrics_response = client.get("/metrics")
+    metrics_response = foods_router_client.get("/metrics")
     assert metrics_response.status_code == 200
     assert metrics_response.headers["content-type"].startswith("text/plain")
     metrics_body = metrics_response.text

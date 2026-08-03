@@ -4,13 +4,14 @@ Comprehensive test coverage for main.py to reach 97% coverage target
 Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets endpoints
 """
 
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
-from fastapi.testclient import TestClient
 import pytest
-from starlette.types import ASGIApp
+from fastapi.testclient import TestClient
 
 from app.services import bmi_compat as bmi_compat_service
+from tests._client import open_test_client
 
 
 def _get_app():
@@ -22,15 +23,24 @@ def _get_app():
     return main.app
 
 
-client = TestClient(_get_app())
-
-
 class TestAppComprehensive97:
     """Test suite targeting 97% coverage for main.py"""
 
+    client: TestClient
+
+    @pytest.fixture(autouse=True)
+    def _managed_client(self) -> Iterator[None]:
+        """Own one function-scoped lifespan for the root ``main.app`` owner."""
+        with open_test_client(_get_app()) as managed_client:
+            self.client = managed_client
+            try:
+                yield
+            finally:
+                del self.client
+
     def test_bmi_endpoint_pregnancy_behavior(self) -> None:
         """Test the pregnant BMI response without invoking optional visualization."""
-        response = client.post(
+        response = self.client.post(
             "/bmi",
             json={
                 "weight_kg": 65,
@@ -63,7 +73,7 @@ class TestAppComprehensive97:
         monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
         monkeypatch.setattr(bmi_compat_service, "generate_bmi_visualization", mock_viz)
 
-        response = client.post(
+        response = self.client.post(
             "/bmi",
             json={
                 "weight_kg": 80,
@@ -88,7 +98,7 @@ class TestAppComprehensive97:
 
     def test_plan_endpoint_russian_language(self):
         """Test /plan endpoint with Russian language (lines 720-765)"""
-        response = client.post(
+        response = self.client.post(
             "/plan",
             json={
                 "weight_kg": 70,
@@ -112,7 +122,7 @@ class TestAppComprehensive97:
 
     def test_plan_endpoint_russian_with_premium(self):
         """Test /plan endpoint with Russian language and premium (lines 740-752)"""
-        response = client.post(
+        response = self.client.post(
             "/plan",
             json={
                 "weight_kg": 70,
@@ -134,7 +144,7 @@ class TestAppComprehensive97:
 
     def test_plan_endpoint_english_language(self):
         """Test /plan endpoint with English language (lines 753-765)"""
-        response = client.post(
+        response = self.client.post(
             "/plan",
             json={
                 "weight_kg": 70,
@@ -157,7 +167,7 @@ class TestAppComprehensive97:
 
     def test_plan_endpoint_english_with_premium(self):
         """Test /plan endpoint with English language and premium (lines 758-765)"""
-        response = client.post(
+        response = self.client.post(
             "/plan",
             json={
                 "weight_kg": 70,
@@ -179,7 +189,7 @@ class TestAppComprehensive97:
 
     def test_plan_endpoint_pregnant_case(self):
         """Test /plan endpoint for pregnant user (category=None case)"""
-        response = client.post(
+        response = self.client.post(
             "/plan",
             json={
                 "weight_kg": 65,
@@ -198,7 +208,7 @@ class TestAppComprehensive97:
 
     def test_premium_bmr_endpoint_success(self):
         """Test /premium_bmr endpoint success path (lines 1173-1238)"""
-        response = client.post(
+        response = self.client.post(
             "/premium_bmr",
             json={
                 "weight_kg": 70,
@@ -243,7 +253,7 @@ class TestAppComprehensive97:
             patch("core.targets._life_stage_warnings", return_value=[]),
             patch("core.recommendations.validate_targets_safety", return_value=[]),
         ):
-            response = client.post(
+            response = self.client.post(
                 "/premium_targets",
                 json={
                     "sex": "male",
@@ -265,7 +275,7 @@ class TestAppComprehensive97:
     def test_premium_targets_endpoint_not_available(self):
         """Test /premium_targets when feature not available (lines 1271-1274)"""
         with patch("core.recommendations.build_nutrition_targets", None):
-            response = client.post(
+            response = self.client.post(
                 "/premium_targets",
                 json={
                     "sex": "male",
@@ -305,7 +315,7 @@ class TestAppComprehensive97:
             with patch(
                 "core.recommendations.validate_targets_safety", return_value=["Safety warning"]
             ):
-                response = client.post(
+                response = self.client.post(
                     "/premium_targets",
                     json={
                         "sex": "female",
@@ -325,7 +335,7 @@ class TestAppComprehensive97:
 
     def test_bmi_endpoint_waist_risk_calculation(self):
         """Test BMI endpoint with waist risk calculation"""
-        response = client.post(
+        response = self.client.post(
             "/bmi",
             json={
                 "weight_kg": 90,
@@ -343,7 +353,7 @@ class TestAppComprehensive97:
 
     def test_plan_endpoint_athlete_case(self):
         """Test /plan endpoint for athlete"""
-        response = client.post(
+        response = self.client.post(
             "/plan",
             json={
                 "weight_kg": 80,
@@ -383,7 +393,7 @@ class TestAppComprehensive97:
                     "core.recommendations.validate_targets_safety",
                     side_effect=ImportError("validate_targets_safety not found"),
                 ):
-                    response = client.post(
+                    response = self.client.post(
                         "/premium_targets",
                         json={
                             "sex": "male",
