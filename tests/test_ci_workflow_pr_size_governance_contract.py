@@ -625,7 +625,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         )
     ]
     from_stage_aliases: list[str | None] = []
-    for line in dockerfile_lines:
+    from_stage_indices: list[int] = []
+    for line_index, line in enumerate(dockerfile_lines):
         stage_match = re.fullmatch(
             r"\s*FROM(?:\s+--platform=\S+)?\s+\S+(?:\s+AS\s+(?P<alias>\S+))?\s*",
             line,
@@ -635,9 +636,15 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
             continue
         alias = stage_match.group("alias")
         from_stage_aliases.append(alias.lower() if alias else None)
+        from_stage_indices.append(line_index)
     frontend_asset_write_lines = [
         line
         for line in dockerfile_lines
+        if "/srv/frontend" in line and not line.lstrip().startswith("#")
+    ]
+    frontend_asset_write_indices = [
+        line_index
+        for line_index, line in enumerate(dockerfile_lines)
         if "/srv/frontend" in line and not line.lstrip().startswith("#")
     ]
 
@@ -650,6 +657,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
     if frontend_asset_write_lines != [NODE24_FRONTEND_ASSET_COPY_LINE]:
         errors.append("production frontend assets must come only from frontend-build")
+    elif not from_stage_indices or frontend_asset_write_indices[0] <= from_stage_indices[-1]:
+        errors.append("production frontend asset handoff must belong to the final stage")
     return errors
 
 
@@ -742,6 +751,26 @@ def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
     errors = _node24_frontend_builder_contract_errors(overwritten)
 
     assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
+    """The canonical handoff must populate the final production stage."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    dockerfile_lines = dockerfile.splitlines()
+    handoff_index = dockerfile_lines.index(NODE24_FRONTEND_ASSET_COPY_LINE)
+    handoff_line = dockerfile_lines.pop(handoff_index)
+    final_stage_index = max(
+        index
+        for index, line in enumerate(dockerfile_lines)
+        if re.match(r"\s*FROM\s+", line, flags=re.IGNORECASE)
+    )
+    dockerfile_lines.insert(final_stage_index, handoff_line)
+    relocated = "\n".join(dockerfile_lines)
+
+    errors = _node24_frontend_builder_contract_errors(relocated)
+
+    assert "production frontend asset handoff must belong to the final stage" in errors
 
 
 def _extract_shell_conditional_block(
