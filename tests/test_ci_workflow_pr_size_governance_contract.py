@@ -605,6 +605,15 @@ NODE24_SUPPORTED_FROM_RE = re.compile(
     r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"(?:\s+AS\s+(?P<alias>[^\s\\`]+))?\s*",
     flags=re.IGNORECASE,
 )
+NODE24_FROM_KEYWORD_RE = re.compile(
+    r"^[^\S\r\n]*"
+    r"F(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
+    r"R(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
+    r"O(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
+    r"M(?:[\\`][^\S\r\n]*\r?\n[^\S\r\n]*)?"
+    r"(?=[^\S\r\n]|$)",
+    flags=re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
@@ -617,6 +626,9 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     unsupported_from_lines = [
         line for line in from_candidate_lines if NODE24_SUPPORTED_FROM_RE.fullmatch(line) is None
     ]
+    has_continued_from_keyword = any(
+        "\n" in match.group(0) for match in NODE24_FROM_KEYWORD_RE.finditer(dockerfile)
+    )
     frontend_build_owner_lines = [
         line
         for line in dockerfile_lines
@@ -656,7 +668,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     ]
 
     errors: list[str] = []
-    if unsupported_from_lines:
+    if unsupported_from_lines or has_continued_from_keyword:
         errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
     if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
         errors.append("frontend-build must have exactly one immutable Node owner")
@@ -797,6 +809,33 @@ def test_node24_frontend_builder_guard_rejects_backtick_continued_stage() -> Non
     errors = _node24_frontend_builder_contract_errors(continued)
 
     assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_split_from_keyword() -> None:
+    """A continued keyword cannot hide a logical FROM instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    for escape_character in ("\\", "`"):
+        candidate = dockerfile
+        if escape_character == "`":
+            candidate = candidate.replace(
+                "# syntax=docker/dockerfile:1",
+                "# syntax=docker/dockerfile:1\n# escape=`",
+                1,
+            )
+        for split_index in range(1, len("FROM") + 1):
+            continued_keyword = f"{'FROM'[:split_index]}{escape_character}\n{'FROM'[split_index:]}"
+            hidden_stage = (
+                f"{candidate}\n{continued_keyword} node:25-bookworm-slim AS hidden-tooling"
+            )
+
+            errors = _node24_frontend_builder_contract_errors(hidden_stage)
+
+            assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (
+                escape_character,
+                split_index,
+                errors,
+            )
 
 
 def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
