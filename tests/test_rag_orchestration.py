@@ -419,6 +419,45 @@ class TestRetrieveAndValidateRag:
         assert result.hops == 1
         assert result.refined_queries == ["meal plan"]
 
+    def test_recursive_failure_uses_sanitized_safe_empty_on_ci_surface(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """CI contract surface must cover sanitized recursive recovery."""
+        import core.rag.recursive_retrieval as recursive
+
+        query_sentinel = "RECURSIVE_CI_QUERY_SENTINEL"
+        exception_sentinel = "RECURSIVE_CI_EXCEPTION_SENTINEL"
+
+        def _boom(*_args: object, **_kwargs: object) -> RAGContext:
+            raise RuntimeError(exception_sentinel)
+
+        monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _boom)
+
+        with caplog.at_level("WARNING", logger=recursive.logger.name):
+            result = retrieve_recursive_context_structured(query_sentinel)
+
+        assert result.query == query_sentinel
+        assert result.refined_queries == [query_sentinel]
+        assert result.chunks == []
+        assert result.confidence == 0.0
+        assert result.hops == 1
+
+        records = [
+            record
+            for record in caplog.records
+            if record.getMessage() == "Recursive retrieval failed; returning safe empty context"
+        ]
+        assert len(records) == 1
+        assert records[0].args == ()
+        assert records[0].exc_info is None
+        assert records[0].exc_text is None
+        assert records[0].stack_info is None
+        for sentinel in (query_sentinel, exception_sentinel):
+            assert sentinel not in records[0].getMessage()
+            assert sentinel not in caplog.text
+
     @pytest.mark.asyncio
     async def test_recursive_empty_retrieval_preserves_recursive_metadata(self) -> None:
         """Recursive empty retrieval must collapse safely without losing hop metadata."""
