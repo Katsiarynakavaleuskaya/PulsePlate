@@ -635,14 +635,10 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
             continue
         alias = stage_match.group("alias")
         from_stage_aliases.append(alias.lower() if alias else None)
-    frontend_asset_copy_lines = [
+    frontend_asset_write_lines = [
         line
         for line in dockerfile_lines
-        if re.fullmatch(
-            r"\s*COPY(?:\s+--\S+)*\s+.+\s+/srv/frontend/?\s*",
-            line,
-            flags=re.IGNORECASE,
-        )
+        if "/srv/frontend" in line and not line.lstrip().startswith("#")
     ]
 
     errors: list[str] = []
@@ -652,7 +648,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         errors.append("the immutable frontend-build line must be the only Node FROM stage")
     if from_stage_aliases != ["caddy-build", "frontend-build", None]:
         errors.append("Dockerfile stage aliases must stay finite and ordered")
-    if frontend_asset_copy_lines != [NODE24_FRONTEND_ASSET_COPY_LINE]:
+    if frontend_asset_write_lines != [NODE24_FRONTEND_ASSET_COPY_LINE]:
         errors.append("production frontend assets must come only from frontend-build")
     return errors
 
@@ -729,6 +725,22 @@ def test_node24_frontend_builder_guard_rejects_alternate_asset_owner() -> None:
     errors = _node24_frontend_builder_contract_errors(redirected)
 
     assert "Dockerfile stage aliases must stay finite and ordered" in errors
+    assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
+    """A later copy cannot replace a served asset from another stage."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    overwritten = "\n".join(
+        (
+            dockerfile,
+            "COPY --from=caddy-build /usr/bin/caddy /srv/frontend/index.html",
+        )
+    )
+
+    errors = _node24_frontend_builder_contract_errors(overwritten)
+
     assert "production frontend assets must come only from frontend-build" in errors
 
 
