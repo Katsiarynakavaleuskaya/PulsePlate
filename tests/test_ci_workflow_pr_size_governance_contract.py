@@ -1003,6 +1003,19 @@ def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
     assert "production frontend asset handoff must belong to the final stage" in errors
 
 
+def _workflow_patterns_match(value: str, patterns: list[object]) -> bool:
+    """Return GitHub-style ordered include/exclude matching for one known value."""
+
+    matched = False
+    for pattern in patterns:
+        assert isinstance(pattern, str)
+        excluded = pattern.startswith("!")
+        candidate = pattern.removeprefix("!")
+        if fnmatch.fnmatchcase(value, candidate):
+            matched = not excluded
+    return matched
+
+
 def _assert_node24_frontend_builder_workflow_contract(
     workflow: dict[str, object],
 ) -> None:
@@ -1027,12 +1040,23 @@ def _assert_node24_frontend_builder_workflow_contract(
     for event_name in ("pull_request", "push"):
         event = on_section[event_name]
         assert isinstance(event, dict)
+        branches = event["branches"]
+        assert isinstance(branches, list)
+        assert _workflow_patterns_match(
+            "main", branches
+        ), f"{event_name} must run for the main branch"
         paths = event["paths"]
         assert isinstance(paths, list)
-        assert all(isinstance(pattern, str) for pattern in paths)
-        assert any(
-            fnmatch.fnmatchcase(dockerfile_path, pattern) for pattern in paths
+        assert _workflow_patterns_match(
+            dockerfile_path, paths
         ), f"{event_name} must route {dockerfile_path} through Frontend CI"
+
+    pull_request_event = on_section["pull_request"]
+    assert isinstance(pull_request_event, dict)
+    pull_request_types = pull_request_event.get("types")
+    if pull_request_types is not None:
+        assert isinstance(pull_request_types, list)
+        assert {"opened", "synchronize", "reopened"}.issubset(pull_request_types)
 
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -1077,6 +1101,11 @@ def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
     (
         "pull_request_paths",
         "push_paths",
+        "pull_request_path_exclusion",
+        "push_path_exclusion",
+        "pull_request_branches",
+        "push_branches",
+        "pull_request_types",
         "step_if",
         "step_continue_on_error",
         "job_continue_on_error",
@@ -1114,6 +1143,20 @@ def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
         event = on_section[event_name]
         assert isinstance(event, dict)
         event["paths"] = [".nvmrc"]
+    if mutation in {"pull_request_path_exclusion", "push_path_exclusion"}:
+        event_name = mutation.removesuffix("_path_exclusion")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["paths"] = ["frontend/**", "!frontend/Dockerfile.caddy-spa"]
+    if mutation in {"pull_request_branches", "push_branches"}:
+        event_name = mutation.removesuffix("_branches")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["branches"] = ["feat/**"]
+    if mutation == "pull_request_types":
+        event = on_section["pull_request"]
+        assert isinstance(event, dict)
+        event["types"] = ["opened", "reopened", "edited"]
     if mutation == "step_if":
         step["if"] = "${{ false }}"
     if mutation == "step_continue_on_error":
