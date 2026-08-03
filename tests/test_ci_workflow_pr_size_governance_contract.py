@@ -600,17 +600,28 @@ NODE24_FRONTEND_BUILD_LINE = (
     " AS frontend-build"
 )
 NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
+NODE24_UNSUPPORTED_FROM_ERROR = "FROM stages must use the supported single-line form"
+NODE24_SUPPORTED_FROM_RE = re.compile(
+    r"\s*FROM(?:\s+--platform=[^\s\\]+)?\s+[^\s\\]+" r"(?:\s+AS\s+(?P<alias>[^\s\\]+))?\s*",
+    flags=re.IGNORECASE,
+)
 
 
 def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     """Return finite carrier errors for the known Caddy SPA Dockerfile."""
 
     dockerfile_lines = dockerfile.splitlines()
+    from_candidate_lines = [
+        line for line in dockerfile_lines if re.match(r"\s*FROM(?:\s|$)", line, flags=re.IGNORECASE)
+    ]
+    unsupported_from_lines = [
+        line for line in from_candidate_lines if NODE24_SUPPORTED_FROM_RE.fullmatch(line) is None
+    ]
     frontend_build_owner_lines = [
         line
         for line in dockerfile_lines
         if re.fullmatch(
-            r"\s*FROM(?:\s+--platform=\S+)?\s+\S+\s+AS\s+frontend-build\s*",
+            r"\s*FROM(?:\s+--platform=[^\s\\]+)?\s+[^\s\\]+" r"\s+AS\s+frontend-build\s*",
             line,
             flags=re.IGNORECASE,
         )
@@ -619,7 +630,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         line
         for line in dockerfile_lines
         if re.fullmatch(
-            r"\s*FROM(?:\s+--platform=\S+)?\s+node:\S+(?:\s+AS\s+\S+)?\s*",
+            r"\s*FROM(?:\s+--platform=[^\s\\]+)?\s+node:[^\s\\]+" r"(?:\s+AS\s+[^\s\\]+)?\s*",
             line,
             flags=re.IGNORECASE,
         )
@@ -627,11 +638,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     from_stage_aliases: list[str | None] = []
     from_stage_indices: list[int] = []
     for line_index, line in enumerate(dockerfile_lines):
-        stage_match = re.fullmatch(
-            r"\s*FROM(?:\s+--platform=\S+)?\s+\S+(?:\s+AS\s+(?P<alias>\S+))?\s*",
-            line,
-            flags=re.IGNORECASE,
-        )
+        stage_match = NODE24_SUPPORTED_FROM_RE.fullmatch(line)
         if stage_match is None:
             continue
         alias = stage_match.group("alias")
@@ -649,6 +656,8 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     ]
 
     errors: list[str] = []
+    if unsupported_from_lines:
+        errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
     if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
         errors.append("frontend-build must have exactly one immutable Node owner")
     if node_from_stage_lines != [NODE24_FRONTEND_BUILD_LINE]:
@@ -735,6 +744,54 @@ def test_node24_frontend_builder_guard_rejects_alternate_asset_owner() -> None:
 
     assert "Dockerfile stage aliases must stay finite and ordered" in errors
     assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_continued_node_stage() -> None:
+    """A continued Node stage cannot escape the finite FROM inventory."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    continued_stage = "\n".join(
+        (
+            dockerfile,
+            "FROM node:25-bookworm-slim \\",
+            " AS tooling",
+        )
+    )
+
+    errors = _node24_frontend_builder_contract_errors(continued_stage)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_continued_canonical_owner() -> None:
+    """The canonical builder owner must use the supported single-line form."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    continued_owner = NODE24_FRONTEND_BUILD_LINE.replace(
+        " AS frontend-build",
+        " \\\n AS frontend-build",
+        1,
+    )
+    continued = dockerfile.replace(NODE24_FRONTEND_BUILD_LINE, continued_owner, 1)
+
+    errors = _node24_frontend_builder_contract_errors(continued)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
+    """Comments and longer identifiers are not Docker FROM instructions."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    non_instructions = "\n".join(
+        (
+            dockerfile,
+            "# FROM node:25-bookworm-slim AS commented-tooling",
+            "FROMAGE node:25-bookworm-slim AS identifier-tooling",
+        )
+    )
+
+    assert _node24_frontend_builder_contract_errors(non_instructions) == []
 
 
 def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
