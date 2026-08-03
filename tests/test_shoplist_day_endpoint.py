@@ -4,18 +4,44 @@ RU: Тесты для эндпоинта списка покупок на ден
 """
 
 from __future__ import annotations
-from tests._client import get_client
 
+from contextlib import contextmanager
 from types import ModuleType
+from typing import Callable, Generator
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.shopping_list import ShopAisle, ShopUnit
+from tests._client import open_test_client
+
+
+class _ClientBodyFailure(RuntimeError):
+    """Sentinel raised while a managed fixture body owns the client."""
+
+
+@contextmanager
+def _open_pro_client(
+    app_instance: FastAPI,
+    override: Callable[..., object],
+) -> Generator[TestClient, None, None]:
+    """Temporarily install PRO access while preserving prior override ownership."""
+    overrides_owner = app_instance.dependency_overrides
+    overrides_snapshot = dict(overrides_owner)
+    overrides_owner[require_pro_tier] = override
+    try:
+        with open_test_client(app_instance) as client:
+            yield client
+    finally:
+        app_instance.dependency_overrides = overrides_owner
+        overrides_owner.clear()
+        overrides_owner.update(overrides_snapshot)
 
 
 @pytest.fixture
-def client_with_pro_access(app_module: ModuleType):
+def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None, None]:
     """Create test client with PRO tier access bypassed.
 
     Uses canonical entrypoint (app.main:app) with observability bootstrap.
@@ -27,13 +53,36 @@ def client_with_pro_access(app_module: ModuleType):
     async def _mock_pro_tier() -> str:
         return "test_key"
 
-    app.main.app.dependency_overrides[require_pro_tier] = _mock_pro_tier
+    app_instance = app.main.app
+    with _open_pro_client(app_instance, _mock_pro_tier) as client:
+        yield client
 
-    client = get_client()
-    yield client
 
-    # Cleanup: remove override after test
-    app.main.app.dependency_overrides.pop(require_pro_tier, None)
+@pytest.mark.parametrize("body_fails", [False, True])
+def test_pro_client_restores_preexisting_override(body_fails: bool) -> None:
+    """Normal and exceptional client exit restore the exact prior override."""
+    app_instance = FastAPI()
+
+    async def original_override() -> str:
+        return "original"
+
+    async def fixture_override() -> str:
+        return "fixture"
+
+    overrides_owner = app_instance.dependency_overrides
+    overrides_owner[require_pro_tier] = original_override
+
+    if body_fails:
+        with pytest.raises(_ClientBodyFailure):
+            with _open_pro_client(app_instance, fixture_override):
+                assert overrides_owner[require_pro_tier] is fixture_override
+                raise _ClientBodyFailure("fixture body failed")
+    else:
+        with _open_pro_client(app_instance, fixture_override):
+            assert overrides_owner[require_pro_tier] is fixture_override
+
+    assert app_instance.dependency_overrides is overrides_owner
+    assert overrides_owner == {require_pro_tier: original_override}
 
 
 def test_shoplist_day_no_day_plan_returns_warning(client_with_pro_access):
@@ -132,10 +181,8 @@ def test_shoplist_day_missing_date_422(client_with_pro_access):
     assert r.status_code == 422
 
 
-def test_shoplist_day_requires_pro_tier() -> None:
+def test_shoplist_day_requires_pro_tier(client: TestClient) -> None:
     """Test endpoint requires PRO tier authentication."""
-    client = get_client()
-
     # Request without PRO tier override should fail
     r = client.get("/api/v1/pro/shoplist/day?date=2025-12-17&lang=ru")
 

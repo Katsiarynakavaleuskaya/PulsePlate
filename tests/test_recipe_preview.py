@@ -1,14 +1,10 @@
-from tests._client import get_client
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
-client: "TestClient" = get_client()
 
-
-def test_recipe_preview_basic() -> None:
+def test_recipe_preview_basic(client: "TestClient") -> None:
     payload = {
         "title": "Тост с йогуртом",
         "servings": 2,
