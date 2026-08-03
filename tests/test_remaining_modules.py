@@ -1870,6 +1870,7 @@ class TestInsightApplicationServiceFastLane:
         observed: dict[str, object] = {}
         promotion_started = threading.Event()
         release_promotion = threading.Event()
+        promotion_release_observed = threading.Event()
         promotion_finished = threading.Event()
 
         class _SlowSyncStore:
@@ -1877,9 +1878,8 @@ class TestInsightApplicationServiceFastLane:
                 observed["candidates"] = candidates
                 promotion_started.set()
                 try:
-                    assert release_promotion.wait(
-                        timeout=1.0
-                    ), "test did not release the blocked promotion worker"
+                    if release_promotion.wait(timeout=1.0):
+                        promotion_release_observed.set()
                     return []
                 finally:
                     promotion_finished.set()
@@ -1924,6 +1924,9 @@ class TestInsightApplicationServiceFastLane:
             asyncio.run(_exercise_timeout())
 
         assert promotion_finished.wait(timeout=1.0), "promotion worker did not finish after release"
+        assert (
+            promotion_release_observed.is_set()
+        ), "promotion worker self-timed out before observing release"
 
 
 class TestPhilosophicalRuntimeFastLane:
