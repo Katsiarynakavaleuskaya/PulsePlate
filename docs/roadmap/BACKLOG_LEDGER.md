@@ -24,6 +24,50 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
+- [ ] P1: RAG-S2 baseline validation boundary
+  - Owner: backend-engineer
+  - Priority: P1 (AI runtime trust / response continuity)
+  - Target PR: TBD after opening `codex/rag-baseline-validation-boundary`
+  - Status: In progress on `codex/rag-baseline-validation-boundary`
+  - Area: backend / RAG / Insight runtime / knowledge admission
+  - Business reason (EN): Keep the available non-medical wellness response when
+    advisory enrichment fails while preventing any unvalidated retrieval chunk
+    from reaching prompts, sources, confidence, provenance, verification
+    evidence, or durable knowledge admission.
+  - Exact invariant (EN): Every final request-local vector or merged recursive
+    chunk set crosses mandatory Stage 1. Response fields derive from one fresh,
+    order-preserving Stage-1 survivor snapshot. Knowledge admission additionally
+    requires observed successful completion of configured Stages 2-4, no
+    existing degraded reason, the existing non-recursive policy, usable final
+    formatting/redaction, and an admission-allowing canonical verification
+    bundle. Requested feature state alone grants no authority.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md#33-mandatory-stage-1-validation-boundary`
+    - `core/rag/philosophy_pipeline.py`
+    - `core/rag/orchestration.py`
+    - [Final roadmap PDF (product intent only; not runtime authority)](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
+  - DoD:
+    - Stage 1 runs for flag-on and flag-off vector and final merged recursive paths
+    - Stage-1 exception or zero survivors returns no RAG context and never restores raw chunks
+    - Optional-stage mutation or exception returns an untouched Stage-1 snapshot,
+      one stable enrichment warning, and closed knowledge admission
+    - Prompt, response evidence, provenance, final bundle, and candidates derive
+      from the same survivor snapshot after usable formatting and redaction
+    - Both Insight aliases preserve response schema, status/error behavior,
+      provider-call count, guard/quota/rate-limit ordering, and non-RAG fallback
+    - Focused tests, typecheck, targeted Bandit, branch-diff backend hook,
+      `make validate-changed`, full pre-commit, and current-head CI/governance
+      checks pass without OpenAPI or generated-client changes
+  - Rollback (EN): Revert the PR. During an incident, disable all RAG with the
+    existing `FEATURE_RAG=false`; `FEATURE_PHILOSOPHY_VALIDATION=false` disables
+    only post-Stage-1 enrichment and is not a validation-safety rollback.
+  - Out of scope (EN): Semantic cache, GraphRAG, Evidence Graph serving,
+    persistent memory, advisory-wiki promotion, new authority engines, Stage-1
+    keywords or thresholds, provider/model selection, quota/rate-limit changes,
+    telemetry expansion, public routes/DTO/OpenAPI, frontend, and iOS. Semantic
+    cache widening is explicitly prohibited while its dedicated gate remains closed.
+
 <a id="ledger-p0-experiment-runner-container-cve-remediation"></a>
 - [ ] P0: Remediate Experiment Runner container HIGH/CRITICAL vulnerabilities
   - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)
