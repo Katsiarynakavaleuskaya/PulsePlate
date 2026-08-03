@@ -609,7 +609,32 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     )
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    assert nvmrc == "24.16.0"
+    expected_frontend_build_line = (
+        "FROM node:24.18.1-bookworm-slim@"
+        "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+        " AS frontend-build"
+    )
+    dockerfile_lines = dockerfile.splitlines()
+    frontend_build_owner_lines = [
+        line
+        for line in dockerfile_lines
+        if re.fullmatch(
+            r"\s*FROM(?:\s+--platform=\S+)?\s+\S+\s+AS\s+frontend-build\s*",
+            line,
+            flags=re.IGNORECASE,
+        )
+    ]
+    node_from_stage_lines = [
+        line
+        for line in dockerfile_lines
+        if re.fullmatch(
+            r"\s*FROM(?:\s+--platform=\S+)?\s+node:\S+(?:\s+AS\s+\S+)?\s*",
+            line,
+            flags=re.IGNORECASE,
+        )
+    ]
+
+    assert nvmrc == "24.18.1"
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.8"
@@ -625,7 +650,8 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert packages["node_modules/brace-expansion"]["version"] == "2.1.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.21.0"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
-    assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile
+    assert frontend_build_owner_lines == [expected_frontend_build_line]
+    assert node_from_stage_lines == [expected_frontend_build_line]
     assert "node:22.22.1" not in dockerfile
 
 
