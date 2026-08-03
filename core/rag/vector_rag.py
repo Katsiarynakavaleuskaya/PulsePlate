@@ -130,7 +130,17 @@ def _is_vector_embedding_model_acknowledged() -> bool:
     serves persisted embeddings.
     """
 
-    return os.getenv(RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV, "").strip() == EMBEDDING_MODEL_NAME
+    acknowledgement_env_name = RAG_VECTOR_EMBEDDING_MODEL_ACK_ENV
+    expected_model_name = EMBEDDING_MODEL_NAME
+    if (
+        not isinstance(acknowledgement_env_name, str)
+        or not acknowledgement_env_name.strip()
+        or not isinstance(expected_model_name, str)
+        or not expected_model_name.strip()
+    ):
+        return False
+    acknowledged_model_name: str = os.getenv(acknowledgement_env_name, "").strip()
+    return acknowledged_model_name == expected_model_name
 
 
 def _normalize_embedding_vector(values: object) -> list[float] | None:
@@ -533,10 +543,7 @@ def retrieve_context_structured(
                 logger.debug("Vector retrieval returned no chunks; falling back to Jaccard")
             except Exception:
                 fallback_reason = RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION
-                logger.warning(
-                    "Vector retrieval failed; falling back to Jaccard",
-                    exc_info=True,
-                )
+                logger.warning("Vector retrieval failed; falling back to Jaccard")
 
     # Fallback to Jaccard
     from core.rag.simple_rag import retrieve_context_structured as _jaccard_retrieve
