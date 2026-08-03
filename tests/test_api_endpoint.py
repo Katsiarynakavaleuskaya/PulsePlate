@@ -4,20 +4,17 @@ Test script for the premium week plan API endpoint.
 This script tests the /api/v1/premium/plan/week endpoint with different languages.
 """
 
-import os
-from tests._client import get_client
+import pytest
+
+from tests._client import open_test_client
 
 
-def test_api_endpoint_multilingual() -> None:
+def test_api_endpoint_multilingual(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the API endpoint with different languages."""
-    # Set up test client
-    client = get_client()
+    api_key = "test_api_key"
+    monkeypatch.setenv("API_KEY", api_key)
 
-    try:
-        # Mock API key
-        api_key = "test_api_key"
-        os.environ["API_KEY"] = api_key
-
+    with open_test_client() as client:
         # Test data with user profile
         test_data = {
             "sex": "male",
@@ -73,20 +70,14 @@ def test_api_endpoint_multilingual() -> None:
             assert "week_summary" in result
 
             print(f"✓ Language {lang} test passed")
-    finally:
-        client.close()
 
 
-def test_api_endpoint_with_targets() -> None:
+def test_api_endpoint_with_targets(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the API endpoint with pre-calculated targets."""
-    # Set up test client
-    client = get_client()
+    api_key = "test_api_key"
+    monkeypatch.setenv("API_KEY", api_key)
 
-    try:
-        # Mock API key
-        api_key = "test_api_key"
-        os.environ["API_KEY"] = api_key
-
+    with open_test_client() as client:
         # Test data with pre-calculated targets
         test_data = {
             "targets": {
@@ -133,5 +124,3 @@ def test_api_endpoint_with_targets() -> None:
         assert "week_summary" in result
 
         print("✓ Pre-calculated targets test passed")
-    finally:
-        client.close()

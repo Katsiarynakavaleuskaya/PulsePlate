@@ -3,9 +3,8 @@ Combined basic food tests.
 Includes API smoke tests and basic food database tests.
 """
 
-from tests._client import get_client
-
 import pytest
+from fastapi.testclient import TestClient
 
 from core.food_db import FoodItem, aggregate_shopping, parse_food_db, pick_booster_for
 from core.targets import MicroTargets
@@ -14,20 +13,16 @@ from core.targets import MicroTargets
 class TestFoodAPIBasic:
     """Basic food API tests."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        self.client = get_client()
-
-    def test_search_foods_smoke(self):
+    def test_search_foods_smoke(self, client: TestClient) -> None:
         """Test basic food search functionality."""
-        r = self.client.get("/api/v1/foods", params={"limit": 5})
+        r = client.get("/api/v1/foods", params={"limit": 5})
         assert r.status_code == 200
         data = r.json()
         assert isinstance(data, list)
 
-    def test_food_card_404(self):
+    def test_food_card_404(self, client: TestClient) -> None:
         """Test food card 404 error handling."""
-        r = self.client.get("/api/v1/foods/__nope__")
+        r = client.get("/api/v1/foods/__nope__")
         assert r.status_code == 404
 
 
