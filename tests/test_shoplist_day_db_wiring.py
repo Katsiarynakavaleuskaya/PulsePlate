@@ -4,10 +4,13 @@ RU: Тесты для интеграции БД для дневного спис
 EN: Tests for day shopping list database integration.
 """
 
+import asyncio
+from contextlib import contextmanager
 from datetime import date
-from typing import TYPE_CHECKING, AsyncGenerator, Generator, cast
+from typing import TYPE_CHECKING, Callable, Generator, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from requests import Response
 from sqlalchemy import delete, select
@@ -17,13 +20,35 @@ from app.middleware.api_tiers import require_pro_tier
 from app.models import DayPlan, WeeklyPlan
 import core.db as core_db
 from core.models import User
-from tests._client import get_client
+from tests._client import open_test_client
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Test user ID used across all tests
 TEST_USER_ID = 1
+
+
+class _ClientBodyFailure(RuntimeError):
+    """Sentinel raised while a managed fixture body owns the client."""
+
+
+@contextmanager
+def _open_pro_client(
+    app_instance: FastAPI,
+    override: Callable[..., object],
+) -> Generator[TestClient, None, None]:
+    """Temporarily install PRO access while preserving prior override ownership."""
+    overrides_owner = app_instance.dependency_overrides
+    overrides_snapshot = dict(overrides_owner)
+    overrides_owner[require_pro_tier] = override
+    try:
+        with open_test_client(app_instance) as client:
+            yield client
+    finally:
+        app_instance.dependency_overrides = overrides_owner
+        overrides_owner.clear()
+        overrides_owner.update(overrides_snapshot)
 
 
 def _reset_async_db_state() -> None:
@@ -80,12 +105,8 @@ def _assert_json_response(response: Response) -> dict[str, object]:
     return cast(dict[str, object], body)
 
 
-@pytest.fixture
-async def test_user() -> AsyncGenerator[User, None]:
-    """Create test user in DB for FK constraints.
-
-    Creates user with id=TEST_USER_ID and cleans up after test.
-    """
+async def _create_test_user() -> User:
+    """Create and return the deterministic user required by FK constraints."""
     async_session_local = _get_async_session_local()
 
     async with async_session_local() as session:
@@ -104,9 +125,13 @@ async def test_user() -> AsyncGenerator[User, None]:
             await session.commit()
             await session.refresh(user)
 
-        yield user
+        return user
 
-    # Cleanup: delete test user and related day plans in a fresh session
+
+async def _delete_test_user() -> None:
+    """Delete the deterministic user and every plan owned by the fixture."""
+    async_session_local = _get_async_session_local()
+
     async with async_session_local() as session:
         try:
             await session.execute(delete(DayPlan).where(DayPlan.user_id == TEST_USER_ID))
@@ -119,6 +144,16 @@ async def test_user() -> AsyncGenerator[User, None]:
 
 
 @pytest.fixture
+def test_user() -> Generator[User, None, None]:
+    """Create a test user and clean up its FK-owned rows without an async pytest plugin."""
+    user = asyncio.run(_create_test_user())
+    try:
+        yield user
+    finally:
+        asyncio.run(_delete_test_user())
+
+
+@pytest.fixture
 def client_with_pro_access() -> Generator[TestClient, None, None]:
     """Create test client with PRO tier access bypassed.
 
@@ -126,19 +161,40 @@ def client_with_pro_access() -> Generator[TestClient, None, None]:
     """
     import app.main
 
-    # Ensure override is attached to canonical app.main:app used by get_client().
+    # Ensure override is attached to the same app owned by the managed client.
     app_instance = app.main.app
-    app_instance.dependency_overrides[require_pro_tier] = lambda: {"user_id": TEST_USER_ID}
-    try:
-        with get_client() as client:
-            yield client
-    finally:
-        # Cleanup: remove override after test
-        app_instance.dependency_overrides.pop(require_pro_tier, None)
+    with _open_pro_client(app_instance, lambda: {"user_id": TEST_USER_ID}) as client:
+        yield client
 
 
-@pytest.mark.asyncio
-async def test_fetch_day_plan_when_exists_in_db(
+@pytest.mark.parametrize("body_fails", [False, True])
+def test_pro_client_restores_preexisting_override(body_fails: bool) -> None:
+    """Normal and exceptional client exit restore the exact prior override."""
+    app_instance = FastAPI()
+
+    async def original_override() -> str:
+        return "original"
+
+    async def fixture_override() -> dict[str, int]:
+        return {"user_id": TEST_USER_ID}
+
+    overrides_owner = app_instance.dependency_overrides
+    overrides_owner[require_pro_tier] = original_override
+
+    if body_fails:
+        with pytest.raises(_ClientBodyFailure):
+            with _open_pro_client(app_instance, fixture_override):
+                assert overrides_owner[require_pro_tier] is fixture_override
+                raise _ClientBodyFailure("fixture body failed")
+    else:
+        with _open_pro_client(app_instance, fixture_override):
+            assert overrides_owner[require_pro_tier] is fixture_override
+
+    assert app_instance.dependency_overrides is overrides_owner
+    assert overrides_owner == {require_pro_tier: original_override}
+
+
+def test_fetch_day_plan_when_exists_in_db(
     client_with_pro_access: TestClient,
     test_user: User,
 ) -> None:
@@ -162,27 +218,29 @@ async def test_fetch_day_plan_when_exists_in_db(
         ]
     }
 
-    async_session_local = _get_async_session_local()
+    async def seed_day_plan() -> None:
+        async_session_local = _get_async_session_local()
+        async with async_session_local() as session:
+            # Create weekly plan first (required for day_plan.weekly_plan_id)
+            weekly_plan = WeeklyPlan(
+                user_id=test_user.id,
+                start_date=test_date,
+                end_date=test_date,
+                plan_data={},
+            )
+            session.add(weekly_plan)
+            await session.flush()  # Get weekly_plan.id
 
-    async with async_session_local() as session:
-        # Create weekly plan first (required for day_plan.weekly_plan_id)
-        weekly_plan = WeeklyPlan(
-            user_id=test_user.id,
-            start_date=test_date,
-            end_date=test_date,
-            plan_data={},
-        )
-        session.add(weekly_plan)
-        await session.flush()  # Get weekly_plan.id
+            day_plan = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=weekly_plan.id,
+                date=test_date,
+                plan_data=plan_data,
+            )
+            session.add(day_plan)
+            await session.commit()
 
-        day_plan = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=weekly_plan.id,
-            date=test_date,
-            plan_data=plan_data,
-        )
-        session.add(day_plan)
-        await session.commit()
+    asyncio.run(seed_day_plan())
 
     response = client_with_pro_access.get(
         f"/api/v1/pro/shoplist/day?date={test_date}&lang=en",
@@ -194,10 +252,7 @@ async def test_fetch_day_plan_when_exists_in_db(
     assert isinstance(body["items"], list)
 
 
-@pytest.mark.asyncio
-async def test_fetch_day_plan_when_not_in_db(
-    client_with_pro_access: TestClient, test_user: User
-) -> None:
+def test_fetch_day_plan_when_not_in_db(client_with_pro_access: TestClient, test_user: User) -> None:
     """When no plan in DB, fetch_day_plan returns None → empty items + warning."""
     _ = test_user  # Ensure user exists for FK constraint
     test_date = date(2025, 12, 25)
@@ -213,90 +268,96 @@ async def test_fetch_day_plan_when_not_in_db(
     assert body["warnings"] == ["no_day_plan"]
 
 
-@pytest.mark.asyncio
-async def test_day_plan_model_creation(test_user: User) -> None:
+def test_day_plan_model_creation(test_user: User) -> None:
     """Test creating DayPlan model instance."""
-    async_session_local = _get_async_session_local()
-
     test_date = date(2025, 12, 19)
 
-    async with async_session_local() as session:
-        # Create weekly plan first (required for day_plan.weekly_plan_id)
-        weekly_plan = WeeklyPlan(
-            user_id=test_user.id,
-            start_date=test_date,
-            end_date=test_date,
-            plan_data={},
-        )
-        session.add(weekly_plan)
-        await session.flush()  # Get weekly_plan.id
+    async def create_and_fetch_day_plan() -> None:
+        async_session_local = _get_async_session_local()
 
-        day_plan = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=weekly_plan.id,
-            date=test_date,
-            plan_data={"daily_menus": []},
-        )
-        session.add(day_plan)
-        await session.commit()
+        async with async_session_local() as session:
+            # Create weekly plan first (required for day_plan.weekly_plan_id)
+            weekly_plan = WeeklyPlan(
+                user_id=test_user.id,
+                start_date=test_date,
+                end_date=test_date,
+                plan_data={},
+            )
+            session.add(weekly_plan)
+            await session.flush()  # Get weekly_plan.id
 
-    # Query back in separate session
-    async with async_session_local() as session:
-        stmt = (
-            select(DayPlan).where(DayPlan.user_id == test_user.id).where(DayPlan.date == test_date)
-        )
-        result = await session.execute(stmt)
-        fetched = result.scalars().first()
+            day_plan = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=weekly_plan.id,
+                date=test_date,
+                plan_data={"daily_menus": []},
+            )
+            session.add(day_plan)
+            await session.commit()
 
-        assert fetched is not None
-        assert fetched.user_id == test_user.id
-        assert fetched.date == test_date
-        assert fetched.plan_data == {"daily_menus": []}
+        # Query back in separate session
+        async with async_session_local() as session:
+            stmt = (
+                select(DayPlan)
+                .where(DayPlan.user_id == test_user.id)
+                .where(DayPlan.date == test_date)
+            )
+            result = await session.execute(stmt)
+            fetched = result.scalars().first()
+
+            assert fetched is not None
+            assert fetched.user_id == test_user.id
+            assert fetched.date == test_date
+            assert fetched.plan_data == {"daily_menus": []}
+
+    asyncio.run(create_and_fetch_day_plan())
 
 
-@pytest.mark.asyncio
-async def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
+def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
     """Test that (user_id, date) uniqueness is enforced."""
-    async_session_local = _get_async_session_local()
-
     test_date = date(2025, 12, 21)
 
-    # Create first day plan
-    async with async_session_local() as session:
-        # Create weekly plan first (required for day_plan.weekly_plan_id)
-        weekly_plan = WeeklyPlan(
-            user_id=test_user.id,
-            start_date=test_date,
-            end_date=test_date,
-            plan_data={},
-        )
-        session.add(weekly_plan)
-        await session.flush()  # Get weekly_plan.id
+    async def assert_unique_constraint() -> None:
+        async_session_local = _get_async_session_local()
 
-        day_plan_1 = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=weekly_plan.id,
-            date=test_date,
-            plan_data={"daily_menus": []},
-        )
-        session.add(day_plan_1)
-        await session.commit()
+        # Create first day plan
+        async with async_session_local() as session:
+            # Create weekly plan first (required for day_plan.weekly_plan_id)
+            weekly_plan = WeeklyPlan(
+                user_id=test_user.id,
+                start_date=test_date,
+                end_date=test_date,
+                plan_data={},
+            )
+            session.add(weekly_plan)
+            await session.flush()  # Get weekly_plan.id
 
-    # Try to create duplicate — should fail
-    async with async_session_local() as session:
-        # Use same weekly_plan for the duplicate attempt
-        stmt = select(WeeklyPlan).where(WeeklyPlan.user_id == test_user.id)
-        result = await session.execute(stmt)
-        existing_weekly_plan = result.scalars().first()
-        assert existing_weekly_plan is not None
-
-        day_plan_2 = DayPlan(
-            user_id=test_user.id,
-            weekly_plan_id=existing_weekly_plan.id,
-            date=test_date,
-            plan_data={"daily_menus": [{"meals": []}]},
-        )
-        session.add(day_plan_2)
-        with pytest.raises(IntegrityError):
+            day_plan_1 = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=weekly_plan.id,
+                date=test_date,
+                plan_data={"daily_menus": []},
+            )
+            session.add(day_plan_1)
             await session.commit()
-        await session.rollback()
+
+        # Try to create duplicate — should fail
+        async with async_session_local() as session:
+            # Use same weekly_plan for the duplicate attempt
+            stmt = select(WeeklyPlan).where(WeeklyPlan.user_id == test_user.id)
+            result = await session.execute(stmt)
+            existing_weekly_plan = result.scalars().first()
+            assert existing_weekly_plan is not None
+
+            day_plan_2 = DayPlan(
+                user_id=test_user.id,
+                weekly_plan_id=existing_weekly_plan.id,
+                date=test_date,
+                plan_data={"daily_menus": [{"meals": []}]},
+            )
+            session.add(day_plan_2)
+            with pytest.raises(IntegrityError):
+                await session.commit()
+            await session.rollback()
+
+    asyncio.run(assert_unique_constraint())
