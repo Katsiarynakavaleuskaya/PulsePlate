@@ -11,8 +11,6 @@ import sys
 from types import ModuleType
 from typing import Optional
 from unittest.mock import Mock, patch
-from tests._client import get_client
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -402,13 +400,7 @@ def test_bmi_visualization_language_support():
 
 
 class TestBMIVisualizationAPI:
-    def setup_method(self) -> None:
-        self.client = get_client()
-
-    def teardown_method(self) -> None:
-        self.client.close()
-
-    def test_bmi_endpoint_without_visualization(self) -> None:
+    def test_bmi_endpoint_without_visualization(self, client: TestClient) -> None:
         """Test BMI endpoint without visualization request."""
         payload = {
             "weight_kg": 70,
@@ -421,7 +413,7 @@ class TestBMIVisualizationAPI:
             "include_chart": False,
         }
 
-        response = self.client.post("/bmi", json=payload)
+        response = client.post("/bmi", json=payload)
         assert response.status_code == 200
 
         data = response.json()
@@ -429,7 +421,7 @@ class TestBMIVisualizationAPI:
         assert "category" in data
         assert "visualization" not in data
 
-    def test_enhanced_teen_segmentation(self) -> None:
+    def test_enhanced_teen_segmentation(self, client: TestClient) -> None:
         """Test enhanced teen segmentation in BMI calculation."""
         payload = {
             "weight_kg": 60,
@@ -441,7 +433,7 @@ class TestBMIVisualizationAPI:
             "lang": "en",
         }
 
-        response = self.client.post("/bmi", json=payload)
+        response = client.post("/bmi", json=payload)
         assert response.status_code == 200
 
         data = response.json()
@@ -449,7 +441,7 @@ class TestBMIVisualizationAPI:
         assert "category" in data
         # Teen category should be handled appropriately
 
-    def test_enhanced_athlete_segmentation(self) -> None:
+    def test_enhanced_athlete_segmentation(self, client: TestClient) -> None:
         """Test enhanced athlete segmentation with adjusted BMI ranges."""
         payload = {
             "weight_kg": 85,
@@ -461,7 +453,7 @@ class TestBMIVisualizationAPI:
             "lang": "en",
         }
 
-        response = self.client.post("/bmi", json=payload)
+        response = client.post("/bmi", json=payload)
         assert response.status_code == 200
 
         data = response.json()

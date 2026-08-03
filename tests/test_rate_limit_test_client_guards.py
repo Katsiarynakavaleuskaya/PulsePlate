@@ -6,14 +6,15 @@ from typing import cast
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 import app as app_mod
-from tests._client import disable_rate_limiting_for_test_app, get_client, open_test_client
+from tests._client import disable_rate_limiting_for_test_app, open_test_client
 
 
-def test_get_client_disables_shared_rate_limiter(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Guard: canonical get_client() must keep shared limiter disabled in tests."""
+def test_open_test_client_disables_and_restores_shared_rate_limiter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Guard: managed ownership disables poisoned limiters only while entered."""
     if os.getenv("RATE_LIMITING_IN_TESTS", "").strip().lower() in {"1", "true", "yes", "on"}:
         pytest.skip("Dedicated rate-limit suites opt in via RATE_LIMITING_IN_TESTS=true")
 
@@ -28,11 +29,14 @@ def test_get_client_disables_shared_rate_limiter(monkeypatch: pytest.MonkeyPatch
     if limiter_on_state is not None:
         monkeypatch.setattr(limiter_on_state, "enabled", True)
 
-    with get_client() as client:
+    with open_test_client(app.main.app) as client:
         limiter_on_state = getattr(client.app.state, "limiter", None)
         assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is False
 
         assert shared_limiter is None or getattr(shared_limiter, "enabled", False) is False
+
+    assert shared_limiter is None or getattr(shared_limiter, "enabled", False) is True
+    assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is True
 
 
 def test_disable_rate_limiting_helper_covers_app_surface(
@@ -55,9 +59,8 @@ def test_disable_rate_limiting_helper_covers_app_surface(
 
     disable_rate_limiting_for_test_app(app_instance)
 
-    with TestClient(app_instance) as client:
+    with open_test_client(app_instance):
         assert limiter_on_state is None or getattr(limiter_on_state, "enabled", False) is False
-
         assert shared_limiter is None or getattr(shared_limiter, "enabled", False) is False
 
 

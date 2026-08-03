@@ -4,10 +4,12 @@ RU: Тесты для интеграции БД для дневного спис
 EN: Tests for day shopping list database integration.
 """
 
+from contextlib import contextmanager
 from datetime import date
-from typing import TYPE_CHECKING, AsyncGenerator, Generator, cast
+from typing import TYPE_CHECKING, AsyncGenerator, Callable, Generator, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from requests import Response
 from sqlalchemy import delete, select
@@ -17,13 +19,35 @@ from app.middleware.api_tiers import require_pro_tier
 from app.models import DayPlan, WeeklyPlan
 import core.db as core_db
 from core.models import User
-from tests._client import get_client
+from tests._client import open_test_client
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Test user ID used across all tests
 TEST_USER_ID = 1
+
+
+class _ClientBodyFailure(RuntimeError):
+    """Sentinel raised while a managed fixture body owns the client."""
+
+
+@contextmanager
+def _open_pro_client(
+    app_instance: FastAPI,
+    override: Callable[..., object],
+) -> Generator[TestClient, None, None]:
+    """Temporarily install PRO access while preserving prior override ownership."""
+    overrides_owner = app_instance.dependency_overrides
+    overrides_snapshot = dict(overrides_owner)
+    overrides_owner[require_pro_tier] = override
+    try:
+        with open_test_client(app_instance) as client:
+            yield client
+    finally:
+        app_instance.dependency_overrides = overrides_owner
+        overrides_owner.clear()
+        overrides_owner.update(overrides_snapshot)
 
 
 def _reset_async_db_state() -> None:
@@ -126,15 +150,37 @@ def client_with_pro_access() -> Generator[TestClient, None, None]:
     """
     import app.main
 
-    # Ensure override is attached to canonical app.main:app used by get_client().
+    # Ensure override is attached to the same app owned by the managed client.
     app_instance = app.main.app
-    app_instance.dependency_overrides[require_pro_tier] = lambda: {"user_id": TEST_USER_ID}
-    try:
-        with get_client() as client:
-            yield client
-    finally:
-        # Cleanup: remove override after test
-        app_instance.dependency_overrides.pop(require_pro_tier, None)
+    with _open_pro_client(app_instance, lambda: {"user_id": TEST_USER_ID}) as client:
+        yield client
+
+
+@pytest.mark.parametrize("body_fails", [False, True])
+def test_pro_client_restores_preexisting_override(body_fails: bool) -> None:
+    """Normal and exceptional client exit restore the exact prior override."""
+    app_instance = FastAPI()
+
+    async def original_override() -> str:
+        return "original"
+
+    async def fixture_override() -> dict[str, int]:
+        return {"user_id": TEST_USER_ID}
+
+    overrides_owner = app_instance.dependency_overrides
+    overrides_owner[require_pro_tier] = original_override
+
+    if body_fails:
+        with pytest.raises(_ClientBodyFailure):
+            with _open_pro_client(app_instance, fixture_override):
+                assert overrides_owner[require_pro_tier] is fixture_override
+                raise _ClientBodyFailure("fixture body failed")
+    else:
+        with _open_pro_client(app_instance, fixture_override):
+            assert overrides_owner[require_pro_tier] is fixture_override
+
+    assert app_instance.dependency_overrides is overrides_owner
+    assert overrides_owner == {require_pro_tier: original_override}
 
 
 @pytest.mark.asyncio

@@ -3,20 +3,24 @@
 Покрывает строки: 1869-1870, 1872-1873, 1904, 1954→1966, 1960→1959, 1987, 2014, 2061, 2064-2065
 """
 
-from typing import cast
+from typing import Generator
 
+import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
+
+from tests._client import open_test_client
 
 
 class TestAppMiddlewareCoverage:
     """Тесты для покрытия app.py middleware цепочки"""
 
-    def setup_method(self) -> None:
-        """Create a single TestClient for all tests to avoid duplication."""
-        from tests._client import get_client
-
-        self.client = get_client()
+    @pytest.fixture(autouse=True)
+    def _managed_client(self, test_environment: None) -> Generator[None, None, None]:
+        """Own one managed client lifecycle for each class test."""
+        del test_environment
+        with open_test_client() as client:
+            self.client: TestClient = client
+            yield
 
     def test_app_middleware_execution_coverage(self, test_environment):
         """Тест покрытия app.py middleware execution (строки 1869-1870, 1872-1873)"""

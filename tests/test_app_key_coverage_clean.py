@@ -5,16 +5,12 @@
 
 from __future__ import annotations
 
-import os
-from typing import cast
-
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 import app
-from tests._client import get_client
+from tests._client import open_test_client
 
 
 class TestAPIKeyModes:
@@ -103,22 +99,21 @@ class TestMetricsFallbacks:
         # Smoke test: metrics endpoint should respond with 200
         from app.main import app as main_app
 
-        client = TestClient(cast(ASGIApp, main_app))
-        response = client.get("/metrics")
-        assert response.status_code == 200
-        # Should return Prometheus metrics text (not JSON)
-        content = response.content.decode()
-        assert "python_info" in content or "# HELP" in content or len(content) > 0
+        with open_test_client(main_app) as client:
+            response = client.get("/metrics")
+            assert response.status_code == 200
+            # Should return Prometheus metrics text (not JSON)
+            content = response.content.decode()
+            assert "python_info" in content or "# HELP" in content or len(content) > 0
 
     def test_metrics_endpoint_responds_in_current_env(self):
         """Тест, что /metrics отвечает в текущей среде (smoke test, не контролирует prometheus availability)."""
         # Smoke test: metrics endpoint should respond
         from app.main import app as main_app
 
-        client = TestClient(cast(ASGIApp, main_app))
-
-        response = client.get("/metrics")
-        assert response.status_code == 200
+        with open_test_client(main_app) as client:
+            response = client.get("/metrics")
+            assert response.status_code == 200
 
 
 class TestImportFallbacks:
@@ -139,15 +134,13 @@ class TestImportFallbacks:
 class TestEdgeCases:
     """Тесты edge cases для main.py"""
 
-    def test_root_endpoint(self) -> None:
+    def test_root_endpoint(self, client: TestClient) -> None:
         """Тест корневого эндпоинта"""
-        client = get_client()
         response = client.get("/")
         assert response.status_code == 200
 
-    def test_health_endpoint(self) -> None:
+    def test_health_endpoint(self, client: TestClient) -> None:
         """Тест health эндпоинта"""
-        client = get_client()
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()

@@ -4,10 +4,8 @@ These tests are intentionally lightweight to avoid duplicating logic covered els
 but they help stabilize coverage across helper functions and simple endpoints.
 """
 
-import os
 from types import SimpleNamespace
 from unittest.mock import Mock
-from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,16 +14,14 @@ import app as app_module
 from tests.helpers.fast_update_stubs import patch_admin_get_update_scheduler
 
 
+@pytest.fixture(autouse=True)
+def _api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the API key before the canonical managed client starts."""
+    monkeypatch.setenv("API_KEY", "test-key")
+
+
 class TestAppHelperFunctions:
     """Test standalone helper functions in main.py."""
-
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test-key"
-        self.client = get_client()
-
-    def teardown_method(self) -> None:
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
 
     def test_legacy_category_label_mappings(self):
         # English special-case: "Normal weight" -> "Healthy weight"
@@ -49,7 +45,7 @@ class TestAppHelperFunctions:
         val2 = app_module.resolve_attr("nope", "fallback", [mock_mod])
         assert val2 == "fallback"
 
-    def test_bmi_endpoint_visualization_flag_safe(self):
+    def test_bmi_endpoint_visualization_flag_safe(self, client: TestClient) -> None:
         # Ensure visualization key is added when include_chart=True
         payload = {
             "weight_kg": 70.0,
@@ -60,7 +56,7 @@ class TestAppHelperFunctions:
             "athlete": "no",
             "include_chart": True,
         }
-        r = self.client.post("/bmi", json=payload)
+        r = client.post("/bmi", json=payload)
         assert r.status_code == 200
         data = r.json()
         assert "visualization" in data
@@ -71,15 +67,7 @@ class TestAppHelperFunctions:
 
 
 class TestEndpointsAndValidation:
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test-key"
-        self.client = get_client()
-
-    def teardown_method(self) -> None:
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
-
-    def test_bmi_request_validation_edge_cases(self):
+    def test_bmi_request_validation_edge_cases(self, client: TestClient) -> None:
         # Extreme but valid values
         data = {
             "weight_kg": 30.0,
@@ -89,7 +77,7 @@ class TestEndpointsAndValidation:
             "pregnant": "no",
             "athlete": "no",
         }
-        assert self.client.post("/bmi", json=data).status_code == 200
+        assert client.post("/bmi", json=data).status_code == 200
 
         data2 = {
             "weight_kg": 300.0,
@@ -99,26 +87,24 @@ class TestEndpointsAndValidation:
             "pregnant": "no",
             "athlete": "yes",
         }
-        assert self.client.post("/bmi", json=data2).status_code == 200
+        assert client.post("/bmi", json=data2).status_code == 200
 
-    def test_bmi_v1_success(self):
+    def test_bmi_v1_success(self, client: TestClient) -> None:
         payload = {"weight_kg": 70.0, "height_cm": 175.0, "group": "general"}
-        r = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test-key"})
+        r = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
 
-    def test_invalid_json_and_missing_fields(self):
-        r = self.client.post(
-            "/bmi", content="not json", headers={"Content-Type": "application/json"}
-        )
+    def test_invalid_json_and_missing_fields(self, client: TestClient) -> None:
+        r = client.post("/bmi", content="not json", headers={"Content-Type": "application/json"})
         assert r.status_code == 422
 
         # Missing weight_kg
         bad = {"height_m": 1.75, "age": 30, "gender": "male"}
-        assert self.client.post("/bmi", json=bad).status_code == 422
+        assert client.post("/bmi", json=bad).status_code == 422
 
-    def test_invalid_types_and_enums(self):
+    def test_invalid_types_and_enums(self, client: TestClient) -> None:
         bad_type = {"weight_kg": "x", "height_m": 1.75, "age": 30, "gender": "male"}
-        assert self.client.post("/bmi", json=bad_type).status_code == 422
+        assert client.post("/bmi", json=bad_type).status_code == 422
 
         bad_enum = {
             "weight_kg": 70.0,
@@ -128,13 +114,15 @@ class TestEndpointsAndValidation:
             "pregnant": "no",
             "athlete": "no",
         }
-        assert self.client.post("/bmi", json=bad_enum).status_code == 422
+        assert client.post("/bmi", json=bad_enum).status_code == 422
 
-    def test_admin_and_debug_endpoints(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_admin_and_debug_endpoints(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # The test environment explicitly enables the developer-only debug surface.
         monkeypatch.setenv("APP_ENV", "test")
         monkeypatch.setenv("ENVIRONMENT", "test")
-        r = self.client.get("/debug_env")
+        r = client.get("/debug_env")
         assert r.status_code == 200
 
         class _Scheduler:
@@ -156,13 +144,13 @@ class TestEndpointsAndValidation:
                 }
 
         patch_admin_get_update_scheduler(monkeypatch, _Scheduler())
-        r1 = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test-key"})
+        r1 = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test-key"})
         assert r1.status_code == 200
         assert r1.json() == {
             "scheduler": {"is_running": False},
             "databases": {},
         }
-        r2 = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test-key"})
+        r2 = client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test-key"})
         assert r2.status_code == 200
         assert r2.json() == {
             "message": "Force update completed for all sources",

@@ -12,24 +12,20 @@ Tests cover:
 - Authentication scenarios
 """
 
-import os
-from tests._client import get_client
-
+import pytest
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def _api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the API key before the canonical managed client starts."""
+    monkeypatch.setenv("API_KEY", "test_key")
 
 
 class TestBMIv1API:
     """Test BMI v1 API endpoint with comprehensive coverage"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        self.client: TestClient = get_client()
-
-    def teardown_method(self) -> None:
-        self.client.close()
-
-    def test_bmi_v1_happy_path_general(self):
+    def test_bmi_v1_happy_path_general(self, client: TestClient) -> None:
         """Test BMI v1 API happy path for general population"""
         payload = {
             "weight_kg": 70.0,
@@ -39,7 +35,7 @@ class TestBMIv1API:
             "gender": "male",
             "lang": "en",
         }
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert "bmi" in data
@@ -47,7 +43,7 @@ class TestBMIv1API:
         assert "category" in data
         assert data["group"] == "general"
 
-    def test_bmi_v1_happy_path_athlete(self):
+    def test_bmi_v1_happy_path_athlete(self, client: TestClient) -> None:
         """Test BMI v1 API for athlete population"""
         payload = {
             "weight_kg": 80.0,
@@ -58,13 +54,13 @@ class TestBMIv1API:
             "athlete": "yes",
             "lang": "en",
         }
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert data["athlete"] is True
         assert data["group"] == "athlete"
 
-    def test_bmi_v1_pregnant_category(self):
+    def test_bmi_v1_pregnant_category(self, client: TestClient) -> None:
         """Test BMI v1 API for pregnant women"""
         payload = {
             "weight_kg": 65.0,
@@ -75,13 +71,13 @@ class TestBMIv1API:
             "pregnant": "yes",
             "lang": "en",
         }
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert data["category"] is None  # BMI not valid during pregnancy
         assert "pregnancy" in data["note"].lower()
 
-    def test_bmi_v1_with_waist_risk(self):
+    def test_bmi_v1_with_waist_risk(self, client: TestClient) -> None:
         """Test BMI v1 API with waist circumference risk assessment"""
         payload = {
             "weight_kg": 70.0,
@@ -92,12 +88,12 @@ class TestBMIv1API:
             "waist_cm": 105.0,  # High risk for males (>102)
             "lang": "en",
         }
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert "risk" in data["note"].lower()
 
-    def test_bmi_v1_422_missing_required_fields(self):
+    def test_bmi_v1_422_missing_required_fields(self, client: TestClient) -> None:
         """Test BMI v1 API validation - missing required fields"""
         bad_payloads = [
             {"weight_kg": 70},  # Missing height_cm
@@ -106,12 +102,10 @@ class TestBMIv1API:
         ]
 
         for payload in bad_payloads:
-            response = self.client.post(
-                "/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"}
-            )
+            response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
             assert response.status_code == 422
 
-    def test_bmi_v1_422_invalid_values(self):
+    def test_bmi_v1_422_invalid_values(self, client: TestClient) -> None:
         """Test BMI v1 API validation - invalid value ranges"""
         bad_payloads = [
             {"weight_kg": 0, "height_cm": 170, "group": "general"},  # Zero weight
@@ -121,12 +115,10 @@ class TestBMIv1API:
         ]
 
         for payload in bad_payloads:
-            response = self.client.post(
-                "/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"}
-            )
+            response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
             assert response.status_code == 422
 
-    def test_bmi_v1_realistic_validation(self):
+    def test_bmi_v1_realistic_validation(self, client: TestClient) -> None:
         """Test BMI v1 API realistic value validation"""
         # Extremely low BMI should fail validation
         payload = {
@@ -134,28 +126,28 @@ class TestBMIv1API:
             "height_cm": 170.0,
             "group": "general",
         }
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 422
 
-    def test_bmi_v1_public_access_no_key(self):
+    def test_bmi_v1_public_access_no_key(self, client: TestClient) -> None:
         """Test BMI v1 API is publicly accessible (no API key required)"""
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general"}
 
         # BMI endpoint is now public - should work without API key
-        response = self.client.post("/api/v1/bmi", json=payload)
+        response = client.post("/api/v1/bmi", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert "bmi" in data
         assert data["bmi"] > 0
 
-    def test_bmi_v1_localization_russian(self):
+    def test_bmi_v1_localization_russian(self, client: TestClient) -> None:
         """Test BMI v1 API with Russian localization"""
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general", "lang": "ru"}
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
 
-    def test_bmi_v1_localization_spanish(self):
+    def test_bmi_v1_localization_spanish(self, client: TestClient) -> None:
         """Test BMI v1 API with Spanish localization"""
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general", "lang": "es"}
-        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200

@@ -1,43 +1,29 @@
 import importlib
-import os
 import sys
-from tests._client import get_client
+from typing import Generator
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-
-# Автофикстура для форсирования production env и API_KEY
-@pytest.fixture(autouse=True)
-def _force_prod_env():
-    old = {
-        k: os.environ.get(k)
-        for k in ("APP_ENV", "ALLOW_DEV_API_KEY", "API_KEY", "PRO_API_KEYS", "VIP_API_KEYS")
-    }
-    os.environ["APP_ENV"] = "production"
-    os.environ["ALLOW_DEV_API_KEY"] = "false"
-    os.environ["API_KEY"] = "secret-key"
-    os.environ["PRO_API_KEYS"] = (
-        "test_pro_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)  # pragma: allowlist secret
-    )
-    os.environ["VIP_API_KEYS"] = (
-        "test_vip_key"  # nosec B105: deterministic non-production test key (remove-by: 2026-09-30, ref: PR-1052)  # pragma: allowlist secret
-    )
-    try:
-        yield
-    finally:
-        for k, v in old.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+from tests._client import open_test_client
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Canonical TestClient (app.main:app) with observability bootstrap."""
-    return get_client()
+def client(
+    test_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[TestClient, None, None]:
+    """Start lifespan safely, then exercise route-time production auth branches."""
+    del test_environment
+    with open_test_client() as managed_client:
+        with monkeypatch.context() as production_env:
+            production_env.setenv("APP_ENV", "production")
+            production_env.setenv("ALLOW_DEV_API_KEY", "false")
+            production_env.setenv("API_KEY", "secret-key")
+            production_env.setenv("PRO_API_KEYS", "test_pro_key")
+            production_env.setenv("VIP_API_KEYS", "test_vip_key")
+            yield managed_client
 
 
 def disable_optional_modules(monkeypatch: pytest.MonkeyPatch, *modules: str) -> None:
@@ -176,9 +162,9 @@ def test_vip_module_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
         raise RuntimeError("app_module.app is None or missing after reload.")
     if not isinstance(app_module.app, FastAPI):
         raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
-    test_client = get_client()
-    response = test_client.get("/api/v1/vip/plan/week")
-    assert response.status_code in (404, 422, 401)
+    with open_test_client(app_module.app) as test_client:
+        response = test_client.get("/api/v1/vip/plan/week")
+        assert response.status_code in (404, 422, 401)
 
 
 def test_vip_module_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -216,6 +202,6 @@ def test_internal_error(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
             return None
 
     monkeypatch.setitem(app.dependency_overrides, get_food_store, lambda: BrokenFoodStore())  # type: ignore[misc]
-    client = TestClient(app, raise_server_exceptions=False)
-    response = client.get("/api/v1/foods")
-    assert response.status_code == 500, response.text
+    with open_test_client(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/foods")
+        assert response.status_code == 500, response.text

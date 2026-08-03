@@ -5,16 +5,16 @@ from typing import TYPE_CHECKING
 import pytest
 from httpx import Response
 
-from tests._client import get_client
-
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
 
-client: TestClient = get_client()
-
-
-def _post_bmi(weight: float, height: float, group: str = "general") -> Response:
+def _post_bmi(
+    client: TestClient,
+    weight: float,
+    height: float,
+    group: str = "general",
+) -> Response:
     return client.post(
         "/api/v1/bmi",
         json={"weight_kg": weight, "height_cm": height, "group": group},
@@ -23,8 +23,8 @@ def _post_bmi(weight: float, height: float, group: str = "general") -> Response:
 
 
 @pytest.mark.parametrize("group", ["general", "athlete", "elderly", "teen", "pregnant"])
-def test_bmi_groups_smoke(group: str) -> None:
-    r = _post_bmi(70, 170, group)
+def test_bmi_groups_smoke(client: TestClient, group: str) -> None:
+    r = _post_bmi(client, 70, 170, group)
     assert r.status_code == 200
     data = r.json()
     # базовые инварианты
@@ -44,8 +44,13 @@ def test_bmi_groups_smoke(group: str) -> None:
         (95, 170, "Obese Class I"),  # ~32.87
     ],
 )
-def test_bmi_categories_boundaries(w: float, h: float, expected_category: str) -> None:
-    r = _post_bmi(w, h)
+def test_bmi_categories_boundaries(
+    client: TestClient,
+    w: float,
+    h: float,
+    expected_category: str,
+) -> None:
+    r = _post_bmi(client, w, h)
     assert r.status_code == 200
     data = r.json()
     assert data["category"] == expected_category
@@ -59,13 +64,13 @@ def test_bmi_categories_boundaries(w: float, h: float, expected_category: str) -
         (-10, 170),  # отрицательный вес
     ],
 )
-def test_bmi_invalid_inputs(w: float, h: float) -> None:
-    r = _post_bmi(w, h)
+def test_bmi_invalid_inputs(client: TestClient, w: float, h: float) -> None:
+    r = _post_bmi(client, w, h)
     # Валидация может отработать как 400 (наша) либо 422 (pydantic) — допускаем оба
     assert r.status_code in (400, 422)
 
 
-def test_bmi_missing_field_validation() -> None:
+def test_bmi_missing_field_validation(client: TestClient) -> None:
     # Нет height_cm → 422 от pydantic
     r = client.post("/api/v1/bmi", json={"weight_kg": 70}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 422
