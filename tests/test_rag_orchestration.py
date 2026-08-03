@@ -3,7 +3,7 @@
 Tests cover:
 - Happy path with validation filtering
 - No chunks retrieved scenario
-- Validation disabled (flag off)
+- Optional enrichment disabled (flag off; Stage 1 remains mandatory)
 - All chunks filtered by validation
 - Fail-safe on import/execution errors
 - Confidence recalculation
@@ -13,6 +13,8 @@ Tests cover:
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
@@ -218,10 +220,15 @@ class TestRetrieveAndValidateRag:
         assert result.hops == 2
         assert result.latency_ms == 100
 
-    @pytest.mark.asyncio
-    async def test_validation_disabled_uses_all_chunks_and_recomputes_confidence(self) -> None:
-        """Non-philo path still derives final confidence from active chunks."""
-        chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
+    def test_enrichment_disabled_keeps_stage1_mandatory_and_recomputes_confidence(
+        self,
+    ) -> None:
+        """Flag-off skips enrichment but never restores a Stage-1 rejection."""
+        chunks = [
+            _make_chunk("rejected", content="A diagnosis is required.", score=0.99),
+            _make_chunk("c1", score=0.9),
+            _make_chunk("c2", score=0.7),
+        ]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.2)
 
         with (
@@ -240,19 +247,23 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                )
+            )
 
         assert result.rag_actually_used is True
-        assert len(result.chunks) == 2
+        assert [chunk.chunk_id for chunk in result.chunks] == ["c1", "c2"]
         assert result.confidence == 0.8
-        assert result.chunks_filtered == 0
+        assert result.chunks_filtered == 1
         assert "Context:" in result.formatted_prompt
 
-    @pytest.mark.asyncio
-    async def test_validation_disabled_falls_back_to_chunk_mean_when_confidence_invalid(
+    def test_enrichment_disabled_falls_back_to_chunk_mean_when_confidence_invalid(
         self,
     ) -> None:
-        """Malformed retriever confidence should not drop an otherwise usable RAG result."""
+        """Mandatory Stage 1 survivors remain usable when enrichment is disabled."""
         chunks = [_make_chunk("c1", score=0.9), _make_chunk("c2", score=0.7)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=cast(float, "not-a-number"))
 
@@ -272,14 +283,19 @@ class TestRetrieveAndValidateRag:
                 return_value="Chunk1\nChunk2",
             ),
         ):
-            result = await retrieve_and_validate_rag("test prompt", philo_validation_enabled=False)
+            result = asyncio.run(
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=False,
+                )
+            )
 
         assert result.rag_actually_used is True
         assert result.confidence == 0.8
 
     @pytest.mark.asyncio
     async def test_validation_disabled_ignores_stale_retriever_confidence(self) -> None:
-        """Active chunks must beat stale retriever confidence in non-philo mode."""
+        """Keep the A2 legacy symbol; flag-off skips enrichment, not mandatory Stage 1."""
         chunks = [_make_chunk("c1", score=0.95), _make_chunk("c2", score=0.55)]
         rag_ctx = _make_rag_context(chunks=chunks, confidence=0.1)
 
@@ -546,6 +562,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=[],
             total_latency_ms=1.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -574,7 +591,11 @@ class TestRetrieveAndValidateRag:
                 recursive_rag_enabled=True,
             )
 
-        pipeline_mock.assert_called_once_with(rag_ctx.chunks, query="test prompt")
+        pipeline_mock.assert_called_once_with(
+            rag_ctx.chunks,
+            query="test prompt",
+            enrichment_enabled=True,
+        )
         assert to_thread_mock.call_args.kwargs["philo_validation_enabled"] is False
         assert result.rag_actually_used is True
         assert result.confidence == 0.85
@@ -595,6 +616,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=["medical_boundary: chunk c2 rejected"],
             total_latency_ms=5.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -677,6 +699,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=[],
             total_latency_ms=4.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -717,6 +740,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=[],
             total_latency_ms=1.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -757,6 +781,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=["score_parse_warning"],
             total_latency_ms=1.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -799,6 +824,7 @@ class TestRetrieveAndValidateRag:
                 "claim_speculation: chunk c1 classified as speculation",
             ],
             total_latency_ms=2.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -1192,6 +1218,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=["medical_boundary: chunk c2 rejected"],
             total_latency_ms=1.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -1237,6 +1264,7 @@ class TestRetrieveAndValidateRag:
             stage_results=[],
             warnings=["medical_boundary: chunk c2 rejected"],
             total_latency_ms=1.0,
+            post_stage1_enrichment_completed=True,
         )
 
         with (
@@ -1479,6 +1507,7 @@ async def test_rag_orchestration_builds_candidates_only_from_validated_chunks() 
         stage_results=[],
         warnings=[],
         total_latency_ms=1.0,
+        post_stage1_enrichment_completed=True,
     )
 
     with (
@@ -1619,6 +1648,7 @@ async def test_rag_orchestration_denies_canonical_candidates_when_retrieval_is_d
         stage_results=[],
         warnings=[],
         total_latency_ms=1.0,
+        post_stage1_enrichment_completed=True,
     )
 
     with (
@@ -1658,6 +1688,7 @@ async def test_rag_orchestration_confidence_threshold_gates_candidates() -> None
     ):
         result = await retrieve_and_validate_rag(
             "test prompt",
+            philo_validation_enabled=True,
             subject_id=42,
             knowledge_policy=_knowledge_policy(),
         )
@@ -1668,9 +1699,8 @@ async def test_rag_orchestration_confidence_threshold_gates_candidates() -> None
     assert result.knowledge_candidates_canonical is False
 
 
-@pytest.mark.asyncio
-async def test_rag_orchestration_denies_candidates_when_validation_is_disabled() -> None:
-    """Promotion candidates are canonical only on the validated orchestration path."""
+def test_rag_orchestration_denies_candidates_when_enrichment_is_disabled() -> None:
+    """Mandatory Stage 1 serves RAG, but disabled enrichment cannot authorize admission."""
 
     chunk = _make_chunk(chunk_id="keep", file="docs/keep.md", score=0.9)
     with (
@@ -1683,13 +1713,353 @@ async def test_rag_orchestration_denies_candidates_when_validation_is_disabled()
         patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="Keep chunk"),
         patch("core.insight.safety.redact_rag_context_for_insight", return_value="Keep chunk"),
     ):
-        result = await retrieve_and_validate_rag(
-            "test prompt",
-            philo_validation_enabled=False,
-            subject_id=42,
-            knowledge_policy=_knowledge_policy(),
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=False,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
         )
 
     assert result.rag_actually_used is True
     assert result.knowledge_candidates == []
     assert result.knowledge_candidates_canonical is False
+
+
+@pytest.mark.parametrize("recursive_enabled", [False, True])
+@pytest.mark.parametrize("philo_enabled", [False, True])
+def test_outer_pipeline_always_receives_request_time_enrichment_flag(
+    recursive_enabled: bool,
+    philo_enabled: bool,
+) -> None:
+    """Vector and final recursive carriers always cross the same Stage-1 seam."""
+    chunk = _make_chunk(chunk_id="keep", content="Baseline wellness evidence.", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9, hops=2)
+    pipeline_result = PipelineResult(
+        filtered_chunks=[chunk],
+        stage_results=[],
+        warnings=[],
+        total_latency_ms=1.0,
+        post_stage1_enrichment_completed=philo_enabled,
+    )
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx) as to_thread,
+        patch("core.rag.vector_rag.retrieve_context_structured") as vector_retriever,
+        patch(
+            "core.rag.recursive_retrieval.retrieve_recursive_context_structured"
+        ) as recursive_retriever,
+        patch(
+            "core.rag.philosophy_pipeline.run_pipeline",
+            return_value=pipeline_result,
+        ) as pipeline,
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="context"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="context"),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=philo_enabled,
+                recursive_rag_enabled=recursive_enabled,
+            )
+        )
+
+    pipeline.assert_called_once_with(
+        rag_ctx.chunks,
+        query="test prompt",
+        enrichment_enabled=philo_enabled,
+    )
+    assert to_thread.call_args.args[0] is (
+        recursive_retriever if recursive_enabled else vector_retriever
+    )
+    if recursive_enabled:
+        assert to_thread.call_args.kwargs["philo_validation_enabled"] is False
+    assert result.rag_actually_used is True
+    assert result.chunks == [chunk]
+
+
+def test_enrichment_failure_preserves_baseline_response_but_closes_admission() -> None:
+    """Observed failure cannot be replaced by the requested feature state."""
+    chunk = _make_chunk(chunk_id="keep", content="Baseline wellness evidence.", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    pipeline_result = PipelineResult(
+        filtered_chunks=[chunk],
+        stage_results=[],
+        warnings=["post_stage1_enrichment_error: internal failure"],
+        total_latency_ms=1.0,
+    )
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="context"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="context"),
+        patch("core.rag.orchestration._build_knowledge_candidates") as build_candidates,
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert result.rag_actually_used is True
+    assert result.chunks == [chunk]
+    assert "context" in result.formatted_prompt
+    assert result.warnings == ["post_stage1_enrichment_error: internal failure"]
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False
+    build_candidates.assert_not_called()
+
+
+def test_mutated_empty_completed_result_is_rechecked_before_admission() -> None:
+    """Orchestration closes admission if a result is mutated after construction."""
+    chunk = _make_chunk(chunk_id="keep", content="Baseline wellness evidence.", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
+    pipeline_result.filtered_chunks.clear()
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.orchestration._build_knowledge_candidates") as build_candidates,
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert result.rag_actually_used is False
+    assert result.chunks == []
+    assert result.degraded_reason == RAGDegradedReason.ALL_CHUNKS_FILTERED
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False
+    build_candidates.assert_not_called()
+
+
+def test_formatting_and_redaction_precede_candidate_publication() -> None:
+    """Mutable helpers receive copies of one pristine canonical survivor snapshot."""
+    survivors = [
+        _make_chunk(
+            chunk_id="keep-1",
+            content="First baseline wellness evidence.",
+            score=0.9,
+            file="docs/first.md",
+        ),
+        _make_chunk(
+            chunk_id="keep-2",
+            content="Second baseline wellness evidence.",
+            score=0.8,
+            file="docs/second.md",
+        ),
+    ]
+    rag_ctx = _make_rag_context(chunks=survivors, confidence=0.9, hops=2)
+    rag_ctx.optimization_stats = cast(OptimizationStats, {"verification_calls": 2})
+    pipeline_result = PipelineResult(survivors, [], [], 1.0, True)
+    expected = [
+        (chunk.chunk_id, chunk.file, chunk.content, chunk.score, chunk.hop) for chunk in survivors
+    ]
+    events: list[str] = []
+    formatter_inputs: list[list[tuple[str, str, str, float, int]]] = []
+    candidate_inputs: list[list[tuple[str, str, str, float, int]]] = []
+
+    def chunk_values(chunks: list[RAGChunk]) -> list[tuple[str, str, str, float, int]]:
+        return [
+            (chunk.chunk_id, chunk.file, chunk.content, chunk.score, chunk.hop) for chunk in chunks
+        ]
+
+    def format_context(chunks: list[RAGChunk]) -> str:
+        events.append("format")
+        formatter_inputs.append(chunk_values(chunks))
+        chunks[0].content = "formatter-mutated content"
+        chunks.reverse()
+        return "context"
+
+    def redact_context(context: str) -> str:
+        events.append("redact")
+        return context
+
+    def build_candidates(**kwargs: object) -> list[object]:
+        chunks_to_use = cast(list[RAGChunk], kwargs["chunks_to_use"])
+        events.append("candidates")
+        candidate_inputs.append(chunk_values(chunks_to_use))
+        chunks_to_use[0].chunk_id = "candidate-mutated-id"
+        chunks_to_use.clear()
+        return []
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            side_effect=format_context,
+        ),
+        patch(
+            "core.insight.safety.redact_rag_context_for_insight",
+            side_effect=redact_context,
+        ),
+        patch(
+            "core.rag.orchestration._build_knowledge_candidates",
+            side_effect=build_candidates,
+        ),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert events[0] == "format"
+    assert "redact" in events[1:-1]
+    assert events[-1] == "candidates"
+    assert formatter_inputs == [expected]
+    assert candidate_inputs == [expected]
+    assert chunk_values(result.chunks) == expected
+    assert result.chunks is not survivors
+    assert all(returned is not original for returned, original in zip(result.chunks, survivors))
+    assert result.confidence == 0.85
+    assert result.knowledge_candidates_canonical is True
+    assert result.verification_bundle is not None
+    provenance = result.verification_bundle.provenance
+    assert provenance is not None
+    from core.verification.registry import redacted_sha256_label
+
+    assert provenance.context_item_digests == tuple(
+        cast(str, redacted_sha256_label(chunk.content)) for chunk in survivors
+    )
+    evidence_refs = {
+        evidence_ref
+        for artifact in result.verification_bundle.artifacts
+        for evidence_ref in artifact.evidence_refs
+    }
+    assert evidence_refs == {"docs/first.md:keep-1", "docs/second.md:keep-2"}
+
+
+def test_candidate_builder_exception_preserves_rag_response_and_closes_publication(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Candidate failures cannot erase usable RAG output or leak diagnostics."""
+    chunk = _make_chunk(
+        chunk_id="sentinel-candidate-id",
+        content="Pristine baseline wellness evidence.",
+        score=0.9,
+        file="/private/sentinel-candidate.md",
+    )
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9, hops=2)
+    pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
+
+    def mutate_then_raise(**kwargs: object) -> list[object]:
+        candidate_chunks = cast(list[RAGChunk], kwargs["chunks_to_use"])
+        candidate_chunks[0].content = "candidate-mutated content"
+        raise RuntimeError("sentinel-candidate-exception")
+
+    with (
+        caplog.at_level(logging.WARNING, logger="core.rag.orchestration"),
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.formatting.format_rag_chunks_for_prompt", return_value="context"),
+        patch("core.insight.safety.redact_rag_context_for_insight", return_value="context"),
+        patch(
+            "core.rag.orchestration._build_knowledge_candidates",
+            side_effect=mutate_then_raise,
+        ),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert result.rag_actually_used is True
+    assert result.degraded_reason is None
+    assert result.formatted_prompt == "Context:\ncontext\n\nQuestion: test prompt\nAnswer:"
+    assert result.confidence == 0.9
+    assert result.chunks == [chunk]
+    assert result.chunks[0] is not chunk
+    assert result.chunks[0].content == "Pristine baseline wellness evidence."
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is True
+    assert (
+        "Knowledge candidate construction failed; preserving validated RAG response" in caplog.text
+    )
+    for sentinel in (
+        "sentinel-candidate-exception",
+        "sentinel-candidate-id",
+        "/private/sentinel-candidate.md",
+        "Pristine baseline wellness evidence",
+        "candidate-mutated content",
+    ):
+        assert sentinel not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("formatted_context", "redacted_context", "expected_reason"),
+    [
+        (None, "unused", RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED),
+        ("", "unused", RAGDegradedReason.FORMATTED_CONTEXT_EMPTY),
+        ("context", None, RAGDegradedReason.REDACTED_CONTEXT_MALFORMED),
+        ("context", "", RAGDegradedReason.REDACTED_CONTEXT_EMPTY),
+    ],
+)
+def test_unusable_context_never_publishes_candidates(
+    formatted_context: object,
+    redacted_context: object,
+    expected_reason: RAGDegradedReason,
+) -> None:
+    """Candidate publication waits for usable formatting and redaction."""
+    chunk = _make_chunk(chunk_id="keep", content="Baseline wellness evidence.", score=0.9)
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            return_value=formatted_context,
+        ),
+        patch(
+            "core.insight.safety.redact_rag_context_for_insight",
+            return_value=redacted_context,
+        ),
+        patch("core.rag.orchestration._build_knowledge_candidates") as build_candidates,
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert result.rag_actually_used is False
+    assert result.chunks == []
+    assert result.degraded_reason == expected_reason
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False
+    build_candidates.assert_not_called()

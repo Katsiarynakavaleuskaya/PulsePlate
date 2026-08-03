@@ -1,7 +1,9 @@
-"""Philosophy-agent RAG validation layer.
+"""Mandatory baseline RAG validation layer.
 
 Deterministic, rule-based validation of RAG chunks before LLM generation.
-Feature-gated via ``FEATURE_PHILOSOPHY_VALIDATION``.
+Always runs at the final orchestration boundary. The
+``FEATURE_PHILOSOPHY_VALIDATION`` flag controls only optional post-Stage-1
+enrichment in ``core.rag.philosophy_pipeline``.
 
 Rules enforce:
 - **Medical boundary**: reject chunks with therapy/diagnosis language
@@ -130,10 +132,7 @@ def validate_rag_chunks(
     try:
         return _run_validation(chunks, agent_id)
     except Exception:
-        logger.warning(
-            "RAG validation failed; rejecting all chunks",
-            exc_info=True,
-        )
+        logger.warning("RAG validation failed; rejecting all chunks")
         return ValidationResult(
             passed=False,
             filtered_chunks=[],

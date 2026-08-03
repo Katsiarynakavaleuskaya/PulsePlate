@@ -10,6 +10,7 @@ Tests cover all 4 stages individually plus pipeline-level integration:
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +19,7 @@ from core.rag.contracts import RAGChunk
 from core.rag.philosophy_pipeline import (
     ClaimType,
     PipelineResult,
+    StageResult,
     _alignment_score,
     _extract_anchored_numeric_ranges,
     _extract_context_terms,
@@ -33,6 +35,7 @@ from core.rag.philosophy_pipeline import (
     classify_chunk,
     run_pipeline,
 )
+from core.rag.validation import validate_rag_chunks
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -91,6 +94,47 @@ class TestStage1RuleValidation:
         assert filtered == []
         assert result.passed is False
         assert result.metadata["rejected_count"] == 0
+
+    def test_public_validation_exception_log_is_sanitized(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Malformed content fails closed without traceback or carrier diagnostics."""
+
+        class ExplodingStripText(str):
+            def strip(self, chars: str | None = None) -> str:
+                raise RuntimeError("sentinel-validation-exception")
+
+        malformed = _chunk(
+            "sentinel-validation-id",
+            ExplodingStripText("sentinel-validation-content"),
+            0.73,
+            "/private/sentinel-validation.md",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="core.rag.validation"):
+            result = validate_rag_chunks(
+                [malformed],
+                agent_id="sentinel-validation-query",
+            )
+
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
+        assert result.rejected_count == 1
+        assert result.validation_latency_ms == 0
+        assert "RAG validation failed; rejecting all chunks" in caplog.text
+        for sentinel in (
+            "sentinel-validation-exception",
+            "sentinel-validation-id",
+            "/private/sentinel-validation.md",
+            "sentinel-validation-content",
+            "sentinel-validation-query",
+            "0.73",
+        ):
+            assert sentinel not in caplog.text
+        assert caplog.records
+        assert all(record.exc_info is None for record in caplog.records)
 
 
 # ===========================================================================
@@ -576,6 +620,33 @@ class TestStage4LogicalConsistency:
 class TestRunPipeline:
     """Integration tests for the full run_pipeline entry point."""
 
+    def test_pipeline_result_legacy_construction_defaults_fail_closed(self) -> None:
+        """Existing constructors remain valid and do not imply enrichment completion."""
+        result = PipelineResult(
+            filtered_chunks=[_chunk()],
+            stage_results=[],
+            warnings=[],
+            total_latency_ms=0.0,
+        )
+
+        assert result.post_stage1_enrichment_completed is False
+
+    def test_pipeline_result_completion_participates_in_equality(self) -> None:
+        """Observed completion is part of the internal safety semantics."""
+        chunk = _chunk()
+        incomplete = PipelineResult([chunk], [], [], 0.0)
+        complete = PipelineResult([chunk], [], [], 0.0, True)
+
+        assert incomplete != complete
+
+    def test_pipeline_result_rejects_completion_without_survivors(self) -> None:
+        """The impossible empty-and-complete state is rejected at construction."""
+        with pytest.raises(
+            ValueError,
+            match="post-Stage-1 enrichment cannot complete without filtered chunks",
+        ):
+            PipelineResult([], [], [], 0.0, True)
+
     def test_all_four_stages_run(self) -> None:
         """Pipeline produces 4 stage results."""
         chunks = [
@@ -593,21 +664,225 @@ class TestRunPipeline:
             "source_alignment",
             "logical_consistency",
         ]
+        assert result.post_stage1_enrichment_completed is True
+        assert result.filtered_chunks[0] is not chunks[0]
 
-    def test_fail_safe_returns_original_chunks(self) -> None:
-        """On internal exception, original chunks returned unchanged."""
-        chunks = [_chunk("c1", "Some valid content here.", 0.9)]
+    def test_optional_stage_failure_returns_only_stage1_survivors(self) -> None:
+        """Optional-stage failure never restores chunks rejected by Stage 1."""
+        chunks = [
+            _chunk("rejected", "You need a diagnosis from a doctor.", 0.9),
+            _chunk("survivor", "Balanced nutrition supports wellness.", 0.8),
+        ]
 
         with patch(
-            "core.rag.philosophy_pipeline._run_pipeline_inner",
+            "core.rag.philosophy_pipeline._stage2_claim_classification",
             side_effect=RuntimeError("boom"),
         ):
             result = run_pipeline(chunks, "query")
 
         assert len(result.filtered_chunks) == 1
-        assert result.filtered_chunks[0].chunk_id == "c1"
+        assert result.filtered_chunks[0].chunk_id == "survivor"
+        assert result.post_stage1_enrichment_completed is False
+        assert result.warnings[-1] == "post_stage1_enrichment_error: internal failure"
+        assert sum("post_stage1_enrichment_error" in warning for warning in result.warnings) == 1
+        assert any("medical_boundary" in warning for warning in result.warnings)
+
+    def test_flag_off_runs_only_stage1_and_preserves_survivor_order(self) -> None:
+        """Disabling enrichment never disables baseline validation."""
+        chunks = [
+            _chunk("keep-1", "Balanced nutrition supports daily wellness.", 0.9),
+            _chunk("reject", "A diagnosis is required for this claim.", 0.8),
+            _chunk("keep-2", "Regular hydration supports daily energy.", 0.7),
+        ]
+
+        with (
+            patch("core.rag.philosophy_pipeline._stage2_claim_classification") as stage2,
+            patch("core.rag.philosophy_pipeline._stage3_source_alignment") as stage3,
+            patch("core.rag.philosophy_pipeline._stage4_logical_consistency") as stage4,
+        ):
+            result = run_pipeline(chunks, "query", enrichment_enabled=False)
+
+        assert [chunk.chunk_id for chunk in result.filtered_chunks] == ["keep-1", "keep-2"]
+        assert [stage.stage_name for stage in result.stage_results] == ["rule_validation"]
+        assert result.post_stage1_enrichment_completed is False
+        assert result.filtered_chunks[0] is not chunks[0]
+        stage2.assert_not_called()
+        stage3.assert_not_called()
+        stage4.assert_not_called()
+
+    def test_stage1_exception_rejects_every_chunk(self) -> None:
+        """An unexpected Stage-1 boundary failure never restores raw evidence."""
+        with patch(
+            "core.rag.philosophy_pipeline._stage1_rule_validation",
+            side_effect=RuntimeError("private failure"),
+        ):
+            result = run_pipeline([_chunk()], "query")
+
+        assert result.filtered_chunks == []
         assert result.stage_results == []
-        assert any("pipeline_error" in w for w in result.warnings)
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
+        assert result.post_stage1_enrichment_completed is False
+
+    def test_all_rejected_skips_optional_stages(self) -> None:
+        """No optional stage runs when Stage 1 has no survivors."""
+        with (
+            patch("core.rag.philosophy_pipeline._stage2_claim_classification") as stage2,
+            patch("core.rag.philosophy_pipeline._stage3_source_alignment") as stage3,
+            patch("core.rag.philosophy_pipeline._stage4_logical_consistency") as stage4,
+        ):
+            result = run_pipeline(
+                [_chunk("reject", "A diagnosis is required for this claim.", 0.9)],
+                "query",
+            )
+
+        assert result.filtered_chunks == []
+        assert result.post_stage1_enrichment_completed is False
+        assert [stage.stage_name for stage in result.stage_results] == ["rule_validation"]
+        stage2.assert_not_called()
+        stage3.assert_not_called()
+        stage4.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "stage_name",
+        [
+            "_stage2_claim_classification",
+            "_stage3_source_alignment",
+            "_stage4_logical_consistency",
+        ],
+    )
+    def test_each_optional_stage_exception_rolls_back_to_baseline(self, stage_name: str) -> None:
+        """Every advisory stage has the same transactional rollback behavior."""
+        chunk = _chunk("keep", "Balanced nutrition supports daily wellness.", 0.9)
+
+        with patch(
+            f"core.rag.philosophy_pipeline.{stage_name}",
+            side_effect=RuntimeError("private failure"),
+        ):
+            result = run_pipeline([chunk], "query")
+
+        assert result.filtered_chunks == [chunk]
+        assert result.filtered_chunks[0] is not chunk
+        assert result.stage_results[0].stage_name == "rule_validation"
+        assert len(result.stage_results) == 1
+        assert result.warnings == ["post_stage1_enrichment_error: internal failure"]
+        assert result.post_stage1_enrichment_completed is False
+
+    @pytest.mark.parametrize(
+        ("warning_stage", "failure_stage", "partial_warning", "survivor"),
+        [
+            (
+                "_stage2_claim_classification",
+                "_stage3_source_alignment",
+                "claim_speculation: chunk partial-stage2-id classified as speculation",
+                _chunk(
+                    "partial-stage2-id",
+                    "Balanced nutrition supports daily wellness.",
+                    0.8,
+                ),
+            ),
+            (
+                "_stage3_source_alignment",
+                "_stage4_logical_consistency",
+                "alignment_mismatch: chunk partial-stage3-id (score=0.90, len=11)",
+                _chunk("partial-stage3-id", "Short text.", 0.9),
+            ),
+        ],
+        ids=["stage2-warning-before-stage3", "stage3-warning-before-stage4"],
+    )
+    def test_later_optional_failure_discards_prior_optional_warnings(
+        self,
+        warning_stage: str,
+        failure_stage: str,
+        partial_warning: str,
+        survivor: RAGChunk,
+    ) -> None:
+        """Rollback keeps Stage-1 warnings but discards partial advisory warnings."""
+        chunks = [
+            _chunk("stage1-rejected", "A diagnosis is required for this claim.", 0.9),
+            survivor,
+        ]
+        _, stage1 = _stage1_rule_validation(chunks)
+
+        with (
+            patch(
+                f"core.rag.philosophy_pipeline.{warning_stage}",
+                return_value=StageResult(
+                    stage_name="partial_advisory",
+                    passed=True,
+                    warnings=[partial_warning],
+                ),
+            ),
+            patch(
+                f"core.rag.philosophy_pipeline.{failure_stage}",
+                side_effect=RuntimeError("private failure"),
+            ),
+        ):
+            result = run_pipeline(chunks, "query")
+
+        assert stage1.warnings
+        assert result.warnings == [
+            *stage1.warnings,
+            "post_stage1_enrichment_error: internal failure",
+        ]
+        assert partial_warning not in result.warnings
+        assert survivor.chunk_id not in " ".join(result.warnings)
+        assert result.post_stage1_enrichment_completed is False
+
+    def test_mutation_then_raise_cannot_change_baseline_or_leak_diagnostics(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Working-copy mutations and attacker-controlled diagnostics are discarded."""
+        original = _chunk(
+            "secret-chunk-id",
+            "Sentinel content remains a valid wellness statement.",
+            0.73,
+            "/private/sentinel-path.md",
+        )
+
+        def mutate_then_raise(chunks: list[RAGChunk]) -> object:
+            chunks[0].chunk_id = "mutated-id"
+            chunks[0].file = "mutated-path"
+            chunks[0].content = "mutated content"
+            chunks[0].score = 0.01
+            chunks[0].hop = 99
+            raise RuntimeError("sentinel-exception-message")
+
+        with (
+            caplog.at_level(logging.WARNING, logger="core.rag.philosophy_pipeline"),
+            patch(
+                "core.rag.philosophy_pipeline._stage2_claim_classification",
+                side_effect=mutate_then_raise,
+            ),
+        ):
+            result = run_pipeline([original], "sentinel-query")
+
+        returned = result.filtered_chunks[0]
+        assert returned is not original
+        assert (
+            returned.chunk_id,
+            returned.file,
+            returned.content,
+            returned.score,
+            returned.hop,
+        ) == (
+            "secret-chunk-id",
+            "/private/sentinel-path.md",
+            "Sentinel content remains a valid wellness statement.",
+            0.73,
+            1,
+        )
+        assert result.warnings == ["post_stage1_enrichment_error: internal failure"]
+        diagnostic_text = " ".join(result.warnings) + " " + caplog.text
+        for sentinel in (
+            "sentinel-query",
+            "Sentinel content",
+            "secret-chunk-id",
+            "/private/sentinel-path.md",
+            "sentinel-exception-message",
+            "0.73",
+        ):
+            assert sentinel not in diagnostic_text
 
     def test_warning_accumulation(self) -> None:
         """Warnings from all stages are accumulated."""
@@ -659,4 +934,5 @@ class TestRunPipeline:
         result = run_pipeline([], "query")
 
         assert result.filtered_chunks == []
-        assert len(result.stage_results) == 4
+        assert [stage.stage_name for stage in result.stage_results] == ["rule_validation"]
+        assert result.post_stage1_enrichment_completed is False

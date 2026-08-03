@@ -436,18 +436,43 @@ class TestValidationFailClosed:
         self,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        chunks = [_chunk("More wellness content here.")]
+        chunks = [
+            _chunk(
+                "sentinel-validation-content",
+                chunk_id="sentinel-validation-id",
+                score=0.73,
+                file="/private/sentinel-validation.md",
+            )
+        ]
         with (
             caplog.at_level(logging.WARNING, logger="core.rag.validation"),
             patch(
                 "core.rag.validation._run_validation",
-                side_effect=RuntimeError("internal"),
+                side_effect=RuntimeError("sentinel-validation-exception"),
             ),
         ):
-            validate_rag_chunks(chunks)
+            result = validate_rag_chunks(
+                chunks,
+                agent_id="sentinel-validation-query",
+            )
+
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
+        assert result.rejected_count == 1
+        assert result.validation_latency_ms == 0
         records = [record for record in caplog.records if record.name == "core.rag.validation"]
         assert len(records) == 1
         record = records[0]
         assert record.getMessage() == "RAG validation failed; rejecting all chunks"
         assert record.levelno == logging.WARNING
-        assert record.exc_info is not None
+        assert record.exc_info is None
+        for sentinel in (
+            "sentinel-validation-exception",
+            "sentinel-validation-id",
+            "/private/sentinel-validation.md",
+            "sentinel-validation-content",
+            "sentinel-validation-query",
+            "0.73",
+        ):
+            assert sentinel not in caplog.text

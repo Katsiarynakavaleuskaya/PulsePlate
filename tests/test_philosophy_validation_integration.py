@@ -1,7 +1,7 @@
 """Integration tests for philosophy-agent RAG validation through HTTP endpoints.
 
-Verifies that FEATURE_PHILOSOPHY_VALIDATION flag controls validation behavior
-end-to-end via /api/v1/insight and /insight endpoints.
+Verifies that FEATURE_PHILOSOPHY_VALIDATION controls optional post-Stage-1
+enrichment end-to-end while baseline Stage 1 remains mandatory on both routes.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from typing import Optional, cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -218,13 +218,13 @@ def _disable_rate_limiting_for_insight_tests(
 class TestPhilosophyValidationV1:
     """Tests via /api/v1/insight endpoint."""
 
-    def test_flag_off_no_filtering(
+    def test_flag_off_still_enforces_stage1_filtering(
         self,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        """When FEATURE_PHILOSOPHY_VALIDATION=false, medical chunks are NOT filtered."""
+        """The feature flag disables enrichment, never baseline validation."""
         _setup_insight(monkeypatch)
         monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "false")
         monkeypatch.setattr(
@@ -238,9 +238,8 @@ class TestPhilosophyValidationV1:
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
-        # Medical chunk should still be present (validation off)
         chunk_ids = [s["chunk_id"] for s in data["sources"]]
-        assert "med:1" in chunk_ids
+        assert "med:1" not in chunk_ids
         assert "clean:1" in chunk_ids
 
     def test_flag_on_medical_filtered(
@@ -308,6 +307,46 @@ class TestPhilosophyValidationV1:
         data = resp.json()
         # Only clean:1 (score=0.85) survives → confidence = 0.85
         assert data["confidence"] == 0.85
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_enrichment_exception_preserves_baseline_route_response(
+        self,
+        path: str,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Both routes keep Stage-1 survivors without adding provider calls."""
+        import llm
+
+        provider = _EchoProvider()
+        generate = AsyncMock(wraps=provider.generate)
+        monkeypatch.setattr(provider, "generate", generate)
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: provider, raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _rag_with_medical,
+            raising=True,
+        )
+
+        with patch(
+            "core.rag.philosophy_pipeline._stage2_claim_classification",
+            side_effect=RuntimeError("private enrichment failure"),
+        ):
+            resp = client.post(path, json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert [source["chunk_id"] for source in data["sources"]] == ["clean:1"]
+        assert data["confidence"] == 0.85
+        assert "Balanced nutrition supports wellness." in data["insight"]
+        assert "You need a diagnosis from a doctor." not in data["insight"]
+        generate.assert_awaited_once()
 
     @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
     def test_flag_on_validation_error_fails_closed(
@@ -433,7 +472,7 @@ class TestPhilosophyValidationV1:
 class TestPhilosophyValidationLegacy:
     """Tests via /insight legacy endpoint."""
 
-    def test_legacy_flag_off_no_filtering(
+    def test_legacy_flag_off_still_enforces_stage1_filtering(
         self,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
@@ -452,7 +491,8 @@ class TestPhilosophyValidationLegacy:
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         chunk_ids = [s["chunk_id"] for s in data["sources"]]
-        assert "med:1" in chunk_ids
+        assert "med:1" not in chunk_ids
+        assert "clean:1" in chunk_ids
 
     def test_legacy_flag_on_medical_filtered(
         self,

@@ -1,8 +1,8 @@
-"""Philosophy-agent RAG validation pipeline.
+"""Baseline RAG validation with optional philosophy enrichment.
 
 Multi-stage deterministic validation of RAG chunks before LLM generation.
-Replaces flat ``validate_rag_chunks()`` call when philosophy validation is
-enabled (``FEATURE_PHILOSOPHY_VALIDATION``).
+Stage 1 is mandatory. ``FEATURE_PHILOSOPHY_VALIDATION`` controls only the
+advisory post-Stage-1 enrichment stages.
 
 Stages:
 1. **Rule validation** — delegate to existing ``validation.validate_rag_chunks``
@@ -11,9 +11,11 @@ Stages:
 4. **Logical consistency** — detect contradictions and single-source echo
 
 Only stage 1 blocks chunks.  Stages 2-4 add advisory warnings.
-On any internal exception the pipeline returns original chunks (fail-safe).
+Stage-1 failures reject all chunks. Optional-stage failures roll back to an
+untouched snapshot of the Stage-1 survivors.
 
-See: docs/roadmap/BACKLOG_LEDGER.md line 1852 (P2 Philosophy-agent pipeline)
+See: ``docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-s2-baseline-validation-boundary``
+and ``docs/contracts/RAG_CONTRACT.md#33-mandatory-stage-1-validation-boundary``.
 """
 
 from __future__ import annotations
@@ -75,6 +77,15 @@ class PipelineResult:
 
     total_latency_ms: float
     """Total pipeline execution time in milliseconds."""
+
+    post_stage1_enrichment_completed: bool = False
+    """Whether configured advisory stages completed for non-empty survivors."""
+
+    def __post_init__(self) -> None:
+        """Reject completion state that has no validated survivor carrier."""
+
+        if self.post_stage1_enrichment_completed and not self.filtered_chunks:
+            raise ValueError("post-Stage-1 enrichment cannot complete without filtered chunks")
 
 
 # ---------------------------------------------------------------------------
@@ -201,8 +212,10 @@ _ALIGNMENT_WARNING_THRESHOLD = 0.5  # Misalignment score above this triggers war
 def run_pipeline(
     chunks: list[RAGChunk],
     query: str,
+    *,
+    enrichment_enabled: bool = True,
 ) -> PipelineResult:
-    """Run all 4 stages sequentially with fail-safe error handling.
+    """Run mandatory Stage 1 before optional advisory enrichment.
 
     Parameters
     ----------
@@ -210,70 +223,90 @@ def run_pipeline(
         RAG chunks to validate.
     query:
         Original user query for context.
+    enrichment_enabled:
+        Whether to run advisory stages 2-4 after Stage 1 succeeds.
 
     Returns
     -------
     PipelineResult
-        Filtered chunks, per-stage results, and aggregated warnings.
-        On any unhandled exception returns original chunks unchanged.
+        Canonical Stage-1 survivors, completed stage results, and warnings.
     """
-    try:
-        return _run_pipeline_inner(chunks, query)
-    except Exception:
-        logger.warning(
-            "Philosophy pipeline failed; returning original chunks",
-            exc_info=True,
-        )
-        return PipelineResult(
-            filtered_chunks=list(chunks),
-            stage_results=[],
-            warnings=["pipeline_error: internal failure, chunks unfiltered"],
-            total_latency_ms=0.0,
-        )
-
-
-# ---------------------------------------------------------------------------
-# Internal implementation
-# ---------------------------------------------------------------------------
-
-
-def _run_pipeline_inner(
-    chunks: list[RAGChunk],
-    query: str,
-) -> PipelineResult:
-    """Execute all 4 stages sequentially."""
     pipeline_start = time.perf_counter()
-    all_warnings: list[str] = []
-    stage_results: list[StageResult] = []
 
-    # Stage 1: Rule-based validation (blocking)
-    filtered, s1 = _stage1_rule_validation(chunks)
-    stage_results.append(s1)
-    all_warnings.extend(s1.warnings)
+    try:
+        filtered, stage1 = _stage1_rule_validation(chunks)
+    except Exception:
+        logger.warning("Stage-1 RAG validation failed; rejecting all chunks")
+        return PipelineResult(
+            filtered_chunks=[],
+            stage_results=[],
+            warnings=["validation_error: internal failure, no chunks accepted"],
+            total_latency_ms=round((time.perf_counter() - pipeline_start) * 1000, 2),
+        )
 
-    # Stage 2: Claim classification (enrichment only)
-    s2 = _stage2_claim_classification(filtered)
-    stage_results.append(s2)
-    all_warnings.extend(s2.warnings)
+    stage1_warnings = list(stage1.warnings)
+    if not filtered:
+        return PipelineResult(
+            filtered_chunks=[],
+            stage_results=[stage1],
+            warnings=stage1_warnings,
+            total_latency_ms=round((time.perf_counter() - pipeline_start) * 1000, 2),
+        )
 
-    # Stage 3: Source-claim alignment (advisory)
-    s3 = _stage3_source_alignment(filtered)
-    stage_results.append(s3)
-    all_warnings.extend(s3.warnings)
+    baseline_survivors = _copy_chunks(filtered)
+    if not enrichment_enabled:
+        return PipelineResult(
+            filtered_chunks=baseline_survivors,
+            stage_results=[stage1],
+            warnings=stage1_warnings,
+            total_latency_ms=round((time.perf_counter() - pipeline_start) * 1000, 2),
+        )
 
-    # Stage 4: Logical consistency (advisory)
-    s4 = _stage4_logical_consistency(filtered, query)
-    stage_results.append(s4)
-    all_warnings.extend(s4.warnings)
+    stage_results = [stage1]
+    all_warnings = list(stage1_warnings)
+    try:
+        stage2 = _stage2_claim_classification(_copy_chunks(baseline_survivors))
+        stage_results.append(stage2)
+        all_warnings.extend(stage2.warnings)
 
-    total_ms = (time.perf_counter() - pipeline_start) * 1000
+        stage3 = _stage3_source_alignment(_copy_chunks(baseline_survivors))
+        stage_results.append(stage3)
+        all_warnings.extend(stage3.warnings)
+
+        stage4 = _stage4_logical_consistency(_copy_chunks(baseline_survivors), query)
+        stage_results.append(stage4)
+        all_warnings.extend(stage4.warnings)
+    except Exception:
+        logger.warning("Post-Stage-1 RAG enrichment failed; using baseline survivors")
+        return PipelineResult(
+            filtered_chunks=baseline_survivors,
+            stage_results=[stage1],
+            warnings=stage1_warnings + ["post_stage1_enrichment_error: internal failure"],
+            total_latency_ms=round((time.perf_counter() - pipeline_start) * 1000, 2),
+        )
 
     return PipelineResult(
-        filtered_chunks=filtered,
+        filtered_chunks=baseline_survivors,
         stage_results=stage_results,
         warnings=all_warnings,
-        total_latency_ms=round(total_ms, 2),
+        total_latency_ms=round((time.perf_counter() - pipeline_start) * 1000, 2),
+        post_stage1_enrichment_completed=True,
     )
+
+
+def _copy_chunks(chunks: list[RAGChunk]) -> list[RAGChunk]:
+    """Copy the primitive chunk carrier without preserving mutable aliases."""
+
+    return [
+        RAGChunk(
+            chunk_id=chunk.chunk_id,
+            file=chunk.file,
+            content=chunk.content,
+            score=chunk.score,
+            hop=chunk.hop,
+        )
+        for chunk in chunks
+    ]
 
 
 # ---------------------------------------------------------------------------
