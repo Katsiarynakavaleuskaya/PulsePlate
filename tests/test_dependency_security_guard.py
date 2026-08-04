@@ -445,7 +445,9 @@ def _assert_cryptography_remediation_admission(
     assert set(advisories) == set(
         CRYPTOGRAPHY_F_CUTOFF
     ), "F_cutoff advisory set drifted or is incomplete"
-    assert all(version == Version("48.0.1") for version in base_occurrences.values())
+    assert all(
+        version == Version("48.0.1") for version in base_occurrences.values()
+    ), "S_base witnesses must all report the pre-remediation 48.0.1 version"
     affected = {
         advisory
         for advisory, affected_range in advisories.items()
@@ -646,6 +648,26 @@ def test_current_admission_discovery_does_not_request_historical_replay_head(
     monkeypatch.setitem(globals(), "_git_command", record_git_command)
     _discover_current_cryptography_surfaces()
     assert all(CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD not in command for command in requested_commands)
+
+
+def test_cryptography_50_admission_reports_noncanonical_base_witness() -> None:
+    base_occurrences = {name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES}
+    base_occurrences["requirements.txt"] = Version("48.0.0")
+    head_occurrences = {name: Version("50.0.0") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES}
+    transitions = {
+        **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+        **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+    }
+    with pytest.raises(
+        AssertionError,
+        match="S_base witnesses must all report the pre-remediation 48.0.1 version",
+    ):
+        _assert_cryptography_remediation_admission(
+            base_occurrences=base_occurrences,
+            head_occurrences=head_occurrences,
+            advisories=CRYPTOGRAPHY_F_CUTOFF,
+            material_transitions=transitions,
+        )
 
 
 @pytest.mark.parametrize(
