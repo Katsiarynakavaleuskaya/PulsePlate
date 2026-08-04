@@ -83,9 +83,13 @@ The serialized replay applied only `I_R` edits in a temporary clone, first with
 then, after committing that replay intermediate, with
 `LOCK_PROFILES="docker-runtime ci-lite dev aggregate" UPGRADE_PACKAGES="cryptography==50.0.0" make requirements-locks`,
 using the same approved proxy. Historical replay receipt metadata was recorded
-at `5383a5bfe5c81eb5b9f07699dd67983d09118882`; executable admission does not
-request that object. Instead the owner snapshot binds its five `C_R`
-`file_sha256` fields to these byte-identical replay receipts:
+at immutable replay evidence witness
+`5383a5bfe5c81eb5b9f07699dd67983d09118882`. That commit is subordinate
+evidence, not dependency authority. It has the exact remediation base as its
+sole parent and must remain reachable from the PR head. Therefore this PR must
+merge by merge commit only; squash and rebase merges are forbidden because
+they do not preserve that witness reachability. The executable admission opens
+the witness and binds its five `C_R` byte streams to frozen S_head:
 
 ```text
 requirements.txt                 8d7e5b6f9e15344ca031060407e6928a57ee82e2a1fdcaaed5f3137de1a61def
@@ -95,12 +99,15 @@ requirements-dev.txt             a8414bd336b64ef7e1f6eec0286eb8086f3b6ffbcffe966
 requirements-lock.txt            8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20b950cc83f725ec0b4
 ```
 
-The historical replay identifier and five `C_R.file_sha256` fields are
-immutable documentary receipts only. The executable admission binds all ten
-discovered semantic digests to the owner snapshot and hashes the five actual
-`C_R` lock byte streams directly against their `file_sha256` receipts. It never
-reads mutable live requirement files as historical admission evidence. The
-separate live schema and
+The replay witness and five `C_R.file_sha256` fields are immutable subordinate
+evidence receipts only; none authors dependency versions. The executable
+admission mechanically opens all ten surfaces from the base, replay witness,
+and frozen S_head. It proves the replay's sole-parent and current-head ancestry,
+rejects non-cryptography semantic transitions, requires all `I_R` carriers to
+match frozen S_head, and compares all five replay `C_R` lock byte streams with
+frozen S_head. It also binds all ten frozen semantic digests to the owner
+snapshot and never reads mutable live requirement files as historical
+admission evidence. The separate live schema and
 `REQUIREMENT_SURFACES` floor guard continue to enforce current repository truth
 and may rotate independently after this bounded admission.
 

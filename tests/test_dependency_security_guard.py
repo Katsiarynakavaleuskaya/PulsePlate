@@ -46,6 +46,9 @@ REQUIREMENT_SURFACES = (
 CRYPTOGRAPHY_REMEDIATION_BASE = (
     "643eb78d01476835523a3e800f1e88cb36f0aa8f"  # pragma: allowlist secret
 )
+CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS = (
+    "5383a5bfe5c81eb5b9f07699dd67983d09118882"  # pragma: allowlist secret
+)
 CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES = (
     "requirements.in",
     "requirements-docker-runtime.in",
@@ -533,6 +536,18 @@ def _historical_snapshot_evidence() -> tuple[dict, dict[str, str], dict[str, str
     return snapshot, base_texts, head_texts
 
 
+def _immutable_replay_witness_evidence() -> tuple[str, str, dict[str, str]]:
+    """Open the immutable replay commit and its current-head reachability proof."""
+    parent_record = _git_command(
+        ["rev-list", "--parents", "-n", "1", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS]
+    ).strip()
+    merge_base = _git_command(
+        ["merge-base", CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS, "HEAD"]
+    ).strip()
+    replay_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS)
+    return parent_record, merge_base, replay_texts
+
+
 def _derive_material_transitions(
     base_texts: dict[str, str], head_texts: dict[str, str]
 ) -> dict[str, str]:
@@ -550,6 +565,67 @@ def _derive_material_transitions(
         assert changed == {"cryptography"}, f"{name}: unrelated semantic transition: {changed}"
         transitions[name] = "I_R" if name in CRYPTOGRAPHY_INTENT_SURFACES else "C_R"
     return transitions
+
+
+def _assert_immutable_replay_witness(
+    *,
+    parent_record: str,
+    merge_base: str,
+    base_texts: dict[str, str],
+    replay_texts: dict[str, str],
+    frozen_head_texts: dict[str, str],
+) -> None:
+    """Fail closed unless replay proves the exact I_R/C_R remediation transition."""
+    assert parent_record.split() == [
+        CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS,
+        CRYPTOGRAPHY_REMEDIATION_BASE,
+    ], "immutable replay witness must have the exact remediation base as its sole parent"
+    assert (
+        merge_base == CRYPTOGRAPHY_REMEDIATION_REPLAY_WITNESS
+    ), "immutable replay witness must remain an ancestor of HEAD"
+
+    expected_classes = {
+        **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+        **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+    }
+    assert CRYPTOGRAPHY_INTENT_SURFACES.isdisjoint(
+        CRYPTOGRAPHY_COMPILED_SURFACES
+    ), "I_R and C_R must remain a disjoint partition"
+    assert set(expected_classes) == set(
+        CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES
+    ), "I_R/C_R partition must equal the ten governed surfaces"
+    for evidence_class, surface_texts in (
+        ("S_base", base_texts),
+        ("S_replay", replay_texts),
+        ("S_head", frozen_head_texts),
+    ):
+        assert set(surface_texts) == set(
+            expected_classes
+        ), f"{evidence_class} must mechanically enumerate all ten governed surfaces"
+
+    transitions = _derive_material_transitions(base_texts, replay_texts)
+    assert (
+        transitions == expected_classes
+    ), "base/replay transitions must preserve the exact I_R/C_R partition"
+
+    for name in sorted(CRYPTOGRAPHY_INTENT_SURFACES):
+        replay_carrier = _semantic_requirements(replay_texts[name], REPO_ROOT / name).get(
+            "cryptography"
+        )
+        frozen_head_carrier = _semantic_requirements(frozen_head_texts[name], REPO_ROOT / name).get(
+            "cryptography"
+        )
+        assert replay_carrier is not None, f"{name}: replay cryptography carrier is missing"
+        assert (
+            replay_carrier == frozen_head_carrier
+        ), f"{name}: replay I_R carrier differs from frozen S_head"
+
+    for name in sorted(CRYPTOGRAPHY_COMPILED_SURFACES):
+        replay_bytes = replay_texts[name].encode("utf-8")
+        frozen_head_bytes = frozen_head_texts[name].encode("utf-8")
+        assert (
+            replay_bytes == frozen_head_bytes
+        ), f"{name}: replay C_R lock bytes differ from frozen S_head"
 
 
 def _assert_snapshot_receipts(snapshot: dict, head_texts: dict[str, str]) -> None:
@@ -599,6 +675,14 @@ def _historical_admission_inputs() -> tuple[
     assert base_surfaces | head_surfaces == declared_surfaces, "S_base/S_head union drifted"
     assert not base_surfaces ^ head_surfaces, "S_base/S_head topology deltas are forbidden"
     _assert_snapshot_receipts(snapshot, head_texts)
+    parent_record, merge_base, replay_texts = _immutable_replay_witness_evidence()
+    _assert_immutable_replay_witness(
+        parent_record=parent_record,
+        merge_base=merge_base,
+        base_texts=base_texts,
+        replay_texts=replay_texts,
+        frozen_head_texts=head_texts,
+    )
     base_occurrences = {
         name: _cryptography_version_from_text(name, text) for name, text in base_texts.items()
     }
@@ -858,6 +942,46 @@ def test_cryptography_50_admission_rejects_carrier_semantics_mismatch(
         record["file_sha256"] = hashlib.sha256(head_texts[surface_name].encode("utf-8")).hexdigest()
     with pytest.raises(AssertionError, match="cryptography carrier semantics mismatch"):
         _assert_snapshot_receipts(snapshot, head_texts)
+
+
+@pytest.mark.parametrize(
+    ("failure_mode", "expected_message"),
+    (
+        ("parent", "exact remediation base as its sole parent"),
+        ("reachability", "must remain an ancestor of HEAD"),
+        ("transition", "unrelated semantic transition"),
+        ("lock_bytes", "replay C_R lock bytes differ from frozen S_head"),
+    ),
+)
+def test_cryptography_50_immutable_replay_witness_fails_closed(
+    failure_mode: str,
+    expected_message: str,
+) -> None:
+    _, base_texts, frozen_head_texts = _historical_snapshot_evidence()
+    parent_record, merge_base, loaded_replay_texts = _immutable_replay_witness_evidence()
+    replay_texts = dict(loaded_replay_texts)
+
+    if failure_mode == "parent":
+        parent_record = f"{parent_record} {'0' * 40}"
+    elif failure_mode == "reachability":
+        merge_base = CRYPTOGRAPHY_REMEDIATION_BASE
+    elif failure_mode == "transition":
+        replay_texts["requirements.in"] = replay_texts["requirements.in"].replace(
+            "click>=8.3.3,<9.0.0", "click>=8.3.4,<9.0.0", 1
+        )
+    elif failure_mode == "lock_bytes":
+        replay_texts["requirements.txt"] += "# replay-byte-drift\n"
+    else:
+        raise AssertionError(f"unsupported replay-witness failure mode: {failure_mode}")
+
+    with pytest.raises(AssertionError, match=expected_message):
+        _assert_immutable_replay_witness(
+            parent_record=parent_record,
+            merge_base=merge_base,
+            base_texts=base_texts,
+            replay_texts=replay_texts,
+            frozen_head_texts=frozen_head_texts,
+        )
 
 
 def test_cryptography_50_admission_reports_noncanonical_base_witness() -> None:
