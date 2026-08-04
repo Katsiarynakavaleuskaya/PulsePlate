@@ -879,22 +879,29 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
 
 
 @pytest.mark.parametrize(
-    ("cryptography_carrier", "expected_error"),
+    ("cryptography_carriers", "expected_error"),
     [
         (
-            "cryptography>=50.0.0,!=50.0.0,<51.0.0",
+            ("cryptography>=50.0.0,!=50.0.0,<51.0.0",),
             r"cryptography requirement .* excludes required safe floor 50\.0\.0",
         ),
         (
-            'cryptography>=50.0.0; python_version < "0"',
+            ('cryptography>=50.0.0; python_version < "0"',),
             r"cryptography security-floor requirement must be unconditional",
         ),
         (
-            "cryptography==50.0.0",
+            ("cryptography==50.0.0",),
             r"cryptography I_R carrier semantics mismatch",
         ),
         (
-            "cryptography[ssh]>=50,<51",
+            ("cryptography[ssh]>=50.0.0,<51.0.0",),
+            r"cryptography I_R carrier semantics mismatch",
+        ),
+        (
+            (
+                "cryptography>=50.0.0,<51.0.0",
+                "cryptography>=50.0.0,<51.0.0",
+            ),
             r"cryptography I_R carrier semantics mismatch",
         ),
     ],
@@ -903,11 +910,12 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
         "inactive-marker",
         "exact-pin-is-not-source-intent",
         "extra-is-not-owner-intent",
+        "duplicate-canonical-carriers",
     ],
 )
 def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
     tmp_path: Path,
-    cryptography_carrier: str,
+    cryptography_carriers: tuple[str, ...],
     expected_error: str,
 ) -> None:
     """The live all-surfaces path validates the complete floor carrier."""
@@ -916,8 +924,12 @@ def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
     source_surface = tmp_path / "requirements.in"
     source_surface.write_text(
         "\n".join(
-            cryptography_carrier if package == "cryptography" else f"{package}>={version}"
-            for package, version in schema["min_versions"].items()
+            [
+                f"{package}>={version}"
+                for package, version in schema["min_versions"].items()
+                if package != "cryptography"
+            ]
+            + list(cryptography_carriers)
         )
         + "\n",
         encoding="utf-8",
