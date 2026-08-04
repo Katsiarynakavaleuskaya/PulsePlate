@@ -322,7 +322,14 @@ def _snapshot_introduction_revision() -> str:
     revisions = [
         line
         for line in _git_command(
-            ["log", f"-S{SNAPSHOT_START}", "--format=%H", "HEAD", "--", owner_path]
+            [
+                "log",
+                f"-S{SNAPSHOT_START}",
+                "--format=%H",
+                f"{CRYPTOGRAPHY_REMEDIATION_BASE}..HEAD",
+                "--",
+                owner_path,
+            ]
         ).splitlines()
         if line
     ]
