@@ -765,6 +765,33 @@ def _assert_cryptography_remediation_admission(
     ), "material transitions must partition into I_R or C_R"
 
 
+def _validate_live_cryptography_intent_carrier(
+    surface: Path,
+    carriers: tuple[Requirement, ...],
+    required_min: Version,
+) -> None:
+    """Keep live I_R in one schema-derived operation class."""
+    if len(carriers) != 1:
+        pytest.fail(f"{surface.name}: cryptography I_R must contain exactly one carrier")
+    requirement = carriers[0]
+    if requirement.extras:
+        pytest.fail(f"{surface.name}: cryptography I_R must not declare extras")
+    if requirement.url is not None:
+        pytest.fail(f"{surface.name}: cryptography I_R must not use a direct URL")
+
+    expected_specifiers = {(">=", required_min)}
+    if surface.name != "constraints.txt":
+        expected_specifiers.add(("<", Version(f"{required_min.major + 1}.0.0")))
+    specifiers = tuple(requirement.specifier)
+    actual_specifiers = {
+        (specifier.operator, Version(specifier.version)) for specifier in specifiers
+    }
+    if len(specifiers) != len(expected_specifiers) or actual_specifiers != expected_specifiers:
+        pytest.fail(
+            f"{surface.name}: cryptography I_R must preserve the canonical " "schema-driven range"
+        )
+
+
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
 def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
     """
@@ -821,15 +848,11 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
                 )
 
     if surface.name in CRYPTOGRAPHY_INTENT_SURFACES:
-        actual_carriers = carriers.get("cryptography", ())
-        owner_snapshot = _load_admission_snapshot(ADMISSION_DOC_PATH.read_text(encoding="utf-8"))
-        owner_requirement = owner_snapshot["surfaces"][surface.name]["requirement"]
-        actual_semantics = _semantic_requirements(
-            "\n".join(str(requirement) for requirement in actual_carriers), surface
+        _validate_live_cryptography_intent_carrier(
+            surface,
+            carriers.get("cryptography", ()),
+            Version(str(min_versions["cryptography"])),
         )
-        owner_semantics = _semantic_requirements(owner_requirement, surface)
-        if actual_semantics != owner_semantics:
-            pytest.fail(f"{surface.name}: cryptography I_R carrier semantics mismatch")
 
 
 def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
@@ -891,26 +914,31 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
         ),
         (
             ("cryptography==50.0.0",),
-            r"cryptography I_R carrier semantics mismatch",
+            r"cryptography I_R must preserve the canonical schema-driven range",
         ),
         (
             ("cryptography[ssh]>=50.0.0,<51.0.0",),
-            r"cryptography I_R carrier semantics mismatch",
+            r"cryptography I_R must not declare extras",
         ),
         (
             (
                 "cryptography>=50.0.0,<51.0.0",
                 "cryptography>=50.0.0,<51.0.0",
             ),
-            r"cryptography I_R carrier semantics mismatch",
+            r"cryptography I_R must contain exactly one carrier",
+        ),
+        (
+            ("cryptography>=50.0.0,<52.0.0",),
+            r"cryptography I_R must preserve the canonical schema-driven range",
         ),
     ],
     ids=[
         "selected-floor-excluded",
         "inactive-marker",
         "exact-pin-is-not-source-intent",
-        "extra-is-not-owner-intent",
+        "extra-is-not-source-intent",
         "duplicate-canonical-carriers",
+        "non-next-major-upper-bound",
     ],
 )
 def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
@@ -937,6 +965,25 @@ def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
 
     with pytest.raises(pytest.fail.Exception, match=expected_error):
         test_dependency_security_guard_enforces_min_versions(source_surface)
+
+
+@pytest.mark.parametrize(
+    ("surface_name", "cryptography_carrier"),
+    (
+        ("requirements.in", "cryptography>=50.0.1,<51.0.0"),
+        ("constraints.txt", "cryptography>=50.0.1"),
+    ),
+)
+def test_dependency_security_guard_allows_schema_driven_live_floor_rotation(
+    surface_name: str,
+    cryptography_carrier: str,
+) -> None:
+    """Live carrier truth may rotate without rewriting historical admission evidence."""
+    _validate_live_cryptography_intent_carrier(
+        Path(surface_name),
+        (Requirement(cryptography_carrier),),
+        Version("50.0.1"),
+    )
 
 
 @pytest.mark.parametrize(
