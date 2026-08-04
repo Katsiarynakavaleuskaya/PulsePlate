@@ -27,16 +27,16 @@ If it is not recorded here — it does not exist.
 <a id="ledger-p1-cryptography-50-security-floor"></a>
 - [ ] P1: Raise the canonical `cryptography` security floor to 50.0.0
   - Owner: backend-engineer
-  - Priority: P1 (dependency security / RAG delivery blocker)
-  - Branch: `codex/cryptography-50-security-floor`
-  - Target PR: PR #2236
+  - Priority: P1 (dependency security / shared-runtime blocker)
+  - Branch: `codex/cryptography-50-security-floor-replacement`
+  - Target PR: PR #2237
   - Status: PR open; post-open review and current-head CI pending
   - Area: Python dependency security / shared runtime locks / approved proxy
-  - Business reason (EN): The pre-push audit for PR #2232 surfaced a bounded
+  - Business reason (EN): The normal pre-push audit surfaced a bounded
     three-ID `cryptography` advisory cluster. `GHSA-g6cj-pr64-35w5` directly
     covers the repo's 48.0.1 pin and requires 50.0.0; the common 50.0.0 floor
     clears the full bounded cluster through the approved supply path without
-    weakening audit policy or widening the RAG PR.
+    weakening audit policy or changing unrelated product lanes.
   - Exact invariant (EN): Every canonical shared Python source manifest carries
     `cryptography>=50.0.0,<51.0.0`, `constraints.txt` carries
     `cryptography>=50.0.0`, and every corresponding lock pins exactly
