@@ -525,7 +525,7 @@ wrapt==2.0.1
     #   deprecated
 yamllint==1.38.0
     # via -r requirements-dev.in
-zipp==3.23.0
+zipp==4.1.0
     # via
     #   -c requirements.txt
     #   importlib-metadata
