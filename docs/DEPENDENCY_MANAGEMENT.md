@@ -130,11 +130,23 @@ install contexts; it is not a substitute for the compiled lock surfaces.
 
 ## Installation
 
-### Local Development (Recommended: make venv-sync)
+### Local Development Bootstrap
+
+The devcontainer remains the recommended path for backend/web/docs/orchestration
+work. A host `.venv` is supported only when the approved proxy provides a
+compatible binary wheel for that host platform.
+
+The bounded 2026-08-04 `cryptography==50.0.0` proxy snapshot provided macOS
+arm64 wheels but no macOS `x86_64` or `universal2` wheel. Apple Silicon exact-50
+bootstrap was validated; Intel macOS backend bootstrap must use the
+devcontainer at this floor. The canonical installer is binary-only, so
+source-build fallback is not supported. This observation is dated and does not
+claim future platform compatibility. iOS/Xcode development remains host-native
+on macOS.
 
 `make venv-sync` refreshes the repo `.venv` through the locked installer path
 and the approved private package proxy. Use it after lockfile changes or when a
-local environment has stale wrappers or missing pins.
+compatible host environment has stale wrappers or missing pins.
 
 ```bash
 export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"

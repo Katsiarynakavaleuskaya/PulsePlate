@@ -24,6 +24,53 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-cryptography-50-security-floor"></a>
+- [ ] P1: Raise the canonical `cryptography` security floor to 50.0.0
+  - Owner: backend-engineer
+  - Priority: P1 (dependency security / RAG delivery blocker)
+  - Branch: `codex/cryptography-50-security-floor`
+  - Target PR: TBD
+  - Status: Implementation and local validation in progress
+  - Area: Python dependency security / shared runtime locks / approved proxy
+  - Business reason (EN): The pre-push audit for PR #2232 surfaced a bounded
+    three-ID `cryptography` advisory cluster. `GHSA-g6cj-pr64-35w5` directly
+    covers the repo's 48.0.1 pin and requires 50.0.0; the common 50.0.0 floor
+    clears the full bounded cluster through the approved supply path without
+    weakening audit policy or widening the RAG PR.
+  - Exact invariant (EN): Every canonical shared Python source manifest carries
+    `cryptography>=50.0.0,<51.0.0`, `constraints.txt` carries
+    `cryptography>=50.0.0`, and every corresponding lock pins exactly
+    `cryptography==50.0.0`. The dependency-security schema and current-floor map
+    enforce the same minimum. Resolution uses only the approved PulsePlate
+    proxy, and no other package version or dependency graph node changes.
+  - Links:
+    - `docs/security/CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md`
+    - `tests/test_dependency_security_guard.py`
+    - [GHSA-m2h6-j472-rp4c](https://github.com/advisories/GHSA-m2h6-j472-rp4c)
+    - [GHSA-g6cj-pr64-35w5](https://github.com/advisories/GHSA-g6cj-pr64-35w5)
+    - [GHSA-jwv3-5hgf-82ww](https://github.com/advisories/GHSA-jwv3-5hgf-82ww)
+  - DoD:
+    - All four owning `.in` manifests use `>=50.0.0,<51.0.0`, constraints use
+      `>=50.0.0`, and all five governed locks pin exactly `50.0.0`
+    - A deterministic regression proves the actual all-min-versions guard
+      rejects a complete former-48.0.1 surface
+    - Approved-proxy preflight, dependency guard, real Fernet/AESGCM consumer
+      tests, canonical manifest audit, and lock-delta checks pass
+    - The dated 2026-08-04 platform snapshot records the approved proxy's
+      macOS-arm64-only exact-50 wheel boundary, Intel macOS devcontainer path,
+      conditional host `.venv` support, and host-native iOS/Xcode boundary
+    - An isolated approved-proxy Apple Silicon environment imports exact
+      `cryptography==50.0.0`, passes Fernet/AESGCM smoke checks, and passes all
+      133 selected consumer tests without source-build or public-index fallback
+    - Advisory documentation records finite reachability, approved-index
+      evidence, rollback, and prohibited shortcuts without treating 50.0.0 as a
+      permanent safety guarantee
+    - No public-index fallback, emergency-wheel activation, waiver, ignore,
+      suppression, unrelated package upgrade, or dependency graph migration
+  - Rollback (EN): Revert the repository change and block release until another
+    reviewed patched floor is available. Revert does not authorize shipping
+    48.0.1 or bypassing the audit; there is no data migration.
+
 <a id="ledger-p0-experiment-runner-container-cve-remediation"></a>
 - [ ] P0: Remediate Experiment Runner container HIGH/CRITICAL vulnerabilities
   - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)

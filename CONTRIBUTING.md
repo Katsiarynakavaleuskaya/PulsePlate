@@ -64,7 +64,7 @@ requires Docker from inside the devcontainer, use a separate reviewed local
 override after the workspace is trusted rather than committing socket access to
 the default configuration.
 
-### Legacy .venv fallback
+### Host .venv compatibility path
 
 ```bash
 make venv
@@ -72,7 +72,15 @@ source .venv/bin/activate
 make dev
 ```
 
-`make venv` remains supported.  iOS/Xcode development stays host-native on macOS.
+The devcontainer remains the recommended backend/web/docs/orchestration path.
+Host `.venv` bootstrap is supported only when the approved proxy provides a
+compatible binary wheel for the host platform. In the bounded 2026-08-04
+`cryptography==50.0.0` snapshot, the proxy provided macOS arm64 wheels but no
+macOS `x86_64` or `universal2` wheel. Apple Silicon exact-50 bootstrap was
+validated; Intel macOS backend bootstrap must use the devcontainer at this
+floor. The installer remains binary-only, so source-build fallback is not
+supported. This is a dated artifact snapshot, not a permanent compatibility
+claim. iOS/Xcode development stays host-native on macOS.
 
 Generic developer targets (`make test`, `make lint`, `make typecheck`, `make cov`,
 `make openapi`, etc.) use `DEV_PYTHON`, which auto-detects `.venv/bin/python` or

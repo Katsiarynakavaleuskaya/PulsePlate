@@ -480,12 +480,12 @@ pytest -q tests/test_repo_policy_guards.py
 
 - **Dependency vulnerability floor guard**: `tests/test_dependency_security_guard.py`
   - **What it enforces**:
-    - `cryptography` must stay at or above the non-vulnerable floor (`46.0.7`) in:
-      - `requirements.txt`
-      - `requirements-dev.txt`
-      - `requirements-lock.txt`
-      - `requirements.in`
-      - `constraints.txt`
+    - `cryptography` must stay at or above the current floor (`50.0.0`) across
+      the canonical closed inventory declared by
+      `tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`, currently
+      ten shared requirement surfaces.
+    - Optional dependency profiles are outside the `min_versions` all-surfaces
+      contract unless the guard gains explicit per-surface targeting.
     - All `cryptography` declarations in each file are checked (not only the first match).
     - Requirement parsing must tolerate environment markers and inline comments where possible.
   - **How to run**:

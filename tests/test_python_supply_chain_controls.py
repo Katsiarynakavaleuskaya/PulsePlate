@@ -685,6 +685,39 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
 
 
+def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> None:
+    contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    advisory = (
+        REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
+    ).read_text(encoding="utf-8")
+    installer_text = (
+        REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
+    ).read_text(encoding="utf-8")
+
+    for document in (contributing, dependency_docs, advisory):
+        normalized = " ".join(document.casefold().split())
+        assert "2026-08-04" in normalized
+        assert "50.0.0" in normalized
+        assert "approved proxy" in normalized
+        assert "compatible binary wheel" in normalized
+        assert "intel macos" in normalized
+        assert "devcontainer" in normalized
+        assert "ios/xcode" in normalized
+        assert "host-native" in normalized
+        assert "source-build fallback is not supported" in normalized
+
+    normalized_advisory = " ".join(advisory.casefold().split())
+    assert "46 exact artifacts" in normalized_advisory
+    assert "macos arm64" in normalized_advisory
+    assert "x86_64" in normalized_advisory
+    assert "universal2" in normalized_advisory
+    assert "133 consumer tests" in normalized_advisory
+
+    assert len(re.findall(r'"--only-binary",\s*":all:",', installer_text)) >= 3
+    assert '"--no-binary"' not in installer_text
+
+
 def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     security_text = (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(
@@ -1579,7 +1612,7 @@ def test_dependency_docs_document_httpx2_testclient_backend_boundary() -> None:
         assert "runtime, docker runtime, and ci-lite" in normalized_docs
 
     assert "make venv-sync" in dependency_docs
-    assert "Local Development (Recommended: make venv-sync)" in dependency_docs
+    assert "Local Development Bootstrap" in dependency_docs
 
 
 def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:

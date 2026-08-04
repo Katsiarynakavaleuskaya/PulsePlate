@@ -33,7 +33,7 @@ REQUIREMENT_SURFACES = (
 
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "click": "8.3.3",
-    "cryptography": "48.0.1",
+    "cryptography": "50.0.0",
     "pillow": "12.3.0",
     "python-multipart": "0.0.31",
     "setuptools": "83.0.0",
@@ -288,12 +288,12 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
 def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     """
     Regression: constraint-style surface effective min must include both >= and ==.
-    A file with both cryptography>=48.0.1 and cryptography==3.4.8 must yield
+    A file with both cryptography>=50.0.0 and cryptography==3.4.8 must yield
     effective min 3.4.8 so the guard fails (low pin cannot bypass).
     """
     fake_constraints = tmp_path / "constraints.txt"
     fake_constraints.write_text(
-        "cryptography>=48.0.1\ncryptography==3.4.8\n",
+        "cryptography>=50.0.0\ncryptography==3.4.8\n",
         encoding="utf-8",
     )
     effective = _effective_min_version_in_file(fake_constraints, "cryptography")
@@ -301,8 +301,34 @@ def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     assert effective == Version(
         "3.4.8"
     ), "Constraint surface must take min over all lines; lower == must not be ignored."
-    required_min = Version("48.0.1")
+    required_min = Version("50.0.0")
     assert effective < required_min, "Guard should fail when a lower pin exists."
+
+
+def test_dependency_security_guard_rejects_former_cryptography_floor(
+    tmp_path: Path,
+) -> None:
+    """The actual all-min guard rejects a complete surface still pinned to 48.0.1."""
+
+    schema = _load_schema(SCHEMA_PATH)
+    former_surface = tmp_path / "requirements.txt"
+    former_surface.write_text(
+        "\n".join(
+            f"{package}=={'48.0.1' if package == 'cryptography' else version}"
+            for package, version in schema["min_versions"].items()
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        pytest.fail.Exception,
+        match=(
+            r"requirements\.txt: cryptography has 48\.0\.1, but minimum safe "
+            r"version is 50\.0\.0"
+        ),
+    ):
+        test_dependency_security_guard_enforces_min_versions(former_surface)
 
 
 def test_load_schema_fails_on_invalid_version(tmp_path: Path) -> None:
