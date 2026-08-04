@@ -967,22 +967,40 @@ def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
         test_dependency_security_guard_enforces_min_versions(source_surface)
 
 
-@pytest.mark.parametrize(
-    ("surface_name", "cryptography_carrier"),
-    (
-        ("requirements.in", "cryptography>=50.0.1,<51.0.0"),
-        ("constraints.txt", "cryptography>=50.0.1"),
-    ),
-)
 def test_dependency_security_guard_allows_schema_driven_live_floor_rotation(
-    surface_name: str,
-    cryptography_carrier: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Live carrier truth may rotate without rewriting historical admission evidence."""
-    _validate_live_cryptography_intent_carrier(
-        Path(surface_name),
-        (Requirement(cryptography_carrier),),
-        Version("50.0.1"),
+    schema = _load_schema(SCHEMA_PATH)
+    schema["min_versions"]["cryptography"] = "50.0.1"
+    rotated_schema = tmp_path / "dependency_security_schema.json"
+    rotated_schema.write_text(json.dumps(schema), encoding="utf-8")
+    monkeypatch.setitem(globals(), "SCHEMA_PATH", rotated_schema)
+
+    other_requirements = "\n".join(
+        f"{package}>={version}"
+        for package, version in schema["min_versions"].items()
+        if package != "cryptography"
+    )
+    for surface_name, cryptography_carrier in (
+        ("requirements.in", "cryptography>=50.0.1,<51.0.0"),
+        ("constraints.txt", "cryptography>=50.0.1"),
+    ):
+        surface = tmp_path / surface_name
+        surface.write_text(
+            f"{other_requirements}\n{cryptography_carrier}\n",
+            encoding="utf-8",
+        )
+        test_dependency_security_guard_enforces_min_versions(surface)
+
+    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
+    assert snapshot["target"] == "50.0.0"
+    _assert_cryptography_remediation_admission(
+        base_occurrences=base_occurrences,
+        head_occurrences=head_occurrences,
+        advisories=snapshot["advisories"],
+        material_transitions=transitions,
     )
 
 
