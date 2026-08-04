@@ -498,6 +498,11 @@ pytest -q tests/test_repo_policy_guards.py
       unversioned `cryptography` carrier; current owner-snapshot JSON must equal
       its immutable introduction evidence; `I_R` remains a range operation and
       cannot drift into the exact-pin operation reserved for `C_R`.
+    - Every live `CRYPTOGRAPHY_INTENT_SURFACES` member must contain exactly one
+      `cryptography` carrier whose complete normalized PEP 508 semantics (name,
+      extras, full specifier set, marker, and URL) equal the same surface in the
+      current owner snapshot. A numerically sufficient floor does not authorize
+      an exact pin, extra, marker, URL, or other source-intent drift.
   - **How to run**:
     ```bash
     pytest -q tests/test_dependency_security_guard.py

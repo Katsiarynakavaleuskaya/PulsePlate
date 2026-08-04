@@ -820,6 +820,17 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
                     f"{version_label} {version_to_check}."
                 )
 
+    if surface.name in CRYPTOGRAPHY_INTENT_SURFACES:
+        actual_carriers = carriers.get("cryptography", ())
+        owner_snapshot = _load_admission_snapshot(ADMISSION_DOC_PATH.read_text(encoding="utf-8"))
+        owner_requirement = owner_snapshot["surfaces"][surface.name]["requirement"]
+        actual_semantics = _semantic_requirements(
+            "\n".join(str(requirement) for requirement in actual_carriers), surface
+        )
+        owner_semantics = _semantic_requirements(owner_requirement, surface)
+        if actual_semantics != owner_semantics:
+            pytest.fail(f"{surface.name}: cryptography I_R carrier semantics mismatch")
+
 
 def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
     """
@@ -878,8 +889,21 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
             'cryptography>=50.0.0; python_version < "0"',
             r"cryptography security-floor requirement must be unconditional",
         ),
+        (
+            "cryptography==50.0.0",
+            r"cryptography I_R carrier semantics mismatch",
+        ),
+        (
+            "cryptography[ssh]>=50,<51",
+            r"cryptography I_R carrier semantics mismatch",
+        ),
     ],
-    ids=["selected-floor-excluded", "inactive-marker"],
+    ids=[
+        "selected-floor-excluded",
+        "inactive-marker",
+        "exact-pin-is-not-source-intent",
+        "extra-is-not-owner-intent",
+    ],
 )
 def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
     tmp_path: Path,
