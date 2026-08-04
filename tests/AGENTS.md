@@ -487,7 +487,11 @@ pytest -q tests/test_repo_policy_guards.py
     - Optional dependency profiles are outside the `min_versions` all-surfaces
       contract unless the guard gains explicit per-surface targeting.
     - All `cryptography` declarations in each file are checked (not only the first match).
-    - Requirement parsing must tolerate environment markers and inline comments where possible.
+    - Every `CURRENT_ENFORCED_RUNTIME_FLOORS` carrier must be unconditional and
+      its complete specifier must include the configured current floor; a
+      matching `>=` token cannot hide an exclusion or inactive marker.
+    - Requirement parsing must tolerate inline comments and reject environment
+      markers on governed all-surfaces floor carriers.
   - **How to run**:
     ```bash
     pytest -q tests/test_dependency_security_guard.py

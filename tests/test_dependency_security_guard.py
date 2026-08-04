@@ -261,18 +261,30 @@ def _effective_min_version_in_file(path: Path, package: str) -> Optional[Version
     return min(versions) if versions else None
 
 
-def _effective_min_versions_per_package(path: Path) -> dict[str, Version]:
-    """Parse file once; return normalized package name -> effective min version."""
+def _requirement_evidence_per_package(
+    path: Path,
+) -> tuple[dict[str, Version], dict[str, tuple[Requirement, ...]]]:
+    """Parse once; return effective minima and every complete requirement carrier."""
     pinned = not _is_constraint_style(path)
     by_pkg: dict[str, list[Version]] = {}
+    carriers: dict[str, list[Requirement]] = {}
     for line in _iter_requirement_lines(path):
         req = _parse_requirement(line, path)
         if req is None:
             continue
+        normalized_name = _normalized_package_name(req.name)
+        carriers.setdefault(normalized_name, []).append(req)
         v_str = _min_version_for_pkg(req, req.name, pinned=pinned)
         if v_str is not None:
-            by_pkg.setdefault(_normalized_package_name(req.name), []).append(Version(v_str))
-    return {pkg: min(vers) for pkg, vers in by_pkg.items()}
+            by_pkg.setdefault(normalized_name, []).append(Version(v_str))
+    minima = {pkg: min(versions) for pkg, versions in by_pkg.items()}
+    return minima, {pkg: tuple(requirements) for pkg, requirements in carriers.items()}
+
+
+def _effective_min_versions_per_package(path: Path) -> dict[str, Version]:
+    """Return normalized package name -> effective min version."""
+    minima, _carriers = _requirement_evidence_per_package(path)
+    return minima
 
 
 def _pinned_versions_per_package(path: Path) -> dict[str, set[Version]]:
@@ -749,11 +761,12 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
     """
     schema = _load_schema(SCHEMA_PATH)
     min_versions = schema["min_versions"]
-    all_reqs = _effective_min_versions_per_package(surface)
+    all_reqs, carriers = _requirement_evidence_per_package(surface)
 
     for pkg, min_v_str in min_versions.items():
         required_min = Version(str(min_v_str))
-        effective = all_reqs.get(_normalized_package_name(pkg))
+        normalized_name = _normalized_package_name(pkg)
+        effective = all_reqs.get(normalized_name)
         if effective is None:
             pytest.fail(
                 f"{surface.name}: expected {pkg} to be pinned (==) or constrained (>=) "
@@ -764,6 +777,19 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
                 f"{surface.name}: {pkg} has {effective}, but minimum safe version is {required_min}. "
                 f"Update this surface to at least {required_min}."
             )
+        if normalized_name not in CURRENT_ENFORCED_RUNTIME_FLOORS:
+            continue
+        for requirement in carriers[normalized_name]:
+            if requirement.marker is not None:
+                pytest.fail(
+                    f"{surface.name}: {pkg} security-floor requirement must be unconditional; "
+                    f"marker {requirement.marker!s} is not allowed."
+                )
+            if not requirement.specifier.contains(str(required_min), prereleases=True):
+                pytest.fail(
+                    f"{surface.name}: {pkg} requirement {requirement.specifier!s} excludes "
+                    f"required safe floor {required_min}."
+                )
 
 
 def test_constraint_surface_effective_min_includes_pins(tmp_path: Path) -> None:
@@ -810,6 +836,42 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
         ),
     ):
         test_dependency_security_guard_enforces_min_versions(former_surface)
+
+
+@pytest.mark.parametrize(
+    ("cryptography_carrier", "expected_error"),
+    [
+        (
+            "cryptography>=50.0.0,!=50.0.0,<51.0.0",
+            r"cryptography requirement .* excludes required safe floor 50\.0\.0",
+        ),
+        (
+            'cryptography>=50.0.0; python_version < "0"',
+            r"cryptography security-floor requirement must be unconditional",
+        ),
+    ],
+    ids=["selected-floor-excluded", "inactive-marker"],
+)
+def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
+    tmp_path: Path,
+    cryptography_carrier: str,
+    expected_error: str,
+) -> None:
+    """The live all-surfaces path validates the complete floor carrier."""
+
+    schema = _load_schema(SCHEMA_PATH)
+    source_surface = tmp_path / "requirements.in"
+    source_surface.write_text(
+        "\n".join(
+            cryptography_carrier if package == "cryptography" else f"{package}>={version}"
+            for package, version in schema["min_versions"].items()
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(pytest.fail.Exception, match=expected_error):
+        test_dependency_security_guard_enforces_min_versions(source_surface)
 
 
 def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
