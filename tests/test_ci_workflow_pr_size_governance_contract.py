@@ -624,6 +624,10 @@ NODE24_CONTINUED_FROM_PREFIX_RE = re.compile(
     r"\s*(?:F|FR|FRO|FROM)[\\`]\s*",
     flags=re.IGNORECASE,
 )
+NODE24_CONTINUED_COPY_ADD_PREFIX_RE = re.compile(
+    r"\s*(?:C|CO|COP|COPY|A|AD|ADD)[\\`]\s*",
+    flags=re.IGNORECASE,
+)
 
 
 def _docker_logical_instructions(
@@ -752,6 +756,11 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
         line_index not in logical_instruction_start_indices
         for line_index, _line in final_stage_copy_add_entries
     )
+    has_continued_final_stage_copy_add_keyword = any(
+        line_index > final_stage_start_index
+        and NODE24_CONTINUED_COPY_ADD_PREFIX_RE.fullmatch(line) is not None
+        for line_index, line in enumerate(dockerfile_lines)
+    )
 
     errors: list[str] = []
     if (
@@ -774,6 +783,7 @@ def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
     if (
         final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES)
         or has_absorbed_final_stage_copy_add
+        or has_continued_final_stage_copy_add_keyword
     ):
         errors.append("final-stage COPY/ADD instructions must stay finite and ordered")
     if frontend_asset_write_lines != list(NODE24_FRONTEND_ASSET_WRITE_LINES):
@@ -1092,6 +1102,45 @@ def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
     errors = _node24_frontend_builder_contract_errors(absorbed)
 
     assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
+
+
+@pytest.mark.parametrize("escape_character", ("\\", "`"))
+@pytest.mark.parametrize("keyword", ("COPY", "ADD"))
+@pytest.mark.parametrize("comment_bridge", (False, True))
+def test_node24_frontend_builder_guard_rejects_split_copy_add_keyword(
+    escape_character: str,
+    keyword: str,
+    comment_bridge: bool,
+) -> None:
+    """A continued keyword cannot hide a final-stage COPY or ADD instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    if escape_character == "`":
+        dockerfile = dockerfile.replace(
+            "# syntax=docker/dockerfile:1",
+            "# syntax=docker/dockerfile:1\n# escape=`",
+            1,
+        )
+    for split_index in range(1, len(keyword) + 1):
+        hidden_instruction_parts = [f"{keyword[:split_index]}{escape_character}"]
+        if comment_bridge:
+            hidden_instruction_parts.append("# ignored during Docker continuation")
+        hidden_instruction_parts.append(f"{keyword[split_index:]} package.json /usr/bin/caddy")
+        hidden = dockerfile.replace(
+            NODE24_FRONTEND_ASSET_RESET_LINE,
+            "\n".join((*hidden_instruction_parts, NODE24_FRONTEND_ASSET_RESET_LINE)),
+            1,
+        )
+
+        errors = _node24_frontend_builder_contract_errors(hidden)
+
+        assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors, (
+            escape_character,
+            keyword,
+            comment_bridge,
+            split_index,
+            errors,
+        )
 
 
 def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
