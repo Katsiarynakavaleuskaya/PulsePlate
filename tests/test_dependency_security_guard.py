@@ -102,6 +102,7 @@ URL_VCS_EDITABLE_PREFIXES = (
     "svn+",
     "bzr+",
 )
+PIP_DIRECTIVE_SEMANTIC_CARRIER = "__pip_directive__"
 
 
 def _is_constraint_style(path: Path) -> bool:
@@ -384,11 +385,14 @@ def _cryptography_version_from_text(surface_name: str, text: str) -> Version:
 
 
 def _semantic_requirements(text: str, path: Path) -> dict[str, tuple[str, ...]]:
-    """Compare requirement meaning, ignoring comments and lockfile line relocation."""
+    """Compare requirement/directive meaning, ignoring comments and lockfile relocation."""
     parsed: dict[str, list[str]] = {}
     for raw in text.splitlines():
         line = raw.split("#", 1)[0].strip()
-        if not line or _is_pip_directive_line(line):
+        if not line:
+            continue
+        if _is_pip_directive_line(line):
+            parsed.setdefault(PIP_DIRECTIVE_SEMANTIC_CARRIER, []).append(line)
             continue
         req = _parse_requirement(line, path)
         if req is not None:
@@ -601,6 +605,21 @@ def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> No
     head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
         "click==8.3.3", "click==8.3.4", 1
     )
+    with pytest.raises(AssertionError, match="unrelated semantic transition"):
+        _derive_material_transitions(base_texts, head_texts)
+
+
+@pytest.mark.parametrize(
+    "directive",
+    (
+        "--extra-index-url https://pypi.org/simple",
+        "--find-links https://example.invalid/wheels",
+    ),
+)
+def test_cryptography_50_admission_rejects_changed_pip_directive(directive: str) -> None:
+    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
+    head_texts = _discover_current_cryptography_surfaces()
+    head_texts["requirements.in"] = f"{head_texts['requirements.in']}\n{directive}\n"
     with pytest.raises(AssertionError, match="unrelated semantic transition"):
         _derive_material_transitions(base_texts, head_texts)
 
