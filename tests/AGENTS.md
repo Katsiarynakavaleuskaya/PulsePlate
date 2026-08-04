@@ -488,10 +488,16 @@ pytest -q tests/test_repo_policy_guards.py
       contract unless the guard gains explicit per-surface targeting.
     - All `cryptography` declarations in each file are checked (not only the first match).
     - Every `CURRENT_ENFORCED_RUNTIME_FLOORS` carrier must be unconditional and
-      its complete specifier must include the configured current floor; a
-      matching `>=` token cannot hide an exclusion or inactive marker.
+      range carriers must include the configured current floor; an exact lock
+      pin may advance above that floor, but each governed lock package must have
+      exactly one carrier containing exactly one `==` pin. A matching `>=`
+      token cannot hide an exclusion or inactive marker.
     - Requirement parsing must tolerate inline comments and reject environment
       markers on governed all-surfaces floor carriers.
+    - Historical remediation discovery must fail closed on a present but
+      unversioned `cryptography` carrier; current owner-snapshot JSON must equal
+      its immutable introduction evidence; `I_R` remains a range operation and
+      cannot drift into the exact-pin operation reserved for `C_R`.
   - **How to run**:
     ```bash
     pytest -q tests/test_dependency_security_guard.py

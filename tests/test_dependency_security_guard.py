@@ -391,8 +391,10 @@ def _cryptography_versions_from_text(surface_name: str, text: str) -> list[Versi
         if req is None or _normalized_package_name(req.name) != "cryptography":
             continue
         version = _min_version_for_pkg(req, "cryptography", pinned=not _is_constraint_style(path))
-        if version is not None:
-            versions.append(Version(version))
+        assert (
+            version is not None
+        ), f"{surface_name}: cryptography occurrence must declare a comparable >= or == version"
+        versions.append(Version(version))
     return versions
 
 
@@ -453,8 +455,14 @@ def _validate_selected_target(
     assert (
         target in requirement.specifier
     ), f"{surface_name}: selected target {target} must be contained by recorded requirement"
-    if surface_class == "C_R":
-        specifiers = tuple(requirement.specifier)
+    specifiers = tuple(requirement.specifier)
+    if surface_class == "I_R":
+        expected_operators = {">="} if surface_name == "constraints.txt" else {">=", "<"}
+        assert (
+            len(specifiers) == len(expected_operators)
+            and {specifier.operator for specifier in specifiers} == expected_operators
+        ), f"{surface_name}: intent snapshot must preserve the canonical range operation kind"
+    elif surface_class == "C_R":
         assert (
             len(specifiers) == 1
             and specifiers[0].operator == "=="
@@ -680,7 +688,11 @@ def _historical_admission_inputs() -> tuple[
     dict[str, str],
 ]:
     """Build immutable admission inputs without reading live requirement surfaces."""
-    snapshot, base_texts, head_texts = _historical_snapshot_evidence()
+    historical_snapshot, base_texts, head_texts = _historical_snapshot_evidence()
+    snapshot = _load_admission_snapshot(ADMISSION_DOC_PATH.read_text(encoding="utf-8"))
+    assert (
+        snapshot == historical_snapshot
+    ), "current owner snapshot must equal its immutable introduction evidence"
     declared_surfaces = CRYPTOGRAPHY_INTENT_SURFACES | CRYPTOGRAPHY_COMPILED_SURFACES
     base_surfaces = set(base_texts)
     head_surfaces = set(head_texts)
@@ -761,6 +773,7 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
     """
     schema = _load_schema(SCHEMA_PATH)
     min_versions = schema["min_versions"]
+    pinned = not _is_constraint_style(surface)
     all_reqs, carriers = _requirement_evidence_per_package(surface)
 
     for pkg, min_v_str in min_versions.items():
@@ -779,16 +792,32 @@ def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
             )
         if normalized_name not in CURRENT_ENFORCED_RUNTIME_FLOORS:
             continue
-        for requirement in carriers[normalized_name]:
+        package_carriers = carriers[normalized_name]
+        if pinned and len(package_carriers) != 1:
+            pytest.fail(
+                f"{surface.name}: {pkg} security-floor lock must contain exactly one carrier."
+            )
+        for requirement in package_carriers:
             if requirement.marker is not None:
                 pytest.fail(
                     f"{surface.name}: {pkg} security-floor requirement must be unconditional; "
                     f"marker {requirement.marker!s} is not allowed."
                 )
-            if not requirement.specifier.contains(str(required_min), prereleases=True):
+            version_to_check = required_min
+            version_label = "required safe floor"
+            if pinned:
+                specifiers = tuple(requirement.specifier)
+                if len(specifiers) != 1 or specifiers[0].operator != "==":
+                    pytest.fail(
+                        f"{surface.name}: {pkg} security-floor lock carrier must contain "
+                        "exactly one == pin."
+                    )
+                version_to_check = Version(specifiers[0].version)
+                version_label = "pinned version"
+            if not requirement.specifier.contains(str(version_to_check), prereleases=True):
                 pytest.fail(
                     f"{surface.name}: {pkg} requirement {requirement.specifier!s} excludes "
-                    f"required safe floor {required_min}."
+                    f"{version_label} {version_to_check}."
                 )
 
 
@@ -874,6 +903,49 @@ def test_dependency_security_guard_rejects_noncanonical_live_floor_carrier(
         test_dependency_security_guard_enforces_min_versions(source_surface)
 
 
+@pytest.mark.parametrize(
+    ("cryptography_carriers", "expected_error"),
+    [
+        (("cryptography==50.0.1",), None),
+        (
+            ("cryptography>=50.0.0,==50.0.1",),
+            r"cryptography security-floor lock carrier must contain exactly one == pin",
+        ),
+        (
+            ("cryptography==50.0.1", "cryptography==50.0.2"),
+            r"cryptography security-floor lock must contain exactly one carrier",
+        ),
+    ],
+    ids=["above-floor-pin", "hybrid-carrier", "conflicting-duplicate-pins"],
+)
+def test_dependency_security_guard_enforces_live_lock_carrier_class(
+    tmp_path: Path,
+    cryptography_carriers: tuple[str, ...],
+    expected_error: str | None,
+) -> None:
+    """Live C_R permits a higher pin but rejects hybrid or conflicting carriers."""
+    schema = _load_schema(SCHEMA_PATH)
+    lock_surface = tmp_path / "requirements.txt"
+    lock_surface.write_text(
+        "\n".join(
+            [
+                f"{package}=={version}"
+                for package, version in schema["min_versions"].items()
+                if package != "cryptography"
+            ]
+            + list(cryptography_carriers)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    if expected_error is None:
+        test_dependency_security_guard_enforces_min_versions(lock_surface)
+    else:
+        with pytest.raises(pytest.fail.Exception, match=expected_error):
+            test_dependency_security_guard_enforces_min_versions(lock_surface)
+
+
 def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
     """Admission v1 closes the base/head/advisory transition proof over ten surfaces."""
     _git_command(["merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE, "HEAD"])
@@ -912,6 +984,11 @@ def test_cryptography_50_admission_rejects_duplicate_surface_occurrence() -> Non
         _cryptography_version_from_text(
             "requirements.txt", "cryptography==50.0.0\ncryptography==50.0.0\n"
         )
+
+
+def test_cryptography_50_admission_rejects_unversioned_surface_occurrence() -> None:
+    with pytest.raises(AssertionError, match="must declare a comparable"):
+        _cryptography_versions_from_text("requirements.in", "cryptography\n")
 
 
 def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> None:
@@ -960,6 +1037,30 @@ def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
     snapshot["surfaces"]["requirements.txt"]["file_sha256"] = "0" * 64
     with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
         _assert_snapshot_receipts(snapshot, head_texts)
+
+
+def test_cryptography_50_admission_rejects_current_owner_snapshot_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    historical_snapshot, base_texts, head_texts = _historical_snapshot_evidence()
+    owner_document = ADMISSION_DOC_PATH.read_text(encoding="utf-8")
+    recorded_hash = historical_snapshot["surfaces"]["requirements.txt"]["file_sha256"]
+    drifted_owner = tmp_path / ADMISSION_DOC_PATH.name
+    drifted_owner.write_text(owner_document.replace(recorded_hash, "0" * 64, 1), encoding="utf-8")
+    monkeypatch.setitem(
+        _historical_admission_inputs.__globals__,
+        "_historical_snapshot_evidence",
+        lambda: (historical_snapshot, base_texts, head_texts),
+    )
+    monkeypatch.setitem(
+        _historical_admission_inputs.__globals__,
+        "ADMISSION_DOC_PATH",
+        drifted_owner,
+    )
+
+    with pytest.raises(AssertionError, match="current owner snapshot must equal"):
+        _historical_admission_inputs()
 
 
 def test_cryptography_50_admission_rejects_snapshot_head_inventory_drift() -> None:
@@ -1084,6 +1185,16 @@ def test_cryptography_50_admission_rejects_selected_target_exclusion(
             "requirements.in",
             "I_R",
             requirement_text,
+            "50.0.0",
+        )
+
+
+def test_cryptography_50_admission_rejects_pinned_intent_operation() -> None:
+    with pytest.raises(AssertionError, match="canonical range operation kind"):
+        _validate_selected_target(
+            "requirements.in",
+            "I_R",
+            "cryptography==50.0.0",
             "50.0.0",
         )
 
