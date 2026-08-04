@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+from fnmatch import fnmatch
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -30,6 +34,39 @@ REQUIREMENT_SURFACES = (
     REPO_ROOT / "requirements-ci-lite.txt",
     REPO_ROOT / "constraints.txt",
 )
+
+CRYPTOGRAPHY_REMEDIATION_BASE = (
+    "643eb78d01476835523a3e800f1e88cb36f0aa8f"  # pragma: allowlist secret
+)
+CRYPTOGRAPHY_REMEDIATION_HEAD = (
+    "5383a5bfe5c81eb5b9f07699dd67983d09118882"  # pragma: allowlist secret
+)
+CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES = (
+    "requirements.in",
+    "requirements-docker-runtime.in",
+    "requirements-ci-lite.in",
+    "requirements-dev.in",
+    "constraints.txt",
+    "requirements.txt",
+    "requirements-docker-runtime.txt",
+    "requirements-ci-lite.txt",
+    "requirements-dev.txt",
+    "requirements-lock.txt",
+)
+CRYPTOGRAPHY_INTENT_SURFACES = frozenset(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES[:5])
+CRYPTOGRAPHY_COMPILED_SURFACES = frozenset(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES[5:])
+CRYPTOGRAPHY_F_CUTOFF = {
+    "GHSA-m2h6-j472-rp4c": ">=0,<49.0.0",
+    "GHSA-g6cj-pr64-35w5": ">=44.0.0,<50.0.0",
+    "GHSA-jwv3-5hgf-82ww": ">=0,<49.0.0",
+}
+CRYPTOGRAPHY_COMPILED_REPLAY_SHA256 = {
+    "requirements.txt": "8d7e5b6f9e15344ca031060407e6928a57ee82e2a1fdcaaed5f3137de1a61def",  # pragma: allowlist secret
+    "requirements-docker-runtime.txt": "3b263517b8193dda2b57bbea62fbbcf6237dd2b35ca3be7f897d380aa0413467",  # pragma: allowlist secret
+    "requirements-ci-lite.txt": "cf7187511aa6c588f74b9d27a1f64c66756bd395a64954ff9c1bb3e4c4641f7d",  # pragma: allowlist secret
+    "requirements-dev.txt": "a8414bd336b64ef7e1f6eec0286eb8086f3b6ffbcffe966d7d2972335f744b09",  # pragma: allowlist secret
+    "requirements-lock.txt": "8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20b950cc83f725ec0b4",  # pragma: allowlist secret
+}
 
 CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "click": "8.3.3",
@@ -260,6 +297,157 @@ def _packages_present_in_file(path: Path) -> set[str]:
     return packages
 
 
+def _git_command(arguments: list[str]) -> str:
+    """Run git through its resolved absolute executable for finite admission evidence."""
+    git = shutil.which("git")
+    if git is None:
+        pytest.fail("dependency-remediation admission requires an available git executable")
+    result = subprocess.run(
+        [git, *arguments],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"dependency-remediation admission git command failed: {' '.join(arguments)}: "
+            f"{result.stderr.strip()}"
+        )
+    return result.stdout
+
+
+def _discover_cryptography_surfaces(revision: str) -> dict[str, str]:
+    """Mechanically discover every top-level tracked requirement surface with cryptography."""
+    candidates = _git_command(["ls-tree", "-r", "--name-only", revision]).splitlines()
+    discovered: dict[str, str] = {}
+    for name in candidates:
+        if Path(name).parent != Path(".") or not (
+            fnmatch(name, "requirements*.in")
+            or fnmatch(name, "requirements*.txt")
+            or name == "constraints.txt"
+        ):
+            continue
+        text = _git_command(["show", f"{revision}:{name}"])
+        occurrences = _cryptography_versions_from_text(name, text)
+        if not occurrences:
+            continue
+        assert len(occurrences) == 1, f"{name}: duplicate cryptography occurrences are forbidden"
+        discovered[name] = text
+    assert discovered, f"{revision}: no tracked cryptography requirement surfaces discovered"
+    return discovered
+
+
+def _cryptography_versions_from_text(surface_name: str, text: str) -> list[Version]:
+    """Return every cryptography floor/pin so absence and duplication stay distinct."""
+    path = REPO_ROOT / surface_name
+    versions: list[Version] = []
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or _is_pip_directive_line(line):
+            continue
+        req = _parse_requirement(line, path)
+        if req is None or _normalized_package_name(req.name) != "cryptography":
+            continue
+        version = _min_version_for_pkg(req, "cryptography", pinned=not _is_constraint_style(path))
+        if version is not None:
+            versions.append(Version(version))
+    return versions
+
+
+def _cryptography_version_from_text(surface_name: str, text: str) -> Version:
+    """Return the one governed cryptography floor/pin for a surface snapshot."""
+    versions = _cryptography_versions_from_text(surface_name, text)
+    assert len(versions) == 1, f"{surface_name}: expected exactly one cryptography occurrence"
+    return versions[0]
+
+
+def _semantic_requirements(text: str, path: Path) -> dict[str, tuple[str, ...]]:
+    """Compare requirement meaning, ignoring comments and lockfile line relocation."""
+    parsed: dict[str, list[str]] = {}
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or _is_pip_directive_line(line):
+            continue
+        req = _parse_requirement(line, path)
+        if req is not None:
+            parsed.setdefault(_normalized_package_name(req.name), []).append(str(req.specifier))
+    return {name: tuple(sorted(specifiers)) for name, specifiers in parsed.items()}
+
+
+def _derive_material_transitions(
+    base_texts: dict[str, str], head_texts: dict[str, str]
+) -> dict[str, str]:
+    """Classify actual semantic transitions; only the floor may change."""
+    assert set(base_texts) == set(head_texts), "base/head surface union must reconcile exactly"
+    transitions: dict[str, str] = {}
+    for name in sorted(base_texts):
+        base_semantics = _semantic_requirements(base_texts[name], REPO_ROOT / name)
+        head_semantics = _semantic_requirements(head_texts[name], REPO_ROOT / name)
+        changed = {
+            package
+            for package in set(base_semantics) | set(head_semantics)
+            if base_semantics.get(package) != head_semantics.get(package)
+        }
+        assert changed == {"cryptography"}, f"{name}: unrelated semantic transition: {changed}"
+        transitions[name] = "I_R" if name in CRYPTOGRAPHY_INTENT_SURFACES else "C_R"
+    return transitions
+
+
+def _assert_compiled_replay_receipts(head_texts: dict[str, str]) -> None:
+    """Bind C_R to the byte-identical, serialized replay output at the fixed head."""
+    assert set(CRYPTOGRAPHY_COMPILED_REPLAY_SHA256) == set(CRYPTOGRAPHY_COMPILED_SURFACES)
+    for name, expected_hash in CRYPTOGRAPHY_COMPILED_REPLAY_SHA256.items():
+        actual_hash = hashlib.sha256(head_texts[name].encode("utf-8")).hexdigest()
+        assert actual_hash == expected_hash, f"{name}: compiled replay receipt mismatch"
+
+
+def _assert_cryptography_remediation_admission(
+    *,
+    base_occurrences: dict[str, Version],
+    head_occurrences: dict[str, Version],
+    advisories: dict[str, str],
+    material_transitions: dict[str, str],
+) -> None:
+    """Fail closed unless the finite remediation evidence has an exact partition."""
+    expected_surfaces = set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    assert (
+        set(base_occurrences) == expected_surfaces
+    ), "S_base must enumerate every governed surface"
+    assert (
+        set(head_occurrences) == expected_surfaces
+    ), "S_head must enumerate every governed surface"
+    assert set(advisories) == set(
+        CRYPTOGRAPHY_F_CUTOFF
+    ), "F_cutoff advisory set drifted or is incomplete"
+    assert all(version == Version("48.0.1") for version in base_occurrences.values())
+    affected = {
+        advisory
+        for advisory, affected_range in advisories.items()
+        if any(
+            str(version) in SpecifierSet(affected_range) for version in base_occurrences.values()
+        )
+    }
+    assert affected == set(
+        CRYPTOGRAPHY_F_CUTOFF
+    ), "A must contain every advisory with an affected OSV/pip-audit base witness"
+    assert all(
+        version >= Version("50.0.0") for version in head_occurrences.values()
+    ), "P requires every head witness to meet the 50.0.0 floor"
+    assert all(
+        str(version) not in SpecifierSet(affected_range)
+        for version in head_occurrences.values()
+        for affected_range in advisories.values()
+    ), "P requires every head witness to clear every frozen advisory"
+    expected_transitions = {
+        **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+        **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+    }
+    assert (
+        material_transitions == expected_transitions
+    ), "material transitions must partition into I_R or C_R"
+
+
 @pytest.mark.parametrize("surface", REQUIREMENT_SURFACES)
 def test_dependency_security_guard_enforces_min_versions(surface: Path) -> None:
     """
@@ -329,6 +517,145 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
         ),
     ):
         test_dependency_security_guard_enforces_min_versions(former_surface)
+
+
+def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
+    """Admission v1 closes the base/head/advisory transition proof over ten surfaces."""
+    assert _git_command(["rev-parse", f"{CRYPTOGRAPHY_REMEDIATION_HEAD}^"]).strip() == (
+        CRYPTOGRAPHY_REMEDIATION_BASE
+    )
+    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
+    head_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_HEAD)
+    assert set(base_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    assert set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    assert set(base_texts) | set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    base_occurrences = {
+        name: _cryptography_version_from_text(name, text) for name, text in base_texts.items()
+    }
+    head_occurrences = {
+        name: _cryptography_version_from_text(name, text) for name, text in head_texts.items()
+    }
+    transitions = _derive_material_transitions(base_texts, head_texts)
+    _assert_compiled_replay_receipts(head_texts)
+    _assert_cryptography_remediation_admission(
+        base_occurrences=base_occurrences,
+        head_occurrences=head_occurrences,
+        advisories=CRYPTOGRAPHY_F_CUTOFF,
+        material_transitions=transitions,
+    )
+
+    assert base_occurrences == {
+        name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES
+    }
+    assert head_occurrences == {
+        name: Version("50.0.0") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES
+    }
+    owner_document = (
+        REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
+    ).read_text(encoding="utf-8")
+    for receipt in (
+        CRYPTOGRAPHY_REMEDIATION_BASE,
+        "2026-08-04T10:18:11Z",
+        CRYPTOGRAPHY_REMEDIATION_HEAD,
+        f"git rev-parse {CRYPTOGRAPHY_REMEDIATION_HEAD}^",
+        "GHSA-m2h6-j472-rp4c",
+        "GHSA-g6cj-pr64-35w5",
+        "GHSA-jwv3-5hgf-82ww",
+        ">=0,<49.0.0",
+        ">=44.0.0,<50.0.0",
+        "I_R={requirements.in",
+        "C_R={requirements.txt",
+        *CRYPTOGRAPHY_COMPILED_REPLAY_SHA256.values(),
+    ):
+        assert receipt in owner_document, f"owner evidence receipt missing: {receipt}"
+
+
+def test_cryptography_50_admission_rejects_duplicate_surface_occurrence() -> None:
+    with pytest.raises(AssertionError, match="expected exactly one cryptography occurrence"):
+        _cryptography_version_from_text(
+            "requirements.txt", "cryptography==50.0.0\ncryptography==50.0.0\n"
+        )
+
+
+def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> None:
+    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
+    head_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_HEAD)
+    head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
+        "click==8.3.3", "click==8.3.4", 1
+    )
+    with pytest.raises(AssertionError, match="unrelated semantic transition"):
+        _derive_material_transitions(base_texts, head_texts)
+
+
+def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
+    head_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_HEAD)
+    head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
+        "cryptography==50.0.0", "cryptography==50.0.1", 1
+    )
+    with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
+        _assert_compiled_replay_receipts(head_texts)
+
+
+@pytest.mark.parametrize(
+    ("base_occurrences", "head_occurrences", "advisories", "transitions", "message"),
+    [
+        (
+            {name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES[1:]},
+            {name: Version("50.0.0") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            CRYPTOGRAPHY_F_CUTOFF,
+            {
+                **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+                **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+            },
+            "S_base",
+        ),
+        (
+            {name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            {name: Version("50.0.0") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            {"GHSA-g6cj-pr64-35w5": ">=44.0.0,<50.0.0"},
+            {
+                **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+                **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+            },
+            "F_cutoff",
+        ),
+        (
+            {name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            {name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            CRYPTOGRAPHY_F_CUTOFF,
+            {
+                **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+                **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+            },
+            "P requires",
+        ),
+        (
+            {name: Version("48.0.1") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            {name: Version("50.0.0") for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES},
+            CRYPTOGRAPHY_F_CUTOFF,
+            {
+                **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+                **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+                "manual.txt": "manual",
+            },
+            "partition",
+        ),
+    ],
+)
+def test_cryptography_50_admission_rejects_incomplete_or_unsafe_evidence(
+    base_occurrences: dict[str, Version],
+    head_occurrences: dict[str, Version],
+    advisories: dict[str, str],
+    transitions: dict[str, str],
+    message: str,
+) -> None:
+    with pytest.raises(AssertionError, match=message):
+        _assert_cryptography_remediation_admission(
+            base_occurrences=base_occurrences,
+            head_occurrences=head_occurrences,
+            advisories=advisories,
+            material_transitions=transitions,
+        )
 
 
 def test_load_schema_fails_on_invalid_version(tmp_path: Path) -> None:

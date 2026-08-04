@@ -23,6 +23,81 @@ The two certificate-verification findings clear at 49.0.0. The PKCS#7 finding
 does not clear until 50.0.0, so 50.0.0 is the common clearing floor for this
 cluster.
 
+## Dependency-remediation admission v1
+
+Evidence is closed over base `643eb78d01476835523a3e800f1e88cb36f0aa8f`,
+fixed dependency-material head `5383a5bfe5c81eb5b9f07699dd67983d09118882`,
+and reconciliation cutoff `2026-08-04T10:18:11Z`; it is not an open-world or
+future-safety claim.
+Its direct parent is exactly base `643eb78d01476835523a3e800f1e88cb36f0aa8f`
+(`git rev-parse 5383a5bfe5c81eb5b9f07699dd67983d09118882^`).
+The deterministic guard mechanically enumerates `S_base` and `S_head` as the
+same ten governed surfaces: four `.in` manifests, `constraints.txt`, and five
+generated locks. At the base every occurrence was `cryptography==48.0.1` (or
+the corresponding `>=48.0.1,<49.0.0` source floor); at the head every occurrence
+is the required 50.0.0 floor/pin.
+
+`F_cutoff` contains exactly these OSV records keyed by their GHSA aliases,
+frozen at their published timestamps and first-patched versions. The exact OSV
+GET inputs were `https://api.osv.dev/v1/vulns/GHSA-m2h6-j472-rp4c`,
+`https://api.osv.dev/v1/vulns/GHSA-g6cj-pr64-35w5`, and
+`https://api.osv.dev/v1/vulns/GHSA-jwv3-5hgf-82ww`, evaluated at the recorded
+cutoff:
+
+| Advisory record | Published / OSV modified (UTC) | OSV affected range | First patched | Base applicability | Universal head safety | pip-audit receipt |
+|---|---|---|---|---|---|---|
+| GHSA-m2h6-j472-rp4c / CVE-2026-69248 / medium | 2026-08-03T21:26:57Z / 2026-08-03T21:30:27.883493382Z | `>=0,<49.0.0` | `49.0.0` | applicable: all ten base witnesses are 48.0.1 | 50.0.0 is outside range | exact-base pip-audit exits 1 and reports this advisory |
+| GHSA-g6cj-pr64-35w5 / CVE-2026-69247 / high | 2026-08-03T21:17:00Z / 2026-08-03T21:30:27.876121715Z | `>=44.0.0,<50.0.0` | `50.0.0` | applicable: all ten base witnesses are 48.0.1 | 50.0.0 is outside range | exact-base pip-audit exits 1 and reports this advisory |
+| GHSA-jwv3-5hgf-82ww / CVE-2026-69249 / high | 2026-08-03T21:26:50Z / 2026-08-03T21:30:27.873716043Z | `>=0,<49.0.0` | `49.0.0` | applicable: all ten base witnesses are 48.0.1 | 50.0.0 is outside range | exact-base pip-audit exits 1 and reports this advisory |
+
+OSV is the applicability authority because pip-audit consumes its records: at
+the exact base it exits 1 with `Found 3 known vulnerabilities in 1 package`
+and identifies `cryptography==48.0.1` for all three aliases. Direct GitHub
+Advisory REST was queried in the same pass, but its `<=48.0.0` projection for
+the m2h6 and jwv3 records conflicts with the OSV ranges. GitHub REST remains
+recorded secondary metadata and grants no narrowing authority.
+
+Thus `F_cutoff=A={GHSA-m2h6-j472-rp4c, GHSA-g6cj-pr64-35w5,
+GHSA-jwv3-5hgf-82ww}`: every member is derived from exact affected 48.0.1 base
+witnesses, not advisory severity or a broad label. Universal predicate `P`
+requires every head occurrence to be at least 50.0.0 and outside every
+`F_cutoff` OSV affected range. The non-empty intent set is exactly `I_R={requirements.in,
+requirements-docker-runtime.in, requirements-ci-lite.in, requirements-dev.in,
+constraints.txt}`; the replay-consistent compiled set is exactly
+`C_R={requirements.txt, requirements-docker-runtime.txt,
+requirements-ci-lite.txt, requirements-dev.txt, requirements-lock.txt}`.
+The unchanged `setuptools==83.0.0` relocation in two locks is a non-semantic
+representation movement, not independent intent. The guard fails closed if a
+surface or advisory is omitted, a head witness is unsafe, or a material
+transition is unclassified or cannot be replayed from its base witness.
+
+The serialized replay applied only `I_R` edits in a temporary clone, first with
+`LOCK_PROFILES="runtime" UPGRADE_PACKAGES="cryptography==50.0.0" make requirements-locks`,
+then, after committing that replay intermediate, with
+`LOCK_PROFILES="docker-runtime ci-lite dev aggregate" UPGRADE_PACKAGES="cryptography==50.0.0" make requirements-locks`,
+using the same approved proxy. Each resulting `C_R` file had `cmp` exit 0
+against fixed head `5383a5bfe5c81eb5b9f07699dd67983d09118882` and SHA-256:
+
+```text
+requirements.txt                 8d7e5b6f9e15344ca031060407e6928a57ee82e2a1fdcaaed5f3137de1a61def
+requirements-docker-runtime.txt  3b263517b8193dda2b57bbea62fbbcf6237dd2b35ca3be7f897d380aa0413467
+requirements-ci-lite.txt         cf7187511aa6c588f74b9d27a1f64c66756bd395a64954ff9c1bb3e4c4641f7d
+requirements-dev.txt             a8414bd336b64ef7e1f6eec0286eb8086f3b6ffbcffe966d7d2972335f744b09
+requirements-lock.txt            8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20b950cc83f725ec0b4
+```
+
+This immutable historical head is admission evidence only. The separate live
+`REQUIREMENT_SURFACES` floor guard continues to enforce `>=50.0.0` on current
+main and may evolve with later unrelated dependency rotations.
+
+The exact enumeration command is `git grep -n -i '^cryptography'
+<base-or-head> -- 'requirements*.in' 'requirements*.txt' 'constraints.txt'`;
+it returns the same ten governed surfaces at base and head. The exact-head
+`pip-audit -r requirements.txt --no-deps --disable-pip -f json` exits 0 with
+`No known vulnerabilities found` and `cryptography==50.0.0` `vulns: []`.
+These finite command receipts bind the current transition only and do not make
+an all-future safety claim.
+
 ## Reachability context
 
 The finite tracked-Python scan on the remediation base found direct production

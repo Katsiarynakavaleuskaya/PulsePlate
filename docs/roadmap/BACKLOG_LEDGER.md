@@ -30,7 +30,7 @@ If it is not recorded here — it does not exist.
   - Priority: P1 (dependency security / shared-runtime blocker)
   - Branch: `codex/cryptography-50-security-floor-replacement`
   - Target PR: PR #2237
-  - Status: PR open; post-open review and current-head CI pending
+  - Status: PR #2237 open; PR #2236 superseded; post-open review and current-head CI pending
   - Area: Python dependency security / shared runtime locks / approved proxy
   - Business reason (EN): The normal pre-push audit surfaced a bounded
     three-ID `cryptography` advisory cluster. `GHSA-g6cj-pr64-35w5` directly

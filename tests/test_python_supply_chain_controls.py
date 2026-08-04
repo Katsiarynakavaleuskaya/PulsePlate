@@ -691,15 +691,12 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     advisory = (
         REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
     ).read_text(encoding="utf-8")
-    installer_text = (
-        REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
-    ).read_text(encoding="utf-8")
 
+    approved_proxy_export = 'export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"'
+    assert approved_proxy_export in contributing
+    assert approved_proxy_export in dependency_docs
     assert (
-        'export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"\n'
-        "make venv\n"
-        "source .venv/bin/activate\n"
-        "make dev"
+        f"{approved_proxy_export}\nmake venv\nsource .venv/bin/activate\nmake dev"
     ) in contributing
     assert "make venv-sync" in dependency_docs
     assert "Local Development Bootstrap" in dependency_docs
@@ -723,8 +720,50 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     assert "universal2" in normalized_advisory
     assert "133 consumer tests" in normalized_advisory
 
-    assert len(re.findall(r'"--only-binary",\s*":all:",', installer_text)) >= 3
-    assert '"--no-binary"' not in installer_text
+    wheelhouse = Path("/tmp/pulseplate-wheelhouse")
+    requirement_file = Path("requirements.txt")
+    constraints_file = Path("constraints.txt")
+    index_url = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+    download_command = locked_installer.build_pip_download_command(
+        python_executable="/usr/bin/python3",
+        requirement_file=requirement_file,
+        wheelhouse_dir=wheelhouse,
+        constraints_file=constraints_file,
+        index_url=index_url,
+        trusted_host=None,
+    )
+    proxy_command = locked_installer.build_pip_proxy_install_command(
+        python_executable="/usr/bin/python3",
+        requirement_file=requirement_file,
+        constraints_file=constraints_file,
+        index_url=index_url,
+        trusted_host=None,
+        allow_pip_download_cache=True,
+    )
+    for command in (download_command, proxy_command):
+        assert ["--only-binary", ":all:"] == command[
+            command.index("--only-binary") : command.index("--only-binary") + 2
+        ]
+        assert "--no-binary" not in command
+
+    hermetic_command = locked_installer.build_pip_install_command(
+        python_executable="/usr/bin/python3",
+        requirement_file=requirement_file,
+        wheelhouse_dir=wheelhouse,
+        constraints_file=constraints_file,
+    )
+    assert "--no-index" in hermetic_command
+    assert ["--find-links", str(wheelhouse)] == hermetic_command[
+        hermetic_command.index("--find-links") : hermetic_command.index("--find-links") + 2
+    ]
+    assert download_command[download_command.index("--dest") + 1] == str(wheelhouse)
+    assert hermetic_command[hermetic_command.index("--find-links") + 1] == str(wheelhouse)
+    assert (
+        locked_installer.load_emergency_wheel_manifest(
+            REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
+        )
+        == []
+    )
 
 
 def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
