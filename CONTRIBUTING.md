@@ -67,6 +67,7 @@ the default configuration.
 ### Host .venv compatibility path
 
 ```bash
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 make venv
 source .venv/bin/activate
 make dev

@@ -695,6 +695,15 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
         REPO_ROOT / "scripts" / "ci" / "install_locked_python_requirements.py"
     ).read_text(encoding="utf-8")
 
+    assert (
+        'export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"\n'
+        "make venv\n"
+        "source .venv/bin/activate\n"
+        "make dev"
+    ) in contributing
+    assert "make venv-sync" in dependency_docs
+    assert "Local Development Bootstrap" in dependency_docs
+
     for document in (contributing, dependency_docs, advisory):
         normalized = " ".join(document.casefold().split())
         assert "2026-08-04" in normalized
@@ -1610,9 +1619,6 @@ def test_dependency_docs_document_httpx2_testclient_backend_boundary() -> None:
         assert "httpx2" in docs_text
         assert "starlette testclient backend" in normalized_docs
         assert "runtime, docker runtime, and ci-lite" in normalized_docs
-
-    assert "make venv-sync" in dependency_docs
-    assert "Local Development Bootstrap" in dependency_docs
 
 
 def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:
