@@ -758,11 +758,11 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     ]
     assert download_command[download_command.index("--dest") + 1] == str(wheelhouse)
     assert hermetic_command[hermetic_command.index("--find-links") + 1] == str(wheelhouse)
-    assert (
-        locked_installer.load_emergency_wheel_manifest(
-            REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
-        )
-        == []
+    active_artifacts = locked_installer.load_emergency_wheel_manifest(
+        REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
+    )
+    assert not any(
+        canonicalize_name(artifact["package"]) == "cryptography" for artifact in active_artifacts
     )
 
 

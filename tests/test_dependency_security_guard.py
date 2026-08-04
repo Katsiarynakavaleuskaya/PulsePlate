@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import json
 from fnmatch import fnmatch
@@ -21,6 +22,13 @@ from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json"
+ADMISSION_DOC_PATH = REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
+SNAPSHOT_START = "<!-- dependency-remediation-admission-v1-snapshot:start -->"
+SNAPSHOT_END = "<!-- dependency-remediation-admission-v1-snapshot:end -->"
+SNAPSHOT_ALLOWLIST_LINE = "<!-- pragma: allowlist nextline secret -->"
+SNAPSHOT_KIND = "dependency-remediation-admission-v1-evidence"
+SNAPSHOT_CUTOFF = "2026-08-04T10:18:11Z"
+SNAPSHOT_TARGET = "50.0.0"
 
 REQUIREMENT_SURFACES = (
     REPO_ROOT / "requirements.in",
@@ -37,9 +45,6 @@ REQUIREMENT_SURFACES = (
 
 CRYPTOGRAPHY_REMEDIATION_BASE = (
     "643eb78d01476835523a3e800f1e88cb36f0aa8f"  # pragma: allowlist secret
-)
-CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD = (
-    "5383a5bfe5c81eb5b9f07699dd67983d09118882"  # pragma: allowlist secret
 )
 CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES = (
     "requirements.in",
@@ -339,27 +344,6 @@ def _discover_cryptography_surfaces(revision: str) -> dict[str, str]:
     return discovered
 
 
-def _discover_current_cryptography_surfaces() -> dict[str, str]:
-    """Discover S_head from current tracked worktree files, not a historical object."""
-    candidates = _git_command(["ls-files"]).splitlines()
-    discovered: dict[str, str] = {}
-    for name in candidates:
-        if Path(name).parent != Path(".") or not (
-            fnmatch(name, "requirements*.in")
-            or fnmatch(name, "requirements*.txt")
-            or name == "constraints.txt"
-        ):
-            continue
-        text = (REPO_ROOT / name).read_text(encoding="utf-8")
-        occurrences = _cryptography_versions_from_text(name, text)
-        if not occurrences:
-            continue
-        assert len(occurrences) == 1, f"{name}: duplicate cryptography occurrences are forbidden"
-        discovered[name] = text
-    assert discovered, "current worktree: no tracked cryptography requirement surfaces discovered"
-    return discovered
-
-
 def _cryptography_versions_from_text(surface_name: str, text: str) -> list[Version]:
     """Return every cryptography floor/pin so absence and duplication stay distinct."""
     path = REPO_ROOT / surface_name
@@ -396,8 +380,149 @@ def _semantic_requirements(text: str, path: Path) -> dict[str, tuple[str, ...]]:
             continue
         req = _parse_requirement(line, path)
         if req is not None:
-            parsed.setdefault(_normalized_package_name(req.name), []).append(str(req.specifier))
+            extras = ",".join(sorted(canonicalize_name(extra) for extra in req.extras))
+            marker = str(req.marker) if req.marker is not None else ""
+            parsed.setdefault(_normalized_package_name(req.name), []).append(
+                "|".join((extras, str(req.specifier), marker, req.url or ""))
+            )
     return {name: tuple(sorted(specifiers)) for name, specifiers in parsed.items()}
+
+
+def _semantic_sha256(text: str, path: Path) -> str:
+    """Hash normalized requirement meaning, independent of line relocation."""
+    canonical = json.dumps(
+        _semantic_requirements(text, path),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _validate_selected_target(
+    surface_name: str,
+    surface_class: str,
+    requirement_text: str,
+    target_text: str,
+) -> Version:
+    """Validate the package, full target membership, and compiled exact pin."""
+    requirement = Requirement(requirement_text)
+    assert (
+        _normalized_package_name(requirement.name) == "cryptography"
+    ), f"{surface_name}: snapshot requirement must name cryptography"
+    target = Version(target_text)
+    assert (
+        target in requirement.specifier
+    ), f"{surface_name}: selected target {target} must be contained by recorded requirement"
+    if surface_class == "C_R":
+        specifiers = tuple(requirement.specifier)
+        assert (
+            len(specifiers) == 1
+            and specifiers[0].operator == "=="
+            and specifiers[0].version == target_text
+        ), f"{surface_name}: compiled snapshot must contain exactly one =={target} pin"
+    return target
+
+
+def _is_lowercase_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _load_admission_snapshot() -> dict:
+    document = ADMISSION_DOC_PATH.read_text(encoding="utf-8")
+    assert document.count(SNAPSHOT_START) == 1, "snapshot must have exactly one start marker"
+    assert document.count(SNAPSHOT_END) == 1, "snapshot must have exactly one end marker"
+    start = document.index(SNAPSHOT_START)
+    end = document.index(SNAPSHOT_END)
+    assert start < end, "snapshot markers must appear in start/end order"
+    payload_lines = document[start + len(SNAPSHOT_START) : end].strip().splitlines()
+    assert (
+        len(payload_lines) == 2 and payload_lines[0] == SNAPSHOT_ALLOWLIST_LINE
+    ), "snapshot markers must contain exactly one allowlist line and one JSON object line"
+    try:
+        snapshot = json.loads(payload_lines[1])
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"invalid dependency-remediation admission snapshot: {exc}")
+    assert isinstance(snapshot, dict), "snapshot JSON root must be an object"
+    assert set(snapshot) == {
+        "advisories",
+        "base",
+        "cutoff",
+        "snapshot_kind",
+        "surfaces",
+        "target",
+    }, "snapshot top-level keys must match the v1 contract exactly"
+    assert snapshot["snapshot_kind"] == SNAPSHOT_KIND
+    assert snapshot["base"] == CRYPTOGRAPHY_REMEDIATION_BASE
+    assert snapshot["cutoff"] == SNAPSHOT_CUTOFF
+    assert snapshot["target"] == SNAPSHOT_TARGET
+    assert snapshot["advisories"] == CRYPTOGRAPHY_F_CUTOFF
+    surfaces = snapshot["surfaces"]
+    assert isinstance(surfaces, dict), "snapshot surfaces must be an object"
+    assert set(surfaces) == set(
+        CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES
+    ), "snapshot must contain exactly the ten governed surfaces"
+    for name in CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES:
+        record = surfaces[name]
+        assert isinstance(record, dict), f"{name}: snapshot record must be an object"
+        expected_record_keys = {
+            "class",
+            "requirement",
+            "semantic_sha256",
+        }
+        expected_class = "I_R" if name in CRYPTOGRAPHY_INTENT_SURFACES else "C_R"
+        if expected_class == "C_R":
+            expected_record_keys.add("file_sha256")
+        assert (
+            set(record) == expected_record_keys
+        ), f"{name}: snapshot record keys must match its v1 class exactly"
+        assert record["class"] == expected_class, f"{name}: snapshot class mismatch"
+        assert (
+            isinstance(record["requirement"], str) and record["requirement"].strip()
+        ), f"{name}: snapshot requirement must be non-empty"
+        _validate_selected_target(
+            name,
+            expected_class,
+            record["requirement"],
+            snapshot["target"],
+        )
+        assert _is_lowercase_sha256(
+            record["semantic_sha256"]
+        ), f"{name}: semantic_sha256 must be a lowercase 64-hex digest"
+        if expected_class == "C_R":
+            assert _is_lowercase_sha256(
+                record["file_sha256"]
+            ), f"{name}: file_sha256 must be a lowercase 64-hex digest"
+    return snapshot
+
+
+def _reconstruct_snapshot_head(base_texts: dict[str, str], snapshot: dict) -> dict[str, str]:
+    reconstructed: dict[str, str] = {}
+    for name, base_text in base_texts.items():
+        replacement = snapshot["surfaces"][name]["requirement"]
+        lines = []
+        replaced = False
+        for raw in base_text.splitlines():
+            requirement = _parse_requirement(raw.split("#", 1)[0].strip(), REPO_ROOT / name)
+            if (
+                requirement is not None
+                and _normalized_package_name(requirement.name) == "cryptography"
+            ):
+                lines.append(replacement)
+                replaced = True
+            else:
+                lines.append(raw)
+        assert replaced, f"{name}: snapshot reconstruction missing base cryptography witness"
+        reconstructed[name] = "\n".join(lines) + "\n"
+    return reconstructed
+
+
+def _historical_snapshot_texts() -> tuple[dict[str, str], dict[str, str]]:
+    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
+    return base_texts, _reconstruct_snapshot_head(base_texts, _load_admission_snapshot())
 
 
 def _derive_material_transitions(
@@ -419,12 +544,42 @@ def _derive_material_transitions(
     return transitions
 
 
-def _assert_compiled_replay_receipts(head_texts: dict[str, str]) -> None:
-    """Bind current C_R bytes to the recorded serialized replay receipts."""
+def _assert_snapshot_receipts(snapshot: dict, head_texts: dict[str, str]) -> None:
+    """Bind reconstructed meaning and frozen C_R byte receipts to the owner snapshot."""
+    assert set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    for name, text in head_texts.items():
+        actual_hash = _semantic_sha256(text, REPO_ROOT / name)
+        assert (
+            actual_hash == snapshot["surfaces"][name]["semantic_sha256"]
+        ), f"{name}: snapshot semantic receipt mismatch"
     assert set(CRYPTOGRAPHY_COMPILED_REPLAY_SHA256) == set(CRYPTOGRAPHY_COMPILED_SURFACES)
     for name, expected_hash in CRYPTOGRAPHY_COMPILED_REPLAY_SHA256.items():
-        actual_hash = hashlib.sha256(head_texts[name].encode("utf-8")).hexdigest()
-        assert actual_hash == expected_hash, f"{name}: compiled replay receipt mismatch"
+        assert (
+            snapshot["surfaces"][name]["file_sha256"] == expected_hash
+        ), f"{name}: compiled replay receipt mismatch"
+
+
+def _historical_admission_inputs() -> tuple[
+    dict,
+    dict[str, Version],
+    dict[str, Version],
+    dict[str, str],
+]:
+    """Build immutable admission inputs without reading live requirement surfaces."""
+    snapshot = _load_admission_snapshot()
+    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
+    head_texts = _reconstruct_snapshot_head(base_texts, snapshot)
+    assert set(base_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    assert set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
+    _assert_snapshot_receipts(snapshot, head_texts)
+    base_occurrences = {
+        name: _cryptography_version_from_text(name, text) for name, text in base_texts.items()
+    }
+    head_occurrences = {
+        name: _cryptography_version_from_text(name, text) for name, text in head_texts.items()
+    }
+    transitions = _derive_material_transitions(base_texts, head_texts)
+    return snapshot, base_occurrences, head_occurrences, transitions
 
 
 def _assert_cryptography_remediation_admission(
@@ -549,23 +704,11 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
 def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
     """Admission v1 closes the base/head/advisory transition proof over ten surfaces."""
     _git_command(["merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE, "HEAD"])
-    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
-    head_texts = _discover_current_cryptography_surfaces()
-    assert set(base_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
-    assert set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
-    assert set(base_texts) | set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
-    base_occurrences = {
-        name: _cryptography_version_from_text(name, text) for name, text in base_texts.items()
-    }
-    head_occurrences = {
-        name: _cryptography_version_from_text(name, text) for name, text in head_texts.items()
-    }
-    transitions = _derive_material_transitions(base_texts, head_texts)
-    _assert_compiled_replay_receipts(head_texts)
+    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
     _assert_cryptography_remediation_admission(
         base_occurrences=base_occurrences,
         head_occurrences=head_occurrences,
-        advisories=CRYPTOGRAPHY_F_CUTOFF,
+        advisories=snapshot["advisories"],
         material_transitions=transitions,
     )
 
@@ -581,7 +724,7 @@ def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayabl
     for receipt in (
         CRYPTOGRAPHY_REMEDIATION_BASE,
         "2026-08-04T10:18:11Z",
-        CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD,
+        "5383a5bfe5c81eb5b9f07699dd67983d09118882",  # pragma: allowlist secret
         "GHSA-m2h6-j472-rp4c",
         "GHSA-g6cj-pr64-35w5",
         "GHSA-jwv3-5hgf-82ww",
@@ -602,8 +745,7 @@ def test_cryptography_50_admission_rejects_duplicate_surface_occurrence() -> Non
 
 
 def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> None:
-    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
-    head_texts = _discover_current_cryptography_surfaces()
+    base_texts, head_texts = _historical_snapshot_texts()
     head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
         "click==8.3.3", "click==8.3.4", 1
     )
@@ -619,35 +761,35 @@ def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> No
     ),
 )
 def test_cryptography_50_admission_rejects_changed_pip_directive(directive: str) -> None:
-    base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
-    head_texts = _discover_current_cryptography_surfaces()
+    base_texts, head_texts = _historical_snapshot_texts()
     head_texts["requirements.in"] = f"{head_texts['requirements.in']}\n{directive}\n"
     with pytest.raises(AssertionError, match="unrelated semantic transition"):
         _derive_material_transitions(base_texts, head_texts)
 
 
-def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
-    head_texts = _discover_current_cryptography_surfaces()
-    head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
-        "cryptography==50.0.0", "cryptography==50.0.1", 1
-    )
-    with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
-        _assert_compiled_replay_receipts(head_texts)
-
-
-def test_current_admission_discovery_does_not_request_historical_replay_head(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("before", "after"),
+    (
+        ("psycopg[binary]>=3.2.3", "psycopg>=3.2.3"),
+        ('click>=8.3.3; python_version >= "3.12"', 'click>=8.3.3; python_version < "3.12"'),
+    ),
+)
+def test_cryptography_50_admission_rejects_changed_requirement_semantics(
+    before: str, after: str
 ) -> None:
-    requested_commands: list[list[str]] = []
-    original_git_command = _git_command
+    base_texts, head_texts = _historical_snapshot_texts()
+    head_texts["requirements.in"] = f"{head_texts['requirements.in']}\n{after}\n"
+    base_texts["requirements.in"] = f"{base_texts['requirements.in']}\n{before}\n"
+    with pytest.raises(AssertionError, match="unrelated semantic transition"):
+        _derive_material_transitions(base_texts, head_texts)
 
-    def record_git_command(arguments: list[str]) -> str:
-        requested_commands.append(arguments)
-        return original_git_command(arguments)
 
-    monkeypatch.setitem(globals(), "_git_command", record_git_command)
-    _discover_current_cryptography_surfaces()
-    assert all(CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD not in command for command in requested_commands)
+def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
+    snapshot = deepcopy(_load_admission_snapshot())
+    _, head_texts = _historical_snapshot_texts()
+    snapshot["surfaces"]["requirements.txt"]["file_sha256"] = "0" * 64
+    with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
+        _assert_snapshot_receipts(snapshot, head_texts)
 
 
 def test_cryptography_50_admission_reports_noncanonical_base_witness() -> None:
@@ -668,6 +810,62 @@ def test_cryptography_50_admission_reports_noncanonical_base_witness() -> None:
             advisories=CRYPTOGRAPHY_F_CUTOFF,
             material_transitions=transitions,
         )
+
+
+@pytest.mark.parametrize(
+    "requirement_text",
+    (
+        "cryptography>=50.0.0,<50.0.0",
+        "cryptography>=50.0.0,!=50.0.0,<51.0.0",
+    ),
+)
+def test_cryptography_50_admission_rejects_selected_target_exclusion(
+    requirement_text: str,
+) -> None:
+    with pytest.raises(
+        AssertionError,
+        match="selected target 50.0.0 must be contained by recorded requirement",
+    ):
+        _validate_selected_target(
+            "requirements.in",
+            "I_R",
+            requirement_text,
+            "50.0.0",
+        )
+
+
+def test_cryptography_50_admission_rejects_nonexact_compiled_target_pin() -> None:
+    with pytest.raises(AssertionError, match="must contain exactly one ==50.0.0 pin"):
+        _validate_selected_target(
+            "requirements.txt",
+            "C_R",
+            "cryptography>=50.0.0,<51.0.0",
+            "50.0.0",
+        )
+
+
+def test_cryptography_50_historical_snapshot_is_independent_of_future_live_rotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(CURRENT_ENFORCED_RUNTIME_FLOORS, "cryptography", "50.0.1")
+    assert CURRENT_ENFORCED_RUNTIME_FLOORS["cryptography"] == "50.0.1"
+    snapshot, base_occurrences, head_occurrences, transitions = _historical_admission_inputs()
+    assert snapshot["target"] == "50.0.0"
+    assert all(version == Version("50.0.0") for version in head_occurrences.values())
+    assert all(
+        version < Version(CURRENT_ENFORCED_RUNTIME_FLOORS["cryptography"])
+        for version in head_occurrences.values()
+    )
+    assert transitions == {
+        **{name: "I_R" for name in CRYPTOGRAPHY_INTENT_SURFACES},
+        **{name: "C_R" for name in CRYPTOGRAPHY_COMPILED_SURFACES},
+    }
+    _assert_cryptography_remediation_admission(
+        base_occurrences=base_occurrences,
+        head_occurrences=head_occurrences,
+        advisories=snapshot["advisories"],
+        material_transitions=transitions,
+    )
 
 
 @pytest.mark.parametrize(

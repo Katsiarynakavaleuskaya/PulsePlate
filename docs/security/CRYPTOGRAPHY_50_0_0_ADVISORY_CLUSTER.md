@@ -25,15 +25,23 @@ cluster.
 
 ## Dependency-remediation admission v1
 
+<!-- dependency-remediation-admission-v1-snapshot:start -->
+<!-- pragma: allowlist nextline secret -->
+{"advisories":{"GHSA-g6cj-pr64-35w5":">=44.0.0,<50.0.0","GHSA-jwv3-5hgf-82ww":">=0,<49.0.0","GHSA-m2h6-j472-rp4c":">=0,<49.0.0"},"base":"643eb78d01476835523a3e800f1e88cb36f0aa8f","cutoff":"2026-08-04T10:18:11Z","snapshot_kind":"dependency-remediation-admission-v1-evidence","surfaces":{"constraints.txt":{"class":"I_R","requirement":"cryptography>=50.0.0","semantic_sha256":"b1321030ab714549b0def75fd31184c1e95cb8e5a324396c1f0104b64f9123c2"},"requirements-ci-lite.in":{"class":"I_R","requirement":"cryptography>=50.0.0,<51.0.0","semantic_sha256":"166492a510741b17312a6dc3b60ae81430b8dd49b247b6d06f50f28bdbd0d636"},"requirements-ci-lite.txt":{"class":"C_R","file_sha256":"cf7187511aa6c588f74b9d27a1f64c66756bd395a64954ff9c1bb3e4c4641f7d","requirement":"cryptography==50.0.0","semantic_sha256":"4d8d05dfca9638587501e9ae8fcad67a41b2c1cf00aff7e542700a6ab63161b9"},"requirements-dev.in":{"class":"I_R","requirement":"cryptography>=50.0.0,<51.0.0","semantic_sha256":"915e2dcdc79022b54215f95780270098a0046f6e3dcb93172b78c2765a31c14e"},"requirements-dev.txt":{"class":"C_R","file_sha256":"a8414bd336b64ef7e1f6eec0286eb8086f3b6ffbcffe966d7d2972335f744b09","requirement":"cryptography==50.0.0","semantic_sha256":"dc568ac859b84fbbbb0d672541e01706dfd296510f1e37db459799511d064700"},"requirements-docker-runtime.in":{"class":"I_R","requirement":"cryptography>=50.0.0,<51.0.0","semantic_sha256":"58333c7af499e579ea9e7d2cc1fe65b7c9e797b289baac0c8dfdc2e851c2cf12"},"requirements-docker-runtime.txt":{"class":"C_R","file_sha256":"3b263517b8193dda2b57bbea62fbbcf6237dd2b35ca3be7f897d380aa0413467","requirement":"cryptography==50.0.0","semantic_sha256":"cb6665af9567ca1e0328a2ca8e32a2f5ff0a0f69bbc0360037bc4a5434f38aec"},"requirements-lock.txt":{"class":"C_R","file_sha256":"8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20b950cc83f725ec0b4","requirement":"cryptography==50.0.0","semantic_sha256":"6fbe97ae40a782f41b64c804ab4037042d2c01bf5c409d57aaad1c76dc14af79"},"requirements.in":{"class":"I_R","requirement":"cryptography>=50.0.0,<51.0.0","semantic_sha256":"2f52d255c99792efe21b148e9ca888d054e89fa46d697acd16c8be4721300a2b"},"requirements.txt":{"class":"C_R","file_sha256":"8d7e5b6f9e15344ca031060407e6928a57ee82e2a1fdcaaed5f3137de1a61def","requirement":"cryptography==50.0.0","semantic_sha256":"2422e42ed3b35f79f8ba0ed379f7e831ab95cbcfad764c913bccca86cb21cbd6"}},"target":"50.0.0"}
+<!-- dependency-remediation-admission-v1-snapshot:end -->
+
+This uniquely delimited JSON is subordinate evidence for this v1 admission
+only, not a new dependency authority. Its canonical semantic digest is the
+SHA-256 of its sorted-key, compact JSON serialization.
+
 Evidence is closed over reachable base history
-`643eb78d01476835523a3e800f1e88cb36f0aa8f`, the current tracked worktree
-`S_head`, and reconciliation cutoff `2026-08-04T10:18:11Z`; it is not an
-open-world or future-safety claim. The deterministic guard loads only the base
-from Git history, then mechanically enumerates the current tracked worktree as
-`S_head`: four `.in` manifests, `constraints.txt`, and five generated locks.
+`643eb78d01476835523a3e800f1e88cb36f0aa8f`, the frozen owner-document
+snapshot S_head, and reconciliation cutoff `2026-08-04T10:18:11Z`; it is not
+an open-world or future-safety claim. The deterministic guard reconstructs
+historical S_head semantically from the reachable base and snapshot requirements.
 It fails closed unless that base is an ancestor of current `HEAD`.
 At the base every occurrence was `cryptography==48.0.1` (or the corresponding
-`>=48.0.1,<49.0.0` source floor); current `S_head` requires the 50.0.0 floor/pin.
+`>=48.0.1,<49.0.0` source floor); frozen `S_head` requires the 50.0.0 floor/pin.
 
 `F_cutoff` contains exactly these OSV records keyed by their GHSA aliases,
 frozen at their published timestamps and first-patched versions. The exact OSV
@@ -75,8 +83,8 @@ then, after committing that replay intermediate, with
 `LOCK_PROFILES="docker-runtime ci-lite dev aggregate" UPGRADE_PACKAGES="cryptography==50.0.0" make requirements-locks`,
 using the same approved proxy. Historical replay receipt metadata was recorded
 at `5383a5bfe5c81eb5b9f07699dd67983d09118882`; executable admission does not
-request that object. Instead it binds the current five `C_R` lock contents
-directly to these byte-identical SHA-256 receipts:
+request that object. Instead the owner snapshot binds its five `C_R`
+`file_sha256` fields to these byte-identical replay receipts:
 
 ```text
 requirements.txt                 8d7e5b6f9e15344ca031060407e6928a57ee82e2a1fdcaaed5f3137de1a61def
@@ -86,19 +94,22 @@ requirements-dev.txt             a8414bd336b64ef7e1f6eec0286eb8086f3b6ffbcffe966
 requirements-lock.txt            8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20b950cc83f725ec0b4
 ```
 
-The historical replay identifier is documentary receipt metadata only. The
-separate live `REQUIREMENT_SURFACES` floor guard continues to enforce
-`>=50.0.0` on current main and may evolve with later unrelated dependency
-rotations.
+The historical replay identifier and five `C_R.file_sha256` fields are
+immutable documentary receipts only. The executable admission reconstructs the
+frozen `S_head` requirements from reachable base history, binds all ten
+reconstructed semantic digests to the owner snapshot, and validates the five
+`C_R` file receipts against the frozen replay map. It never reads mutable live
+requirement files as historical admission evidence. The separate live schema and
+`REQUIREMENT_SURFACES` floor guard continue to enforce current repository truth
+and may rotate independently after this bounded admission.
 
-Base inventory uses Git history through the guard's `git ls-tree` and `git show`
-operations. Current `S_head` inventory uses `git ls-files` plus direct reads of
-tracked worktree requirement surfaces. Both inventories reconcile to the same
-ten governed surfaces. The exact-head
-`pip-audit -r requirements.txt --no-deps --disable-pip -f json` exits 0 with
-`No known vulnerabilities found` and `cryptography==50.0.0` `vulns: []`.
-These finite command receipts bind the current transition only and do not make
-an all-future safety claim.
+Base inventory uses reachable Git history through the guard's `git ls-tree`
+and `git show` operations. The owner snapshot fixes exactly ten historical
+`S_head` records and reconciles them to that base inventory. The recorded
+exact-head `pip-audit -r requirements.txt --no-deps --disable-pip -f json`
+receipt exited 0 with `No known vulnerabilities found` and
+`cryptography==50.0.0` `vulns: []`. These finite receipts bind only the frozen
+remediation observation and do not make an all-future safety claim.
 
 ## Reachability context
 
