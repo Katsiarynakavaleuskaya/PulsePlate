@@ -409,6 +409,11 @@ def _validate_selected_target(
     assert (
         _normalized_package_name(requirement.name) == "cryptography"
     ), f"{surface_name}: snapshot requirement must name cryptography"
+    assert not requirement.extras, f"{surface_name}: snapshot requirement must not declare extras"
+    assert requirement.marker is None, f"{surface_name}: snapshot requirement must not use a marker"
+    assert (
+        requirement.url is None
+    ), f"{surface_name}: snapshot requirement must not use a direct URL"
     target = Version(target_text)
     assert (
         target in requirement.specifier
@@ -840,6 +845,45 @@ def test_cryptography_50_admission_rejects_nonexact_compiled_target_pin() -> Non
             "requirements.txt",
             "C_R",
             "cryptography>=50.0.0,<51.0.0",
+            "50.0.0",
+        )
+
+
+@pytest.mark.parametrize(
+    ("surface_class", "requirement_text", "message"),
+    (
+        (
+            "I_R",
+            'cryptography>=50.0.0,<51.0.0; python_version < "0"',
+            "must not use a marker",
+        ),
+        (
+            "C_R",
+            'cryptography==50.0.0; python_version < "0"',
+            "must not use a marker",
+        ),
+        (
+            "I_R",
+            "cryptography @ https://example.invalid/cryptography-50.0.0.whl",
+            "must not use a direct URL",
+        ),
+        (
+            "I_R",
+            "cryptography[ssh]>=50.0.0,<51.0.0",
+            "must not declare extras",
+        ),
+    ),
+)
+def test_cryptography_50_admission_rejects_noncanonical_requirement_carrier(
+    surface_class: str,
+    requirement_text: str,
+    message: str,
+) -> None:
+    with pytest.raises(AssertionError, match=message):
+        _validate_selected_target(
+            "requirements.in",
+            surface_class,
+            requirement_text,
             "50.0.0",
         )
 
