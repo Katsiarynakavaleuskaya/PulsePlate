@@ -456,6 +456,13 @@ validated in v1. Run `make verify` from repo root and do not rely on an
 externally activated interpreter: `verify-env` requires the repo `.venv`
 interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
+**Host-native binary-wheel recovery boundary (dated 2026-08-04):** use the
+host only with an approved compatible binary wheel for the exact locked pin,
+interpreter, and platform. Current `cryptography==50.0.0` Intel macOS evidence
+lacks `x86_64` and `universal2` artifacts, so use the devcontainer. A
+source-build fallback is not supported. This is a dated artifact observation,
+not a permanent availability claim.
+
 ## Python private index proxy (`PULSEPLATE_PYTHON_INDEX_URL`) triage
 
 **Canonical contract:** see `docs/DEPENDENCY_MANAGEMENT.md` and `scripts/ci/install_locked_python_requirements.py`. Installs must use the approved proxy; public PyPI hosts are blocked for the canonical installer path.

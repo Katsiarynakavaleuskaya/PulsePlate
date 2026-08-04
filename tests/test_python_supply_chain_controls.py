@@ -685,6 +685,102 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
 
 
+def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> None:
+    contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    runbook = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+    advisory = (
+        REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
+    ).read_text(encoding="utf-8")
+
+    approved_proxy_export = 'export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"'
+    assert approved_proxy_export in contributing
+    assert approved_proxy_export in dependency_docs
+    assert (
+        f"{approved_proxy_export}\nmake venv\nsource .venv/bin/activate\nmake dev"
+    ) in contributing
+    assert "make venv-sync" in dependency_docs
+    assert "Local Development Bootstrap" in dependency_docs
+
+    for document in (contributing, dependency_docs, advisory):
+        normalized = " ".join(document.casefold().split())
+        assert "2026-08-04" in normalized
+        assert "50.0.0" in normalized
+        assert "approved proxy" in normalized
+        assert "compatible binary wheel" in normalized
+        assert "intel macos" in normalized
+        assert "devcontainer" in normalized
+        assert "ios/xcode" in normalized
+        assert "host-native" in normalized
+        assert "source-build fallback is not supported" in normalized
+
+    normalized_advisory = " ".join(advisory.casefold().split())
+    assert "46 exact artifacts" in normalized_advisory
+    assert "macos arm64" in normalized_advisory
+    assert "x86_64" in normalized_advisory
+    assert "universal2" in normalized_advisory
+    assert "133 consumer tests" in normalized_advisory
+
+    normalized_runbook = " ".join(runbook.casefold().split())
+    for recovery_boundary in (
+        "2026-08-04",
+        "cryptography==50.0.0",
+        "host only with an approved compatible binary wheel",
+        "intel macos",
+        "x86_64",
+        "universal2",
+        "use the devcontainer",
+        "source-build fallback is not supported",
+        "not a permanent availability claim",
+    ):
+        assert recovery_boundary in normalized_runbook
+
+    wheelhouse = Path("/tmp/pulseplate-wheelhouse")
+    requirement_file = Path("requirements.txt")
+    constraints_file = Path("constraints.txt")
+    index_url = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+    download_command = locked_installer.build_pip_download_command(
+        python_executable="/usr/bin/python3",
+        requirement_file=requirement_file,
+        wheelhouse_dir=wheelhouse,
+        constraints_file=constraints_file,
+        index_url=index_url,
+        trusted_host=None,
+    )
+    proxy_command = locked_installer.build_pip_proxy_install_command(
+        python_executable="/usr/bin/python3",
+        requirement_file=requirement_file,
+        constraints_file=constraints_file,
+        index_url=index_url,
+        trusted_host=None,
+        allow_pip_download_cache=True,
+    )
+    for command in (download_command, proxy_command):
+        assert ["--only-binary", ":all:"] == command[
+            command.index("--only-binary") : command.index("--only-binary") + 2
+        ]
+        assert "--no-binary" not in command
+
+    hermetic_command = locked_installer.build_pip_install_command(
+        python_executable="/usr/bin/python3",
+        requirement_file=requirement_file,
+        wheelhouse_dir=wheelhouse,
+        constraints_file=constraints_file,
+    )
+    assert "--no-index" in hermetic_command
+    assert ["--find-links", str(wheelhouse)] == hermetic_command[
+        hermetic_command.index("--find-links") : hermetic_command.index("--find-links") + 2
+    ]
+    assert download_command[download_command.index("--dest") + 1] == str(wheelhouse)
+    assert hermetic_command[hermetic_command.index("--find-links") + 1] == str(wheelhouse)
+    active_artifacts = locked_installer.load_emergency_wheel_manifest(
+        REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
+    )
+    assert not any(
+        canonicalize_name(artifact["package"]) == "cryptography" for artifact in active_artifacts
+    )
+
+
 def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     ci_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     security_text = (REPO_ROOT / ".github" / "workflows" / "security.yml").read_text(
@@ -1577,9 +1673,6 @@ def test_dependency_docs_document_httpx2_testclient_backend_boundary() -> None:
         assert "httpx2" in docs_text
         assert "starlette testclient backend" in normalized_docs
         assert "runtime, docker runtime, and ci-lite" in normalized_docs
-
-    assert "make venv-sync" in dependency_docs
-    assert "Local Development (Recommended: make venv-sync)" in dependency_docs
 
 
 def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:
