@@ -688,6 +688,7 @@ def test_local_bootstrap_surfaces_use_locked_installer_and_virtualenv_guard() ->
 def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> None:
     contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    runbook = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
     advisory = (
         REPO_ROOT / "docs" / "security" / "CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md"
     ).read_text(encoding="utf-8")
@@ -719,6 +720,20 @@ def test_local_bootstrap_docs_bind_cryptography_50_binary_wheel_boundary() -> No
     assert "x86_64" in normalized_advisory
     assert "universal2" in normalized_advisory
     assert "133 consumer tests" in normalized_advisory
+
+    normalized_runbook = " ".join(runbook.casefold().split())
+    for recovery_boundary in (
+        "2026-08-04",
+        "cryptography==50.0.0",
+        "host only with an approved compatible binary wheel",
+        "intel macos",
+        "x86_64",
+        "universal2",
+        "use the devcontainer",
+        "source-build fallback is not supported",
+        "not a permanent availability claim",
+    ):
+        assert recovery_boundary in normalized_runbook
 
     wheelhouse = Path("/tmp/pulseplate-wheelhouse")
     requirement_file = Path("requirements.txt")

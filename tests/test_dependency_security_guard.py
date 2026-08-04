@@ -568,7 +568,15 @@ def _assert_snapshot_receipts(snapshot: dict, head_texts: dict[str, str]) -> Non
     for name in sorted(snapshot_surfaces):
         text = head_texts[name]
         record = snapshot["surfaces"][name]
-        semantic_hash = _semantic_sha256(text, REPO_ROOT / name)
+        surface_path = REPO_ROOT / name
+        actual_carrier = _semantic_requirements(text, surface_path).get("cryptography")
+        recorded_carrier = _semantic_requirements(record["requirement"], surface_path).get(
+            "cryptography"
+        )
+        assert (
+            actual_carrier == recorded_carrier
+        ), f"{name}: cryptography carrier semantics mismatch"
+        semantic_hash = _semantic_sha256(text, surface_path)
         assert (
             semantic_hash == record["semantic_sha256"]
         ), f"{name}: snapshot semantic receipt mismatch"
@@ -814,6 +822,42 @@ def test_cryptography_50_admission_rejects_snapshot_head_inventory_drift() -> No
     renamed_head_texts["renamed-requirements.txt"] = renamed_head_texts.pop("requirements.txt")
     with pytest.raises(AssertionError, match="independently discovered S_head inventory"):
         _assert_snapshot_receipts(snapshot, renamed_head_texts)
+
+
+@pytest.mark.parametrize(
+    ("surface_name", "surface_class", "replacement"),
+    (
+        (
+            "requirements.in",
+            "I_R",
+            'cryptography>=50.0.0,<51.0.0; python_version >= "0"',
+        ),
+        (
+            "requirements.txt",
+            "C_R",
+            "cryptography[ssh]==50.0.0",
+        ),
+    ),
+)
+def test_cryptography_50_admission_rejects_carrier_semantics_mismatch(
+    surface_name: str,
+    surface_class: str,
+    replacement: str,
+) -> None:
+    loaded_snapshot, _, loaded_head_texts = _historical_snapshot_evidence()
+    snapshot = deepcopy(loaded_snapshot)
+    head_texts = dict(loaded_head_texts)
+    record = snapshot["surfaces"][surface_name]
+    assert record["class"] == surface_class
+    assert head_texts[surface_name].count(record["requirement"]) == 1
+    head_texts[surface_name] = head_texts[surface_name].replace(
+        record["requirement"], replacement, 1
+    )
+    record["semantic_sha256"] = _semantic_sha256(head_texts[surface_name], REPO_ROOT / surface_name)
+    if surface_class == "C_R":
+        record["file_sha256"] = hashlib.sha256(head_texts[surface_name].encode("utf-8")).hexdigest()
+    with pytest.raises(AssertionError, match="cryptography carrier semantics mismatch"):
+        _assert_snapshot_receipts(snapshot, head_texts)
 
 
 def test_cryptography_50_admission_reports_noncanonical_base_witness() -> None:
