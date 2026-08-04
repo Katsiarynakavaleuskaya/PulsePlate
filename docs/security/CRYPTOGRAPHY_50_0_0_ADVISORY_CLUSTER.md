@@ -25,17 +25,15 @@ cluster.
 
 ## Dependency-remediation admission v1
 
-Evidence is closed over base `643eb78d01476835523a3e800f1e88cb36f0aa8f`,
-fixed dependency-material head `5383a5bfe5c81eb5b9f07699dd67983d09118882`,
-and reconciliation cutoff `2026-08-04T10:18:11Z`; it is not an open-world or
-future-safety claim.
-Its direct parent is exactly base `643eb78d01476835523a3e800f1e88cb36f0aa8f`
-(`git rev-parse 5383a5bfe5c81eb5b9f07699dd67983d09118882^`).
-The deterministic guard mechanically enumerates `S_base` and `S_head` as the
-same ten governed surfaces: four `.in` manifests, `constraints.txt`, and five
-generated locks. At the base every occurrence was `cryptography==48.0.1` (or
-the corresponding `>=48.0.1,<49.0.0` source floor); at the head every occurrence
-is the required 50.0.0 floor/pin.
+Evidence is closed over reachable base history
+`643eb78d01476835523a3e800f1e88cb36f0aa8f`, the current tracked worktree
+`S_head`, and reconciliation cutoff `2026-08-04T10:18:11Z`; it is not an
+open-world or future-safety claim. The deterministic guard loads only the base
+from Git history, then mechanically enumerates the current tracked worktree as
+`S_head`: four `.in` manifests, `constraints.txt`, and five generated locks.
+It fails closed unless that base is an ancestor of current `HEAD`.
+At the base every occurrence was `cryptography==48.0.1` (or the corresponding
+`>=48.0.1,<49.0.0` source floor); current `S_head` requires the 50.0.0 floor/pin.
 
 `F_cutoff` contains exactly these OSV records keyed by their GHSA aliases,
 frozen at their published timestamps and first-patched versions. The exact OSV
@@ -75,8 +73,10 @@ The serialized replay applied only `I_R` edits in a temporary clone, first with
 `LOCK_PROFILES="runtime" UPGRADE_PACKAGES="cryptography==50.0.0" make requirements-locks`,
 then, after committing that replay intermediate, with
 `LOCK_PROFILES="docker-runtime ci-lite dev aggregate" UPGRADE_PACKAGES="cryptography==50.0.0" make requirements-locks`,
-using the same approved proxy. Each resulting `C_R` file had `cmp` exit 0
-against fixed head `5383a5bfe5c81eb5b9f07699dd67983d09118882` and SHA-256:
+using the same approved proxy. Historical replay receipt metadata was recorded
+at `5383a5bfe5c81eb5b9f07699dd67983d09118882`; executable admission does not
+request that object. Instead it binds the current five `C_R` lock contents
+directly to these byte-identical SHA-256 receipts:
 
 ```text
 requirements.txt                 8d7e5b6f9e15344ca031060407e6928a57ee82e2a1fdcaaed5f3137de1a61def
@@ -86,13 +86,15 @@ requirements-dev.txt             a8414bd336b64ef7e1f6eec0286eb8086f3b6ffbcffe966
 requirements-lock.txt            8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20b950cc83f725ec0b4
 ```
 
-This immutable historical head is admission evidence only. The separate live
-`REQUIREMENT_SURFACES` floor guard continues to enforce `>=50.0.0` on current
-main and may evolve with later unrelated dependency rotations.
+The historical replay identifier is documentary receipt metadata only. The
+separate live `REQUIREMENT_SURFACES` floor guard continues to enforce
+`>=50.0.0` on current main and may evolve with later unrelated dependency
+rotations.
 
-The exact enumeration command is `git grep -n -i '^cryptography'
-<base-or-head> -- 'requirements*.in' 'requirements*.txt' 'constraints.txt'`;
-it returns the same ten governed surfaces at base and head. The exact-head
+Base inventory uses Git history through the guard's `git ls-tree` and `git show`
+operations. Current `S_head` inventory uses `git ls-files` plus direct reads of
+tracked worktree requirement surfaces. Both inventories reconcile to the same
+ten governed surfaces. The exact-head
 `pip-audit -r requirements.txt --no-deps --disable-pip -f json` exits 0 with
 `No known vulnerabilities found` and `cryptography==50.0.0` `vulns: []`.
 These finite command receipts bind the current transition only and do not make

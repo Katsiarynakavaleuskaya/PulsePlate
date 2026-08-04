@@ -38,7 +38,7 @@ REQUIREMENT_SURFACES = (
 CRYPTOGRAPHY_REMEDIATION_BASE = (
     "643eb78d01476835523a3e800f1e88cb36f0aa8f"  # pragma: allowlist secret
 )
-CRYPTOGRAPHY_REMEDIATION_HEAD = (
+CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD = (
     "5383a5bfe5c81eb5b9f07699dd67983d09118882"  # pragma: allowlist secret
 )
 CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES = (
@@ -338,6 +338,27 @@ def _discover_cryptography_surfaces(revision: str) -> dict[str, str]:
     return discovered
 
 
+def _discover_current_cryptography_surfaces() -> dict[str, str]:
+    """Discover S_head from current tracked worktree files, not a historical object."""
+    candidates = _git_command(["ls-files"]).splitlines()
+    discovered: dict[str, str] = {}
+    for name in candidates:
+        if Path(name).parent != Path(".") or not (
+            fnmatch(name, "requirements*.in")
+            or fnmatch(name, "requirements*.txt")
+            or name == "constraints.txt"
+        ):
+            continue
+        text = (REPO_ROOT / name).read_text(encoding="utf-8")
+        occurrences = _cryptography_versions_from_text(name, text)
+        if not occurrences:
+            continue
+        assert len(occurrences) == 1, f"{name}: duplicate cryptography occurrences are forbidden"
+        discovered[name] = text
+    assert discovered, "current worktree: no tracked cryptography requirement surfaces discovered"
+    return discovered
+
+
 def _cryptography_versions_from_text(surface_name: str, text: str) -> list[Version]:
     """Return every cryptography floor/pin so absence and duplication stay distinct."""
     path = REPO_ROOT / surface_name
@@ -395,7 +416,7 @@ def _derive_material_transitions(
 
 
 def _assert_compiled_replay_receipts(head_texts: dict[str, str]) -> None:
-    """Bind C_R to the byte-identical, serialized replay output at the fixed head."""
+    """Bind current C_R bytes to the recorded serialized replay receipts."""
     assert set(CRYPTOGRAPHY_COMPILED_REPLAY_SHA256) == set(CRYPTOGRAPHY_COMPILED_SURFACES)
     for name, expected_hash in CRYPTOGRAPHY_COMPILED_REPLAY_SHA256.items():
         actual_hash = hashlib.sha256(head_texts[name].encode("utf-8")).hexdigest()
@@ -521,11 +542,9 @@ def test_dependency_security_guard_rejects_former_cryptography_floor(
 
 def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayable() -> None:
     """Admission v1 closes the base/head/advisory transition proof over ten surfaces."""
-    assert _git_command(["rev-parse", f"{CRYPTOGRAPHY_REMEDIATION_HEAD}^"]).strip() == (
-        CRYPTOGRAPHY_REMEDIATION_BASE
-    )
+    _git_command(["merge-base", "--is-ancestor", CRYPTOGRAPHY_REMEDIATION_BASE, "HEAD"])
     base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
-    head_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_HEAD)
+    head_texts = _discover_current_cryptography_surfaces()
     assert set(base_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
     assert set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
     assert set(base_texts) | set(head_texts) == set(CRYPTOGRAPHY_GOVERNED_SURFACE_NAMES)
@@ -556,8 +575,7 @@ def test_cryptography_50_dependency_remediation_admission_is_exact_and_replayabl
     for receipt in (
         CRYPTOGRAPHY_REMEDIATION_BASE,
         "2026-08-04T10:18:11Z",
-        CRYPTOGRAPHY_REMEDIATION_HEAD,
-        f"git rev-parse {CRYPTOGRAPHY_REMEDIATION_HEAD}^",
+        CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD,
         "GHSA-m2h6-j472-rp4c",
         "GHSA-g6cj-pr64-35w5",
         "GHSA-jwv3-5hgf-82ww",
@@ -579,7 +597,7 @@ def test_cryptography_50_admission_rejects_duplicate_surface_occurrence() -> Non
 
 def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> None:
     base_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_BASE)
-    head_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_HEAD)
+    head_texts = _discover_current_cryptography_surfaces()
     head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
         "click==8.3.3", "click==8.3.4", 1
     )
@@ -588,12 +606,27 @@ def test_cryptography_50_admission_rejects_unrelated_semantic_transition() -> No
 
 
 def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
-    head_texts = _discover_cryptography_surfaces(CRYPTOGRAPHY_REMEDIATION_HEAD)
+    head_texts = _discover_current_cryptography_surfaces()
     head_texts["requirements.txt"] = head_texts["requirements.txt"].replace(
         "cryptography==50.0.0", "cryptography==50.0.1", 1
     )
     with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
         _assert_compiled_replay_receipts(head_texts)
+
+
+def test_current_admission_discovery_does_not_request_historical_replay_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_commands: list[list[str]] = []
+    original_git_command = _git_command
+
+    def record_git_command(arguments: list[str]) -> str:
+        requested_commands.append(arguments)
+        return original_git_command(arguments)
+
+    monkeypatch.setitem(globals(), "_git_command", record_git_command)
+    _discover_current_cryptography_surfaces()
+    assert all(CRYPTOGRAPHY_HISTORICAL_REPLAY_HEAD not in command for command in requested_commands)
 
 
 @pytest.mark.parametrize(
