@@ -37,8 +37,9 @@ SHA-256 of its sorted-key, compact JSON serialization.
 Evidence is closed over reachable base history
 `643eb78d01476835523a3e800f1e88cb36f0aa8f`, the frozen owner-document
 snapshot S_head, and reconciliation cutoff `2026-08-04T10:18:11Z`; it is not
-an open-world or future-safety claim. The deterministic guard reconstructs
-historical S_head semantically from the reachable base and snapshot requirements.
+an open-world or future-safety claim. The deterministic guard independently
+discovers historical S_head and its owner snapshot at the unique reachable
+snapshot-introduction revision.
 It fails closed unless that base is an ancestor of current `HEAD`.
 At the base every occurrence was `cryptography==48.0.1` (or the corresponding
 `>=48.0.1,<49.0.0` source floor); frozen `S_head` requires the 50.0.0 floor/pin.
@@ -95,11 +96,11 @@ requirements-lock.txt            8dbd199fb77e532079af840d3ebf2ff91dd4a5d1ce08d20
 ```
 
 The historical replay identifier and five `C_R.file_sha256` fields are
-immutable documentary receipts only. The executable admission reconstructs the
-frozen `S_head` requirements from reachable base history, binds all ten
-reconstructed semantic digests to the owner snapshot, and validates the five
-`C_R` file receipts against the frozen replay map. It never reads mutable live
-requirement files as historical admission evidence. The separate live schema and
+immutable documentary receipts only. The executable admission binds all ten
+discovered semantic digests to the owner snapshot and hashes the five actual
+`C_R` lock byte streams directly against their `file_sha256` receipts. It never
+reads mutable live requirement files as historical admission evidence. The
+separate live schema and
 `REQUIREMENT_SURFACES` floor guard continue to enforce current repository truth
 and may rotate independently after this bounded admission.
 
