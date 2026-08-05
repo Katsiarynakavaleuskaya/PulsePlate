@@ -1714,7 +1714,7 @@ def test_rag_metadata_boundary_uses_bounded_visible_exact_strings(
 
 
 @pytest.mark.parametrize(
-    ("chunks", "expected_reason"),
+    ("chunks", "expected_reason", "expected_chunk_redactions"),
     [
         pytest.param(
             [
@@ -1725,6 +1725,7 @@ def test_rag_metadata_boundary_uses_bounded_visible_exact_strings(
                 )
             ],
             RAGDegradedReason.FORMATTED_CONTEXT_EMPTY,
+            [],
             id="sanitization-empty",
         ),
         pytest.param(
@@ -1736,6 +1737,7 @@ def test_rag_metadata_boundary_uses_bounded_visible_exact_strings(
                 )
             ],
             RAGDegradedReason.REDACTED_CONTEXT_EMPTY,
+            ["# Source: docs/private.md (score=0.90)"],
             id="redaction-empty",
         ),
         pytest.param(
@@ -1754,6 +1756,7 @@ def test_rag_metadata_boundary_uses_bounded_visible_exact_strings(
                 ),
             ],
             RAGDegradedReason.FORMATTED_CONTEXT_EMPTY,
+            [],
             id="metadata-invalid",
         ),
     ],
@@ -1761,6 +1764,7 @@ def test_rag_metadata_boundary_uses_bounded_visible_exact_strings(
 def test_all_unusable_survivors_fail_closed_before_publication(
     chunks: list[RAGChunk],
     expected_reason: RAGDegradedReason,
+    expected_chunk_redactions: list[str],
 ) -> None:
     """Unusable final snapshots publish no RAG carriers."""
     rag_ctx = _make_rag_context(chunks=chunks, confidence=0.9)
@@ -1769,7 +1773,14 @@ def test_all_unusable_survivors_fail_closed_before_publication(
         patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
         patch("core.rag.vector_rag.retrieve_context_structured"),
         patch("core.rag.formatting.format_rag_chunks_for_prompt") as format_prompt,
-        patch("core.insight.safety.redact_rag_context_for_insight") as redact_context,
+        patch(
+            "core.rag.formatting.redact_rag_context_for_insight",
+            wraps=redact_rag_context_for_insight,
+        ) as redact_chunk,
+        patch(
+            "core.insight.safety.redact_rag_context_for_insight",
+            wraps=redact_rag_context_for_insight,
+        ) as redact_context,
         patch("core.rag.orchestration._build_knowledge_candidates") as build_candidates,
     ):
         result = asyncio.run(
@@ -1792,6 +1803,7 @@ def test_all_unusable_survivors_fail_closed_before_publication(
     assert result.knowledge_candidates == []
     assert result.knowledge_candidates_canonical is False
     format_prompt.assert_not_called()
+    assert redact_chunk.call_args_list == [call(value) for value in expected_chunk_redactions]
     assert redact_context.call_args_list == [call("How can I plan balanced meals?")]
     build_candidates.assert_not_called()
     assert result.verification_bundle is not None

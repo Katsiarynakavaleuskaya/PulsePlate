@@ -132,11 +132,13 @@ class TestMedicalBoundaryRule:
             score=0.74,
             file="/private/SENTINEL_MEDICAL_PATH_TWO.md",
         )
-        result = validate_rag_chunks([c1, c2])
+        with caplog.at_level(logging.DEBUG, logger="core.rag.validation"):
+            result = validate_rag_chunks([c1, c2])
         assert result.passed is False
         assert result.rejected_count == 2
         assert len(result.filtered_chunks) == 0
         assert result.warnings == ["medical_boundary", "medical_boundary"]
+        assert [record for record in caplog.records if record.name == "core.rag.validation"] == []
         diagnostic_payload = repr(result.warnings) + caplog.text
         for sentinel in (
             "SENTINEL_MEDICAL",
@@ -198,9 +200,11 @@ class TestWeaselWordRule:
             score=0.82,
             file="/private/SENTINEL_WEASEL_PATH_TWO.md",
         )
-        result = validate_rag_chunks([c1, c2])
+        with caplog.at_level(logging.DEBUG, logger="core.rag.validation"):
+            result = validate_rag_chunks([c1, c2])
         assert len(result.filtered_chunks) == 2  # Both kept
         assert result.warnings == ["weasel_word", "weasel_word"]
+        assert [record for record in caplog.records if record.name == "core.rag.validation"] == []
         diagnostic_payload = repr(result.warnings) + caplog.text
         for sentinel in (
             "SENTINEL_WEASEL",
