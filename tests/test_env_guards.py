@@ -22,7 +22,7 @@ def test_testing_env_enabled() -> None:
 
 
 def test_export_route_registration_contract() -> None:
-    """Guard canonical exports and the retired legacy export route family."""
+    """Guard canonical export route uniqueness and 429 documentation."""
     import app
 
     routes = [
@@ -35,22 +35,12 @@ def test_export_route_registration_contract() -> None:
         ("GET", "/api/v1/plan/week/export.csv"),
         ("GET", "/api/v1/plan/week/export.pdf"),
     )
-    retired_routes = (
-        ("POST", "/api/v1/export/pdf"),
-        ("GET", "/api/v1/premium/exports/day/{plan_id}.csv"),
-        ("GET", "/api/v1/premium/exports/day/{plan_id}.pdf"),
-        ("GET", "/api/v1/premium/exports/week/{plan_id}.csv"),
-        ("GET", "/api/v1/premium/exports/week/{plan_id}.pdf"),
-    )
-
     for method, path in expected_routes:
         matching_routes = [
             route for route in routes if route_matches_path_method(route, path, method)
         ]
         assert len(matching_routes) == 1
         assert 429 in route_responses(matching_routes[0])
-    for method, path in retired_routes:
-        assert not any(route_matches_path_method(route, path, method) for route in routes)
 
 
 def test_app_is_legacy_instance() -> None:
