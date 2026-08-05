@@ -1,12 +1,22 @@
-# SFTY-20260615 Python runtime dependency floors
+# Historical: SFTY-20260615 Python runtime dependency floors
+
+## Status
+
+This document preserves the June 2026 floor rotation. Its `46.0.7` and `48.0.1`
+cryptography states are superseded. Current authority is
+`docs/security/CRYPTOGRAPHY_50_0_0_ADVISORY_CLUSTER.md`; current evidence is
+`requirements.in:43`, `requirements.txt:39`, and
+`tests/fixtures/dependency_security_schema.json:4`. The emergency manifest is
+now the retired empty marker recorded at
+`scripts/ci/emergency_python_wheels.json:5`.
 
 ## Summary
 
 Safety 3.8.1 began reporting active high-gate findings for the current `main`
-runtime lock after PR #1982 merged. This hotfix raises only the affected
-repo-managed Python runtime floors:
+runtime lock after PR #1982 merged. This historical hotfix raised only the
+then-affected repo-managed Python runtime floors:
 
-| Package | Safety IDs | Previous repo pin | New repo floor |
+| Package | Safety IDs | Previous repo pin | Historical June 2026 floor |
 | --- | --- | --- | --- |
 | `cryptography` | `SFTY-20260615-96125` | `46.0.7` | `48.0.1` |
 | `python-multipart` | `SFTY-20260615-29344`, `SFTY-20260615-09692`, `SFTY-20260615-38625`, `SFTY-20260615-86547` | `0.0.27` | `0.0.31` |
@@ -18,45 +28,30 @@ or planning engines.
 
 ## Repo Evidence
 
-- Source floors: `requirements.in:4`, `requirements.in:21`,
-  `requirements.in:44`, `requirements-ci-lite.in:12`,
-  `requirements-ci-lite.in:25`, `requirements-ci-lite.in:40`,
-  `requirements-docker-runtime.in:9`, `requirements-docker-runtime.in:26`,
-  `requirements-docker-runtime.in:43`, `requirements-dev.in:21`,
-  `requirements-dev.in:24`, `requirements-dev.in:25`, `constraints.txt:34`,
-  `constraints.txt:43`, and `constraints.txt:55` require the current
+The following snapshot prose preserves the original remediation record without
+claiming that its historical locations are current-tree line anchors. Current
+cryptography evidence is recorded in the Status section above.
+
+- The shared source manifests and `constraints.txt` recorded the then-current
   `cryptography>=48.0.1`, `python-multipart>=0.0.31`, and
   `starlette>=1.3.1` floors.
-- Lock surfaces: `requirements.txt:35`, `requirements.txt:154`,
-  `requirements.txt:172`, `requirements-ci-lite.txt:58`,
-  `requirements-ci-lite.txt:290`, `requirements-ci-lite.txt:326`,
-  `requirements-docker-runtime.txt:48`,
-  `requirements-docker-runtime.txt:207`,
-  `requirements-docker-runtime.txt:233`, `requirements-dev.txt:50`,
-  `requirements-dev.txt:204`, `requirements-dev.txt:233`,
-  `requirements-lock.txt:76`, `requirements-lock.txt:395`, and
-  `requirements-lock.txt:448` pin `cryptography==48.0.1`,
-  `python-multipart==0.0.31`, and `starlette==1.3.1`.
-- Guard source of truth:
-  `tests/fixtures/dependency_security_schema.json:3`,
-  `tests/fixtures/dependency_security_schema.json:6`,
-  `tests/fixtures/dependency_security_schema.json:8`, and
-  `tests/fixtures/dependency_security_schema.json:19` record the same three
-  minimum floors and block pinned `python-multipart<0.0.31`.
-- Emergency fallback rotation:
-  `scripts/ci/emergency_python_wheels.json:8`,
-  `scripts/ci/emergency_python_wheels.json:15`, and
-  `scripts/ci/emergency_python_wheels.json:180` replace the old
-  `cryptography==46.0.7` and `python-multipart==0.0.27` artifacts with exact
-  `cryptography==48.0.1` Linux x86_64 wheels and the exact
-  `python-multipart==0.0.31` pure wheel, each pinned by `sha256`, with a
-  short expiry of `2026-06-30`.
-- Active fallback manifest renewal:
-  `scripts/ci/emergency_python_wheels.json:4` renews the still-active exact
-  fallback manifest TTL to `2026-06-30` under the existing
+- The runtime, CI-lite, Docker-runtime, dev, and aggregate locks recorded
+  `cryptography==48.0.1`, `python-multipart==0.0.31`, and
+  `starlette==1.3.1`.
+- `tests/fixtures/dependency_security_schema.json` recorded the same three
+  historical minimum floors and blocked pinned `python-multipart<0.0.31`.
+- The historical emergency manifest rotated from `cryptography==46.0.7` and
+  `python-multipart==0.0.27` to exact `cryptography==48.0.1` Linux x86_64
+  wheels and the exact `python-multipart==0.0.31` pure wheel, each then pinned
+  by `sha256`, with a historical expiry of `2026-06-30`. These artifacts are no
+  longer active.
+- Historical fallback manifest renewal:
+  the then-current manifest renewed the exact fallback TTL to `2026-06-30`
+  under the existing
   `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`
   tracking item. This is a time-boxed private-index mirror-lag bridge for the
-  enumerated exact wheels, not a broad public-index bypass.
+  historically enumerated exact wheels, not a broad public-index bypass. The
+  current marker is empty and retired as recorded in the Status section.
 
 ## Validation
 

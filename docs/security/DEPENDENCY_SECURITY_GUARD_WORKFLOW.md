@@ -11,6 +11,8 @@ The dependency security guard prevents vulnerable dependency versions from enter
 The guard runs as part of the focused dependency-security test bundle and validates
 the canonical shared requirement surfaces listed by
 `tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`.
+The current `cryptography` 50.0.0 floor is recorded at
+`tests/fixtures/dependency_security_schema.json:4`.
 
 ## Schema Location
 
@@ -20,7 +22,7 @@ the canonical shared requirement surfaces listed by
 {
   "min_versions": {
     "click": "8.3.3",
-    "cryptography": "48.0.1",
+    "cryptography": "50.0.0",
     "pillow": "12.3.0"
   },
   "blocked_packages": [],
@@ -142,7 +144,7 @@ pre-commit run --all-files
 
 ### Example 1: Minimum Version Floors (Click, Pillow, and cryptography)
 
-**Scenario:** current scanner findings require Click 8.3.3, cryptography 48.0.1,
+**Scenario:** current scanner findings require Click 8.3.3, cryptography 50.0.0,
 and Pillow 12.3.0.
 
 **Schema update:**
@@ -150,18 +152,18 @@ and Pillow 12.3.0.
 {
   "min_versions": {
     "click": "8.3.3",
-    "cryptography": "48.0.1",
+    "cryptography": "50.0.0",
     "pillow": "12.3.0"
   }
 }
 ```
 
 **Requirement updates:**
-- `requirements.in`: `click>=8.3.3,<9.0.0`, `cryptography>=48.0.1,<49.0.0`,
+- `requirements.in`: `click>=8.3.3,<9.0.0`, `cryptography>=50.0.0,<51.0.0`,
   and `pillow>=12.3.0,<13.0.0`
 - `requirements-dev.in`: `click>=8.3.3,<9.0.0`,
-  `cryptography>=48.0.1,<49.0.0`, and `pillow>=12.3.0,<13.0.0`
-- `constraints.txt`: `click==8.3.3`, `cryptography>=48.0.1`, and
+  `cryptography>=50.0.0,<51.0.0`, and `pillow>=12.3.0,<13.0.0`
+- `constraints.txt`: `click==8.3.3`, `cryptography>=50.0.0`, and
   `pillow==12.3.0`
 - Regenerate locks
 
@@ -202,7 +204,7 @@ and Pillow 12.3.0.
 2. **No comments:** JSON doesn't support comments; use CVE docs for rationale
 3. **Case-insensitive:** Package names are matched case-insensitively
 4. **All surfaces:** `min_versions` packages must exist in all 10 surfaces
-   declared by `tests/test_dependency_security_guard.py:21-32`
+   declared by `tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`
 
 ## CI Integration
 
@@ -238,10 +240,13 @@ and Pillow 12.3.0.
 
 - Schema file: `tests/fixtures/dependency_security_schema.json`
 - Test file: `tests/test_dependency_security_guard.py`
-- Guard enforcement: `tests/test_dependency_security_guard.py:176` (min_versions test)
-- Blocked packages test: `tests/test_dependency_security_guard.py:278` (blocked_packages enforcement)
-- Blocked versions test: `tests/test_dependency_security_guard.py:297` (blocked_versions enforcement)
-- AGENTS policy: `AGENTS.md:1535` (Dependency floor / security guard section)
+- Guard enforcement:
+  `tests/test_dependency_security_guard.py::test_dependency_security_guard_enforces_min_versions`
+- Blocked packages test:
+  `tests/test_dependency_security_guard.py::test_dependency_security_guard_enforces_blocked_packages`
+- Blocked versions test:
+  `tests/test_dependency_security_guard.py::test_dependency_security_guard_enforces_blocked_versions`
+- AGENTS policy: `AGENTS.md` section `Dependency floor / security guard`
 - CVE docs: `docs/security/CVE-*.md`
 - Click/Pillow hotfix: `docs/security/PYSEC_2026_CLICK_PILLOW_HOTFIX.md`
 

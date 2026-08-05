@@ -54,7 +54,7 @@ mako>=1.3.12  # GHSA-v92g-xgxw-vvmm / GHSA-2h4p-vjrc-8xpq security floor
 # Constraints files cannot include extras; requirement uses psycopg[binary]
 psycopg>=3.2.3
 email-validator>=2.3.0
-cryptography>=48.0.1
+cryptography>=50.0.0
 # Guidance for agentops compatibility (agentops requires packaging<25).
 # Not enforced here to avoid conflicts with the current lock files.
 # If you need agentops locally, use an isolated venv or a separate constraints-agentops.txt.
