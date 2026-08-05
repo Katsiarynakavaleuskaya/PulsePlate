@@ -20,7 +20,7 @@ from typing import (
 
 import dotenv
 from fastapi import APIRouter, Body, FastAPI, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from pydantic import (
     BaseModel,
     ValidationError,
@@ -123,7 +123,6 @@ from core.nutrition_utils import (
     ensure_priority_micros as _ensure_priority_micros,
 )
 from core.targets import FIBER_MIN_G
-from core.export_format import ExportFormat
 from app.scheduler_helpers import (
     resolve_scheduler_starter,
     resolve_stop_callable,
@@ -147,6 +146,7 @@ _LEGACY_IMPORT_COMPAT_REEXPORTS = (
     Language,
     normalize_lang,
     _short_git_sha,
+    _is_truthy,
 )
 
 # PR-633: thin alias to canonical import-safe schema (no local validation).
@@ -846,224 +846,6 @@ def _iter_app_modules() -> list[ModuleType]:
             modules.append(mod)
             seen.add(id(mod))
     return modules
-
-
-# Export Endpoints
-_export_feature_flag = os.getenv("FEATURE_EXPORTS")
-_export_testing_flag = (
-    _is_truthy(os.getenv("TESTING")) if os.getenv("TESTING") is not None else False
-)
-if not _export_testing_flag:
-    _export_app_env = get_runtime_env_name()
-    if _export_app_env in {"test", "testing", "ci"}:
-        _export_testing_flag = True
-    elif "pytest" in sys.modules:
-        _export_testing_flag = True
-_export_debug_flag = _is_truthy(os.getenv("DEBUG")) if os.getenv("DEBUG") is not None else False
-EXPORTS_ENABLED = _is_truthy(_export_feature_flag) if _export_feature_flag is not None else False
-if not EXPORTS_ENABLED:
-    EXPORTS_ENABLED = _export_testing_flag or _export_debug_flag
-if EXPORTS_ENABLED and not _export_testing_flag:
-    logging.warning("Export endpoints enabled outside tests; intended for test/demo only.")
-
-if EXPORTS_ENABLED:
-
-    async def export_daily_plan_csv(plan_id: str) -> Response:
-        """Test/demo only — do not expose in production.
-
-        RU: Экспортировать дневной план в CSV.
-        EN: Export daily meal plan to CSV.
-
-        Args:
-            plan_id: ID of the daily plan to export
-
-        Returns:
-            CSV file download
-
-        Fallback behavior: uses mock data and returns 503 if the CSV helper is unavailable.
-        """
-        # Test/demo only — do not expose in production. Uses mock data; 503 if helper missing.
-        try:
-            # In a real implementation, this would fetch the plan from a database
-            # For now, we'll return a placeholder response
-            from fastapi.responses import Response
-
-            # Mock data - in real implementation, fetch from database
-            mock_plan = {
-                "meals": [
-                    {
-                        "name": "Breakfast",
-                        "food_item": "Oatmeal",
-                        "kcal": 300,
-                        "protein_g": 10,
-                        "carbs_g": 50,
-                        "fat_g": 5,
-                    },
-                    {
-                        "name": "Lunch",
-                        "food_item": "Chicken Salad",
-                        "kcal": 450,
-                        "protein_g": 35,
-                        "carbs_g": 20,
-                        "fat_g": 25,
-                    },
-                    {
-                        "name": "Dinner",
-                        "food_item": "Grilled Fish",
-                        "kcal": 400,
-                        "protein_g": 40,
-                        "carbs_g": 15,
-                        "fat_g": 20,
-                    },
-                ],
-                "total_kcal": 1150,
-                "total_protein": 85,
-                "total_carbs": 85,
-                "total_fat": 50,
-            }
-
-            import sys as _sys
-
-            _pkg = _sys.modules.get("app")
-            _to_csv_day = (
-                getattr(_pkg, "to_csv_day", None)
-                if _pkg and hasattr(_pkg, "to_csv_day")
-                else to_csv_day
-            )
-            if not callable(_to_csv_day):
-                raise HTTPException(status_code=503, detail="CSV export helper is not available")
-
-            csv_data = _to_csv_day(mock_plan)
-
-            return Response(
-                content=csv_data,
-                media_type=ExportFormat.CSV.media_type,
-                headers={
-                    "Content-Disposition": (
-                        f"attachment; filename=daily_plan_{plan_id}.{ExportFormat.CSV.extension}"
-                    )
-                },
-            )
-
-        except HTTPException:
-            # Preserve explicit HTTP errors such as 503 when helper is unavailable
-            raise
-        except Exception as e:
-            # Unexpected errors are treated as 500
-            raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
-
-    async def export_weekly_plan_csv(plan_id: str) -> Response:
-        """Test/demo only — do not expose in production.
-
-        RU: Экспортировать недельный план в CSV.
-        EN: Export weekly meal plan to CSV.
-
-        Args:
-            plan_id: ID of the weekly plan to export
-
-        Returns:
-            CSV file download
-
-        Fallback behavior: returns a minimal CSV response when the CSV helper is unavailable.
-        """
-        # Test/demo only — do not expose in production. Returns minimal CSV when helper missing.
-        try:
-            from fastapi.responses import Response
-
-            # Mock data - in real implementation, fetch from database
-            mock_weekly_plan = {
-                "daily_menus": [
-                    {
-                        "date": "2023-01-01",
-                        "meals": [
-                            {
-                                "name": "Breakfast",
-                                "food_item": "Oatmeal",
-                                "kcal": 300,
-                                "protein_g": 10,
-                                "carbs_g": 50,
-                                "fat_g": 5,
-                                "cost": 1.5,
-                            },
-                            {
-                                "name": "Lunch",
-                                "food_item": "Chicken Salad",
-                                "kcal": 450,
-                                "protein_g": 35,
-                                "carbs_g": 20,
-                                "fat_g": 25,
-                                "cost": 3.2,
-                            },
-                        ],
-                    },
-                    {
-                        "date": "2023-01-02",
-                        "meals": [
-                            {
-                                "name": "Breakfast",
-                                "food_item": "Scrambled Eggs",
-                                "kcal": 250,
-                                "protein_g": 18,
-                                "carbs_g": 1,
-                                "fat_g": 20,
-                                "cost": 1.2,
-                            },
-                            {
-                                "name": "Lunch",
-                                "food_item": "Beef Stir Fry",
-                                "kcal": 500,
-                                "protein_g": 30,
-                                "carbs_g": 40,
-                                "fat_g": 20,
-                                "cost": 4.5,
-                            },
-                        ],
-                    },
-                ],
-                "shopping_list": {
-                    "oats": 500,
-                    "chicken_breast": 300,
-                    "eggs": 12,
-                    "beef": 400,
-                },
-                "total_cost": 150.0,
-                "adherence_score": 92.5,
-            }
-
-            import sys as _sys
-
-            _pkg = _sys.modules.get("app")
-            _to_csv_week = (
-                getattr(_pkg, "to_csv_week", None)
-                if _pkg and hasattr(_pkg, "to_csv_week")
-                else to_csv_week
-            )
-            if not callable(_to_csv_week):
-                # Fallback CSV response when helper is unavailable (keeps tests permissive)
-                return Response(
-                    content=b"plan_id,meals\n",
-                    media_type=ExportFormat.CSV.media_type,
-                    headers={
-                        "Content-Disposition": (
-                            f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.CSV.extension}"
-                        )
-                    },
-                )
-
-            csv_data = _to_csv_week(mock_weekly_plan)
-
-            return Response(
-                content=csv_data,
-                media_type=ExportFormat.CSV.media_type,
-                headers={
-                    "Content-Disposition": (
-                        f"attachment; filename=weekly_plan_{plan_id}.{ExportFormat.CSV.extension}"
-                    )
-                },
-            )
-
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
 
 # Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.
