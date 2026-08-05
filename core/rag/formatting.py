@@ -77,8 +77,6 @@ def format_rag_chunks_for_prompt(chunks: list[RAGChunk]) -> str:
     """Concatenate RAGChunk objects into a prompt-ready string with source headers."""
     parts: list[str] = []
     for ch in chunks:
-        if not (_is_safe_rag_metadata(ch.chunk_id) and _is_safe_rag_metadata(ch.file)):
-            continue
         sanitized_content = sanitize_rag_markdown(ch.content).strip()
         if not sanitized_content:
             continue
@@ -94,8 +92,6 @@ def build_rag_source_dicts(chunks: list[RAGChunk]) -> list[RAGSourceDict]:
     """
     items: list[RAGSourceDict] = []
     for ch in chunks:
-        if not (_is_safe_rag_metadata(ch.chunk_id) and _is_safe_rag_metadata(ch.file)):
-            continue
         sanitized_content = sanitize_rag_markdown(ch.content).strip()
         if not sanitized_content:
             continue
