@@ -2896,6 +2896,10 @@ def test_shoplist_export_route_registration_is_idempotent(
             matching_routes[0],
             app_main._get_api_key_dynamic,
         )
+        assert not route_has_dependency_call(
+            matching_routes[0],
+            app_main._require_valid_token,
+        )
 
 
 def test_shoplist_export_route_registration_rejects_partial_state(

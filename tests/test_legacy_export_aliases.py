@@ -38,24 +38,30 @@ _CANONICAL_EXPORT_ROUTES = (
 
 
 @pytest.mark.parametrize(
-    "carrier_env",
+    "case_label,carrier_env",
     [
-        pytest.param({}, id="default-local"),
-        pytest.param({"TESTING": "true"}, id="testing-flag"),
-        pytest.param({"DEBUG": "true"}, id="debug-flag"),
-        pytest.param({"FEATURE_EXPORTS": "true"}, id="retired-feature-flag"),
-        pytest.param({"APP_ENV": "test"}, id="app-env-test"),
-        pytest.param({"APP_ENV": "testing"}, id="app-env-testing"),
-        pytest.param({"APP_ENV": "ci"}, id="app-env-ci"),
+        pytest.param("default-local", {}, id="default-local"),
+        pytest.param("testing-flag", {"TESTING": "true"}, id="testing-flag"),
+        pytest.param("debug-flag", {"DEBUG": "true"}, id="debug-flag"),
+        pytest.param(
+            "retired-feature-flag",
+            {"FEATURE_EXPORTS": "true"},
+            id="retired-feature-flag",
+        ),
+        pytest.param("app-env-test", {"APP_ENV": "test"}, id="app-env-test"),
+        pytest.param("app-env-testing", {"APP_ENV": "testing"}, id="app-env-testing"),
+        pytest.param("app-env-ci", {"APP_ENV": "ci"}, id="app-env-ci"),
     ],
 )
 def test_legacy_export_aliases_remain_retired_in_fresh_process(
+    case_label: str,
     carrier_env: dict[str, str],
 ) -> None:
     code = f"""
 import importlib.util
 import json
 import os
+import sys
 
 from fastapi.testclient import TestClient
 
@@ -68,6 +74,7 @@ from app.effective_routes import (
 import app.main as app_main
 import legacy_app
 
+case_label = sys.argv[1]
 retired = {repr(_RETIRED_EXPORT_ROUTES)}
 canonical = {repr(_CANONICAL_EXPORT_ROUTES)}
 routes = [
@@ -88,18 +95,31 @@ retired_statuses = {{}}
 for method, template, concrete_path in retired:
     route_key = f"{{method}} {{template}}"
     retired_counts[route_key] = len(matching_routes(method, template))
-    assert template not in openapi_paths
+    openapi_context = (
+        f"carrier={{case_label}} method={{method}} route={{template}} auth=not-applicable"
+    )
+    assert template not in openapi_paths, f"{{openapi_context}}: route present in OpenAPI"
     for auth_label, headers in (
         ("without-key", {{}}),
         ("with-valid-key", {{"X-API-Key": os.environ["API_KEY"]}}),
     ):
+        assertion_context = (
+            f"carrier={{case_label}} method={{method}} route={{template}} auth={{auth_label}}"
+        )
         if method == "POST":
             response = client.post(concrete_path, headers=headers, json={{"meals": []}})
         else:
             response = client.get(concrete_path, headers=headers)
-        assert response.status_code == 404
-        assert response.headers["content-type"].startswith("application/json")
-        assert response.json() == {{"detail": "Not Found"}}
+        assert response.status_code == 404, (
+            f"{{assertion_context}}: expected 404, got {{response.status_code}}"
+        )
+        content_type = response.headers.get("content-type", "")
+        assert content_type.startswith("application/json"), (
+            f"{{assertion_context}}: expected JSON content type, got {{content_type!r}}"
+        )
+        assert response.json() == {{"detail": "Not Found"}}, (
+            f"{{assertion_context}}: unexpected response body {{response.text[:500]!r}}"
+        )
         retired_statuses[f"{{auth_label}}:{{route_key}}"] = [
             response.status_code,
             response.json(),
@@ -154,14 +174,19 @@ print(
     env.update(carrier_env)
 
     result = subprocess.run(
-        [sys.executable, "-c", code],
+        [sys.executable, "-c", code, case_label],
         cwd=REPO_ROOT,
         env=env,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
+    assert result.returncode == 0, (
+        f"fresh-process carrier={case_label} failed with returncode={result.returncode}; "
+        f"stdout_tail={result.stdout[-2000:]!r}; stderr_tail={result.stderr[-2000:]!r}"
+    )
     summary = json.loads(result.stdout.strip().splitlines()[-1])
     assert summary["retired_counts"] == {
         f"{method} {path}": 0 for method, path, _concrete_path in _RETIRED_EXPORT_ROUTES
