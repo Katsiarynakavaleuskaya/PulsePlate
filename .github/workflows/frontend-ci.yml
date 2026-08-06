@@ -185,6 +185,13 @@ jobs:
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
+      - name: Run frontend builder governance guard
+        run: |
+          cd ..
+          python -m pytest -q \
+            tests/test_ci_workflow_pr_size_governance_contract.py \
+            -k node24
+
       - name: Run design token pipeline checks
         run: |
           cd ..
