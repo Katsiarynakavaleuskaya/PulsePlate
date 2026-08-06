@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from typing import cast
 
+import pytest
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
@@ -22,6 +23,7 @@ CD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-upload.yml"
 CODEQL_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codeql.yml"
+FRONTEND_CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
 GREENLIGHT_IOS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "greenlight-ios.yml"
 IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
 NIGHTLY_FULL_TESTS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-tests.yml"
@@ -594,6 +596,215 @@ def test_nested_minimatch_10_selection_keeps_root_assertion_separate() -> None:
     assert _nested_minimatch_10_paths(packages) == {"node_modules/glob/node_modules/minimatch"}
 
 
+NODE24_FRONTEND_BUILD_LINE = (
+    "FROM node:24.18.1-bookworm-slim@"
+    "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+    " AS frontend-build"
+)
+NODE24_CADDY_BINARY_COPY_LINE = (
+    "COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate"
+)
+NODE24_FRONTEND_ASSET_RESET_LINE = 'RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]'
+NODE24_FRONTEND_ASSET_COPY_LINE = "COPY --from=frontend-build /app/dist /srv/frontend"
+NODE24_FRONTEND_ASSET_WRITE_LINES = (
+    NODE24_FRONTEND_ASSET_RESET_LINE,
+    NODE24_FRONTEND_ASSET_COPY_LINE,
+)
+NODE24_FINAL_STAGE_COPY_ADD_LINES = (
+    NODE24_CADDY_BINARY_COPY_LINE,
+    NODE24_FRONTEND_ASSET_COPY_LINE,
+)
+NODE24_UNSUPPORTED_FROM_ERROR = "FROM stages must use the supported single-line form"
+NODE24_UNSUPPORTED_HEREDOC_ERROR = "Docker heredoc instructions are unsupported"
+NODE24_SUPPORTED_FROM_RE = re.compile(
+    r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"(?:\s+AS\s+(?P<alias>[^\s\\`]+))?\s*",
+    flags=re.IGNORECASE,
+)
+NODE24_CONTINUED_FROM_PREFIX_RE = re.compile(
+    r"\s*(?:F|FR|FRO|FROM)[\\`]\s*",
+    flags=re.IGNORECASE,
+)
+NODE24_CONTINUED_COPY_ADD_PREFIX_RE = re.compile(
+    r"\s*(?:C|CO|COP|COPY|A|AD|ADD)[\\`]\s*",
+    flags=re.IGNORECASE,
+)
+
+
+def _docker_logical_instructions(
+    dockerfile_lines: list[str],
+) -> tuple[list[tuple[int, int, str]], bool]:
+    """Return bounded Docker logical instructions and an incomplete-tail flag."""
+
+    escape_character = "\\"
+    for line in dockerfile_lines:
+        stripped = line.strip()
+        if not stripped:
+            break
+        directive_match = re.fullmatch(
+            r"#\s*(syntax|escape|check)\s*=\s*(\S.*)", stripped, re.IGNORECASE
+        )
+        if directive_match is None:
+            break
+        if directive_match.group(1).lower() == "escape":
+            escape_value = directive_match.group(2).strip()
+            if escape_value in {"\\", "`"}:
+                escape_character = escape_value
+
+    instructions: list[tuple[int, int, str]] = []
+    current_parts: list[str] = []
+    current_start: int | None = None
+    for line_index, line in enumerate(dockerfile_lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if current_start is None:
+            current_start = line_index
+        physical_part = line.rstrip()
+        continued = physical_part.endswith(escape_character)
+        if continued:
+            physical_part = physical_part[: -len(escape_character)]
+        current_parts.append(physical_part.strip())
+        if continued:
+            continue
+        instructions.append((current_start, line_index, " ".join(current_parts)))
+        current_parts = []
+        current_start = None
+    return instructions, current_start is not None
+
+
+def _node24_frontend_builder_contract_errors(dockerfile: str) -> list[str]:
+    """Return finite carrier errors for the known Caddy SPA Dockerfile."""
+
+    dockerfile_lines = dockerfile.splitlines()
+    from_candidate_lines = [
+        line for line in dockerfile_lines if re.match(r"\s*FROM(?:\s|$)", line, flags=re.IGNORECASE)
+    ]
+    unsupported_from_lines = [
+        line for line in from_candidate_lines if NODE24_SUPPORTED_FROM_RE.fullmatch(line) is None
+    ]
+    has_utf8_bom = dockerfile.startswith("\ufeff")
+    has_continued_from_keyword = any(
+        NODE24_CONTINUED_FROM_PREFIX_RE.fullmatch(line) is not None for line in dockerfile_lines
+    )
+    frontend_build_owner_lines = [
+        line
+        for line in dockerfile_lines
+        if re.fullmatch(
+            r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+[^\s\\`]+" r"\s+AS\s+frontend-build\s*",
+            line,
+            flags=re.IGNORECASE,
+        )
+    ]
+    node_from_stage_lines = [
+        line
+        for line in dockerfile_lines
+        if re.fullmatch(
+            r"\s*FROM(?:\s+--platform=[^\s\\`]+)?\s+node:[^\s\\`]+" r"(?:\s+AS\s+[^\s\\`]+)?\s*",
+            line,
+            flags=re.IGNORECASE,
+        )
+    ]
+    from_stage_aliases: list[str | None] = []
+    from_stage_indices: list[int] = []
+    for line_index, line in enumerate(dockerfile_lines):
+        stage_match = NODE24_SUPPORTED_FROM_RE.fullmatch(line)
+        if stage_match is None:
+            continue
+        alias = stage_match.group("alias")
+        from_stage_aliases.append(alias.lower() if alias else None)
+        from_stage_indices.append(line_index)
+    frontend_asset_write_lines = [
+        line
+        for line in dockerfile_lines
+        if "/srv/frontend" in line and not line.lstrip().startswith("#")
+    ]
+    frontend_asset_write_indices = [
+        line_index
+        for line_index, line in enumerate(dockerfile_lines)
+        if "/srv/frontend" in line and not line.lstrip().startswith("#")
+    ]
+    final_stage_start_index = (
+        from_stage_indices[-1] if from_stage_indices else len(dockerfile_lines)
+    )
+    logical_instructions, has_incomplete_logical_instruction = _docker_logical_instructions(
+        dockerfile_lines
+    )
+    logical_instruction_start_indices = {
+        start_index for start_index, _end_index, _instruction in logical_instructions
+    }
+    has_absorbed_from_stage = any(
+        from_stage_index not in logical_instruction_start_indices
+        for from_stage_index in from_stage_indices
+    )
+    dockerfile_has_heredoc = any(
+        re.search(r"<\s*<", instruction) is not None
+        for _start_index, _end_index, instruction in logical_instructions
+    )
+    final_stage_logical_instructions = [
+        instruction
+        for start_index, _end_index, instruction in logical_instructions
+        if start_index > final_stage_start_index
+    ]
+    final_stage_copy_add_entries = [
+        (line_index, line)
+        for line_index, line in enumerate(dockerfile_lines)
+        if line_index > final_stage_start_index
+        and re.match(r"\s*(?:COPY|ADD)(?:\s|$)", line, flags=re.IGNORECASE)
+    ]
+    final_stage_copy_add_lines = [line for _line_index, line in final_stage_copy_add_entries]
+    has_absorbed_final_stage_copy_add = any(
+        line_index not in logical_instruction_start_indices
+        for line_index, _line in final_stage_copy_add_entries
+    )
+    has_continued_final_stage_copy_add_keyword = any(
+        line_index > final_stage_start_index
+        and NODE24_CONTINUED_COPY_ADD_PREFIX_RE.fullmatch(line) is not None
+        for line_index, line in enumerate(dockerfile_lines)
+    )
+
+    errors: list[str] = []
+    if (
+        has_utf8_bom
+        or unsupported_from_lines
+        or has_continued_from_keyword
+        or has_absorbed_from_stage
+    ):
+        errors.append(NODE24_UNSUPPORTED_FROM_ERROR)
+    if has_incomplete_logical_instruction:
+        errors.append("Dockerfile logical instructions must be complete")
+    if dockerfile_has_heredoc:
+        errors.append(NODE24_UNSUPPORTED_HEREDOC_ERROR)
+    if frontend_build_owner_lines != [NODE24_FRONTEND_BUILD_LINE]:
+        errors.append("frontend-build must have exactly one immutable Node owner")
+    if node_from_stage_lines != [NODE24_FRONTEND_BUILD_LINE]:
+        errors.append("the immutable frontend-build line must be the only Node FROM stage")
+    if from_stage_aliases != ["caddy-build", "frontend-build", None]:
+        errors.append("Dockerfile stage aliases must stay finite and ordered")
+    if (
+        final_stage_copy_add_lines != list(NODE24_FINAL_STAGE_COPY_ADD_LINES)
+        or has_absorbed_final_stage_copy_add
+        or has_continued_final_stage_copy_add_keyword
+    ):
+        errors.append("final-stage COPY/ADD instructions must stay finite and ordered")
+    if frontend_asset_write_lines != list(NODE24_FRONTEND_ASSET_WRITE_LINES):
+        errors.append("production frontend assets must come only from frontend-build")
+    elif not from_stage_indices or frontend_asset_write_indices[0] <= from_stage_indices[-1]:
+        errors.append("production frontend asset handoff must belong to the final stage")
+    elif has_utf8_bom or unsupported_from_lines or has_continued_from_keyword:
+        pass
+    elif NODE24_FRONTEND_ASSET_RESET_LINE not in final_stage_logical_instructions:
+        errors.append("production frontend asset reset must be an independent logical instruction")
+    elif NODE24_FRONTEND_ASSET_COPY_LINE not in final_stage_logical_instructions:
+        errors.append(
+            "production frontend asset handoff must be an independent logical instruction"
+        )
+    elif final_stage_logical_instructions[-1] != NODE24_FRONTEND_ASSET_COPY_LINE:
+        errors.append("production frontend asset handoff must be the final executable instruction")
+    elif final_stage_logical_instructions[-2:] != list(NODE24_FRONTEND_ASSET_WRITE_LINES):
+        errors.append("production frontend asset reset must immediately precede the handoff")
+    return errors
+
+
 def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     """Guard the repo Node baseline across local, frontend, Docker, and devcontainer surfaces."""
 
@@ -607,9 +818,13 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     devcontainer = json.loads(
         (REPO_ROOT / ".devcontainer" / "devcontainer.json").read_text(encoding="utf-8")
     )
+    public_readme = (REPO_ROOT / "README_V2_PUBLIC_DRAFT.md").read_text(encoding="utf-8")
     dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
 
-    assert nvmrc == "24.16.0"
+    assert nvmrc == "24.18.1"
+    assert "- Node `24.18.1` for the web client" in public_readme
+    assert "`nvm use` reads the repo-root `.nvmrc` and selects Node `24.18.1`." in public_readme
+    assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.8"
@@ -625,8 +840,764 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert packages["node_modules/brace-expansion"]["version"] == "2.1.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.21.0"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
-    assert "FROM node:24.16.0-bookworm-slim AS frontend-build" in dockerfile
+    contract_errors = _node24_frontend_builder_contract_errors(dockerfile)
+    assert contract_errors == [], "\n".join(contract_errors)
     assert "node:22.22.1" not in dockerfile
+
+
+def test_node24_frontend_builder_guard_rejects_missing_asset_handoff() -> None:
+    """The immutable builder must remain the production SPA asset owner."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    assert dockerfile.count(NODE24_FRONTEND_ASSET_COPY_LINE) == 1
+    disconnected = dockerfile.replace(NODE24_FRONTEND_ASSET_COPY_LINE, "", 1)
+
+    errors = _node24_frontend_builder_contract_errors(disconnected)
+
+    assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_alternate_asset_owner() -> None:
+    """A decorative pinned stage cannot mask an alternate mutable builder."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    alternate_stage = "\n".join(
+        (
+            NODE24_FRONTEND_BUILD_LINE,
+            "ARG ALT_NODE_IMAGE=node:25-alpine",
+            "FROM ${ALT_NODE_IMAGE} AS alternate-frontend-build",
+        )
+    )
+    redirected = dockerfile.replace(
+        NODE24_FRONTEND_BUILD_LINE,
+        alternate_stage,
+        1,
+    ).replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "COPY --from=alternate-frontend-build /app/dist /srv/frontend",
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(redirected)
+
+    assert "Dockerfile stage aliases must stay finite and ordered" in errors
+    assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_continued_node_stage() -> None:
+    """A continued Node stage cannot escape the finite FROM inventory."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    continued_stage = "\n".join(
+        (
+            dockerfile,
+            "FROM node:25-bookworm-slim \\",
+            " AS tooling",
+        )
+    )
+
+    errors = _node24_frontend_builder_contract_errors(continued_stage)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_continued_canonical_owner() -> None:
+    """The canonical builder owner must use the supported single-line form."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    continued_owner = NODE24_FRONTEND_BUILD_LINE.replace(
+        " AS frontend-build",
+        " \\\n AS frontend-build",
+        1,
+    )
+    continued = dockerfile.replace(NODE24_FRONTEND_BUILD_LINE, continued_owner, 1)
+
+    errors = _node24_frontend_builder_contract_errors(continued)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+@pytest.mark.parametrize("escape_character", ("\\", "`"))
+@pytest.mark.parametrize("stage_prefix", ("FROM golang:", "FROM node:", "FROM caddy:"))
+def test_node24_frontend_builder_guard_rejects_absorbed_from_stage(
+    escape_character: str,
+    stage_prefix: str,
+) -> None:
+    """A preceding continuation cannot absorb any physical FROM line."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    if escape_character == "`":
+        dockerfile = dockerfile.replace(
+            "# syntax=docker/dockerfile:1",
+            "# syntax=docker/dockerfile:1\n# escape=`",
+            1,
+        )
+    stage = next(line for line in dockerfile.splitlines() if line.startswith(stage_prefix))
+    absorbed = dockerfile.replace(
+        stage,
+        "\n".join((f"RUN : {escape_character}", stage)),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_backtick_continued_stage() -> None:
+    """Docker's alternate escape directive cannot hide a continued FROM stage."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    runtime_stage = next(line for line in dockerfile.splitlines() if line.startswith("FROM caddy:"))
+    continued = dockerfile.replace(
+        "# syntax=docker/dockerfile:1",
+        "# syntax=docker/dockerfile:1\n# escape=`",
+        1,
+    ).replace(
+        runtime_stage,
+        f"{runtime_stage}`\n AS final-runtime",
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(continued)
+
+    assert NODE24_UNSUPPORTED_FROM_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_split_from_keyword() -> None:
+    """A continued keyword cannot hide a logical FROM instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    for escape_character in ("\\", "`"):
+        candidate = dockerfile
+        if escape_character == "`":
+            candidate = candidate.replace(
+                "# syntax=docker/dockerfile:1",
+                "# syntax=docker/dockerfile:1\n# escape=`",
+                1,
+            )
+        for continuation_count in (1, 2):
+            for split_index in range(1, len("FROM") + 1):
+                continuation = f"{escape_character}\n" * continuation_count
+                continued_keyword = f"{'FROM'[:split_index]}{continuation}{'FROM'[split_index:]}"
+                hidden_stage = (
+                    f"{candidate}\n{continued_keyword} node:25-bookworm-slim AS hidden-tooling"
+                )
+
+                errors = _node24_frontend_builder_contract_errors(hidden_stage)
+
+                assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (
+                    escape_character,
+                    continuation_count,
+                    split_index,
+                    errors,
+                )
+
+
+def test_node24_frontend_builder_guard_rejects_commented_from_bridge() -> None:
+    """A Docker comment cannot hide a continued FROM keyword prefix."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    for escape_character in ("\\", "`"):
+        candidate = dockerfile
+        if escape_character == "`":
+            candidate = candidate.replace(
+                "# syntax=docker/dockerfile:1",
+                "# syntax=docker/dockerfile:1\n# escape=`",
+                1,
+            )
+        for comment_indent in ("", "  "):
+            hidden_stage = "\n".join(
+                (
+                    candidate,
+                    f"FR{escape_character}",
+                    f"{comment_indent}# ignored during Docker continuation",
+                    "OM node:25-bookworm-slim AS hidden-tooling",
+                )
+            )
+
+            errors = _node24_frontend_builder_contract_errors(hidden_stage)
+
+            assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (
+                escape_character,
+                comment_indent,
+                errors,
+            )
+
+
+def test_node24_frontend_builder_guard_rejects_crlf_split_from_keyword() -> None:
+    """CRLF line endings cannot hide a continued FROM keyword prefix."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    for escape_character in ("\\", "`"):
+        candidate = dockerfile
+        if escape_character == "`":
+            candidate = candidate.replace(
+                "# syntax=docker/dockerfile:1",
+                "# syntax=docker/dockerfile:1\n# escape=`",
+                1,
+            )
+        hidden_stage = "\n".join(
+            (
+                candidate,
+                f"FR{escape_character}",
+                "OM node:25-bookworm-slim AS hidden-tooling",
+            )
+        ).replace("\n", "\r\n")
+
+        errors = _node24_frontend_builder_contract_errors(hidden_stage)
+
+        assert errors == [NODE24_UNSUPPORTED_FROM_ERROR], (escape_character, errors)
+
+
+def test_node24_frontend_builder_guard_rejects_utf8_bom() -> None:
+    """Docker's stripped UTF-8 BOM cannot hide an initial FROM instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    bom_prefixed = "\ufeffFROM node:25-bookworm-slim AS hidden-tooling\n" + dockerfile
+
+    errors = _node24_frontend_builder_contract_errors(bom_prefixed)
+
+    assert errors == [NODE24_UNSUPPORTED_FROM_ERROR]
+
+
+def test_node24_frontend_builder_guard_ignores_non_from_tokens() -> None:
+    """Comments and longer identifiers are not Docker FROM instructions."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    non_instructions = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "# FROM node:25-bookworm-slim AS commented-tooling",
+                "FROMAGE node:25-bookworm-slim AS identifier-tooling",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    assert _node24_frontend_builder_contract_errors(non_instructions) == []
+
+
+@pytest.mark.parametrize("escape_character", ("\\", "`"))
+def test_node24_frontend_builder_guard_rejects_absorbed_caddy_copy(
+    escape_character: str,
+) -> None:
+    """A preceding continuation cannot absorb the Caddy provenance COPY."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    if escape_character == "`":
+        dockerfile = dockerfile.replace(
+            "# syntax=docker/dockerfile:1",
+            "# syntax=docker/dockerfile:1\n# escape=`",
+            1,
+        )
+    absorbed = dockerfile.replace(
+        NODE24_CADDY_BINARY_COPY_LINE,
+        "\n".join((f"RUN : {escape_character}", NODE24_CADDY_BINARY_COPY_LINE)),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
+
+
+@pytest.mark.parametrize("escape_character", ("\\", "`"))
+@pytest.mark.parametrize("keyword", ("COPY", "ADD"))
+@pytest.mark.parametrize("comment_bridge", (False, True))
+def test_node24_frontend_builder_guard_rejects_split_copy_add_keyword(
+    escape_character: str,
+    keyword: str,
+    comment_bridge: bool,
+) -> None:
+    """A continued keyword cannot hide a final-stage COPY or ADD instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    if escape_character == "`":
+        dockerfile = dockerfile.replace(
+            "# syntax=docker/dockerfile:1",
+            "# syntax=docker/dockerfile:1\n# escape=`",
+            1,
+        )
+    for split_index in range(1, len(keyword) + 1):
+        hidden_instruction_parts = [f"{keyword[:split_index]}{escape_character}"]
+        if comment_bridge:
+            hidden_instruction_parts.append("# ignored during Docker continuation")
+        hidden_instruction_parts.append(f"{keyword[split_index:]} package.json /usr/bin/caddy")
+        hidden = dockerfile.replace(
+            NODE24_FRONTEND_ASSET_RESET_LINE,
+            "\n".join((*hidden_instruction_parts, NODE24_FRONTEND_ASSET_RESET_LINE)),
+            1,
+        )
+
+        errors = _node24_frontend_builder_contract_errors(hidden)
+
+        assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors, (
+            escape_character,
+            keyword,
+            comment_bridge,
+            split_index,
+            errors,
+        )
+
+
+def test_node24_frontend_builder_guard_rejects_asset_overwrite() -> None:
+    """A later copy cannot replace a served asset from another stage."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    overwritten = "\n".join(
+        (
+            dockerfile,
+            "COPY --from=caddy-build /usr/bin/caddy /srv/frontend/index.html",
+        )
+    )
+
+    errors = _node24_frontend_builder_contract_errors(overwritten)
+
+    assert "production frontend assets must come only from frontend-build" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_post_handoff_run() -> None:
+    """No continued RUN may replace an asset after the immutable handoff."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    overwritten = "\n".join(
+        (
+            dockerfile,
+            "RUN printf '<html>alternate</html>' > /srv/front\\",
+            "end/index.html",
+        )
+    )
+
+    errors = _node24_frontend_builder_contract_errors(overwritten)
+
+    assert "production frontend asset handoff must be the final executable instruction" in errors
+
+
+@pytest.mark.parametrize(
+    ("replacement", "expected_error"),
+    (
+        ("", "production frontend assets must come only from frontend-build"),
+        (
+            f"{NODE24_FRONTEND_ASSET_RESET_LINE}\nRUN true",
+            "production frontend asset reset must immediately precede the handoff",
+        ),
+    ),
+)
+def test_node24_frontend_builder_guard_requires_adjacent_asset_reset(
+    replacement: str,
+    expected_error: str,
+) -> None:
+    """The final handoff must immediately follow its structural destination reset."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    mutated = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        replacement,
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(mutated)
+
+    assert expected_error in errors
+
+
+def test_node24_frontend_builder_guard_rejects_absorbed_asset_reset() -> None:
+    """A prior continuation cannot absorb and short-circuit the reset instruction."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    absorbed = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "WORKDIR /srv",
+                "RUN mkdir -p frontend && printf 'seeded' > frontend/extra.js && true || \\",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert "production frontend asset reset must be an independent logical instruction" in errors
+
+
+def test_node24_frontend_builder_guard_ignores_late_escape_directive() -> None:
+    """An escape comment after the header cannot change Docker continuation rules."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    late_escape = dockerfile.replace(
+        "# Multi-stage image: pinned Caddy build + Vite build → hardened Caddy SPA shell.",
+        "\n".join(
+            (
+                "# Multi-stage image: pinned Caddy build + Vite build → hardened Caddy SPA shell.",
+                "# escape=`",
+            )
+        ),
+        1,
+    )
+    absorbed = late_escape.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "WORKDIR /srv",
+                "RUN mkdir -p frontend && printf 'seeded' > frontend/extra.js && true || \\",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(absorbed)
+
+    assert "production frontend asset reset must be an independent logical instruction" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_final_stage_heredoc() -> None:
+    """Heredoc data cannot impersonate the reset and handoff instructions."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    disguised = dockerfile.replace(
+        "\n".join(NODE24_FRONTEND_ASSET_WRITE_LINES),
+        "\n".join(
+            (
+                "RUN <<'#OUTER'",
+                ": <<'#INNER'",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+                NODE24_FRONTEND_ASSET_COPY_LINE,
+                "#INNER",
+                "#OUTER",
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(disguised)
+
+    assert NODE24_UNSUPPORTED_HEREDOC_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_split_final_stage_heredoc() -> None:
+    """A continued heredoc operator cannot turn reset and handoff into data."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    disguised = dockerfile.replace(
+        "\n".join(NODE24_FRONTEND_ASSET_WRITE_LINES),
+        "\n".join(
+            (
+                "RUN <\\",
+                "<'#OUTER'",
+                ": <\\",
+                "<'#INNER'",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+                NODE24_FRONTEND_ASSET_COPY_LINE,
+                "#INNER",
+                "#OUTER",
+            )
+        ),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(disguised)
+
+    assert NODE24_UNSUPPORTED_HEREDOC_ERROR in errors
+
+
+def test_node24_frontend_builder_guard_rejects_pre_final_stage_heredoc() -> None:
+    """A heredoc cannot turn the apparent final stage and handoff into data."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    runtime_stage = next(line for line in dockerfile.splitlines() if line.startswith("FROM caddy:"))
+    disguised = dockerfile.replace(
+        runtime_stage,
+        "\n".join(("RUN <<'#OUTER'", ": <<'#INNER'", runtime_stage)),
+        1,
+    ).replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "\n".join((NODE24_FRONTEND_ASSET_COPY_LINE, "#INNER", "#OUTER")),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(disguised)
+
+    assert NODE24_UNSUPPORTED_HEREDOC_ERROR in errors
+
+
+def test_node24_frontend_builder_reset_clears_pre_handoff_seed() -> None:
+    """A relative pre-seed remains harmless because the adjacent reset follows it."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    seeded = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_RESET_LINE,
+        "\n".join(
+            (
+                "WORKDIR /srv",
+                "RUN mkdir -p frontend && printf 'alternate' > front\\",
+                "end/extra.js",
+                NODE24_FRONTEND_ASSET_RESET_LINE,
+            )
+        ),
+        1,
+    )
+
+    assert _node24_frontend_builder_contract_errors(seeded) == []
+
+
+@pytest.mark.parametrize(
+    "asset_write",
+    (
+        "COPY custom-index.html frontend/index.html",
+        "ADD custom-index.html frontend/index.html",
+    ),
+)
+def test_node24_frontend_builder_guard_rejects_relative_asset_overwrite(
+    asset_write: str,
+) -> None:
+    """A final-stage relative COPY or ADD cannot overwrite the served SPA."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    overwritten = dockerfile.replace(
+        NODE24_FRONTEND_ASSET_COPY_LINE,
+        "\n".join((NODE24_FRONTEND_ASSET_COPY_LINE, "WORKDIR /srv", asset_write)),
+        1,
+    )
+
+    errors = _node24_frontend_builder_contract_errors(overwritten)
+
+    assert "final-stage COPY/ADD instructions must stay finite and ordered" in errors
+
+
+def test_node24_frontend_builder_guard_rejects_pre_final_handoff() -> None:
+    """The canonical handoff must populate the final production stage."""
+
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.caddy-spa").read_text(encoding="utf-8")
+    dockerfile_lines = dockerfile.splitlines()
+    reset_index = dockerfile_lines.index(NODE24_FRONTEND_ASSET_RESET_LINE)
+    handoff_lines = dockerfile_lines[reset_index : reset_index + 2]
+    del dockerfile_lines[reset_index : reset_index + 2]
+    final_stage_index = max(
+        index
+        for index, line in enumerate(dockerfile_lines)
+        if re.match(r"\s*FROM\s+", line, flags=re.IGNORECASE)
+    )
+    dockerfile_lines[final_stage_index:final_stage_index] = handoff_lines
+    relocated = "\n".join(dockerfile_lines)
+
+    errors = _node24_frontend_builder_contract_errors(relocated)
+
+    assert "production frontend asset handoff must belong to the final stage" in errors
+
+
+def _github_workflow_glob_matches(value: str, pattern: str) -> bool:
+    """Match the bounded GitHub ``*``/``**`` forms without crossing slashes."""
+
+    assert not any(token in pattern for token in ("?", "[", "]", "\\"))
+    regex_parts: list[str] = []
+    index = 0
+    while index < len(pattern):
+        if pattern.startswith("**", index):
+            regex_parts.append(".*")
+            index += 2
+            continue
+        character = pattern[index]
+        regex_parts.append("[^/]*" if character == "*" else re.escape(character))
+        index += 1
+    return re.fullmatch("".join(regex_parts), value) is not None
+
+
+def _workflow_patterns_match(value: str, patterns: list[object]) -> bool:
+    """Return GitHub-style ordered include/exclude matching for one known value."""
+
+    matched = False
+    for pattern in patterns:
+        assert isinstance(pattern, str)
+        excluded = pattern.startswith("!")
+        candidate = pattern.removeprefix("!")
+        if _github_workflow_glob_matches(value, candidate):
+            matched = not excluded
+    return matched
+
+
+def _assert_node24_frontend_builder_workflow_contract(
+    workflow: dict[str, object],
+) -> None:
+    """Assert the finite workflow carriers that keep the Node guard blocking."""
+
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+
+    workflow_env = workflow["env"]
+    assert isinstance(workflow_env, dict)
+    assert "PYTEST_ADDOPTS" not in workflow_env
+
+    workflow_defaults = workflow.get("defaults", {})
+    assert isinstance(workflow_defaults, dict)
+    workflow_run_defaults = workflow_defaults.get("run", {})
+    assert isinstance(workflow_run_defaults, dict)
+    assert "shell" not in workflow_run_defaults
+
+    dockerfile_path = "frontend/Dockerfile.caddy-spa"
+    for event_name in ("pull_request", "push"):
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        branches = event["branches"]
+        assert isinstance(branches, list)
+        assert _workflow_patterns_match(
+            "main", branches
+        ), f"{event_name} must run for the main branch"
+        paths = event["paths"]
+        assert isinstance(paths, list)
+        assert _workflow_patterns_match(
+            dockerfile_path, paths
+        ), f"{event_name} must route {dockerfile_path} through Frontend CI"
+
+    pull_request_event = on_section["pull_request"]
+    assert isinstance(pull_request_event, dict)
+    pull_request_types = pull_request_event.get("types")
+    if pull_request_types is not None:
+        assert isinstance(pull_request_types, list)
+        assert {"opened", "synchronize", "reopened"}.issubset(pull_request_types)
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["build-and-test"]
+    assert isinstance(job, dict)
+    assert "if" not in job
+    assert "continue-on-error" not in job
+
+    defaults = job["defaults"]
+    assert isinstance(defaults, dict)
+    run_defaults = defaults["run"]
+    assert isinstance(run_defaults, dict)
+    assert "shell" not in run_defaults
+
+    job_env = job["env"]
+    assert isinstance(job_env, dict)
+    assert "PYTEST_ADDOPTS" not in job_env
+
+    step = _job_step_by_name(
+        workflow,
+        job_id="build-and-test",
+        step_name="Run frontend builder governance guard",
+    )
+    assert set(step) == {"name", "run"}
+    assert step["run"] == (
+        "cd ..\n"
+        "python -m pytest -q \\\n"
+        "  tests/test_ci_workflow_pr_size_governance_contract.py \\\n"
+        "  -k node24\n"
+    )
+
+
+def test_node24_frontend_builder_guard_runs_for_dockerfile_changes() -> None:
+    """Frontend CI must execute the bounded guard on Dockerfile-only changes."""
+
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    _assert_node24_frontend_builder_workflow_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "pull_request_paths",
+        "push_paths",
+        "pull_request_path_exclusion",
+        "push_path_exclusion",
+        "pull_request_root_star_paths",
+        "push_root_star_paths",
+        "pull_request_branches",
+        "push_branches",
+        "pull_request_types",
+        "step_if",
+        "step_continue_on_error",
+        "job_continue_on_error",
+        "step_shell",
+        "job_default_shell",
+        "workflow_default_shell",
+        "workflow_pytest_collect_only",
+        "step_pytest_collect_only",
+        "job_pytest_collect_only",
+    ),
+)
+def test_node24_frontend_builder_workflow_guard_rejects_disabled_wiring(
+    mutation: str,
+) -> None:
+    """Every bounded trigger or fail-open carrier must make the guard fail."""
+
+    workflow = _load_workflow(FRONTEND_CI_WORKFLOW_PATH)
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = cast(dict[object, object], workflow).get(True)
+    assert isinstance(on_section, dict)
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs["build-and-test"]
+    assert isinstance(job, dict)
+    step = _job_step_by_name(
+        workflow,
+        job_id="build-and-test",
+        step_name="Run frontend builder governance guard",
+    )
+
+    if mutation in {"pull_request_paths", "push_paths"}:
+        event_name = mutation.removesuffix("_paths")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["paths"] = [".nvmrc"]
+    if mutation in {"pull_request_path_exclusion", "push_path_exclusion"}:
+        event_name = mutation.removesuffix("_path_exclusion")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["paths"] = ["frontend/**", "!frontend/Dockerfile.caddy-spa"]
+    if mutation in {"pull_request_root_star_paths", "push_root_star_paths"}:
+        event_name = mutation.removesuffix("_root_star_paths")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["paths"] = ["*"]
+    if mutation in {"pull_request_branches", "push_branches"}:
+        event_name = mutation.removesuffix("_branches")
+        event = on_section[event_name]
+        assert isinstance(event, dict)
+        event["branches"] = ["feat/**"]
+    if mutation == "pull_request_types":
+        event = on_section["pull_request"]
+        assert isinstance(event, dict)
+        event["types"] = ["opened", "reopened", "edited"]
+    if mutation == "step_if":
+        step["if"] = "${{ false }}"
+    if mutation == "step_continue_on_error":
+        step["continue-on-error"] = True
+    if mutation == "job_continue_on_error":
+        job["continue-on-error"] = True
+    if mutation == "step_shell":
+        step["shell"] = "bash -c '{0} || true'"
+    if mutation == "job_default_shell":
+        defaults = job["defaults"]
+        assert isinstance(defaults, dict)
+        run_defaults = defaults["run"]
+        assert isinstance(run_defaults, dict)
+        run_defaults["shell"] = "bash -c '{0} || true'"
+    if mutation == "workflow_default_shell":
+        workflow["defaults"] = {"run": {"shell": "bash -c '{0} || true'"}}
+    if mutation == "workflow_pytest_collect_only":
+        workflow_env = workflow["env"]
+        assert isinstance(workflow_env, dict)
+        workflow_env["PYTEST_ADDOPTS"] = "--collect-only"
+    if mutation == "step_pytest_collect_only":
+        step["env"] = {"PYTEST_ADDOPTS": "--collect-only"}
+    if mutation == "job_pytest_collect_only":
+        job_env = job["env"]
+        assert isinstance(job_env, dict)
+        job_env["PYTEST_ADDOPTS"] = "--collect-only"
+
+    with pytest.raises(AssertionError):
+        _assert_node24_frontend_builder_workflow_contract(workflow)
 
 
 def _extract_shell_conditional_block(

@@ -152,16 +152,18 @@ OpenAPI effect:
 Anchor (stable): `app/main.py -> _include_plan_export_routers_if_needed(app)`
 
 Evidence:
-- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+- `app/bootstrap/route_family.py:36` — shared `RouteMemberContract` for exact static
   route-family members.
-- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard
+- `app/bootstrap/route_family.py:138` — shared `ensure_route_family_registered(...)` guard
   validates source routers before registration and validates existing app routes for
   idempotency, partial registration, duplicate/foreign handlers, required dependency drift,
   response metadata drift, and OpenAPI visibility drift.
-- `app/main.py:686-700` — applies the shared static guard to `export_router` and
+- `app/main.py:887-898` — applies the shared static guard to `export_router` and
   `plan_router`.
-- `app/main.py` — registers `export_router` and `plan_router` from `app/routers/plan_export.py`
-  with `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`
+- `app/main.py:51,887-898` — imports the direct canonical dependency owner
+  `app.routers.api_key._get_api_key_dynamic` and passes it as
+  `dependencies=[Depends(api_key_dependency)]` when registering `export_router`
+  and `plan_router` from `app/routers/plan_export.py`.
 - `app/routers/plan_export.py` — owns implementation, rate-limit decorators, signed export token
   guard for weekly CSV/PDF, response schemas, and `PLAN_EXPORT_ROUTE_SPECS`
 
@@ -174,8 +176,9 @@ OpenAPI effect:
 - Source `APIRoute.include_in_schema` remains `True`.
 - Final public `app.openapi()` continues to hide these export/plan paths through the canonical
   OpenAPI builder.
-- Hidden legacy export aliases remain a separate compatibility router owned by
-  `app/routers/legacy_export_aliases.py`.
+- The former hidden premium day/week CSV test/demo aliases are retired; no
+  compatibility router owns them and their paths return the ordinary FastAPI
+  404 under every former carrier environment.
 - Unexpected source `APIRoute`s in the plan/export source routers fail closed before
   registration; this matches the shoplist export bootstrap policy.
 
@@ -184,12 +187,14 @@ OpenAPI effect:
 Anchor (stable): `app/main.py -> _include_shoplist_export_router_if_needed(app)`
 
 Evidence:
-- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+- `app/bootstrap/route_family.py:36` — shared `RouteMemberContract` for exact static
   route-family members.
-- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard.
-- `app/main.py:703-717` — applies the shared static guard to `shoplist_export_router`.
-- `app/main.py` — registers `shoplist_export_router` from `app/routers/shoplist_export.py`
-  with `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`
+- `app/bootstrap/route_family.py:138` — shared `ensure_route_family_registered(...)` guard.
+- `app/main.py:901-912` — applies the shared static guard to `shoplist_export_router`.
+- `app/main.py:51,901-912` — imports the direct canonical dependency owner
+  `app.routers.api_key._get_api_key_dynamic` and passes it as
+  `dependencies=[Depends(api_key_dependency)]` when registering
+  `shoplist_export_router` from `app/routers/shoplist_export.py`.
 - `app/routers/shoplist_export.py` — owns implementation, export rate-limit decorators, CSV/PDF
   response behavior, and the shared route constants from `app/routers/shoplist_export_routes.py`
 
@@ -210,11 +215,13 @@ OpenAPI effect:
 Anchor (stable): `app/main.py -> _include_restaurant_moderation_router_if_needed(app)`
 
 Evidence:
-- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+- `app/bootstrap/route_family.py:36` — shared `RouteMemberContract` for exact static
   route-family members.
-- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard.
-- `app/main.py` — registers `moderation_router` from `app/routers/restaurants.py` with
-  `dependencies=[Depends(_legacy_module._get_api_key_dynamic)]`.
+- `app/bootstrap/route_family.py:138` — shared `ensure_route_family_registered(...)` guard.
+- `app/main.py:51,1068-1079` — imports the direct canonical dependency owner
+  `app.routers.api_key._get_api_key_dynamic` and passes it as
+  `dependencies=[Depends(api_key_dependency)]` when registering
+  `moderation_router` from `app/routers/restaurants.py`.
 - `app/routers/restaurants.py` — owns moderation implementation, `RestaurantSubmission`
   response model, hidden route metadata, `404/422` response metadata, and
   `RESTAURANT_MODERATION_ROUTE_SPECS`.
@@ -314,14 +321,20 @@ Evidence:
 - `legacy_app.py:2066-2076` + `2098-2117` — lazy `llm.get_provider()` + `provider.generate()`
 - `llm.py:57-79` + `91-153` — provider selection (`LLM_PROVIDER`) + optional provider imports
 
-### Exports rate limiting (route wrappers)
+### Canonical export rate limiting (route wrappers)
 
-Anchor (stable): `legacy_app.py -> export routes wrapped with limit_if_available(RATE_LIMIT_EXPORTS)`
+Anchor (stable): `app/routers/plan_export.py` and `app/routers/shoplist_export.py`
+own the export handlers and their rate-limit wrappers.
 
 Evidence:
-- `legacy_app.py:5180-5223` — export endpoints decorated with:
-  - `responses=RATE_LIMIT_429_RESPONSES`
-  - `@limit_if_available(RATE_LIMIT_EXPORTS)`
+- `app/routers/plan_export.py:383-385`, `481-483`, and `620-622` — canonical
+  weekly CSV, weekly PDF, and export-sign routes declare 429 responses and use
+  `@limit_if_available(RATE_LIMIT_EXPORTS)`.
+- `app/routers/shoplist_export.py:282-314` — canonical shoplist and CSV/PDF
+  export routes declare 429 responses and use
+  `@limit_if_available(RATE_LIMIT_EXPORTS)`.
+- `legacy_app.py` owns no export route; the former hidden premium export aliases
+  are retired.
 
 ### Conditional routers: BMI Pro
 
@@ -399,9 +412,9 @@ Anchor (stable): `app/main.py -> _include_test_router_if_enabled(app)` owns
 `app/routers/test.py`.
 
 Evidence:
-- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+- `app/bootstrap/route_family.py:36` — shared `RouteMemberContract` for exact static
   route-family members.
-- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard.
+- `app/bootstrap/route_family.py:138` — shared `ensure_route_family_registered(...)` guard.
 - `app/routers/test.py` — owns `TEST_ROUTE_SPECS`, source route handlers, hidden
   `include_in_schema=False` metadata, and request-time `_ensure_non_production()`.
 - `app/main.py` — registers the test route family only when

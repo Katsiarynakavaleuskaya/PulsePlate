@@ -32,17 +32,6 @@ def disable_optional_modules(monkeypatch: pytest.MonkeyPatch, *modules: str) -> 
         monkeypatch.delitem(sys.modules, module, raising=False)
 
 
-def test_export_csv_no_key_auth_only(production_client: TestClient) -> None:
-    """Checks that a 403 is returned when no API key is provided for protected CSV export.
-
-    This test only verifies authentication behavior, not dependency handling.
-    CSV export uses the standard csv module, not pandas.
-    """
-    response = production_client.get("/api/v1/premium/exports/day/plan123.csv")
-    # Endpoint requires API key, expect 403 if not provided, or 404 if not found
-    assert response.status_code in [403, 404]
-
-
 def test_rag_context_fallback(
     production_client: TestClient,
     vip_headers: dict[str, str],

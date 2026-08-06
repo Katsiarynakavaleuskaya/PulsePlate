@@ -12,7 +12,6 @@ import importlib
 import logging
 import math
 from pathlib import Path
-import sys
 from typing import Any, Callable
 
 import pytest
@@ -307,22 +306,6 @@ def test_readiness_logs_warning_when_insight_runtime_probe_fails(
         )
 
     asyncio.run(_run())
-
-
-def test_export_daily_csv_preserves_503_when_helper_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure 503 helper-missing isn't wrapped into a 500."""
-    client = TestClient(legacy_app.app)
-
-    # Ensure helper resolves to a non-callable, triggering the explicit 503.
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "to_csv_day", None, raising=False)
-    monkeypatch.setattr(legacy_app, "to_csv_day", None, raising=False)
-
-    resp = client.get("/api/v1/premium/exports/day/test.csv", headers={"x-api-key": "test_key"})
-    assert resp.status_code == 503
 
 
 def test_aggregate_day_micros_accepts_sync_callable() -> None:
@@ -794,94 +777,6 @@ def test_week_plan_registration_requires_api_key_dependency(
         app_main._include_legacy_premium_weekly_plan_router_if_needed(FastAPI())
 
 
-def test_export_day_csv_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover export_daily_plan_csv exception handling (500 path)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        async def _call() -> Any:
-            return await legacy_app.export_daily_plan_csv("p1")
-
-        def boom(_: Any) -> bytes:
-            raise RuntimeError("boom")
-
-        # Ensure dynamic helper resolution uses our boom() function.
-        import app as app_pkg
-
-        monkeypatch.setattr(app_pkg, "to_csv_day", boom, raising=False)
-        monkeypatch.setattr(legacy_app, "to_csv_day", boom, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await _call()
-        assert exc.value.status_code == 500
-
-    asyncio.run(_run())
-
-
-def test_export_week_csv_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover export_weekly_plan_csv exception -> 500."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        def boom(_: Any) -> bytes:
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(legacy_app, "to_csv_week", boom, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_weekly_plan_csv("p1")
-        assert exc.value.status_code == 500
-
-    asyncio.run(_run())
-
-
-def test_export_day_csv_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover CSV helper-not-callable branch (line ~4915)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-        import app as app_pkg
-
-        monkeypatch.setattr(app_pkg, "to_csv_day", None, raising=False)
-        monkeypatch.setattr(legacy_app, "to_csv_day", None, raising=False)
-        with pytest.raises(HTTPException) as exc:
-            await legacy_app.export_daily_plan_csv("p1")
-        # Preserve the explicit "helper missing" semantics as 503.
-        assert exc.value.status_code == 503
-        assert "CSV export helper is not available" in str(exc.value.detail)
-
-    asyncio.run(_run())
-
-
-def test_export_day_csv_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _run() -> None:
-        """Cover CSV success path returning Response (line ~4919)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        monkeypatch.setattr(legacy_app, "to_csv_day", lambda _p: b"a,b\n", raising=False)
-        resp = await legacy_app.export_daily_plan_csv("p1")
-        assert resp.media_type == "text/csv"
-
-    asyncio.run(_run())
-
-
-def test_export_week_csv_fallback_when_helper_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        """Cover weekly CSV fallback Response when helper missing (line ~5069)."""
-        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-            pytest.skip("Exports are not enabled in this environment.")
-
-        monkeypatch.setattr(legacy_app, "to_csv_week", None, raising=False)
-        resp = await legacy_app.export_weekly_plan_csv("p1")
-        assert resp.media_type == "text/csv"
-        assert b"plan_id" in resp.body
-
-    asyncio.run(_run())
-
-
 def test_rollback_database_coroutine_callable_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1108,65 +1003,3 @@ def test_premium_plate_calls_bmr_tdee_and_make_plate(monkeypatch: pytest.MonkeyP
 
     assert response.kcal == 2000
     assert calls == ["bmr", "tdee", "plate", "micros"]
-
-
-def test_exports_flag_warning_outside_tests_is_coverable(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Cover module-level export gating branch that warns outside tests.
-
-    We temporarily remove sys.modules['pytest'] so legacy_app's import-time heuristic
-    doesn't auto-detect tests and flip _export_testing_flag to True.
-    """
-    caplog.set_level(logging.WARNING)
-
-    saved_pytest = sys.modules.get("pytest")
-    monkeypatch.delitem(sys.modules, "pytest", raising=False)
-    monkeypatch.setenv("FEATURE_EXPORTS", "true")
-    monkeypatch.delenv("TESTING", raising=False)
-    monkeypatch.delenv("ENVIRONMENT", raising=False)
-    monkeypatch.setenv("APP_ENV", "prod")
-    try:
-        importlib.reload(legacy_app)
-        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
-        assert any("Export endpoints enabled outside tests" in r.message for r in caplog.records)
-    finally:
-        if saved_pytest is not None:
-            monkeypatch.setitem(sys.modules, "pytest", saved_pytest)
-        # Restore a normal testing reload for other tests.
-        monkeypatch.setenv("TESTING", "true")
-        monkeypatch.delenv("APP_ENV", raising=False)
-        monkeypatch.delenv("ENVIRONMENT", raising=False)
-        importlib.reload(legacy_app)
-
-
-def test_exports_testing_flag_is_set_for_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export testing flag detection for APP_ENV=ci (line ~4837)."""
-    monkeypatch.setenv("FEATURE_EXPORTS", "true")
-    monkeypatch.delenv("TESTING", raising=False)
-    monkeypatch.delenv("ENVIRONMENT", raising=False)
-    monkeypatch.setenv("APP_ENV", "ci")
-    try:
-        importlib.reload(legacy_app)
-        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
-    finally:
-        monkeypatch.setenv("TESTING", "true")
-        monkeypatch.delenv("APP_ENV", raising=False)
-        monkeypatch.delenv("ENVIRONMENT", raising=False)
-        importlib.reload(legacy_app)
-
-
-def test_exports_testing_flag_is_set_when_pytest_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export testing flag detection via pytest heuristic (line ~4839)."""
-    monkeypatch.setenv("FEATURE_EXPORTS", "true")
-    monkeypatch.delenv("TESTING", raising=False)
-    monkeypatch.delenv("ENVIRONMENT", raising=False)
-    monkeypatch.setenv("APP_ENV", "prod")
-    try:
-        importlib.reload(legacy_app)
-        assert getattr(legacy_app, "EXPORTS_ENABLED", False) is True
-    finally:
-        monkeypatch.setenv("TESTING", "true")
-        monkeypatch.delenv("APP_ENV", raising=False)
-        monkeypatch.delenv("ENVIRONMENT", raising=False)
-        importlib.reload(legacy_app)

@@ -11,7 +11,7 @@ This document defines the policy for handling skipped and xfail tests in the Pul
 These are tests that legitimately cannot run in CI due to:
 - External API dependencies (USDA, OpenFoodFacts)
 - Optional dependencies (matplotlib, cryptography)
-- Feature flags (EXPORTS_ENABLED, VIP_MODULE_ENABLED)
+- Feature flags (for example, VIP_MODULE_ENABLED)
 - Optional modules/features not available in CI
 
 **Action**: Keep skip with clear reason:
@@ -23,7 +23,6 @@ pytest.skip("matplotlib not available")
 **Examples in codebase**:
 - `tests/test_bmi_visualization.py` - matplotlib checks
 - `tests/test_secure_config.py` - cryptography checks
-- `tests/test_legacy_app_diff_coverage.py` - EXPORTS_ENABLED checks
 
 ### Type B: "Expected in CI, but should run locally"
 
