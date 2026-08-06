@@ -3,7 +3,7 @@
 Review-Seal-Version: v1
 
 ## Lane Start Provenance
-Exception: no retained coordinator packet was supplied.
+Packet: `artifacts/orchestration/task_packets/9e7f63fc2ce7.json`
 
 ## Experiment Runner Evidence
 Not applicable: Experiment Runner did not materially contribute.
