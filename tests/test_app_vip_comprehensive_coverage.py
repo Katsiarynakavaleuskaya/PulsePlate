@@ -182,17 +182,6 @@ class TestAppVipComprehensiveCoverage:
         )
         assert response.status_code in [200, 503, 500]
 
-    def test_vip_exports_csv_endpoint(self, test_client):
-        """Test the VIP exports CSV endpoint."""
-        client = test_client
-
-        response = client.get(
-            "/api/v1/premium/exports/week/test_plan_id.csv",
-            headers={"X-API-Key": "test_key"},
-        )
-        # Should be 200 for success or 503 for unavailable
-        assert response.status_code in [200, 503, 500]
-
     def test_legacy_endpoints(self, test_client):
         """Test legacy VIP endpoints."""
         client = test_client
@@ -351,19 +340,6 @@ class TestAppVipComprehensiveCoverage:
                         "goal": "maintain",
                     },
                 },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should be 200, 503 when function is unavailable
-            assert response.status_code in [200, 503, 500]
-
-    def test_to_csv_week_unavailable(self, test_client):
-        """Test when to_csv_week function is unavailable."""
-        client = test_client
-
-        # Mock to_csv_week to be None
-        with patch("app.to_csv_week", None):
-            response = client.get(
-                "/api/v1/premium/exports/week/test_plan_id.csv",
                 headers={"X-API-Key": "test_key"},
             )
             # Should be 200, 503 when function is unavailable

@@ -298,9 +298,6 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   registration and validates existing app routes for idempotency, partial
   registration, duplicate/foreign handlers, required dependency drift, response
   metadata drift, and OpenAPI visibility drift.
-- Do not use the static helper for request-time rebound or rebuilt-callable
-  compatibility aliases such as dynamic legacy export aliases; keep those on
-  their dedicated alias helper.
 
 ### Canonical HTTP middleware ownership
 

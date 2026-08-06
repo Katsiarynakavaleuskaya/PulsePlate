@@ -2052,38 +2052,14 @@ pytest -q tests/test_import_hygiene_guard.py tests/test_env_guards.py -q
 
 ```bash
 VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
-TESTING=true FEATURE_EXPORTS=true "$VENV_PYTHON" - <<'PY'
-from app.effective_routes import (
-    is_api_route_candidate,
-    iter_effective_route_candidates,
-    route_matches_path_method,
-)
-import app.main as app_main
-
-routes = [
-    route
-    for route in iter_effective_route_candidates(app_main.app.routes)
-    if is_api_route_candidate(route)
-]
-expected = (
-    ("POST", "/api/v1/export/sign"),
-    ("GET", "/api/v1/plan/week/export.csv"),
-    ("GET", "/api/v1/plan/week/export.pdf"),
-    ("GET", "/api/v1/premium/exports/day/{plan_id}.csv"),
-    ("GET", "/api/v1/premium/exports/week/{plan_id}.csv"),
-)
-retired = (
-    ("POST", "/api/v1/export/pdf"),
-    ("GET", "/api/v1/premium/exports/day/{plan_id}.pdf"),
-    ("GET", "/api/v1/premium/exports/week/{plan_id}.pdf"),
-)
-for method, path in expected:
-    assert sum(route_matches_path_method(route, path, method) for route in routes) == 1
-for method, path in retired:
-    assert not any(route_matches_path_method(route, path, method) for route in routes)
-print("OK: canonical exports and retained CSV aliases registered; legacy PDF aliases retired")
-PY
+"$VENV_PYTHON" -m pytest -q tests/test_legacy_export_aliases.py tests/test_env_guards.py
 ```
+
+This smoke requires exactly one canonical sign/weekly CSV/weekly PDF route with
+429 metadata and zero routes for all five retired legacy export paths under the
+former `TESTING`, `DEBUG`, `FEATURE_EXPORTS`, and `APP_ENV=test|testing|ci`
+carriers. Every retired path must return the ordinary FastAPI 404 both with and
+without the legacy API key.
 
 ### Notes
 

@@ -167,10 +167,9 @@
 | Функция       | Endpoint                     | Статус        | Требует tier | Проблема | Канонический endpoint | Код-доказательство                |
 | ------------- | ---------------------------- | ------------- | ------------ | -------- | --------------------- | ---------------------------------- |
 | Weekly plan   | `/api/v1/premium/plan/week`  | 🔴 **broken naming** | VIP (через VIP_MODULE_ENABLED) | Wrong namespace (`/premium/*` вместо `/vip/*`) | `/api/v1/vip/menu/weekly/plan` | `app/routers/legacy_premium_weekly_plan.py:23` |
-| Exports       | `/api/v1/premium/exports/*`  | ⚠️ legacy     | VIP          | Wrong namespace | `/api/v1/vip/shoplist/export` | `legacy_app.py:5194, 5440, 5525`  |
 
 > ⚠️ **Ключевая проблема:**
-> Эти endpoints требуют **VIP tier**, но живут под `/premium/*` namespace (deprecated PRO namespace) → **архитектурная путаница**.
+> `/api/v1/premium/plan/week` требует **VIP tier**, но живёт под `/premium/*` namespace (deprecated PRO namespace) → **архитектурная путаница**.
 > **Remediation:** See `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` (PR-C: delegation pattern).
 
 ### Правила
@@ -279,10 +278,17 @@
    - Но namespace: `/premium/*` (deprecated PRO namespace)
    - **Путаница:** premium namespace, но VIP tier
 
-2. **`/api/v1/premium/exports/*`** (`legacy_app.py:5194, 5440, 5525`):
-   - Требует: `EXPORTS_ENABLED` flag
-   - Но namespace: `/premium/*`
-   - **Путаница:** неясно, какой tier требуется
+2. **Retired `/api/v1/premium/exports/*` test/demo aliases**:
+   - Day/week CSV aliases no longer have a runtime route or tier contract.
+   - Former `FEATURE_EXPORTS`, test, debug, and app-environment carriers do not
+     restore them; requests receive the ordinary FastAPI 404.
+   - Both canonical export families remain registered behind the canonical
+     API-key dependency: plan sign/weekly CSV/PDF (`POST /api/v1/export/sign`,
+     `GET /api/v1/plan/week/export.{csv,pdf}`) and shoplist JSON/CSV/PDF (`GET
+     /api/v1/shoplist`, `GET /api/v1/shoplist/export.{csv,pdf}`).
+   - `PRIVATE_EXPORTS_ENABLED` additionally enforces signed tokens only for
+     weekly plan CSV/PDF; it controls neither route-family registration nor any
+     shoplist route.
 
 3. **`premium_week.py`**:
    - Файл называется `premium_week.py`

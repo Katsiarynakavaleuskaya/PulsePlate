@@ -346,33 +346,6 @@ class TestAppMissingCoverage96:
         # Should return HTML content
         assert "text/html" in response.headers.get("content-type", "")
 
-    def test_export_endpoints_coverage(self):
-        """Test export endpoints to cover missing lines."""
-        # Test premium export endpoints (these require plan_id)
-        # First create a plan to get a plan_id
-        payload = {
-            "weight_kg": 70.0,
-            "height_m": 1.7,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "lang": "en",
-        }
-
-        # Test premium week plan creation
-        response = self.client.post("/api/v1/premium/plan/week", json=payload)
-        if response.status_code == 200:
-            data = response.json()
-            if plan_id := data.get("plan_id"):
-                # Test CSV export
-                response = self.client.get(f"/api/v1/premium/exports/day/{plan_id}.csv")
-                assert response.status_code in [200, 404]  # 404 if plan not found
-
-                # Test PDF export
-                response = self.client.get(f"/api/v1/premium/exports/day/{plan_id}.pdf")
-                assert response.status_code in [200, 404]  # 404 if plan not found
-
     def test_error_handling_paths(self):
         """Test various error handling paths."""
         # Test with invalid JSON

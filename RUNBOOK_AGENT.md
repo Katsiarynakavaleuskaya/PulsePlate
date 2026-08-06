@@ -456,6 +456,13 @@ validated in v1. Run `make verify` from repo root and do not rely on an
 externally activated interpreter: `verify-env` requires the repo `.venv`
 interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
+**Host-native binary-wheel recovery boundary (dated 2026-08-04):** use the
+host only with an approved compatible binary wheel for the exact locked pin,
+interpreter, and platform. Current `cryptography==50.0.0` Intel macOS evidence
+lacks `x86_64` and `universal2` artifacts, so use the devcontainer. A
+source-build fallback is not supported. This is a dated artifact observation,
+not a permanent availability claim.
+
 ## Python private index proxy (`PULSEPLATE_PYTHON_INDEX_URL`) triage
 
 **Canonical contract:** see `docs/DEPENDENCY_MANAGEMENT.md` and `scripts/ci/install_locked_python_requirements.py`. Installs must use the approved proxy; public PyPI hosts are blocked for the canonical installer path.
@@ -964,25 +971,32 @@ pytest -q -k "public_surface or env_guards or import_hygiene"
 
 ### 2.5 ENV gating / порядок установки TESTING
 
-**Problem:** The legacy alias gate and canonical signed-export security gate have
-different meanings. Setting either one after import can make tests assert the
-wrong registration or authorization contract.
+**Problem:** Retired legacy export carriers can be mistaken for live runtime
+configuration, while the canonical signed plan-export security gate has a separate
+and still-active meaning.
 
 ```bash
-git grep -nE "EXPORTS_ENABLED|PRIVATE_EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG" -- app legacy_app.py core tests
+git grep -nE "PRIVATE_EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG" -- app legacy_app.py core tests
+git grep -nE -w "FEATURE_EXPORTS|EXPORTS_ENABLED" -- app legacy_app.py core
 ```
 
-- `EXPORTS_ENABLED` is the import-time test/demo gate for whatever legacy export
-  alias specs still exist. When the legacy alias module is present and the gate
-  is true, each current spec must register exactly once; when false, none may
-  register. Do not treat a retired alias as a required route.
-- `PRIVATE_EXPORTS_ENABLED` controls signed-token enforcement on canonical plan
-  and shoplist exports. It does not control canonical route registration; those
-  canonical routes and their 429 response metadata remain present in either
-  mode. Production/staging invariants still require the private gate enabled.
-- The two gates are independent. Set their environment values before importing
-  `app.main`, and derive any legacy expectations from the current legacy spec
-  rather than from canonical export paths.
+- For the retired whole-symbol audit, no output with exit status 1 is expected
+  when both symbols are absent.
+- The former `FEATURE_EXPORTS` / `EXPORTS_ENABLED` test/demo rail is retired.
+  `TESTING=true`, `DEBUG=true`, `FEATURE_EXPORTS=true`, and
+  `APP_ENV=test|testing|ci` must not register the old premium export aliases;
+  those paths return the ordinary FastAPI 404.
+- Both canonical export route families stay registered behind the canonical
+  API-key dependency: plan signing and weekly CSV/PDF (`POST
+  /api/v1/export/sign`, `GET /api/v1/plan/week/export.{csv,pdf}`), plus shoplist
+  JSON/CSV/PDF (`GET /api/v1/shoplist`, `GET
+  /api/v1/shoplist/export.{csv,pdf}`).
+- `PRIVATE_EXPORTS_ENABLED` additionally controls signed-token enforcement only
+  for the weekly plan CSV/PDF routes. It controls neither route-family
+  registration nor any shoplist route; production/staging invariants still
+  require the private gate enabled.
+- Do not use a retired legacy carrier to diagnose canonical route availability
+  or signed-token authorization.
 
 **Check pytest_configure:**
 
@@ -1090,13 +1104,15 @@ See section 2 (PR #403 Specific Checks) above for detailed grep commands.
 ### 4.3 ENV gating suspects (exports/vip)
 
 ```bash
-git grep -n "EXPORTS_ENABLED|PRIVATE_EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG"
+git grep -nE "PRIVATE_EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG"
 ```
 
-Ensure `TESTING=true` and any explicit legacy-alias gate are set before importing
-`legacy_app`. Diagnose canonical signed-export authorization through
-`PRIVATE_EXPORTS_ENABLED`; do not infer canonical route absence from the legacy
-`EXPORTS_ENABLED` value. See section 2.5.
+Set test environment values before importing `legacy_app`. Confirm that the
+canonical API-key dependency protects both registered export families: plan
+signing/weekly CSV/PDF and shoplist JSON/CSV/PDF. Use
+`PRIVATE_EXPORTS_ENABLED` only to diagnose the additional signed-token check on
+weekly plan CSV/PDF; it controls neither registration nor shoplist routes. The
+retired legacy carriers no longer control any runtime route. See section 2.5.
 
 ## 5) If DOCKER Build Fails
 
@@ -1143,7 +1159,11 @@ See `AGENTS.md` for the full checklist. Quick version:
 4. Verify PEP 562 shim in `app/__init__.py`
 5. `TESTING=true` set before app import
 6. Guard tests pass
-7. Legacy export aliases follow their current spec when `EXPORTS_ENABLED`; canonical signed exports stay registered and use `PRIVATE_EXPORTS_ENABLED` for token enforcement
+7. All retired legacy export aliases remain absent under their former carriers;
+   the canonical API-key dependency protects both registered export families
+   (plan sign/weekly CSV/PDF and shoplist JSON/CSV/PDF), and
+   `PRIVATE_EXPORTS_ENABLED` adds signed-token enforcement only to weekly plan
+   CSV/PDF without controlling registration or shoplist routes
 
 ## 10) Common CI Failure Patterns
 
