@@ -203,6 +203,15 @@ def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
 
 
+@pytest.mark.parametrize("suffix", ("!", "@", "="))
+def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_match(
+    suffix: str,
+) -> None:
+    content = f"package{' ' * 100_000}{suffix}\n"
+
+    assert not carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
 def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> None:
     snapshot = carriers.DEPENDABOT_REQUIREMENT_CARRIER_UPSTREAM_SNAPSHOT
     assert asdict(snapshot) == {
