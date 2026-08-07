@@ -8,6 +8,7 @@ from pathlib import Path
 
 USES_RE = re.compile(r"^\s*-?\s*uses:\s*(?P<action>\S+?)(?:\s+#.*)?\s*$")
 PINNED_SHA_RE = re.compile(r"^[^@]+@[0-9a-f]{40}$")
+PINNED_DOCKER_DIGEST_RE = re.compile(r"^docker://[^@]+@sha256:[0-9a-f]{64}$")
 
 
 def _workflow_paths(workflows_dir: Path) -> list[Path]:
@@ -45,6 +46,12 @@ def find_unpinned_actions(root: Path) -> list[str]:
             if action.startswith("./"):
                 continue
             if action.startswith("docker://"):
+                if PINNED_DOCKER_DIGEST_RE.match(action):
+                    continue
+                violations.append(
+                    f"{action_source_path.relative_to(root)}:{line_number}: "
+                    f"Docker action '{action}' must pin a sha256 digest"
+                )
                 continue
             if PINNED_SHA_RE.match(action):
                 continue

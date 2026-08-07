@@ -21,8 +21,8 @@ Keep developer tooling, CI actions, and workspace recommendations pinned and rev
   other executable carriers or YAML-semantic forms.
 - Recognized references are classified in this order:
   - local `./` references are repo-local and do not require an external SHA pin
-  - `docker://` references are excluded from this classifier; exclusion is not
-    a safety, provenance, or immutability claim
+  - `docker://` references must use an immutable lowercase 64-hex
+    `@sha256:<digest>` pin; mutable tags are forbidden
   - other references must satisfy the exact lowercase 40-hex SHA predicate
 - On `pull_request`, `jobs.pr_scope_guard` executes the bounded guard against
   the live checkout as the first validation command after `set -euo pipefail`

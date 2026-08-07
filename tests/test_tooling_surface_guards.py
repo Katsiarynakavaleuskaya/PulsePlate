@@ -176,11 +176,29 @@ def test_actions_pin_guard_allows_local_composite_action(tmp_path: Path) -> None
     assert PIN_GUARD_OK in result.stdout
 
 
-def test_actions_pin_guard_excludes_docker_references(tmp_path: Path) -> None:
+def test_actions_pin_guard_rejects_mutable_docker_references(tmp_path: Path) -> None:
     action_dir = tmp_path / ".github" / "actions" / "nested" / "container"
     action_dir.mkdir(parents=True)
     (action_dir / "action.yaml").write_text(
-        "runs:\n  using: composite\n  steps:\n    - uses: docker://alpine:3.20\n",
+        "runs:\n  using: composite\n  steps:\n    - uses: docker://alpine:latest\n",
+        encoding="utf-8",
+    )
+
+    result = _run(GUARD_ACTIONS, tmp_path)
+
+    assert result.returncode == 1
+    assert (
+        "Docker action 'docker://alpine:latest' must pin a sha256 digest"
+        in result.stdout
+    )
+
+
+def test_actions_pin_guard_allows_docker_digest_references(tmp_path: Path) -> None:
+    action_dir = tmp_path / ".github" / "actions" / "nested" / "container"
+    action_dir.mkdir(parents=True)
+    digest = "a" * 64
+    (action_dir / "action.yaml").write_text(
+        f"runs:\n  using: composite\n  steps:\n    - uses: docker://alpine@sha256:{digest}\n",
         encoding="utf-8",
     )
 
