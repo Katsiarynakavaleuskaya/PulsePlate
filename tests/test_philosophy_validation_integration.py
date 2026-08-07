@@ -1,19 +1,22 @@
 """Integration tests for philosophy-agent RAG validation through HTTP endpoints.
 
-Verifies that FEATURE_PHILOSOPHY_VALIDATION flag controls validation behavior
-end-to-end via /api/v1/insight and /insight endpoints.
+Verifies that FEATURE_PHILOSOPHY_VALIDATION controls optional post-Stage-1
+enrichment end-to-end while baseline Stage 1 remains mandatory on both routes.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from typing import Optional, cast
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from core.rag.contracts import RAGChunk
+from core.rag.philosophy_pipeline import PipelineResult, run_pipeline
 from tests._client import disable_rate_limiting_for_test_app
 
 # ---------------------------------------------------------------------------
@@ -218,13 +221,13 @@ def _disable_rate_limiting_for_insight_tests(
 class TestPhilosophyValidationV1:
     """Tests via /api/v1/insight endpoint."""
 
-    def test_flag_off_no_filtering(
+    def test_flag_off_still_enforces_stage1_filtering(
         self,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
-        """When FEATURE_PHILOSOPHY_VALIDATION=false, medical chunks are NOT filtered."""
+        """The feature flag disables enrichment, never baseline validation."""
         _setup_insight(monkeypatch)
         monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "false")
         monkeypatch.setattr(
@@ -238,9 +241,8 @@ class TestPhilosophyValidationV1:
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
-        # Medical chunk should still be present (validation off)
         chunk_ids = [s["chunk_id"] for s in data["sources"]]
-        assert "med:1" in chunk_ids
+        assert "med:1" not in chunk_ids
         assert "clean:1" in chunk_ids
 
     def test_flag_on_medical_filtered(
@@ -308,6 +310,46 @@ class TestPhilosophyValidationV1:
         data = resp.json()
         # Only clean:1 (score=0.85) survives → confidence = 0.85
         assert data["confidence"] == 0.85
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_enrichment_exception_preserves_baseline_route_response(
+        self,
+        path: str,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Both routes keep Stage-1 survivors without adding provider calls."""
+        import llm
+
+        provider = _EchoProvider()
+        generate = AsyncMock(wraps=provider.generate)
+        monkeypatch.setattr(provider, "generate", generate)
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: provider, raising=True)
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _rag_with_medical,
+            raising=True,
+        )
+
+        with patch(
+            "core.rag.philosophy_pipeline._stage2_claim_classification",
+            side_effect=RuntimeError("private enrichment failure"),
+        ):
+            resp = client.post(path, json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert [source["chunk_id"] for source in data["sources"]] == ["clean:1"]
+        assert data["confidence"] == 0.85
+        assert "Balanced nutrition supports wellness." in data["insight"]
+        assert "You need a diagnosis from a doctor." not in data["insight"]
+        generate.assert_awaited_once()
 
     @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
     def test_flag_on_validation_error_fails_closed(
@@ -433,7 +475,7 @@ class TestPhilosophyValidationV1:
 class TestPhilosophyValidationLegacy:
     """Tests via /insight legacy endpoint."""
 
-    def test_legacy_flag_off_no_filtering(
+    def test_legacy_flag_off_still_enforces_stage1_filtering(
         self,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
@@ -452,7 +494,8 @@ class TestPhilosophyValidationLegacy:
         assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         chunk_ids = [s["chunk_id"] for s in data["sources"]]
-        assert "med:1" in chunk_ids
+        assert "med:1" not in chunk_ids
+        assert "clean:1" in chunk_ids
 
     def test_legacy_flag_on_medical_filtered(
         self,
@@ -659,3 +702,110 @@ class TestPhilosophicalRuntimeFlagUnit:
             "FEATURE_PHILOSOPHY_PRAGMATIC": feature_flags.is_philosophy_pragmatic_enabled,
         }
         assert flag_funcs[flag_name]() is True
+
+
+# ===========================================================================
+# Fail-closed boundary lines (diff-coverage sentinels)
+# ===========================================================================
+
+
+def _pipeline_chunk(
+    chunk_id: str = "c1",
+    content: str = "Some test content for chunk.",
+    score: float = 0.85,
+    file: str = "docs/test.md",
+) -> RAGChunk:
+    return RAGChunk(chunk_id=chunk_id, file=file, content=content, score=score)
+
+
+class TestFailClosedBoundaryLines:
+    """Focused coverage for the fail-closed and advisory boundary lines.
+
+    Lives in this file because the CI contract/risk coverage suites select
+    tests/test_philosophy_validation_integration.py for the insight_ai group.
+    """
+
+    def test_post_init_rejects_completed_enrichment_without_filtered_chunks(self) -> None:
+        """Keyword construction of the impossible empty-and-complete state raises."""
+        with pytest.raises(
+            ValueError,
+            match="post-Stage-1 enrichment cannot complete without filtered chunks",
+        ):
+            PipelineResult(
+                filtered_chunks=[],
+                stage_results=[],
+                warnings=[],
+                total_latency_ms=0.0,
+                post_stage1_enrichment_completed=True,
+            )
+
+    def test_post_init_accepts_completed_enrichment_with_survivors(self) -> None:
+        """Completed enrichment with survivors is the only valid completed state."""
+        result = PipelineResult(
+            filtered_chunks=[_pipeline_chunk()],
+            stage_results=[],
+            warnings=[],
+            total_latency_ms=0.0,
+            post_stage1_enrichment_completed=True,
+        )
+
+        assert result.post_stage1_enrichment_completed is True
+        assert len(result.filtered_chunks) == 1
+
+    def test_stage1_exception_returns_sanitized_fail_closed_result(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Stage-1 boundary exception rejects everything without leaking internals."""
+        with (
+            caplog.at_level(logging.WARNING, logger="core.rag.philosophy_pipeline"),
+            patch(
+                "core.rag.philosophy_pipeline._stage1_rule_validation",
+                side_effect=RuntimeError("sentinel-stage1-exception"),
+            ),
+        ):
+            result = run_pipeline([_pipeline_chunk()], "sentinel-stage1-query")
+
+        assert result.filtered_chunks == []
+        assert result.stage_results == []
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
+        assert result.post_stage1_enrichment_completed is False
+        assert result.total_latency_ms >= 0
+        assert "Stage-1 RAG validation failed; rejecting all chunks" in caplog.text
+        assert "sentinel-stage1-exception" not in caplog.text
+        assert "sentinel-stage1-query" not in caplog.text
+        assert caplog.records
+        assert all(record.exc_info is None for record in caplog.records)
+
+    def test_alignment_mismatch_flagged_through_full_pipeline(self) -> None:
+        """High-score short Stage-1 survivors are flagged by Stage 3 end-to-end."""
+        chunks = [
+            _pipeline_chunk("c1", "Short but valid.", 0.95, "a.md"),
+            _pipeline_chunk(
+                "c2",
+                "A normal chunk with sufficiently long wellness content.",
+                0.6,
+                "b.md",
+            ),
+        ]
+        result = run_pipeline(chunks, "wellness query")
+
+        assert result.post_stage1_enrichment_completed is True
+        stage3 = result.stage_results[2]
+        assert stage3.stage_name == "source_alignment"
+        assert stage3.metadata == {"flagged_count": 1}
+        assert result.warnings == ["alignment_mismatch"]
+
+    def test_numeric_contradiction_counted_through_full_pipeline(self) -> None:
+        """Contradictory anchored ranges are counted by Stage 4 end-to-end."""
+        chunks = [
+            _pipeline_chunk("c1", "Normal BP range is 90-120 for adults.", 0.9, "a.md"),
+            _pipeline_chunk("c2", "Normal BP range is 140-180 for adults.", 0.8, "b.md"),
+        ]
+        result = run_pipeline(chunks, "What BP range is normal?")
+
+        assert result.post_stage1_enrichment_completed is True
+        stage4 = result.stage_results[3]
+        assert stage4.stage_name == "logical_consistency"
+        assert stage4.metadata == {"unique_sources": 2, "contradiction_count": 1}
+        assert result.warnings == ["numeric_contradiction"]

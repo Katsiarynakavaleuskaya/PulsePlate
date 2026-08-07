@@ -116,13 +116,39 @@ class TestMedicalBoundaryRule:
         assert len(result.filtered_chunks) == 1
         assert result.filtered_chunks[0].chunk_id == "clean"
 
-    def test_all_medical_chunks_rejected(self) -> None:
-        c1 = _chunk("Seek medical advice.", chunk_id="c1")
-        c2 = _chunk("A prescription is needed.", chunk_id="c2")
-        result = validate_rag_chunks([c1, c2])
+    def test_all_medical_chunks_rejected(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        c1 = _chunk(
+            "Seek medical advice SENTINEL_MEDICAL_CONTENT_ONE.",
+            chunk_id="SENTINEL_MEDICAL_ID_ONE",
+            score=0.73,
+            file="/private/SENTINEL_MEDICAL_PATH_ONE.md",
+        )
+        c2 = _chunk(
+            "A prescription is needed SENTINEL_MEDICAL_CONTENT_TWO.",
+            chunk_id="SENTINEL_MEDICAL_ID_TWO",
+            score=0.74,
+            file="/private/SENTINEL_MEDICAL_PATH_TWO.md",
+        )
+        with caplog.at_level(logging.DEBUG, logger="core.rag.validation"):
+            result = validate_rag_chunks([c1, c2])
         assert result.passed is False
         assert result.rejected_count == 2
         assert len(result.filtered_chunks) == 0
+        assert result.warnings == ["medical_boundary", "medical_boundary"]
+        assert [record for record in caplog.records if record.name == "core.rag.validation"] == []
+        diagnostic_payload = repr(result.warnings) + caplog.text
+        for sentinel in (
+            "SENTINEL_MEDICAL",
+            "/private/",
+            "medical advice",
+            "prescription",
+            "0.73",
+            "0.74",
+        ):
+            assert sentinel not in diagnostic_payload
 
 
 # ---------------------------------------------------------------------------
@@ -158,13 +184,37 @@ class TestWeaselWordRule:
         result = validate_rag_chunks([chunk])
         assert len(result.warnings) == 0
 
-    def test_multiple_weasel_chunks_all_warned(self) -> None:
-        c1 = _chunk("Some say it works well.", chunk_id="c1")
-        c2 = _chunk("It is believed to help.", chunk_id="c2")
-        result = validate_rag_chunks([c1, c2])
+    def test_multiple_weasel_chunks_all_warned(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        c1 = _chunk(
+            "Some say SENTINEL_WEASEL_CONTENT_ONE works well.",
+            chunk_id="SENTINEL_WEASEL_ID_ONE",
+            score=0.81,
+            file="/private/SENTINEL_WEASEL_PATH_ONE.md",
+        )
+        c2 = _chunk(
+            "It is believed SENTINEL_WEASEL_CONTENT_TWO helps.",
+            chunk_id="SENTINEL_WEASEL_ID_TWO",
+            score=0.82,
+            file="/private/SENTINEL_WEASEL_PATH_TWO.md",
+        )
+        with caplog.at_level(logging.DEBUG, logger="core.rag.validation"):
+            result = validate_rag_chunks([c1, c2])
         assert len(result.filtered_chunks) == 2  # Both kept
-        weasel_warnings = [w for w in result.warnings if "weasel_word" in w]
-        assert len(weasel_warnings) == 2
+        assert result.warnings == ["weasel_word", "weasel_word"]
+        assert [record for record in caplog.records if record.name == "core.rag.validation"] == []
+        diagnostic_payload = repr(result.warnings) + caplog.text
+        for sentinel in (
+            "SENTINEL_WEASEL",
+            "/private/",
+            "Some say",
+            "It is believed",
+            "0.81",
+            "0.82",
+        ):
+            assert sentinel not in diagnostic_payload
 
 
 # ---------------------------------------------------------------------------
@@ -436,18 +486,43 @@ class TestValidationFailClosed:
         self,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        chunks = [_chunk("More wellness content here.")]
+        chunks = [
+            _chunk(
+                "sentinel-validation-content",
+                chunk_id="sentinel-validation-id",
+                score=0.73,
+                file="/private/sentinel-validation.md",
+            )
+        ]
         with (
             caplog.at_level(logging.WARNING, logger="core.rag.validation"),
             patch(
                 "core.rag.validation._run_validation",
-                side_effect=RuntimeError("internal"),
+                side_effect=RuntimeError("sentinel-validation-exception"),
             ),
         ):
-            validate_rag_chunks(chunks)
+            result = validate_rag_chunks(
+                chunks,
+                agent_id="sentinel-validation-query",
+            )
+
+        assert result.passed is False
+        assert result.filtered_chunks == []
+        assert result.warnings == ["validation_error: internal failure, no chunks accepted"]
+        assert result.rejected_count == 1
+        assert result.validation_latency_ms == 0
         records = [record for record in caplog.records if record.name == "core.rag.validation"]
         assert len(records) == 1
         record = records[0]
         assert record.getMessage() == "RAG validation failed; rejecting all chunks"
         assert record.levelno == logging.WARNING
-        assert record.exc_info is not None
+        assert record.exc_info is None
+        for sentinel in (
+            "sentinel-validation-exception",
+            "sentinel-validation-id",
+            "/private/sentinel-validation.md",
+            "sentinel-validation-content",
+            "sentinel-validation-query",
+            "0.73",
+        ):
+            assert sentinel not in caplog.text

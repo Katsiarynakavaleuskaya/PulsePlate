@@ -510,7 +510,11 @@ def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch) -> N
         monkeypatch.setenv("FEATURE_RAG", "true")
 
         _patch_stub_insight_provider(monkeypatch)
-        _patch_structured_rag_context(monkeypatch, query="question", content="ctx")
+        _patch_structured_rag_context(
+            monkeypatch,
+            query="question",
+            content="Balanced meals support everyday wellness.",
+        )
 
         req = legacy_app.InsightRequest(text="question")
         out = await legacy_app.insight_v1(req)
