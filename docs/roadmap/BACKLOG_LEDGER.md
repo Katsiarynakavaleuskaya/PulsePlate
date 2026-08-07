@@ -75,6 +75,28 @@ If it is not recorded here — it does not exist.
     telemetry expansion, public routes/DTO/OpenAPI, frontend, and iOS. Semantic
     cache widening is explicitly prohibited while its dedicated gate remains closed.
 
+<a id="ledger-p2-rag-chunk-copy-helper-consolidation"></a>
+- [ ] P2: Consolidate RAG chunk-copy helpers and profile boundary copies
+  - Owner: backend-engineer
+  - Priority: P2 (maintainability; non-blocking cleanup)
+  - Target PR: TBD (follow-up cleanup after PR #2232 merges)
+  - Status: Deferred from PR #2232 Sourcery review (2026-08-07)
+  - Area: backend / RAG
+  - Reason for deferral (EN): `_copy_rag_chunks` (`core/rag/orchestration.py`)
+    and `_copy_chunks` (`core/rag/philosophy_pipeline.py`) are near-identical
+    primitive-equivalent copy carriers. Consolidating them and profiling the
+    intentional per-boundary copies (pipeline survivors -> snapshot preparation
+    -> formatting -> candidate builder) is valid maintainability work but is
+    outside the PR #2232 Stage-1 safety boundary; per-boundary independent
+    copies are an intentional isolation design, not accidental redundancy.
+  - DoD: one shared chunk-copy helper is used by both modules (or intentional
+    divergence is documented in `docs/contracts/RAG_CONTRACT.md`), a boundary
+    copy profiling note is recorded, and deterministic RAG suites stay green.
+  - Links:
+    - `core/rag/orchestration.py` (`_copy_rag_chunks`)
+    - `core/rag/philosophy_pipeline.py` (`_copy_chunks`)
+    - PR #2232 Sourcery top-level review (2026-08-07)
+
 <a id="ledger-p1-cryptography-50-security-floor"></a>
 - [ ] P1: Raise the canonical `cryptography` security floor to 50.0.0
   - Owner: backend-engineer
