@@ -681,6 +681,15 @@ def _assert_snapshot_receipts(snapshot: dict, head_texts: dict[str, str]) -> Non
             assert file_hash == record["file_sha256"], f"{name}: compiled replay receipt mismatch"
 
 
+def _assert_live_compiled_replay_receipts(snapshot: dict) -> None:
+    """Bind every current compiled lock byte stream to the frozen replay receipt."""
+    for name in sorted(CRYPTOGRAPHY_COMPILED_SURFACES):
+        live_hash = hashlib.sha256((REPO_ROOT / name).read_bytes()).hexdigest()
+        assert (
+            live_hash == snapshot["surfaces"][name]["file_sha256"]
+        ), f"{name}: live compiled replay receipt mismatch"
+
+
 def _historical_admission_inputs() -> tuple[
     dict,
     dict[str, Version],
@@ -699,6 +708,7 @@ def _historical_admission_inputs() -> tuple[
     assert base_surfaces | head_surfaces == declared_surfaces, "S_base/S_head union drifted"
     assert not base_surfaces ^ head_surfaces, "S_base/S_head topology deltas are forbidden"
     _assert_snapshot_receipts(snapshot, head_texts)
+    _assert_live_compiled_replay_receipts(snapshot)
     parent_record, merge_base, replay_texts = _immutable_replay_witness_evidence()
     _assert_immutable_replay_witness(
         parent_record=parent_record,
@@ -1138,6 +1148,24 @@ def test_cryptography_50_admission_rejects_unreplayable_compiled_lock() -> None:
     snapshot["surfaces"]["requirements.txt"]["file_sha256"] = "0" * 64
     with pytest.raises(AssertionError, match="compiled replay receipt mismatch"):
         _assert_snapshot_receipts(snapshot, head_texts)
+
+
+def test_cryptography_50_admission_rejects_live_compiled_lock_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot, _, _ = _historical_snapshot_evidence()
+    for name in CRYPTOGRAPHY_COMPILED_SURFACES:
+        shutil.copyfile(REPO_ROOT / name, tmp_path / name)
+    drifted_lock = tmp_path / "requirements.txt"
+    drifted_lock.write_bytes(drifted_lock.read_bytes() + b"zipp==3.99.0\n")
+    monkeypatch.setitem(_assert_live_compiled_replay_receipts.__globals__, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(
+        AssertionError,
+        match="requirements.txt: live compiled replay receipt mismatch",
+    ):
+        _assert_live_compiled_replay_receipts(snapshot)
 
 
 def test_cryptography_50_admission_rejects_current_owner_snapshot_drift(

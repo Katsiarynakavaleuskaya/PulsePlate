@@ -107,7 +107,9 @@ rejects non-cryptography semantic transitions, requires all `I_R` carriers to
 match frozen S_head, and compares all five replay `C_R` lock byte streams with
 frozen S_head. It also binds all ten frozen semantic digests to the owner
 snapshot and never reads mutable live requirement files as historical
-admission evidence. The separate live schema and
+admission evidence. In addition, it hashes every current compiled lockfile and
+requires its bytes to match the frozen replay receipt, so unrelated live lock
+drift fails closed. The separate live schema and
 `REQUIREMENT_SURFACES` floor guard continue to enforce current repository truth
 and may rotate independently after this bounded admission.
 
