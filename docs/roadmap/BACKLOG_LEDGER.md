@@ -78,11 +78,12 @@ If it is not recorded here — it does not exist.
 <a id="ledger-p2-rag-chunk-copy-helper-consolidation"></a>
 - [ ] P2: Consolidate RAG chunk-copy helpers and profile boundary copies
   - Owner: backend-engineer
-  - Priority: P2 (maintainability; non-blocking cleanup)
+  - Priority: P2
+  - Priority note (EN): maintainability cleanup; non-blocking.
   - Target PR: TBD (follow-up cleanup after PR #2232 merges)
   - Status: Deferred from PR #2232 Sourcery review (2026-08-07)
   - Area: backend / RAG
-  - Reason for deferral (EN): `_copy_rag_chunks` (`core/rag/orchestration.py`)
+  - Reason (EN): `_copy_rag_chunks` (`core/rag/orchestration.py`)
     and `_copy_chunks` (`core/rag/philosophy_pipeline.py`) are near-identical
     primitive-equivalent copy carriers. Consolidating them and profiling the
     intentional per-boundary copies (pipeline survivors -> snapshot preparation
