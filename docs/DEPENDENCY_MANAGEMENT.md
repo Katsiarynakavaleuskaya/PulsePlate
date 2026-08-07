@@ -463,40 +463,17 @@ single root `pip` block resolves exclusively through the private
 `python-index` registry, keeps automatic transitive security-update eligibility,
 and limits routine version-update traffic with owner groups, cooldowns, and a
 four-PR cap. Security updates are not grouped, suppressed, or counted against
-that version-update cap. The same sole updater carries the exact
-`insecure-external-code-execution: allow` capability required for Python
-manifest evaluation. This is a bounded authority grant, not a claim that
-executed dependency code is safe.
+that version-update cap. External code execution is forbidden because the
+updater receives private `python-index` credentials; allowing package or
+manifest code to execute could expose those credentials to compromised code.
 
-GitHub can expose the associated registry credentials to manifest or package
-code under this capability. Compromised code can copy and replay the dedicated
-Dependabot read credentials. The required non-root principal, effective
-write-denied ACL, zero index ownership, and separation from `DEVPI_CI_*` limit
-integrity impact but do not preserve credential confidentiality or prevent
-unauthorized reads. Before relying on this updater, recheck the two Dependabot
-secret names without retrieving their values and retain a redacted receipt for
-the principal's effective write denial and zero index ownership. Those secret
-and ACL observations are mutable external evidence, not durable or canonical
-repository truth.
-
-The policy checker admits this capability only as literal `allow` on the one
-`pip` updater at `/`, with `registries: [python-index]`, the exact
-`DEVPI_DEPENDABOT_USER` / `DEVPI_DEPENDABOT_PASSWORD` references, and
-`replaces-base: true`. It rejects the key everywhere else, all other values,
-additional updater or registry shapes, dependency filters, target-branch
-changes, and public fallback.
-
-Rollback is structural: remove the capability from `.github/dependabot.yml`,
-restore its blanket forbidden-key guard and negative test, and retain
-`replaces-base: true`. When exposure is suspected, remove the capability or
-disable the updater before rotating only the dedicated Dependabot credentials.
-Setting the version-update pull-request limit to zero is not containment:
-security updates are exempt from that cap and can still evaluate manifests.
-The post-merge oracle is an exact-main Dependabot run that advances beyond the
-external-code refusal while remaining private-registry-only; that run still
-does not prove credential confidentiality, dependency-graph or artifact
-equivalence, D0 acceptance, merge readiness, or authority to merge generated
-changes.
+The policy checker rejects `insecure-external-code-execution` at every mapping
+position and retains `replaces-base: true`, the exact
+`DEVPI_DEPENDABOT_USER` / `DEVPI_DEPENDABOT_PASSWORD` references, a single
+private registry, and a single root updater. It also rejects additional updater
+or registry shapes, dependency filters, target-branch changes, and public
+fallback. If Dependabot cannot evaluate a manifest without external code, it
+must fail closed rather than grant package code access to registry credentials.
 
 Run `python scripts/ci/check_dependabot_python_policy.py --repo-root .` after
 changing the config, any root or one-directory-deep `.in`/`.txt` file,
