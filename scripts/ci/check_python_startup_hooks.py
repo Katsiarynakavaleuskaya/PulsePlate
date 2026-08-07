@@ -23,9 +23,7 @@ ALLOWED_EXECUTABLE_PTH_FILENAMES: tuple[str, ...] = (
 EXECUTABLE_IMPORT_PATTERN = re.compile(r"^\s*import\b")
 STARTUP_PROBE_PYTHON_ENV_ALLOWLIST = frozenset(
     {
-        "PYTHONHOME",
         "PYTHONNOUSERSITE",
-        "PYTHONPLATLIBDIR",
         "PYTHONUSERBASE",
     }
 )
@@ -203,7 +201,7 @@ def _revalidate_python_executable(executable: ResolvedPythonExecutable) -> None:
 
 
 def _startup_probe_environment() -> dict[str, str]:
-    """Preserve site-layout semantics while excluding Python code-injection controls."""
+    """Preserve user-site semantics while excluding Python code-loading controls."""
     return {
         key: value
         for key, value in os.environ.items()

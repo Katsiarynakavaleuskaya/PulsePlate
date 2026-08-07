@@ -289,10 +289,10 @@ def test_external_interpreter_site_packages_uses_startup_safe_probe(
     assert observed_kwargs.get("capture_output") is True
     observed_env = observed_kwargs.get("env")
     assert isinstance(observed_env, dict)
-    assert observed_env["PYTHONHOME"] == "/tmp/runtime-home"
     assert observed_env["PYTHONUSERBASE"] == "relative-userbase"
     assert observed_env["PYTHONNOUSERSITE"] == "1"
-    assert observed_env["PYTHONPLATLIBDIR"] == "runtime-lib"
+    assert "PYTHONHOME" not in observed_env
+    assert "PYTHONPLATLIBDIR" not in observed_env
     assert "PYTHONPATH" not in observed_env
     assert "PYTHONINSPECT" not in observed_env
     assert observed_kwargs.get("text") is True
@@ -358,7 +358,7 @@ def test_startup_safe_probe_normalizes_relative_site_paths(
     assert payload["site_packages"] == [str(tmp_path / relative_site_packages)]
 
 
-def test_external_interpreter_preserves_pythonhome_semantics(
+def test_external_interpreter_ignores_pythonhome_code_loading_control(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -366,8 +366,9 @@ def test_external_interpreter_preserves_pythonhome_semantics(
     empty_python_home.mkdir()
     monkeypatch.setenv("PYTHONHOME", str(empty_python_home))
 
-    with pytest.raises(RuntimeError, match="Unable to probe site-packages"):
-        hook_guard.external_interpreter_site_packages(sys.executable)
+    discovered = hook_guard.external_interpreter_site_packages(sys.executable)
+
+    assert discovered
 
 
 def test_external_interpreter_normalizes_relative_pythonuserbase_safely(
