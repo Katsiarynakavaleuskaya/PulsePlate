@@ -40,7 +40,7 @@ Executable evidence anchors are
 `scripts/ci/check_trivy_ignore_policy_expiry.py:334` for conservative target
 matching across both active sources, plus
 `tests/test_trivy_ignore_policy_expiry.py:625` and
-`tests/test_trivy_ignore_policy_expiry.py:643` for the exact absence and
+`tests/test_trivy_ignore_policy_expiry.py:640` for the exact absence and
 adversarial reintroduction contracts.
 
 ## Bounded claim

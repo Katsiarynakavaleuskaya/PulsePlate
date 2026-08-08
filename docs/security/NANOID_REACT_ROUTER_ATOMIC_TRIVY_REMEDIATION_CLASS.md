@@ -193,23 +193,23 @@ P_batch =
 Executable evidence anchors for the stable postconditions are:
 
 - tracked/index surface enumeration and fail-closed Git environment:
-  `tests/test_root_npm_dependency_guards.py:79` and
-  `tests/test_root_npm_dependency_guards.py:106`;
+  `tests/test_root_npm_dependency_guards.py:65` and
+  `tests/test_root_npm_dependency_guards.py:89`;
 - retired `pptxgenjs`/`image-size` graph absence:
-  `tests/test_root_npm_dependency_guards.py:299`;
+  `tests/test_root_npm_dependency_guards.py:282`;
 - direct, aliased, bundled, and version-qualified override discovery:
-  `tests/test_root_npm_dependency_guards.py:138` and
-  `tests/test_root_npm_dependency_guards.py:381`;
+  `tests/test_root_npm_dependency_guards.py:121` and
+  `tests/test_root_npm_dependency_guards.py:364`;
 - universal nanoid and React Router affected-range, canonical-tarball,
   integrity, and stable-release postconditions:
-  `tests/test_root_npm_dependency_guards.py:202`,
-  `tests/test_root_npm_dependency_guards.py:316`, and
-  `tests/test_root_npm_dependency_guards.py:334`;
+  `tests/test_root_npm_dependency_guards.py:185`,
+  `tests/test_root_npm_dependency_guards.py:299`, and
+  `tests/test_root_npm_dependency_guards.py:317`;
 - target-capable React Router suppression denial across both active ignore
   inputs: `scripts/ci/check_trivy_ignore_policy_expiry.py:303`,
   `scripts/ci/check_trivy_ignore_policy_expiry.py:334`,
   `tests/test_trivy_ignore_policy_expiry.py:625`, and
-  `tests/test_trivy_ignore_policy_expiry.py:643`;
+  `tests/test_trivy_ignore_policy_expiry.py:640`;
 - exact policy deletion surface: `trivy/ignore-policy.rego:1`;
 - retained DOCX builder and retired local PPTX execution boundary:
   `tests/test_business_collateral_builders.py:90` and
