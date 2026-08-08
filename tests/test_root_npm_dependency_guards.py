@@ -14,6 +14,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
+import pytest
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
 
@@ -75,7 +76,7 @@ def _carrier_leaf_paths(packages: dict[str, Any], leaf_name: str) -> list[str]:
     ]
 
 
-def _git_stdout(*args: str) -> bytes:
+def _git_stdout(*args: str, root: Path = REPO_ROOT) -> bytes:
     """Read tracked-path evidence through the resolved absolute Git executable."""
     git_binary = shutil.which("git")
     assert git_binary is not None, "git is required for tracked npm-surface guards"
@@ -86,7 +87,7 @@ def _git_stdout(*args: str) -> bytes:
     ), "git binary must be an available executable file"
     git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     result = subprocess.run(
-        [git_binary, "-C", str(REPO_ROOT), *args],
+        [git_binary, "-C", str(root), *args],
         check=True,
         capture_output=True,
         env=git_env,
@@ -102,9 +103,9 @@ def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
     )
 
 
-def _load_tracked_npm_surfaces() -> dict[str, dict[str, Any]]:
+def _load_tracked_npm_surfaces(*, root: Path = REPO_ROOT) -> dict[str, dict[str, Any]]:
     """Discover every current tracked npm manifest/lock without pinning a PR base."""
-    tracked_paths = _git_stdout("ls-files", "--cached", "-z").decode("utf-8")
+    tracked_paths = _git_stdout("ls-files", "--cached", "-z", root=root).decode("utf-8")
     surfaces: dict[str, dict[str, Any]] = {}
     for raw_path in tracked_paths.split("\0"):
         if not raw_path:
@@ -112,7 +113,7 @@ def _load_tracked_npm_surfaces() -> dict[str, dict[str, Any]]:
         relative = PurePosixPath(raw_path)
         if not _is_governed_npm_surface(relative):
             continue
-        surface_path = REPO_ROOT.joinpath(*relative.parts)
+        surface_path = root.joinpath(*relative.parts)
         assert (
             surface_path.is_file() and not surface_path.is_symlink()
         ), f"{relative.as_posix()}: tracked npm surface must be a regular file"
@@ -306,3 +307,146 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             occurrences=_find_lock_occurrences(document, target="react-router"),
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "key", "value", "target"),
+    (
+        ("dependencies", "image-size", "2.0.2", "image-size"),
+        ("devDependencies", "renamed-image", "npm:image-size@2.0.2", "image-size"),
+        ("optionalDependencies", "pptxgenjs", "4.0.1", "pptxgenjs"),
+        ("peerDependencies", "renamed-pptx", "npm:pptxgenjs@4.0.1", "pptxgenjs"),
+        ("overrides", "renamed-image", "npm:image-size", "image-size"),
+    ),
+)
+def test_retired_graph_manifest_discovery_rejects_direct_and_alias_reintroduction(
+    field: str, key: str, value: str, target: str
+) -> None:
+    """Direct, override, and npm-alias declarations remain visible to the guard."""
+    assert _find_manifest_occurrences({field: {key: value}}, target=target)
+
+
+@pytest.mark.parametrize("field", ("bundleDependencies", "bundledDependencies"))
+def test_retired_graph_manifest_discovery_rejects_bundled_reintroduction(
+    field: str,
+) -> None:
+    """Bundled dependency declarations cannot hide a retired identity."""
+    assert _find_manifest_occurrences({field: ["image-size"]}, target="image-size")
+
+
+@pytest.mark.parametrize(
+    ("package_path", "entry"),
+    (
+        ("node_modules/image-size", {"version": "2.0.2"}),
+        ("node_modules/renamed-image", {"name": "image-size", "version": "2.0.2"}),
+        (
+            "node_modules/renamed-image",
+            {
+                "version": "2.0.2",
+                "resolved": "https://registry.npmjs.org/image-size/-/image-size-2.0.2.tgz",
+            },
+        ),
+    ),
+)
+def test_retired_graph_lock_discovery_rejects_path_name_and_resolution_aliases(
+    package_path: str, entry: dict[str, str]
+) -> None:
+    """Path, package name, and canonical registry identity are all detected."""
+    document = {"lockfileVersion": 3, "packages": {package_path: entry}}
+    assert _find_lock_occurrences(document, target="image-size") == {package_path: entry}
+
+
+def test_retired_graph_lock_discovery_rejects_malformed_scalar_entry() -> None:
+    """A malformed package entry fails closed before it can evade discovery."""
+    document = {
+        "lockfileVersion": 3,
+        "packages": {"node_modules/image-size": "npm:pptxgenjs@4.0.1"},
+    }
+    with pytest.raises(AssertionError, match="package entry must be an object"):
+        _find_lock_occurrences(document, target="image-size")
+
+
+def _init_indexed_npm_surface_repo(root: Path, *, package_json: str = "{}\n") -> None:
+    """Create a disposable Git index containing one governed npm surface."""
+    root.mkdir()
+    (root / ".gitignore").write_text("tmp/\n", encoding="utf-8")
+    (root / "package.json").write_text(package_json, encoding="utf-8")
+    _git_stdout("init", "--quiet", root=root)
+    _git_stdout("add", "--", ".gitignore", "package.json", root=root)
+
+
+def test_tracked_surface_inventory_ignores_untracked_tmp_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ignored scratch manifests cannot expand or poison the indexed universe."""
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer-hook.index"))
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    scratch_manifest = repo / "tmp" / "scratch" / "package.json"
+    scratch_manifest.parent.mkdir(parents=True)
+    scratch_manifest.write_text("not-json\n", encoding="utf-8")
+
+    _git_stdout("check-ignore", "--quiet", "tmp/scratch/package.json", root=repo)
+    assert set(_load_tracked_npm_surfaces(root=repo)) == {"package.json"}
+
+
+def test_tracked_surface_inventory_rejects_missing_indexed_file(tmp_path: Path) -> None:
+    """An indexed npm surface cannot disappear from the checkout."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    (repo / "package.json").unlink()
+
+    with pytest.raises(AssertionError, match="tracked npm surface must be a regular file"):
+        _load_tracked_npm_surfaces(root=repo)
+
+
+def test_tracked_surface_inventory_rejects_non_regular_indexed_file(tmp_path: Path) -> None:
+    """An indexed npm surface cannot be replaced by a directory."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    (repo / "package.json").unlink()
+    (repo / "package.json").mkdir()
+
+    with pytest.raises(AssertionError, match="tracked npm surface must be a regular file"):
+        _load_tracked_npm_surfaces(root=repo)
+
+
+def test_tracked_surface_inventory_rejects_unparseable_indexed_json(tmp_path: Path) -> None:
+    """An indexed npm surface must remain a readable JSON object."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo, package_json="not-json\n")
+
+    with pytest.raises(AssertionError, match="npm surface must be readable UTF-8 JSON"):
+        _load_tracked_npm_surfaces(root=repo)
+
+
+def test_git_stdout_executes_resolved_binary_and_sanitizes_git_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Use the resolved executable verbatim without leaking outer Git state."""
+    resolved_git = tmp_path / "resolved-git"
+    resolved_git.write_text(
+        """#!/bin/sh
+if [ -n "${GIT_DIR+x}" ] || [ -n "${GIT_INDEX_FILE+x}" ] || [ -n "${GIT_CUSTOM_PROBE+x}" ]; then
+  exit 91
+fi
+printf '%s\\n' "$0"
+printf '%s\\n' "$@"
+""",
+        encoding="utf-8",
+    )
+    resolved_git.chmod(0o755)
+    monkeypatch.setattr(shutil, "which", lambda command: str(resolved_git))
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "outer.git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer.index"))
+    monkeypatch.setenv("GIT_CUSTOM_PROBE", "must-not-leak")
+
+    output = _git_stdout("status", "--porcelain", root=tmp_path)
+
+    assert output.decode("utf-8").splitlines() == [
+        str(resolved_git),
+        "-C",
+        str(tmp_path),
+        "status",
+        "--porcelain",
+    ]
