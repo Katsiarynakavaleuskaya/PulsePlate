@@ -2,8 +2,8 @@
 
 # Business Collateral Automation
 
-Version: 2026-03-21 (`America/New_York`)
-Change note: Added markdown-first collateral generation contract for B2B proposal and pitch deck outputs.
+Version: 2026-08-08 (`Europe/Minsk`)
+Change note: Retired the local PPTX generator; DOCX proposal generation remains supported.
 Decision reference: `docs/executive/PR_PORTFOLIO_BRIEF_DIRECTORS_2026-03.md`
 
 ## Purpose
@@ -23,14 +23,14 @@ without creating a second business source of truth.
 ## Derived Outputs
 
 - `.docx` proposal files
-- `.pptx` pitch decks
 
-Derived outputs are local-only artifacts and must not be committed.
+Derived DOCX outputs are local-only artifacts and must not be committed. The
+pitch-deck specification remains canonical business/content truth, but this
+repository no longer provides a local PPTX execution or generation path.
 
 ## Builder Commands
 
 - `npm run build:b2b-proposal`
-- `npm run build:b2b-pitch-deck`
 - `npm run build:business-collateral`
 
 ## Output Policy
@@ -48,7 +48,7 @@ Derived outputs are local-only artifacts and must not be committed.
 ## Review Rules
 
 1. Review the markdown spec first.
-2. Generate the collateral locally.
+2. Generate the DOCX proposal locally.
 3. Verify the generated material still uses wellness-safe language.
 4. Remove or replace unresolved placeholders before external distribution when evidence is available.
 

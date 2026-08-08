@@ -126,17 +126,3 @@ process.stdout.write(JSON.stringify(result));
         {"type": "heading1", "text": "Visible Heading"},
         {"type": "paragraph", "text": "Visible paragraph."},
     ]
-
-
-def test_b2b_pitch_deck_builder_creates_pptx(tmp_path: Path) -> None:
-    _node_package_or_skip("pptxgenjs")
-    output_path = tmp_path / "deck.pptx"
-    result = _run_builder("scripts/business_collateral/build_b2b_pitch_deck.js", output_path)
-
-    assert result.returncode == 0, result.stderr
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
-    assert str(output_path) in result.stdout
-
-    with zipfile.ZipFile(output_path) as archive:
-        assert "ppt/presentation.xml" in archive.namelist()

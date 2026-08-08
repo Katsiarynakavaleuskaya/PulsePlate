@@ -6,13 +6,21 @@
 
 ## Purpose
 
-This runbook is the canonical operating contract for the business-line wave launched from an isolated worktree.
+This runbook is the canonical point-in-time record of the business-line wave as launched on 2026-03-21 from an isolated worktree.
 
 It exists to keep:
 - current dirty runtime/payment work untouched,
 - business/executive artifacts documentation-first,
 - agent orchestration synchronized with audience-pack SoT,
 - collateral generation automated without promoting generated binaries into git.
+
+## Current Status
+
+- Current collateral execution truth is `docs/audience_pack/BUSINESS_COLLATERAL_AUTOMATION.md`.
+- The local PptxGenJS builder, npm command, and PPTX-only test are retired.
+- `docs/audience_pack/B2B_PITCH_DECK_SPEC.md` remains canonical business/content truth.
+- DOCX proposal generation remains supported.
+- The historical Wave Objective, PR-3, and Sync Points sections below record the 2026-03-21 plan; they do not authorize restoring the retired local PPTX execution path.
 
 ## Contract Boundaries
 
@@ -106,7 +114,7 @@ Build a reusable business-development system around existing repo canon:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
 - `make verify`
-- `pytest -q tests/test_business_collateral_builders.py` (PR-3+ only, after builders are added)
+- `pytest -q tests/test_business_collateral_builders.py` (current DOCX proposal/parser coverage)
 
 ## Deferred from This Wave
 
