@@ -110,8 +110,8 @@ def _git_stdout(*args: str, root: Path = REPO_ROOT) -> bytes:
     """RU/EN: Read repository evidence through an absolute git binary."""
     git_binary = shutil.which("git")
     assert git_binary is not None, "git is required for exact-base dependency guards"
-    if git_binary.endswith("/usr/libexec/git-core/git"):
-        git_binary = "/usr/bin/git"
+    # Execute the exact absolute executable selected by shutil.which.
+    # Do not remap valid platform-specific Git paths.
     git_path = Path(git_binary)
     assert git_path.is_absolute(), "git binary must resolve to an absolute path"
     assert git_path.is_file() and os.access(
@@ -708,3 +708,35 @@ def test_image_size_head_surface_inventory_rejects_unparseable_tracked_json(
 
     with pytest.raises(AssertionError, match="npm surface must be readable UTF-8 JSON"):
         _enumerate_repo_npm_surfaces(root=repo)
+
+
+def test_git_stdout_executes_resolved_binary_unchanged_and_sanitizes_git_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The resolved Git executable is used verbatim without inherited Git state."""
+    resolved_git = tmp_path / "resolved-git"
+    resolved_git.write_text(
+        """#!/bin/sh
+if [ -n "${GIT_DIR+x}" ] || [ -n "${GIT_INDEX_FILE+x}" ] || [ -n "${GIT_CUSTOM_PROBE+x}" ]; then
+  exit 91
+fi
+printf '%s\\n' "$0"
+printf '%s\\n' "$@"
+""",
+        encoding="utf-8",
+    )
+    resolved_git.chmod(0o755)
+    monkeypatch.setattr(shutil, "which", lambda command: str(resolved_git))
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "outer.git"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer.index"))
+    monkeypatch.setenv("GIT_CUSTOM_PROBE", "must-not-leak")
+
+    output = _git_stdout("status", "--porcelain", root=tmp_path)
+
+    assert output.decode("utf-8").splitlines() == [
+        str(resolved_git),
+        "-C",
+        str(tmp_path),
+        "status",
+        "--porcelain",
+    ]
