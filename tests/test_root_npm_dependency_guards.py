@@ -23,20 +23,6 @@ ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-IGNORED_NPM_SURFACE_PARTS = frozenset(
-    {
-        ".git",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".venv",
-        "artifacts",
-        "build",
-        "dist",
-        "node_modules",
-        "worktrees",
-    }
-)
 NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.17"),
     SpecifierSet(">=4,<5.1.16"),
@@ -97,10 +83,7 @@ def _git_stdout(*args: str, root: Path = REPO_ROOT) -> bytes:
 
 
 def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
-    return (
-        relative.name in NPM_SURFACE_BASENAMES
-        and not set(relative.parts) & IGNORED_NPM_SURFACE_PARTS
-    )
+    return relative.name in NPM_SURFACE_BASENAMES
 
 
 def _load_tracked_npm_surfaces(*, root: Path = REPO_ROOT) -> dict[str, dict[str, Any]]:
@@ -532,6 +515,26 @@ def test_tracked_surface_inventory_ignores_untracked_tmp_manifest(
 
     _git_stdout("check-ignore", "--quiet", "tmp/scratch/package.json", root=repo)
     assert set(_load_tracked_npm_surfaces(root=repo)) == {"package.json"}
+
+
+def test_tracked_surface_inventory_includes_nested_build_manifest(tmp_path: Path) -> None:
+    """A tracked manifest remains governed under an otherwise local-looking directory."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    nested_manifest = repo / "tools" / "build" / "package.json"
+    nested_manifest.parent.mkdir(parents=True)
+    nested_manifest.write_text(
+        json.dumps({"dependencies": {"image-size": "2.0.2"}}) + "\n",
+        encoding="utf-8",
+    )
+    _git_stdout("add", "--", "tools/build/package.json", root=repo)
+
+    surfaces = _load_tracked_npm_surfaces(root=repo)
+
+    assert set(surfaces) == {"package.json", "tools/build/package.json"}
+    assert _find_manifest_occurrences(
+        surfaces["tools/build/package.json"], target="image-size"
+    ) == {("dependencies", "image-size"): "2.0.2"}
 
 
 def test_tracked_surface_inventory_rejects_missing_indexed_file(tmp_path: Path) -> None:

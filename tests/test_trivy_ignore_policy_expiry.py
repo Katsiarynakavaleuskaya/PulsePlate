@@ -625,9 +625,6 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
 def test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction() -> None:
     policy = _policy_text()
     trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
-    checker = (REPO_ROOT / "scripts" / "ci" / "check_trivy_ignore_policy_expiry.py").read_text(
-        encoding="utf-8"
-    )
 
     assert "GHSA-qwww-vcr4-c8h2" not in policy
     assert (
@@ -637,7 +634,7 @@ def test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroducti
         )
         == []
     )
-    assert '_RETIRED_REACT_ROUTER_RSC_ADVISORY = "GHSA-qwww-vcr4-c8h2"' in checker
+    assert expiry_guard._RETIRED_REACT_ROUTER_RSC_ADVISORY == "GHSA-qwww-vcr4-c8h2"
 
 
 def test_react_router_rsc_trivyignore_reintroduction_fails_closed(
