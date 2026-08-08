@@ -906,24 +906,22 @@ into another parser variant.
   governed recovery, not as grounds for a carrier commit or operator merge
   exception.
 
-## 33) Scope dependency remediation by invariant class, not advisory variant
+## 33) Keep one dependency identity by default; batch only an exact scanner snapshot
 
 ### Problem
-One application dependency can carry several advisory variants whose affected
-ranges and remediation floors differ. Treating each advisory as the PR unit
-fragments one mechanical remediation, while requiring identical floors confuses
-variant metadata with the invariant that the repository must establish. The
-opposite error is equally unsafe: batching unrelated dependency identities,
-ecosystems, surface universes, or remediation actions makes evidence ambiguous.
-Suppression is a separate action with a different audit contract.
+One dependency can carry several advisory variants, so advisory count is not a
+safe PR boundary. Unbounded batching is equally unsafe: it lets a candidate
+select convenient findings, omit another identity from the same scanner state,
+or treat one repaired member as success. Suppression changes also need their own
+fail-closed boundary.
 
 ### Rule
-Define one application-dependency remediation class with `D`, `S`, `R`, and
-`P`, evaluated against one finite reconciled candidate inventory `F_cutoff`,
-whose base-applicable subset `A` must be non-empty:
+The default application-dependency lane defines one identity with `D`, `S`,
+`R`, and `P`, evaluated against one finite reconciled candidate inventory
+`F_cutoff` whose base-applicable subset `A` is non-empty:
 
 1. **`D` — ecosystem-qualified dependency identity:** exactly one dependency
-   identity in exactly one ecosystem.
+   identity in exactly one ecosystem by default.
 2. **`S` — governed surface universe:** independently enumerate the complete
    governed manifest and lock surfaces for `D` at the exact base (`S_base`) and
    head (`S_head`). Their union `S = S_base ∪ S_head` must be non-empty, and
@@ -963,6 +961,20 @@ authority, not sentence variants, is the guard authority. This lesson mirrors
 that relation for humans and does not create a second machine-readable
 authority.
 
+The v2 exception is deliberately narrow and has prospective repository effect
+only after merge. A direct external operator instruction issued outside a
+candidate diff may separately authorize the exact transition that changes this
+policy together with its exact bounded dependency material; this does not make
+candidate text effective early and grants no general or future batch authority.
+For current and future batches, the operator names one immutable terminal
+full-repository scanner run/analysis and authorizes the complete unresolved
+identity set derived from it. The candidate PR, its policy/docs/tests, the
+scanner, and agents cannot self-authorize, infer, authenticate, or widen the
+instruction. All identities share one ecosystem; each gets exactly one authored
+replacement or removal action; the resolver closure is replayed from the exact
+base; and `P` is the conjunction across the entire set. Omission, addition,
+partial success, or an unclassified delta fails.
+
 Advisories are independently auditable variants within that class, not the
 class boundary. Canonical evidence must record the named authoritative input or
 inputs and snapshot or cutoff used for `F_cutoff`. Every triggering alert and
@@ -992,24 +1004,19 @@ scanner/audit result. Each member of `A` additionally records its remediation
 floor, selected target, governed affected base occurrence, and deterministic
 proof of `I_R`, `C_R`, and `P`.
 
-Any difference in `D`, ecosystem, `S`, or authored operation kind/semantic
-intent in `R` requires a separate PR. Heterogeneous occurrence shapes produced
-by replay-proven `C_R` stay in that PR. A second authored action, manual lock
-adjustment, resolver/configuration change, topology redesign, or second
-dependency objective is not closure. A dependency security guard test must
-independently enumerate `S_base` and `S_head`, prove their union is non-empty,
-reconcile every surface delta, derive `A` exactly from `F_cutoff`, prove an
-affected comparable base witness for every advisory in `A`, prove every
-governed head occurrence safe against every candidate in `F_cutoff`, enumerate
-non-empty `I_R`, partition every material transition exactly once into `I_R` or
-replay-proven `C_R`, reject independent, manual, unclassified, or unreplayable
-transitions, and enforce `R` and `P` deterministically so that an omitted
-surface, finding, transition, or unresolved occurrence cannot create a false
-remediation claim. Keep
-suppression on its existing rail: Trivy,
-`.trivyignore`, `trivy/ignore-policy.rego`, waiver, and unfixed-upstream
-suppression work remains one dedicated security PR per CVE. Suppression must
-never mix with application-dependency remediation.
+Without either the exact external policy-transition instruction for a candidate
+changing this rule or, after v2 is effective, a qualifying external
+scanner-batch instruction, any difference in `D` requires a separate PR.
+Under the exception, the owner document and one-time resolver replay record the
+complete derived set, every identity's base/head surfaces and witnesses, and the
+complete dependency JSON delta partitioned into authored actions or solver
+closure. Permanent guards independently discover current tracked head surfaces
+and enforce aliases/malformed-state rejection plus universal `F_cutoff`
+postconditions; they must not freeze the incident base/delta and thereby block
+future authorized dependency changes. The only suppression mutation allowed in
+the batch is deletion of the exact obsolete suppression for an identity
+remediated by that same batch. A suppression addition, broadening, replacement,
+or unrelated deletion is never closure and remains forbidden.
 
 ---
 
