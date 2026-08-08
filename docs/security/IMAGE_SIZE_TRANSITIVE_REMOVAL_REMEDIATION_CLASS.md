@@ -4,8 +4,9 @@
 
 ## Authority and bounded claim
 
-This document is the sole evidence owner for one application-dependency
-remediation class:
+This document is the subordinate evidence owner for the `npm:image-size`
+identity inside the operator-authorized atomic batch owned by
+`docs/security/NANOID_REACT_ROUTER_ATOMIC_TRIVY_REMEDIATION_CLASS.md`:
 
 - `D`: `npm:image-size`;
 - ecosystem: `npm`;
@@ -16,9 +17,10 @@ remediation class:
 
 The remediation removes a tracked, local PPTX generator whose sole direct
 carrier was root `pptxgenjs`. It does not replace `image-size`, suppress an
-advisory, lower scanner severity, weaken a workflow, or claim remediation of a
-second dependency identity. The DOCX business-collateral builder and all
-PulsePlate application runtime paths remain intact.
+advisory, lower scanner severity, or weaken a workflow. The DOCX
+business-collateral builder and all PulsePlate application runtime paths remain
+intact. This subordinate record grants no batching authority and makes no
+remediation claim for the batch's `nanoid` or React Router identities.
 
 ## Frozen material and complete surface universe `S`
 
@@ -36,9 +38,9 @@ checkout. Both enumerations must equal this exact non-empty set:
 | Surface | Base SHA-256 | Head SHA-256 | `image-size` reconciliation |
 | --- | --- | --- | --- |
 | `package.json` | `1da85e56a5cdcc39fdf1136548aa2815b357bed5f9ccd85399e42c9cbd867ca5` | `9bcbc2307471c1eb4be4c87cffeb88587339e911e6a4898d5c9234fff7b0766c` | no direct/alias occurrence; sole carrier declaration removed |
-| `package-lock.json` | `6828456d38086a1924cc0e3c54b4a6d1b001acc686c4cfb07691319ee3759759` | `a5b8a5dc65fdcd5b91af5f5a34a55c46ad9f3f2e8df4cb5d909368b62c1800f9` | base `node_modules/image-size@1.2.1`; head executable absence |
-| `frontend/package.json` | `97bd09c0eec4fd15a582dd6a3fc96f02b29610e7955166796421f3cea703f309` | same | negative control; executable absence at base and head |
-| `frontend/package-lock.json` | `41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885` | same | negative control; executable absence at base and head |
+| `package-lock.json` | `6828456d38086a1924cc0e3c54b4a6d1b001acc686c4cfb07691319ee3759759` | `a1c5411b103a80fc78b293c628d0fd8d6f47de065d2c75a208d06e40c683d9e8` | base `node_modules/image-size@1.2.1`; head executable absence; final batch also carries the classified root `nanoid` replacement |
+| `frontend/package.json` | `97bd09c0eec4fd15a582dd6a3fc96f02b29610e7955166796421f3cea703f309` | `681130ffb4dcf434b3d35f9ba84de41c13771de99f411b016e73c31b3f682698` | negative control for this identity; no `image-size`; combined batch changes only `react-router-dom` |
+| `frontend/package-lock.json` | `41d793fe5905be75656cffc03fd03f9c8371ecf1f8f60aa8ee979e789efe5885` | `2dc7084e209ab24b824f64fee88e63abc09e8abeb58301148405bd2fd4300aa9` | negative control for this identity; no `image-size`; combined batch changes only classified `nanoid`/React Router paths |
 | `scripts/business_collateral/package.json` | `8005a3491db7d92f36ac66369861589f9c47123d3a7c71e643fc2c06168cd45a` | same | negative control; executable absence at base and head |
 
 The only comparable base occurrence is the lockfile-v3 package record
@@ -70,10 +72,11 @@ A = {
 ```
 
 The base audit exited `1` and reported three high-severity dependency keys:
-`image-size`, its direct carrier `pptxgenjs`, and unrelated `nanoid`. After the
-removal, the same audit command still exits `1` and reports only `nanoid`.
-Consequently, this evidence proves removal of `D`; it does not claim that the
-entire root npm audit is clean and does not absorb `nanoid` into this class.
+`image-size`, its direct carrier `pptxgenjs`, and the independently identified
+`nanoid`. After image removal alone, the same audit still reported `nanoid`.
+Consequently, this evidence proves only removal of `D`. The later direct
+operator instruction adds `nanoid` and React Router to the combined batch; that
+scope is recorded only by the combined owner document above.
 
 ## One removal intent `I_R` and deterministic solver closure `C_R`
 
@@ -103,8 +106,10 @@ Both runs used Node `v24.18.1` and npm `11.16.0` and produced identical bytes:
 - replay `package-lock.json` SHA-256:
   `a5b8a5dc65fdcd5b91af5f5a34a55c46ad9f3f2e8df4cb5d909368b62c1800f9`.
 
-The worktree lockfile is byte-identical to both replay lockfiles. Its complete
-JSON delta is the following mechanically coupled `C_R` and nothing else:
+The image-only replay lockfiles are byte-identical to each other. The final
+batch lock differs from that replay only at the three separately classified
+root `nanoid` fields. The image identity's complete mechanically coupled `C_R`
+is:
 
 - remove root lock dependency edge `pptxgenjs`;
 - remove `node_modules/pptxgenjs`;
@@ -113,47 +118,45 @@ JSON delta is the following mechanically coupled `C_R` and nothing else:
 - remove `node_modules/pptxgenjs/node_modules/@types/node` and its nested
   `undici-types`.
 
-The guard compares the full base/head dependency JSON delta, proves every
-admitted `C_R` path exists in the exact base and is absent from head, and fails
-on any replacement, manual, unrelated, unclassified, or unreplayable
-transition. No lockfile line was edited manually.
+The immutable transition evidence above compares the full base/head dependency
+JSON delta and proves every admitted `C_R` path exists in the exact base and is
+absent from head. No lockfile line was edited manually. The permanent guard owns
+only the stable current-head postcondition; it does not freeze this historical
+delta.
 
 ## Postcondition `P` and executable closure
 
-`tests/test_root_npm_dependency_guards.py` enforces all of the following:
+`tests/test_root_npm_dependency_guards.py` enforces the stable postcondition:
 
-- exact independent base-Git-object/head-index enumeration of `S`, excluding
-  ignored or untracked scratch manifests;
-- the single base occurrence and its comparable version/provenance;
-- exact derivation of both members of `A` from `F_cutoff`;
-- executable absence of `image-size` on every head surface;
-- byte-identical negative-control surfaces;
-- the sole manifest `I_R` and exact replay-proven lockfile `C_R`;
-- rejection of direct declarations, npm aliases, renamed lock entries,
-  registry-resolution aliases, replacements on admitted removal paths,
-  malformed scalar lock package entries, and unrelated lockfile deltas;
-- absence of the PPTX npm command, tracked builder, and dead `parseDeckSpec`
-  export while the DOCX-only aggregate command remains available.
+- tracked current-head enumeration of all governed npm surfaces, excluding
+  ignored or untracked scratch paths;
+- executable absence of `image-size` and its retired `pptxgenjs` carrier on
+  every tracked manifest and lock surface;
+- rejection of direct declarations, npm aliases, bundled declarations, renamed
+  lock entries, registry-resolution aliases, and malformed lock entries;
+- universal affected-range checks for the retained nanoid and React Router
+  occurrences, without pinning their current safe version forever.
 
-Executable evidence anchors for this exact material are:
+`tests/test_business_collateral_builders.py` separately enforces absence of the
+PPTX command, tracked builder, and dead `parseDeckSpec` export while retaining
+the DOCX-only aggregate behavior.
 
-- exact base, `S`, and `F_cutoff`: `tests/test_root_npm_dependency_guards.py:27`,
-  `tests/test_root_npm_dependency_guards.py:28`, and
-  `tests/test_root_npm_dependency_guards.py:37`;
-- tracked head inventory and ignored/untracked scratch negative control:
-  `tests/test_root_npm_dependency_guards.py:145` and
-  `tests/test_root_npm_dependency_guards.py:664`;
-- `I_R`, `C_R`, applicable-set derivation, and `P`:
-  `tests/test_root_npm_dependency_guards.py:296`,
-  `tests/test_root_npm_dependency_guards.py:304`, and
-  `tests/test_root_npm_dependency_guards.py:352`;
-- exact base/head reconciliation entrypoint:
-  `tests/test_root_npm_dependency_guards.py:512`;
-- replacement-as-removal and malformed-entry negative controls:
-  `tests/test_root_npm_dependency_guards.py:599`,
-  `tests/test_root_npm_dependency_guards.py:614`,
-  `tests/test_root_npm_dependency_guards.py:629`, and
-  `tests/test_root_npm_dependency_guards.py:642`;
+The exact base, `S`, `F_cutoff`, `I_R`, `C_R`, and two deterministic resolver
+replays above are immutable one-time transition evidence. They are deliberately
+not encoded as a permanent exact-base delta test, because that would turn this
+incident record into a blanket prohibition on every future authorized npm
+change.
+
+Executable evidence anchors for the stable postcondition are:
+
+- tracked current npm-surface discovery through a sanitized absolute Git
+  executable: `tests/test_root_npm_dependency_guards.py:78` and
+  `tests/test_root_npm_dependency_guards.py:105`;
+- manifest/lock identity and alias discovery:
+  `tests/test_root_npm_dependency_guards.py:132` and
+  `tests/test_root_npm_dependency_guards.py:169`;
+- executable absence of the retired `pptxgenjs`/`image-size` graph on every
+  tracked npm surface: `tests/test_root_npm_dependency_guards.py:270`;
 - retained DOCX command and absence of a pitch command in the bounded script
   object: `package.json:13` and `package.json:14`;
 - root dependency object after carrier removal: `package.json:31`;

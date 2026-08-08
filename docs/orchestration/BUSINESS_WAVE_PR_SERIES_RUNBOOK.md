@@ -44,6 +44,10 @@ It exists to keep:
 
 ## Wave Objective
 
+> **Historical, non-executable record.** The Wave Objective, PR Series, Routing
+> Card, and Sync Points below describe the 2026-03-21 plan only. They do not
+> override Current Status or authorize restoration of local PPTX execution.
+
 Build a reusable business-development system around existing repo canon:
 - director-level business orchestration,
 - B2B proposal and pitch-deck specs in Markdown,

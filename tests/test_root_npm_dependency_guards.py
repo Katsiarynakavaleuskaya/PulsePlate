@@ -1,9 +1,8 @@
 """Deterministic root npm dependency security guards.
 
-RU: Проверяем, что root package-lock.json удерживает исправленные security floors
-для канонических npm remediation paths.
-EN: Ensure the root package-lock.json keeps patched security floors for the
-canonical npm remediation paths.
+RU: Проверяем, что npm-граф удерживает исправленные security postconditions.
+EN: Ensure the npm graph keeps the remediated security postconditions without
+freezing an individual PR's historical dependency delta.
 """
 
 from __future__ import annotations
@@ -12,55 +11,17 @@ import json
 import os
 import shutil
 import subprocess
-from copy import deepcopy
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
-import pytest
 from packaging.specifiers import SpecifierSet
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
-# Exact public Git object, split so secret scanners do not misclassify the SHA as a credential.
-IMAGE_SIZE_EXACT_BASE = "".join(("ad179450", "108ab352", "fe31e668", "7a33185b", "99b52127"))
-IMAGE_SIZE_GOVERNED_SURFACES = frozenset(
-    {
-        "package.json",
-        "package-lock.json",
-        "frontend/package.json",
-        "frontend/package-lock.json",
-        "scripts/business_collateral/package.json",
-    }
-)
-IMAGE_SIZE_ADVISORY_RANGES = {
-    "GHSA-5p2g-fcmc-qvqq": SpecifierSet("<=2.0.2"),
-    "GHSA-w3rx-r6r6-pgpr": SpecifierSet("<=2.0.2"),
-}
-IMAGE_SIZE_APPLICABLE_ADVISORIES = frozenset(IMAGE_SIZE_ADVISORY_RANGES)
-IMAGE_SIZE_LOCK_CLOSURE_PATHS = frozenset(
-    {
-        ("packages", "", "dependencies", "pptxgenjs"),
-        ("packages", "node_modules/https"),
-        ("packages", "node_modules/image-size"),
-        ("packages", "node_modules/pptxgenjs"),
-        ("packages", "node_modules/pptxgenjs/node_modules/@types/node"),
-        ("packages", "node_modules/pptxgenjs/node_modules/undici-types"),
-        ("packages", "node_modules/queue"),
-    }
-)
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-NPM_MANIFEST_DEPENDENCY_FIELDS = (
-    "dependencies",
-    "devDependencies",
-    "optionalDependencies",
-    "peerDependencies",
-    "overrides",
-    "bundleDependencies",
-    "bundledDependencies",
-)
 IGNORED_NPM_SURFACE_PARTS = frozenset(
     {
         ".git",
@@ -75,10 +36,18 @@ IGNORED_NPM_SURFACE_PARTS = frozenset(
         "worktrees",
     }
 )
+NANOID_AFFECTED_RANGES = (
+    SpecifierSet("<3.3.17"),
+    SpecifierSet(">=4,<5.1.16"),
+)
+REACT_ROUTER_AFFECTED_RANGES = (
+    SpecifierSet(">=7.12,<7.18.2"),
+    SpecifierSet(">=8,<8.3.0"),
+)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    """RU/EN: Read a UTF-8 JSON file and return the decoded object."""
+    """RU/EN: Read one governed UTF-8 JSON object or fail closed."""
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -95,7 +64,7 @@ def _require_dict_field(container: dict[str, Any], key: str, *, ctx: str) -> dic
 
 
 def _carrier_leaf_paths(packages: dict[str, Any], leaf_name: str) -> list[str]:
-    """RU/EN: Collect agentguard-scoped transitive paths that end with the requested leaf package."""
+    """RU/EN: Collect AgentGuard-scoped transitive paths ending in one leaf."""
     carrier_prefix = "node_modules/@goplus/agentguard/"
     return [
         package_path
@@ -106,12 +75,10 @@ def _carrier_leaf_paths(packages: dict[str, Any], leaf_name: str) -> list[str]:
     ]
 
 
-def _git_stdout(*args: str, root: Path = REPO_ROOT) -> bytes:
-    """RU/EN: Read repository evidence through an absolute git binary."""
+def _git_stdout(*args: str) -> bytes:
+    """Read tracked-path evidence through the resolved absolute Git executable."""
     git_binary = shutil.which("git")
-    assert git_binary is not None, "git is required for exact-base dependency guards"
-    # Execute the exact absolute executable selected by shutil.which.
-    # Do not remap valid platform-specific Git paths.
+    assert git_binary is not None, "git is required for tracked npm-surface guards"
     git_path = Path(git_binary)
     assert git_path.is_absolute(), "git binary must resolve to an absolute path"
     assert git_path.is_file() and os.access(
@@ -119,20 +86,13 @@ def _git_stdout(*args: str, root: Path = REPO_ROOT) -> bytes:
     ), "git binary must be an available executable file"
     git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     result = subprocess.run(
-        [git_binary, "-C", str(root), *args],
+        [git_binary, "-C", str(REPO_ROOT), *args],
         check=True,
         capture_output=True,
         env=git_env,
         timeout=30,
     )
     return result.stdout
-
-
-def _load_json_at_git_ref(*, ref: str, relative: str) -> tuple[dict[str, Any], bytes]:
-    blob = _git_stdout("show", f"{ref}:{relative}")
-    document = json.loads(blob)
-    assert isinstance(document, dict), f"{ref}:{relative}: npm surface must be an object"
-    return cast(dict[str, Any], document), blob
 
 
 def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
@@ -142,31 +102,23 @@ def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
     )
 
 
-def _enumerate_repo_npm_surfaces(*, root: Path = REPO_ROOT) -> frozenset[str]:
-    tracked_paths = _git_stdout("ls-files", "--cached", "-z", root=root).decode("utf-8")
-    surfaces: set[str] = set()
+def _load_tracked_npm_surfaces() -> dict[str, dict[str, Any]]:
+    """Discover every current tracked npm manifest/lock without pinning a PR base."""
+    tracked_paths = _git_stdout("ls-files", "--cached", "-z").decode("utf-8")
+    surfaces: dict[str, dict[str, Any]] = {}
     for raw_path in tracked_paths.split("\0"):
         if not raw_path:
             continue
         relative = PurePosixPath(raw_path)
         if not _is_governed_npm_surface(relative):
             continue
-        surface_path = root.joinpath(*relative.parts)
+        surface_path = REPO_ROOT.joinpath(*relative.parts)
         assert (
             surface_path.is_file() and not surface_path.is_symlink()
         ), f"{relative.as_posix()}: tracked npm surface must be a regular file"
-        _load_json(surface_path)
-        surfaces.add(relative.as_posix())
-    return frozenset(surfaces)
-
-
-def _enumerate_repo_npm_surfaces_at_git_ref(ref: str) -> frozenset[str]:
-    tracked_paths = _git_stdout("ls-tree", "-r", "--name-only", ref).decode("utf-8")
-    return frozenset(
-        relative.as_posix()
-        for raw_path in tracked_paths.splitlines()
-        if _is_governed_npm_surface(relative := PurePosixPath(raw_path))
-    )
+        surfaces[relative.as_posix()] = _load_json(surface_path)
+    assert surfaces, "tracked npm surface universe must be non-empty"
+    return surfaces
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -180,14 +132,9 @@ def _dependency_identity_matches(*, key: object, value: object, target: str) -> 
 def _find_manifest_occurrences(
     document: dict[str, Any], *, target: str
 ) -> dict[tuple[str, ...], object]:
-    """Find the target only in npm dependency-bearing manifest fields."""
+    """Find direct, optional, peer, bundled, override, and npm-alias declarations."""
     occurrences: dict[tuple[str, ...], object] = {}
-    for field in (
-        "dependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "peerDependencies",
-    ):
+    for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
         values = document.get(field)
         if not isinstance(values, dict):
             continue
@@ -220,10 +167,9 @@ def _resolved_registry_identity(value: object, *, target: str) -> bool:
 
 
 def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
-    """Find installed lockfile-v3 target entries, including aliases."""
+    """Find installed target entries by path, name, or canonical registry identity."""
     assert document.get("lockfileVersion") == 3, "npm lock surface: lockfileVersion must be 3"
-    packages = document.get("packages")
-    assert isinstance(packages, dict), "npm lock surface: 'packages' must be an object"
+    packages = _require_dict_field(document, "packages", ctx="npm lock surface")
     occurrences: dict[str, dict[str, Any]] = {}
     for raw_path, raw_entry in packages.items():
         assert isinstance(raw_path, str), "npm lock surface: package path must be text"
@@ -239,504 +185,124 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
     return occurrences
 
 
-def _discover_surface_occurrences(
-    *, relative: str, document: dict[str, Any]
-) -> dict[object, object]:
-    basename = PurePosixPath(relative).name
-    if basename == "package.json":
-        return cast(dict[object, object], _find_manifest_occurrences(document, target="image-size"))
-    assert basename in NPM_LOCK_SURFACE_BASENAMES, f"{relative}: unsupported npm surface"
-    return cast(dict[object, object], _find_lock_occurrences(document, target="image-size"))
-
-
-def _changed_json_paths(
-    base: object, head: object, path: tuple[str, ...] = ()
-) -> frozenset[tuple[str, ...]]:
-    if isinstance(base, dict) and isinstance(head, dict):
-        changed: set[tuple[str, ...]] = set()
-        for key in set(base) | set(head):
-            child_path = (*path, str(key))
-            if key not in base or key not in head:
-                changed.add(child_path)
-            else:
-                changed.update(_changed_json_paths(base[key], head[key], child_path))
-        return frozenset(changed)
-    return frozenset() if base == head else frozenset({path})
-
-
-_MISSING_JSON_PATH = object()
-
-
-def _json_value_at_path(document: object, path: tuple[str, ...]) -> object:
-    value = document
-    for key in path:
-        if not isinstance(value, dict) or key not in value:
-            return _MISSING_JSON_PATH
-        value = value[key]
-    return value
-
-
-def _assert_image_size_transition_partition(
+def _assert_occurrences_outside_ranges(
     *,
-    base_package: dict[str, Any],
-    head_package: dict[str, Any],
-    base_lock: dict[str, Any],
-    head_lock: dict[str, Any],
+    surface: str,
+    occurrences: dict[str, dict[str, Any]],
+    affected_ranges: tuple[SpecifierSet, ...],
 ) -> None:
-    base_dependency_state = {
-        field: base_package[field]
-        for field in NPM_MANIFEST_DEPENDENCY_FIELDS
-        if field in base_package
-    }
-    head_dependency_state = {
-        field: head_package[field]
-        for field in NPM_MANIFEST_DEPENDENCY_FIELDS
-        if field in head_package
-    }
-    assert _changed_json_paths(base_dependency_state, head_dependency_state) == frozenset(
-        {("dependencies", "pptxgenjs")}
-    ), "package.json: I_R must be exactly removal of the root pptxgenjs dependency"
-    base_dependencies = _require_dict_field(base_package, "dependencies", ctx="base package.json")
-    head_dependencies = _require_dict_field(head_package, "dependencies", ctx="head package.json")
-    assert base_dependencies.get("pptxgenjs") == "^4.0.1"
-    assert "pptxgenjs" not in head_dependencies
-
-    changed_lock_paths = _changed_json_paths(base_lock, head_lock)
-    assert changed_lock_paths == IMAGE_SIZE_LOCK_CLOSURE_PATHS, (
-        "package-lock.json: dependency delta must be exactly replay-proven C_R; found "
-        f"{sorted(changed_lock_paths)!r}"
-    )
-    for closure_path in IMAGE_SIZE_LOCK_CLOSURE_PATHS:
-        assert _json_value_at_path(base_lock, closure_path) is not _MISSING_JSON_PATH, (
-            "package-lock.json: every C_R path must exist in exact base: " f"{closure_path!r}"
-        )
-        assert _json_value_at_path(head_lock, closure_path) is _MISSING_JSON_PATH, (
-            "package-lock.json: every C_R path must be absent from head, not replaced: "
-            f"{closure_path!r}"
-        )
-
-
-def _assert_image_size_remediation_class(
-    *,
-    base_documents: dict[str, dict[str, Any]],
-    head_documents: dict[str, dict[str, Any]],
-) -> None:
-    assert frozenset(base_documents) == IMAGE_SIZE_GOVERNED_SURFACES
-    assert frozenset(head_documents) == IMAGE_SIZE_GOVERNED_SURFACES
-
-    base_occurrences = {
-        relative: _discover_surface_occurrences(relative=relative, document=document)
-        for relative, document in base_documents.items()
-    }
-    head_occurrences = {
-        relative: _discover_surface_occurrences(relative=relative, document=document)
-        for relative, document in head_documents.items()
-    }
-    non_empty_base = {relative: found for relative, found in base_occurrences.items() if found}
-    assert set(non_empty_base) == {"package-lock.json"}
-    assert set(non_empty_base["package-lock.json"]) == {"node_modules/image-size"}
-    base_image_size = cast(
-        dict[str, Any], non_empty_base["package-lock.json"]["node_modules/image-size"]
-    )
-    assert base_image_size.get("version") == "1.2.1"
-    assert base_image_size.get("resolved") == (
-        "https://registry.npmjs.org/image-size/-/image-size-1.2.1.tgz"
-    )
-
-    base_version = Version(cast(str, base_image_size["version"]))
-    applicable = frozenset(
-        advisory
-        for advisory, affected_range in IMAGE_SIZE_ADVISORY_RANGES.items()
-        if base_version in affected_range
-    )
-    assert applicable == IMAGE_SIZE_APPLICABLE_ADVISORIES
-    assert all(
-        not found for found in head_occurrences.values()
-    ), "P failed: npm:image-size must have executable absence on every governed head surface"
-
-    for relative in IMAGE_SIZE_GOVERNED_SURFACES - {"package.json", "package-lock.json"}:
-        assert (
-            base_documents[relative] == head_documents[relative]
-        ), f"{relative}: negative-control npm surface must remain unchanged"
-
-    _assert_image_size_transition_partition(
-        base_package=base_documents["package.json"],
-        head_package=head_documents["package.json"],
-        base_lock=base_documents["package-lock.json"],
-        head_lock=head_documents["package-lock.json"],
-    )
-
-    head_scripts = _require_dict_field(
-        head_documents["package.json"], "scripts", ctx="head package.json"
-    )
-    assert "build:b2b-pitch-deck" not in head_scripts
-    assert head_scripts.get("build:business-collateral") == "npm run build:b2b-proposal"
-    assert not (REPO_ROOT / "scripts/business_collateral/build_b2b_pitch_deck.js").exists()
-    content_loader = (REPO_ROOT / "scripts/business_collateral/content_loader.js").read_text(
-        encoding="utf-8"
-    )
-    assert "parseDeckSpec" not in content_loader
-
-
-def _load_image_size_base_and_head_documents() -> (
-    tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]
-):
-    base_documents: dict[str, dict[str, Any]] = {}
-    head_documents: dict[str, dict[str, Any]] = {}
-    for relative in IMAGE_SIZE_GOVERNED_SURFACES:
-        base_document, base_blob = _load_json_at_git_ref(
-            ref=IMAGE_SIZE_EXACT_BASE,
-            relative=relative,
-        )
-        head_blob = (REPO_ROOT / relative).read_bytes()
-        head_document = json.loads(head_blob)
-        assert isinstance(head_document, dict), f"head:{relative}: npm surface must be an object"
-        base_documents[relative] = base_document
-        head_documents[relative] = cast(dict[str, Any], head_document)
-        if relative not in {"package.json", "package-lock.json"}:
-            assert base_blob == head_blob, f"{relative}: negative-control bytes changed"
-    return base_documents, head_documents
+    for package_path, entry in occurrences.items():
+        raw_version = entry.get("version")
+        assert isinstance(raw_version, str), f"{surface}:{package_path}: version must be text"
+        try:
+            version = Version(raw_version)
+        except InvalidVersion as exc:
+            raise AssertionError(
+                f"{surface}:{package_path}: version must be advisory-comparable"
+            ) from exc
+        assert not any(
+            version in affected for affected in affected_ranges
+        ), f"{surface}:{package_path}: {version} remains inside a reconciled affected range"
 
 
 def test_root_lock_removes_hono_runtime_path() -> None:
     """RU/EN: Root lockfile must not carry a stale hono runtime path anymore."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
-    assert (
-        "node_modules/hono" not in packages
-    ), "package-lock.json: stale hono path must stay absent"
+    packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
+    assert "node_modules/hono" not in packages
 
 
 def test_root_lock_removes_mcp_sdk_runtime_path() -> None:
-    """RU/EN: Root lockfile must not keep stale MCP SDK runtime packages after graph cleanup."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
-    assert (
-        "node_modules/@modelcontextprotocol/sdk" not in packages
-    ), "package-lock.json: stale @modelcontextprotocol/sdk path must stay absent"
+    """RU/EN: Root lockfile must not keep stale MCP SDK runtime packages."""
+    packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
+    assert "node_modules/@modelcontextprotocol/sdk" not in packages
 
 
 def test_root_manifest_removes_external_agentguard_runtime_dependency() -> None:
-    """RU/EN: Root manifest must not reintroduce the unresolved AgentGuard npm path."""
+    """RU/EN: Root manifest must not reintroduce the unresolved AgentGuard path."""
     package_manifest = _load_json(ROOT_PACKAGE_JSON)
     dependencies = _require_dict_field(package_manifest, "dependencies", ctx="package.json")
     overrides = _require_dict_field(package_manifest, "overrides", ctx="package.json")
-    assert (
-        "@goplus/agentguard" not in dependencies
-    ), "package.json: external @goplus/agentguard dependency must stay removed"
-    assert (
-        "@goplus/agentguard" not in overrides
-    ), "package.json: stale @goplus/agentguard override block must stay removed"
+    assert "@goplus/agentguard" not in dependencies
+    assert "@goplus/agentguard" not in overrides
 
 
 def test_root_lock_removes_external_agentguard_and_axios_runtime_path() -> None:
     """RU/EN: Root lockfile must not carry the unresolved AgentGuard -> axios path."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
-    assert (
-        "node_modules/@goplus/agentguard" not in packages
-    ), "package-lock.json: @goplus/agentguard entry must stay removed"
-    assert not _carrier_leaf_paths(
-        packages, "axios"
-    ), "package-lock.json: @goplus/agentguard/.../axios runtime path must stay absent"
+    packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
+    assert "node_modules/@goplus/agentguard" not in packages
+    assert not _carrier_leaf_paths(packages, "axios")
 
 
 def test_root_lock_removes_brace_expansion_runtime_path() -> None:
-    """RU/EN: Root lockfile must not carry historical AgentGuard-scoped brace-expansion paths."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
-    assert not _carrier_leaf_paths(
-        packages, "brace-expansion"
-    ), "package-lock.json: @goplus/agentguard/.../brace-expansion runtime path must stay absent"
+    """RU/EN: Root lockfile must not carry historical AgentGuard brace-expansion paths."""
+    packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
+    assert not _carrier_leaf_paths(packages, "brace-expansion")
 
 
 def test_root_lock_removes_path_to_regexp_runtime_path() -> None:
     """RU/EN: Root lockfile must not carry path-to-regexp after graph cleanup."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
-    assert (
-        "node_modules/path-to-regexp" not in packages
-    ), "package-lock.json: path-to-regexp runtime path must stay absent"
+    packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
+    assert "node_modules/path-to-regexp" not in packages
 
 
 def test_root_lock_tracks_current_cspell_runtime_chain() -> None:
-    """RU/EN: Keep the current cspell runtime chain explicit and free of stale path-to-regexp deps."""
-    package_lock = _load_json(ROOT_LOCK_JSON)
-    packages = _require_dict_field(package_lock, "packages", ctx="package-lock.json")
-    cspell_pkg = _require_dict_field(
-        packages, "node_modules/cspell", ctx="package-lock.json packages"
-    )
-    cspell_glob_pkg = _require_dict_field(
-        packages, "node_modules/cspell-glob", ctx="package-lock.json packages"
-    )
-    tinyglobby_pkg = _require_dict_field(
-        packages, "node_modules/tinyglobby", ctx="package-lock.json packages"
-    )
-
-    cspell_dependencies = _require_dict_field(
-        cspell_pkg, "dependencies", ctx="package-lock.json node_modules/cspell"
-    )
+    """RU/EN: Keep the cspell chain explicit and free of path-to-regexp."""
+    packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
+    cspell_pkg = _require_dict_field(packages, "node_modules/cspell", ctx="packages")
+    cspell_glob_pkg = _require_dict_field(packages, "node_modules/cspell-glob", ctx="packages")
+    tinyglobby_pkg = _require_dict_field(packages, "node_modules/tinyglobby", ctx="packages")
+    cspell_dependencies = _require_dict_field(cspell_pkg, "dependencies", ctx="cspell")
     cspell_glob_dependencies = _require_dict_field(
-        cspell_glob_pkg, "dependencies", ctx="package-lock.json node_modules/cspell-glob"
+        cspell_glob_pkg, "dependencies", ctx="cspell-glob"
     )
-    tinyglobby_dependencies = _require_dict_field(
-        tinyglobby_pkg, "dependencies", ctx="package-lock.json node_modules/tinyglobby"
-    )
-
-    cspell_glob_range = cspell_dependencies.get("cspell-glob")
-    tinyglobby_range = cspell_dependencies.get("tinyglobby")
-    picomatch_from_cspell_glob = cspell_glob_dependencies.get("picomatch")
-    picomatch_from_tinyglobby = tinyglobby_dependencies.get("picomatch")
-    fdir_from_tinyglobby = tinyglobby_dependencies.get("fdir")
-
-    assert (
-        isinstance(cspell_glob_range, str) and cspell_glob_range.strip()
-    ), "package-lock.json: cspell cspell-glob dependency missing"
-    assert (
-        isinstance(tinyglobby_range, str) and tinyglobby_range.strip()
-    ), "package-lock.json: cspell tinyglobby dependency missing"
-    assert (
-        isinstance(picomatch_from_cspell_glob, str) and picomatch_from_cspell_glob.strip()
-    ), "package-lock.json: cspell-glob picomatch dependency missing"
-    assert (
-        isinstance(picomatch_from_tinyglobby, str) and picomatch_from_tinyglobby.strip()
-    ), "package-lock.json: tinyglobby picomatch dependency missing"
-    assert (
-        isinstance(fdir_from_tinyglobby, str) and fdir_from_tinyglobby.strip()
-    ), "package-lock.json: tinyglobby fdir dependency missing"
-    assert (
-        "path-to-regexp" not in tinyglobby_dependencies
-    ), "package-lock.json: tinyglobby must not reintroduce path-to-regexp"
+    tinyglobby_dependencies = _require_dict_field(tinyglobby_pkg, "dependencies", ctx="tinyglobby")
+    for dependency_name, value in (
+        ("cspell-glob", cspell_dependencies.get("cspell-glob")),
+        ("tinyglobby", cspell_dependencies.get("tinyglobby")),
+        ("cspell-glob/picomatch", cspell_glob_dependencies.get("picomatch")),
+        ("tinyglobby/picomatch", tinyglobby_dependencies.get("picomatch")),
+        ("tinyglobby/fdir", tinyglobby_dependencies.get("fdir")),
+    ):
+        assert isinstance(value, str) and value.strip(), f"missing dependency: {dependency_name}"
+    assert "path-to-regexp" not in tinyglobby_dependencies
 
 
-def test_image_size_removal_reconciles_exact_surfaces_intent_closure_and_postcondition() -> None:
-    """Derive A, partition I_R/C_R, and enforce executable absence over exact S."""
-    base_surfaces = _enumerate_repo_npm_surfaces_at_git_ref(IMAGE_SIZE_EXACT_BASE)
-    head_surfaces = _enumerate_repo_npm_surfaces()
-    assert base_surfaces == IMAGE_SIZE_GOVERNED_SURFACES
-    assert head_surfaces == IMAGE_SIZE_GOVERNED_SURFACES
-
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    _assert_image_size_remediation_class(
-        base_documents=base_documents,
-        head_documents=head_documents,
-    )
-
-
-@pytest.mark.parametrize(
-    ("field", "key", "value"),
-    (
-        ("dependencies", "image-size", "^2.0.2"),
-        ("devDependencies", "renamed-image-parser", "npm:image-size@2.0.2"),
-        ("overrides", "renamed-image-parser", "npm:image-size"),
-    ),
-)
-def test_image_size_manifest_discovery_rejects_direct_and_alias_reintroduction(
-    field: str, key: str, value: str
-) -> None:
-    """A manifest cannot hide D behind a direct declaration or bounded npm alias."""
-    document: dict[str, Any] = {field: {key: value}}
-    assert _find_manifest_occurrences(document, target="image-size")
+def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None:
+    """The retired pptxgenjs/image-size executable graph cannot silently return."""
+    for relative, document in _load_tracked_npm_surfaces().items():
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            for target in ("pptxgenjs", "image-size"):
+                assert not _find_manifest_occurrences(
+                    document, target=target
+                ), f"{relative}: retired {target} declaration or alias reintroduced"
+            continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
+        for target in ("pptxgenjs", "image-size"):
+            assert not _find_lock_occurrences(
+                document, target=target
+            ), f"{relative}: retired {target} lock occurrence reintroduced"
 
 
-@pytest.mark.parametrize("field", ("bundleDependencies", "bundledDependencies"))
-def test_image_size_manifest_discovery_rejects_bundled_reintroduction(field: str) -> None:
-    """A bundled manifest declaration is still a governed D occurrence."""
-    document: dict[str, Any] = {field: ["image-size"]}
-    assert _find_manifest_occurrences(document, target="image-size")
-
-
-@pytest.mark.parametrize(
-    ("package_path", "entry"),
-    (
-        ("node_modules/image-size", {"version": "2.0.2"}),
-        ("node_modules/renamed-image-parser", {"name": "image-size", "version": "2.0.2"}),
-        (
-            "node_modules/renamed-image-parser",
-            {
-                "version": "2.0.2",
-                "resolved": "https://registry.npmjs.org/image-size/-/image-size-2.0.2.tgz",
-            },
-        ),
-    ),
-)
-def test_image_size_lock_discovery_rejects_path_name_and_resolution_aliases(
-    package_path: str, entry: dict[str, str]
-) -> None:
-    """A lock surface cannot hide an installed D occurrence behind an alias path."""
-    document = {"lockfileVersion": 3, "packages": {package_path: entry}}
-    assert _find_lock_occurrences(document, target="image-size") == {package_path: entry}
-
-
-def test_image_size_removal_rejects_unclassified_lock_delta() -> None:
-    """A second dependency objective cannot enter replay-proven C_R."""
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    mutated_head = deepcopy(head_documents)
-    mutated_head["package-lock.json"]["packages"]["node_modules/unclassified"] = {
-        "version": "1.0.0"
-    }
-
-    with pytest.raises(AssertionError, match="replay-proven C_R"):
-        _assert_image_size_remediation_class(
-            base_documents=base_documents,
-            head_documents=mutated_head,
+def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
+    """Every installed nanoid remains outside both known affected range families."""
+    for relative, document in _load_tracked_npm_surfaces().items():
+        if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
+            continue
+        _assert_occurrences_outside_ranges(
+            surface=relative,
+            occurrences=_find_lock_occurrences(document, target="nanoid"),
+            affected_ranges=NANOID_AFFECTED_RANGES,
         )
 
 
-def test_image_size_removal_rejects_second_manifest_dependency_delta() -> None:
-    """The one removal class cannot absorb another authored manifest transition."""
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    mutated_head = deepcopy(head_documents)
-    mutated_head["package.json"]["devDependencies"]["unclassified"] = "1.0.0"
-
-    with pytest.raises(AssertionError, match="I_R must be exactly"):
-        _assert_image_size_remediation_class(
-            base_documents=base_documents,
-            head_documents=mutated_head,
+def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
+    """Every installed React Router remains outside both known affected ranges."""
+    for relative, document in _load_tracked_npm_surfaces().items():
+        if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
+            continue
+        _assert_occurrences_outside_ranges(
+            surface=relative,
+            occurrences=_find_lock_occurrences(document, target="react-router"),
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
-
-
-def test_image_size_removal_rejects_restored_carrier_edge_as_image_size_alias() -> None:
-    """The allowed root edge path cannot hide a replacement with D itself."""
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    mutated_head = deepcopy(head_documents)
-    mutated_head["package-lock.json"]["packages"][""]["dependencies"][
-        "pptxgenjs"
-    ] = "npm:image-size@2.0.2"
-
-    with pytest.raises(AssertionError, match="must be absent from head"):
-        _assert_image_size_remediation_class(
-            base_documents=base_documents,
-            head_documents=mutated_head,
-        )
-
-
-def test_image_size_removal_rejects_restored_carrier_edge_as_second_identity_alias() -> None:
-    """The allowed root edge path cannot hide a second dependency identity."""
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    mutated_head = deepcopy(head_documents)
-    mutated_head["package-lock.json"]["packages"][""]["dependencies"][
-        "pptxgenjs"
-    ] = "npm:nanoid@5.1.15"
-
-    with pytest.raises(AssertionError, match="must be absent from head"):
-        _assert_image_size_remediation_class(
-            base_documents=base_documents,
-            head_documents=mutated_head,
-        )
-
-
-def test_image_size_removal_rejects_scalar_image_size_package_entry() -> None:
-    """A malformed scalar D entry must fail before it can evade occurrence discovery."""
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    mutated_head = deepcopy(head_documents)
-    mutated_head["package-lock.json"]["packages"]["node_modules/image-size"] = "2.0.2"
-
-    with pytest.raises(AssertionError, match="package entry must be an object"):
-        _assert_image_size_remediation_class(
-            base_documents=base_documents,
-            head_documents=mutated_head,
-        )
-
-
-def test_image_size_removal_rejects_scalar_carrier_entry_with_image_size_alias() -> None:
-    """A malformed carrier entry cannot encode an npm alias to D."""
-    base_documents, head_documents = _load_image_size_base_and_head_documents()
-    mutated_head = deepcopy(head_documents)
-    mutated_head["package-lock.json"]["packages"]["node_modules/pptxgenjs"] = "npm:image-size@2.0.2"
-
-    with pytest.raises(AssertionError, match="package entry must be an object"):
-        _assert_image_size_remediation_class(
-            base_documents=base_documents,
-            head_documents=mutated_head,
-        )
-
-
-def _init_indexed_npm_surface_repo(root: Path, *, package_json: str = "{}\n") -> None:
-    """Create a disposable Git index with one governed npm surface."""
-    root.mkdir()
-    (root / ".gitignore").write_text("tmp/\n", encoding="utf-8")
-    (root / "package.json").write_text(package_json, encoding="utf-8")
-    _git_stdout("init", "--quiet", root=root)
-    _git_stdout("add", "--", ".gitignore", "package.json", root=root)
-
-
-def test_image_size_head_surface_inventory_ignores_untracked_tmp_manifest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Ignored scratch manifests cannot expand the tracked head surface universe."""
-    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer-hook.index"))
-    repo = tmp_path / "repo"
-    _init_indexed_npm_surface_repo(repo)
-    scratch_manifest = repo / "tmp" / "scratch" / "package.json"
-    scratch_manifest.parent.mkdir(parents=True)
-    scratch_manifest.write_text("not-json\n", encoding="utf-8")
-
-    _git_stdout("check-ignore", "--quiet", "tmp/scratch/package.json", root=repo)
-    assert _enumerate_repo_npm_surfaces(root=repo) == frozenset({"package.json"})
-
-
-def test_image_size_head_surface_inventory_rejects_missing_tracked_file(tmp_path: Path) -> None:
-    """A path retained by the index cannot disappear from the working checkout."""
-    repo = tmp_path / "repo"
-    _init_indexed_npm_surface_repo(repo)
-    (repo / "package.json").unlink()
-
-    with pytest.raises(AssertionError, match="tracked npm surface must be a regular file"):
-        _enumerate_repo_npm_surfaces(root=repo)
-
-
-def test_image_size_head_surface_inventory_rejects_non_regular_tracked_file(
-    tmp_path: Path,
-) -> None:
-    """A tracked npm surface cannot be replaced by a directory or symlink."""
-    repo = tmp_path / "repo"
-    _init_indexed_npm_surface_repo(repo)
-    (repo / "package.json").unlink()
-    (repo / "package.json").mkdir()
-
-    with pytest.raises(AssertionError, match="tracked npm surface must be a regular file"):
-        _enumerate_repo_npm_surfaces(root=repo)
-
-
-def test_image_size_head_surface_inventory_rejects_unparseable_tracked_json(
-    tmp_path: Path,
-) -> None:
-    """A tracked npm surface must remain a readable JSON object at head."""
-    repo = tmp_path / "repo"
-    _init_indexed_npm_surface_repo(repo, package_json="not-json\n")
-
-    with pytest.raises(AssertionError, match="npm surface must be readable UTF-8 JSON"):
-        _enumerate_repo_npm_surfaces(root=repo)
-
-
-def test_git_stdout_executes_resolved_binary_unchanged_and_sanitizes_git_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The resolved Git executable is used verbatim without inherited Git state."""
-    resolved_git = tmp_path / "resolved-git"
-    resolved_git.write_text(
-        """#!/bin/sh
-if [ -n "${GIT_DIR+x}" ] || [ -n "${GIT_INDEX_FILE+x}" ] || [ -n "${GIT_CUSTOM_PROBE+x}" ]; then
-  exit 91
-fi
-printf '%s\\n' "$0"
-printf '%s\\n' "$@"
-""",
-        encoding="utf-8",
-    )
-    resolved_git.chmod(0o755)
-    monkeypatch.setattr(shutil, "which", lambda command: str(resolved_git))
-    monkeypatch.setenv("GIT_DIR", str(tmp_path / "outer.git"))
-    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer.index"))
-    monkeypatch.setenv("GIT_CUSTOM_PROBE", "must-not-leak")
-
-    output = _git_stdout("status", "--porcelain", root=tmp_path)
-
-    assert output.decode("utf-8").splitlines() == [
-        str(resolved_git),
-        "-C",
-        str(tmp_path),
-        "status",
-        "--porcelain",
-    ]

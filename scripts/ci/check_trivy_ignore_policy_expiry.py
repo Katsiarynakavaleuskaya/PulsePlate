@@ -15,20 +15,7 @@ _EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 _REVIEW_BY_RE = re.compile(r"Review-by:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 _CANONICAL_IGNORE_HEAD_LINE_RE = re.compile(r"[ \t]*ignore[ \t]+if[ \t]*\{[ \t]*(?:#.*)?")
 _DEFAULT_IGNORE_LINE_RE = re.compile(r"[ \t]*default[ \t]+ignore[ \t]*:=[ \t]*false[ \t]*(?:#.*)?")
-_REACT_ROUTER_RSC_CANONICAL_PREDICATES = (
-    'input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
-    'input.PkgName == "react-router"',
-    'input.InstalledVersion == "7.18.1"',
-    'input.PkgID == "react-router@7.18.1"',
-    'input.FixedVersion == "8.3.0"',
-)
-_REACT_ROUTER_RSC_TARGET = {
-    "VulnerabilityID": "GHSA-qwww-vcr4-c8h2",
-    "PkgName": "react-router",
-    "InstalledVersion": "7.18.1",
-    "PkgID": "react-router@7.18.1",
-    "FixedVersion": "8.3.0",
-}
+_RETIRED_REACT_ROUTER_RSC_ADVISORY = "GHSA-qwww-vcr4-c8h2"
 
 
 @dataclass(frozen=True)
@@ -314,40 +301,16 @@ def _direct_input_equality_expression(
 
 
 def _ignore_block_can_match_react_router_target(body: str) -> bool:
-    """Conservatively reject blocks only when executable equality proves conflict."""
+    """Reject unless executable equality proves this rule targets another advisory."""
 
     for token_expression in _top_level_body_token_expressions(body):
         equality = _direct_input_equality_expression(token_expression)
         if equality is None:
             continue
         field, value = equality
-        if field in _REACT_ROUTER_RSC_TARGET and value != _REACT_ROUTER_RSC_TARGET[field]:
+        if field == "VulnerabilityID" and value != _RETIRED_REACT_ROUTER_RSC_ADVISORY:
             return False
     return True
-
-
-def _ignore_block_predicates(body: str) -> tuple[str, ...]:
-    return tuple(
-        line.strip()
-        for line in body.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    )
-
-
-def _is_canonical_react_router_body(body: str) -> bool:
-    if _ignore_block_predicates(body) != _REACT_ROUTER_RSC_CANONICAL_PREDICATES:
-        return False
-    token_lines = _top_level_body_token_lines(body)
-    if len(token_lines) != len(_REACT_ROUTER_RSC_TARGET):
-        return False
-    return all(
-        _direct_input_equality(token_line) == expected
-        for token_line, expected in zip(
-            token_lines,
-            _REACT_ROUTER_RSC_TARGET.items(),
-            strict=True,
-        )
-    )
 
 
 def _read_rego_text(policy_file: Path) -> str:
@@ -359,54 +322,33 @@ def _read_rego_text(policy_file: Path) -> str:
         raise ValueError(f"Unable to read Trivy ignore policy {policy_file}: {exc}") from exc
 
 
-def _validate_react_router_rsc_suppression(
+def _validate_react_router_rsc_suppression_absent(
     policy_file: Path,
     *,
     text: str,
 ) -> list[str]:
-    """Require one and only one exact five-predicate GHSA ignore block."""
+    """Fail closed if any ignore rule can suppress the retired advisory."""
 
     try:
         ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(text)
     except ValueError as exc:
-        return [f"React Router RSC suppression parsing failed in {policy_file}: {exc}"]
+        return [f"Retired React Router suppression parsing failed in {policy_file}: {exc}"]
     if unsupported_lines:
         rendered_lines = ", ".join(str(line) for line in unsupported_lines)
         return [
-            f"React Router RSC suppression in {policy_file} has unsupported top-level "
+            f"Retired React Router suppression guard in {policy_file} has unsupported top-level "
             f"ignore rule syntax at line(s) {rendered_lines}; only 'default ignore := "
             "false' and balanced 'ignore if {' blocks are permitted"
         ]
     target_capable_blocks = tuple(
         block for block in ignore_blocks if _ignore_block_can_match_react_router_target(block.body)
     )
-    if not target_capable_blocks:
-        return []
-    canonical_blocks = tuple(
-        block for block in target_capable_blocks if _is_canonical_react_router_body(block.body)
-    )
-    if len(canonical_blocks) > 1:
+    if target_capable_blocks:
+        rendered_lines = ", ".join(str(block.head_line) for block in target_capable_blocks)
         return [
-            f"React Router RSC suppression in {policy_file} must use exactly one GHSA ignore block"
-        ]
-    if not canonical_blocks:
-        return [
-            f"React Router RSC suppression in {policy_file} must contain exactly "
-            "the canonical five predicates"
-        ]
-    if len(target_capable_blocks) > 1:
-        return [
-            f"React Router RSC suppression in {policy_file} has an additional ignore "
-            "block capable of matching the canonical target tuple"
-        ]
-    adjacent_review_by = _adjacent_review_by_dates(
-        text,
-        head_line=canonical_blocks[0].head_line,
-    )
-    if len(adjacent_review_by) != 1:
-        return [
-            f"React Router RSC suppression in {policy_file} must have exactly one "
-            "adjacent 'Review-by: YYYY-MM-DD' comment"
+            f"Retired React Router suppression must remain absent from {policy_file}; "
+            f"ignore block(s) at line(s) {rendered_lines} can match "
+            f"{_RETIRED_REACT_ROUTER_RSC_ADVISORY}"
         ]
     return []
 
@@ -415,32 +357,6 @@ def _read_rego_line_comments(text: str) -> tuple[tuple[int, str], ...]:
     comments: list[tuple[int, str]] = []
     _tokenize_rego(text, line_comments=comments)
     return tuple(comments)
-
-
-def _adjacent_review_by_dates(
-    text: str,
-    *,
-    head_line: int,
-) -> tuple[tuple[int, str], ...]:
-    """Return Review-by values from the full-line comment block owning one rule."""
-
-    source_lines = text.splitlines()
-    comments_by_line = dict(_read_rego_line_comments(text))
-    matches: list[tuple[int, str]] = []
-    line_number = head_line - 1
-    while line_number >= 1 and not source_lines[line_number - 1].strip():
-        line_number -= 1
-    while line_number >= 1:
-        source_line = source_lines[line_number - 1]
-        comment = comments_by_line.get(line_number)
-        if comment is None or not source_line.lstrip().startswith("#"):
-            break
-        found = _REVIEW_BY_RE.search(comment)
-        if found:
-            matches.append((line_number, found.group(1)))
-        line_number -= 1
-    matches.reverse()
-    return tuple(matches)
 
 
 def _parse_expiry(path: Path, *, text: str) -> date:
@@ -492,7 +408,7 @@ def evaluate_policy_file(
         except ValueError as exc:
             return [str(exc)]
 
-    failures = _validate_react_router_rsc_suppression(policy_file, text=text)
+    failures = _validate_react_router_rsc_suppression_absent(policy_file, text=text)
     try:
         expiry = _parse_expiry(policy_file, text=text)
     except ValueError as exc:

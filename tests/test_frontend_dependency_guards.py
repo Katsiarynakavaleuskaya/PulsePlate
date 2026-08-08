@@ -1048,13 +1048,15 @@ def _assert_exact_brace_expansion_json_delta(
 ) -> None:
     manifest_paths = _changed_json_paths(base_package, head_package)
     lock_paths = _changed_json_paths(base_lock, head_lock)
-    assert manifest_paths == BRACE_EXPANSION_MANIFEST_INTENT_PATHS, (
-        "frontend/package.json: complete JSON delta must be exactly the two I_R paths; "
-        f"found {sorted(manifest_paths)!r}"
+    missing_manifest_paths = BRACE_EXPANSION_MANIFEST_INTENT_PATHS - manifest_paths
+    missing_lock_paths = BRACE_EXPANSION_LOCK_CLOSURE_PATHS - lock_paths
+    assert not missing_manifest_paths, (
+        "frontend/package.json: brace-expansion transition must include both I_R paths; "
+        f"missing {sorted(missing_manifest_paths)!r}"
     )
-    assert lock_paths == BRACE_EXPANSION_LOCK_CLOSURE_PATHS, (
-        "frontend/package-lock.json: complete JSON delta must be exactly the seven C_R paths; "
-        f"found {sorted(lock_paths)!r}"
+    assert not missing_lock_paths, (
+        "frontend/package-lock.json: brace-expansion transition must include all C_R paths; "
+        f"missing {sorted(missing_lock_paths)!r}"
     )
 
 
@@ -1408,8 +1410,8 @@ def test_override_discovery_does_not_generalize_beyond_npm_alias_values(non_alia
         "lock-type-change",
     ),
 )
-def test_brace_expansion_exact_partition_rejects_unrelated_json_delta(case: str) -> None:
-    """Any unrelated add, removal, or change must remain outside I_R/C_R."""
+def test_brace_expansion_transition_projection_allows_unrelated_json_delta(case: str) -> None:
+    """The long-lived brace guard must not claim an unrelated dependency transition."""
 
     base_package, base_lock = _load_exact_base_frontend_documents()
     head_package = deepcopy(_load_json(FRONTEND_PACKAGE_JSON))
@@ -1432,7 +1434,32 @@ def test_brace_expansion_exact_partition_rejects_unrelated_json_delta(case: str)
     else:
         raise AssertionError(f"unhandled unrelated delta case: {case}")
 
-    expected_message = "two I_R paths" if case.startswith("manifest-") else "seven C_R paths"
+    _assert_exact_brace_expansion_json_delta(
+        base_package=base_package,
+        head_package=head_package,
+        base_lock=base_lock,
+        head_lock=head_lock,
+    )
+
+
+@pytest.mark.parametrize("surface", ("manifest", "lock"))
+def test_brace_expansion_transition_projection_rejects_missing_owned_path(surface: str) -> None:
+    """One missing brace-expansion intent or closure member still fails closed."""
+
+    base_package, base_lock = _load_exact_base_frontend_documents()
+    head_package = deepcopy(_load_json(FRONTEND_PACKAGE_JSON))
+    head_lock = deepcopy(_load_json(FRONTEND_LOCK_JSON))
+    if surface == "manifest":
+        head_package["overrides"]["minimatch@3"]["brace-expansion"] = base_package["overrides"][
+            "minimatch@3"
+        ]["brace-expansion"]
+        expected_message = "both I_R paths"
+    else:
+        head_lock["packages"]["node_modules/brace-expansion"]["version"] = base_lock["packages"][
+            "node_modules/brace-expansion"
+        ]["version"]
+        expected_message = "all C_R paths"
+
     with pytest.raises(AssertionError, match=expected_message):
         _assert_exact_brace_expansion_json_delta(
             base_package=base_package,

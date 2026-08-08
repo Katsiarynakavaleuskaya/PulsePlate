@@ -51,10 +51,12 @@ Canonical targeted head evidence SHA-256:
 
 This digest binds only the canonical bounded `brace-expansion` evidence
 projection; it is not a whole-file digest or a completeness claim for
-unrelated manifest/lock content. The executable `I_R`/`C_R` partition below
-separately forbids unrelated material dependency deltas in this remediation
-lane. This repository evidence receipt makes no provider review, scan,
-approval, PASS, or no-findings claim.
+unrelated manifest/lock content. The immutable transition evidence below owns
+the complete one-time `I_R`/`C_R` partition for its remediation lane. The
+permanent guard projects only those owned paths and the stable security
+postcondition, so a later authorized unrelated dependency change is not falsely
+claimed or blocked by this historical class. This repository evidence receipt
+makes no provider review, scan, approval, PASS, or no-findings claim.
 
 The repository npm-surface sweep enumerates exactly:
 

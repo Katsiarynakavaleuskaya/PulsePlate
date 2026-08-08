@@ -5346,38 +5346,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `main`
 
 <a id="ledger-p1-react-router-rsc-advisory-monitor"></a>
-- [ ] P1: Monitor and remove React Router unstable RSC advisory suppression
+- [ ] P1: Remove React Router unstable RSC advisory suppression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: this combined bootstrap PR (carryover from closed PRs #2184 and
-    #2187)
-  - Status: In progress since 2026-07-25
+  - Target PR: PR #2246
+  - Status: In progress in PR #2246; fixed dependency material and exact
+    suppression deletion are selected, exact-head Trivy confirmation is pending
   - Area: security / frontend dependency / Trivy policy
-  - Finding Type: application dependency vulnerability applicability
-  - Reason: Trivy reports `GHSA-qwww-vcr4-c8h2` for `react-router@7.18.1` with
-    fixed version `8.3.0`. The advisory affects unstable RSC server APIs, while
-    point-in-time repository evidence shows PulsePlate using the stable
-    declarative SPA surface without intentional affected RSC usage. The exact
-    Trivy tuple is temporarily suppressed and protected by lexical
-    structure/expiry/review controls; this entry does not claim deterministic
-    proof of every present or future source-applicability shape.
+  - Finding Type: application dependency vulnerability remediation
+  - Reason: Docker Build and Push run `31258531222`, security job `93106014446`,
+    Trivy analysis `1589834230`, reported `GHSA-qwww-vcr4-c8h2` for
+    `react-router@7.18.1` with compatible fixed version `7.18.2`. The batch
+    selects that fixed line, and the exact suppression is deleted rather than
+    extended, broadened, or replaced.
   - Links:
-    - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
+    - <https://github.com/advisories/GHSA-qwww-vcr4-c8h2>
     - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
+    - `docs/security/NANOID_REACT_ROUTER_ATOMIC_TRIVY_REMEDIATION_CLASS.md`
     - `trivy/ignore-policy.rego`
     - `scripts/ci/check_trivy_ignore_policy_expiry.py`
     - `tests/test_trivy_ignore_policy_expiry.py`
   - DoD:
-    - Review the advisory and Dependabot alert #241 weekly
-    - Remove the suppression if affected RSC usage is introduced, the
-      dependency or Trivy tuple changes, or a compatible fixed line is
-      approved
-    - Refresh the point-in-time repository evidence during each weekly review
-      and on frontend dependency or execution-model changes
-    - Keep exact Rego tuple, lexical structure, expiry, review-date, and
-      negative controls green
-    - Close the tracker only after the suppression is removed and current-head
-      Trivy evidence passes without it
+    - Resolve `react-router` and `react-router-dom` to `7.18.2`
+    - Delete the exact `GHSA-qwww-vcr4-c8h2` Rego rule and header reference
+    - Reject any target-capable suppression reintroduction while preserving
+      unrelated expiry/review rules
+    - Close this item only after terminal exact-head Trivy evidence; do not infer
+      a full-audit or readiness claim from selected material
 
 - [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya
