@@ -215,14 +215,17 @@ def _unique_top_level_json_triplet(
     assert fence.level == 0
     assert fence.markup == "```"
     assert fence.info.strip() == "json"
-    assert fence.map is not None
+    start_map = tokens[start.start].map
+    fence_map = fence.map
+    end_map = tokens[end.start].map
+    assert start_map is not None
+    assert fence_map is not None
+    assert end_map is not None
     fence_lines = _token_source(lines, fence).splitlines()
     assert fence_lines[0] == "```json"
     assert fence_lines[-1] == "```"
-    assert tokens[start.start].map is not None
-    assert tokens[end.start].map is not None
-    assert tokens[start.start].map[1] == fence.map[0]
-    assert fence.map[1] == tokens[end.start].map[0]
+    assert start_map[1] == fence_map[0]
+    assert fence_map[1] == end_map[0]
     return MarkdownSpan(start.start, end.stop)
 
 
@@ -1111,16 +1114,6 @@ def test_dependency_security_policy_scopes_remediation_by_invariant_class() -> N
 
 def test_dependency_security_policy_models_exact_conjunctive_scanner_batch() -> None:
     """Positive v2 model: exact snapshot set plus all-member success is admitted."""
-    scanner_identities = frozenset({"npm:image-size", "npm:nanoid", "npm:react-router"})
-    authorized_identities = frozenset({"npm:image-size", "npm:nanoid", "npm:react-router"})
-    per_identity_safe = {
-        "npm:image-size": True,
-        "npm:nanoid": True,
-        "npm:react-router": True,
-    }
-    assert authorized_identities == scanner_identities
-    assert all(per_identity_safe[identity] for identity in authorized_identities)
-
     agents_md, lessons_md = _current_dependency_policy_docs()
     remediation, _lesson, _parent = _extract_dependency_security_sections(agents_md, lessons_md)
     authority = _parse_dependency_remediation_authority(agents_md, remediation)
@@ -1128,7 +1121,9 @@ def test_dependency_security_policy_models_exact_conjunctive_scanner_batch() -> 
         authority["batch_identity_set"] == "exact_finite_complete_snapshot_derived_unresolved_set"
     )
     assert authority["candidate_self_authorization"] == "forbidden"
-    assert authority["postcondition"].startswith("conjunction_all_per_identity")
+    postcondition = authority["postcondition"]
+    assert isinstance(postcondition, str)
+    assert postcondition.startswith("conjunction_all_per_identity")
 
 
 def test_dependency_security_policy_rejects_base_only_head_safety_escape() -> None:
