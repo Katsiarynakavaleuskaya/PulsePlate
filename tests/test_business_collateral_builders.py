@@ -126,3 +126,18 @@ process.stdout.write(JSON.stringify(result));
         {"type": "heading1", "text": "Visible Heading"},
         {"type": "paragraph", "text": "Visible paragraph."},
     ]
+
+
+def test_retired_pptx_execution_surface_stays_absent() -> None:
+    """The four canonical local-PPTX restore points remain retired."""
+    root_manifest = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+    scripts = root_manifest.get("scripts")
+    assert isinstance(scripts, dict)
+    assert "build:b2b-pitch-deck" not in scripts
+    assert scripts.get("build:business-collateral") == "npm run build:b2b-proposal"
+
+    assert not (REPO_ROOT / "scripts/business_collateral/build_b2b_pitch_deck.js").exists()
+    content_loader = (REPO_ROOT / "scripts/business_collateral/content_loader.js").read_text(
+        encoding="utf-8"
+    )
+    assert "parseDeckSpec" not in content_loader

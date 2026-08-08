@@ -150,13 +150,15 @@ change.
 Executable evidence anchors for the stable postcondition are:
 
 - tracked current npm-surface discovery through a sanitized absolute Git
-  executable: `tests/test_root_npm_dependency_guards.py:78` and
-  `tests/test_root_npm_dependency_guards.py:105`;
+  executable: `tests/test_root_npm_dependency_guards.py:79` and
+  `tests/test_root_npm_dependency_guards.py:106`;
 - manifest/lock identity and alias discovery:
-  `tests/test_root_npm_dependency_guards.py:132` and
-  `tests/test_root_npm_dependency_guards.py:169`;
+  `tests/test_root_npm_dependency_guards.py:136` and
+  `tests/test_root_npm_dependency_guards.py:174`;
 - executable absence of the retired `pptxgenjs`/`image-size` graph on every
-  tracked npm surface: `tests/test_root_npm_dependency_guards.py:270`;
+  tracked npm surface: `tests/test_root_npm_dependency_guards.py:292`;
+- executable absence of the pitch script, aggregate PPTX routing, builder file,
+  and deck parser: `tests/test_business_collateral_builders.py:131`;
 - retained DOCX command and absence of a pitch command in the bounded script
   object: `package.json:13` and `package.json:14`;
 - root dependency object after carrier removal: `package.json:31`;

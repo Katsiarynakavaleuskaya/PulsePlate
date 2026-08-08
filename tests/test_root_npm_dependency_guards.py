@@ -160,11 +160,15 @@ def _find_manifest_occurrences(
     return occurrences
 
 
-def _resolved_registry_identity(value: object, *, target: str) -> bool:
+def _resolved_registry_version(value: object, *, target: str) -> str | None:
     if not isinstance(value, str):
-        return False
+        return None
     prefix = f"https://registry.npmjs.org/{target}/-/{target}-"
-    return value.startswith(prefix) and value.endswith(".tgz")
+    suffix = ".tgz"
+    if not value.startswith(prefix) or not value.endswith(suffix):
+        return None
+    version = value[len(prefix) : -len(suffix)]
+    return version or None
 
 
 def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
@@ -180,7 +184,9 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
         package_path = PurePosixPath(raw_path)
         path_matches = bool(package_path.parts) and package_path.name == target
         name_matches = raw_entry.get("name") == target
-        resolved_matches = _resolved_registry_identity(raw_entry.get("resolved"), target=target)
+        resolved_matches = (
+            _resolved_registry_version(raw_entry.get("resolved"), target=target) is not None
+        )
         if path_matches or name_matches or resolved_matches:
             occurrences[raw_path] = cast(dict[str, Any], raw_entry)
     return occurrences
@@ -189,6 +195,7 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
 def _assert_occurrences_outside_ranges(
     *,
     surface: str,
+    target: str,
     occurrences: dict[str, dict[str, Any]],
     affected_ranges: tuple[SpecifierSet, ...],
 ) -> None:
@@ -201,6 +208,20 @@ def _assert_occurrences_outside_ranges(
             raise AssertionError(
                 f"{surface}:{package_path}: version must be advisory-comparable"
             ) from exc
+        assert (
+            not version.is_prerelease
+        ), f"{surface}:{package_path}: prerelease target versions fail closed"
+        resolved_version = _resolved_registry_version(entry.get("resolved"), target=target)
+        assert (
+            resolved_version is not None
+        ), f"{surface}:{package_path}: resolved must be the canonical {target} registry tarball"
+        assert (
+            resolved_version == raw_version
+        ), f"{surface}:{package_path}: resolved tarball version must equal package version"
+        integrity = entry.get("integrity")
+        assert (
+            isinstance(integrity, str) and integrity.strip()
+        ), f"{surface}:{package_path}: integrity must be non-empty"
         assert not any(
             version in affected for affected in affected_ranges
         ), f"{surface}:{package_path}: {version} remains inside a reconciled affected range"
@@ -288,10 +309,16 @@ def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None
 def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
     """Every installed nanoid remains outside both known affected range families."""
     for relative, document in _load_tracked_npm_surfaces().items():
+        if relative == "frontend/package.json":
+            assert not _find_manifest_occurrences(
+                document, target="nanoid"
+            ), "frontend/package.json: nanoid must remain transitive, not direct intent"
+            continue
         if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
             continue
         _assert_occurrences_outside_ranges(
             surface=relative,
+            target="nanoid",
             occurrences=_find_lock_occurrences(document, target="nanoid"),
             affected_ranges=NANOID_AFFECTED_RANGES,
         )
@@ -304,6 +331,7 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             continue
         _assert_occurrences_outside_ranges(
             surface=relative,
+            target="react-router",
             occurrences=_find_lock_occurrences(document, target="react-router"),
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
@@ -317,6 +345,7 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
         ("optionalDependencies", "pptxgenjs", "4.0.1", "pptxgenjs"),
         ("peerDependencies", "renamed-pptx", "npm:pptxgenjs@4.0.1", "pptxgenjs"),
         ("overrides", "renamed-image", "npm:image-size", "image-size"),
+        ("dependencies", "nanoid", "3.3.17", "nanoid"),
     ),
 )
 def test_retired_graph_manifest_discovery_rejects_direct_and_alias_reintroduction(
@@ -364,6 +393,99 @@ def test_retired_graph_lock_discovery_rejects_malformed_scalar_entry() -> None:
     }
     with pytest.raises(AssertionError, match="package entry must be an object"):
         _find_lock_occurrences(document, target="image-size")
+
+
+@pytest.mark.parametrize(
+    ("target", "version", "resolved", "affected_ranges", "message"),
+    (
+        (
+            "nanoid",
+            "5.1.16",
+            "https://registry.npmjs.org/nanoid/-/nanoid-5.1.7.tgz",
+            NANOID_AFFECTED_RANGES,
+            "resolved tarball version must equal package version",
+        ),
+        (
+            "react-router",
+            "7.18.2",
+            "https://registry.npmjs.org/react-router/-/react-router-7.18.1.tgz",
+            REACT_ROUTER_AFFECTED_RANGES,
+            "resolved tarball version must equal package version",
+        ),
+    ),
+)
+def test_target_postcondition_rejects_affected_tarball_behind_safe_version(
+    target: str,
+    version: str,
+    resolved: str,
+    affected_ranges: tuple[SpecifierSet, ...],
+    message: str,
+) -> None:
+    """A safe version label cannot hide an older affected registry artifact."""
+    occurrences = {
+        f"node_modules/{target}": {
+            "version": version,
+            "resolved": resolved,
+            "integrity": "sha512-test",
+        }
+    }
+    with pytest.raises(AssertionError, match=message):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target=target,
+            occurrences=occurrences,
+            affected_ranges=affected_ranges,
+        )
+
+
+@pytest.mark.parametrize("integrity", (None, ""))
+def test_target_postcondition_rejects_missing_integrity(integrity: str | None) -> None:
+    """A retained target package without usable integrity evidence fails closed."""
+    occurrences = {
+        "node_modules/nanoid": {
+            "version": "5.1.16",
+            "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-5.1.16.tgz",
+            "integrity": integrity,
+        }
+    }
+    with pytest.raises(AssertionError, match="integrity must be non-empty"):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target="nanoid",
+            occurrences=occurrences,
+            affected_ranges=NANOID_AFFECTED_RANGES,
+        )
+
+
+@pytest.mark.parametrize(
+    ("target", "version", "affected_ranges"),
+    (
+        ("nanoid", "3.3.16rc1", NANOID_AFFECTED_RANGES),
+        ("nanoid", "5.1.15rc1", NANOID_AFFECTED_RANGES),
+        ("react-router", "7.18.1rc1", REACT_ROUTER_AFFECTED_RANGES),
+        ("react-router", "8.2.9rc1", REACT_ROUTER_AFFECTED_RANGES),
+    ),
+)
+def test_target_postcondition_rejects_prerelease_versions(
+    target: str,
+    version: str,
+    affected_ranges: tuple[SpecifierSet, ...],
+) -> None:
+    """Prerelease targets fail closed instead of bypassing stable advisory floors."""
+    occurrences = {
+        f"node_modules/{target}": {
+            "version": version,
+            "resolved": f"https://registry.npmjs.org/{target}/-/{target}-{version}.tgz",
+            "integrity": "sha512-test",
+        }
+    }
+    with pytest.raises(AssertionError, match="prerelease target versions fail closed"):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target=target,
+            occurrences=occurrences,
+            affected_ranges=affected_ranges,
+        )
 
 
 def _init_indexed_npm_surface_repo(root: Path, *, package_json: str = "{}\n") -> None:

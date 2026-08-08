@@ -181,28 +181,34 @@ broadened, replaced, or otherwise deleted.
 ```text
 P_batch =
   image-size absent on every governed head surface
-  AND root nanoid == 5.1.16 and frontend nanoid == 3.3.17
+  AND the root lockfile nanoid occurrence == 5.1.16
+  AND every frontend lockfile nanoid occurrence == 3.3.17
+  AND frontend/package.json has no direct nanoid declaration
   AND react-router == react-router-dom == 7.18.2
+  AND every retained nanoid/react-router occurrence is a stable version whose
+      canonical registry tarball version matches `version` and whose integrity is non-empty
   AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy
 ```
 
 Executable evidence anchors for the stable postconditions are:
 
 - tracked/index surface enumeration and fail-closed Git environment:
-  `tests/test_root_npm_dependency_guards.py:78` and
-  `tests/test_root_npm_dependency_guards.py:105`;
+  `tests/test_root_npm_dependency_guards.py:79` and
+  `tests/test_root_npm_dependency_guards.py:106`;
 - retired `pptxgenjs`/`image-size` graph absence:
-  `tests/test_root_npm_dependency_guards.py:270`;
-- universal nanoid and React Router affected-range postconditions:
-  `tests/test_root_npm_dependency_guards.py:287` and
-  `tests/test_root_npm_dependency_guards.py:299`;
+  `tests/test_root_npm_dependency_guards.py:292`;
+- universal nanoid and React Router affected-range, canonical-tarball,
+  integrity, and stable-release postconditions:
+  `tests/test_root_npm_dependency_guards.py:195`,
+  `tests/test_root_npm_dependency_guards.py:309`, and
+  `tests/test_root_npm_dependency_guards.py:322`;
 - target-capable React Router suppression denial:
   `scripts/ci/check_trivy_ignore_policy_expiry.py:303` and
   `tests/test_trivy_ignore_policy_expiry.py:625`;
 - exact policy deletion surface: `trivy/ignore-policy.rego:1`;
 - retained DOCX builder and retired local PPTX execution boundary:
   `tests/test_business_collateral_builders.py:90` and
-  `docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md:17`.
+  `tests/test_business_collateral_builders.py:131`.
 
 The complete one-time base-to-head JSON delta and resolver replays remain
 immutable evidence in this document; they are deliberately not encoded as a
