@@ -130,6 +130,11 @@ def _dependency_identity_matches(*, key: object, value: object, target: str) -> 
     return value == f"npm:{target}" or value.startswith(f"npm:{target}@")
 
 
+def _override_key_matches(*, key: object, target: str) -> bool:
+    """Match npm override selectors, including scoped package names."""
+    return isinstance(key, str) and (key == target or key.startswith(f"{target}@"))
+
+
 def _find_manifest_occurrences(
     document: dict[str, Any], *, target: str
 ) -> dict[tuple[str, ...], object]:
@@ -148,7 +153,9 @@ def _find_manifest_occurrences(
             return
         for key, child in value.items():
             child_path = (*path, str(key))
-            if _dependency_identity_matches(key=key, value=child, target=target):
+            if _override_key_matches(key=key, target=target) or _dependency_identity_matches(
+                key=key, value=child, target=target
+            ):
                 occurrences[child_path] = child
             walk_overrides(child, child_path)
 
@@ -361,6 +368,21 @@ def test_retired_graph_manifest_discovery_rejects_bundled_reintroduction(
 ) -> None:
     """Bundled dependency declarations cannot hide a retired identity."""
     assert _find_manifest_occurrences({field: ["image-size"]}, target="image-size")
+
+
+@pytest.mark.parametrize(
+    ("document", "target"),
+    (
+        ({"overrides": {"image-size@<=2.0.2": "2.0.2"}}, "image-size"),
+        ({"overrides": {"pptxgenjs@4": {"image-size": "2.0.2"}}}, "pptxgenjs"),
+        ({"overrides": {"@scope/pkg@^1": {"dependency": "2.0.0"}}}, "@scope/pkg"),
+    ),
+)
+def test_manifest_discovery_rejects_version_qualified_override_keys(
+    document: dict[str, object], target: str
+) -> None:
+    """Version-qualified override selectors cannot hide an owned identity."""
+    assert _find_manifest_occurrences(document, target=target)
 
 
 @pytest.mark.parametrize(

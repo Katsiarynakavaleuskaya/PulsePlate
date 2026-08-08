@@ -196,12 +196,15 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py:79` and
   `tests/test_root_npm_dependency_guards.py:106`;
 - retired `pptxgenjs`/`image-size` graph absence:
-  `tests/test_root_npm_dependency_guards.py:292`;
+  `tests/test_root_npm_dependency_guards.py:299`;
+- direct, aliased, bundled, and version-qualified override discovery:
+  `tests/test_root_npm_dependency_guards.py:138` and
+  `tests/test_root_npm_dependency_guards.py:381`;
 - universal nanoid and React Router affected-range, canonical-tarball,
   integrity, and stable-release postconditions:
-  `tests/test_root_npm_dependency_guards.py:195`,
-  `tests/test_root_npm_dependency_guards.py:309`, and
-  `tests/test_root_npm_dependency_guards.py:322`;
+  `tests/test_root_npm_dependency_guards.py:202`,
+  `tests/test_root_npm_dependency_guards.py:316`, and
+  `tests/test_root_npm_dependency_guards.py:334`;
 - target-capable React Router suppression denial:
   `scripts/ci/check_trivy_ignore_policy_expiry.py:303` and
   `tests/test_trivy_ignore_policy_expiry.py:625`;
