@@ -3318,6 +3318,12 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
     test_feature_groups = _contract_suite_targets_by_group(workflow, job_id="test-feature")
+    expected_rag_owner_targets = (
+        "tests/test_insight_rag_response_fields.py",
+        "tests/test_philosophy_pipeline.py",
+        "tests/test_rag_validation.py",
+        "tests/test_rag_vector_feature_flag_guard.py",
+    )
     expected_slack_operator_targets = (
         "tests/test_ci_risk_profile.py",
         "tests/test_ci_workflow_pr_size_governance_contract.py",
@@ -3328,6 +3334,15 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     )
 
     assert test_pr_groups == test_feature_groups
+    for job_id, groups in (
+        ("test-pr", test_pr_groups),
+        ("test-feature", test_feature_groups),
+    ):
+        for group, targets in groups.items():
+            assert len(targets) == len(
+                set(targets)
+            ), f"contract/risk group {group!r} in {job_id!r} has duplicate test targets"
+    assert set(expected_rag_owner_targets).issubset(test_pr_groups["insight_ai"])
     assert "tests/test_admin_scheduler_access.py" in test_pr_groups["food_catalog"]
     assert "tests/test_scheduler_final_coverage.py" in test_pr_groups["food_catalog"]
     assert "tests/test_admin_scheduler_access.py" in test_feature_groups["food_catalog"]
