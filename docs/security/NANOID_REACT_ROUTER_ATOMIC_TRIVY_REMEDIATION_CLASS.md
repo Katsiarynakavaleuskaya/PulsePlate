@@ -187,7 +187,7 @@ P_batch =
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
       canonical registry tarball version matches `version` and whose integrity is non-empty
-  AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy
+  AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy or .trivyignore
 ```
 
 Executable evidence anchors for the stable postconditions are:
@@ -205,9 +205,11 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py:202`,
   `tests/test_root_npm_dependency_guards.py:316`, and
   `tests/test_root_npm_dependency_guards.py:334`;
-- target-capable React Router suppression denial:
-  `scripts/ci/check_trivy_ignore_policy_expiry.py:303` and
-  `tests/test_trivy_ignore_policy_expiry.py:625`;
+- target-capable React Router suppression denial across both active ignore
+  inputs: `scripts/ci/check_trivy_ignore_policy_expiry.py:303`,
+  `scripts/ci/check_trivy_ignore_policy_expiry.py:334`,
+  `tests/test_trivy_ignore_policy_expiry.py:625`, and
+  `tests/test_trivy_ignore_policy_expiry.py:643`;
 - exact policy deletion surface: `trivy/ignore-policy.rego:1`;
 - retained DOCX builder and retired local PPTX execution boundary:
   `tests/test_business_collateral_builders.py:90` and

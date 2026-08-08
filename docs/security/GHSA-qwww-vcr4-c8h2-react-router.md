@@ -29,15 +29,19 @@ The exact suppression was deleted: the former five-predicate Rego rule for
 `trivy/ignore-policy.rego`. No replacement,
 broader rule, severity exception, allowlist, or scanner bypass was added.
 `scripts/ci/check_trivy_ignore_policy_expiry.py` now fails closed if any
-supported ignore rule can match this advisory, while preserving the generic
-parser, expiry, and review-date checks for unrelated active rules.
-`tests/test_trivy_ignore_policy_expiry.py` covers exact and alternate
-target-capable reintroduction shapes plus unrelated-rule negative controls.
+supported Rego ignore rule or active `.trivyignore` entry can match this
+advisory, while preserving the generic parser, expiry, and review-date checks
+for unrelated active rules. `tests/test_trivy_ignore_policy_expiry.py` covers
+exact and alternate target-capable Rego shapes, an active `.trivyignore`
+reintroduction, and unrelated/comment-only negative controls.
 
 Executable evidence anchors are
-`scripts/ci/check_trivy_ignore_policy_expiry.py:303` for conservative target
-matching and `tests/test_trivy_ignore_policy_expiry.py:625` for the exact
-suppression-absence contract.
+`scripts/ci/check_trivy_ignore_policy_expiry.py:303` and
+`scripts/ci/check_trivy_ignore_policy_expiry.py:334` for conservative target
+matching across both active sources, plus
+`tests/test_trivy_ignore_policy_expiry.py:625` and
+`tests/test_trivy_ignore_policy_expiry.py:643` for the exact absence and
+adversarial reintroduction contracts.
 
 ## Bounded claim
 

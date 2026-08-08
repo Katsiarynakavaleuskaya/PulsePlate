@@ -322,6 +322,35 @@ def _read_rego_text(policy_file: Path) -> str:
         raise ValueError(f"Unable to read Trivy ignore policy {policy_file}: {exc}") from exc
 
 
+def _read_trivyignore_text(ignore_file: Path) -> str:
+    """Read the active Trivy ignore list or raise a stable validation failure."""
+
+    try:
+        return ignore_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Unable to read Trivy ignore list {ignore_file}: {exc}") from exc
+
+
+def _validate_react_router_rsc_trivyignore_absent(
+    ignore_file: Path,
+    *,
+    text: str,
+) -> list[str]:
+    """Fail closed if the retired advisory is active in ``.trivyignore``."""
+
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        active_entry = raw_line.split("#", 1)[0].strip()
+        if not active_entry:
+            continue
+        vulnerability_id = active_entry.split(maxsplit=1)[0]
+        if vulnerability_id == _RETIRED_REACT_ROUTER_RSC_ADVISORY:
+            return [
+                f"Retired React Router suppression must remain absent from {ignore_file}:"
+                f"{line_number}; found {_RETIRED_REACT_ROUTER_RSC_ADVISORY}"
+            ]
+    return []
+
+
 def _validate_react_router_rsc_suppression_absent(
     policy_file: Path,
     *,
@@ -455,6 +484,7 @@ def _resolve_policy_files(repo_root: Path) -> list[Path]:
 def main() -> int:
     repo_root = REPO_ROOT
     policy_files = _resolve_policy_files(repo_root)
+    trivyignore_file = repo_root / ".trivyignore"
 
     missing_files = [p for p in policy_files if not p.exists()]
     if missing_files:
@@ -472,6 +502,18 @@ def main() -> int:
 
     today = datetime.now(UTC).date()
     failures: list[str] = []
+
+    try:
+        trivyignore_text = _read_trivyignore_text(trivyignore_file)
+    except ValueError as exc:
+        failures.append(str(exc))
+    else:
+        failures.extend(
+            _validate_react_router_rsc_trivyignore_absent(
+                trivyignore_file,
+                text=trivyignore_text,
+            )
+        )
 
     for policy_file in policy_files:
         try:

@@ -624,12 +624,52 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
 
 def test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction() -> None:
     policy = _policy_text()
+    trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
     checker = (REPO_ROOT / "scripts" / "ci" / "check_trivy_ignore_policy_expiry.py").read_text(
         encoding="utf-8"
     )
 
     assert "GHSA-qwww-vcr4-c8h2" not in policy
+    assert (
+        expiry_guard._validate_react_router_rsc_trivyignore_absent(
+            TRIVYIGNORE_PATH,
+            text=trivyignore,
+        )
+        == []
+    )
     assert '_RETIRED_REACT_ROUTER_RSC_ADVISORY = "GHSA-qwww-vcr4-c8h2"' in checker
+
+
+def test_react_router_rsc_trivyignore_reintroduction_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_expiry_wrapper_policy(tmp_path)
+    (tmp_path / ".trivyignore").write_text(
+        "# unrelated comment\nGHSA-qwww-vcr4-c8h2 exp:2099-01-01\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 1
+    output = capsys.readouterr().out
+    assert "Retired React Router suppression must remain absent" in output
+    assert "GHSA-qwww-vcr4-c8h2" in output
+
+
+def test_react_router_rsc_trivyignore_comment_is_not_active(tmp_path: Path) -> None:
+    ignore_file = tmp_path / ".trivyignore"
+    text = "# retired: GHSA-qwww-vcr4-c8h2\nCVE-2023-45853\n"
+
+    assert (
+        expiry_guard._validate_react_router_rsc_trivyignore_absent(
+            ignore_file,
+            text=text,
+        )
+        == []
+    )
 
 
 def test_rego_os_read_error_returns_stable_failure(
@@ -761,6 +801,7 @@ def test_react_router_rsc_remediation_policy_doc_and_backlog_are_coupled() -> No
 def _write_expiry_wrapper_policy(repo_root: Path) -> None:
     policy_dir = repo_root / "trivy"
     policy_dir.mkdir(parents=True)
+    (repo_root / ".trivyignore").write_text("", encoding="utf-8")
     lines = [
         "package trivy",
         "# Suppression expires: 2026-10-07 (manual removal)",
