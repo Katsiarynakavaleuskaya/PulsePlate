@@ -24,8 +24,8 @@ PulsePlate application runtime paths remain intact.
 
 The exact base is commit
 `ad179450108ab352fe31e6687a33185b99b52127`. The guard independently enumerates
-tracked npm surfaces at that Git object and working-tree npm surfaces at head.
-Both enumerations must equal this exact non-empty set:
+tracked npm surfaces at that Git object and Git-indexed npm surfaces in the head
+checkout. Both enumerations must equal this exact non-empty set:
 
 1. `package.json`;
 2. `package-lock.json`;
@@ -122,7 +122,8 @@ transition. No lockfile line was edited manually.
 
 `tests/test_root_npm_dependency_guards.py` enforces all of the following:
 
-- exact independent base/head enumeration of `S`;
+- exact independent base-Git-object/head-index enumeration of `S`, excluding
+  ignored or untracked scratch manifests;
 - the single base occurrence and its comparable version/provenance;
 - exact derivation of both members of `A` from `F_cutoff`;
 - executable absence of `image-size` on every head surface;
@@ -136,20 +137,23 @@ transition. No lockfile line was edited manually.
 
 Executable evidence anchors for this exact material are:
 
-- exact base, `S`, and `F_cutoff`: `tests/test_root_npm_dependency_guards.py:26`,
-  `tests/test_root_npm_dependency_guards.py:27`, and
-  `tests/test_root_npm_dependency_guards.py:36`;
+- exact base, `S`, and `F_cutoff`: `tests/test_root_npm_dependency_guards.py:27`,
+  `tests/test_root_npm_dependency_guards.py:28`, and
+  `tests/test_root_npm_dependency_guards.py:37`;
+- tracked head inventory and ignored/untracked scratch negative control:
+  `tests/test_root_npm_dependency_guards.py:145` and
+  `tests/test_root_npm_dependency_guards.py:664`;
 - `I_R`, `C_R`, applicable-set derivation, and `P`:
-  `tests/test_root_npm_dependency_guards.py:274`,
-  `tests/test_root_npm_dependency_guards.py:282`, and
-  `tests/test_root_npm_dependency_guards.py:330`;
+  `tests/test_root_npm_dependency_guards.py:296`,
+  `tests/test_root_npm_dependency_guards.py:304`, and
+  `tests/test_root_npm_dependency_guards.py:352`;
 - exact base/head reconciliation entrypoint:
-  `tests/test_root_npm_dependency_guards.py:490`;
+  `tests/test_root_npm_dependency_guards.py:512`;
 - replacement-as-removal and malformed-entry negative controls:
-  `tests/test_root_npm_dependency_guards.py:577`,
-  `tests/test_root_npm_dependency_guards.py:592`,
-  `tests/test_root_npm_dependency_guards.py:607`, and
-  `tests/test_root_npm_dependency_guards.py:620`;
+  `tests/test_root_npm_dependency_guards.py:599`,
+  `tests/test_root_npm_dependency_guards.py:614`,
+  `tests/test_root_npm_dependency_guards.py:629`, and
+  `tests/test_root_npm_dependency_guards.py:642`;
 - retained DOCX command and absence of a pitch command in the bounded script
   object: `package.json:13` and `package.json:14`;
 - root dependency object after carrier removal: `package.json:31`;

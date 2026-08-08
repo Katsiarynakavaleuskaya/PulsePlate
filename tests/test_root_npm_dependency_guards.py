@@ -9,6 +9,7 @@ canonical npm remediation paths.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from copy import deepcopy
@@ -78,7 +79,12 @@ IGNORED_NPM_SURFACE_PARTS = frozenset(
 
 def _load_json(path: Path) -> dict[str, Any]:
     """RU/EN: Read a UTF-8 JSON file and return the decoded object."""
-    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise AssertionError(f"{path}: npm surface must be readable UTF-8 JSON") from exc
+    assert isinstance(document, dict), f"{path}: npm surface must be an object"
+    return cast(dict[str, Any], document)
 
 
 def _require_dict_field(container: dict[str, Any], key: str, *, ctx: str) -> dict[str, Any]:
@@ -100,15 +106,23 @@ def _carrier_leaf_paths(packages: dict[str, Any], leaf_name: str) -> list[str]:
     ]
 
 
-def _git_stdout(*args: str) -> bytes:
-    """RU/EN: Read exact-base evidence through an absolute git binary."""
+def _git_stdout(*args: str, root: Path = REPO_ROOT) -> bytes:
+    """RU/EN: Read repository evidence through an absolute git binary."""
     git_binary = shutil.which("git")
     assert git_binary is not None, "git is required for exact-base dependency guards"
-    assert Path(git_binary).is_absolute(), "git binary must resolve to an absolute path"
+    if git_binary.endswith("/usr/libexec/git-core/git"):
+        git_binary = "/usr/bin/git"
+    git_path = Path(git_binary)
+    assert git_path.is_absolute(), "git binary must resolve to an absolute path"
+    assert git_path.is_file() and os.access(
+        git_path, os.X_OK
+    ), "git binary must be an available executable file"
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     result = subprocess.run(
-        [git_binary, "-C", str(REPO_ROOT), *args],
+        [git_binary, "-C", str(root), *args],
         check=True,
         capture_output=True,
+        env=git_env,
         timeout=30,
     )
     return result.stdout
@@ -129,12 +143,20 @@ def _is_governed_npm_surface(relative: PurePosixPath) -> bool:
 
 
 def _enumerate_repo_npm_surfaces(*, root: Path = REPO_ROOT) -> frozenset[str]:
+    tracked_paths = _git_stdout("ls-files", "--cached", "-z", root=root).decode("utf-8")
     surfaces: set[str] = set()
-    for basename in NPM_SURFACE_BASENAMES:
-        for path in root.rglob(basename):
-            relative = PurePosixPath(path.relative_to(root).as_posix())
-            if _is_governed_npm_surface(relative):
-                surfaces.add(relative.as_posix())
+    for raw_path in tracked_paths.split("\0"):
+        if not raw_path:
+            continue
+        relative = PurePosixPath(raw_path)
+        if not _is_governed_npm_surface(relative):
+            continue
+        surface_path = root.joinpath(*relative.parts)
+        assert (
+            surface_path.is_file() and not surface_path.is_symlink()
+        ), f"{relative.as_posix()}: tracked npm surface must be a regular file"
+        _load_json(surface_path)
+        surfaces.add(relative.as_posix())
     return frozenset(surfaces)
 
 
@@ -628,3 +650,61 @@ def test_image_size_removal_rejects_scalar_carrier_entry_with_image_size_alias()
             base_documents=base_documents,
             head_documents=mutated_head,
         )
+
+
+def _init_indexed_npm_surface_repo(root: Path, *, package_json: str = "{}\n") -> None:
+    """Create a disposable Git index with one governed npm surface."""
+    root.mkdir()
+    (root / ".gitignore").write_text("tmp/\n", encoding="utf-8")
+    (root / "package.json").write_text(package_json, encoding="utf-8")
+    _git_stdout("init", "--quiet", root=root)
+    _git_stdout("add", "--", ".gitignore", "package.json", root=root)
+
+
+def test_image_size_head_surface_inventory_ignores_untracked_tmp_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ignored scratch manifests cannot expand the tracked head surface universe."""
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer-hook.index"))
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    scratch_manifest = repo / "tmp" / "scratch" / "package.json"
+    scratch_manifest.parent.mkdir(parents=True)
+    scratch_manifest.write_text("not-json\n", encoding="utf-8")
+
+    _git_stdout("check-ignore", "--quiet", "tmp/scratch/package.json", root=repo)
+    assert _enumerate_repo_npm_surfaces(root=repo) == frozenset({"package.json"})
+
+
+def test_image_size_head_surface_inventory_rejects_missing_tracked_file(tmp_path: Path) -> None:
+    """A path retained by the index cannot disappear from the working checkout."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    (repo / "package.json").unlink()
+
+    with pytest.raises(AssertionError, match="tracked npm surface must be a regular file"):
+        _enumerate_repo_npm_surfaces(root=repo)
+
+
+def test_image_size_head_surface_inventory_rejects_non_regular_tracked_file(
+    tmp_path: Path,
+) -> None:
+    """A tracked npm surface cannot be replaced by a directory or symlink."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo)
+    (repo / "package.json").unlink()
+    (repo / "package.json").mkdir()
+
+    with pytest.raises(AssertionError, match="tracked npm surface must be a regular file"):
+        _enumerate_repo_npm_surfaces(root=repo)
+
+
+def test_image_size_head_surface_inventory_rejects_unparseable_tracked_json(
+    tmp_path: Path,
+) -> None:
+    """A tracked npm surface must remain a readable JSON object at head."""
+    repo = tmp_path / "repo"
+    _init_indexed_npm_surface_repo(repo, package_json="not-json\n")
+
+    with pytest.raises(AssertionError, match="npm surface must be readable UTF-8 JSON"):
+        _enumerate_repo_npm_surfaces(root=repo)

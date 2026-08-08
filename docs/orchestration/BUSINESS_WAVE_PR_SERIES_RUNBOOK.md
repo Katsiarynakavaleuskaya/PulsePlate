@@ -25,7 +25,11 @@ It exists to keep:
 ## Contract Boundaries
 
 - This runbook owns process, merge cadence, sync points, and hard rules for the wave.
-- `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md` owns branch-scoped success criteria, artifact inventory, and deliverable planning.
+- `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md` is a historical
+  point-in-time, branch-scoped planning record. Its PPTX-builder success
+  criterion and `slides` execution routing are superseded by Current Status. It
+  has no present authority to restore the local PPTX builder, npm command,
+  dependency, or test.
 
 ## Source of Truth
 
