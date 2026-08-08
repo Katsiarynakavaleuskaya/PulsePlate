@@ -25,9 +25,12 @@ remediation claim for the batch's `nanoid` or React Router identities.
 ## Frozen material and complete surface universe `S`
 
 The exact base is commit
-`ad179450108ab352fe31e6687a33185b99b52127`. The guard independently enumerates
-tracked npm surfaces at that Git object and Git-indexed npm surfaces in the head
-checkout. Both enumerations must equal this exact non-empty set:
+`ad179450108ab352fe31e6687a33185b99b52127`. This immutable transition record
+enumerates the tracked npm surfaces at that Git object and at the integrated
+head. The permanent guard independently enumerates Git-indexed npm surfaces in
+the current head checkout without pinning a historical base. The recorded
+base/head enumerations and the current-head guard must each resolve this exact
+non-empty set:
 
 1. `package.json`;
 2. `package-lock.json`;
