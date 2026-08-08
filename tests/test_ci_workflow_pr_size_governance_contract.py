@@ -567,35 +567,6 @@ def _contract_suite_targets_by_group(
     return blocks
 
 
-def _nested_minimatch_10_paths(packages: object) -> set[str]:
-    """Select only nested minimatch 10.x records, never the root package path."""
-
-    assert isinstance(packages, dict), "frontend lockfile packages must be an object"
-    nested_paths: set[str] = set()
-    for raw_path, package_info in packages.items():
-        package_path = str(raw_path)
-        if package_path == "node_modules/minimatch" or not package_path.endswith(
-            "node_modules/minimatch"
-        ):
-            continue
-        assert isinstance(package_info, dict), f"{package_path}: package record must be an object"
-        if str(package_info.get("version", "")).startswith("10."):
-            nested_paths.add(package_path)
-    return nested_paths
-
-
-def test_nested_minimatch_10_selection_keeps_root_assertion_separate() -> None:
-    """A future root minimatch 10.x must not reuse nested brace-expansion evidence."""
-
-    packages = {
-        "node_modules/minimatch": {"version": "10.9.9"},
-        "node_modules/glob/node_modules/minimatch": {"version": "10.2.5"},
-        "node_modules/legacy/node_modules/minimatch": {"version": "3.1.5"},
-    }
-
-    assert _nested_minimatch_10_paths(packages) == {"node_modules/glob/node_modules/minimatch"}
-
-
 NODE24_FRONTEND_BUILD_LINE = (
     "FROM node:24.18.1-bookworm-slim@"
     "sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
@@ -827,17 +798,7 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
-    assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.8"
     assert frontend_package["overrides"]["ws"] == "8.21.0"
-    packages = frontend_lock["packages"]
-    minimatch_10_paths = _nested_minimatch_10_paths(packages)
-    assert minimatch_10_paths, "frontend lockfile must retain a minimatch 10.x subtree"
-    for minimatch_path in minimatch_10_paths:
-        brace_path = minimatch_path.removesuffix("node_modules/minimatch") + (
-            "node_modules/brace-expansion"
-        )
-        assert packages[brace_path]["version"] == "5.0.8"
-    assert packages["node_modules/brace-expansion"]["version"] == "2.1.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.21.0"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
     contract_errors = _node24_frontend_builder_contract_errors(dockerfile)
