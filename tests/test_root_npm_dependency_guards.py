@@ -161,13 +161,18 @@ _NPM_GIT_SCHEMES = (
     "git+ftp:",
     "git:",
 )
-_NPM_SCP_GIT_RE = re.compile(r"^[^@]+@[^:.]+\.[^:]+:.+\Z", re.IGNORECASE)
+_NPM_HOSTED_SCP_GIT_RE = re.compile(
+    r"^(?P<auth>[^@\s]+)@(?P<hostname>(?:www\.)?"
+    r"(?:github\.com|gitlab\.com|bitbucket\.org|gist\.github\.com|git\.sr\.ht))"
+    r":(?P<path>.+)\Z",
+    re.IGNORECASE,
+)
 _NPM_HOSTED_URL_PROTOCOLS = {
-    "github.com": frozenset({"git", "http", "https", "ssh"}),
-    "gitlab.com": frozenset({"https", "ssh"}),
-    "bitbucket.org": frozenset({"https", "ssh"}),
-    "gist.github.com": frozenset({"git", "https", "ssh"}),
-    "git.sr.ht": frozenset({"https"}),
+    "github.com": frozenset({"git", "git+ssh", "http", "https", "ssh"}),
+    "gitlab.com": frozenset({"git+ssh", "https", "ssh"}),
+    "bitbucket.org": frozenset({"git+ssh", "https", "ssh"}),
+    "gist.github.com": frozenset({"git", "git+ssh", "https", "ssh"}),
+    "git.sr.ht": frozenset({"git+ssh", "https"}),
 }
 _WHATWG_SINGLE_DOT_SEGMENTS = frozenset({".", "%2e"})
 _WHATWG_DOUBLE_DOT_SEGMENTS = frozenset({"..", ".%2e", "%2e.", "%2e%2e"})
@@ -270,6 +275,17 @@ def _matches_current_npm_github_shorthand(candidate: str) -> bool:
     )
 
 
+def _matches_current_npm_hosted_scp(candidate: str) -> bool:
+    """Match SCP spellings only when current hosted-git-info owns the host/path."""
+    match = _NPM_HOSTED_SCP_GIT_RE.fullmatch(candidate)
+    if match is None:
+        return False
+    normalized = (
+        f"git+ssh://{match.group('auth')}@{match.group('hostname')}/" f"{match.group('path')}"
+    )
+    return _matches_current_npm_hosted_git_url(normalized)
+
+
 def _matches_bounded_npm_git_spec(value: object) -> bool:
     """Classify only the explicitly enumerated current npm Git-source grammar."""
     if not isinstance(value, str):
@@ -280,7 +296,7 @@ def _matches_bounded_npm_git_spec(value: object) -> bool:
         return False
     if lowered.startswith(_NPM_GIT_SCHEMES):
         return True
-    if _NPM_SCP_GIT_RE.fullmatch(candidate) is not None:
+    if _matches_current_npm_hosted_scp(candidate):
         return True
     if lowered.startswith(_NPM_HOSTED_GIT_PREFIXES):
         return True
@@ -925,7 +941,6 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
         "git+ftp://example.invalid/acme/repo.git",
         "git://example.invalid/acme/repo.git",
         "git:example.invalid/acme/repo.git",
-        "git@example.invalid:acme/repo.git",
         "alice@www.github.com:acme/repo.git",
         "git@github.com:acme/repo.git#main",
         "git@gitlab.com:acme/repo.git",
@@ -988,6 +1003,9 @@ def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
         "https://example.invalid/acme/repo.git/README",
         "https://example.invalid/acme/repo.tgz?source=repo.git",
         "https://example.invalid/acme/repo.git",
+        "git@example.invalid:acme/repo.git",
+        "git@127.0.0.1:acme/repo.git",
+        "git@example.com:/abs/repo.git",
         "https://example%2einvalid/acme/repo",
         "https://github%2fcom/acme/repo",
         "ssh://github%2ecom/acme/repo",
@@ -1019,6 +1037,28 @@ def test_bounded_git_dependency_recognizer_does_not_authorize_near_misses(
 ) -> None:
     """A non-match is only outside this grammar, never a broader safety claim."""
     assert not _matches_bounded_npm_git_spec(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "git@example.invalid:acme/repo.git",
+        "git@127.0.0.1:acme/repo.git",
+        "git@example.com:/abs/repo.git",
+    ),
+)
+def test_git_source_owner_does_not_reclassify_npm_local_scp_near_misses(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    """Dependency-value SCP near-misses keep npm local-directory precedence."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"tools/fixture/package.json": {"dependencies": {"renamed": value}}},
+    )
+
+    test_tracked_npm_manifests_reject_bounded_git_dependency_sources()
 
 
 @pytest.mark.parametrize(
