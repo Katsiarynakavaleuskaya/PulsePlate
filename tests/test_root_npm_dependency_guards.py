@@ -140,12 +140,45 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     suffix_width = len(target_parts) + 2
     if len(path_parts) < suffix_width:
         return False
+    target_start = len(path_parts) - suffix_width
+    if len(target_parts) == 1 and target_start > 0 and path_parts[target_start - 1].startswith("@"):
+        return False
     return (
         tuple(path_parts[-suffix_width:-2]) == target_parts
         and path_parts[-2] == "-"
         and path_parts[-1].startswith(f"{package_basename}-")
         and path_parts[-1].endswith(".tgz")
     )
+
+
+_NPM_HOSTED_GIT_PREFIXES = ("github:", "gitlab:", "bitbucket:")
+_NPM_GIT_SCHEMES = ("git+https://", "git+http://", "git+ssh://", "git+file:", "git://")
+_NPM_HOSTED_GIT_SHORTHAND_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:#[^\s]+)?\Z")
+_NPM_SCP_GIT_RE = re.compile(r"git@[^\s/:]+:[^\s]+\Z", re.IGNORECASE)
+
+
+def _matches_bounded_npm_git_spec(value: object) -> bool:
+    """Classify only the explicitly enumerated current npm Git-source grammar."""
+    if not isinstance(value, str):
+        return False
+    candidate = value.strip().replace("\\", "/")
+    lowered = candidate.lower()
+    if lowered.startswith("file:") or candidate.startswith(("./", "../")):
+        return False
+    if lowered.startswith(_NPM_GIT_SCHEMES):
+        return True
+    if _NPM_SCP_GIT_RE.fullmatch(candidate) is not None:
+        return True
+    if lowered.startswith(_NPM_HOSTED_GIT_PREFIXES):
+        hosted_value = candidate.split(":", maxsplit=1)[1]
+        return _NPM_HOSTED_GIT_SHORTHAND_RE.fullmatch(hosted_value) is not None
+    if _NPM_HOSTED_GIT_SHORTHAND_RE.fullmatch(candidate) is not None:
+        return True
+    parsed = urlparse(candidate)
+    if parsed.scheme.lower() not in {"http", "https", "ssh"}:
+        return False
+    decoded_path = _fully_decode_url_path(parsed.path)
+    return posixpath.normpath(decoded_path).endswith(".git")
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -195,6 +228,32 @@ def _find_manifest_occurrences(
         bundled = document.get(field)
         if isinstance(bundled, list) and target in bundled:
             occurrences[(field, str(bundled.index(target)))] = target
+    return occurrences
+
+
+def _find_bounded_git_dependency_occurrences(
+    document: dict[str, Any],
+) -> dict[tuple[str, ...], object]:
+    """Find Git sources in the named fields and explicitly bounded current grammar."""
+    occurrences: dict[tuple[str, ...], object] = {}
+    for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+        values = document.get(field)
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            if _matches_bounded_npm_git_spec(value):
+                occurrences[(field, str(key))] = value
+
+    def walk_overrides(value: object, path: tuple[str, ...]) -> None:
+        if not isinstance(value, dict):
+            return
+        for key, child in value.items():
+            child_path = (*path, str(key))
+            if _matches_bounded_npm_git_spec(child):
+                occurrences[child_path] = child
+            walk_overrides(child, child_path)
+
+    walk_overrides(document.get("overrides"), ("overrides",))
     return occurrences
 
 
@@ -349,6 +408,34 @@ def _resolved_registry_version(value: object, *, target: str) -> str | None:
     return version or None
 
 
+def _lock_path_package_identity(raw_path: str) -> str | None:
+    """Parse one complete package identity after the final node_modules segment."""
+    if "\\" in raw_path:
+        return None
+    package_path = PurePosixPath(raw_path)
+    if package_path.is_absolute() or ".." in package_path.parts:
+        return None
+    if package_path.as_posix() != raw_path:
+        return None
+    node_modules_indices = [
+        index for index, component in enumerate(package_path.parts) if component == "node_modules"
+    ]
+    if not node_modules_indices:
+        return None
+    identity_parts = package_path.parts[node_modules_indices[-1] + 1 :]
+    if len(identity_parts) == 1 and identity_parts[0] and not identity_parts[0].startswith("@"):
+        return identity_parts[0]
+    if (
+        len(identity_parts) == 2
+        and identity_parts[0].startswith("@")
+        and len(identity_parts[0]) > 1
+        and identity_parts[1]
+        and not identity_parts[1].startswith("@")
+    ):
+        return "/".join(identity_parts)
+    return None
+
+
 def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
     """Find installed target entries by path, name, or origin-neutral tarball identity."""
     assert document.get("lockfileVersion") == 3, "npm lock surface: lockfileVersion must be 3"
@@ -359,8 +446,7 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
         assert isinstance(
             raw_entry, dict
         ), f"npm lock surface: package entry must be an object: {raw_path}"
-        package_path = PurePosixPath(raw_path)
-        path_matches = bool(package_path.parts) and package_path.name == target
+        path_matches = _lock_path_package_identity(raw_path) == target
         name_matches = raw_entry.get("name") == target
         resolved_matches = _tarball_identity_matches(raw_entry.get("resolved"), target=target)
         if path_matches or name_matches or resolved_matches:
@@ -537,6 +623,17 @@ def test_root_lock_tracks_current_cspell_runtime_chain() -> None:
     assert "path-to-regexp" not in tinyglobby_dependencies
 
 
+def test_tracked_npm_manifests_reject_bounded_git_dependency_sources() -> None:
+    """Opaque Git specs in the enumerated grammar cannot hide package identity."""
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
+        if PurePosixPath(relative).name != "package.json":
+            continue
+        assert not _find_bounded_git_dependency_occurrences(
+            document
+        ), f"{relative}: enumerated Git dependency source requires separate provenance"
+
+
 def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None:
     """The retired pptxgenjs/image-size executable graph cannot silently return."""
     surfaces = _load_tracked_npm_surfaces()
@@ -708,6 +805,80 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
     )
 
 
+@pytest.mark.parametrize(
+    "value",
+    (
+        "git+https://github.com/acme/repo.git#main",
+        "git+http://example.invalid/acme/repo.git",
+        "git+ssh://git@example.invalid/acme/repo.git#v1",
+        "git+file:///tmp/image-size",
+        "git://example.invalid/acme/repo.git",
+        "git@example.invalid:acme/repo.git#main",
+        "github:acme/repo#main",
+        "gitlab:acme/repo",
+        "bitbucket:acme/repo#v1",
+        "acme/repo#semver:^1.0.0",
+        "https://example.invalid/acme/repo.git?download=1#main",
+        "ssh://git@example.invalid/acme/repo%2egit#main",
+    ),
+)
+def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
+    value: str,
+) -> None:
+    """The bounded current npm Git grammar is rejected independently of package key."""
+    assert _matches_bounded_npm_git_spec(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "file:../vendor/repo.git",
+        "../vendor/repo.git",
+        "./vendor/repo.git",
+        "npm:image-size@1.2.1",
+        "1.2.3",
+        "https://registry.npmjs.org/image-size/-/image-size-1.2.1.tgz",
+        "workspace:*",
+        "link:../vendor/repo.git",
+        "https://example.invalid/acme/repo.git.tgz",
+        "https://example.invalid/acme/repo.git/README",
+        "https://example.invalid/acme/repo.tgz?source=repo.git",
+        "@scope/pkg",
+        "./acme/repo",
+    ),
+)
+def test_bounded_git_dependency_recognizer_does_not_authorize_near_misses(
+    value: str,
+) -> None:
+    """A non-match is only outside this grammar, never a broader safety claim."""
+    assert not _matches_bounded_npm_git_spec(value)
+
+
+@pytest.mark.parametrize(
+    "document",
+    (
+        {"dependencies": {"renamed-image": "git+file:///tmp/image-size"}},
+        {"devDependencies": {"renamed-image": "git+https://example.invalid/repo.git"}},
+        {"optionalDependencies": {"renamed-image": "github:acme/repo#main"}},
+        {"peerDependencies": {"renamed-image": "acme/repo#v1"}},
+        {"overrides": {"carrier": {"renamed-image": "git@example.invalid:acme/repo.git"}}},
+    ),
+)
+def test_git_source_owner_rejects_each_governed_manifest_position(
+    monkeypatch: pytest.MonkeyPatch,
+    document: dict[str, object],
+) -> None:
+    """Every named carrier field reaches the executable current-index owner."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"scripts/business_collateral/package.json": document},
+    )
+
+    with pytest.raises(AssertionError, match="enumerated Git dependency source"):
+        test_tracked_npm_manifests_reject_bounded_git_dependency_sources()
+
+
 def test_retired_graph_guard_rejects_repository_relative_target_tarball(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -780,6 +951,57 @@ def test_manifest_local_carrier_ignores_untracked_or_non_target_near_miss(
         surfaces=surfaces,
         target="image-size",
     )
+
+
+@pytest.mark.parametrize(
+    ("raw_path", "expected"),
+    (
+        ("node_modules/nanoid", "nanoid"),
+        ("node_modules/carrier/node_modules/nanoid", "nanoid"),
+        ("node_modules/@scope/pkg", "@scope/pkg"),
+        ("node_modules/carrier/node_modules/@scope/pkg", "@scope/pkg"),
+        ("node_modules/@acme/nanoid", "@acme/nanoid"),
+        ("node_modules/other/nanoid", None),
+        ("node_modules/nanoid/extra", None),
+        ("node_modules/@scope", None),
+        ("node_modules/@/pkg", None),
+        ("/node_modules/nanoid", None),
+        (r"node_modules\nanoid", None),
+        ("node_modules/../node_modules/nanoid", None),
+        ("", None),
+    ),
+)
+def test_lock_path_identity_uses_complete_post_node_modules_package_name(
+    raw_path: str,
+    expected: str | None,
+) -> None:
+    """Scoped packages retain their scope and unrelated basenames stay unrelated."""
+    assert _lock_path_package_identity(raw_path) == expected
+
+
+def test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A legitimate @scope/nanoid artifact is not the unscoped security target."""
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/@acme/nanoid": {
+                "version": "1.0.0",
+                "resolved": "https://registry.npmjs.org/@acme/nanoid/-/nanoid-1.0.0.tgz",
+                "integrity": "sha512-scoped",
+            }
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"package-lock.json": lock},
+    )
+
+    test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+    assert not _find_lock_occurrences(lock, target="nanoid")
+    assert set(_find_lock_occurrences(lock, target="@acme/nanoid")) == {"node_modules/@acme/nanoid"}
 
 
 @pytest.mark.parametrize("field", ("bundleDependencies", "bundledDependencies"))

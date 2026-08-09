@@ -201,6 +201,13 @@ P_batch =
       origin-neutral target identity is discovered before its canonical registry
       tarball version is required to match `version` with non-empty integrity;
       WHATWG-style special-scheme backslashes are normalized before URL parsing
+  AND Git dependency values in the explicitly enumerated current npm grammar
+      are rejected because manifest-only inspection cannot verify their internal
+      package identity; a grammar non-match is not a broader safety claim
+      and any newly encountered dependency syntax stops for explicit rescope
+      and provenance review before admission
+  AND lock-path identity is the complete unscoped name or @scope/name after the
+      final node_modules segment, never the terminal basename alone
   AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy or .trivyignore
 ```
 
@@ -218,6 +225,13 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::_find_tracked_local_manifest_occurrences`,
   `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`, and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
+- bounded Git-source rejection in named manifest fields:
+  `tests/test_root_npm_dependency_guards.py::_matches_bounded_npm_git_spec`,
+  `tests/test_root_npm_dependency_guards.py::_find_bounded_git_dependency_occurrences`,
+  and `tests/test_root_npm_dependency_guards.py::test_tracked_npm_manifests_reject_bounded_git_dependency_sources`;
+- complete scoped/unscoped lock-path identity:
+  `tests/test_root_npm_dependency_guards.py::_lock_path_package_identity` and
+  `tests/test_root_npm_dependency_guards.py::test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename`;
 - universal nanoid and React Router affected-range, Node-semver length/numeric,
   origin-neutral lock discovery, canonical-tarball provenance, integrity, and
   stable-release, Router/DOM artifact resolution, and exact dependency-edge postconditions:

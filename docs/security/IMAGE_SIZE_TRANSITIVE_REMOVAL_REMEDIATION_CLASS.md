@@ -141,6 +141,13 @@ delta.
   tarballs before canonical provenance validation, WHATWG-style backslash path variants,
   registry-resolution aliases, renamed local-path carriers whose tracked
   package manifest owns the target identity, and malformed lock entries;
+- rejection of Git dependency sources in the explicitly enumerated current npm
+  grammar across dependency/dev/optional/peer and nested override values,
+  because their internal package identity is opaque to the indexed manifest;
+  any newly encountered dependency syntax outside that grammar stops this lane
+  for explicit rescope and provenance review before admission;
+- complete package identity after the final `node_modules` segment, so an
+  unrelated `@scope/image-size` is not the unscoped `image-size` target;
 - universal affected-range checks for the retained nanoid and React Router
   occurrences, without pinning their current safe version forever.
 
@@ -165,6 +172,13 @@ Executable evidence anchors for the stable postcondition are:
   `tests/test_root_npm_dependency_guards.py::_find_lock_occurrences`;
 - repository-relative tarball regression through the executable retired-graph
   owner: `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`;
+- bounded current Git-source grammar and executable current-index owner:
+  `tests/test_root_npm_dependency_guards.py::_matches_bounded_npm_git_spec`,
+  `tests/test_root_npm_dependency_guards.py::_find_bounded_git_dependency_occurrences`,
+  and `tests/test_root_npm_dependency_guards.py::test_tracked_npm_manifests_reject_bounded_git_dependency_sources`;
+- full scoped/unscoped lock-path identity:
+  `tests/test_root_npm_dependency_guards.py::_lock_path_package_identity` and
+  `tests/test_root_npm_dependency_guards.py::test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename`;
 - version-qualified override-key discovery, including scoped package names:
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - executable absence of the retired `pptxgenjs`/`image-size` graph on every
