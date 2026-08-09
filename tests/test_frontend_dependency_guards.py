@@ -1066,8 +1066,9 @@ def _assert_brace_expansion_security_class(
 ) -> None:
     """Validate every current occurrence, while allowing executable absence."""
 
-    overrides = package_json.get("overrides")
-    assert isinstance(overrides, dict), "frontend/package.json: overrides must be an object"
+    if "overrides" in package_json:
+        overrides = package_json["overrides"]
+        assert isinstance(overrides, dict), "frontend/package.json: overrides must be an object"
     allowed_override_paths: dict[tuple[str, ...], int] = {
         ("overrides", carrier, "brace-expansion"): major
         for major, carrier in BRACE_EXPANSION_OVERRIDE_CARRIERS.items()
@@ -1452,6 +1453,7 @@ def test_surface_ownership_rejects_renamed_tracked_local_brace_carrier(
     "case",
     (
         "executable-absence",
+        "remove-overrides-container",
         "remove-one-carrier",
         "safe-patch-2",
         "safe-patch-5",
@@ -1466,6 +1468,9 @@ def test_brace_expansion_current_postcondition_allows_safe_graph_evolution(case:
     if case == "executable-absence":
         del package_json["overrides"]["minimatch@3"]
         del package_json["overrides"]["minimatch@10"]
+        packages.clear()
+    elif case == "remove-overrides-container":
+        del package_json["overrides"]
         packages.clear()
     elif case == "remove-one-carrier":
         del package_json["overrides"]["minimatch@3"]
