@@ -808,7 +808,7 @@ def test_react_router_rsc_remediation_policy_doc_and_backlog_are_coupled() -> No
     assert "tests/test_trivy_ignore_policy_expiry.py" in security_doc
     assert '<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>' in ledger_entry
     assert "- [ ] P1: Remove React Router unstable RSC advisory suppression" in ledger_entry
-    assert "Target PR: PR #2246" in ledger_entry
+    assert "Target PR: PR #2247" in ledger_entry
     assert "suppression is deleted" in ledger_entry
     assert "exact-head Trivy confirmation is pending" in ledger_entry
     assert "scripts/ci/check_react_router_rsc_premise.py" not in ledger_entry

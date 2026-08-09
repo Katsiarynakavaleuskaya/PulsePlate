@@ -25,17 +25,18 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
-- [ ] P1: Carry over the RAG main fixture and CI ownership repair into PR #2246
+- [ ] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
   - Owner: backend-engineer / qa-engineer-agent
   - Priority: P1 (current-main recovery / CI trust)
-  - Target PR: [PR #2246](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2246)
-  - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on PR #2246
+  - Target PR: [PR #2247](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2247)
+  - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on replacement PR #2247
   - Status: Integrated into the single operator-authorized remediation lane; exact-head CI and closeout pending
   - Reason (EN): PR #2245 repairs the Stage-1-invalid positive Jaccard fixture
     and the finite `insight_ai` owning-suite gap, but its Trivy check is blocked
-    by the dependency identities remediated in PR #2246. PR #2246 is in turn
-    blocked in every canonical Python matrix by that same fixture. Carrying the
-    two already-reviewed commits into one PR breaks the circular dependency
+    by the dependency identities first assembled in superseded PR #2246 and now
+    carried by replacement PR #2247. PR #2246 was in turn blocked in every
+    canonical Python matrix by that same fixture. Carrying the two
+    already-reviewed commits into the replacement PR breaks the circular dependency
     without changing RAG runtime behavior or weakening Stage 1.
   - Links:
     - `tests/test_rag_vector_feature_flag_guard.py`
@@ -52,7 +53,7 @@ If it is not recorded here — it does not exist.
       profile
     - no `core/rag/**`, route, DTO, OpenAPI, provider, quota, or rate-limit
       behavior changes
-    - exact PR #2246 current-head Python 3.11, 3.12, and 3.13 matrices pass
+    - exact PR #2247 current-head Python 3.11, 3.12, and 3.13 matrices pass
       before any main/nightly recovery claim
 
 <a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
@@ -5380,8 +5381,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remove React Router unstable RSC advisory suppression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #2246
-  - Status: In progress in PR #2246; fixed dependency material and exact
+  - Target PR: PR #2247
+  - Status: In progress in replacement PR #2247; fixed dependency material and exact
     suppression deletion are selected, exact-head Trivy confirmation is pending
   - Area: security / frontend dependency / Trivy policy
   - Finding Type: application dependency vulnerability remediation
@@ -5502,10 +5503,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: PR #2246
-  - Status: Implementation complete in PR #2246; merge confirmation pending
+  - Target PR: PR #2247
+  - Status: Implementation complete in replacement PR #2247; merge confirmation pending
   - Area: security / container / Trivy policy
-  - Reason (EN): The CVE-2026-3184 suppression used `startswith` for observed util-linux PkgIDs, which could match unintended suffix variants. PR #2246 already owns the material Trivy policy surface, so it narrows the same eight tuples to exact equality instead of deferring a current-PR security finding.
+  - Reason (EN): The CVE-2026-3184 suppression used `startswith` for observed util-linux PkgIDs, which could match unintended suffix variants. Replacement PR #2247 carries the material Trivy policy surface from superseded PR #2246, so it narrows the same eight tuples to exact equality instead of deferring a current-PR security finding.
   - Links:
     - `trivy/ignore-policy.rego`
     - `docs/security/CVE-2026-3184-util-linux.md`
