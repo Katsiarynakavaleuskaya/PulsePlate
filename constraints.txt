@@ -24,7 +24,7 @@ pip-audit>=2.10.1
 setuptools>=83.0.0  # Security floor for CVE-2026-59890
 
 # Dev tools - allow minor updates
-pre-commit>=4.6.0
+pre-commit>=4.6.1
 sourcery>=2.0.0
 diff-cover>=10.3.0  # Updated to match requirements-dev.txt
 

@@ -119,6 +119,7 @@ greenlet==3.3.2
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
+    #   sqlalchemy
 h11==0.16.0
     # via
     #   -c requirements.txt
@@ -259,7 +260,7 @@ pluggy==1.6.0
     # via
     #   diff-cover
     #   pytest
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via -r requirements-ci-lite.in
 prometheus-client==0.24.1
     # via
@@ -340,10 +341,6 @@ rich==14.3.3
     # via
     #   bandit
     #   pip-audit
-setuptools==83.0.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements-ci-lite.in
 six==1.17.0
     # via
     #   -c requirements.txt
@@ -422,4 +419,9 @@ zipp==3.23.0
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-# pip
+pip==26.2.1
+    # via pip-api
+setuptools==83.0.0
+    # via
+    #   -c requirements.txt
+    #   -r requirements-ci-lite.in
