@@ -5444,7 +5444,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
     - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)
-    - PR #2246: Rechecked current Debian primary evidence for residual zlib/3184/ncurses rules; bookworm still has no actionable fixed package path for these exact contexts, so Review-by dates are 2026-09-08 while rule bodies and the shared 2026-10-07 file expiry remain unchanged
+    - PR #2246: Rechecked current Debian primary evidence for residual zlib/3184/ncurses rules; Review-by dates are 2026-09-08, zlib/ncurses rule bodies and the shared 2026-10-07 expiry remain unchanged, and CVE-2026-3184 PkgID matching is narrowed to exact equality
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 
@@ -5468,12 +5468,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Record current-head CI evidence and close this ledger item after merge.
 
 <a id="ledger-p1-cve-2026-3184-exact-pkgid-match"></a>
-- [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
+- [x] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: TBD
+  - Target PR: PR #2246
+  - Status: Implementation complete in PR #2246; merge confirmation pending
   - Area: security / container / Trivy policy
-  - Reason (EN): The CVE-2026-3184 suppression still uses `startswith` for observed util-linux PkgIDs, which can match unintended suffix variants. A dedicated follow-up should adopt the exact-equality set pattern used by CVE-2026-53615 without expanding this CVE-scoped PR.
+  - Reason (EN): The CVE-2026-3184 suppression used `startswith` for observed util-linux PkgIDs, which could match unintended suffix variants. PR #2246 already owns the material Trivy policy surface, so it narrows the same eight tuples to exact equality instead of deferring a current-PR security finding.
   - Links:
     - `trivy/ignore-policy.rego`
     - `docs/security/CVE-2026-3184-util-linux.md`

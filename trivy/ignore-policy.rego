@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-10-07 (manual removal)
 # Last reviewed: 2026-08-09
-# Residual Review-by dates were set to 2026-09-08 (~30-day re-check) after 2026-08-09 re-review; rule bodies for zlib/3184/ncurses are unchanged; only CVE-2026-53615 uses the shared file expiry horizon.
+# Residual Review-by dates were set to 2026-09-08 after 2026-08-09 re-review; zlib/ncurses rule bodies are unchanged, CVE-2026-3184 was narrowed to exact PkgID equality, and only CVE-2026-53615 uses the shared file expiry horizon.
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
@@ -59,42 +59,42 @@ util_linux_bookworm_version_match if {
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "bsdutils"
-	startswith(input.PkgID, "bsdutils@1:2.38.1-5+deb12u3")
+	input.PkgID == "bsdutils@1:2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "libblkid1"
-	startswith(input.PkgID, "libblkid1@2.38.1-5+deb12u3")
+	input.PkgID == "libblkid1@2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "libmount1"
-	startswith(input.PkgID, "libmount1@2.38.1-5+deb12u3")
+	input.PkgID == "libmount1@2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "libsmartcols1"
-	startswith(input.PkgID, "libsmartcols1@2.38.1-5+deb12u3")
+	input.PkgID == "libsmartcols1@2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "libuuid1"
-	startswith(input.PkgID, "libuuid1@2.38.1-5+deb12u3")
+	input.PkgID == "libuuid1@2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "mount"
-	startswith(input.PkgID, "mount@2.38.1-5+deb12u3")
+	input.PkgID == "mount@2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "util-linux"
-	startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")
+	input.PkgID == "util-linux@2.38.1-5+deb12u3"
 }
 
 cve_2026_3184_pkgid_match if {
 	input.PkgName == "util-linux-extra"
-	startswith(input.PkgID, "util-linux-extra@2.38.1-5+deb12u3")
+	input.PkgID == "util-linux-extra@2.38.1-5+deb12u3"
 }
 
 ignore if {
