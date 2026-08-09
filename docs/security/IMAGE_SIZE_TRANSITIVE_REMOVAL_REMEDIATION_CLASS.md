@@ -143,7 +143,10 @@ delta.
   package manifest owns the target identity, and malformed lock entries;
 - rejection of Git dependency sources in the explicitly enumerated current npm
   grammar across dependency/dev/optional/peer and nested override values,
-  because their internal package identity is opaque to the indexed manifest;
+  reconciled against the repository Node 24.18.1/npm 11.16.0
+  `npm-package-arg` Git classification, including its GitHub, GitLab,
+  Bitbucket, Gist, and SourceHut host registry, because their internal package
+  identity is opaque to the indexed manifest;
   any newly encountered dependency syntax outside that grammar stops this lane
   for explicit rescope and provenance review before admission;
 - complete package identity after the final `node_modules` segment, so an

@@ -151,10 +151,123 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     )
 
 
-_NPM_HOSTED_GIT_PREFIXES = ("github:", "gitlab:", "bitbucket:")
-_NPM_GIT_SCHEMES = ("git+https://", "git+http://", "git+ssh://", "git+file:", "git://")
-_NPM_HOSTED_GIT_SHORTHAND_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:#[^\s]+)?\Z")
-_NPM_SCP_GIT_RE = re.compile(r"git@[^\s/:]+:[^\s]+\Z", re.IGNORECASE)
+_NPM_HOSTED_GIT_PREFIXES = ("github:", "gitlab:", "bitbucket:", "gist:", "sourcehut:")
+_NPM_GIT_SCHEMES = (
+    "git+https:",
+    "git+http:",
+    "git+ssh:",
+    "git+file:",
+    "git+rsync:",
+    "git+ftp:",
+    "git:",
+)
+_NPM_SCP_GIT_RE = re.compile(r"^[^@]+@[^:.]+\.[^:]+:.+\Z", re.IGNORECASE)
+_NPM_HOSTED_URL_PROTOCOLS = {
+    "github.com": frozenset({"git", "http", "https", "ssh"}),
+    "gitlab.com": frozenset({"https", "ssh"}),
+    "bitbucket.org": frozenset({"https", "ssh"}),
+    "gist.github.com": frozenset({"git", "https", "ssh"}),
+    "git.sr.ht": frozenset({"https"}),
+}
+_WHATWG_SINGLE_DOT_SEGMENTS = frozenset({".", "%2e"})
+_WHATWG_DOUBLE_DOT_SEGMENTS = frozenset({"..", ".%2e", "%2e.", "%2e%2e"})
+
+
+def _normalize_whatwg_special_url_path(path: str) -> str:
+    """Remove only WHATWG dot segments while preserving encoded separators."""
+    output: list[str] = []
+    segments = path.split("/")
+    for index, segment in enumerate(segments):
+        lowered = segment.lower()
+        is_last = index == len(segments) - 1
+        if lowered in _WHATWG_SINGLE_DOT_SEGMENTS:
+            if is_last:
+                output.append("")
+            continue
+        if lowered in _WHATWG_DOUBLE_DOT_SEGMENTS:
+            if output and not (len(output) == 1 and output[0] == ""):
+                output.pop()
+            if is_last:
+                output.append("")
+            continue
+        output.append(segment)
+    return "/".join(output)
+
+
+def _matches_current_npm_hosted_git_url(candidate: str) -> bool:
+    """Match the bounded hosted URL shapes classified as Git by current npm."""
+    parsed = urlparse(candidate)
+    hostname = parsed.hostname or ""
+    if parsed.scheme.lower() in {"http", "https"}:
+        try:
+            hostname = unquote(hostname, errors="strict").encode("idna").decode("ascii")
+        except UnicodeError:
+            return False
+    hostname = hostname.lower()
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    allowed_protocols = _NPM_HOSTED_URL_PROTOCOLS.get(hostname)
+    if allowed_protocols is None or parsed.scheme.lower() not in allowed_protocols:
+        return False
+    normalized_path = _normalize_whatwg_special_url_path(parsed.path)
+    split_path = normalized_path.split("/")
+
+    def field(index: int) -> str:
+        return split_path[index] if index < len(split_path) else ""
+
+    if hostname == "gist.github.com":
+        user, project, auxiliary = field(1), field(2), field(3)
+        return bool((project or user) and auxiliary != "raw")
+    if hostname == "github.com":
+        user, project, path_type = field(1), field(2), field(3)
+        return bool(user and project and (not path_type or path_type == "tree"))
+    if hostname == "gitlab.com":
+        path = normalized_path[1:] if normalized_path.startswith("/") else normalized_path
+        if "/-/" in path or "/archive.tar.gz" in path:
+            return False
+        path_parts = path.split("/")
+        project = path_parts[-1] if path_parts else ""
+        user = "/".join(path_parts[:-1])
+        return bool(user and project)
+    if hostname == "bitbucket.org":
+        user, project, auxiliary = field(1), field(2), field(3)
+        return bool(user and project and auxiliary != "get")
+    if hostname == "git.sr.ht":
+        user, project, auxiliary = field(1), field(2), field(3)
+        return bool(user and project and auxiliary != "archive")
+    raise AssertionError(f"unhandled current npm hosted Git domain: {hostname}")
+
+
+def _matches_current_npm_github_shorthand(candidate: str) -> bool:
+    """Mirror the current hosted-git-info slash-shorthand admission rule."""
+    first_hash = candidate.find("#")
+    first_slash = candidate.find("/")
+    second_slash = candidate.find("/", first_slash + 1)
+    first_colon = candidate.find(":")
+    first_at = candidate.find("@")
+    first_space_match = re.search(r"\s", candidate)
+    first_space = first_space_match.start() if first_space_match is not None else -1
+    space_only_after_hash = first_space == -1 or (first_hash > -1 and first_space > first_hash)
+    at_only_after_hash = first_at == -1 or (first_hash > -1 and first_at > first_hash)
+    colon_only_after_hash = first_colon == -1 or (first_hash > -1 and first_colon > first_hash)
+    second_slash_only_after_hash = second_slash == -1 or (
+        first_hash > -1 and second_slash > first_hash
+    )
+    has_slash = first_slash > 0
+    does_not_end_with_slash = (
+        first_hash == 0 or candidate[first_hash - 1] != "/"
+        if first_hash > -1
+        else not candidate.endswith("/")
+    )
+    return (
+        space_only_after_hash
+        and has_slash
+        and does_not_end_with_slash
+        and not candidate.startswith((".", "@", "/"))
+        and at_only_after_hash
+        and colon_only_after_hash
+        and second_slash_only_after_hash
+    )
 
 
 def _matches_bounded_npm_git_spec(value: object) -> bool:
@@ -163,22 +276,17 @@ def _matches_bounded_npm_git_spec(value: object) -> bool:
         return False
     candidate = value.strip().replace("\\", "/")
     lowered = candidate.lower()
-    if lowered.startswith("file:") or candidate.startswith(("./", "../")):
+    if lowered.startswith("file:") or candidate.startswith(("./", "../", "~/")):
         return False
     if lowered.startswith(_NPM_GIT_SCHEMES):
         return True
     if _NPM_SCP_GIT_RE.fullmatch(candidate) is not None:
         return True
     if lowered.startswith(_NPM_HOSTED_GIT_PREFIXES):
-        hosted_value = candidate.split(":", maxsplit=1)[1]
-        return _NPM_HOSTED_GIT_SHORTHAND_RE.fullmatch(hosted_value) is not None
-    if _NPM_HOSTED_GIT_SHORTHAND_RE.fullmatch(candidate) is not None:
         return True
-    parsed = urlparse(candidate)
-    if parsed.scheme.lower() not in {"http", "https", "ssh"}:
-        return False
-    decoded_path = _fully_decode_url_path(parsed.path)
-    return posixpath.normpath(decoded_path).endswith(".git")
+    if _matches_current_npm_github_shorthand(candidate):
+        return True
+    return _matches_current_npm_hosted_git_url(candidate)
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -812,14 +920,50 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
         "git+http://example.invalid/acme/repo.git",
         "git+ssh://git@example.invalid/acme/repo.git#v1",
         "git+file:///tmp/image-size",
+        "git+rsync://example.invalid/acme/repo.git",
+        "git+rsync:example.invalid/acme/repo.git",
+        "git+ftp://example.invalid/acme/repo.git",
         "git://example.invalid/acme/repo.git",
-        "git@example.invalid:acme/repo.git#main",
+        "git:example.invalid/acme/repo.git",
+        "git@example.invalid:acme/repo.git",
+        "alice@www.github.com:acme/repo.git",
+        "git@github.com:acme/repo.git#main",
+        "git@gitlab.com:acme/repo.git",
+        "git@bitbucket.org:acme/repo.git",
+        "git@gist.github.com:101a11beef.git",
+        "git@git.sr.ht:~acme/repo.git",
         "github:acme/repo#main",
+        "github:acme/subgroup/repo",
         "gitlab:acme/repo",
+        "gitlab:acme/subgroup/repo",
         "bitbucket:acme/repo#v1",
+        "gist:101a11beef",
+        "gist:user/101a11beef",
+        "gist:101a11beef#main",
+        "sourcehut:~acme/repo",
+        "sourcehut:~acme/subgroup/repo",
+        "sourcehut:acme/repo#main",
         "acme/repo#semver:^1.0.0",
-        "https://example.invalid/acme/repo.git?download=1#main",
-        "ssh://git@example.invalid/acme/repo%2egit#main",
+        "acme/repo#branch with space",
+        "https://github.com/acme/repo.git?download=1#main",
+        "https://www.github.com/acme/repo",
+        "https://github%2ecom/acme/repo",
+        "https://github。com/acme/repo",
+        "https://github.com/acme/placeholder/../repo",
+        "https://github.com/acme/placeholder/%2e%2e/repo",
+        "http://github.com/acme/repo",
+        "ssh://git@github.com/acme/repo%2egit#main",
+        "https://gitlab.com/acme/group/repo",
+        "https://bitbucket.org/acme/repo",
+        "https://gist.github.com/101a11beef",
+        "https://gist.github.com/user/101a11beef",
+        "https://gist.github.com/user/101a11beef/edit",
+        "https://git.sr.ht/~acme/repo",
+        "https://github.com/acme/repo/tree/main",
+        "https://gitlab.com/acme/group/repo/tree/main",
+        "https://gitlab.com/acme/repo/-",
+        "https://bitbucket.org/acme/repo/src/main",
+        "https://git.sr.ht/~acme/repo/tree/main",
     ),
 )
 def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
@@ -843,8 +987,31 @@ def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
         "https://example.invalid/acme/repo.git.tgz",
         "https://example.invalid/acme/repo.git/README",
         "https://example.invalid/acme/repo.tgz?source=repo.git",
+        "https://example.invalid/acme/repo.git",
+        "https://example%2einvalid/acme/repo",
+        "https://github%2fcom/acme/repo",
+        "ssh://github%2ecom/acme/repo",
+        "https://example。invalid/acme/repo",
+        "https://\u200d.example/acme/repo",
+        "ssh://git@example.invalid/acme/repo.git",
+        "http://gitlab.com/acme/repo.git",
+        "http://gist.github.com/101a11beef",
+        "http://git.sr.ht/~acme/repo",
+        "ssh://git@git.sr.ht/~acme/repo",
+        "git+git://example.invalid/acme/repo.git",
+        "git+foo://example.invalid/acme/repo.git",
+        "https://github.com/acme/repo/blob/main/package.json",
+        "https://gitlab.com/acme/repo/-/tree/main",
+        "https://gitlab.com/acme/repo/archive.tar.gz",
+        "https://gitlab.com/acme/repo/archive.tar.gz.backup",
+        "https://bitbucket.org/acme/repo/get/main.tar.gz",
+        "https://git.sr.ht/~acme/repo/archive/main.tar.gz",
+        "https://gist.github.com/user/101a11beef/raw",
+        "https://github.com/acme/repo/tree/branch/../../blob/main",
         "@scope/pkg",
         "./acme/repo",
+        "~/acme/repo",
+        r"~\acme\repo",
     ),
 )
 def test_bounded_git_dependency_recognizer_does_not_authorize_near_misses(
@@ -858,10 +1025,10 @@ def test_bounded_git_dependency_recognizer_does_not_authorize_near_misses(
     "document",
     (
         {"dependencies": {"renamed-image": "git+file:///tmp/image-size"}},
-        {"devDependencies": {"renamed-image": "git+https://example.invalid/repo.git"}},
-        {"optionalDependencies": {"renamed-image": "github:acme/repo#main"}},
+        {"devDependencies": {"renamed-image": "git+ftp://example.invalid/repo.git"}},
+        {"optionalDependencies": {"renamed-image": "gist:101a11beef#main"}},
         {"peerDependencies": {"renamed-image": "acme/repo#v1"}},
-        {"overrides": {"carrier": {"renamed-image": "git@example.invalid:acme/repo.git"}}},
+        {"overrides": {"carrier": {"renamed-image": "sourcehut:~acme/repo"}}},
     ),
 )
 def test_git_source_owner_rejects_each_governed_manifest_position(

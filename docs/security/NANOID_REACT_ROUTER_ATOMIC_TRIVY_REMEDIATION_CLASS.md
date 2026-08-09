@@ -202,8 +202,11 @@ P_batch =
       tarball version is required to match `version` with non-empty integrity;
       WHATWG-style special-scheme backslashes are normalized before URL parsing
   AND Git dependency values in the explicitly enumerated current npm grammar
-      are rejected because manifest-only inspection cannot verify their internal
-      package identity; a grammar non-match is not a broader safety claim
+      reconciled against the repository Node 24.18.1/npm 11.16.0
+      npm-package-arg Git classification, including GitHub, GitLab, Bitbucket,
+      Gist, and SourceHut, are rejected because manifest-only inspection cannot
+      verify their internal package identity; a grammar non-match is not a
+      broader safety claim
       and any newly encountered dependency syntax stops for explicit rescope
       and provenance review before admission
   AND lock-path identity is the complete unscoped name or @scope/name after the
