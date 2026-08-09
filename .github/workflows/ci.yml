@@ -868,6 +868,8 @@ jobs:
           python -m coverage run -m pytest -q \
             tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
             tests/core/evidence \
+            tests/test_frontend_dependency_guards.py \
+            tests/test_root_npm_dependency_guards.py \
             --maxfail=3 \
             --junitxml=tests/smoke-results.xml \
             -o junit_family=legacy
@@ -1267,6 +1269,8 @@ jobs:
             -p no:xdist \
             tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
             tests/core/evidence \
+            tests/test_frontend_dependency_guards.py \
+            tests/test_root_npm_dependency_guards.py \
             --maxfail=3 \
             --junitxml=tests/smoke-results.xml \
             -o junit_family=legacy

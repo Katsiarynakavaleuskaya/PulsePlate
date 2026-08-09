@@ -194,8 +194,9 @@ P_batch =
       has no prerelease component, and is outside the affected ranges
   AND every react-router-dom lock artifact declares an exact stable react-router
       dependency equal to its own version and resolves it to the corresponding
-      nearest nested or hoisted validated Router occurrence; independent safe Router
-      occurrences are allowed and do not freeze the lockfile topology
+      package-local occurrence first, then the nearest progressively hoisted
+      validated Router occurrence; independent safe Router occurrences are
+      allowed and do not freeze the lockfile topology
   AND every retained nanoid/react-router occurrence is a stable version whose
       origin-neutral target identity is discovered before its canonical registry
       tarball version is required to match `version` with non-empty integrity;

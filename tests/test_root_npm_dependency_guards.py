@@ -405,10 +405,14 @@ def _npm_dependency_resolution_paths(*, package_path: str, target: str) -> tuple
     assert (
         node_modules_indices
     ), f"{package_path}: installed npm dependency path must include node_modules"
-    return tuple(
-        PurePosixPath(*path.parts[: index + 1], target).as_posix()
-        for index in reversed(node_modules_indices)
-    )
+    candidates = [
+        (path / "node_modules" / target).as_posix(),
+        *(
+            PurePosixPath(*path.parts[: index + 1], target).as_posix()
+            for index in reversed(node_modules_indices)
+        ),
+    ]
+    return tuple(dict.fromkeys(candidates))
 
 
 def _assert_react_router_dom_dependency_edges(
@@ -1480,6 +1484,7 @@ def test_react_router_guard_rejects_invalid_dom_router_dependency_edge(
 @pytest.mark.parametrize(
     "router_path",
     (
+        "node_modules/carrier/node_modules/react-router-dom/node_modules/react-router",
         "node_modules/carrier/node_modules/react-router",
         "node_modules/react-router",
     ),
@@ -1515,6 +1520,98 @@ def test_react_router_guard_allows_nested_or_hoisted_future_aligned_dependency_e
     )
 
     test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_react_router_guard_prefers_package_local_dependency_over_hoisted_occurrence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first reachable Router wins without freezing one lockfile topology."""
+    dom_version = "8.3.0"
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/react-router": {
+                "version": "7.18.2",
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-7.18.2.tgz"),
+                "integrity": "sha512-hoisted-router",
+            },
+            "node_modules/carrier/node_modules/react-router-dom": {
+                "version": dom_version,
+                "resolved": (
+                    "https://registry.npmjs.org/react-router-dom/-/" "react-router-dom-8.3.0.tgz"
+                ),
+                "integrity": "sha512-dom",
+                "dependencies": {"react-router": dom_version},
+            },
+            ("node_modules/carrier/node_modules/react-router-dom/" "node_modules/react-router"): {
+                "version": dom_version,
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-8.3.0.tgz"),
+                "integrity": "sha512-package-local-router",
+            },
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"frontend/package-lock.json": lock},
+    )
+
+    test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_react_router_guard_does_not_skip_divergent_package_local_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mismatched nearest artifact cannot fall through to a matching hoisted one."""
+    dom_version = "8.3.0"
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/react-router": {
+                "version": dom_version,
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-8.3.0.tgz"),
+                "integrity": "sha512-hoisted-router",
+            },
+            "node_modules/carrier/node_modules/react-router-dom": {
+                "version": dom_version,
+                "resolved": (
+                    "https://registry.npmjs.org/react-router-dom/-/" "react-router-dom-8.3.0.tgz"
+                ),
+                "integrity": "sha512-dom",
+                "dependencies": {"react-router": dom_version},
+            },
+            ("node_modules/carrier/node_modules/react-router-dom/" "node_modules/react-router"): {
+                "version": "9.0.0",
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-9.0.0.tgz"),
+                "integrity": "sha512-package-local-router",
+            },
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"frontend/package-lock.json": lock},
+    )
+
+    with pytest.raises(AssertionError, match="must equal corresponding installed occurrence"):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("package_path", "message"),
+    (
+        ("/node_modules/react-router-dom", "must be relative"),
+        (r"node_modules\\react-router-dom", "must use POSIX separators"),
+        ("node_modules/../react-router-dom", "must not traverse"),
+    ),
+)
+def test_router_dependency_resolution_rejects_malformed_package_paths(
+    package_path: str,
+    message: str,
+) -> None:
+    """Malformed lock paths cannot participate in dependency resolution."""
+    with pytest.raises(AssertionError, match=message):
+        _npm_dependency_resolution_paths(package_path=package_path, target="react-router")
 
 
 def test_react_router_guard_rejects_unreachable_same_version_router_occurrence(

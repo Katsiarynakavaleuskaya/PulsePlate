@@ -344,11 +344,15 @@ peer-dependency, override, and bundled-dependency fields, a key equal to
 equal to `npm:brace-expansion` or beginning `npm:brace-expansion@`, a
 registry-tarball pathname in the `brace-expansion` namespace, or a
 bundled-dependency entry equal to `brace-expansion` is a bounded identity
-signal. Direct, optional, peer, renamed, tarball, bundled, and override carriers
-are therefore discovered before the guard permits only the two exact approved
-override intent paths and outputs. Scripts, descriptions, configuration
-metadata, arbitrary strings, and other package-manager syntaxes are not treated
-as npm dependency carriers or aliases.
+signal. A repository-relative local-path dependency is also a signal only when
+its normalized target is an exact current Git-indexed npm manifest whose
+`package.json.name` equals `brace-expansion`; directory names, untracked files,
+remote or escaping paths, and different package names grant no identity. Direct,
+optional, peer, renamed, local, tarball, bundled, and override carriers are
+therefore discovered before the guard permits only the two exact approved
+override intent paths and outputs. Scripts, descriptions, configuration metadata,
+arbitrary strings, and other package-manager syntaxes are not treated as npm
+dependency carriers or aliases.
 
 Within the finite lockfile-v3 `packages` map, an entry is considered a potential
 `brace-expansion` occurrence when any of these bounded identity signals exists:

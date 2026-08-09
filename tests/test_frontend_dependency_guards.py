@@ -898,20 +898,95 @@ def _discover_brace_expansion_surface_occurrences(
     *,
     relative: str,
     document: dict,
+    surfaces: dict[str, dict],
 ) -> tuple[dict[tuple[str, ...], object], dict[str, dict]]:
     basename = PurePosixPath(relative).name
     if basename == "package.json":
-        return _find_manifest_target_paths(document, target="brace-expansion"), {}
+        return (
+            _find_manifest_target_paths(
+                document,
+                target="brace-expansion",
+                surface=relative,
+                surfaces=surfaces,
+            ),
+            {},
+        )
     assert (
         basename in NPM_LOCK_SURFACE_BASENAMES
     ), f"{relative}: unsupported npm surface basename reached occurrence discovery"
     return {}, _discover_brace_expansion_lock_entries(document.get("packages"))
 
 
+def _tracked_local_manifest_path(*, surface: str, value: object) -> str | None:
+    """Resolve one repository-relative local dependency to its manifest key."""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().replace("\\", "/")
+    parsed = urlparse(normalized)
+    if parsed.scheme:
+        if parsed.scheme != "file" or parsed.netloc:
+            return None
+        local_path = parsed.path
+    elif normalized.startswith(("./", "../")):
+        local_path = parsed.path
+    else:
+        return None
+    decoded_path = _fully_decode_url_path(local_path)
+    if not decoded_path or decoded_path.startswith("/"):
+        return None
+    manifest_parent = PurePosixPath(surface).parent
+    resolved = PurePosixPath(posixpath.normpath((manifest_parent / decoded_path).as_posix()))
+    if resolved.is_absolute() or ".." in resolved.parts:
+        return None
+    return (resolved / "package.json").as_posix()
+
+
+def _find_tracked_local_manifest_target_paths(
+    *,
+    surface: str,
+    document: dict,
+    surfaces: dict[str, dict],
+    target: str,
+) -> dict[tuple[str, ...], object]:
+    """Find renamed local carriers whose exact tracked manifest owns the target."""
+    found: dict[tuple[str, ...], object] = {}
+
+    def record_if_target(path: tuple[str, ...], value: object) -> None:
+        target_surface = _tracked_local_manifest_path(surface=surface, value=value)
+        target_document = surfaces.get(target_surface) if target_surface is not None else None
+        if isinstance(target_document, dict) and target_document.get("name") == target:
+            found[path] = value
+
+    for field in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+    ):
+        values = document.get(field)
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            record_if_target((field, str(key)), value)
+
+    def walk_overrides(value: object, path: tuple[str, ...]) -> None:
+        if not isinstance(value, dict):
+            return
+        for key, child in value.items():
+            child_path = (*path, str(key))
+            record_if_target(child_path, child)
+            walk_overrides(child, child_path)
+
+    walk_overrides(document.get("overrides"), ("overrides",))
+    return found
+
+
 def _find_manifest_target_paths(
     document: dict,
     *,
     target: str,
+    surface: str | None = None,
+    surfaces: dict[str, dict] | None = None,
 ) -> dict[tuple[str, ...], object]:
     """Find direct, aliased, tarball, bundled, and override target carriers."""
     found: dict[tuple[str, ...], object] = {}
@@ -946,6 +1021,15 @@ def _find_manifest_target_paths(
         for index, value in enumerate(bundled):
             if value == target:
                 found[(field, f"[{index}]")] = value
+    if surface is not None and surfaces is not None:
+        found.update(
+            _find_tracked_local_manifest_target_paths(
+                surface=surface,
+                document=document,
+                surfaces=surfaces,
+                target=target,
+            )
+        )
     return found
 
 
@@ -955,11 +1039,15 @@ def _assert_brace_expansion_surface_ownership(
 ) -> frozenset[str]:
     """Reject target carriers outside the finite frontend owner surfaces."""
     discovered_surfaces: set[str] = set()
-    for relative in _enumerate_repo_npm_surfaces(root=root):
-        document = _load_json(root / relative)
+    surfaces = {
+        relative: _load_json(root / relative)
+        for relative in _enumerate_repo_npm_surfaces(root=root)
+    }
+    for relative, document in surfaces.items():
         manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
             relative=relative,
             document=document,
+            surfaces=surfaces,
         )
         if manifest_occurrences or lock_entries:
             discovered_surfaces.add(relative)
@@ -980,6 +1068,8 @@ def _assert_brace_expansion_security_class(
     *,
     package_json: dict,
     package_lock: dict,
+    surface: str = "frontend/package.json",
+    surfaces: dict[str, dict] | None = None,
 ) -> None:
     """Validate every current occurrence, while allowing executable absence."""
 
@@ -992,6 +1082,8 @@ def _assert_brace_expansion_security_class(
     discovered_override_outputs = _find_manifest_target_paths(
         package_json,
         target="brace-expansion",
+        surface=surface,
+        surfaces=surfaces or {surface: package_json},
     )
     unexpected_override_paths = set(discovered_override_outputs) - set(allowed_override_paths)
     assert not unexpected_override_paths, (
@@ -1065,9 +1157,13 @@ def test_frontend_brace_expansion_class_covers_all_lock_variants() -> None:
 
     package_json = _load_json(FRONTEND_PACKAGE_JSON)
     package_lock = _load_json(FRONTEND_LOCK_JSON)
+    surfaces = {
+        relative: _load_json(REPO_ROOT / relative) for relative in _enumerate_repo_npm_surfaces()
+    }
     _assert_brace_expansion_security_class(
         package_json=package_json,
         package_lock=package_lock,
+        surfaces=surfaces,
     )
 
 
@@ -1121,6 +1217,7 @@ def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path
         manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
             relative=relative,
             document=_load_json(tmp_path / relative),
+            surfaces={relative: _load_json(tmp_path / relative)},
         )
         assert manifest_occurrences == {}
         assert set(lock_entries) == {"node_modules/brace-expansion"}
@@ -1130,12 +1227,15 @@ def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path
 def test_lock_surface_dependency_edges_are_not_installed_occurrences(basename: str) -> None:
     """Resolver edges in lock documents are not manifest or installed occurrences."""
 
+    relative = f"graph/{basename}"
+    document = {
+        "lockfileVersion": 3,
+        "packages": {"": {"dependencies": {"brace-expansion": "^2.0.1"}}},
+    }
     manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
-        relative=f"graph/{basename}",
-        document={
-            "lockfileVersion": 3,
-            "packages": {"": {"dependencies": {"brace-expansion": "^2.0.1"}}},
-        },
+        relative=relative,
+        document=document,
+        surfaces={relative: document},
     )
 
     assert manifest_occurrences == {}
@@ -1217,6 +1317,117 @@ def test_manifest_target_discovery_keeps_dependency_carriers(
         {field: {key: value}},
         target="brace-expansion",
     ) == {(field, key): value}
+
+
+@pytest.mark.parametrize(
+    "local_spec",
+    (
+        "file:../vendor/brace-expansion",
+        "../vendor/brace-expansion",
+        r"file:..\vendor\brace-expansion",
+        "file:../vendor/%62race-expansion",
+    ),
+)
+def test_manifest_target_discovery_resolves_renamed_tracked_local_carrier(
+    local_spec: str,
+) -> None:
+    """A local dependency inherits identity only from its exact tracked manifest."""
+    surface = "frontend/package.json"
+    document = {"dependencies": {"renamed-brace": local_spec}}
+    surfaces = {
+        surface: document,
+        "vendor/brace-expansion/package.json": {
+            "name": "brace-expansion",
+            "version": "5.0.8",
+        },
+    }
+
+    assert _find_manifest_target_paths(
+        document,
+        target="brace-expansion",
+        surface=surface,
+        surfaces=surfaces,
+    ) == {("dependencies", "renamed-brace"): local_spec}
+
+
+@pytest.mark.parametrize(
+    ("local_spec", "target_document"),
+    (
+        ("file:../vendor/brace-expansion", {"name": "other-package"}),
+        ("file:../vendor/missing", None),
+        ("file://remote.example/brace-expansion", {"name": "brace-expansion"}),
+        ("https://example.invalid/brace-expansion", {"name": "brace-expansion"}),
+        ("file:/absolute/brace-expansion", {"name": "brace-expansion"}),
+        ("file:../../outside/brace-expansion", {"name": "brace-expansion"}),
+        ("file:..%2F..%2Foutside%2Fbrace-expansion", {"name": "brace-expansion"}),
+    ),
+)
+def test_manifest_local_carrier_rejects_untracked_or_unowned_near_miss(
+    local_spec: str,
+    target_document: dict[str, str] | None,
+) -> None:
+    """Remote, escaping, missing, and wrong-name local specs supply no identity."""
+    surface = "frontend/package.json"
+    document = {"dependencies": {"renamed-brace": local_spec}}
+    surfaces = {surface: document}
+    if target_document is not None:
+        surfaces["vendor/brace-expansion/package.json"] = target_document
+
+    assert not _find_manifest_target_paths(
+        document,
+        target="brace-expansion",
+        surface=surface,
+        surfaces=surfaces,
+    )
+
+
+def test_frontend_guard_rejects_unapproved_tracked_local_brace_carrier() -> None:
+    """The approved frontend owner cannot hide a renamed local target carrier."""
+    package_json, package_lock = _brace_expansion_guard_fixture()
+    package_json["dependencies"] = {"renamed-brace": "file:../vendor/brace-expansion"}
+    surfaces = {
+        "frontend/package.json": package_json,
+        "vendor/brace-expansion/package.json": {
+            "name": "brace-expansion",
+            "version": "5.0.8",
+        },
+    }
+
+    with pytest.raises(AssertionError, match="manifest occurrence is not approved"):
+        _assert_brace_expansion_security_class(
+            package_json=package_json,
+            package_lock=package_lock,
+            surfaces=surfaces,
+        )
+
+
+def test_surface_ownership_rejects_renamed_tracked_local_brace_carrier(
+    tmp_path: Path,
+) -> None:
+    """An unowned manifest cannot hide brace-expansion behind a local alias name."""
+    _git_stdout("init", repo_root=tmp_path)
+    consumer = tmp_path / "tools" / "build" / "package.json"
+    target = tmp_path / "tools" / "vendor" / "brace" / "package.json"
+    consumer.parent.mkdir(parents=True)
+    target.parent.mkdir(parents=True)
+    consumer.write_text(
+        json.dumps({"dependencies": {"renamed-brace": "file:../vendor/brace"}}),
+        encoding="utf-8",
+    )
+    target.write_text(
+        json.dumps({"name": "brace-expansion", "version": "5.0.8"}),
+        encoding="utf-8",
+    )
+    _git_stdout(
+        "add",
+        "--",
+        "tools/build/package.json",
+        "tools/vendor/brace/package.json",
+        repo_root=tmp_path,
+    )
+
+    with pytest.raises(AssertionError, match="separate surface/class"):
+        _assert_brace_expansion_surface_ownership(root=tmp_path)
 
 
 @pytest.mark.parametrize(

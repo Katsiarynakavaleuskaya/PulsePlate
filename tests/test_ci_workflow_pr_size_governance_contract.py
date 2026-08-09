@@ -528,6 +528,28 @@ def _job_step_by_name(
     raise AssertionError(f"missing step {step_name!r} in {job_id!r}")
 
 
+def test_backend_test_jobs_run_permanent_npm_dependency_guards() -> None:
+    """Both backend PR jobs keep the two npm guard owners in critical smoke."""
+    workflow = _load_ci_workflow()
+    required_targets = (
+        "tests/test_frontend_dependency_guards.py",
+        "tests/test_root_npm_dependency_guards.py",
+    )
+
+    for job_id in ("test-pr", "test-feature"):
+        step = _job_step_by_name(
+            workflow,
+            job_id=job_id,
+            step_name="Critical smoke (deterministic merge blocker)",
+        )
+        run_script = step.get("run")
+        assert isinstance(run_script, str)
+        for target in required_targets:
+            assert (
+                run_script.count(target) == 1
+            ), f"{job_id} critical smoke must run {target} exactly once"
+
+
 def _docker_environment_flags(run_script: str) -> set[str]:
     """Return normalized ``docker run -e`` arguments from a workflow script."""
 

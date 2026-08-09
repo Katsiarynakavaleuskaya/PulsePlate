@@ -277,6 +277,12 @@ add_extra_tests_for_changed_files() {
                 esac
                 ;;
         esac
+        case "${file##*/}" in
+            package.json | package-lock.json | npm-shrinkwrap.json)
+                EXTRA_TEST_FILES+=("tests/test_root_npm_dependency_guards.py")
+                EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")
+                ;;
+        esac
         case "$file" in
             frontend/package.json | frontend/package-lock.json)
                 EXTRA_TEST_FILES+=("tests/test_ci_workflow_pr_size_governance_contract.py")
