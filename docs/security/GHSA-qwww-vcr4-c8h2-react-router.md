@@ -23,9 +23,10 @@ Canonical npm resolution moves both installed lock entries to `7.18.2` and
 keeps the `react-router-dom` carrier edge aligned. The combined batch owner is
 `docs/security/NANOID_REACT_ROUTER_ATOMIC_TRIVY_REMEDIATION_CLASS.md`; this
 single-advisory note is subordinate evidence and grants no batching authority.
-The permanent tracked-surface guard rejects affected, prerelease, or open-range
-`react-router-dom` declarations in any manifest while permitting future exact
-stable carriers outside the reconciled affected ranges.
+The permanent tracked-surface guard parses exact npm SemVer rather than PEP 440,
+rejects affected, prerelease (including numeric `-0`), unversioned, or open-range
+`react-router-dom` declarations in any manifest, and permits future exact stable
+carriers outside the reconciled affected ranges.
 
 The exact suppression was deleted: the former five-predicate Rego rule for
 `GHSA-qwww-vcr4-c8h2` and its header reference were removed from

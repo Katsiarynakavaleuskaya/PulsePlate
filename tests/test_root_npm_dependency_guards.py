@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import posixpath
+import re
 import shutil
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -32,6 +33,11 @@ NANOID_AFFECTED_RANGES = (
 REACT_ROUTER_AFFECTED_RANGES = (
     SpecifierSet(">=7.12,<7.18.2"),
     SpecifierSet(">=8,<8.3.0"),
+)
+_EXACT_NPM_SEMVER_RE = re.compile(
+    r"^(?P<core>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))"
+    r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
 
 
@@ -179,8 +185,8 @@ def _find_manifest_occurrences(
     return occurrences
 
 
-def _exact_manifest_version(value: object, *, target: str) -> Version | None:
-    """Parse an exact direct, alias, or target-tarball manifest version."""
+def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, bool] | None:
+    """Parse exact npm SemVer and retain its prerelease bit for fail-closed checks."""
     if not isinstance(value, str):
         return None
     candidate = value.strip()
@@ -195,10 +201,10 @@ def _exact_manifest_version(value: object, *, target: str) -> Version | None:
         if not filename.startswith(filename_prefix) or not filename.endswith(".tgz"):
             return None
         candidate = filename[len(filename_prefix) : -len(".tgz")]
-    try:
-        return Version(candidate)
-    except InvalidVersion:
+    match = _EXACT_NPM_SEMVER_RE.fullmatch(candidate)
+    if match is None:
         return None
+    return Version(match.group("core")), match.group("prerelease") is not None
 
 
 def _assert_manifest_occurrences_outside_ranges(
@@ -211,13 +217,12 @@ def _assert_manifest_occurrences_outside_ranges(
     """Require exact stable manifest carriers outside every affected range."""
     for occurrence_path, raw_value in occurrences.items():
         location = "/".join(occurrence_path)
-        version = _exact_manifest_version(raw_value, target=target)
+        parsed_version = _exact_manifest_version(raw_value, target=target)
         assert (
-            version is not None
+            parsed_version is not None
         ), f"{surface}:{location}: {target} must use an exact advisory-comparable version"
-        assert (
-            not version.is_prerelease
-        ), f"{surface}:{location}: prerelease target versions fail closed"
+        version, is_prerelease = parsed_version
+        assert not is_prerelease, f"{surface}:{location}: {target} prerelease versions fail closed"
         assert not any(
             version in affected for affected in affected_ranges
         ), f"{surface}:{location}: {version} remains inside a reconciled affected range"
@@ -818,7 +823,42 @@ def test_react_router_guard_rejects_non_exact_carrier_range(
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 
-@pytest.mark.parametrize("value", ("7.18.3", "npm:react-router-dom@8.3.0"))
+@pytest.mark.parametrize(
+    "document",
+    (
+        {"dependencies": {"react-router-dom": "7.18.2-0"}},
+        {"devDependencies": {"router-carrier": "npm:react-router-dom@7.18.2-0"}},
+        {
+            "optionalDependencies": {
+                "router-carrier": (
+                    "https://example.invalid/react-router-dom/-/" "react-router-dom-7.18.2-0.tgz"
+                )
+            }
+        },
+        {"peerDependencies": {"react-router-dom": "7.18.2-rc.1"}},
+        {"overrides": {"react-router-dom": "7.18.2-0"}},
+        {"bundledDependencies": ["react-router-dom"]},
+    ),
+)
+def test_react_router_guard_rejects_prerelease_or_unversioned_carrier_shape(
+    monkeypatch: pytest.MonkeyPatch,
+    document: dict[str, object],
+) -> None:
+    """Every governed carrier shape rejects npm prereleases or no-version bundles."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"scripts/business_collateral/package.json": document},
+    )
+
+    with pytest.raises(AssertionError, match="react-router-dom"):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("7.18.3", "npm:react-router-dom@8.3.0", "7.18.2+build.1"),
+)
 def test_react_router_guard_allows_future_exact_safe_carrier(
     monkeypatch: pytest.MonkeyPatch,
     value: str,
