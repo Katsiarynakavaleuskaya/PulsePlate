@@ -189,6 +189,85 @@ def _find_manifest_occurrences(
     return occurrences
 
 
+def _tracked_local_manifest_path(*, surface: str, value: object) -> str | None:
+    """Resolve one repository-relative local dependency to its tracked manifest path."""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().replace("\\", "/")
+    parsed = urlparse(normalized)
+    if parsed.scheme:
+        if parsed.scheme != "file" or parsed.netloc:
+            return None
+        local_path = parsed.path
+    elif normalized.startswith(("./", "../")):
+        local_path = parsed.path
+    else:
+        return None
+    decoded_path = _fully_decode_url_path(local_path)
+    if not decoded_path or decoded_path.startswith("/"):
+        return None
+    manifest_parent = PurePosixPath(surface).parent
+    resolved = PurePosixPath(posixpath.normpath((manifest_parent / decoded_path).as_posix()))
+    if resolved.is_absolute() or ".." in resolved.parts:
+        return None
+    return (resolved / "package.json").as_posix()
+
+
+def _find_tracked_local_manifest_occurrences(
+    *,
+    surface: str,
+    document: dict[str, Any],
+    surfaces: dict[str, dict[str, Any]],
+    target: str,
+) -> dict[tuple[str, ...], object]:
+    """Find renamed local-path carriers whose tracked manifest owns the target name."""
+    occurrences: dict[tuple[str, ...], object] = {}
+
+    def record_if_target(path: tuple[str, ...], value: object) -> None:
+        target_surface = _tracked_local_manifest_path(surface=surface, value=value)
+        target_document = surfaces.get(target_surface) if target_surface is not None else None
+        if isinstance(target_document, dict) and target_document.get("name") == target:
+            occurrences[path] = value
+
+    for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+        values = document.get(field)
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            record_if_target((field, str(key)), value)
+
+    def walk_overrides(value: object, path: tuple[str, ...]) -> None:
+        if not isinstance(value, dict):
+            return
+        for key, child in value.items():
+            child_path = (*path, str(key))
+            record_if_target(child_path, child)
+            walk_overrides(child, child_path)
+
+    walk_overrides(document.get("overrides"), ("overrides",))
+    return occurrences
+
+
+def _find_governed_manifest_occurrences(
+    *,
+    surface: str,
+    document: dict[str, Any],
+    surfaces: dict[str, dict[str, Any]],
+    target: str,
+) -> dict[tuple[str, ...], object]:
+    """Combine intrinsic carriers with tracked local-package identity evidence."""
+    occurrences = _find_manifest_occurrences(document, target=target)
+    occurrences.update(
+        _find_tracked_local_manifest_occurrences(
+            surface=surface,
+            document=document,
+            surfaces=surfaces,
+            target=target,
+        )
+    )
+    return occurrences
+
+
 def _parse_exact_npm_semver(value: object) -> tuple[Version, bool] | None:
     """Parse exact Node-semver-bounded npm SemVer and retain its prerelease bit."""
     if not isinstance(value, str):
@@ -235,6 +314,10 @@ def _assert_manifest_occurrences_outside_ranges(
     """Require exact stable manifest carriers outside every affected range."""
     for occurrence_path, raw_value in occurrences.items():
         location = "/".join(occurrence_path)
+        assert not _tarball_identity_matches(raw_value, target=target), (
+            f"{surface}:{location}: {target} manifest tarball carriers lack "
+            "lockfile provenance and integrity"
+        )
         parsed_version = _exact_manifest_version(raw_value, target=target)
         assert (
             parsed_version is not None
@@ -310,6 +393,16 @@ def _assert_occurrences_outside_ranges(
         ), f"{surface}:{package_path}: {version} remains inside a reconciled affected range"
 
 
+def _occurrence_version_set(occurrences: dict[str, dict[str, Any]]) -> set[str]:
+    """Return validated textual versions for cross-carrier alignment checks."""
+    versions: set[str] = set()
+    for package_path, entry in occurrences.items():
+        version = entry.get("version")
+        assert isinstance(version, str), f"{package_path}: version must be text"
+        versions.add(version)
+    return versions
+
+
 def test_root_lock_removes_hono_runtime_path() -> None:
     """RU/EN: Root lockfile must not carry a stale hono runtime path anymore."""
     packages = _require_dict_field(_load_json(ROOT_LOCK_JSON), "packages", ctx="package-lock.json")
@@ -374,12 +467,16 @@ def test_root_lock_tracks_current_cspell_runtime_chain() -> None:
 
 def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None:
     """The retired pptxgenjs/image-size executable graph cannot silently return."""
-    for relative, document in _load_tracked_npm_surfaces().items():
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
             for target in ("pptxgenjs", "image-size"):
-                assert not _find_manifest_occurrences(
-                    document, target=target
+                assert not _find_governed_manifest_occurrences(
+                    surface=relative,
+                    document=document,
+                    surfaces=surfaces,
+                    target=target,
                 ), f"{relative}: retired {target} declaration or alias reintroduced"
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
@@ -391,11 +488,15 @@ def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None
 
 def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
     """Every installed nanoid remains outside both known affected range families."""
-    for relative, document in _load_tracked_npm_surfaces().items():
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
-            assert not _find_manifest_occurrences(
-                document, target="nanoid"
+            assert not _find_governed_manifest_occurrences(
+                surface=relative,
+                document=document,
+                surfaces=surfaces,
+                target="nanoid",
             ), f"{relative}: nanoid must remain transitive, not direct intent"
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
@@ -409,26 +510,51 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
 
 def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
     """Every Router install and direct DOM carrier remains outside affected ranges."""
-    for relative, document in _load_tracked_npm_surfaces().items():
+    surfaces = _load_tracked_npm_surfaces()
+    for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
-            assert not _find_manifest_occurrences(
-                document, target="react-router"
+            assert not _find_governed_manifest_occurrences(
+                surface=relative,
+                document=document,
+                surfaces=surfaces,
+                target="react-router",
             ), f"{relative}: react-router must remain transitive, not direct intent"
             _assert_manifest_occurrences_outside_ranges(
                 surface=relative,
                 target="react-router-dom",
-                occurrences=_find_manifest_occurrences(document, target="react-router-dom"),
+                occurrences=_find_governed_manifest_occurrences(
+                    surface=relative,
+                    document=document,
+                    surfaces=surfaces,
+                    target="react-router-dom",
+                ),
                 affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
             )
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
+        router_occurrences = _find_lock_occurrences(document, target="react-router")
+        dom_occurrences = _find_lock_occurrences(document, target="react-router-dom")
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="react-router",
-            occurrences=_find_lock_occurrences(document, target="react-router"),
+            occurrences=router_occurrences,
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
+        _assert_occurrences_outside_ranges(
+            surface=relative,
+            target="react-router-dom",
+            occurrences=dom_occurrences,
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+        )
+        if router_occurrences or dom_occurrences:
+            assert router_occurrences and dom_occurrences, (
+                f"{relative}: react-router and react-router-dom lock occurrences "
+                "must exist together"
+            )
+            assert _occurrence_version_set(router_occurrences) == _occurrence_version_set(
+                dom_occurrences
+            ), f"{relative}: react-router and react-router-dom lock versions must stay aligned"
 
 
 @pytest.mark.parametrize(
@@ -487,6 +613,63 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
     """Package-identity near misses must not be misclassified as the target."""
     assert not _find_manifest_occurrences(
         {"dependencies": {"renamed-image": value}},
+        target="image-size",
+    )
+
+
+@pytest.mark.parametrize(
+    "local_spec",
+    (
+        "file:../vendor/image-size",
+        "../vendor/image-size",
+        r"file:..\vendor\image-size",
+        "file:../vendor/%69mage-size",
+    ),
+)
+def test_manifest_discovery_resolves_renamed_tracked_local_package_carrier(
+    local_spec: str,
+) -> None:
+    """A renamed local dependency inherits identity from its tracked manifest."""
+    surface = "scripts/business_collateral/package.json"
+    target_surface = "scripts/vendor/image-size/package.json"
+    document = {"dependencies": {"renamed-image": local_spec}}
+    surfaces = {
+        surface: document,
+        target_surface: {"name": "image-size", "version": "1.2.1"},
+    }
+
+    assert _find_governed_manifest_occurrences(
+        surface=surface,
+        document=document,
+        surfaces=surfaces,
+        target="image-size",
+    ) == {("dependencies", "renamed-image"): local_spec}
+
+
+@pytest.mark.parametrize(
+    ("local_spec", "target_document"),
+    (
+        ("file:../vendor/image-size", {"name": "other", "version": "1.0.0"}),
+        ("file:../vendor/missing", None),
+        ("https://example.invalid/vendor/image-size", {"name": "image-size"}),
+        ("file://remote.example/image-size", {"name": "image-size"}),
+    ),
+)
+def test_manifest_local_carrier_ignores_untracked_or_non_target_near_miss(
+    local_spec: str,
+    target_document: dict[str, str] | None,
+) -> None:
+    """Only a repository-relative tracked target manifest supplies identity."""
+    surface = "scripts/business_collateral/package.json"
+    document = {"dependencies": {"renamed-image": local_spec}}
+    surfaces = {surface: document}
+    if target_document is not None:
+        surfaces["scripts/vendor/image-size/package.json"] = target_document
+
+    assert not _find_governed_manifest_occurrences(
+        surface=surface,
+        document=document,
+        surfaces=surfaces,
         target="image-size",
     )
 
@@ -1084,14 +1267,25 @@ def test_react_router_guard_rejects_declaration_in_any_tracked_manifest(
 
 
 @pytest.mark.parametrize(
-    ("field", "key", "value"),
+    ("field", "key", "value", "message"),
     (
-        ("dependencies", "react-router-dom", "7.18.1"),
-        ("optionalDependencies", "router-carrier", "npm:react-router-dom@7.18.1"),
+        (
+            "dependencies",
+            "react-router-dom",
+            "7.18.1",
+            "remains inside a reconciled affected range",
+        ),
+        (
+            "optionalDependencies",
+            "router-carrier",
+            "npm:react-router-dom@7.18.1",
+            "remains inside a reconciled affected range",
+        ),
         (
             "peerDependencies",
             "router-carrier",
             "https://example.invalid/react-router-dom/-/react-router-dom-7.18.1.tgz",
+            "lack lockfile provenance and integrity",
         ),
     ),
 )
@@ -1100,6 +1294,7 @@ def test_react_router_guard_rejects_affected_carrier_in_any_tracked_manifest(
     field: str,
     key: str,
     value: str,
+    message: str,
 ) -> None:
     """A lockless affected Router DOM carrier cannot bypass the universal guard."""
     monkeypatch.setitem(
@@ -1110,7 +1305,74 @@ def test_react_router_guard_rejects_affected_carrier_in_any_tracked_manifest(
         },
     )
 
-    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+    with pytest.raises(AssertionError, match=message):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "https://attacker.invalid/react-router-dom/-/react-router-dom-7.18.2.tgz",
+        "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.18.2.tgz",
+    ),
+)
+def test_react_router_guard_rejects_manifest_tarball_without_lock_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    url: str,
+) -> None:
+    """A safe-looking manifest archive cannot substitute for lock integrity."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {"dependencies": {"react-router-dom": url}}
+        },
+    )
+
+    with pytest.raises(AssertionError, match="lack lockfile provenance and integrity"):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("dom_version", "dom_tarball_version", "message"),
+    (
+        ("7.18.2", "7.18.1", "resolved tarball version must equal package version"),
+        ("8.3.0", "8.3.0", "lock versions must stay aligned"),
+    ),
+)
+def test_react_router_guard_validates_dom_lock_artifact_and_alignment(
+    monkeypatch: pytest.MonkeyPatch,
+    dom_version: str,
+    dom_tarball_version: str,
+    message: str,
+) -> None:
+    """Router DOM lock provenance and version must stay aligned with Router."""
+    manifest = {"dependencies": {"react-router-dom": "7.18.2"}}
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/react-router": {
+                "version": "7.18.2",
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-7.18.2.tgz"),
+                "integrity": "sha512-router",
+            },
+            "node_modules/react-router-dom": {
+                "version": dom_version,
+                "resolved": (
+                    "https://registry.npmjs.org/react-router-dom/-/"
+                    f"react-router-dom-{dom_tarball_version}.tgz"
+                ),
+                "integrity": "sha512-dom",
+            },
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"frontend/package.json": manifest, "frontend/package-lock.json": lock},
+    )
+
+    with pytest.raises(AssertionError, match=message):
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 
@@ -1139,21 +1401,13 @@ def test_react_router_guard_rejects_non_exact_carrier_range(
     (
         {"dependencies": {"react-router-dom": "9007199254740992.1.1"}},
         {"devDependencies": {"router-carrier": "npm:react-router-dom@9007199254740992.1.1"}},
-        {
-            "optionalDependencies": {
-                "router-carrier": (
-                    "https://example.invalid/react-router-dom/-/"
-                    "react-router-dom-9007199254740992.1.1.tgz"
-                )
-            }
-        },
     ),
 )
 def test_react_router_guard_rejects_node_semver_bound_carrier_shape(
     monkeypatch: pytest.MonkeyPatch,
     document: dict[str, object],
 ) -> None:
-    """Direct, alias, and foreign tarball carriers share Node semver bounds."""
+    """Direct and npm-alias carriers share Node semver bounds."""
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",

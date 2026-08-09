@@ -914,7 +914,31 @@ def _find_manifest_target_paths(
     target: str,
 ) -> dict[tuple[str, ...], object]:
     """Find direct, aliased, tarball, bundled, and override target carriers."""
-    found = _find_override_key_paths(document, target=target)
+    found: dict[tuple[str, ...], object] = {}
+    for field in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+    ):
+        values = document.get(field)
+        if not isinstance(values, dict):
+            continue
+        found.update(
+            _find_override_key_paths(
+                values,
+                target=target,
+                path=(field,),
+            )
+        )
+
+    found.update(
+        _find_override_key_paths(
+            document.get("overrides"),
+            target=target,
+            path=("overrides",),
+        )
+    )
     for field in ("bundleDependencies", "bundledDependencies"):
         bundled = document.get(field)
         if not isinstance(bundled, list):
@@ -1151,6 +1175,48 @@ def test_override_discovery_does_not_generalize_beyond_npm_alias_values(non_alia
         {"overrides": {"future-carrier": {"renamed-package": non_alias}}},
         target="brace-expansion",
     )
+
+
+def test_manifest_target_discovery_ignores_non_dependency_metadata() -> None:
+    """Scripts, descriptions, and tool metadata are not npm dependency carriers."""
+
+    document = {
+        "description": "brace-expansion",
+        "scripts": {
+            "audit": "npm:brace-expansion@2.1.3",
+            "download": (
+                "https://registry.npmjs.org/brace-expansion/-/" "brace-expansion-2.1.3.tgz"
+            ),
+        },
+        "config": {"brace-expansion": "2.1.3"},
+    }
+
+    assert not _find_manifest_target_paths(document, target="brace-expansion")
+
+
+@pytest.mark.parametrize(
+    ("field", "key", "value"),
+    (
+        ("dependencies", "brace-expansion", "2.1.3"),
+        ("devDependencies", "renamed-brace", "npm:brace-expansion@2.1.3"),
+        (
+            "optionalDependencies",
+            "renamed-brace",
+            ("https://registry.npmjs.org/brace-expansion/-/" "brace-expansion-2.1.3.tgz"),
+        ),
+    ),
+)
+def test_manifest_target_discovery_keeps_dependency_carriers(
+    field: str,
+    key: str,
+    value: str,
+) -> None:
+    """Direct, alias, and tarball dependency carriers remain in the candidate set."""
+
+    assert _find_manifest_target_paths(
+        {field: {key: value}},
+        target="brace-expansion",
+    ) == {(field, key): value}
 
 
 @pytest.mark.parametrize(

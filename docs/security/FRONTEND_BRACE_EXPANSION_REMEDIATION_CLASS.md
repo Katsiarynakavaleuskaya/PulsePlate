@@ -338,15 +338,17 @@ aliases. It does not require the historical `2.1.3`/`5.0.8` pair to remain
 installed forever.
 
 Candidate discovery is deliberately separate from provenance validity. Within
-the finite tracked manifest, a key equal to `brace-expansion`, a selector key
-beginning `brace-expansion@`, a string value equal to `npm:brace-expansion` or
-beginning `npm:brace-expansion@`, a registry-tarball pathname in the
-`brace-expansion` namespace, or a bundled-dependency entry equal to
-`brace-expansion` is a bounded identity signal. Direct, optional, peer, renamed,
-tarball, bundled, and override carriers are therefore discovered before the
-guard permits only the two exact approved override intent paths and outputs.
-Arbitrary strings and other package-manager syntaxes are not treated as npm
-aliases.
+the finite tracked manifest's dependency, dev-dependency, optional-dependency,
+peer-dependency, override, and bundled-dependency fields, a key equal to
+`brace-expansion`, a selector key beginning `brace-expansion@`, a string value
+equal to `npm:brace-expansion` or beginning `npm:brace-expansion@`, a
+registry-tarball pathname in the `brace-expansion` namespace, or a
+bundled-dependency entry equal to `brace-expansion` is a bounded identity
+signal. Direct, optional, peer, renamed, tarball, bundled, and override carriers
+are therefore discovered before the guard permits only the two exact approved
+override intent paths and outputs. Scripts, descriptions, configuration
+metadata, arbitrary strings, and other package-manager syntaxes are not treated
+as npm dependency carriers or aliases.
 
 Within the finite lockfile-v3 `packages` map, an entry is considered a potential
 `brace-expansion` occurrence when any of these bounded identity signals exists:

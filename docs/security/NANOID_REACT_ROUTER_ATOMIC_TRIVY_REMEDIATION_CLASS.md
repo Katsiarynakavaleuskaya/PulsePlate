@@ -184,13 +184,15 @@ P_batch =
   image-size absent on every governed head surface
   AND the root lockfile nanoid occurrence == 5.1.16
   AND every frontend lockfile nanoid occurrence == 3.3.17
-  AND every tracked package.json has no direct, aliased, or target-shaped tarball nanoid declaration
-  AND every tracked package.json has no direct, aliased, or target-shaped tarball react-router declaration
+  AND every tracked package.json has no direct, aliased, target-shaped tarball,
+      or renamed tracked local-package nanoid declaration
+  AND every tracked package.json has no direct, aliased, target-shaped tarball,
+      or renamed tracked local-package react-router declaration
   AND every tracked package.json react-router-dom carrier is exact npm SemVer,
       applies Node-semver's raw 256-character bound to direct/lock values and
       to the extracted alias/tarball version token, stays within its numeric-component bound,
       has no prerelease component, and is outside the affected ranges
-  AND react-router == react-router-dom == 7.18.2
+  AND every lockfile carries aligned react-router and react-router-dom stable versions
   AND every retained nanoid/react-router occurrence is a stable version whose
       origin-neutral target identity is discovered before its canonical registry
       tarball version is required to match `version` with non-empty integrity;
@@ -205,12 +207,14 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::_load_tracked_npm_surfaces`;
 - retired `pptxgenjs`/`image-size` graph absence:
   `tests/test_root_npm_dependency_guards.py::test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces`;
-- direct, npm-aliased, target-shaped tarball, bundled, and version-qualified override discovery:
+- direct, npm-aliased, target-shaped tarball, tracked local-package, bundled,
+  and version-qualified override discovery:
   `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
+  `tests/test_root_npm_dependency_guards.py::_find_tracked_local_manifest_occurrences` and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, Node-semver length/numeric,
   origin-neutral lock discovery, canonical-tarball provenance, integrity, and
-  stable-release postconditions:
+  stable-release and Router/DOM alignment postconditions:
   `tests/test_root_npm_dependency_guards.py::_parse_exact_npm_semver`,
   `tests/test_root_npm_dependency_guards.py::_exact_manifest_version`,
   `tests/test_root_npm_dependency_guards.py::_assert_manifest_occurrences_outside_ranges`,

@@ -104,7 +104,7 @@ Build a reusable business-development system around existing repo canon:
    - smoke tests pass locally
 4. **Merge-ready evidence**
    - `pre-commit run --all-files`
-   - `make verify`
+   - `make validate-changed`
    - merge-readiness wrapper on PR head
 
 ## Hard Rules
@@ -121,7 +121,7 @@ Build a reusable business-development system around existing repo canon:
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
-- `make verify`
+- `make validate-changed`
 - `pytest -q tests/test_business_collateral_builders.py` (current DOCX proposal/parser coverage)
 
 ## Deferred from This Wave

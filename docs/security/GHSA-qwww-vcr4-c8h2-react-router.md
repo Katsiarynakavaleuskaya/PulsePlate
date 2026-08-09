@@ -36,6 +36,13 @@ hide the package; canonical npm-registry provenance, tarball/version equality,
 and integrity are validated only after the occurrence is found. Special-scheme
 backslashes are normalized before URL parsing to match the relevant WHATWG/Node
 path semantics instead of letting a target path disappear into the authority.
+Repository-relative local-path carriers are resolved against the referring
+tracked manifest and inherit identity only from their referenced tracked
+`package.json`; this closes renamed lockless carriers without pinning topology.
+Manifest tarball carriers are rejected because they lack lockfile-bound
+integrity. Installed `react-router` and `react-router-dom` records are both
+validated for canonical provenance, integrity, safe stable versions, and
+mutual version alignment; the permanent guard does not freeze them at `7.18.2`.
 
 The exact suppression was deleted: the former five-predicate Rego rule for
 `GHSA-qwww-vcr4-c8h2` and its header reference were removed from
