@@ -130,7 +130,8 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     """Discover a target-shaped tarball independently of its provenance."""
     if not isinstance(value, str):
         return False
-    parsed = urlparse(value.strip())
+    normalized_carrier = value.strip().replace("\\", "/")
+    parsed = urlparse(normalized_carrier)
     decoded_path = _fully_decode_url_path(parsed.path)
     normalized_path = f"/{posixpath.normpath(decoded_path).lstrip('/')}"
     package_basename = target.rsplit("/", maxsplit=1)[-1]
@@ -565,6 +566,41 @@ def test_lock_discovery_finds_foreign_target_tarballs_before_provenance_validati
 
 
 @pytest.mark.parametrize(
+    ("target", "version"),
+    (
+        ("image-size", "1.2.1"),
+        ("pptxgenjs", "4.0.1"),
+        ("nanoid", "5.1.7"),
+        ("react-router", "7.18.1"),
+    ),
+)
+@pytest.mark.parametrize(
+    "carrier_template",
+    (
+        r"https://mirror.example.invalid\{target}\-\{target}-{version}.tgz",
+        r"https://mirror.example.invalid\\{target}\\-\\{target}-{version}.tgz",
+        r"https://mirror.example.invalid\{target}/-\{target}-{version}.tgz",
+        r"https://registry.npmjs.org\{target}\-\{target}-{version}.tgz",
+    ),
+)
+def test_lock_discovery_normalizes_whatwg_backslash_tarball_paths(
+    target: str,
+    version: str,
+    carrier_template: str,
+) -> None:
+    """WHATWG-style special-scheme separators cannot hide a lock identity."""
+    entry = {
+        "version": version,
+        "resolved": carrier_template.format(target=target, version=version),
+        "integrity": "sha512-test",
+    }
+    package_path = "node_modules/renamed-carrier"
+    document = {"lockfileVersion": 3, "packages": {package_path: entry}}
+
+    assert _find_lock_occurrences(document, target=target) == {package_path: entry}
+
+
+@pytest.mark.parametrize(
     ("target", "version", "affected_ranges"),
     (
         ("nanoid", "5.1.7", NANOID_AFFECTED_RANGES),
@@ -607,6 +643,14 @@ def test_target_postcondition_rejects_foreign_tarball_after_identity_discovery(
         "https://mirror.example.invalid/other/-/react-router-7.18.1.tgz",
         "https://mirror.example.invalid/react-routers/-/react-routers-7.18.1.tgz",
         "https://mirror.example.invalid/react-router/react-router-7.18.1.tgz",
+        (
+            "https://react-router.example.invalid/other/-/other-1.0.0.tgz?"
+            "target=/react-router/-/react-router-7.18.1.tgz"
+        ),
+        (
+            "https://mirror.example.invalid/other/-/other-1.0.0.tgz#"
+            "/react-router/-/react-router-7.18.1.tgz"
+        ),
     ),
 )
 def test_lock_discovery_ignores_foreign_tarball_identity_near_misses(resolved: str) -> None:

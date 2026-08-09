@@ -33,7 +33,9 @@ prerelease (including numeric `-0`), unversioned, out-of-bounds, or open-range
 while permitting future exact stable carriers outside the reconciled affected
 ranges. Lock identity discovery is origin-neutral so a renamed mirror URL cannot
 hide the package; canonical npm-registry provenance, tarball/version equality,
-and integrity are validated only after the occurrence is found.
+and integrity are validated only after the occurrence is found. Special-scheme
+backslashes are normalized before URL parsing to match the relevant WHATWG/Node
+path semantics instead of letting a target path disappear into the authority.
 
 The exact suppression was deleted: the former five-predicate Rego rule for
 `GHSA-qwww-vcr4-c8h2` and its header reference were removed from

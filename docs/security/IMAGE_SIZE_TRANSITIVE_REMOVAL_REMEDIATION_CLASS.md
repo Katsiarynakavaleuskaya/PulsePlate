@@ -138,7 +138,8 @@ delta.
 - rejection of direct declarations, npm aliases, target-shaped tarball
   declarations regardless of origin, bundled declarations, renamed lock
   entries, origin-neutral mirror/encoded lock tarballs before canonical
-  provenance validation, registry-resolution aliases, and malformed lock entries;
+  provenance validation, WHATWG-style backslash path variants,
+  registry-resolution aliases, and malformed lock entries;
 - universal affected-range checks for the retained nanoid and React Router
   occurrences, without pinning their current safe version forever.
 

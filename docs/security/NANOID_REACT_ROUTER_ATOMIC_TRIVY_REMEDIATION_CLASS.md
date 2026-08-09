@@ -193,7 +193,8 @@ P_batch =
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
       origin-neutral target identity is discovered before its canonical registry
-      tarball version is required to match `version` with non-empty integrity
+      tarball version is required to match `version` with non-empty integrity;
+      WHATWG-style special-scheme backslashes are normalized before URL parsing
   AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy or .trivyignore
 ```
 
