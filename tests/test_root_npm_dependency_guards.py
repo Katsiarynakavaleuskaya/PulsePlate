@@ -198,8 +198,9 @@ def _find_manifest_occurrences(
         for key, child in value.items():
             child_path = (*path, str(key))
             if _override_key_matches(key=key, target=target):
-                if isinstance(child, dict) and "." in child:
-                    occurrences[(*child_path, ".")] = child["."]
+                if isinstance(child, dict):
+                    if "." in child:
+                        occurrences[(*child_path, ".")] = child["."]
                 else:
                     occurrences[child_path] = child
             elif _dependency_identity_matches(key=key, value=child, target=target):
@@ -1055,8 +1056,14 @@ def test_retired_graph_manifest_discovery_rejects_bundled_reintroduction(
     ("document", "target"),
     (
         ({"overrides": {"image-size@<=2.0.2": "2.0.2"}}, "image-size"),
-        ({"overrides": {"pptxgenjs@4": {"image-size": "2.0.2"}}}, "pptxgenjs"),
-        ({"overrides": {"@scope/pkg@^1": {"dependency": "2.0.0"}}}, "@scope/pkg"),
+        (
+            {"overrides": {"pptxgenjs@4": {".": "4.0.1", "image-size": "2.0.2"}}},
+            "pptxgenjs",
+        ),
+        (
+            {"overrides": {"@scope/pkg@^1": {".": "1.2.0", "dependency": "2.0.0"}}},
+            "@scope/pkg",
+        ),
     ),
 )
 def test_manifest_discovery_rejects_version_qualified_override_keys(
@@ -1109,6 +1116,22 @@ def test_manifest_full_object_override_rejects_affected_dot() -> None:
             occurrences=occurrences,
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
+
+
+def test_manifest_full_object_without_dot_only_walks_children() -> None:
+    """A nested-only full object does not claim to replace its parent package."""
+    document = {
+        "overrides": {
+            "react-router-dom@<=7.18.1": {
+                "react-router": "8.3.0",
+            }
+        }
+    }
+
+    assert not _find_manifest_occurrences(document, target="react-router-dom")
+    assert _find_manifest_occurrences(document, target="react-router") == {
+        ("overrides", "react-router-dom@<=7.18.1", "react-router"): "8.3.0"
+    }
 
 
 @pytest.mark.parametrize(
