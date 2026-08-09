@@ -62,8 +62,8 @@ Node `v24.18.1` and npm `11.16.0`. The exact-base snapshot cutoff is
 
 | Advisory | Affected range | Base applicability | Universal head evidence |
 | --- | --- | --- | --- |
-| [`GHSA-w3rx-r6r6-pgpr`](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) | `<=2.0.2` | Applicable: governed `1.2.1` is affected | executable absence on all five surfaces |
-| [`GHSA-5p2g-fcmc-qvqq`](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) | `<=2.0.2` | Applicable: governed `1.2.1` is affected | executable absence on all five surfaces |
+| [`GHSA-w3rx-r6r6-pgpr`](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) / `CVE-2025-71330` | `<=2.0.2` | Applicable: governed `1.2.1` is affected | executable absence on all five surfaces |
+| [`GHSA-5p2g-fcmc-qvqq`](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) / `CVE-2025-71329` | `<=2.0.2` | Applicable: governed `1.2.1` is affected | executable absence on all five surfaces |
 
 Therefore the derived non-empty applicable subset is exactly:
 

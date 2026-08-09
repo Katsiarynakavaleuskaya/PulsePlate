@@ -332,7 +332,7 @@
 
 ## Pre-push backend tests (smart diff runner)
 
-The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest only when Python files changed.
+The `run-backend-tests-pre-commit.sh` script is used by pre-commit framework to run backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
 
 First-class repo wrappers:
 

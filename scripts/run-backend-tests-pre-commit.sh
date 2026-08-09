@@ -3,7 +3,7 @@
 # Runs pytest for changed Python files plus explicit cross-surface governance triggers
 #
 # Pre-push backend tests (smart diff runner):
-# The pre-push hook runs backend pytest only when Python files changed.
+# The pre-push hook runs backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
 #
 # Change detection order:
 # 1) If upstream exists: diff `upstream..HEAD`
