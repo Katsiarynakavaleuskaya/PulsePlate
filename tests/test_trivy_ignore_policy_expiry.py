@@ -556,23 +556,35 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
     helper_region = policy[helper_start:start]
     assert "startswith(input.PkgID" not in helper_region
 
-    expected_pkgids = {
-        "bsdutils@1:2.38.1-5+deb12u3",
-        "libblkid1@2.38.1-5+deb12u3",
-        "libmount1@2.38.1-5+deb12u3",
-        "libsmartcols1@2.38.1-5+deb12u3",
-        "libuuid1@2.38.1-5+deb12u3",
-        "mount@2.38.1-5+deb12u3",
-        "util-linux@2.38.1-5+deb12u3",
-        "util-linux-extra@2.38.1-5+deb12u3",
-    }
-    exact_pkgids = set(re.findall(r'\tinput\.PkgID == "([^"]+)"', helper_region))
+    expected_tuples = (
+        ("bsdutils", "1:2.38.1-5+deb12u3"),
+        ("libblkid1", "2.38.1-5+deb12u3"),
+        ("libmount1", "2.38.1-5+deb12u3"),
+        ("libsmartcols1", "2.38.1-5+deb12u3"),
+        ("libuuid1", "2.38.1-5+deb12u3"),
+        ("mount", "2.38.1-5+deb12u3"),
+        ("util-linux", "2.38.1-5+deb12u3"),
+        ("util-linux-extra", "2.38.1-5+deb12u3"),
+    )
+    assert helper_region.count("cve_2026_3184_pkgid_match if {") == len(expected_tuples)
 
-    assert exact_pkgids == expected_pkgids
-    for pkgid in expected_pkgids:
-        package = pkgid.split("@", 1)[0]
-        assert f'input.PkgName == "{package}"' in helper_region
-        assert f"{pkgid}-unexpected-suffix" not in exact_pkgids
+    for package, version in expected_tuples:
+        exact_rule = (
+            f'cve_2026_3184_pkgid_match if {{\n\tinput.PkgName == "{package}"'
+            f'\n\tinput.PkgID == "{package}@{version}"\n}}'
+        )
+        suffix_rule = exact_rule.replace(
+            f'input.PkgID == "{package}@{version}"',
+            f'input.PkgID == "{package}@{version}-unexpected-suffix"',
+        )
+        prefix_rule = exact_rule.replace(
+            f'input.PkgID == "{package}@{version}"',
+            f'startswith(input.PkgID, "{package}@{version}")',
+        )
+
+        assert exact_rule in helper_region
+        assert suffix_rule not in helper_region
+        assert prefix_rule not in helper_region
 
 
 def _fixed_version_clause_treats_finding_as_unfixed(finding: dict[str, str]) -> bool:
