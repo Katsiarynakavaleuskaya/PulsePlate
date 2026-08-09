@@ -201,11 +201,11 @@ P_batch =
       origin-neutral target identity is discovered before its canonical registry
       tarball version is required to match `version` with non-empty integrity;
       WHATWG-style special-scheme backslashes are normalized before URL parsing
-  AND Git dependency values classified by the npm-package-arg implementation
-      bundled with the repository's current absolute Node/npm toolchain are
-      rejected because manifest-only inspection cannot verify their internal
-      package identity; classification is delegated in one batch rather than
-      frozen or reimplemented as a second URL/source grammar in Python
+  AND every dependency/dev/optional/peer or nested override leaf is one exact,
+      caret, or tilde npm SemVer selector whose identity remains explicit in
+      its package key; Git, hosted shorthand, remote/local paths, aliases,
+      compound selectors, unknown transports, and malformed leaves fail closed
+      for separate provenance review instead of growing a second npm parser
   AND lock-path identity is the complete unscoped name or @scope/name after the
       final node_modules segment, never the terminal basename alone
   AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy or .trivyignore
@@ -225,10 +225,10 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::_find_tracked_local_manifest_occurrences`,
   `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`, and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
-- current-toolchain Git-source rejection in named manifest fields:
-  `tests/test_root_npm_dependency_guards.py::_classify_current_npm_git_specs`,
-  `tests/test_root_npm_dependency_guards.py::_find_current_npm_git_dependency_occurrences`,
-  and `tests/test_root_npm_dependency_guards.py::test_tracked_npm_manifests_reject_current_npm_git_dependency_sources`;
+- transparent-registry selector admission in named manifest fields:
+  `tests/test_root_npm_dependency_guards.py::_is_transparent_npm_registry_spec`,
+  `tests/test_root_npm_dependency_guards.py::_find_opaque_npm_dependency_source_occurrences`,
+  and `tests/test_root_npm_dependency_guards.py::test_tracked_npm_manifests_reject_opaque_dependency_sources`;
 - complete scoped/unscoped lock-path identity:
   `tests/test_root_npm_dependency_guards.py::_lock_path_package_identity` and
   `tests/test_root_npm_dependency_guards.py::test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename`;

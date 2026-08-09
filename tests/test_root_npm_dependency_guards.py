@@ -13,7 +13,6 @@ import posixpath
 import re
 import shutil
 import subprocess
-from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
@@ -38,38 +37,10 @@ REACT_ROUTER_AFFECTED_RANGES = (
 _NPM_SEMVER_MAX_LENGTH = 256
 _NPM_SEMVER_MAX_SAFE_INTEGER = 9_007_199_254_740_991
 _EXACT_NPM_SEMVER_RE = re.compile(
-    r"^(?P<core>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))"
+    r"^(?P<core>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
-_NPM_PACKAGE_ARG_GIT_CLASSIFIER_JS = r"""
-const fs = require("node:fs");
-const path = require("node:path");
-const { createRequire } = require("node:module");
-
-const npmCli = path.resolve(process.argv[1]);
-const repoRoot = path.resolve(process.argv[2]);
-const npmRoot = path.dirname(path.dirname(npmCli));
-const npmRequire = createRequire(npmCli);
-const packageArgEntry = path.resolve(npmRequire.resolve("npm-package-arg"));
-const packageArgRoot = path.join(npmRoot, "node_modules", "npm-package-arg") + path.sep;
-if (!packageArgEntry.startsWith(packageArgRoot)) {
-  throw new Error(`npm-package-arg must resolve from the installed npm tree: ${packageArgEntry}`);
-}
-const packageArg = npmRequire("npm-package-arg");
-const specs = JSON.parse(fs.readFileSync(0, "utf8"));
-if (!Array.isArray(specs) || specs.some((spec) => typeof spec !== "string")) {
-  throw new TypeError("npm dependency specs must be a JSON string array");
-}
-const classifications = specs.map((spec) => {
-  try {
-    return packageArg.resolve("pulseplate-guard", spec, repoRoot).type === "git";
-  } catch (_error) {
-    return false;
-  }
-});
-process.stdout.write(JSON.stringify(classifications));
-"""
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -180,67 +151,14 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     )
 
 
-def _resolve_current_npm_package_arg_runtime() -> tuple[str, str]:
-    """Resolve the absolute Node executable and installed npm CLI or fail closed."""
-    node_binary = shutil.which("node")
-    npm_binary = shutil.which("npm")
-    assert node_binary is not None, "node is required for npm dependency-source guards"
-    assert npm_binary is not None, "npm is required for npm dependency-source guards"
-    node_path = Path(node_binary)
-    npm_path = Path(npm_binary)
-    assert node_path.is_absolute(), "node binary must resolve to an absolute path"
-    assert npm_path.is_absolute(), "npm binary must resolve to an absolute path"
-    assert node_path.is_file() and os.access(
-        node_path, os.X_OK
-    ), "node binary must be an available executable file"
-    assert npm_path.is_file() and os.access(
-        npm_path, os.X_OK
-    ), "npm binary must be an available executable file"
-    try:
-        npm_cli_path = npm_path.resolve(strict=True)
-    except OSError as exc:
-        raise AssertionError("npm CLI symlink must resolve to a regular file") from exc
-    assert npm_cli_path.is_file(), "resolved npm CLI must be a regular file"
-    return str(node_path), str(npm_cli_path)
-
-
-def _classify_current_npm_git_specs(
-    values: Iterable[object], *, root: Path = REPO_ROOT
-) -> dict[str, bool]:
-    """Delegate Git-source classification to the npm installation used by this checkout."""
-    specs = sorted({value for value in values if isinstance(value, str)})
-    if not specs:
-        return {}
-    node_binary, npm_cli = _resolve_current_npm_package_arg_runtime()
-    parser_env = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith("GIT_") and key not in {"NODE_OPTIONS", "NODE_PATH"}
-    }
-    result = subprocess.run(
-        [
-            node_binary,
-            "-e",
-            _NPM_PACKAGE_ARG_GIT_CLASSIFIER_JS,
-            npm_cli,
-            str(root.resolve()),
-        ],
-        check=True,
-        input=json.dumps(specs, ensure_ascii=False).encode("utf-8"),
-        capture_output=True,
-        env=parser_env,
-        timeout=30,
-    )
-    try:
-        classifications = json.loads(result.stdout.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        raise AssertionError("npm-package-arg classifier returned invalid JSON") from exc
-    assert isinstance(classifications, list), "npm-package-arg classifier must return a list"
-    assert len(classifications) == len(specs), "npm-package-arg classifier result count drift"
-    assert all(
-        type(value) is bool for value in classifications
-    ), "npm-package-arg classifier results must be booleans"
-    return dict(zip(specs, classifications, strict=True))
+def _is_transparent_npm_registry_spec(value: object) -> bool:
+    """Allow only one explicit npm SemVer selector whose package identity is in its key."""
+    if not isinstance(value, str):
+        return False
+    candidate = value.strip()
+    if candidate.startswith(("^", "~")):
+        candidate = candidate[1:]
+    return _parse_exact_npm_semver(candidate) is not None
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -293,33 +211,31 @@ def _find_manifest_occurrences(
     return occurrences
 
 
-def _find_current_npm_git_dependency_occurrences(
+def _find_opaque_npm_dependency_source_occurrences(
     document: dict[str, Any],
 ) -> dict[tuple[str, ...], object]:
-    """Find Git sources by delegating named manifest values to current npm."""
-    candidates: dict[tuple[str, ...], object] = {}
+    """Find dependency sources whose identity/provenance is opaque to package.json."""
+    occurrences: dict[tuple[str, ...], object] = {}
     for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
         values = document.get(field)
         if not isinstance(values, dict):
             continue
         for key, value in values.items():
-            candidates[(field, str(key))] = value
+            if not _is_transparent_npm_registry_spec(value):
+                occurrences[(field, str(key))] = value
 
     def walk_overrides(value: object, path: tuple[str, ...]) -> None:
         if not isinstance(value, dict):
             return
         for key, child in value.items():
             child_path = (*path, str(key))
-            candidates[child_path] = child
-            walk_overrides(child, child_path)
+            if isinstance(child, dict):
+                walk_overrides(child, child_path)
+            elif not _is_transparent_npm_registry_spec(child):
+                occurrences[child_path] = child
 
     walk_overrides(document.get("overrides"), ("overrides",))
-    classifications = _classify_current_npm_git_specs(candidates.values())
-    return {
-        path: value
-        for path, value in candidates.items()
-        if isinstance(value, str) and classifications[value]
-    }
+    return occurrences
 
 
 def _tracked_local_manifest_path(*, surface: str, value: object) -> str | None:
@@ -414,7 +330,13 @@ def _parse_exact_npm_semver(value: object) -> tuple[Version, bool] | None:
     core = match.group("core")
     if any(int(component) > _NPM_SEMVER_MAX_SAFE_INTEGER for component in core.split(".")):
         return None
-    return Version(core), match.group("prerelease") is not None
+    prerelease = match.group("prerelease")
+    if prerelease is not None and any(
+        len(identifier) > 1 and identifier.startswith("0") and identifier.isdigit()
+        for identifier in prerelease[1:].split(".")
+    ):
+        return None
+    return Version(core), prerelease is not None
 
 
 def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, bool] | None:
@@ -688,15 +610,15 @@ def test_root_lock_tracks_current_cspell_runtime_chain() -> None:
     assert "path-to-regexp" not in tinyglobby_dependencies
 
 
-def test_tracked_npm_manifests_reject_current_npm_git_dependency_sources() -> None:
-    """Opaque specs classified as Git by current npm cannot hide package identity."""
+def test_tracked_npm_manifests_reject_opaque_dependency_sources() -> None:
+    """Every current dependency stays an identity-transparent registry selector."""
     surfaces = _load_tracked_npm_surfaces()
     for relative, document in surfaces.items():
         if PurePosixPath(relative).name != "package.json":
             continue
-        assert not _find_current_npm_git_dependency_occurrences(
+        assert not _find_opaque_npm_dependency_source_occurrences(
             document
-        ), f"{relative}: npm-classified Git dependency source requires separate provenance"
+        ), f"{relative}: opaque dependency source requires separate provenance"
 
 
 def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None:
@@ -870,224 +792,87 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
     )
 
 
-def test_current_npm_git_classifier_matches_repository_runtime() -> None:
-    """The installed npm parser, rather than a frozen Python grammar, owns Git syntax."""
-    values = (
-        "git+https://github.com/acme/repo.git#main",
-        "git+http://example.invalid/acme/repo.git",
-        "git+ssh://git@example.invalid/acme/repo.git#v1",
-        "git+file:///tmp/image-size",
-        "git+rsync://example.invalid/acme/repo.git",
-        "git+rsync:example.invalid/acme/repo.git",
-        "git+ftp://example.invalid/acme/repo.git",
-        "git://example.invalid/acme/repo.git",
-        "git:example.invalid/acme/repo.git",
-        "alice@www.github.com:acme/repo.git",
-        "git@github.com:acme/repo.git#main",
-        "git@gitlab.com:acme/repo.git",
-        "git@bitbucket.org:acme/repo.git",
-        "git@gist.github.com:101a11beef.git",
-        "git@git.sr.ht:~acme/repo.git",
-        "alice:pw@github.com:/abs/repo.git",
-        "alice:pw@gitlab.com:/abs/repo.git",
-        "github:acme/repo#main",
-        "github:acme/subgroup/repo",
-        "gitlab:acme/repo",
-        "gitlab:acme/subgroup/repo",
-        "bitbucket:acme/repo#v1",
-        "gist:101a11beef",
-        "gist:user/101a11beef",
-        "gist:101a11beef#main",
-        "sourcehut:~acme/repo",
-        "sourcehut:~acme/subgroup/repo",
-        "sourcehut:acme/repo#main",
-        "acme/repo#semver:^1.0.0",
-        "acme/repo#branch with space",
-        "https://github.com/acme/repo.git?download=1#main",
-        "https://www.github.com/acme/repo",
-        "https://github%2ecom/acme/repo",
-        "https://github。com/acme/repo",
-        "https://github.com/acme/placeholder/../repo",
-        "https://github.com/acme/placeholder/%2e%2e/repo",
-        r"https:\github.com/acme/repo",
-        "https:/github.com/acme/repo",
-        "https:github.com/acme/repo",
-        r"https:\gitlab.com/acme/repo",
-        "http://github.com/acme/repo",
-        "ssh://git@github.com/acme/repo%2egit#main",
-        "https://gitlab.com/acme/group/repo",
-        "https://bitbucket.org/acme/repo",
-        "https://gist.github.com/101a11beef",
-        "https://gist.github.com/user/101a11beef",
-        "https://gist.github.com/user/101a11beef/edit",
-        "https://git.sr.ht/~acme/repo",
-        "https://github.com/acme/repo/tree/main",
-        "https://gitlab.com/acme/group/repo/tree/main",
-        "https://gitlab.com/acme/repo/-",
-        "https://bitbucket.org/acme/repo/src/main",
-        "https://git.sr.ht/~acme/repo/tree/main",
-    )
-    classifications = _classify_current_npm_git_specs(values)
-
-    assert classifications == {value: True for value in sorted(set(values))}
-
-
-def test_current_npm_git_classifier_preserves_non_git_and_invalid_specs() -> None:
-    """Local, registry, remote-tarball, and invalid npm specs remain outside Git."""
-    values = (
-        "file:../vendor/repo.git",
-        "../vendor/repo.git",
-        "./vendor/repo.git",
-        "npm:image-size@1.2.1",
+@pytest.mark.parametrize(
+    "value",
+    (
         "1.2.3",
-        "https://registry.npmjs.org/image-size/-/image-size-1.2.1.tgz",
-        "workspace:*",
-        "link:../vendor/repo.git",
-        "https://example.invalid/acme/repo.git.tgz",
-        "https://example.invalid/acme/repo.git/README",
-        "https://example.invalid/acme/repo.tgz?source=repo.git",
-        "https://example.invalid/acme/repo.git",
-        "git@example.invalid:acme/repo.git",
-        "git@127.0.0.1:acme/repo.git",
-        "git@example.com:/abs/repo.git",
-        "https://example%2einvalid/acme/repo",
-        "https://github%2fcom/acme/repo",
-        "ssh://github%2ecom/acme/repo",
-        "https://example。invalid/acme/repo",
-        "https://\u200d.example/acme/repo",
-        "ssh://git@example.invalid/acme/repo.git",
-        "http://gitlab.com/acme/repo.git",
-        "http://gist.github.com/101a11beef",
-        "http://git.sr.ht/~acme/repo",
-        "ssh://git@git.sr.ht/~acme/repo",
-        r"ssh:\github.com/acme/repo",
-        "git+git://example.invalid/acme/repo.git",
-        "git+foo://example.invalid/acme/repo.git",
-        "https://github.com/acme/repo/blob/main/package.json",
-        "https://gitlab.com/acme/repo/-/tree/main",
-        "https://gitlab.com/acme/repo/archive.tar.gz",
-        "https://gitlab.com/acme/repo/archive.tar.gz.backup",
-        "https://bitbucket.org/acme/repo/get/main.tar.gz",
-        "https://git.sr.ht/~acme/repo/archive/main.tar.gz",
-        "https://gist.github.com/user/101a11beef/raw",
-        "https://github.com/acme/repo/tree/branch/../../blob/main",
-        "@scope/pkg",
-        "./acme/repo",
-        "~/acme/repo",
-        r"~\acme\repo",
-        r"ssh:/\github.com/acme/repo",
-        r"ssh:\/github.com/acme/repo",
-        r"ssh:\\github.com/acme/repo",
-        r"git+ssh://\github.com/acme/repo",
-    )
-    classifications = _classify_current_npm_git_specs(values)
-
-    assert classifications == {value: False for value in sorted(set(values))}
-
-
-def test_current_npm_git_classifier_uses_resolved_toolchain_and_sanitized_env(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """The parser subprocess is absolute, npm-bundled, batched, and environment-isolated."""
-    node_path = tmp_path / "bin" / "node"
-    npm_cli_path = tmp_path / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js"
-    npm_path = tmp_path / "bin" / "npm"
-    node_path.parent.mkdir(parents=True)
-    npm_cli_path.parent.mkdir(parents=True)
-    node_path.write_text("node fixture", encoding="utf-8")
-    npm_cli_path.write_text("npm fixture", encoding="utf-8")
-    node_path.chmod(0o755)
-    npm_cli_path.chmod(0o755)
-    npm_path.symlink_to(npm_cli_path)
-
-    def fake_which(name: str) -> str | None:
-        return {"node": str(node_path), "npm": str(npm_path)}.get(name)
-
-    captured: dict[str, object] = {}
-
-    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        captured["args"] = args
-        captured.update(kwargs)
-        return subprocess.CompletedProcess(args, 0, stdout=b"[false,true]", stderr=b"")
-
-    monkeypatch.setattr(shutil, "which", fake_which)
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer.index"))
-    monkeypatch.setenv("GIT_CUSTOM_PROBE", "must-not-leak")
-    monkeypatch.setenv("NODE_OPTIONS", "--require=must-not-leak")
-    monkeypatch.setenv("NODE_PATH", str(tmp_path / "must-not-leak"))
-
-    classifications = _classify_current_npm_git_specs(
-        ("1.2.3", "git+https://example.invalid/repo.git"),
-        root=tmp_path,
-    )
-
-    assert classifications == {
-        "1.2.3": False,
-        "git+https://example.invalid/repo.git": True,
-    }
-    args = cast(list[str], captured["args"])
-    assert args[0] == str(node_path)
-    assert args[1] == "-e"
-    assert args[2] == _NPM_PACKAGE_ARG_GIT_CLASSIFIER_JS
-    assert args[3] == str(npm_cli_path)
-    assert args[4] == str(tmp_path.resolve())
-    parser_env = cast(dict[str, str], captured["env"])
-    assert not any(key.startswith("GIT_") for key in parser_env)
-    assert "NODE_OPTIONS" not in parser_env
-    assert "NODE_PATH" not in parser_env
-    assert captured["check"] is True
-    assert captured["capture_output"] is True
-    assert captured["timeout"] == 30
+        "^1.2.3",
+        "~1.2.3",
+        "^5.1.0-rc.0",
+        "  7.18.2  ",
+    ),
+)
+def test_transparent_dependency_source_accepts_one_registry_semver_selector(value: str) -> None:
+    """Version rotation remains independent inside the stable registry-selector class."""
+    assert _is_transparent_npm_registry_spec(value)
 
 
 @pytest.mark.parametrize(
     "value",
     (
+        "git+https://github.com/acme/repo.git#main",
+        "github:acme/repo#main",
+        "acme/repo#v1",
         "git@example.invalid:acme/repo.git",
-        "git@127.0.0.1:acme/repo.git",
-        "git@example.com:/abs/repo.git",
+        "https://example.invalid/pkg.tgz",
+        "file:../vendor/pkg",
+        "../vendor/pkg",
+        "workspace:*",
+        "npm:other@1.2.3",
+        r"ssh:/\github.com/acme/repo",
+        r"git+ssh://\github.com/acme/repo",
+        ">=1 <2",
+        "latest",
+        "",
+        "1.2.3-01",
+        "^1.2.3-01",
+        "~1.2.3-alpha.01",
+        "^1.2.3١",
     ),
 )
-def test_git_source_owner_does_not_reclassify_npm_local_scp_near_misses(
-    monkeypatch: pytest.MonkeyPatch,
-    value: str,
-) -> None:
-    """Dependency-value SCP near-misses keep npm local-directory precedence."""
-    monkeypatch.setitem(
-        globals(),
-        "_load_tracked_npm_surfaces",
-        lambda: {"tools/fixture/package.json": {"dependencies": {"renamed": value}}},
-    )
-
-    test_tracked_npm_manifests_reject_current_npm_git_dependency_sources()
+def test_transparent_dependency_source_rejects_opaque_or_unowned_syntax(value: str) -> None:
+    """Unknown transports and compound selectors require explicit provenance review."""
+    assert not _is_transparent_npm_registry_spec(value)
 
 
 @pytest.mark.parametrize(
     "document",
     (
         {"dependencies": {"renamed-image": "git+file:///tmp/image-size"}},
-        {"dependencies": {"renamed-image": r"https:\github.com/acme/repo"}},
-        {"devDependencies": {"renamed-image": "git+ftp://example.invalid/repo.git"}},
+        {"devDependencies": {"renamed-image": "https://example.invalid/pkg.tgz"}},
         {"optionalDependencies": {"renamed-image": "gist:101a11beef#main"}},
         {"peerDependencies": {"renamed-image": "acme/repo#v1"}},
         {"overrides": {"carrier": {"renamed-image": "sourcehut:~acme/repo"}}},
+        {"overrides": {"carrier": {"renamed-image": 123}}},
+        {"dependencies": {"renamed-image": "^1.2.3-01"}},
+        {"dependencies": {"renamed-image": "^1.2.3١"}},
     ),
 )
-def test_git_source_owner_rejects_each_governed_manifest_position(
+def test_opaque_source_owner_rejects_each_governed_manifest_position(
     monkeypatch: pytest.MonkeyPatch,
     document: dict[str, object],
 ) -> None:
-    """Every named carrier field reaches the executable current-index owner."""
+    """Every named carrier field reaches the executable opaque-source owner."""
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",
         lambda: {"scripts/business_collateral/package.json": document},
     )
 
-    with pytest.raises(AssertionError, match="npm-classified Git dependency source"):
-        test_tracked_npm_manifests_reject_current_npm_git_dependency_sources()
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
+
+
+@pytest.mark.parametrize("value", ("1.2.3-01", "1.2.3-alpha.01", "1.2.3-00.beta"))
+def test_exact_npm_semver_rejects_leading_zero_numeric_prerelease(value: str) -> None:
+    """Numeric prerelease identifiers follow SemVer's no-leading-zero rule."""
+    assert _parse_exact_npm_semver(value) is None
+
+
+@pytest.mark.parametrize("value", ("1.2.3١", "1.2.٣", "١.2.3"))
+def test_exact_npm_semver_rejects_non_ascii_core_digits(value: str) -> None:
+    """npm SemVer core identifiers accept ASCII digits only."""
+    assert _parse_exact_npm_semver(value) is None
 
 
 def test_retired_graph_guard_rejects_repository_relative_target_tarball(
