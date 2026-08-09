@@ -153,7 +153,7 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
 
 def _is_transparent_npm_registry_spec(value: object) -> bool:
     """Allow only one explicit npm SemVer selector whose package identity is in its key."""
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not value.isascii():
         return False
     candidate = value.strip()
     if candidate.startswith(("^", "~")):
@@ -828,6 +828,9 @@ def test_transparent_dependency_source_accepts_one_registry_semver_selector(valu
         "^1.2.3-01",
         "~1.2.3-alpha.01",
         "^1.2.3١",
+        "\N{NO-BREAK SPACE}1.2.3\N{NO-BREAK SPACE}",
+        "\N{FIGURE SPACE}1.2.3\N{FIGURE SPACE}",
+        "\N{NARROW NO-BREAK SPACE}^1.2.3\N{NARROW NO-BREAK SPACE}",
     ),
 )
 def test_transparent_dependency_source_rejects_opaque_or_unowned_syntax(value: str) -> None:
@@ -846,6 +849,7 @@ def test_transparent_dependency_source_rejects_opaque_or_unowned_syntax(value: s
         {"overrides": {"carrier": {"renamed-image": 123}}},
         {"dependencies": {"renamed-image": "^1.2.3-01"}},
         {"dependencies": {"renamed-image": "^1.2.3١"}},
+        {"dependencies": {"renamed-image": "\N{NO-BREAK SPACE}1.2.3\N{NO-BREAK SPACE}"}},
     ),
 )
 def test_opaque_source_owner_rejects_each_governed_manifest_position(
