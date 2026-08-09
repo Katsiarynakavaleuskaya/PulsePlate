@@ -19,7 +19,7 @@ from urllib.parse import unquote, urlparse
 
 import pytest
 from packaging.specifiers import SpecifierSet
-from packaging.version import InvalidVersion, Version
+from packaging.version import Version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
@@ -185,8 +185,18 @@ def _find_manifest_occurrences(
     return occurrences
 
 
-def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, bool] | None:
+def _parse_exact_npm_semver(value: object) -> tuple[Version, bool] | None:
     """Parse exact npm SemVer and retain its prerelease bit for fail-closed checks."""
+    if not isinstance(value, str):
+        return None
+    match = _EXACT_NPM_SEMVER_RE.fullmatch(value.strip())
+    if match is None:
+        return None
+    return Version(match.group("core")), match.group("prerelease") is not None
+
+
+def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, bool] | None:
+    """Extract exact npm SemVer from a direct, alias, or target-tarball carrier."""
     if not isinstance(value, str):
         return None
     candidate = value.strip()
@@ -201,10 +211,7 @@ def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, boo
         if not filename.startswith(filename_prefix) or not filename.endswith(".tgz"):
             return None
         candidate = filename[len(filename_prefix) : -len(".tgz")]
-    match = _EXACT_NPM_SEMVER_RE.fullmatch(candidate)
-    if match is None:
-        return None
-    return Version(match.group("core")), match.group("prerelease") is not None
+    return _parse_exact_npm_semver(candidate)
 
 
 def _assert_manifest_occurrences_outside_ranges(
@@ -270,14 +277,13 @@ def _assert_occurrences_outside_ranges(
     for package_path, entry in occurrences.items():
         raw_version = entry.get("version")
         assert isinstance(raw_version, str), f"{surface}:{package_path}: version must be text"
-        try:
-            version = Version(raw_version)
-        except InvalidVersion as exc:
-            raise AssertionError(
-                f"{surface}:{package_path}: version must be advisory-comparable"
-            ) from exc
+        parsed_version = _parse_exact_npm_semver(raw_version)
         assert (
-            not version.is_prerelease
+            parsed_version is not None
+        ), f"{surface}:{package_path}: version must be exact npm SemVer and advisory-comparable"
+        version, is_prerelease = parsed_version
+        assert (
+            not is_prerelease
         ), f"{surface}:{package_path}: prerelease target versions fail closed"
         resolved_version = _resolved_registry_version(entry.get("resolved"), target=target)
         assert (
@@ -596,10 +602,10 @@ def test_target_postcondition_rejects_missing_integrity(integrity: str | None) -
 @pytest.mark.parametrize(
     ("target", "version", "affected_ranges"),
     (
-        ("nanoid", "3.3.16rc1", NANOID_AFFECTED_RANGES),
-        ("nanoid", "5.1.15rc1", NANOID_AFFECTED_RANGES),
-        ("react-router", "7.18.1rc1", REACT_ROUTER_AFFECTED_RANGES),
-        ("react-router", "8.2.9rc1", REACT_ROUTER_AFFECTED_RANGES),
+        ("nanoid", "3.3.17-0", NANOID_AFFECTED_RANGES),
+        ("nanoid", "5.1.16-rc.1", NANOID_AFFECTED_RANGES),
+        ("react-router", "7.18.2-0", REACT_ROUTER_AFFECTED_RANGES),
+        ("react-router", "8.3.0-rc.1", REACT_ROUTER_AFFECTED_RANGES),
     ),
 )
 def test_target_postcondition_rejects_prerelease_versions(
@@ -621,6 +627,62 @@ def test_target_postcondition_rejects_prerelease_versions(
             target=target,
             occurrences=occurrences,
             affected_ranges=affected_ranges,
+        )
+
+
+@pytest.mark.parametrize(
+    ("target", "version", "affected_ranges"),
+    (
+        ("nanoid", "3.3.17", NANOID_AFFECTED_RANGES),
+        ("nanoid", "5.1.16+build.1", NANOID_AFFECTED_RANGES),
+        ("react-router", "7.18.2+build.1", REACT_ROUTER_AFFECTED_RANGES),
+        ("react-router", "8.3.0", REACT_ROUTER_AFFECTED_RANGES),
+    ),
+)
+def test_target_postcondition_allows_exact_stable_npm_semver(
+    target: str,
+    version: str,
+    affected_ranges: tuple[SpecifierSet, ...],
+) -> None:
+    """Exact stable npm versions remain admissible at or above fixed floors."""
+    occurrences = {
+        f"node_modules/{target}": {
+            "version": version,
+            "resolved": f"https://registry.npmjs.org/{target}/-/{target}-{version}.tgz",
+            "integrity": "sha512-test",
+        }
+    }
+
+    _assert_occurrences_outside_ranges(
+        surface="package-lock.json",
+        target=target,
+        occurrences=occurrences,
+        affected_ranges=affected_ranges,
+    )
+
+
+@pytest.mark.parametrize(
+    "version",
+    ("7.18", "07.18.2", "7.018.2", "7.18.02", "v7.18.2", "7.18.2rc1"),
+)
+def test_target_postcondition_rejects_non_exact_npm_semver(version: str) -> None:
+    """Non-SemVer and PEP-style version spellings fail before range comparison."""
+    occurrences = {
+        "node_modules/react-router": {
+            "version": version,
+            "resolved": (
+                "https://registry.npmjs.org/react-router/-/" f"react-router-{version}.tgz"
+            ),
+            "integrity": "sha512-test",
+        }
+    }
+
+    with pytest.raises(AssertionError, match="version must be exact npm SemVer"):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target="react-router",
+            occurrences=occurrences,
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
 
 

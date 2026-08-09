@@ -206,6 +206,7 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, canonical-tarball,
   integrity, and stable-release postconditions:
+  `tests/test_root_npm_dependency_guards.py::_parse_exact_npm_semver`,
   `tests/test_root_npm_dependency_guards.py::_exact_manifest_version`,
   `tests/test_root_npm_dependency_guards.py::_assert_manifest_occurrences_outside_ranges`,
   `tests/test_root_npm_dependency_guards.py::_assert_occurrences_outside_ranges`,
