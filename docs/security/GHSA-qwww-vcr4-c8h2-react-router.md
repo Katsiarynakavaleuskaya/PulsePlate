@@ -25,7 +25,9 @@ keeps the `react-router-dom` carrier edge aligned. The combined batch owner is
 single-advisory note is subordinate evidence and grants no batching authority.
 The permanent tracked-surface guard parses exact npm SemVer rather than PEP 440
 for both manifest carriers and installed lock entries, including Node-semver's
-256-character maximum and JavaScript-safe numeric-component ceiling. It rejects affected,
+raw 256-character maximum and JavaScript-safe numeric-component ceiling. Direct
+and lock values are bounded before trimming; npm aliases and tarballs bound the
+extracted version token rather than their carrier framing. It rejects affected,
 prerelease (including numeric `-0`), unversioned, out-of-bounds, or open-range
 `react-router-dom` declarations and any prerelease `react-router` lock entry,
 while permitting future exact stable carriers outside the reconciled affected

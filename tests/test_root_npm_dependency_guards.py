@@ -130,7 +130,7 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     """Discover a target-shaped tarball independently of its provenance."""
     if not isinstance(value, str):
         return False
-    parsed = urlparse(value)
+    parsed = urlparse(value.strip())
     decoded_path = _fully_decode_url_path(parsed.path)
     normalized_path = f"/{posixpath.normpath(decoded_path).lstrip('/')}"
     package_basename = target.rsplit("/", maxsplit=1)[-1]
@@ -143,10 +143,11 @@ def _dependency_identity_matches(*, key: object, value: object, target: str) -> 
         return True
     if not isinstance(value, str):
         return False
+    candidate = value.strip()
     return (
-        value == f"npm:{target}"
-        or value.startswith(f"npm:{target}@")
-        or _tarball_identity_matches(value, target=target)
+        candidate == f"npm:{target}"
+        or candidate.startswith(f"npm:{target}@")
+        or _tarball_identity_matches(candidate, target=target)
     )
 
 
@@ -191,9 +192,9 @@ def _parse_exact_npm_semver(value: object) -> tuple[Version, bool] | None:
     """Parse exact Node-semver-bounded npm SemVer and retain its prerelease bit."""
     if not isinstance(value, str):
         return None
-    candidate = value.strip()
-    if len(candidate) > _NPM_SEMVER_MAX_LENGTH:
+    if len(value) > _NPM_SEMVER_MAX_LENGTH:
         return None
+    candidate = value.strip()
     match = _EXACT_NPM_SEMVER_RE.fullmatch(candidate)
     if match is None:
         return None
@@ -207,12 +208,13 @@ def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, boo
     """Extract exact npm SemVer from a direct, alias, or target-tarball carrier."""
     if not isinstance(value, str):
         return None
-    candidate = value.strip()
+    normalized_carrier = value.strip()
+    candidate = value
     alias_prefix = f"npm:{target}@"
-    if candidate.startswith(alias_prefix):
-        candidate = candidate[len(alias_prefix) :]
-    elif _tarball_identity_matches(candidate, target=target):
-        decoded_path = _fully_decode_url_path(urlparse(candidate).path)
+    if normalized_carrier.startswith(alias_prefix):
+        candidate = normalized_carrier[len(alias_prefix) :]
+    elif _tarball_identity_matches(normalized_carrier, target=target):
+        decoded_path = _fully_decode_url_path(urlparse(normalized_carrier).path)
         filename = PurePosixPath(posixpath.normpath(decoded_path)).name
         package_basename = target.rsplit("/", maxsplit=1)[-1]
         filename_prefix = f"{package_basename}-"
@@ -735,6 +737,70 @@ def test_exact_npm_semver_allows_node_boundary_and_max_length_build() -> None:
         False,
     )
     assert _parse_exact_npm_semver(max_length_version) == (Version("1.1.1"), False)
+
+
+@pytest.mark.parametrize("padding", (" ", "\t"))
+def test_exact_npm_semver_rejects_raw_overlength_before_trimming(padding: str) -> None:
+    """Node semver measures raw text before trimming surrounding whitespace."""
+    max_length_version = f"1.1.1+{'a' * 250}"
+
+    assert len(max_length_version) == _NPM_SEMVER_MAX_LENGTH
+    assert _parse_exact_npm_semver(f"{padding}{max_length_version}") is None
+    assert _parse_exact_npm_semver(f"{max_length_version}{padding}") is None
+
+
+def test_manifest_and_lock_reject_raw_overlength_direct_version() -> None:
+    """Direct manifest and lock values share the raw Node-semver length boundary."""
+    raw_version = f"8.3.0+{'a' * 250} "
+    assert len(raw_version) == _NPM_SEMVER_MAX_LENGTH + 1
+
+    with pytest.raises(AssertionError, match="must use an exact advisory-comparable version"):
+        _assert_manifest_occurrences_outside_ranges(
+            surface="package.json",
+            target="react-router-dom",
+            occurrences={("dependencies", "react-router-dom"): raw_version},
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+        )
+
+    with pytest.raises(AssertionError, match="version must be exact npm SemVer"):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target="react-router",
+            occurrences={
+                "node_modules/react-router": {
+                    "version": raw_version,
+                    "resolved": (
+                        "https://registry.npmjs.org/react-router/-/"
+                        f"react-router-{raw_version}.tgz"
+                    ),
+                    "integrity": "sha512-test",
+                }
+            },
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+        )
+
+
+@pytest.mark.parametrize(
+    "carrier",
+    (
+        "npm:react-router-dom@{version}",
+        "https://example.invalid/react-router-dom/-/react-router-dom-{version}.tgz",
+    ),
+)
+def test_manifest_alias_and_tarball_bound_the_extracted_version_token(carrier: str) -> None:
+    """Carrier framing is excluded from the Node-semver version-token length."""
+    max_length_version = f"8.3.0+{'a' * 250}"
+    overlength_version = f"{max_length_version}a"
+
+    assert _exact_manifest_version(
+        carrier.format(version=max_length_version), target="react-router-dom"
+    ) == (Version("8.3.0"), False)
+    assert (
+        _exact_manifest_version(
+            carrier.format(version=overlength_version), target="react-router-dom"
+        )
+        is None
+    )
 
 
 def _init_indexed_npm_surface_repo(root: Path, *, package_json: str = "{}\n") -> None:

@@ -187,7 +187,8 @@ P_batch =
   AND every tracked package.json has no direct, aliased, or target-shaped tarball nanoid declaration
   AND every tracked package.json has no direct, aliased, or target-shaped tarball react-router declaration
   AND every tracked package.json react-router-dom carrier is exact npm SemVer,
-      stays within Node-semver's 256-character and numeric-component bounds,
+      applies Node-semver's raw 256-character bound to direct/lock values and
+      to the extracted alias/tarball version token, stays within its numeric-component bound,
       has no prerelease component, and is outside the affected ranges
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
