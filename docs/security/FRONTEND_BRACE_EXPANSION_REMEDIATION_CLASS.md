@@ -380,8 +380,9 @@ Stop and rescope rather than widening this PR if:
 
 - the frozen advisory response is not reproducible or contains a seventh
   candidate at the recorded cutoff;
-- a new base/head surface, unresolved occurrence, or unreconciled surface delta
-  appears;
+- a newly tracked surface contains an unresolved or unowned `brace-expansion`
+  occurrence, or the immutable historical transition delta cannot be
+  reconciled;
 - deterministic resolver replay changes another dependency identity or cannot
   reproduce the closure above;
 - a second authored operation or dependency objective is required;
