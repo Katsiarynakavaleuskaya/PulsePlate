@@ -184,9 +184,10 @@ P_batch =
   image-size absent on every governed head surface
   AND the root lockfile nanoid occurrence == 5.1.16
   AND every frontend lockfile nanoid occurrence == 3.3.17
-  AND every tracked package.json nanoid carrier under the exact nanoid key is
-      an exact stable direct selector or identity-bound npm:nanoid alias outside
-      every reconciled affected range; renamed aliases, target-shaped tarballs,
+  AND every tracked package.json nanoid carrier is an exact stable selector
+      outside every reconciled affected range; only the exact nanoid key in the
+      dependency/dev/optional/peer maps may use an identity-bound npm:nanoid
+      alias, while override aliases, renamed aliases, target-shaped tarballs,
       and local-package carriers fail closed
   AND every tracked package.json react-router carrier under the exact
       react-router key is an exact stable direct selector outside every
