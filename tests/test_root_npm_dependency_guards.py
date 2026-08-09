@@ -26,6 +26,7 @@ ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
+SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS = frozenset({2, 3})
 NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.17"),
     SpecifierSet(">=4,<5.1.16"),
@@ -431,7 +432,12 @@ def _lock_path_package_identity(raw_path: str) -> str | None:
 
 def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
     """Find installed target entries by path, name, or origin-neutral tarball identity."""
-    assert document.get("lockfileVersion") == 3, "npm lock surface: lockfileVersion must be 3"
+    lockfile_version = document.get("lockfileVersion")
+    assert (
+        isinstance(lockfile_version, int)
+        and not isinstance(lockfile_version, bool)
+        and (lockfile_version in SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS)
+    ), "npm lock surface: lockfileVersion must be supported JSON lock version 2 or 3"
     packages = _require_dict_field(document, "packages", ctx="npm lock surface")
     occurrences: dict[str, dict[str, Any]] = {}
     for raw_path, raw_entry in packages.items():
@@ -636,7 +642,13 @@ def test_tracked_npm_manifests_reject_opaque_dependency_sources() -> None:
             affected_ranges=NANOID_AFFECTED_RANGES,
         )
         for occurrence_path in nanoid_occurrences:
-            opaque_occurrences.pop(occurrence_path, None)
+            if occurrence_path in {
+                ("dependencies", "nanoid"),
+                ("devDependencies", "nanoid"),
+                ("optionalDependencies", "nanoid"),
+                ("peerDependencies", "nanoid"),
+            }:
+                opaque_occurrences.pop(occurrence_path, None)
         assert (
             not opaque_occurrences
         ), f"{relative}: opaque dependency source requires separate provenance"
@@ -696,12 +708,17 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
     for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
-            assert not _find_governed_manifest_occurrences(
+            _assert_manifest_occurrences_outside_ranges(
                 surface=relative,
-                document=document,
-                surfaces=surfaces,
                 target="react-router",
-            ), f"{relative}: react-router must remain transitive, not direct intent"
+                occurrences=_find_governed_manifest_occurrences(
+                    surface=relative,
+                    document=document,
+                    surfaces=surfaces,
+                    target="react-router",
+                ),
+                affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+            )
             _assert_manifest_occurrences_outside_ranges(
                 surface=relative,
                 target="react-router-dom",
@@ -1132,6 +1149,30 @@ def test_manifest_full_object_without_dot_only_walks_children() -> None:
     assert _find_manifest_occurrences(document, target="react-router") == {
         ("overrides", "react-router-dom@<=7.18.1", "react-router"): "8.3.0"
     }
+
+
+@pytest.mark.parametrize("lockfile_version", (2, 3))
+def test_lock_discovery_accepts_supported_json_lock_versions(lockfile_version: int) -> None:
+    """npm JSON lock v2 and v3 expose the same governed packages map."""
+    entry = {"version": "5.1.16"}
+    document = {
+        "lockfileVersion": lockfile_version,
+        "packages": {"node_modules/nanoid": entry},
+    }
+
+    assert _find_lock_occurrences(document, target="nanoid") == {"node_modules/nanoid": entry}
+
+
+@pytest.mark.parametrize("lockfile_version", (None, 1, 4, "3", 2.0, True))
+def test_lock_discovery_rejects_unsupported_json_lock_versions(
+    lockfile_version: object,
+) -> None:
+    """Missing, legacy, future, and malformed lock versions fail closed."""
+    with pytest.raises(AssertionError, match="lock version 2 or 3"):
+        _find_lock_occurrences(
+            {"lockfileVersion": lockfile_version, "packages": {}},
+            target="nanoid",
+        )
 
 
 @pytest.mark.parametrize(
@@ -1661,22 +1702,37 @@ printf '%s\\n' "$@"
     ]
 
 
-@pytest.mark.parametrize(
-    ("key", "value"),
-    (("nanoid", "5.1.16"), ("renamed-nanoid", "npm:nanoid@5.1.16")),
-)
+@pytest.mark.parametrize("value", ("5.1.16", "npm:nanoid@5.1.16"))
 def test_nanoid_guards_allow_safe_exact_manifest_carrier(
-    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+    monkeypatch: pytest.MonkeyPatch, value: str
 ) -> None:
-    """A safe direct or identity-bound alias is validated without freezing topology."""
+    """A safe exact-key carrier is validated without freezing topology."""
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",
-        lambda: {"scripts/business_collateral/package.json": {"dependencies": {key: value}}},
+        lambda: {"scripts/business_collateral/package.json": {"dependencies": {"nanoid": value}}},
     )
 
     test_tracked_npm_manifests_reject_opaque_dependency_sources()
     test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_opaque_source_owner_rejects_renamed_safe_nanoid_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only an exact NanoID key can delegate its npm alias to the range owner."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {
+                "dependencies": {"renamed-id": "npm:nanoid@5.1.16"}
+            }
+        },
+    )
+
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
 
 
 @pytest.mark.parametrize(
@@ -1697,10 +1753,25 @@ def test_nanoid_guard_rejects_affected_manifest_carrier(
         test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 
-def test_react_router_guard_rejects_declaration_in_any_tracked_manifest(
+def test_react_router_guard_allows_safe_exact_direct_manifest_carrier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A nested tracked manifest cannot bypass the transitive Router invariant."""
+    """A safe direct Router carrier is checked without pinning transitive topology."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {"dependencies": {"react-router": "7.18.2"}}
+        },
+    )
+
+    test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_react_router_guard_rejects_affected_alias_in_any_tracked_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An affected Router alias remains subject to the same manifest range owner."""
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",
@@ -1711,10 +1782,7 @@ def test_react_router_guard_rejects_declaration_in_any_tracked_manifest(
         },
     )
 
-    with pytest.raises(
-        AssertionError,
-        match="scripts/business_collateral/package.json: react-router must remain transitive",
-    ):
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 

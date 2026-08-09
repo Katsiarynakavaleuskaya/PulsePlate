@@ -28,6 +28,8 @@ BRACE_EXPANSION_EVIDENCE_PATH = (
     REPO_ROOT / "docs" / "security" / "FRONTEND_BRACE_EXPANSION_REMEDIATION_CLASS.md"
 )
 NPM_REGISTRY_HOST = "registry.npmjs.org"
+NPM_SEMVER_MAX_LENGTH = 256
+NPM_SEMVER_MAX_SAFE_INTEGER = 9_007_199_254_740_991
 EXACT_NPM_SEMVER_RE = re.compile(
     r"(?P<core>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -206,13 +208,23 @@ def _assert_npm_registry_resolution(*, package_name: str, resolved: str) -> None
 
 def _parse_version(*, value: object, source: str) -> Version:
     assert isinstance(value, str) and value, f"{source}: version missing"
-    match = EXACT_NPM_SEMVER_RE.fullmatch(value) if value.isascii() else None
+    match = (
+        EXACT_NPM_SEMVER_RE.fullmatch(value)
+        if len(value) <= NPM_SEMVER_MAX_LENGTH and value.isascii()
+        else None
+    )
     prerelease = match.group("prerelease") if match is not None else None
     if match is None or (
-        prerelease is not None
-        and any(
-            len(identifier) > 1 and identifier.startswith("0") and identifier.isdigit()
-            for identifier in prerelease[1:].split(".")
+        any(
+            int(component) > NPM_SEMVER_MAX_SAFE_INTEGER
+            for component in match.group("core").split(".")
+        )
+        or (
+            prerelease is not None
+            and any(
+                len(identifier) > 1 and identifier.startswith("0") and identifier.isdigit()
+                for identifier in prerelease[1:].split(".")
+            )
         )
     ):
         raise AssertionError(f"{source}: malformed version {value!r}")
@@ -1137,6 +1149,19 @@ def _brace_expansion_guard_fixture() -> tuple[dict, dict]:
 
 def test_parse_version_accepts_exact_npm_semver() -> None:
     assert _parse_version(value="2.1.3", source="fixture") == Version("2.1.3")
+
+
+def test_parse_version_accepts_number_max_safe_integer_component() -> None:
+    value = f"2.{NPM_SEMVER_MAX_SAFE_INTEGER}.0"
+
+    assert _parse_version(value=value, source="fixture") == Version(value)
+
+
+def test_parse_version_rejects_component_above_number_max_safe_integer() -> None:
+    value = f"2.{NPM_SEMVER_MAX_SAFE_INTEGER + 1}.0"
+
+    with pytest.raises(AssertionError, match="malformed version"):
+        _parse_version(value=value, source="fixture")
 
 
 @pytest.mark.parametrize("value", ("2.1.3.post1", "2.1.3rc1"))
