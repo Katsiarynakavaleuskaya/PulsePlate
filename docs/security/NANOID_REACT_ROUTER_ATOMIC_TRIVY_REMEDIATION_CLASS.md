@@ -192,7 +192,8 @@ P_batch =
       has no prerelease component, and is outside the affected ranges
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
-      canonical registry tarball version matches `version` and whose integrity is non-empty
+      origin-neutral target identity is discovered before its canonical registry
+      tarball version is required to match `version` with non-empty integrity
   AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy or .trivyignore
 ```
 
@@ -207,7 +208,8 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, Node-semver length/numeric,
-  canonical-tarball, integrity, and stable-release postconditions:
+  origin-neutral lock discovery, canonical-tarball provenance, integrity, and
+  stable-release postconditions:
   `tests/test_root_npm_dependency_guards.py::_parse_exact_npm_semver`,
   `tests/test_root_npm_dependency_guards.py::_exact_manifest_version`,
   `tests/test_root_npm_dependency_guards.py::_assert_manifest_occurrences_outside_ranges`,

@@ -31,7 +31,9 @@ extracted version token rather than their carrier framing. It rejects affected,
 prerelease (including numeric `-0`), unversioned, out-of-bounds, or open-range
 `react-router-dom` declarations and any prerelease `react-router` lock entry,
 while permitting future exact stable carriers outside the reconciled affected
-ranges.
+ranges. Lock identity discovery is origin-neutral so a renamed mirror URL cannot
+hide the package; canonical npm-registry provenance, tarball/version equality,
+and integrity are validated only after the occurrence is found.
 
 The exact suppression was deleted: the former five-predicate Rego rule for
 `GHSA-qwww-vcr4-c8h2` and its header reference were removed from

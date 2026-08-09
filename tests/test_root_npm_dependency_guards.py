@@ -257,7 +257,7 @@ def _resolved_registry_version(value: object, *, target: str) -> str | None:
 
 
 def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str, dict[str, Any]]:
-    """Find installed target entries by path, name, or canonical registry identity."""
+    """Find installed target entries by path, name, or origin-neutral tarball identity."""
     assert document.get("lockfileVersion") == 3, "npm lock surface: lockfileVersion must be 3"
     packages = _require_dict_field(document, "packages", ctx="npm lock surface")
     occurrences: dict[str, dict[str, Any]] = {}
@@ -269,9 +269,7 @@ def _find_lock_occurrences(document: dict[str, Any], *, target: str) -> dict[str
         package_path = PurePosixPath(raw_path)
         path_matches = bool(package_path.parts) and package_path.name == target
         name_matches = raw_entry.get("name") == target
-        resolved_matches = (
-            _resolved_registry_version(raw_entry.get("resolved"), target=target) is not None
-        )
+        resolved_matches = _tarball_identity_matches(raw_entry.get("resolved"), target=target)
         if path_matches or name_matches or resolved_matches:
             occurrences[raw_path] = cast(dict[str, Any], raw_entry)
     return occurrences
@@ -535,6 +533,96 @@ def test_retired_graph_lock_discovery_rejects_path_name_and_resolution_aliases(
     """Path, package name, and canonical registry identity are all detected."""
     document = {"lockfileVersion": 3, "packages": {package_path: entry}}
     assert _find_lock_occurrences(document, target="image-size") == {package_path: entry}
+
+
+@pytest.mark.parametrize(
+    ("target", "version", "encoded_target"),
+    (
+        ("image-size", "1.2.1", "%69mage-size"),
+        ("pptxgenjs", "4.0.1", "%70ptxgenjs"),
+        ("nanoid", "5.1.7", "%6eanoid"),
+        ("react-router", "7.18.1", "%72eact-router"),
+    ),
+)
+@pytest.mark.parametrize("encoded", (False, True))
+def test_lock_discovery_finds_foreign_target_tarballs_before_provenance_validation(
+    target: str,
+    version: str,
+    encoded_target: str,
+    encoded: bool,
+) -> None:
+    """Renamed lock entries cannot hide target identity behind a mirror URL."""
+    path_target = encoded_target if encoded else target
+    entry = {
+        "version": version,
+        "resolved": (f"https://mirror.example.invalid/{path_target}/-/" f"{target}-{version}.tgz"),
+        "integrity": "sha512-test",
+    }
+    package_path = "node_modules/renamed-carrier"
+    document = {"lockfileVersion": 3, "packages": {package_path: entry}}
+
+    assert _find_lock_occurrences(document, target=target) == {package_path: entry}
+
+
+@pytest.mark.parametrize(
+    ("target", "version", "affected_ranges"),
+    (
+        ("nanoid", "5.1.7", NANOID_AFFECTED_RANGES),
+        ("react-router", "7.18.1", REACT_ROUTER_AFFECTED_RANGES),
+    ),
+)
+def test_target_postcondition_rejects_foreign_tarball_after_identity_discovery(
+    target: str,
+    version: str,
+    affected_ranges: tuple[SpecifierSet, ...],
+) -> None:
+    """Origin-neutral discovery remains separate from canonical provenance."""
+    package_path = "node_modules/renamed-carrier"
+    document = {
+        "lockfileVersion": 3,
+        "packages": {
+            package_path: {
+                "version": version,
+                "resolved": (
+                    f"https://mirror.example.invalid/{target}/-/" f"{target}-{version}.tgz"
+                ),
+                "integrity": "sha512-test",
+            }
+        },
+    }
+    occurrences = _find_lock_occurrences(document, target=target)
+
+    with pytest.raises(AssertionError, match="resolved must be the canonical"):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target=target,
+            occurrences=occurrences,
+            affected_ranges=affected_ranges,
+        )
+
+
+@pytest.mark.parametrize(
+    "resolved",
+    (
+        "https://mirror.example.invalid/other/-/react-router-7.18.1.tgz",
+        "https://mirror.example.invalid/react-routers/-/react-routers-7.18.1.tgz",
+        "https://mirror.example.invalid/react-router/react-router-7.18.1.tgz",
+    ),
+)
+def test_lock_discovery_ignores_foreign_tarball_identity_near_misses(resolved: str) -> None:
+    """Foreign provenance alone cannot turn an unrelated path into the target."""
+    document = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/renamed-carrier": {
+                "version": "7.18.1",
+                "resolved": resolved,
+                "integrity": "sha512-test",
+            }
+        },
+    }
+
+    assert not _find_lock_occurrences(document, target="react-router")
 
 
 def test_retired_graph_lock_discovery_rejects_malformed_scalar_entry() -> None:
