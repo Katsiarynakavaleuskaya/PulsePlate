@@ -5440,10 +5440,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-07-09**
+  - **Rego suppressions last reviewed: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
     - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)
+    - PR #2246: Rechecked current Debian primary evidence for residual zlib/3184/ncurses rules; bookworm still has no actionable fixed package path for these exact contexts, so Review-by dates are 2026-09-08 while rule bodies and the shared 2026-10-07 file expiry remain unchanged
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 
