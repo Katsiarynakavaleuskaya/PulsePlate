@@ -393,14 +393,73 @@ def _assert_occurrences_outside_ranges(
         ), f"{surface}:{package_path}: {version} remains inside a reconciled affected range"
 
 
-def _occurrence_version_set(occurrences: dict[str, dict[str, Any]]) -> set[str]:
-    """Return validated textual versions for cross-carrier alignment checks."""
-    versions: set[str] = set()
-    for package_path, entry in occurrences.items():
-        version = entry.get("version")
-        assert isinstance(version, str), f"{package_path}: version must be text"
-        versions.add(version)
-    return versions
+def _npm_dependency_resolution_paths(*, package_path: str, target: str) -> tuple[str, ...]:
+    """Return nearest-first npm lock paths able to resolve one dependency."""
+    assert "\\" not in package_path, f"{package_path}: npm lock path must use POSIX separators"
+    path = PurePosixPath(package_path)
+    assert not path.is_absolute(), f"{package_path}: npm lock path must be relative"
+    assert ".." not in path.parts, f"{package_path}: npm lock path must not traverse"
+    node_modules_indices = [
+        index for index, component in enumerate(path.parts) if component == "node_modules"
+    ]
+    assert (
+        node_modules_indices
+    ), f"{package_path}: installed npm dependency path must include node_modules"
+    return tuple(
+        PurePosixPath(*path.parts[: index + 1], target).as_posix()
+        for index in reversed(node_modules_indices)
+    )
+
+
+def _assert_react_router_dom_dependency_edges(
+    *,
+    surface: str,
+    dom_occurrences: dict[str, dict[str, Any]],
+    router_occurrences: dict[str, dict[str, Any]],
+) -> None:
+    """Bind every Router DOM artifact to its exact validated Router dependency."""
+    for package_path, entry in dom_occurrences.items():
+        dependencies = entry.get("dependencies")
+        assert isinstance(
+            dependencies, dict
+        ), f"{surface}:{package_path}: react-router-dom dependencies must be an object"
+        raw_edge = dependencies.get("react-router")
+        parsed_edge = _parse_exact_npm_semver(raw_edge)
+        assert parsed_edge is not None, (
+            f"{surface}:{package_path}: react-router-dom must declare an exact "
+            "react-router dependency"
+        )
+        edge_version, edge_is_prerelease = parsed_edge
+        assert (
+            not edge_is_prerelease
+        ), f"{surface}:{package_path}: react-router dependency must be a stable release"
+        for affected_range in REACT_ROUTER_AFFECTED_RANGES:
+            assert edge_version not in affected_range, (
+                f"{surface}:{package_path}: react-router dependency {edge_version} "
+                "remains inside a reconciled affected range"
+            )
+        dom_version = entry.get("version")
+        assert raw_edge == dom_version, (
+            f"{surface}:{package_path}: react-router dependency must equal "
+            "react-router-dom package version"
+        )
+        resolution_paths = _npm_dependency_resolution_paths(
+            package_path=package_path,
+            target="react-router",
+        )
+        resolved_path = next(
+            (candidate for candidate in resolution_paths if candidate in router_occurrences),
+            None,
+        )
+        assert resolved_path is not None, (
+            f"{surface}:{package_path}: react-router dependency has no corresponding "
+            "nested or hoisted installed occurrence"
+        )
+        resolved_version = router_occurrences[resolved_path].get("version")
+        assert raw_edge == resolved_version, (
+            f"{surface}:{package_path}: react-router dependency must equal corresponding "
+            f"installed occurrence {resolved_path}"
+        )
 
 
 def test_root_lock_removes_hono_runtime_path() -> None:
@@ -547,14 +606,11 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             occurrences=dom_occurrences,
             affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
         )
-        if router_occurrences or dom_occurrences:
-            assert router_occurrences and dom_occurrences, (
-                f"{relative}: react-router and react-router-dom lock occurrences "
-                "must exist together"
-            )
-            assert _occurrence_version_set(router_occurrences) == _occurrence_version_set(
-                dom_occurrences
-            ), f"{relative}: react-router and react-router-dom lock versions must stay aligned"
+        _assert_react_router_dom_dependency_edges(
+            surface=relative,
+            dom_occurrences=dom_occurrences,
+            router_occurrences=router_occurrences,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1337,7 +1393,7 @@ def test_react_router_guard_rejects_manifest_tarball_without_lock_provenance(
     ("dom_version", "dom_tarball_version", "message"),
     (
         ("7.18.2", "7.18.1", "resolved tarball version must equal package version"),
-        ("8.3.0", "8.3.0", "lock versions must stay aligned"),
+        ("8.3.0", "8.3.0", "must equal corresponding installed occurrence"),
     ),
 )
 def test_react_router_guard_validates_dom_lock_artifact_and_alignment(
@@ -1363,6 +1419,7 @@ def test_react_router_guard_validates_dom_lock_artifact_and_alignment(
                     f"react-router-dom-{dom_tarball_version}.tgz"
                 ),
                 "integrity": "sha512-dom",
+                "dependencies": {"react-router": dom_version},
             },
         },
     }
@@ -1373,6 +1430,123 @@ def test_react_router_guard_validates_dom_lock_artifact_and_alignment(
     )
 
     with pytest.raises(AssertionError, match=message):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("edge", "message"),
+    (
+        (None, "must declare an exact react-router dependency"),
+        ("^7.18.2", "must declare an exact react-router dependency"),
+        ("7.18.1", "remains inside a reconciled affected range"),
+        ("8.3.0", "must equal react-router-dom package version"),
+    ),
+)
+def test_react_router_guard_rejects_invalid_dom_router_dependency_edge(
+    monkeypatch: pytest.MonkeyPatch,
+    edge: str | None,
+    message: str,
+) -> None:
+    """A safe DOM artifact cannot retain a missing, open, affected, or divergent edge."""
+    dom_dependencies = {} if edge is None else {"react-router": edge}
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/react-router": {
+                "version": "7.18.2",
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-7.18.2.tgz"),
+                "integrity": "sha512-router",
+            },
+            "node_modules/react-router-dom": {
+                "version": "7.18.2",
+                "resolved": (
+                    "https://registry.npmjs.org/react-router-dom/-/" "react-router-dom-7.18.2.tgz"
+                ),
+                "integrity": "sha512-dom",
+                "dependencies": dom_dependencies,
+            },
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"frontend/package-lock.json": lock},
+    )
+
+    with pytest.raises(AssertionError, match=message):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "router_path",
+    (
+        "node_modules/carrier/node_modules/react-router",
+        "node_modules/react-router",
+    ),
+)
+def test_react_router_guard_allows_nested_or_hoisted_future_aligned_dependency_edge(
+    monkeypatch: pytest.MonkeyPatch,
+    router_path: str,
+) -> None:
+    """Future stable DOM edges may resolve a nested or hoisted aligned Router."""
+    version = "8.3.0"
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            router_path: {
+                "version": version,
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-8.3.0.tgz"),
+                "integrity": "sha512-router",
+            },
+            "node_modules/carrier/node_modules/react-router-dom": {
+                "version": version,
+                "resolved": (
+                    "https://registry.npmjs.org/react-router-dom/-/" "react-router-dom-8.3.0.tgz"
+                ),
+                "integrity": "sha512-dom",
+                "dependencies": {"react-router": version},
+            },
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"frontend/package-lock.json": lock},
+    )
+
+    test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_react_router_guard_rejects_unreachable_same_version_router_occurrence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A safe Router in a sibling subtree cannot satisfy an unreachable DOM edge."""
+    version = "8.3.0"
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/other/node_modules/react-router": {
+                "version": version,
+                "resolved": ("https://registry.npmjs.org/react-router/-/react-router-8.3.0.tgz"),
+                "integrity": "sha512-router",
+            },
+            "node_modules/carrier/node_modules/react-router-dom": {
+                "version": version,
+                "resolved": (
+                    "https://registry.npmjs.org/react-router-dom/-/" "react-router-dom-8.3.0.tgz"
+                ),
+                "integrity": "sha512-dom",
+                "dependencies": {"react-router": version},
+            },
+        },
+    }
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"frontend/package-lock.json": lock},
+    )
+
+    with pytest.raises(AssertionError, match="no corresponding nested or hoisted"):
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 

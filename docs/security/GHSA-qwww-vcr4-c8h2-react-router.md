@@ -42,7 +42,11 @@ tracked manifest and inherit identity only from their referenced tracked
 Manifest tarball carriers are rejected because they lack lockfile-bound
 integrity. Installed `react-router` and `react-router-dom` records are both
 validated for canonical provenance, integrity, safe stable versions, and
-mutual version alignment; the permanent guard does not freeze them at `7.18.2`.
+mutual dependency alignment. Every `react-router-dom` lock artifact must also
+carry an exact stable `react-router` dependency edge equal to its own version
+and resolve it to the corresponding nearest nested or hoisted validated Router
+occurrence. Independent safe Router occurrences remain allowed, so the
+permanent guard freezes neither the lock topology nor the pair at `7.18.2`.
 
 The exact suppression was deleted: the former five-predicate Rego rule for
 `GHSA-qwww-vcr4-c8h2` and its header reference were removed from

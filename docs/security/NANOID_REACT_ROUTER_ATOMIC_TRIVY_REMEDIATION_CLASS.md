@@ -192,7 +192,10 @@ P_batch =
       applies Node-semver's raw 256-character bound to direct/lock values and
       to the extracted alias/tarball version token, stays within its numeric-component bound,
       has no prerelease component, and is outside the affected ranges
-  AND every lockfile carries aligned react-router and react-router-dom stable versions
+  AND every react-router-dom lock artifact declares an exact stable react-router
+      dependency equal to its own version and resolves it to the corresponding
+      nearest nested or hoisted validated Router occurrence; independent safe Router
+      occurrences are allowed and do not freeze the lockfile topology
   AND every retained nanoid/react-router occurrence is a stable version whose
       origin-neutral target identity is discovered before its canonical registry
       tarball version is required to match `version` with non-empty integrity;
@@ -214,11 +217,12 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, Node-semver length/numeric,
   origin-neutral lock discovery, canonical-tarball provenance, integrity, and
-  stable-release and Router/DOM alignment postconditions:
+  stable-release, Router/DOM artifact resolution, and exact dependency-edge postconditions:
   `tests/test_root_npm_dependency_guards.py::_parse_exact_npm_semver`,
   `tests/test_root_npm_dependency_guards.py::_exact_manifest_version`,
   `tests/test_root_npm_dependency_guards.py::_assert_manifest_occurrences_outside_ranges`,
   `tests/test_root_npm_dependency_guards.py::_assert_occurrences_outside_ranges`,
+  `tests/test_root_npm_dependency_guards.py::_assert_react_router_dom_dependency_edges`,
   `tests/test_root_npm_dependency_guards.py::test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges`,
   and `tests/test_root_npm_dependency_guards.py::test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges`;
 - target-capable React Router suppression denial across both active ignore
