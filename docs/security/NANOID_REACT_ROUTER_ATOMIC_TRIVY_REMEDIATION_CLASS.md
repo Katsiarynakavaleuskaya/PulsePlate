@@ -186,6 +186,7 @@ P_batch =
   AND every frontend lockfile nanoid occurrence == 3.3.17
   AND every tracked package.json has no direct, aliased, or target-shaped tarball nanoid declaration
   AND every tracked package.json has no direct, aliased, or target-shaped tarball react-router declaration
+  AND every tracked package.json react-router-dom carrier is an exact stable version outside the affected ranges
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
       canonical registry tarball version matches `version` and whose integrity is non-empty
@@ -204,6 +205,7 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, canonical-tarball,
   integrity, and stable-release postconditions:
+  `tests/test_root_npm_dependency_guards.py::_assert_manifest_occurrences_outside_ranges`,
   `tests/test_root_npm_dependency_guards.py::_assert_occurrences_outside_ranges`,
   `tests/test_root_npm_dependency_guards.py::test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges`,
   and `tests/test_root_npm_dependency_guards.py::test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges`;

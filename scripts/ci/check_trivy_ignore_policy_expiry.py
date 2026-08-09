@@ -252,18 +252,26 @@ def _direct_input_equality(tokens: tuple[_RegoToken, ...]) -> tuple[str, str] | 
     return None
 
 
-def _with_modifier_target(tokens: tuple[_RegoToken, ...]) -> tuple[_RegoToken, ...] | None:
-    """Return a complete following-line ``with`` target, or fail closed."""
+def _with_modifier_targets(
+    tokens: tuple[_RegoToken, ...],
+) -> tuple[tuple[_RegoToken, ...], ...] | None:
+    """Return every complete chained ``with`` target, or fail closed."""
 
     if not tokens or tokens[0].value != "with":
         return None
-    separator_index = next(
-        (index for index, token in enumerate(tokens[1:], start=1) if token.value == "as"),
-        None,
-    )
-    if separator_index is None or separator_index == 1 or separator_index + 1 >= len(tokens):
-        return None
-    return tokens[1:separator_index]
+    modifier_starts = [index for index, token in enumerate(tokens) if token.value == "with"]
+    targets: list[tuple[_RegoToken, ...]] = []
+    for position, start in enumerate(modifier_starts):
+        end = modifier_starts[position + 1] if position + 1 < len(modifier_starts) else len(tokens)
+        modifier = tokens[start + 1 : end]
+        separator_index = next(
+            (index for index, token in enumerate(modifier) if token.value == "as"),
+            None,
+        )
+        if separator_index is None or separator_index == 0 or separator_index + 1 >= len(modifier):
+            return None
+        targets.append(modifier[:separator_index])
+    return tuple(targets)
 
 
 def _with_target_can_affect_input_field(
@@ -336,8 +344,10 @@ def _direct_input_equality_expression(
         return None
     field, _value = equality
     for modifier_tokens in modifier_lines:
-        target = _with_modifier_target(modifier_tokens)
-        if target is None or _with_target_can_affect_input_field(target, field):
+        targets = _with_modifier_targets(modifier_tokens)
+        if targets is None or any(
+            _with_target_can_affect_input_field(target, field) for target in targets
+        ):
             return None
     return equality
 

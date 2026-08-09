@@ -23,6 +23,9 @@ Canonical npm resolution moves both installed lock entries to `7.18.2` and
 keeps the `react-router-dom` carrier edge aligned. The combined batch owner is
 `docs/security/NANOID_REACT_ROUTER_ATOMIC_TRIVY_REMEDIATION_CLASS.md`; this
 single-advisory note is subordinate evidence and grants no batching authority.
+The permanent tracked-surface guard rejects affected, prerelease, or open-range
+`react-router-dom` declarations in any manifest while permitting future exact
+stable carriers outside the reconciled affected ranges.
 
 The exact suppression was deleted: the former five-predicate Rego rule for
 `GHSA-qwww-vcr4-c8h2` and its header reference were removed from
@@ -32,12 +35,13 @@ broader rule, severity exception, allowlist, or scanner bypass was added.
 supported Rego ignore rule or active `.trivyignore` entry can match this
 advisory, while preserving the generic parser, expiry, and review-date checks
 for unrelated active rules. `tests/test_trivy_ignore_policy_expiry.py` covers
-exact and alternate target-capable Rego shapes, an active `.trivyignore`
-reintroduction, and unrelated/comment-only negative controls.
+exact and alternate target-capable Rego shapes, every target of a chained
+`with` modifier, an active `.trivyignore` reintroduction, and
+unrelated/comment-only negative controls.
 
 Executable evidence is owned by
 `scripts/ci/check_trivy_ignore_policy_expiry.py::_ignore_block_can_match_react_router_target`
-(`scripts/ci/check_trivy_ignore_policy_expiry.py:345`) and
+(`scripts/ci/check_trivy_ignore_policy_expiry.py:355`) and
 `scripts/ci/check_trivy_ignore_policy_expiry.py::_validate_react_router_rsc_trivyignore_absent`
 for conservative target matching across both active sources, plus
 `tests/test_trivy_ignore_policy_expiry.py::test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction`

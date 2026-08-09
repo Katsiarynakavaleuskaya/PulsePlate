@@ -950,6 +950,24 @@ def _write_expiry_wrapper_policy_with_body(repo_root: Path, body: str) -> Path:
             "\n".join(
                 (
                     '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    '\twith input.PkgName as "react-router" with input.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="chained-with-second-modifier-overrides-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    '\twith data.PkgName as "react-router" with input["VulnerabilityID"] as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="chained-with-second-bracket-modifier-overrides-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
                     "\twith",
                     '\tinput.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
                 )
@@ -1026,6 +1044,10 @@ def test_unrelated_rule_with_explicit_conflicting_vulnerability_stays_valid(
         pytest.param(
             'with data.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
             id="data-document-near-miss",
+        ),
+        pytest.param(
+            'with input.PkgName as "react-router" with data.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+            id="chained-non-overlapping-modifiers",
         ),
     ],
 )

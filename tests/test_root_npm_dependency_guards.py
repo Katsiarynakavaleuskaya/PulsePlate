@@ -179,6 +179,50 @@ def _find_manifest_occurrences(
     return occurrences
 
 
+def _exact_manifest_version(value: object, *, target: str) -> Version | None:
+    """Parse an exact direct, alias, or target-tarball manifest version."""
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    alias_prefix = f"npm:{target}@"
+    if candidate.startswith(alias_prefix):
+        candidate = candidate[len(alias_prefix) :]
+    elif _tarball_identity_matches(candidate, target=target):
+        decoded_path = _fully_decode_url_path(urlparse(candidate).path)
+        filename = PurePosixPath(posixpath.normpath(decoded_path)).name
+        package_basename = target.rsplit("/", maxsplit=1)[-1]
+        filename_prefix = f"{package_basename}-"
+        if not filename.startswith(filename_prefix) or not filename.endswith(".tgz"):
+            return None
+        candidate = filename[len(filename_prefix) : -len(".tgz")]
+    try:
+        return Version(candidate)
+    except InvalidVersion:
+        return None
+
+
+def _assert_manifest_occurrences_outside_ranges(
+    *,
+    surface: str,
+    target: str,
+    occurrences: dict[tuple[str, ...], object],
+    affected_ranges: tuple[SpecifierSet, ...],
+) -> None:
+    """Require exact stable manifest carriers outside every affected range."""
+    for occurrence_path, raw_value in occurrences.items():
+        location = "/".join(occurrence_path)
+        version = _exact_manifest_version(raw_value, target=target)
+        assert (
+            version is not None
+        ), f"{surface}:{location}: {target} must use an exact advisory-comparable version"
+        assert (
+            not version.is_prerelease
+        ), f"{surface}:{location}: prerelease target versions fail closed"
+        assert not any(
+            version in affected for affected in affected_ranges
+        ), f"{surface}:{location}: {version} remains inside a reconciled affected range"
+
+
 def _resolved_registry_version(value: object, *, target: str) -> str | None:
     if not isinstance(value, str):
         return None
@@ -344,13 +388,19 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
 
 
 def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
-    """Every installed React Router remains outside both known affected ranges."""
+    """Every Router install and direct DOM carrier remains outside affected ranges."""
     for relative, document in _load_tracked_npm_surfaces().items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
             assert not _find_manifest_occurrences(
                 document, target="react-router"
             ), f"{relative}: react-router must remain transitive, not direct intent"
+            _assert_manifest_occurrences_outside_ranges(
+                surface=relative,
+                target="react-router-dom",
+                occurrences=_find_manifest_occurrences(document, target="react-router-dom"),
+                affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+            )
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
         _assert_occurrences_outside_ranges(
@@ -715,3 +765,73 @@ def test_react_router_guard_rejects_declaration_in_any_tracked_manifest(
         match="scripts/business_collateral/package.json: react-router must remain transitive",
     ):
         test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("field", "key", "value"),
+    (
+        ("dependencies", "react-router-dom", "7.18.1"),
+        ("optionalDependencies", "router-carrier", "npm:react-router-dom@7.18.1"),
+        (
+            "peerDependencies",
+            "router-carrier",
+            "https://example.invalid/react-router-dom/-/react-router-dom-7.18.1.tgz",
+        ),
+    ),
+)
+def test_react_router_guard_rejects_affected_carrier_in_any_tracked_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    key: str,
+    value: str,
+) -> None:
+    """A lockless affected Router DOM carrier cannot bypass the universal guard."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {field: {key: value}},
+        },
+    )
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize("value", ("^7.18.2", "npm:react-router-dom@~7.18.2"))
+def test_react_router_guard_rejects_non_exact_carrier_range(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    """An open manifest range cannot stand in for one comparable safe carrier."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {
+                "dependencies": {"react-router-dom": value}
+            },
+        },
+    )
+
+    with pytest.raises(AssertionError, match="must use an exact advisory-comparable version"):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize("value", ("7.18.3", "npm:react-router-dom@8.3.0"))
+def test_react_router_guard_allows_future_exact_safe_carrier(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    """Future exact stable carriers stay admissible outside reconciled ranges."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {
+                "dependencies": {"react-router-dom": value}
+            },
+        },
+    )
+
+    test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
