@@ -332,18 +332,21 @@ current tracked surface must be parseable and outside every affected range, or
 the current graph must prove executable absence. The immutable evidence derives
 `A` from exact base witnesses and records the four non-applicable dispositions.
 The permanent guard independently checks every currently discovered manifest
-and lock version against all six candidates, validates registry provenance and
-manifest/lock consistency, and rejects malformed or hidden aliases. It does not
-require the historical `2.1.3`/`5.0.8` pair to remain installed forever.
+carrier and lock version against all six candidates, validates registry
+provenance and manifest/lock consistency, and rejects malformed or hidden
+aliases. It does not require the historical `2.1.3`/`5.0.8` pair to remain
+installed forever.
 
 Candidate discovery is deliberately separate from provenance validity. Within
-the finite manifest override tree, a key equal to `brace-expansion`, a selector
-key beginning `brace-expansion@`, or a string value equal to
-`npm:brace-expansion` or beginning `npm:brace-expansion@` is a bounded identity
-signal. An alias value is discovered even when its surrounding key is renamed;
-it then fails this class unless it is one of the two exact approved intent
-paths and outputs. Arbitrary strings and other package-manager syntaxes are not
-treated as npm aliases.
+the finite tracked manifest, a key equal to `brace-expansion`, a selector key
+beginning `brace-expansion@`, a string value equal to `npm:brace-expansion` or
+beginning `npm:brace-expansion@`, a registry-tarball pathname in the
+`brace-expansion` namespace, or a bundled-dependency entry equal to
+`brace-expansion` is a bounded identity signal. Direct, optional, peer, renamed,
+tarball, bundled, and override carriers are therefore discovered before the
+guard permits only the two exact approved override intent paths and outputs.
+Arbitrary strings and other package-manager syntaxes are not treated as npm
+aliases.
 
 Within the finite lockfile-v3 `packages` map, an entry is considered a potential
 `brace-expansion` occurrence when any of these bounded identity signals exists:
@@ -358,10 +361,10 @@ empty URL params/query/fragment, a consistent optional name, and non-empty
 integrity. Thus a foreign-host, query-decorated, or fragment-decorated alias is
 rejected rather than disappearing from the quantified candidate universe.
 
-This is a finite closed-world claim over the manifest override tree and
-lockfile-v3 `packages` map. It does not claim recognition of arbitrary mirrors,
-renamed packages, publisher behavior, future advisories, future lockfile
-schemas, or artifacts with none of the three bounded identity signals.
+This is a finite closed-world claim over every tracked npm manifest and the
+lockfile-v3 `packages` maps. It does not claim recognition of arbitrary mirrors,
+publisher behavior, future advisories, future lockfile schemas, or artifacts
+with none of the bounded identity signals.
 
 ## Residual risks, rollback, and stop conditions
 

@@ -244,7 +244,7 @@ def _fully_decode_url_path(path: str) -> str:
     raise AssertionError("URL path percent-decoding did not converge")
 
 
-def _has_brace_expansion_tarball_path_signal(value: object) -> bool:
+def _has_registry_tarball_path_signal(value: object, *, target: str) -> bool:
     """Discover a candidate by package pathname before validating its origin."""
 
     if not isinstance(value, str):
@@ -265,7 +265,8 @@ def _has_brace_expansion_tarball_path_signal(value: object) -> bool:
                 candidate_paths.add(f"/{pathname.lstrip('/')}")
 
     candidate_paths.update(posixpath.normpath(path) for path in tuple(candidate_paths))
-    tarball_path_signal = "/brace-expansion/-/brace-expansion-"
+    package_basename = target.rsplit("/", maxsplit=1)[-1]
+    tarball_path_signal = f"/{target}/-/{package_basename}-"
     return any(tarball_path_signal in path and path.endswith(".tgz") for path in candidate_paths)
 
 
@@ -284,7 +285,9 @@ def _find_override_key_paths(
     path: tuple[str, ...] = (),
 ) -> dict[tuple[str, ...], object]:
     found: dict[tuple[str, ...], object] = {}
-    if _is_npm_alias_for_target(node, target=target):
+    if _is_npm_alias_for_target(node, target=target) or _has_registry_tarball_path_signal(
+        node, target=target
+    ):
         found[path] = node
         return found
     if isinstance(node, dict):
@@ -308,8 +311,8 @@ def _discover_brace_expansion_lock_entries(packages: object) -> dict[str, dict]:
     for raw_path, package in packages.items():
         canonical_path_signal = _is_brace_expansion_lock_path(raw_path)
         name_signal = isinstance(package, dict) and package.get("name") == "brace-expansion"
-        url_signal = isinstance(package, dict) and _has_brace_expansion_tarball_path_signal(
-            package.get("resolved")
+        url_signal = isinstance(package, dict) and _has_registry_tarball_path_signal(
+            package.get("resolved"), target="brace-expansion"
         )
         if not (canonical_path_signal or name_signal or url_signal):
             continue
@@ -904,11 +907,28 @@ def _discover_brace_expansion_surface_occurrences(
 ) -> tuple[dict[tuple[str, ...], object], dict[str, dict]]:
     basename = PurePosixPath(relative).name
     if basename == "package.json":
-        return _find_override_key_paths(document, target="brace-expansion"), {}
+        return _find_manifest_target_paths(document, target="brace-expansion"), {}
     assert (
         basename in NPM_LOCK_SURFACE_BASENAMES
     ), f"{relative}: unsupported npm surface basename reached occurrence discovery"
     return {}, _discover_brace_expansion_lock_entries(document.get("packages"))
+
+
+def _find_manifest_target_paths(
+    document: dict,
+    *,
+    target: str,
+) -> dict[tuple[str, ...], object]:
+    """Find direct, aliased, tarball, bundled, and override target carriers."""
+    found = _find_override_key_paths(document, target=target)
+    for field in ("bundleDependencies", "bundledDependencies"):
+        bundled = document.get(field)
+        if not isinstance(bundled, list):
+            continue
+        for index, value in enumerate(bundled):
+            if value == target:
+                found[(field, f"[{index}]")] = value
+    return found
 
 
 def _assert_brace_expansion_security_class(
@@ -921,16 +941,16 @@ def _assert_brace_expansion_security_class(
     overrides = package_json.get("overrides")
     assert isinstance(overrides, dict), "frontend/package.json: overrides must be an object"
     allowed_override_paths: dict[tuple[str, ...], int] = {
-        (carrier, "brace-expansion"): major
+        ("overrides", carrier, "brace-expansion"): major
         for major, carrier in BRACE_EXPANSION_OVERRIDE_CARRIERS.items()
     }
-    discovered_override_outputs = _find_override_key_paths(
-        overrides,
+    discovered_override_outputs = _find_manifest_target_paths(
+        package_json,
         target="brace-expansion",
     )
     unexpected_override_paths = set(discovered_override_outputs) - set(allowed_override_paths)
     assert not unexpected_override_paths, (
-        "frontend/package.json: brace-expansion override path is not approved; "
+        "frontend/package.json: brace-expansion manifest occurrence is not approved; "
         f"found {sorted(unexpected_override_paths)!r}"
     )
 
@@ -1236,7 +1256,7 @@ def test_brace_expansion_targeted_head_evidence_binds_discovered_records(case: s
 @pytest.mark.parametrize(
     ("case", "expected_message"),
     (
-        ("manifest-alias", "override path is not approved"),
+        ("manifest-alias", "manifest occurrence is not approved"),
         ("lock-name", "alias/noncanonical installed path"),
         ("lock-query", "alias/noncanonical installed path"),
         ("lock-fragment", "alias/noncanonical installed path"),
@@ -1523,7 +1543,7 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
     (
         ("affected-lock-output", "governed head occurrence remains affected"),
         ("lock-only-safe-patch", "does not match any installed lock occurrence"),
-        ("extra-override-carrier", "override path is not approved"),
+        ("extra-override-carrier", "manifest occurrence is not approved"),
         ("missing-lock-output", "does not match any installed lock occurrence"),
         ("manifest-prerelease", "prerelease output is not approved"),
         ("lock-prerelease", "prerelease output is not approved"),
@@ -1549,10 +1569,14 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
         ("provenance", "provenance mismatch"),
         ("integrity", "integrity missing"),
         ("manifest-lock", "does not match any installed lock occurrence"),
-        ("blanket", "override path is not approved"),
-        ("selector-override", "override path is not approved"),
-        ("empty-selector-override", "override path is not approved"),
-        ("alias-value", "override path is not approved"),
+        ("blanket", "manifest occurrence is not approved"),
+        ("selector-override", "manifest occurrence is not approved"),
+        ("empty-selector-override", "manifest occurrence is not approved"),
+        ("alias-value", "manifest occurrence is not approved"),
+        ("direct-manifest", "manifest occurrence is not approved"),
+        ("optional-alias", "manifest occurrence is not approved"),
+        ("peer-tarball", "manifest occurrence is not approved"),
+        ("bundled-manifest", "manifest occurrence is not approved"),
     ),
 )
 def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) -> None:
@@ -1664,6 +1688,18 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         package_json["overrides"]["future-carrier"] = {
             "renamed-package": "npm:brace-expansion@2.1.3"
         }
+    elif case == "direct-manifest":
+        package_json["dependencies"] = {"brace-expansion": "2.1.3"}
+    elif case == "optional-alias":
+        package_json["optionalDependencies"] = {"renamed-brace": "npm:brace-expansion@2.1.3"}
+    elif case == "peer-tarball":
+        package_json["peerDependencies"] = {
+            "renamed-brace": (
+                "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.3.tgz"
+            )
+        }
+    elif case == "bundled-manifest":
+        package_json["bundleDependencies"] = ["brace-expansion"]
     else:
         raise AssertionError(f"unhandled brace-expansion falsification case: {case}")
 

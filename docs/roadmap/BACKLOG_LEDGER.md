@@ -5499,7 +5499,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Record current-head CI evidence and close this ledger item after merge.
 
 <a id="ledger-p1-cve-2026-3184-exact-pkgid-match"></a>
-- [x] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
+- [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
   - Target PR: PR #2246

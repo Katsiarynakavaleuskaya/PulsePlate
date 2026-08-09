@@ -207,14 +207,24 @@ def _top_level_body_token_lines(body: str) -> tuple[tuple[_RegoToken, ...], ...]
 def _top_level_body_token_expressions(
     body: str,
 ) -> tuple[tuple[tuple[_RegoToken, ...], ...], ...]:
-    """Group following-line ``with`` modifiers with their executable expression."""
+    """Group multiline delimiters and ``with`` modifiers into full expressions."""
 
     expressions: list[list[tuple[_RegoToken, ...]]] = []
+    delimiter_stack: list[str] = []
+    closing_delimiters = {")": "(", "]": "["}
     for token_line in _top_level_body_token_lines(body):
-        if token_line[0].value == "with" and expressions:
+        if (delimiter_stack or token_line[0].value == "with") and expressions:
             expressions[-1].append(token_line)
-            continue
-        expressions.append([token_line])
+        else:
+            expressions.append([token_line])
+        for token in token_line:
+            if token.value in {"(", "["}:
+                delimiter_stack.append(token.value)
+            elif token.value in closing_delimiters:
+                if delimiter_stack and delimiter_stack[-1] == closing_delimiters[token.value]:
+                    delimiter_stack.pop()
+                else:
+                    delimiter_stack.append("invalid")
     return tuple(tuple(expression) for expression in expressions)
 
 
@@ -289,11 +299,43 @@ def _direct_input_equality_expression(
 
     if not token_lines:
         return None
-    equality = _direct_input_equality(token_lines[0])
+    expression_tokens: list[_RegoToken] = []
+    modifier_lines: list[tuple[_RegoToken, ...]] = []
+    for tokens in token_lines:
+        if tokens[0].value == "with":
+            modifier_lines.append(tokens)
+        elif modifier_lines:
+            return None
+        else:
+            expression_tokens.extend(tokens)
+
+    while (
+        len(expression_tokens) >= 2
+        and expression_tokens[0].value == "("
+        and expression_tokens[-1].value == ")"
+    ):
+        depth = 0
+        outer_pair = True
+        for index, token in enumerate(expression_tokens):
+            if token.value == "(":
+                depth += 1
+            elif token.value == ")":
+                depth -= 1
+                if depth == 0 and index != len(expression_tokens) - 1:
+                    outer_pair = False
+                    break
+                if depth < 0:
+                    outer_pair = False
+                    break
+        if not outer_pair or depth != 0:
+            break
+        expression_tokens = expression_tokens[1:-1]
+
+    equality = _direct_input_equality(tuple(expression_tokens))
     if equality is None:
         return None
     field, _value = equality
-    for modifier_tokens in token_lines[1:]:
+    for modifier_tokens in modifier_lines:
         target = _with_modifier_target(modifier_tokens)
         if target is None or _with_target_can_affect_input_field(target, field):
             return None

@@ -4,7 +4,9 @@
 
 Version: 2026-08-08 (`Europe/Minsk`)
 Change note: Retired the local PPTX generator; DOCX proposal generation remains supported.
-Decision reference: `docs/executive/PR_PORTFOLIO_BRIEF_DIRECTORS_2026-03.md`
+Historical decision reference (non-executable; its PPTX instructions are
+superseded by this document):
+`docs/executive/PR_PORTFOLIO_BRIEF_DIRECTORS_2026-03.md`
 
 ## Purpose
 

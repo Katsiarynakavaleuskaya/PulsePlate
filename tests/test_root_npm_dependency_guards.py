@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import shutil
 import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
+from urllib.parse import unquote, urlparse
 
 import pytest
 from packaging.specifiers import SpecifierSet
@@ -23,6 +25,7 @@ ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
+NPM_REGISTRY_HOST = "registry.npmjs.org"
 NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.17"),
     SpecifierSet(">=4,<5.1.16"),
@@ -105,12 +108,41 @@ def _load_tracked_npm_surfaces(*, root: Path = REPO_ROOT) -> dict[str, dict[str,
     return surfaces
 
 
+def _fully_decode_url_path(path: str) -> str:
+    """Decode a URL path to a finite fixed point and normalize separators."""
+    decoded = path.replace("\\", "/")
+    for _ in range(len(decoded) + 1):
+        next_value = unquote(decoded).replace("\\", "/")
+        if next_value == decoded:
+            return decoded
+        decoded = next_value
+    raise AssertionError("URL path percent-decoding did not converge")
+
+
+def _registry_tarball_identity_matches(value: object, *, target: str) -> bool:
+    """Recognize a target carried through an npm-registry tarball URL."""
+    if not isinstance(value, str):
+        return False
+    parsed = urlparse(value)
+    if parsed.hostname != NPM_REGISTRY_HOST:
+        return False
+    decoded_path = _fully_decode_url_path(parsed.path)
+    normalized_path = f"/{posixpath.normpath(decoded_path).lstrip('/')}"
+    package_basename = target.rsplit("/", maxsplit=1)[-1]
+    prefix = f"/{target}/-/{package_basename}-"
+    return normalized_path.startswith(prefix) and normalized_path.endswith(".tgz")
+
+
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
     if key == target:
         return True
     if not isinstance(value, str):
         return False
-    return value == f"npm:{target}" or value.startswith(f"npm:{target}@")
+    return (
+        value == f"npm:{target}"
+        or value.startswith(f"npm:{target}@")
+        or _registry_tarball_identity_matches(value, target=target)
+    )
 
 
 def _override_key_matches(*, key: object, target: str) -> bool:
@@ -340,6 +372,24 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
         ("optionalDependencies", "pptxgenjs", "4.0.1", "pptxgenjs"),
         ("peerDependencies", "renamed-pptx", "npm:pptxgenjs@4.0.1", "pptxgenjs"),
         ("overrides", "renamed-image", "npm:image-size", "image-size"),
+        (
+            "dependencies",
+            "renamed-image-tarball",
+            "https://registry.npmjs.org/image-size/-/image-size-1.2.1.tgz",
+            "image-size",
+        ),
+        (
+            "overrides",
+            "renamed-pptx-tarball",
+            "https://registry.npmjs.org/pptxgenjs/-/pptxgenjs-4.0.1.tgz",
+            "pptxgenjs",
+        ),
+        (
+            "optionalDependencies",
+            "renamed-scoped-tarball",
+            "https://registry.npmjs.org/@scope%2fpkg/-/pkg-2.0.0.tgz",
+            "@scope/pkg",
+        ),
         ("dependencies", "nanoid", "3.3.17", "nanoid"),
     ),
 )
@@ -348,6 +398,25 @@ def test_retired_graph_manifest_discovery_rejects_direct_and_alias_reintroductio
 ) -> None:
     """Direct, override, and npm-alias declarations remain visible to the guard."""
     assert _find_manifest_occurrences({field: {key: value}}, target=target)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "https://example.invalid/image-size/-/image-size-1.2.1.tgz",
+        "https://registry.npmjs.org/image-sizes/-/image-sizes-1.2.1.tgz",
+        "https://registry.npmjs.org/other/-/image-size-1.2.1.tgz",
+        "https://registry.npmjs.org/image-size",
+    ),
+)
+def test_manifest_tarball_discovery_rejects_only_the_exact_registry_identity(
+    value: str,
+) -> None:
+    """Near-miss tarballs must not be misclassified as the retired package."""
+    assert not _find_manifest_occurrences(
+        {"dependencies": {"renamed-image": value}},
+        target="image-size",
+    )
 
 
 @pytest.mark.parametrize("field", ("bundleDependencies", "bundledDependencies"))

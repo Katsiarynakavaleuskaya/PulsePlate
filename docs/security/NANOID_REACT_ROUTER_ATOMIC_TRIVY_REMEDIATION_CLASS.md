@@ -148,7 +148,8 @@ npm update nanoid --package-lock-only --ignore-scripts --no-audit --no-fund --be
 
 A disposable replay from the exact material changed only the root nanoid
 `version`, `resolved`, and `integrity` fields. Root `package.json` gains no
-direct dependency, dev dependency, npm alias, or override for `nanoid`.
+direct dependency, dev dependency, npm alias, registry-tarball carrier, or
+override for `nanoid`.
 
 The frontend owner ran this canonical exact-target seed/unseed sequence from
 `frontend/` with the same Node/npm versions:
@@ -183,8 +184,8 @@ P_batch =
   image-size absent on every governed head surface
   AND the root lockfile nanoid occurrence == 5.1.16
   AND every frontend lockfile nanoid occurrence == 3.3.17
-  AND every tracked package.json has no direct or aliased nanoid declaration
-  AND every tracked package.json has no direct or aliased react-router declaration
+  AND every tracked package.json has no direct, aliased, or registry-tarball nanoid declaration
+  AND every tracked package.json has no direct, aliased, or registry-tarball react-router declaration
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
       canonical registry tarball version matches `version` and whose integrity is non-empty
@@ -194,23 +195,24 @@ P_batch =
 Executable evidence anchors for the stable postconditions are:
 
 - tracked/index surface enumeration and fail-closed Git environment:
-  `tests/test_root_npm_dependency_guards.py:65` and
-  `tests/test_root_npm_dependency_guards.py:89`;
+  `tests/test_root_npm_dependency_guards.py::_git_stdout` and
+  `tests/test_root_npm_dependency_guards.py::_load_tracked_npm_surfaces`;
 - retired `pptxgenjs`/`image-size` graph absence:
-  `tests/test_root_npm_dependency_guards.py:282`;
-- direct, aliased, bundled, and version-qualified override discovery:
-  `tests/test_root_npm_dependency_guards.py:121` and
-  `tests/test_root_npm_dependency_guards.py:369`;
+  `tests/test_root_npm_dependency_guards.py::test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces`;
+- direct, npm-aliased, registry-tarball, bundled, and version-qualified override discovery:
+  `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
+  `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, canonical-tarball,
   integrity, and stable-release postconditions:
-  `tests/test_root_npm_dependency_guards.py:185`,
-  `tests/test_root_npm_dependency_guards.py:299`, and
-  `tests/test_root_npm_dependency_guards.py:317`;
+  `tests/test_root_npm_dependency_guards.py::_assert_occurrences_outside_ranges`,
+  `tests/test_root_npm_dependency_guards.py::test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges`,
+  and `tests/test_root_npm_dependency_guards.py::test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges`;
 - target-capable React Router suppression denial across both active ignore
-  inputs: `scripts/ci/check_trivy_ignore_policy_expiry.py:303`,
-  `scripts/ci/check_trivy_ignore_policy_expiry.py:334`,
-  `tests/test_trivy_ignore_policy_expiry.py:625`, and
-  `tests/test_trivy_ignore_policy_expiry.py:640`;
+  inputs:
+  `scripts/ci/check_trivy_ignore_policy_expiry.py::_ignore_block_can_match_react_router_target`,
+  `scripts/ci/check_trivy_ignore_policy_expiry.py::_validate_react_router_rsc_trivyignore_absent`,
+  `tests/test_trivy_ignore_policy_expiry.py::test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction`,
+  and `tests/test_trivy_ignore_policy_expiry.py::test_react_router_rsc_trivyignore_reintroduction_fails_closed`;
 - exact policy deletion surface: `trivy/ignore-policy.rego:1`;
 - retained DOCX builder and retired local PPTX execution boundary:
   `tests/test_business_collateral_builders.py:90` and

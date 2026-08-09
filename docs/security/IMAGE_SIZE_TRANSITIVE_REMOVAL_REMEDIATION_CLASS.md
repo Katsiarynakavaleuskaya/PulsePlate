@@ -135,8 +135,9 @@ delta.
   ignored or untracked scratch paths;
 - executable absence of `image-size` and its retired `pptxgenjs` carrier on
   every tracked manifest and lock surface;
-- rejection of direct declarations, npm aliases, bundled declarations, renamed
-  lock entries, registry-resolution aliases, and malformed lock entries;
+- rejection of direct declarations, npm aliases, registry-tarball declarations,
+  bundled declarations, renamed lock entries, registry-resolution aliases, and
+  malformed lock entries;
 - universal affected-range checks for the retained nanoid and React Router
   occurrences, without pinning their current safe version forever.
 
@@ -153,16 +154,16 @@ change.
 Executable evidence anchors for the stable postcondition are:
 
 - tracked current npm-surface discovery through a sanitized absolute Git
-  executable (`_git_stdout` and `_load_tracked_npm_surfaces`):
-  `tests/test_root_npm_dependency_guards.py:65` and
-  `tests/test_root_npm_dependency_guards.py:89`;
+  executable: `tests/test_root_npm_dependency_guards.py::_git_stdout` and
+  `tests/test_root_npm_dependency_guards.py::_load_tracked_npm_surfaces`;
 - manifest/lock identity and alias discovery:
-  `tests/test_root_npm_dependency_guards.py:121` and
-  `tests/test_root_npm_dependency_guards.py:164`;
+  `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
+  `tests/test_root_npm_dependency_guards.py::_find_lock_occurrences`;
 - version-qualified override-key discovery, including scoped package names:
-  `tests/test_root_npm_dependency_guards.py:369`;
+  `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - executable absence of the retired `pptxgenjs`/`image-size` graph on every
-  tracked npm surface: `tests/test_root_npm_dependency_guards.py:282`;
+  tracked npm surface:
+  `tests/test_root_npm_dependency_guards.py::test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces`;
 - executable absence of the pitch script, aggregate PPTX routing, builder file,
   and deck parser: `tests/test_business_collateral_builders.py:131`;
 - retained DOCX command and absence of a pitch command in the bounded script

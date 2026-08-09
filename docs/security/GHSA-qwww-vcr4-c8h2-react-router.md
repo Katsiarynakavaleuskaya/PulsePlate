@@ -35,13 +35,16 @@ for unrelated active rules. `tests/test_trivy_ignore_policy_expiry.py` covers
 exact and alternate target-capable Rego shapes, an active `.trivyignore`
 reintroduction, and unrelated/comment-only negative controls.
 
-Executable evidence anchors are
-`scripts/ci/check_trivy_ignore_policy_expiry.py:303` and
-`scripts/ci/check_trivy_ignore_policy_expiry.py:334` for conservative target
-matching across both active sources, plus
-`tests/test_trivy_ignore_policy_expiry.py:625` and
-`tests/test_trivy_ignore_policy_expiry.py:640` for the exact absence and
-adversarial reintroduction contracts.
+Executable evidence is owned by
+`scripts/ci/check_trivy_ignore_policy_expiry.py::_ignore_block_can_match_react_router_target`
+(`scripts/ci/check_trivy_ignore_policy_expiry.py:345`) and
+`scripts/ci/check_trivy_ignore_policy_expiry.py::_validate_react_router_rsc_trivyignore_absent`
+for conservative target matching across both active sources, plus
+`tests/test_trivy_ignore_policy_expiry.py::test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction`
+and
+`tests/test_trivy_ignore_policy_expiry.py::test_react_router_rsc_trivyignore_reintroduction_fails_closed`
+for the exact absence and adversarial reintroduction contracts. The deleted
+policy surface remains anchored at `trivy/ignore-policy.rego:1`.
 
 ## Bounded claim
 

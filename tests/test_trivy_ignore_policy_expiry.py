@@ -956,6 +956,17 @@ def _write_expiry_wrapper_policy_with_body(repo_root: Path, body: str) -> Path:
             ),
             id="split-following-with-fails-closed",
         ),
+        pytest.param(
+            "\n".join(
+                (
+                    "\tdecoy := (",
+                    '\t\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "\t)",
+                    "\ttrue",
+                )
+            ),
+            id="wrapped-assignment-is-not-a-conflicting-predicate",
+        ),
     ],
 )
 def test_noncanonical_target_capable_rule_is_rejected(
@@ -977,6 +988,7 @@ def test_noncanonical_target_capable_rule_is_rejected(
     [
         'input.VulnerabilityID=="CVE-2026-27171"',
         '"CVE-2026-27171" == input.VulnerabilityID',
+        '(\n\tinput.VulnerabilityID == "CVE-2026-27171"\n)',
     ],
 )
 def test_unrelated_rule_with_explicit_conflicting_vulnerability_stays_valid(
