@@ -11,8 +11,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:b2b-proposal": "node scripts/business_collateral/build_b2b_proposal.js",
-    "build:b2b-pitch-deck": "node scripts/business_collateral/build_b2b_pitch_deck.js",
-    "build:business-collateral": "npm run build:b2b-proposal && npm run build:b2b-pitch-deck"
+    "build:business-collateral": "npm run build:b2b-proposal"
   },
   "repository": {
     "type": "git",
@@ -31,7 +30,6 @@
   },
   "dependencies": {
     "docx": "^9.6.1",
-    "pptxgenjs": "^4.0.1",
     "thesvg": "^2.0.1"
   },
   "devDependencies": {

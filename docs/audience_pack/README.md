@@ -36,8 +36,8 @@
 ## Layer 3: Business Collateral Pack
 
 - `docs/audience_pack/B2B_PARTNERSHIP_PROPOSAL_SPEC.md` — canonical proposal source for partner-facing DOCX outputs.
-- `docs/audience_pack/B2B_PITCH_DECK_SPEC.md` — canonical slide-by-slide source for partner/investor PPTX outputs.
-- `docs/audience_pack/BUSINESS_COLLATERAL_AUTOMATION.md` — builder contract, output policy, and placeholder hygiene.
+- `docs/audience_pack/B2B_PITCH_DECK_SPEC.md` — canonical slide-by-slide business/content truth; only local PPTX generation is retired.
+- `docs/audience_pack/BUSINESS_COLLATERAL_AUTOMATION.md` — DOCX builder contract, output policy, and placeholder hygiene.
 - `docs/executive/PR_PORTFOLIO_BRIEF_DIRECTORS_2026-03.md` — thin executive brief linked back to audience-pack fact/narrative SoT.
 
 ## Deferred Layer (Set C)
@@ -70,7 +70,7 @@
 - `ROADMAP_KILL_CRITERIA.md`,
 - `RISK_REGISTER.md`.
 4. Для обновляемости пакета следовать `LIVING_DOCUMENT_PROTOCOL.md`.
-5. Для partner-ready collateral использовать markdown specs above and generate binaries locally rather than editing `.docx` / `.pptx` by hand.
+5. Для partner-ready collateral использовать proposal markdown spec выше и генерировать DOCX локально вместо ручного редактирования `.docx`.
 
 ## Security Notes
 

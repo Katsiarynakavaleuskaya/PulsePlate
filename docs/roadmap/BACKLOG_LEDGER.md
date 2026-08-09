@@ -24,6 +24,38 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
+- [ ] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
+  - Owner: backend-engineer / qa-engineer-agent
+  - Priority: P1 (current-main recovery / CI trust)
+  - Target PR: [PR #2247](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2247)
+  - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on replacement PR #2247
+  - Status: Integrated into the single operator-authorized remediation lane; exact-head CI and closeout pending
+  - Reason (EN): PR #2245 repairs the Stage-1-invalid positive Jaccard fixture
+    and the finite `insight_ai` owning-suite gap, but its Trivy check is blocked
+    by the dependency identities first assembled in superseded PR #2246 and now
+    carried by replacement PR #2247. PR #2246 was in turn blocked in every
+    canonical Python matrix by that same fixture. Carrying the two
+    already-reviewed commits into the replacement PR breaks the circular dependency
+    without changing RAG runtime behavior or weakening Stage 1.
+  - Links:
+    - `tests/test_rag_vector_feature_flag_guard.py`
+    - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
+    - `tests/test_ci_risk_profile.py`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+  - DoD:
+    - the positive Jaccard mock satisfies the existing Stage-1 minimum while
+      `tests/test_rag_validation.py::test_short_content_removed` remains the
+      negative control
+    - the four finite RAG owner suites occur exactly once in `insight_ai` for
+      both `test-pr` and `test-feature`, and each self-routes through the risk
+      profile
+    - no `core/rag/**`, route, DTO, OpenAPI, provider, quota, or rate-limit
+      behavior changes
+    - exact PR #2247 current-head Python 3.11, 3.12, and 3.13 matrices pass
+      before any main/nightly recovery claim
+
 <a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
 - [ ] P1: RAG-S2 baseline validation boundary
   - Owner: backend-engineer
@@ -5346,38 +5378,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `main`
 
 <a id="ledger-p1-react-router-rsc-advisory-monitor"></a>
-- [ ] P1: Monitor and remove React Router unstable RSC advisory suppression
+- [ ] P1: Remove React Router unstable RSC advisory suppression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: this combined bootstrap PR (carryover from closed PRs #2184 and
-    #2187)
-  - Status: In progress since 2026-07-25
+  - Target PR: PR #2247
+  - Status: In progress in replacement PR #2247; fixed dependency material and exact
+    suppression deletion are selected, exact-head Trivy confirmation is pending
   - Area: security / frontend dependency / Trivy policy
-  - Finding Type: application dependency vulnerability applicability
-  - Reason: Trivy reports `GHSA-qwww-vcr4-c8h2` for `react-router@7.18.1` with
-    fixed version `8.3.0`. The advisory affects unstable RSC server APIs, while
-    point-in-time repository evidence shows PulsePlate using the stable
-    declarative SPA surface without intentional affected RSC usage. The exact
-    Trivy tuple is temporarily suppressed and protected by lexical
-    structure/expiry/review controls; this entry does not claim deterministic
-    proof of every present or future source-applicability shape.
+  - Finding Type: application dependency vulnerability remediation
+  - Reason: Docker Build and Push run `31258531222`, security job `93106014446`,
+    Trivy analysis `1589834230`, reported `GHSA-qwww-vcr4-c8h2` for
+    `react-router@7.18.1` with compatible fixed version `7.18.2`. The batch
+    selects that fixed line, and the exact suppression is deleted rather than
+    extended, broadened, or replaced.
   - Links:
-    - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
+    - <https://github.com/advisories/GHSA-qwww-vcr4-c8h2>
     - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
+    - `docs/security/NANOID_REACT_ROUTER_ATOMIC_TRIVY_REMEDIATION_CLASS.md`
     - `trivy/ignore-policy.rego`
     - `scripts/ci/check_trivy_ignore_policy_expiry.py`
     - `tests/test_trivy_ignore_policy_expiry.py`
   - DoD:
-    - Review the advisory and Dependabot alert #241 weekly
-    - Remove the suppression if affected RSC usage is introduced, the
-      dependency or Trivy tuple changes, or a compatible fixed line is
-      approved
-    - Refresh the point-in-time repository evidence during each weekly review
-      and on frontend dependency or execution-model changes
-    - Keep exact Rego tuple, lexical structure, expiry, review-date, and
-      negative controls green
-    - Close the tracker only after the suppression is removed and current-head
-      Trivy evidence passes without it
+    - Resolve `react-router` and `react-router-dom` to `7.18.2`
+    - Delete the exact `GHSA-qwww-vcr4-c8h2` Rego rule and header reference
+    - Reject any target-capable suppression reintroduction while preserving
+      unrelated expiry/review rules
+    - Close this item only after terminal exact-head Trivy evidence; do not infer
+      a full-audit or readiness claim from selected material
 
 - [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya
@@ -5445,10 +5472,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-07-09**
+  - **Rego suppressions last reviewed: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
     - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)
+    - PR #2246: Rechecked current Debian primary evidence for residual zlib/3184/ncurses rules; Review-by dates are 2026-09-08, zlib/ncurses rule bodies and the shared 2026-10-07 expiry remain unchanged, and CVE-2026-3184 PkgID matching is narrowed to exact equality
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 
@@ -5475,9 +5503,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: TBD
+  - Target PR: PR #2247
+  - Status: Implementation complete in replacement PR #2247; merge confirmation pending
   - Area: security / container / Trivy policy
-  - Reason (EN): The CVE-2026-3184 suppression still uses `startswith` for observed util-linux PkgIDs, which can match unintended suffix variants. A dedicated follow-up should adopt the exact-equality set pattern used by CVE-2026-53615 without expanding this CVE-scoped PR.
+  - Reason (EN): The CVE-2026-3184 suppression used `startswith` for observed util-linux PkgIDs, which could match unintended suffix variants. Replacement PR #2247 carries the material Trivy policy surface from superseded PR #2246, so it narrows the same eight tuples to exact equality instead of deferring a current-PR security finding.
   - Links:
     - `trivy/ignore-policy.rego`
     - `docs/security/CVE-2026-3184-util-linux.md`

@@ -1564,6 +1564,77 @@ def _prepare_dependabot_policy_hook_repo(tmp_path: Path) -> Path:
     return repo
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "package.json",
+        "tools/build/package.json",
+        "tools/build/package-lock.json",
+        "tools/build/npm-shrinkwrap.json",
+    ),
+)
+def test_backend_hook_maps_staged_npm_surface_to_permanent_dependency_guards(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    """Every exact npm surface basename selects both permanent guard owners."""
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    surface = repo / relative_path
+    surface.parent.mkdir(parents=True, exist_ok=True)
+    surface.write_text("{}\n", encoding="utf-8")
+    _git(repo, "add", relative_path)
+    calls_file = tmp_path / "pytest-npm-surface-args.txt"
+    fake_python = tmp_path / "fake-python-npm-surface"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_root_npm_dependency_guards.py" in called_args
+    assert "tests/test_frontend_dependency_guards.py" in called_args
+    assert "Backend tests passed" in output
+
+
+@pytest.mark.parametrize(
+    "lookalike",
+    (
+        "package.json.bak",
+        "tools/build/my-package.json",
+        "tools/build/package-lock.old",
+        "tools/build/npm-shrinkwrap.json.disabled",
+    ),
+)
+def test_backend_hook_does_not_route_npm_surface_basename_lookalikes(
+    tmp_path: Path,
+    lookalike: str,
+) -> None:
+    """Similar filenames do not expand the permanent npm guard trigger class."""
+    repo = _prepare_dependabot_policy_hook_repo(tmp_path)
+    candidate = repo / lookalike
+    candidate.parent.mkdir(parents=True, exist_ok=True)
+    candidate.write_text("{}\n", encoding="utf-8")
+    probe = repo / "tests" / "test_probe.py"
+    probe.write_text("def test_probe():\n    assert True\n", encoding="utf-8")
+    _git(repo, "add", lookalike, "tests/test_probe.py")
+    calls_file = tmp_path / "pytest-npm-lookalike-args.txt"
+    fake_python = tmp_path / "fake-python-npm-lookalike"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/test_probe.py" in called_args
+    assert "tests/test_root_npm_dependency_guards.py" not in called_args
+    assert "tests/test_frontend_dependency_guards.py" not in called_args
+    assert "Backend tests passed" in output
+
+
 def test_backend_hook_maps_staged_dependabot_config_to_policy_test(
     tmp_path: Path,
 ) -> None:
