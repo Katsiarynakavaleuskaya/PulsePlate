@@ -34,6 +34,8 @@ REACT_ROUTER_AFFECTED_RANGES = (
     SpecifierSet(">=7.12,<7.18.2"),
     SpecifierSet(">=8,<8.3.0"),
 )
+_NPM_SEMVER_MAX_LENGTH = 256
+_NPM_SEMVER_MAX_SAFE_INTEGER = 9_007_199_254_740_991
 _EXACT_NPM_SEMVER_RE = re.compile(
     r"^(?P<core>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))"
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -186,13 +188,19 @@ def _find_manifest_occurrences(
 
 
 def _parse_exact_npm_semver(value: object) -> tuple[Version, bool] | None:
-    """Parse exact npm SemVer and retain its prerelease bit for fail-closed checks."""
+    """Parse exact Node-semver-bounded npm SemVer and retain its prerelease bit."""
     if not isinstance(value, str):
         return None
-    match = _EXACT_NPM_SEMVER_RE.fullmatch(value.strip())
+    candidate = value.strip()
+    if len(candidate) > _NPM_SEMVER_MAX_LENGTH:
+        return None
+    match = _EXACT_NPM_SEMVER_RE.fullmatch(candidate)
     if match is None:
         return None
-    return Version(match.group("core")), match.group("prerelease") is not None
+    core = match.group("core")
+    if any(int(component) > _NPM_SEMVER_MAX_SAFE_INTEGER for component in core.split(".")):
+        return None
+    return Version(core), match.group("prerelease") is not None
 
 
 def _exact_manifest_version(value: object, *, target: str) -> tuple[Version, bool] | None:
@@ -686,6 +694,49 @@ def test_target_postcondition_rejects_non_exact_npm_semver(version: str) -> None
         )
 
 
+@pytest.mark.parametrize(
+    "version",
+    (
+        "9007199254740992.1.1",
+        "1.9007199254740992.1",
+        "1.1.9007199254740992",
+        f"1.1.1+{'a' * 251}",
+    ),
+)
+def test_target_postcondition_rejects_node_semver_bound_violations(version: str) -> None:
+    """Lock entries outside Node semver numeric or length bounds fail closed."""
+    occurrences = {
+        "node_modules/react-router": {
+            "version": version,
+            "resolved": (
+                "https://registry.npmjs.org/react-router/-/" f"react-router-{version}.tgz"
+            ),
+            "integrity": "sha512-test",
+        }
+    }
+
+    with pytest.raises(AssertionError, match="version must be exact npm SemVer"):
+        _assert_occurrences_outside_ranges(
+            surface="package-lock.json",
+            target="react-router",
+            occurrences=occurrences,
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+        )
+
+
+def test_exact_npm_semver_allows_node_boundary_and_max_length_build() -> None:
+    """The exact Node semver limits remain admissible, including build metadata."""
+    max_component = str(_NPM_SEMVER_MAX_SAFE_INTEGER)
+    max_length_version = f"1.1.1+{'a' * 250}"
+
+    assert len(max_length_version) == _NPM_SEMVER_MAX_LENGTH
+    assert _parse_exact_npm_semver(f"{max_component}.1.1") == (
+        Version(f"{max_component}.1.1"),
+        False,
+    )
+    assert _parse_exact_npm_semver(max_length_version) == (Version("1.1.1"), False)
+
+
 def _init_indexed_npm_surface_repo(root: Path, *, package_json: str = "{}\n") -> None:
     """Create a disposable Git index containing one governed npm surface."""
     root.mkdir()
@@ -879,6 +930,36 @@ def test_react_router_guard_rejects_non_exact_carrier_range(
                 "dependencies": {"react-router-dom": value}
             },
         },
+    )
+
+    with pytest.raises(AssertionError, match="must use an exact advisory-comparable version"):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    "document",
+    (
+        {"dependencies": {"react-router-dom": "9007199254740992.1.1"}},
+        {"devDependencies": {"router-carrier": "npm:react-router-dom@9007199254740992.1.1"}},
+        {
+            "optionalDependencies": {
+                "router-carrier": (
+                    "https://example.invalid/react-router-dom/-/"
+                    "react-router-dom-9007199254740992.1.1.tgz"
+                )
+            }
+        },
+    ),
+)
+def test_react_router_guard_rejects_node_semver_bound_carrier_shape(
+    monkeypatch: pytest.MonkeyPatch,
+    document: dict[str, object],
+) -> None:
+    """Direct, alias, and foreign tarball carriers share Node semver bounds."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"scripts/business_collateral/package.json": document},
     )
 
     with pytest.raises(AssertionError, match="must use an exact advisory-comparable version"):

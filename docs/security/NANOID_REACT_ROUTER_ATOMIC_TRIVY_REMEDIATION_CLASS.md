@@ -187,6 +187,7 @@ P_batch =
   AND every tracked package.json has no direct, aliased, or target-shaped tarball nanoid declaration
   AND every tracked package.json has no direct, aliased, or target-shaped tarball react-router declaration
   AND every tracked package.json react-router-dom carrier is exact npm SemVer,
+      stays within Node-semver's 256-character and numeric-component bounds,
       has no prerelease component, and is outside the affected ranges
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
@@ -204,8 +205,8 @@ Executable evidence anchors for the stable postconditions are:
 - direct, npm-aliased, target-shaped tarball, bundled, and version-qualified override discovery:
   `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
-- universal nanoid and React Router affected-range, canonical-tarball,
-  integrity, and stable-release postconditions:
+- universal nanoid and React Router affected-range, Node-semver length/numeric,
+  canonical-tarball, integrity, and stable-release postconditions:
   `tests/test_root_npm_dependency_guards.py::_parse_exact_npm_semver`,
   `tests/test_root_npm_dependency_guards.py::_exact_manifest_version`,
   `tests/test_root_npm_dependency_guards.py::_assert_manifest_occurrences_outside_ranges`,
