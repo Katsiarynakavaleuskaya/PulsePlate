@@ -197,9 +197,12 @@ def _find_manifest_occurrences(
             return
         for key, child in value.items():
             child_path = (*path, str(key))
-            if _override_key_matches(key=key, target=target) or _dependency_identity_matches(
-                key=key, value=child, target=target
-            ):
+            if _override_key_matches(key=key, target=target):
+                if isinstance(child, dict) and "." in child:
+                    occurrences[(*child_path, ".")] = child["."]
+                else:
+                    occurrences[child_path] = child
+            elif _dependency_identity_matches(key=key, value=child, target=target):
                 occurrences[child_path] = child
             walk_overrides(child, child_path)
 
@@ -216,6 +219,8 @@ def _find_opaque_npm_dependency_source_occurrences(
 ) -> dict[tuple[str, ...], object]:
     """Find dependency sources whose identity/provenance is opaque to package.json."""
     occurrences: dict[tuple[str, ...], object] = {}
+    if "workspaces" in document:
+        occurrences[("workspaces",)] = document["workspaces"]
     for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
         values = document.get(field)
         if not isinstance(values, dict):
@@ -616,8 +621,23 @@ def test_tracked_npm_manifests_reject_opaque_dependency_sources() -> None:
     for relative, document in surfaces.items():
         if PurePosixPath(relative).name != "package.json":
             continue
-        assert not _find_opaque_npm_dependency_source_occurrences(
-            document
+        opaque_occurrences = _find_opaque_npm_dependency_source_occurrences(document)
+        nanoid_occurrences = _find_governed_manifest_occurrences(
+            surface=relative,
+            document=document,
+            surfaces=surfaces,
+            target="nanoid",
+        )
+        _assert_manifest_occurrences_outside_ranges(
+            surface=relative,
+            target="nanoid",
+            occurrences=nanoid_occurrences,
+            affected_ranges=NANOID_AFFECTED_RANGES,
+        )
+        for occurrence_path in nanoid_occurrences:
+            opaque_occurrences.pop(occurrence_path, None)
+        assert (
+            not opaque_occurrences
         ), f"{relative}: opaque dependency source requires separate provenance"
 
 
@@ -648,12 +668,17 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
     for relative, document in surfaces.items():
         basename = PurePosixPath(relative).name
         if basename == "package.json":
-            assert not _find_governed_manifest_occurrences(
+            _assert_manifest_occurrences_outside_ranges(
                 surface=relative,
-                document=document,
-                surfaces=surfaces,
                 target="nanoid",
-            ), f"{relative}: nanoid must remain transitive, not direct intent"
+                occurrences=_find_governed_manifest_occurrences(
+                    surface=relative,
+                    document=document,
+                    surfaces=surfaces,
+                    target="nanoid",
+                ),
+                affected_ranges=NANOID_AFFECTED_RANGES,
+            )
             continue
         assert basename in NPM_LOCK_SURFACE_BASENAMES
         _assert_occurrences_outside_ranges(
@@ -867,6 +892,20 @@ def test_opaque_source_owner_rejects_each_governed_manifest_position(
         test_tracked_npm_manifests_reject_opaque_dependency_sources()
 
 
+def test_opaque_source_owner_rejects_workspace_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Any workspace field needs a separate executable-identity owner."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"scripts/business_collateral/package.json": {"workspaces": []}},
+    )
+
+    with pytest.raises(AssertionError, match="opaque dependency source"):
+        test_tracked_npm_manifests_reject_opaque_dependency_sources()
+
+
 @pytest.mark.parametrize("value", ("1.2.3-01", "1.2.3-alpha.01", "1.2.3-00.beta"))
 def test_exact_npm_semver_rejects_leading_zero_numeric_prerelease(value: str) -> None:
     """Numeric prerelease identifiers follow SemVer's no-leading-zero rule."""
@@ -1025,6 +1064,51 @@ def test_manifest_discovery_rejects_version_qualified_override_keys(
 ) -> None:
     """Version-qualified override selectors cannot hide an owned identity."""
     assert _find_manifest_occurrences(document, target=target)
+
+
+def test_manifest_full_object_override_validates_dot_and_walks_children() -> None:
+    """A target-qualified full object owns `.` without hiding nested overrides."""
+    document = {
+        "overrides": {
+            "react-router-dom@<=7.18.1": {
+                ".": "7.18.2",
+                "carrier": {"react-router-dom": "8.3.0"},
+            }
+        }
+    }
+    occurrences = _find_manifest_occurrences(document, target="react-router-dom")
+
+    assert occurrences == {
+        ("overrides", "react-router-dom@<=7.18.1", "."): "7.18.2",
+        (
+            "overrides",
+            "react-router-dom@<=7.18.1",
+            "carrier",
+            "react-router-dom",
+        ): "8.3.0",
+    }
+    _assert_manifest_occurrences_outside_ranges(
+        surface="package.json",
+        target="react-router-dom",
+        occurrences=occurrences,
+        affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+    )
+
+
+def test_manifest_full_object_override_rejects_affected_dot() -> None:
+    """The `.` replacement remains subject to the target's affected ranges."""
+    occurrences = _find_manifest_occurrences(
+        {"overrides": {"react-router-dom@<=7.18.1": {".": "7.18.1"}}},
+        target="react-router-dom",
+    )
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
+        _assert_manifest_occurrences_outside_ranges(
+            surface="package.json",
+            target="react-router-dom",
+            occurrences=occurrences,
+            affected_ranges=REACT_ROUTER_AFFECTED_RANGES,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1554,24 +1638,39 @@ printf '%s\\n' "$@"
     ]
 
 
-def test_nanoid_guard_rejects_declaration_in_any_tracked_manifest(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("key", "value"),
+    (("nanoid", "5.1.16"), ("renamed-nanoid", "npm:nanoid@5.1.16")),
+)
+def test_nanoid_guards_allow_safe_exact_manifest_carrier(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
 ) -> None:
-    """A non-frontend tracked manifest cannot bypass the transitive-only invariant."""
+    """A safe direct or identity-bound alias is validated without freezing topology."""
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",
-        lambda: {
-            "scripts/business_collateral/package.json": {
-                "dependencies": {"renamed-nanoid": "npm:nanoid@3.3.12"}
-            }
-        },
+        lambda: {"scripts/business_collateral/package.json": {"dependencies": {key: value}}},
     )
 
-    with pytest.raises(
-        AssertionError,
-        match="scripts/business_collateral/package.json: nanoid must remain transitive",
-    ):
+    test_tracked_npm_manifests_reject_opaque_dependency_sources()
+    test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    (("nanoid", "5.1.7"), ("renamed-nanoid", "npm:nanoid@3.3.12")),
+)
+def test_nanoid_guard_rejects_affected_manifest_carrier(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    """Direct and identity-bound alias carriers remain inside the same range owner."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {"scripts/business_collateral/package.json": {"dependencies": {key: value}}},
+    )
+
+    with pytest.raises(AssertionError, match="remains inside a reconciled affected range"):
         test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
 
 

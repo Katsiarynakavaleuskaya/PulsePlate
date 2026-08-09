@@ -28,6 +28,11 @@ BRACE_EXPANSION_EVIDENCE_PATH = (
     REPO_ROOT / "docs" / "security" / "FRONTEND_BRACE_EXPANSION_REMEDIATION_CLASS.md"
 )
 NPM_REGISTRY_HOST = "registry.npmjs.org"
+EXACT_NPM_SEMVER_RE = re.compile(
+    r"(?P<core>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
+    r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
 MIN_DOMPURIFY_VERSION = Version("3.4.11")
 MIN_JS_YAML_VERSION = Version("4.2.0")
 MIN_UNDICI_VERSION = Version("7.28.0")
@@ -201,6 +206,16 @@ def _assert_npm_registry_resolution(*, package_name: str, resolved: str) -> None
 
 def _parse_version(*, value: object, source: str) -> Version:
     assert isinstance(value, str) and value, f"{source}: version missing"
+    match = EXACT_NPM_SEMVER_RE.fullmatch(value) if value.isascii() else None
+    prerelease = match.group("prerelease") if match is not None else None
+    if match is None or (
+        prerelease is not None
+        and any(
+            len(identifier) > 1 and identifier.startswith("0") and identifier.isdigit()
+            for identifier in prerelease[1:].split(".")
+        )
+    ):
+        raise AssertionError(f"{source}: malformed version {value!r}")
     try:
         return Version(value)
     except InvalidVersion as exc:
@@ -1117,6 +1132,16 @@ def _brace_expansion_guard_fixture() -> tuple[dict, dict]:
     )
 
 
+def test_parse_version_accepts_exact_npm_semver() -> None:
+    assert _parse_version(value="2.1.3", source="fixture") == Version("2.1.3")
+
+
+@pytest.mark.parametrize("value", ("2.1.3.post1", "2.1.3rc1"))
+def test_parse_version_rejects_pep440_only_spelling(value: str) -> None:
+    with pytest.raises(AssertionError, match="malformed version"):
+        _parse_version(value=value, source="fixture")
+
+
 def test_frontend_brace_expansion_class_covers_all_lock_variants() -> None:
     """All current 2.x/5.x carrier outputs share one invariant."""
 
@@ -1839,9 +1864,9 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
     elif case == "missing-lock-output":
         del packages["node_modules/glob/node_modules/brace-expansion"]
     elif case == "manifest-prerelease":
-        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4rc1"
+        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4-rc.1"
     elif case == "lock-prerelease":
-        root.update(_brace_entry("2.1.4rc1"))
+        root.update(_brace_entry("2.1.4-rc.1"))
     elif case == "schema":
         package_lock["packages"] = []
     elif case == "path":
