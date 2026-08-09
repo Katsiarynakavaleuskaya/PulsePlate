@@ -13,6 +13,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
@@ -41,6 +42,34 @@ _EXACT_NPM_SEMVER_RE = re.compile(
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
+_NPM_PACKAGE_ARG_GIT_CLASSIFIER_JS = r"""
+const fs = require("node:fs");
+const path = require("node:path");
+const { createRequire } = require("node:module");
+
+const npmCli = path.resolve(process.argv[1]);
+const repoRoot = path.resolve(process.argv[2]);
+const npmRoot = path.dirname(path.dirname(npmCli));
+const npmRequire = createRequire(npmCli);
+const packageArgEntry = path.resolve(npmRequire.resolve("npm-package-arg"));
+const packageArgRoot = path.join(npmRoot, "node_modules", "npm-package-arg") + path.sep;
+if (!packageArgEntry.startsWith(packageArgRoot)) {
+  throw new Error(`npm-package-arg must resolve from the installed npm tree: ${packageArgEntry}`);
+}
+const packageArg = npmRequire("npm-package-arg");
+const specs = JSON.parse(fs.readFileSync(0, "utf8"));
+if (!Array.isArray(specs) || specs.some((spec) => typeof spec !== "string")) {
+  throw new TypeError("npm dependency specs must be a JSON string array");
+}
+const classifications = specs.map((spec) => {
+  try {
+    return packageArg.resolve("pulseplate-guard", spec, repoRoot).type === "git";
+  } catch (_error) {
+    return false;
+  }
+});
+process.stdout.write(JSON.stringify(classifications));
+"""
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -151,170 +180,67 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     )
 
 
-_NPM_HOSTED_GIT_PREFIXES = ("github:", "gitlab:", "bitbucket:", "gist:", "sourcehut:")
-_NPM_GIT_SCHEMES = (
-    "git+https:",
-    "git+http:",
-    "git+ssh:",
-    "git+file:",
-    "git+rsync:",
-    "git+ftp:",
-    "git:",
-)
-_NPM_HOSTED_SCP_GIT_RE = re.compile(
-    r"^(?P<auth>[^@\s]+)@(?P<hostname>(?:www\.)?"
-    r"(?:github\.com|gitlab\.com|bitbucket\.org|gist\.github\.com|git\.sr\.ht))"
-    r":(?P<path>.+)\Z",
-    re.IGNORECASE,
-)
-_NPM_HOSTED_URL_PROTOCOLS = {
-    "github.com": frozenset({"git", "git+ssh", "http", "https", "ssh"}),
-    "gitlab.com": frozenset({"git+ssh", "https", "ssh"}),
-    "bitbucket.org": frozenset({"git+ssh", "https", "ssh"}),
-    "gist.github.com": frozenset({"git", "git+ssh", "https", "ssh"}),
-    "git.sr.ht": frozenset({"git+ssh", "https"}),
-}
-_WHATWG_SINGLE_DOT_SEGMENTS = frozenset({".", "%2e"})
-_WHATWG_DOUBLE_DOT_SEGMENTS = frozenset({"..", ".%2e", "%2e.", "%2e%2e"})
+def _resolve_current_npm_package_arg_runtime() -> tuple[str, str]:
+    """Resolve the absolute Node executable and installed npm CLI or fail closed."""
+    node_binary = shutil.which("node")
+    npm_binary = shutil.which("npm")
+    assert node_binary is not None, "node is required for npm dependency-source guards"
+    assert npm_binary is not None, "npm is required for npm dependency-source guards"
+    node_path = Path(node_binary)
+    npm_path = Path(npm_binary)
+    assert node_path.is_absolute(), "node binary must resolve to an absolute path"
+    assert npm_path.is_absolute(), "npm binary must resolve to an absolute path"
+    assert node_path.is_file() and os.access(
+        node_path, os.X_OK
+    ), "node binary must be an available executable file"
+    assert npm_path.is_file() and os.access(
+        npm_path, os.X_OK
+    ), "npm binary must be an available executable file"
+    try:
+        npm_cli_path = npm_path.resolve(strict=True)
+    except OSError as exc:
+        raise AssertionError("npm CLI symlink must resolve to a regular file") from exc
+    assert npm_cli_path.is_file(), "resolved npm CLI must be a regular file"
+    return str(node_path), str(npm_cli_path)
 
 
-def _normalize_npm_special_url_authority(candidate: str) -> str:
-    """Normalize current npm HTTP(S) authority separators before URL parsing."""
-    match = re.fullmatch(r"(?is)(https?):[\\/]*(.*)", candidate)
-    if match is None:
-        return candidate.replace("\\", "/")
-    normalized_rest = match.group(2).replace("\\", "/")
-    return f"{match.group(1).lower()}://{normalized_rest}"
-
-
-def _normalize_whatwg_special_url_path(path: str) -> str:
-    """Remove only WHATWG dot segments while preserving encoded separators."""
-    output: list[str] = []
-    segments = path.split("/")
-    for index, segment in enumerate(segments):
-        lowered = segment.lower()
-        is_last = index == len(segments) - 1
-        if lowered in _WHATWG_SINGLE_DOT_SEGMENTS:
-            if is_last:
-                output.append("")
-            continue
-        if lowered in _WHATWG_DOUBLE_DOT_SEGMENTS:
-            if output and not (len(output) == 1 and output[0] == ""):
-                output.pop()
-            if is_last:
-                output.append("")
-            continue
-        output.append(segment)
-    return "/".join(output)
-
-
-def _matches_current_npm_hosted_git_url(candidate: str) -> bool:
-    """Match the bounded hosted URL shapes classified as Git by current npm."""
-    parsed = urlparse(candidate)
-    hostname = parsed.hostname or ""
-    if parsed.scheme.lower() in {"http", "https"}:
-        try:
-            hostname = unquote(hostname, errors="strict").encode("idna").decode("ascii")
-        except UnicodeError:
-            return False
-    hostname = hostname.lower()
-    if hostname.startswith("www."):
-        hostname = hostname[4:]
-    allowed_protocols = _NPM_HOSTED_URL_PROTOCOLS.get(hostname)
-    if allowed_protocols is None or parsed.scheme.lower() not in allowed_protocols:
-        return False
-    normalized_path = _normalize_whatwg_special_url_path(parsed.path)
-    split_path = normalized_path.split("/")
-
-    def field(index: int) -> str:
-        return split_path[index] if index < len(split_path) else ""
-
-    if hostname == "gist.github.com":
-        user, project, auxiliary = field(1), field(2), field(3)
-        return bool((project or user) and auxiliary != "raw")
-    if hostname == "github.com":
-        user, project, path_type = field(1), field(2), field(3)
-        return bool(user and project and (not path_type or path_type == "tree"))
-    if hostname == "gitlab.com":
-        path = normalized_path[1:] if normalized_path.startswith("/") else normalized_path
-        if "/-/" in path or "/archive.tar.gz" in path:
-            return False
-        path_parts = path.split("/")
-        project = path_parts[-1] if path_parts else ""
-        user = "/".join(path_parts[:-1])
-        return bool(user and project)
-    if hostname == "bitbucket.org":
-        user, project, auxiliary = field(1), field(2), field(3)
-        return bool(user and project and auxiliary != "get")
-    if hostname == "git.sr.ht":
-        user, project, auxiliary = field(1), field(2), field(3)
-        return bool(user and project and auxiliary != "archive")
-    raise AssertionError(f"unhandled current npm hosted Git domain: {hostname}")
-
-
-def _matches_current_npm_github_shorthand(candidate: str) -> bool:
-    """Mirror the current hosted-git-info slash-shorthand admission rule."""
-    first_hash = candidate.find("#")
-    first_slash = candidate.find("/")
-    second_slash = candidate.find("/", first_slash + 1)
-    first_colon = candidate.find(":")
-    first_at = candidate.find("@")
-    first_space_match = re.search(r"\s", candidate)
-    first_space = first_space_match.start() if first_space_match is not None else -1
-    space_only_after_hash = first_space == -1 or (first_hash > -1 and first_space > first_hash)
-    at_only_after_hash = first_at == -1 or (first_hash > -1 and first_at > first_hash)
-    colon_only_after_hash = first_colon == -1 or (first_hash > -1 and first_colon > first_hash)
-    second_slash_only_after_hash = second_slash == -1 or (
-        first_hash > -1 and second_slash > first_hash
+def _classify_current_npm_git_specs(
+    values: Iterable[object], *, root: Path = REPO_ROOT
+) -> dict[str, bool]:
+    """Delegate Git-source classification to the npm installation used by this checkout."""
+    specs = sorted({value for value in values if isinstance(value, str)})
+    if not specs:
+        return {}
+    node_binary, npm_cli = _resolve_current_npm_package_arg_runtime()
+    parser_env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_") and key not in {"NODE_OPTIONS", "NODE_PATH"}
+    }
+    result = subprocess.run(
+        [
+            node_binary,
+            "-e",
+            _NPM_PACKAGE_ARG_GIT_CLASSIFIER_JS,
+            npm_cli,
+            str(root.resolve()),
+        ],
+        check=True,
+        input=json.dumps(specs, ensure_ascii=False).encode("utf-8"),
+        capture_output=True,
+        env=parser_env,
+        timeout=30,
     )
-    has_slash = first_slash > 0
-    does_not_end_with_slash = (
-        first_hash == 0 or candidate[first_hash - 1] != "/"
-        if first_hash > -1
-        else not candidate.endswith("/")
-    )
-    return (
-        space_only_after_hash
-        and has_slash
-        and does_not_end_with_slash
-        and not candidate.startswith((".", "@", "/"))
-        and at_only_after_hash
-        and colon_only_after_hash
-        and second_slash_only_after_hash
-    )
-
-
-def _matches_current_npm_hosted_scp(candidate: str) -> bool:
-    """Match SCP spellings only when current hosted-git-info owns the host/path."""
-    match = _NPM_HOSTED_SCP_GIT_RE.fullmatch(candidate)
-    if match is None:
-        return False
-    auth = match.group("auth")
-    path = match.group("path")
-    if path.startswith("/") and ":" not in auth:
-        return False
-    normalized_path = path.lstrip("/") if ":" in auth else path
-    normalized = f"git+ssh://{auth}@{match.group('hostname')}/{normalized_path}"
-    return _matches_current_npm_hosted_git_url(normalized)
-
-
-def _matches_bounded_npm_git_spec(value: object) -> bool:
-    """Classify only the explicitly enumerated current npm Git-source grammar."""
-    if not isinstance(value, str):
-        return False
-    candidate = _normalize_npm_special_url_authority(value.strip())
-    lowered = candidate.lower()
-    if lowered.startswith("file:") or candidate.startswith(("./", "../", "~/")):
-        return False
-    if lowered.startswith(_NPM_GIT_SCHEMES):
-        return True
-    if _matches_current_npm_hosted_scp(candidate):
-        return True
-    if lowered.startswith(_NPM_HOSTED_GIT_PREFIXES):
-        return True
-    if _matches_current_npm_github_shorthand(candidate):
-        return True
-    return _matches_current_npm_hosted_git_url(candidate)
+    try:
+        classifications = json.loads(result.stdout.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise AssertionError("npm-package-arg classifier returned invalid JSON") from exc
+    assert isinstance(classifications, list), "npm-package-arg classifier must return a list"
+    assert len(classifications) == len(specs), "npm-package-arg classifier result count drift"
+    assert all(
+        type(value) is bool for value in classifications
+    ), "npm-package-arg classifier results must be booleans"
+    return dict(zip(specs, classifications, strict=True))
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -367,30 +293,33 @@ def _find_manifest_occurrences(
     return occurrences
 
 
-def _find_bounded_git_dependency_occurrences(
+def _find_current_npm_git_dependency_occurrences(
     document: dict[str, Any],
 ) -> dict[tuple[str, ...], object]:
-    """Find Git sources in the named fields and explicitly bounded current grammar."""
-    occurrences: dict[tuple[str, ...], object] = {}
+    """Find Git sources by delegating named manifest values to current npm."""
+    candidates: dict[tuple[str, ...], object] = {}
     for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
         values = document.get(field)
         if not isinstance(values, dict):
             continue
         for key, value in values.items():
-            if _matches_bounded_npm_git_spec(value):
-                occurrences[(field, str(key))] = value
+            candidates[(field, str(key))] = value
 
     def walk_overrides(value: object, path: tuple[str, ...]) -> None:
         if not isinstance(value, dict):
             return
         for key, child in value.items():
             child_path = (*path, str(key))
-            if _matches_bounded_npm_git_spec(child):
-                occurrences[child_path] = child
+            candidates[child_path] = child
             walk_overrides(child, child_path)
 
     walk_overrides(document.get("overrides"), ("overrides",))
-    return occurrences
+    classifications = _classify_current_npm_git_specs(candidates.values())
+    return {
+        path: value
+        for path, value in candidates.items()
+        if isinstance(value, str) and classifications[value]
+    }
 
 
 def _tracked_local_manifest_path(*, surface: str, value: object) -> str | None:
@@ -759,15 +688,15 @@ def test_root_lock_tracks_current_cspell_runtime_chain() -> None:
     assert "path-to-regexp" not in tinyglobby_dependencies
 
 
-def test_tracked_npm_manifests_reject_bounded_git_dependency_sources() -> None:
-    """Opaque Git specs in the enumerated grammar cannot hide package identity."""
+def test_tracked_npm_manifests_reject_current_npm_git_dependency_sources() -> None:
+    """Opaque specs classified as Git by current npm cannot hide package identity."""
     surfaces = _load_tracked_npm_surfaces()
     for relative, document in surfaces.items():
         if PurePosixPath(relative).name != "package.json":
             continue
-        assert not _find_bounded_git_dependency_occurrences(
+        assert not _find_current_npm_git_dependency_occurrences(
             document
-        ), f"{relative}: enumerated Git dependency source requires separate provenance"
+        ), f"{relative}: npm-classified Git dependency source requires separate provenance"
 
 
 def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None:
@@ -941,9 +870,9 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
     )
 
 
-@pytest.mark.parametrize(
-    "value",
-    (
+def test_current_npm_git_classifier_matches_repository_runtime() -> None:
+    """The installed npm parser, rather than a frozen Python grammar, owns Git syntax."""
+    values = (
         "git+https://github.com/acme/repo.git#main",
         "git+http://example.invalid/acme/repo.git",
         "git+ssh://git@example.invalid/acme/repo.git#v1",
@@ -997,18 +926,15 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
         "https://gitlab.com/acme/repo/-",
         "https://bitbucket.org/acme/repo/src/main",
         "https://git.sr.ht/~acme/repo/tree/main",
-    ),
-)
-def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
-    value: str,
-) -> None:
-    """The bounded current npm Git grammar is rejected independently of package key."""
-    assert _matches_bounded_npm_git_spec(value)
+    )
+    classifications = _classify_current_npm_git_specs(values)
+
+    assert classifications == {value: True for value in sorted(set(values))}
 
 
-@pytest.mark.parametrize(
-    "value",
-    (
+def test_current_npm_git_classifier_preserves_non_git_and_invalid_specs() -> None:
+    """Local, registry, remote-tarball, and invalid npm specs remain outside Git."""
+    values = (
         "file:../vendor/repo.git",
         "../vendor/repo.git",
         "./vendor/repo.git",
@@ -1049,13 +975,71 @@ def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
         "./acme/repo",
         "~/acme/repo",
         r"~\acme\repo",
-    ),
-)
-def test_bounded_git_dependency_recognizer_does_not_authorize_near_misses(
-    value: str,
+        r"ssh:/\github.com/acme/repo",
+        r"ssh:\/github.com/acme/repo",
+        r"ssh:\\github.com/acme/repo",
+        r"git+ssh://\github.com/acme/repo",
+    )
+    classifications = _classify_current_npm_git_specs(values)
+
+    assert classifications == {value: False for value in sorted(set(values))}
+
+
+def test_current_npm_git_classifier_uses_resolved_toolchain_and_sanitized_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    """A non-match is only outside this grammar, never a broader safety claim."""
-    assert not _matches_bounded_npm_git_spec(value)
+    """The parser subprocess is absolute, npm-bundled, batched, and environment-isolated."""
+    node_path = tmp_path / "bin" / "node"
+    npm_cli_path = tmp_path / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js"
+    npm_path = tmp_path / "bin" / "npm"
+    node_path.parent.mkdir(parents=True)
+    npm_cli_path.parent.mkdir(parents=True)
+    node_path.write_text("node fixture", encoding="utf-8")
+    npm_cli_path.write_text("npm fixture", encoding="utf-8")
+    node_path.chmod(0o755)
+    npm_cli_path.chmod(0o755)
+    npm_path.symlink_to(npm_cli_path)
+
+    def fake_which(name: str) -> str | None:
+        return {"node": str(node_path), "npm": str(npm_path)}.get(name)
+
+    captured: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        captured["args"] = args
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, stdout=b"[false,true]", stderr=b"")
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer.index"))
+    monkeypatch.setenv("GIT_CUSTOM_PROBE", "must-not-leak")
+    monkeypatch.setenv("NODE_OPTIONS", "--require=must-not-leak")
+    monkeypatch.setenv("NODE_PATH", str(tmp_path / "must-not-leak"))
+
+    classifications = _classify_current_npm_git_specs(
+        ("1.2.3", "git+https://example.invalid/repo.git"),
+        root=tmp_path,
+    )
+
+    assert classifications == {
+        "1.2.3": False,
+        "git+https://example.invalid/repo.git": True,
+    }
+    args = cast(list[str], captured["args"])
+    assert args[0] == str(node_path)
+    assert args[1] == "-e"
+    assert args[2] == _NPM_PACKAGE_ARG_GIT_CLASSIFIER_JS
+    assert args[3] == str(npm_cli_path)
+    assert args[4] == str(tmp_path.resolve())
+    parser_env = cast(dict[str, str], captured["env"])
+    assert not any(key.startswith("GIT_") for key in parser_env)
+    assert "NODE_OPTIONS" not in parser_env
+    assert "NODE_PATH" not in parser_env
+    assert captured["check"] is True
+    assert captured["capture_output"] is True
+    assert captured["timeout"] == 30
 
 
 @pytest.mark.parametrize(
@@ -1077,7 +1061,7 @@ def test_git_source_owner_does_not_reclassify_npm_local_scp_near_misses(
         lambda: {"tools/fixture/package.json": {"dependencies": {"renamed": value}}},
     )
 
-    test_tracked_npm_manifests_reject_bounded_git_dependency_sources()
+    test_tracked_npm_manifests_reject_current_npm_git_dependency_sources()
 
 
 @pytest.mark.parametrize(
@@ -1102,8 +1086,8 @@ def test_git_source_owner_rejects_each_governed_manifest_position(
         lambda: {"scripts/business_collateral/package.json": document},
     )
 
-    with pytest.raises(AssertionError, match="enumerated Git dependency source"):
-        test_tracked_npm_manifests_reject_bounded_git_dependency_sources()
+    with pytest.raises(AssertionError, match="npm-classified Git dependency source"):
+        test_tracked_npm_manifests_reject_current_npm_git_dependency_sources()
 
 
 def test_retired_graph_guard_rejects_repository_relative_target_tarball(
