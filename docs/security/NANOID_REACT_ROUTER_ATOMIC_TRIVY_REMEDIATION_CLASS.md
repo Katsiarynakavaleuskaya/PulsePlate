@@ -184,10 +184,14 @@ P_batch =
   image-size absent on every governed head surface
   AND the root lockfile nanoid occurrence == 5.1.16
   AND every frontend lockfile nanoid occurrence == 3.3.17
-  AND every tracked package.json has no direct, aliased, target-shaped tarball,
-      or renamed tracked local-package nanoid declaration
-  AND every tracked package.json has no direct, aliased, target-shaped tarball,
-      or renamed tracked local-package react-router declaration
+  AND every tracked package.json nanoid carrier under the exact nanoid key is
+      an exact stable direct selector or identity-bound npm:nanoid alias outside
+      every reconciled affected range; renamed aliases, target-shaped tarballs,
+      and local-package carriers fail closed
+  AND every tracked package.json react-router carrier under the exact
+      react-router key is an exact stable direct selector outside every
+      reconciled affected range; aliases, target-shaped tarballs, and renamed
+      local-package carriers fail closed
   AND every tracked package.json react-router-dom carrier is exact npm SemVer,
       applies Node-semver's raw 256-character bound to direct/lock values and
       to the extracted alias/tarball version token, stays within its numeric-component bound,
@@ -203,9 +207,11 @@ P_batch =
       WHATWG-style special-scheme backslashes are normalized before URL parsing
   AND every dependency/dev/optional/peer or nested override leaf is one exact,
       caret, or tilde npm SemVer selector whose identity remains explicit in
-      its package key; Git, hosted shorthand, remote/local paths, aliases,
-      compound selectors, unknown transports, and malformed leaves fail closed
-      for separate provenance review instead of growing a second npm parser
+      its package key; the stricter target rules above own the exact-key NanoID
+      alias exception, while renamed aliases, Git, hosted shorthand,
+      remote/local paths, compound selectors, unknown transports, and malformed
+      leaves fail closed for separate provenance review instead of growing a
+      second npm parser
   AND lock-path identity is the complete unscoped name or @scope/name after the
       final node_modules segment, never the terminal basename alone
   AND GHSA-qwww-vcr4-c8h2 is not suppressible by the Rego policy or .trivyignore
