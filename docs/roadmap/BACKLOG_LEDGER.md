@@ -24,6 +24,37 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
+- [ ] P1: Carry over the RAG main fixture and CI ownership repair into PR #2246
+  - Owner: backend-engineer / qa-engineer-agent
+  - Priority: P1 (current-main recovery / CI trust)
+  - Target PR: [PR #2246](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2246)
+  - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on PR #2246
+  - Status: Integrated into the single operator-authorized remediation lane; exact-head CI and closeout pending
+  - Reason (EN): PR #2245 repairs the Stage-1-invalid positive Jaccard fixture
+    and the finite `insight_ai` owning-suite gap, but its Trivy check is blocked
+    by the dependency identities remediated in PR #2246. PR #2246 is in turn
+    blocked in every canonical Python matrix by that same fixture. Carrying the
+    two already-reviewed commits into one PR breaks the circular dependency
+    without changing RAG runtime behavior or weakening Stage 1.
+  - Links:
+    - `tests/test_rag_vector_feature_flag_guard.py`
+    - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
+    - `tests/test_ci_risk_profile.py`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+  - DoD:
+    - the positive Jaccard mock satisfies the existing Stage-1 minimum while
+      `tests/test_rag_validation.py::test_short_content_removed` remains the
+      negative control
+    - the four finite RAG owner suites occur exactly once in `insight_ai` for
+      both `test-pr` and `test-feature`, and each self-routes through the risk
+      profile
+    - no `core/rag/**`, route, DTO, OpenAPI, provider, quota, or rate-limit
+      behavior changes
+    - exact PR #2246 current-head Python 3.11, 3.12, and 3.13 matrices pass
+      before any main/nightly recovery claim
+
 <a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
 - [ ] P1: RAG-S2 baseline validation boundary
   - Owner: backend-engineer
