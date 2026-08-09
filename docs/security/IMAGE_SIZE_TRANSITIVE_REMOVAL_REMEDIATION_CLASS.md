@@ -135,9 +135,9 @@ delta.
   ignored or untracked scratch paths;
 - executable absence of `image-size` and its retired `pptxgenjs` carrier on
   every tracked manifest and lock surface;
-- rejection of direct declarations, npm aliases, registry-tarball declarations,
-  bundled declarations, renamed lock entries, registry-resolution aliases, and
-  malformed lock entries;
+- rejection of direct declarations, npm aliases, target-shaped tarball
+  declarations regardless of origin, bundled declarations, renamed lock
+  entries, registry-resolution aliases, and malformed lock entries;
 - universal affected-range checks for the retained nanoid and React Router
   occurrences, without pinning their current safe version forever.
 

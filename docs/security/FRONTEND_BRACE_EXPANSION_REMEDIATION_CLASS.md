@@ -361,10 +361,12 @@ empty URL params/query/fragment, a consistent optional name, and non-empty
 integrity. Thus a foreign-host, query-decorated, or fragment-decorated alias is
 rejected rather than disappearing from the quantified candidate universe.
 
-This is a finite closed-world claim over every tracked npm manifest and the
-lockfile-v3 `packages` maps. It does not claim recognition of arbitrary mirrors,
-publisher behavior, future advisories, future lockfile schemas, or artifacts
-with none of the bounded identity signals.
+This is a finite closed-world claim over the dynamically enumerated current
+Git-indexed npm manifests and lockfile-v3 `packages` maps. The five historical
+transition surfaces above remain immutable evidence, not a permanent topology
+pin. The guard does not claim recognition of arbitrary mirrors, publisher
+behavior, future advisories, future lockfile schemas, or artifacts with none of
+the bounded identity signals.
 
 ## Residual risks, rollback, and stop conditions
 

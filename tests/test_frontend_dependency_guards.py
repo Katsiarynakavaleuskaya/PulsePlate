@@ -162,14 +162,8 @@ BRACE_EXPANSION_HEAD_EVIDENCE_SURFACES = frozenset(
 )
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-EXPECTED_REPO_NPM_SURFACES = frozenset(
-    {
-        "frontend/package-lock.json",
-        "frontend/package.json",
-        "package-lock.json",
-        "package.json",
-        "scripts/business_collateral/package.json",
-    }
+FRONTEND_BRACE_EXPANSION_SURFACES = frozenset(
+    {"frontend/package.json", "frontend/package-lock.json"}
 )
 
 
@@ -931,6 +925,33 @@ def _find_manifest_target_paths(
     return found
 
 
+def _assert_brace_expansion_surface_ownership(
+    *,
+    root: Path = REPO_ROOT,
+) -> frozenset[str]:
+    """Reject target carriers outside the finite frontend owner surfaces."""
+    discovered_surfaces: set[str] = set()
+    for relative in _enumerate_repo_npm_surfaces(root=root):
+        document = _load_json(root / relative)
+        manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
+            relative=relative,
+            document=document,
+        )
+        if manifest_occurrences or lock_entries:
+            discovered_surfaces.add(relative)
+        if relative in FRONTEND_BRACE_EXPANSION_SURFACES:
+            continue
+        assert not manifest_occurrences, (
+            f"head:{relative}: brace-expansion manifest occurrence belongs to a "
+            "separate surface/class"
+        )
+        assert not lock_entries, (
+            f"head:{relative}: brace-expansion lock occurrence belongs to a separate "
+            "surface/class"
+        )
+    return frozenset(discovered_surfaces)
+
+
 def _assert_brace_expansion_security_class(
     *,
     package_json: dict,
@@ -1028,30 +1049,29 @@ def test_frontend_brace_expansion_class_covers_all_lock_variants() -> None:
 
 def test_brace_expansion_is_absent_from_other_repo_npm_surfaces() -> None:
     """Enumerate current tracked surfaces and reject an unowned target graph."""
+    assert _assert_brace_expansion_surface_ownership() <= FRONTEND_BRACE_EXPANSION_SURFACES
 
-    head_surfaces = _enumerate_repo_npm_surfaces()
-    assert head_surfaces == EXPECTED_REPO_NPM_SURFACES
 
-    frontend_surfaces = {"frontend/package.json", "frontend/package-lock.json"}
-    discovered_surfaces: set[str] = set()
-    for relative in head_surfaces:
-        document = _load_json(REPO_ROOT / relative)
-        manifest_occurrences, lock_entries = _discover_brace_expansion_surface_occurrences(
-            relative=relative,
-            document=document,
-        )
-        if manifest_occurrences or lock_entries:
-            discovered_surfaces.add(relative)
-        if relative not in frontend_surfaces:
-            assert not manifest_occurrences, (
-                f"head:{relative}: brace-expansion manifest/override occurrence belongs to a "
-                "separate surface/class"
-            )
-            assert not lock_entries, (
-                f"head:{relative}: brace-expansion lock occurrence belongs to a separate "
-                "surface/class"
-            )
-    assert discovered_surfaces <= frontend_surfaces
+@pytest.mark.parametrize("unsafe", (False, True))
+def test_brace_expansion_surface_ownership_tracks_safe_repo_growth(
+    tmp_path: Path,
+    unsafe: bool,
+) -> None:
+    """A safe new tracked manifest is allowed; an unowned carrier fails closed."""
+    _git_stdout("init", repo_root=tmp_path)
+    manifest_path = tmp_path / "tools" / "build" / "package.json"
+    manifest_path.parent.mkdir(parents=True)
+    document: dict[str, object] = {"name": "safe-build-tool"}
+    if unsafe:
+        document["dependencies"] = {"brace-expansion": "2.1.3"}
+    manifest_path.write_text(json.dumps(document), encoding="utf-8")
+    _git_stdout("add", "--", "tools/build/package.json", repo_root=tmp_path)
+
+    if unsafe:
+        with pytest.raises(AssertionError, match="separate surface/class"):
+            _assert_brace_expansion_surface_ownership(root=tmp_path)
+    else:
+        assert _assert_brace_expansion_surface_ownership(root=tmp_path) == frozenset()
 
 
 def test_npm_surface_discovery_catches_lockfile_v3_and_shrinkwrap(tmp_path: Path) -> None:

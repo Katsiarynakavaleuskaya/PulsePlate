@@ -25,7 +25,6 @@ ROOT_PACKAGE_JSON = REPO_ROOT / "package.json"
 ROOT_LOCK_JSON = REPO_ROOT / "package-lock.json"
 NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shrinkwrap.json"})
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
-NPM_REGISTRY_HOST = "registry.npmjs.org"
 NANOID_AFFECTED_RANGES = (
     SpecifierSet("<3.3.17"),
     SpecifierSet(">=4,<5.1.16"),
@@ -119,13 +118,11 @@ def _fully_decode_url_path(path: str) -> str:
     raise AssertionError("URL path percent-decoding did not converge")
 
 
-def _registry_tarball_identity_matches(value: object, *, target: str) -> bool:
-    """Recognize a target carried through an npm-registry tarball URL."""
+def _tarball_identity_matches(value: object, *, target: str) -> bool:
+    """Discover a target-shaped tarball independently of its provenance."""
     if not isinstance(value, str):
         return False
     parsed = urlparse(value)
-    if parsed.hostname != NPM_REGISTRY_HOST:
-        return False
     decoded_path = _fully_decode_url_path(parsed.path)
     normalized_path = f"/{posixpath.normpath(decoded_path).lstrip('/')}"
     package_basename = target.rsplit("/", maxsplit=1)[-1]
@@ -141,7 +138,7 @@ def _dependency_identity_matches(*, key: object, value: object, target: str) -> 
     return (
         value == f"npm:{target}"
         or value.startswith(f"npm:{target}@")
-        or _registry_tarball_identity_matches(value, target=target)
+        or _tarball_identity_matches(value, target=target)
     )
 
 
@@ -385,6 +382,12 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             "pptxgenjs",
         ),
         (
+            "peerDependencies",
+            "foreign-image-tarball",
+            "https://example.invalid/image-size/-/image-size-1.2.1.tgz",
+            "image-size",
+        ),
+        (
             "optionalDependencies",
             "renamed-scoped-tarball",
             "https://registry.npmjs.org/@scope%2fpkg/-/pkg-2.0.0.tgz",
@@ -403,16 +406,15 @@ def test_retired_graph_manifest_discovery_rejects_direct_and_alias_reintroductio
 @pytest.mark.parametrize(
     "value",
     (
-        "https://example.invalid/image-size/-/image-size-1.2.1.tgz",
         "https://registry.npmjs.org/image-sizes/-/image-sizes-1.2.1.tgz",
         "https://registry.npmjs.org/other/-/image-size-1.2.1.tgz",
         "https://registry.npmjs.org/image-size",
     ),
 )
-def test_manifest_tarball_discovery_rejects_only_the_exact_registry_identity(
+def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
     value: str,
 ) -> None:
-    """Near-miss tarballs must not be misclassified as the retired package."""
+    """Package-identity near misses must not be misclassified as the target."""
     assert not _find_manifest_occurrences(
         {"dependencies": {"renamed-image": value}},
         target="image-size",
