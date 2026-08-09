@@ -141,13 +141,16 @@ delta.
   tarballs before canonical provenance validation, WHATWG-style backslash path variants,
   registry-resolution aliases, renamed local-path carriers whose tracked
   package manifest owns the target identity, and malformed lock entries;
-- admission of only one explicit exact, caret, or tilde npm SemVer selector per
-  dependency/dev/optional/peer or nested override leaf; every Git source,
-  hosted shorthand, remote/local path, alias, compound selector, unknown
-  transport, and malformed non-string leaf fails closed as opaque and requires
-  a separately reviewed provenance class before admission;
-  this stable allowlist neither freezes npm's evolving URL grammar nor attempts
-  to reproduce it in Python;
+- admission of a non-empty ASCII dependency/dev/optional/peer or nested
+  override leaf only when the `npm-package-arg` and strict `semver.validRange`
+  modules physically resolved from the active npm installation agree that it
+  is a registry `version` or `range`; one sanitized subprocess classifies the
+  normalized unique leaves as a batch, while tags, aliases, Git/hosted sources,
+  remote/local paths, workspaces, unknown transports, Unicode, and malformed
+  non-string leaves fail closed as opaque and require a separately reviewed
+  provenance class before admission;
+  this delegated boundary neither freezes one selector spelling nor attempts to
+  reproduce npm's range grammar in Python;
 - complete package identity after the final `node_modules` segment, so an
   unrelated `@scope/image-size` is not the unscoped `image-size` target;
 - universal affected-range checks for the retained nanoid and React Router
@@ -175,7 +178,7 @@ Executable evidence anchors for the stable postcondition are:
 - repository-relative tarball regression through the executable retired-graph
   owner: `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`;
 - transparent-registry selector admission and executable current-index owner:
-  `tests/test_root_npm_dependency_guards.py::_is_transparent_npm_registry_spec`,
+  `tests/test_root_npm_dependency_guards.py::_classify_current_npm_registry_specs`,
   `tests/test_root_npm_dependency_guards.py::_find_opaque_npm_dependency_source_occurrences`,
   and `tests/test_root_npm_dependency_guards.py::test_tracked_npm_manifests_reject_opaque_dependency_sources`;
 - full scoped/unscoped lock-path identity:

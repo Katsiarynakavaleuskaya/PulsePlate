@@ -13,6 +13,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
@@ -42,6 +43,56 @@ _EXACT_NPM_SEMVER_RE = re.compile(
     r"(?P<prerelease>-(?:[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
+_NPM_REGISTRY_SPEC_CLASSIFIER_JS = r"""
+const fs = require("node:fs");
+const path = require("node:path");
+const { createRequire } = require("node:module");
+
+const npmCli = fs.realpathSync(path.resolve(process.argv[1]));
+const repoRoot = fs.realpathSync(path.resolve(process.argv[2]));
+const npmRoot = path.dirname(path.dirname(npmCli));
+const npmNodeModules = fs.realpathSync(path.join(npmRoot, "node_modules"));
+const npmRequire = createRequire(npmCli);
+
+function requireFromInstalledNpm(packageName) {
+  const entry = fs.realpathSync(npmRequire.resolve(packageName));
+  const relative = path.relative(npmNodeModules, entry);
+  const escapesNpmTree =
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative);
+  if (!relative || escapesNpmTree || relative.split(path.sep)[0] !== packageName) {
+    throw new Error(`${packageName} must resolve from the installed npm tree: ${entry}`);
+  }
+  return npmRequire(entry);
+}
+
+const packageArg = requireFromInstalledNpm("npm-package-arg");
+const semver = requireFromInstalledNpm("semver");
+const specs = JSON.parse(fs.readFileSync(0, "utf8"));
+if (
+  !Array.isArray(specs) ||
+  specs.some(
+    (spec) =>
+      typeof spec !== "string" ||
+      spec.length === 0 ||
+      spec.trim() !== spec ||
+      !/^[\x00-\x7F]+$/.test(spec),
+  )
+) {
+  throw new TypeError("npm registry specs must be normalized ASCII strings");
+}
+const classifications = specs.map((spec) => {
+  try {
+    const parsed = packageArg.resolve("pulseplate-guard", spec, repoRoot);
+    const isRegistrySelector = parsed.type === "version" || parsed.type === "range";
+    return isRegistrySelector && semver.validRange(spec, { loose: false }) !== null;
+  } catch (_error) {
+    return false;
+  }
+});
+process.stdout.write(JSON.stringify(classifications));
+"""
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -152,14 +203,93 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     )
 
 
-def _is_transparent_npm_registry_spec(value: object) -> bool:
-    """Allow only one explicit npm SemVer selector whose package identity is in its key."""
+def _normalized_npm_registry_spec(value: object) -> str | None:
+    """Normalize one eligible manifest leaf before npm owns its selector grammar."""
     if not isinstance(value, str) or not value.isascii():
-        return False
+        return None
     candidate = value.strip()
-    if candidate.startswith(("^", "~")):
-        candidate = candidate[1:]
-    return _parse_exact_npm_semver(candidate) is not None
+    return candidate or None
+
+
+def _resolve_current_npm_registry_parser_runtime() -> tuple[str, str]:
+    """Resolve the physical Node executable and installed npm CLI or fail closed."""
+    node_binary = shutil.which("node")
+    npm_binary = shutil.which("npm")
+    assert node_binary is not None, "node is required for npm registry-spec guards"
+    assert npm_binary is not None, "npm is required for npm registry-spec guards"
+    node_path = Path(node_binary)
+    npm_path = Path(npm_binary)
+    assert node_path.is_absolute(), "node binary must resolve to an absolute path"
+    assert npm_path.is_absolute(), "npm binary must resolve to an absolute path"
+    assert node_path.is_file() and os.access(
+        node_path, os.X_OK
+    ), "node binary must be an available executable file"
+    assert npm_path.is_file() and os.access(
+        npm_path, os.X_OK
+    ), "npm binary must be an available executable file"
+    try:
+        resolved_node = node_path.resolve(strict=True)
+        resolved_npm_cli = npm_path.resolve(strict=True)
+    except OSError as exc:
+        raise AssertionError("npm registry-spec toolchain must resolve to regular files") from exc
+    assert resolved_node.is_file() and os.access(
+        resolved_node, os.X_OK
+    ), "resolved node binary must be an executable file"
+    assert resolved_npm_cli.is_file(), "resolved npm CLI must be a regular file"
+    return str(resolved_node), str(resolved_npm_cli)
+
+
+def _classify_current_npm_registry_specs(
+    values: Iterable[object], *, root: Path = REPO_ROOT
+) -> dict[str, bool]:
+    """Batch version/range admission through parser modules owned by installed npm."""
+    specs = sorted(
+        {
+            candidate
+            for value in values
+            if (candidate := _normalized_npm_registry_spec(value)) is not None
+        }
+    )
+    if not specs:
+        return {}
+    try:
+        resolved_root = root.resolve(strict=True)
+    except OSError as exc:
+        raise AssertionError("npm registry-spec classifier root must resolve") from exc
+    assert resolved_root.is_dir(), "npm registry-spec classifier root must be a directory"
+    node_binary, npm_cli = _resolve_current_npm_registry_parser_runtime()
+    parser_env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_") and key not in {"NODE_OPTIONS", "NODE_PATH"}
+    }
+    try:
+        result = subprocess.run(
+            [
+                node_binary,
+                "-e",
+                _NPM_REGISTRY_SPEC_CLASSIFIER_JS,
+                npm_cli,
+                str(resolved_root),
+            ],
+            check=True,
+            input=json.dumps(specs, ensure_ascii=True).encode("utf-8"),
+            capture_output=True,
+            env=parser_env,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise AssertionError("npm registry-spec classifier execution failed") from exc
+    try:
+        classifications = json.loads(result.stdout.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise AssertionError("npm registry-spec classifier returned invalid UTF-8 JSON") from exc
+    assert isinstance(classifications, list), "npm registry-spec classifier must return a list"
+    assert len(classifications) == len(specs), "npm registry-spec classifier result count drift"
+    assert all(
+        type(value) is bool for value in classifications
+    ), "npm registry-spec classifier results must be booleans"
+    return dict(zip(specs, classifications, strict=True))
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -221,6 +351,7 @@ def _find_opaque_npm_dependency_source_occurrences(
 ) -> dict[tuple[str, ...], object]:
     """Find dependency sources whose identity/provenance is opaque to package.json."""
     occurrences: dict[tuple[str, ...], object] = {}
+    candidates: dict[tuple[str, ...], object] = {}
     if "workspaces" in document:
         occurrences[("workspaces",)] = document["workspaces"]
     for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
@@ -228,8 +359,7 @@ def _find_opaque_npm_dependency_source_occurrences(
         if not isinstance(values, dict):
             continue
         for key, value in values.items():
-            if not _is_transparent_npm_registry_spec(value):
-                occurrences[(field, str(key))] = value
+            candidates[(field, str(key))] = value
 
     def walk_overrides(value: object, path: tuple[str, ...]) -> None:
         if not isinstance(value, dict):
@@ -238,10 +368,19 @@ def _find_opaque_npm_dependency_source_occurrences(
             child_path = (*path, str(key))
             if isinstance(child, dict):
                 walk_overrides(child, child_path)
-            elif not _is_transparent_npm_registry_spec(child):
-                occurrences[child_path] = child
+            else:
+                candidates[child_path] = child
 
     walk_overrides(document.get("overrides"), ("overrides",))
+    classifications = _classify_current_npm_registry_specs(candidates.values())
+    occurrences.update(
+        {
+            path: value
+            for path, value in candidates.items()
+            if (candidate := _normalized_npm_registry_spec(value)) is None
+            or not classifications.get(candidate, False)
+        }
+    )
     return occurrences
 
 
@@ -835,24 +974,30 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
     )
 
 
-@pytest.mark.parametrize(
-    "value",
-    (
+def test_current_npm_registry_classifier_accepts_version_and_range_grammar() -> None:
+    """Installed npm owns exact, comparator, partial, wildcard, and union selectors."""
+    values = (
         "1.2.3",
         "^1.2.3",
         "~1.2.3",
         "^5.1.0-rc.0",
+        ">=1.0.0",
+        "1.2.x",
+        ">=1 <2",
+        "1 || >=2",
+        "*",
+        "1.2.3 - 2.3.4",
         "  7.18.2  ",
-    ),
-)
-def test_transparent_dependency_source_accepts_one_registry_semver_selector(value: str) -> None:
-    """Version rotation remains independent inside the stable registry-selector class."""
-    assert _is_transparent_npm_registry_spec(value)
+    )
+
+    assert _classify_current_npm_registry_specs(values) == {
+        value.strip(): True for value in sorted(values)
+    }
 
 
-@pytest.mark.parametrize(
-    "value",
-    (
+def test_current_npm_registry_classifier_rejects_non_registry_and_malformed_specs() -> None:
+    """Tags, aliases, transports, paths, and malformed SemVer stay opaque."""
+    values = (
         "git+https://github.com/acme/repo.git#main",
         "github:acme/repo#main",
         "acme/repo#v1",
@@ -864,21 +1009,188 @@ def test_transparent_dependency_source_accepts_one_registry_semver_selector(valu
         "npm:other@1.2.3",
         r"ssh:/\github.com/acme/repo",
         r"git+ssh://\github.com/acme/repo",
-        ">=1 <2",
         "latest",
-        "",
         "1.2.3-01",
         "^1.2.3-01",
         "~1.2.3-alpha.01",
+        "1.2.3 || latest",
+    )
+
+    assert _classify_current_npm_registry_specs(values) == {
+        value: False for value in sorted(values)
+    }
+
+
+def test_opaque_source_discovery_rejects_ineligible_manifest_leaf_shapes() -> None:
+    """Empty, Unicode, and non-string leaves never reach or bypass npm admission."""
+    values: tuple[object, ...] = (
+        "",
+        " \t ",
         "^1.2.3١",
         "\N{NO-BREAK SPACE}1.2.3\N{NO-BREAK SPACE}",
         "\N{FIGURE SPACE}1.2.3\N{FIGURE SPACE}",
         "\N{NARROW NO-BREAK SPACE}^1.2.3\N{NARROW NO-BREAK SPACE}",
+        123,
+        None,
+    )
+    document = {"dependencies": {f"package-{index}": value for index, value in enumerate(values)}}
+
+    assert _find_opaque_npm_dependency_source_occurrences(document) == {
+        ("dependencies", f"package-{index}"): value for index, value in enumerate(values)
+    }
+
+
+def test_current_npm_registry_classifier_uses_one_resolved_sanitized_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """One absolute installed-npm parser call owns all normalized unique leaves."""
+    node_path = tmp_path / "bin" / "node"
+    npm_cli_path = tmp_path / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js"
+    npm_path = tmp_path / "bin" / "npm"
+    node_path.parent.mkdir(parents=True)
+    npm_cli_path.parent.mkdir(parents=True)
+    node_path.write_text("node fixture", encoding="utf-8")
+    npm_cli_path.write_text("npm fixture", encoding="utf-8")
+    node_path.chmod(0o755)
+    npm_cli_path.chmod(0o755)
+    npm_path.symlink_to(npm_cli_path)
+
+    def fake_which(name: str) -> str | None:
+        return {"node": str(node_path), "npm": str(npm_path)}.get(name)
+
+    calls: list[dict[str, object]] = []
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        calls.append({"args": args, **kwargs})
+        return subprocess.CompletedProcess(args, 0, stdout=b"[true,true]", stderr=b"")
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "outer.index"))
+    monkeypatch.setenv("GIT_CUSTOM_PROBE", "must-not-leak")
+    monkeypatch.setenv("NODE_OPTIONS", "--require=must-not-leak")
+    monkeypatch.setenv("NODE_PATH", str(tmp_path / "must-not-leak"))
+
+    classifications = _classify_current_npm_registry_specs(
+        ("  >=1.0.0  ", "1.2.x", ">=1.0.0", "1.2.x"),
+        root=tmp_path,
+    )
+
+    assert classifications == {"1.2.x": True, ">=1.0.0": True}
+    assert len(calls) == 1
+    call = calls[0]
+    args = cast(list[str], call["args"])
+    assert args == [
+        str(node_path.resolve()),
+        "-e",
+        _NPM_REGISTRY_SPEC_CLASSIFIER_JS,
+        str(npm_cli_path.resolve()),
+        str(tmp_path.resolve()),
+    ]
+    assert call["input"] == b'["1.2.x", ">=1.0.0"]'
+    assert call["check"] is True
+    assert call["capture_output"] is True
+    assert call["timeout"] == 30
+    parser_env = cast(dict[str, str], call["env"])
+    assert not any(key.startswith("GIT_") for key in parser_env)
+    assert "NODE_OPTIONS" not in parser_env
+    assert "NODE_PATH" not in parser_env
+
+
+@pytest.mark.parametrize(
+    ("stdout", "message"),
+    (
+        (b"\xff", "invalid UTF-8 JSON"),
+        (b"{", "invalid UTF-8 JSON"),
+        (b"{}", "must return a list"),
+        (b"[true]", "result count drift"),
+        (b"[true,1]", "results must be booleans"),
     ),
 )
-def test_transparent_dependency_source_rejects_opaque_or_unowned_syntax(value: str) -> None:
-    """Unknown transports and compound selectors require explicit provenance review."""
-    assert not _is_transparent_npm_registry_spec(value)
+def test_current_npm_registry_classifier_rejects_invalid_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    stdout: bytes,
+    message: str,
+) -> None:
+    """Invalid encoding, JSON root, cardinality, and result types fail closed."""
+    monkeypatch.setitem(
+        globals(),
+        "_resolve_current_npm_registry_parser_runtime",
+        lambda: ("/absolute/node", "/absolute/npm-cli.js"),
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(args, 0, stdout=stdout, stderr=b""),
+    )
+
+    with pytest.raises(AssertionError, match=message):
+        _classify_current_npm_registry_specs(("1.0.0", "2.0.0"), root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        OSError("cannot execute"),
+        subprocess.TimeoutExpired("node", 30),
+        subprocess.CalledProcessError(1, ["node", "-e"]),
+    ),
+)
+def test_current_npm_registry_classifier_rejects_execution_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    failure: BaseException,
+) -> None:
+    """Execution, timeout, and npm module-resolution failures fail closed."""
+    monkeypatch.setitem(
+        globals(),
+        "_resolve_current_npm_registry_parser_runtime",
+        lambda: ("/absolute/node", "/absolute/npm-cli.js"),
+    )
+
+    def fail_run(*args: object, **kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr(subprocess, "run", fail_run)
+
+    with pytest.raises(AssertionError, match="classifier execution failed"):
+        _classify_current_npm_registry_specs((">=1.0.0",), root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("missing", "message"),
+    (("node", "node is required"), ("npm", "npm is required")),
+)
+def test_current_npm_registry_classifier_rejects_missing_toolchain(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    missing: str,
+    message: str,
+) -> None:
+    """Neither parser executable may be inferred when PATH cannot resolve it."""
+    executable = tmp_path / "tool"
+    executable.write_text("tool fixture", encoding="utf-8")
+    executable.chmod(0o755)
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name: None if name == missing else str(executable),
+    )
+
+    with pytest.raises(AssertionError, match=message):
+        _resolve_current_npm_registry_parser_runtime()
+
+
+def test_current_npm_registry_classifier_rejects_untrusted_relative_toolchain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PATH resolution must yield absolute executable identities."""
+    monkeypatch.setattr(shutil, "which", lambda name: name)
+
+    with pytest.raises(AssertionError, match="node binary must resolve to an absolute path"):
+        _resolve_current_npm_registry_parser_runtime()
 
 
 @pytest.mark.parametrize(
@@ -910,14 +1222,16 @@ def test_opaque_source_owner_rejects_each_governed_manifest_position(
         test_tracked_npm_manifests_reject_opaque_dependency_sources()
 
 
+@pytest.mark.parametrize("workspaces", ([], "1.2.3"))
 def test_opaque_source_owner_rejects_workspace_topology(
     monkeypatch: pytest.MonkeyPatch,
+    workspaces: object,
 ) -> None:
     """Any workspace field needs a separate executable-identity owner."""
     monkeypatch.setitem(
         globals(),
         "_load_tracked_npm_surfaces",
-        lambda: {"scripts/business_collateral/package.json": {"workspaces": []}},
+        lambda: {"scripts/business_collateral/package.json": {"workspaces": workspaces}},
     )
 
     with pytest.raises(AssertionError, match="opaque dependency source"):
@@ -1715,6 +2029,32 @@ def test_nanoid_guards_allow_safe_exact_manifest_carrier(
 
     test_tracked_npm_manifests_reject_opaque_dependency_sources()
     test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+@pytest.mark.parametrize(
+    ("target", "value", "affected_ranges"),
+    (
+        ("nanoid", ">=5.1.16", NANOID_AFFECTED_RANGES),
+        ("react-router-dom", ">=7.18.2", REACT_ROUTER_AFFECTED_RANGES),
+    ),
+)
+def test_security_target_open_range_stays_under_exact_advisory_owner(
+    target: str,
+    value: str,
+    affected_ranges: tuple[SpecifierSet, ...],
+) -> None:
+    """Generic registry admission cannot replace exact advisory comparison."""
+    document = {"dependencies": {target: value}}
+    occurrences = _find_manifest_occurrences(document, target=target)
+
+    assert not _find_opaque_npm_dependency_source_occurrences(document)
+    with pytest.raises(AssertionError, match="must use an exact advisory-comparable version"):
+        _assert_manifest_occurrences_outside_ranges(
+            surface="package.json",
+            target=target,
+            occurrences=occurrences,
+            affected_ranges=affected_ranges,
+        )
 
 
 def test_opaque_source_owner_rejects_renamed_safe_nanoid_alias(

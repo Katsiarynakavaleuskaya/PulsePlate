@@ -206,11 +206,13 @@ P_batch =
       origin-neutral target identity is discovered before its canonical registry
       tarball version is required to match `version` with non-empty integrity;
       WHATWG-style special-scheme backslashes are normalized before URL parsing
-  AND every dependency/dev/optional/peer or nested override leaf is one exact,
-      caret, or tilde npm SemVer selector whose identity remains explicit in
-      its package key; the stricter target rules above own the exact-key NanoID
-      alias exception, while renamed aliases, Git, hosted shorthand,
-      remote/local paths, compound selectors, unknown transports, and malformed
+  AND every dependency/dev/optional/peer or nested override leaf is a non-empty
+      ASCII selector whose identity remains explicit in its package key and
+      whose registry version/range classification is delegated in one batch to
+      `npm-package-arg` plus strict `semver.validRange` from the physically
+      active npm tree; the stricter target rules above own the exact-key NanoID
+      alias exception, while tags, renamed aliases, Git, hosted shorthand,
+      remote/local paths, workspaces, unknown transports, Unicode, and malformed
       leaves fail closed for separate provenance review instead of growing a
       second npm parser
   AND lock-path identity is the complete unscoped name or @scope/name after the
@@ -233,9 +235,15 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`, and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - transparent-registry selector admission in named manifest fields:
-  `tests/test_root_npm_dependency_guards.py::_is_transparent_npm_registry_spec`,
+  `tests/test_root_npm_dependency_guards.py::_classify_current_npm_registry_specs`,
   `tests/test_root_npm_dependency_guards.py::_find_opaque_npm_dependency_source_occurrences`,
   and `tests/test_root_npm_dependency_guards.py::test_tracked_npm_manifests_reject_opaque_dependency_sources`;
+  the generic owner admits a non-empty ASCII leaf only when the physically
+  active npm installation classifies it as a registry `version` or `range` and
+  its strict bundled `semver.validRange` accepts it; tags, aliases, transports,
+  workspaces, Unicode, and malformed values remain opaque, while NanoID and
+  React Router declarations still pass through the separate exact
+  advisory-comparison owner below;
 - complete scoped/unscoped lock-path identity:
   `tests/test_root_npm_dependency_guards.py::_lock_path_package_identity` and
   `tests/test_root_npm_dependency_guards.py::test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename`;
