@@ -178,6 +178,15 @@ _WHATWG_SINGLE_DOT_SEGMENTS = frozenset({".", "%2e"})
 _WHATWG_DOUBLE_DOT_SEGMENTS = frozenset({"..", ".%2e", "%2e.", "%2e%2e"})
 
 
+def _normalize_npm_special_url_authority(candidate: str) -> str:
+    """Normalize current npm HTTP(S) authority separators before URL parsing."""
+    match = re.fullmatch(r"(?is)(https?):[\\/]*(.*)", candidate)
+    if match is None:
+        return candidate.replace("\\", "/")
+    normalized_rest = match.group(2).replace("\\", "/")
+    return f"{match.group(1).lower()}://{normalized_rest}"
+
+
 def _normalize_whatwg_special_url_path(path: str) -> str:
     """Remove only WHATWG dot segments while preserving encoded separators."""
     output: list[str] = []
@@ -280,9 +289,12 @@ def _matches_current_npm_hosted_scp(candidate: str) -> bool:
     match = _NPM_HOSTED_SCP_GIT_RE.fullmatch(candidate)
     if match is None:
         return False
-    normalized = (
-        f"git+ssh://{match.group('auth')}@{match.group('hostname')}/" f"{match.group('path')}"
-    )
+    auth = match.group("auth")
+    path = match.group("path")
+    if path.startswith("/") and ":" not in auth:
+        return False
+    normalized_path = path.lstrip("/") if ":" in auth else path
+    normalized = f"git+ssh://{auth}@{match.group('hostname')}/{normalized_path}"
     return _matches_current_npm_hosted_git_url(normalized)
 
 
@@ -290,7 +302,7 @@ def _matches_bounded_npm_git_spec(value: object) -> bool:
     """Classify only the explicitly enumerated current npm Git-source grammar."""
     if not isinstance(value, str):
         return False
-    candidate = value.strip().replace("\\", "/")
+    candidate = _normalize_npm_special_url_authority(value.strip())
     lowered = candidate.lower()
     if lowered.startswith("file:") or candidate.startswith(("./", "../", "~/")):
         return False
@@ -947,6 +959,8 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
         "git@bitbucket.org:acme/repo.git",
         "git@gist.github.com:101a11beef.git",
         "git@git.sr.ht:~acme/repo.git",
+        "alice:pw@github.com:/abs/repo.git",
+        "alice:pw@gitlab.com:/abs/repo.git",
         "github:acme/repo#main",
         "github:acme/subgroup/repo",
         "gitlab:acme/repo",
@@ -966,6 +980,10 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
         "https://github。com/acme/repo",
         "https://github.com/acme/placeholder/../repo",
         "https://github.com/acme/placeholder/%2e%2e/repo",
+        r"https:\github.com/acme/repo",
+        "https:/github.com/acme/repo",
+        "https:github.com/acme/repo",
+        r"https:\gitlab.com/acme/repo",
         "http://github.com/acme/repo",
         "ssh://git@github.com/acme/repo%2egit#main",
         "https://gitlab.com/acme/group/repo",
@@ -1016,6 +1034,7 @@ def test_bounded_git_dependency_recognizer_matches_enumerated_current_grammar(
         "http://gist.github.com/101a11beef",
         "http://git.sr.ht/~acme/repo",
         "ssh://git@git.sr.ht/~acme/repo",
+        r"ssh:\github.com/acme/repo",
         "git+git://example.invalid/acme/repo.git",
         "git+foo://example.invalid/acme/repo.git",
         "https://github.com/acme/repo/blob/main/package.json",
@@ -1065,6 +1084,7 @@ def test_git_source_owner_does_not_reclassify_npm_local_scp_near_misses(
     "document",
     (
         {"dependencies": {"renamed-image": "git+file:///tmp/image-size"}},
+        {"dependencies": {"renamed-image": r"https:\github.com/acme/repo"}},
         {"devDependencies": {"renamed-image": "git+ftp://example.invalid/repo.git"}},
         {"optionalDependencies": {"renamed-image": "gist:101a11beef#main"}},
         {"peerDependencies": {"renamed-image": "acme/repo#v1"}},
