@@ -299,13 +299,13 @@ def test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces() -> None
 def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
     """Every installed nanoid remains outside both known affected range families."""
     for relative, document in _load_tracked_npm_surfaces().items():
-        if relative == "frontend/package.json":
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
             assert not _find_manifest_occurrences(
                 document, target="nanoid"
-            ), "frontend/package.json: nanoid must remain transitive, not direct intent"
+            ), f"{relative}: nanoid must remain transitive, not direct intent"
             continue
-        if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
-            continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="nanoid",
@@ -317,8 +317,13 @@ def test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges() -> Non
 def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() -> None:
     """Every installed React Router remains outside both known affected ranges."""
     for relative, document in _load_tracked_npm_surfaces().items():
-        if PurePosixPath(relative).name not in NPM_LOCK_SURFACE_BASENAMES:
+        basename = PurePosixPath(relative).name
+        if basename == "package.json":
+            assert not _find_manifest_occurrences(
+                document, target="react-router"
+            ), f"{relative}: react-router must remain transitive, not direct intent"
             continue
+        assert basename in NPM_LOCK_SURFACE_BASENAMES
         _assert_occurrences_outside_ranges(
             surface=relative,
             target="react-router",
@@ -597,3 +602,45 @@ printf '%s\\n' "$@"
         "status",
         "--porcelain",
     ]
+
+
+def test_nanoid_guard_rejects_declaration_in_any_tracked_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-frontend tracked manifest cannot bypass the transitive-only invariant."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {
+                "dependencies": {"renamed-nanoid": "npm:nanoid@3.3.12"}
+            }
+        },
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="scripts/business_collateral/package.json: nanoid must remain transitive",
+    ):
+        test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
+
+
+def test_react_router_guard_rejects_declaration_in_any_tracked_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A nested tracked manifest cannot bypass the transitive Router invariant."""
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {
+                "overrides": {"renamed-router": "npm:react-router@7.18.1"}
+            }
+        },
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="scripts/business_collateral/package.json: react-router must remain transitive",
+    ):
+        test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges()

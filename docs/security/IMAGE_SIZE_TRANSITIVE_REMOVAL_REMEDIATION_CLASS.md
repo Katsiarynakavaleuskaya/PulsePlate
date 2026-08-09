@@ -160,7 +160,7 @@ Executable evidence anchors for the stable postcondition are:
   `tests/test_root_npm_dependency_guards.py:121` and
   `tests/test_root_npm_dependency_guards.py:164`;
 - version-qualified override-key discovery, including scoped package names:
-  `tests/test_root_npm_dependency_guards.py:364`;
+  `tests/test_root_npm_dependency_guards.py:369`;
 - executable absence of the retired `pptxgenjs`/`image-size` graph on every
   tracked npm surface: `tests/test_root_npm_dependency_guards.py:282`;
 - executable absence of the pitch script, aggregate PPTX routing, builder file,

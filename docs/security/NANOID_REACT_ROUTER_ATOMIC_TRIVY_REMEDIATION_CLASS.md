@@ -183,7 +183,8 @@ P_batch =
   image-size absent on every governed head surface
   AND the root lockfile nanoid occurrence == 5.1.16
   AND every frontend lockfile nanoid occurrence == 3.3.17
-  AND frontend/package.json has no direct nanoid declaration
+  AND every tracked package.json has no direct or aliased nanoid declaration
+  AND every tracked package.json has no direct or aliased react-router declaration
   AND react-router == react-router-dom == 7.18.2
   AND every retained nanoid/react-router occurrence is a stable version whose
       canonical registry tarball version matches `version` and whose integrity is non-empty
@@ -199,7 +200,7 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py:282`;
 - direct, aliased, bundled, and version-qualified override discovery:
   `tests/test_root_npm_dependency_guards.py:121` and
-  `tests/test_root_npm_dependency_guards.py:364`;
+  `tests/test_root_npm_dependency_guards.py:369`;
 - universal nanoid and React Router affected-range, canonical-tarball,
   integrity, and stable-release postconditions:
   `tests/test_root_npm_dependency_guards.py:185`,
