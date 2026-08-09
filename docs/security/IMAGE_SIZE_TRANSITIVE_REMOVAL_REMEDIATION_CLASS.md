@@ -136,9 +136,9 @@ delta.
 - executable absence of `image-size` and its retired `pptxgenjs` carrier on
   every tracked manifest and lock surface;
 - rejection of direct declarations, npm aliases, target-shaped tarball
-  declarations regardless of origin, bundled declarations, renamed lock
-  entries, origin-neutral mirror/encoded lock tarballs before canonical
-  provenance validation, WHATWG-style backslash path variants,
+  declarations regardless of origin or repository-relative prefix, bundled
+  declarations, renamed lock entries, origin-neutral mirror/encoded lock
+  tarballs before canonical provenance validation, WHATWG-style backslash path variants,
   registry-resolution aliases, renamed local-path carriers whose tracked
   package manifest owns the target identity, and malformed lock entries;
 - universal affected-range checks for the retained nanoid and React Router
@@ -160,8 +160,11 @@ Executable evidence anchors for the stable postcondition are:
   executable: `tests/test_root_npm_dependency_guards.py::_git_stdout` and
   `tests/test_root_npm_dependency_guards.py::_load_tracked_npm_surfaces`;
 - manifest/lock identity and alias discovery:
-  `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
+  `tests/test_root_npm_dependency_guards.py::_tarball_identity_matches`,
+  `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences`, and
   `tests/test_root_npm_dependency_guards.py::_find_lock_occurrences`;
+- repository-relative tarball regression through the executable retired-graph
+  owner: `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`;
 - version-qualified override-key discovery, including scoped package names:
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - executable absence of the retired `pptxgenjs`/`image-size` graph on every

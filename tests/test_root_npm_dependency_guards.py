@@ -134,9 +134,18 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     parsed = urlparse(normalized_carrier)
     decoded_path = _fully_decode_url_path(parsed.path)
     normalized_path = f"/{posixpath.normpath(decoded_path).lstrip('/')}"
+    path_parts = PurePosixPath(normalized_path).parts
+    target_parts = PurePosixPath(target).parts
     package_basename = target.rsplit("/", maxsplit=1)[-1]
-    prefix = f"/{target}/-/{package_basename}-"
-    return normalized_path.startswith(prefix) and normalized_path.endswith(".tgz")
+    suffix_width = len(target_parts) + 2
+    if len(path_parts) < suffix_width:
+        return False
+    return (
+        tuple(path_parts[-suffix_width:-2]) == target_parts
+        and path_parts[-2] == "-"
+        and path_parts[-1].startswith(f"{package_basename}-")
+        and path_parts[-1].endswith(".tgz")
+    )
 
 
 def _dependency_identity_matches(*, key: object, value: object, target: str) -> bool:
@@ -649,6 +658,24 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             "https://registry.npmjs.org/@scope%2fpkg/-/pkg-2.0.0.tgz",
             "@scope/pkg",
         ),
+        (
+            "dependencies",
+            "renamed-local-image-tarball",
+            "file:../cache/%2569mage-size/-/image-size-1.2.1.tgz?x=1#y",
+            "image-size",
+        ),
+        (
+            "overrides",
+            "renamed-local-pptx-tarball",
+            "../cache/other/../pptxgenjs/-/pptxgenjs-4.0.1.tgz",
+            "pptxgenjs",
+        ),
+        (
+            "peerDependencies",
+            "renamed-local-scoped-tarball",
+            "file:../cache/@scope%2fpkg/-/pkg-2.0.0.tgz",
+            "@scope/pkg",
+        ),
         ("dependencies", "nanoid", "3.3.17", "nanoid"),
     ),
 )
@@ -665,6 +692,10 @@ def test_retired_graph_manifest_discovery_rejects_direct_and_alias_reintroductio
         "https://registry.npmjs.org/image-sizes/-/image-sizes-1.2.1.tgz",
         "https://registry.npmjs.org/other/-/image-size-1.2.1.tgz",
         "https://registry.npmjs.org/image-size",
+        "file:../cache/other/-/image-size-1.2.1.tgz",
+        "file:../cache/image-size/other/image-size-1.2.1.tgz",
+        "file:../cache/image-size/-/nested/image-size-1.2.1.tgz",
+        "file:../cache/other/-/other-1.0.0.tgz?target=/image-size/-/image-size-1.2.1.tgz",
     ),
 )
 def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
@@ -675,6 +706,23 @@ def test_manifest_tarball_discovery_ignores_package_identity_near_misses(
         {"dependencies": {"renamed-image": value}},
         target="image-size",
     )
+
+
+def test_retired_graph_guard_rejects_repository_relative_target_tarball(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A renamed local tarball cannot bypass the retired-graph owner guard."""
+    carrier = "file:../cache/%2569mage-size/-/image-size-1.2.1.tgz?x=1#y"
+    monkeypatch.setitem(
+        globals(),
+        "_load_tracked_npm_surfaces",
+        lambda: {
+            "scripts/business_collateral/package.json": {"dependencies": {"renamed-image": carrier}}
+        },
+    )
+
+    with pytest.raises(AssertionError, match="retired image-size declaration"):
+        test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces()
 
 
 @pytest.mark.parametrize(

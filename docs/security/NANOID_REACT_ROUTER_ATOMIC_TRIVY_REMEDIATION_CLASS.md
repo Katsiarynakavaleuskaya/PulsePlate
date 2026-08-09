@@ -213,8 +213,10 @@ Executable evidence anchors for the stable postconditions are:
   `tests/test_root_npm_dependency_guards.py::test_retired_pptx_graph_stays_absent_from_all_tracked_npm_surfaces`;
 - direct, npm-aliased, target-shaped tarball, tracked local-package, bundled,
   and version-qualified override discovery:
-  `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences` and
-  `tests/test_root_npm_dependency_guards.py::_find_tracked_local_manifest_occurrences` and
+  `tests/test_root_npm_dependency_guards.py::_tarball_identity_matches`,
+  `tests/test_root_npm_dependency_guards.py::_find_manifest_occurrences`,
+  `tests/test_root_npm_dependency_guards.py::_find_tracked_local_manifest_occurrences`,
+  `tests/test_root_npm_dependency_guards.py::test_retired_graph_guard_rejects_repository_relative_target_tarball`, and
   `tests/test_root_npm_dependency_guards.py::test_manifest_discovery_rejects_version_qualified_override_keys`;
 - universal nanoid and React Router affected-range, Node-semver length/numeric,
   origin-neutral lock discovery, canonical-tarball provenance, integrity, and
