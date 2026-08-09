@@ -216,6 +216,7 @@ def _parse_version(*, value: object, source: str) -> Version:
         )
     ):
         raise AssertionError(f"{source}: malformed version {value!r}")
+    assert prerelease is None, f"{source}: prerelease output is not approved"
     try:
         return Version(value)
     except InvalidVersion as exc:
@@ -1089,8 +1090,10 @@ def _assert_brace_expansion_security_class(
         parsed_version = _parse_version(value=package.get("version"), source=raw_path)
         assert not parsed_version.is_prerelease, f"{raw_path}: prerelease output is not approved"
         resolved = package.get("resolved")
+        raw_version = package.get("version")
+        assert isinstance(raw_version, str)
         expected_resolved = (
-            "https://registry.npmjs.org/brace-expansion/-/" f"brace-expansion-{parsed_version}.tgz"
+            "https://registry.npmjs.org/brace-expansion/-/" f"brace-expansion-{raw_version}.tgz"
         )
         assert resolved == expected_resolved, f"{raw_path}: brace-expansion provenance mismatch"
         integrity = package.get("integrity")
@@ -1817,6 +1820,7 @@ def test_brace_expansion_postcondition_includes_base_non_applicable_candidates(
         ("missing-lock-output", "does not match any installed lock occurrence"),
         ("manifest-prerelease", "prerelease output is not approved"),
         ("lock-prerelease", "prerelease output is not approved"),
+        ("numeric-prerelease-normalization", "prerelease output is not approved"),
         ("schema", "packages must be an object"),
         ("path", "lock path must be relative"),
         ("traversal", "traversal segments"),
@@ -1867,6 +1871,12 @@ def test_frontend_brace_expansion_class_fails_closed(case: str, message: str) ->
         package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4-rc.1"
     elif case == "lock-prerelease":
         root.update(_brace_entry("2.1.4-rc.1"))
+    elif case == "numeric-prerelease-normalization":
+        package_json["overrides"]["minimatch@3"]["brace-expansion"] = "2.1.4-0"
+        root.update(_brace_entry("2.1.4-0"))
+        root["resolved"] = (
+            "https://registry.npmjs.org/brace-expansion/-/" "brace-expansion-2.1.4.post0.tgz"
+        )
     elif case == "schema":
         package_lock["packages"] = []
     elif case == "path":
