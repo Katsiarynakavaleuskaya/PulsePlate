@@ -436,7 +436,7 @@ def _canonical_json(value: Any) -> str:
 def review_thread_inventory(
     threads: tuple[ReviewThreadEvidence, ...],
 ) -> tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...]:
-    """Bind complete review-thread state without depending on API ordering."""
+    """Ignore outer thread order while preserving each comment sequence."""
 
     return tuple(
         sorted(
@@ -444,21 +444,17 @@ def review_thread_inventory(
                 thread.node_id,
                 thread.is_resolved,
                 tuple(
-                    sorted(
-                        (
-                            comment.url,
-                            comment.created_at,
-                            comment.author_login,
-                            comment.author_association,
-                            comment.original_commit_sha or "",
-                            hashlib.sha256(
-                                comment.body.replace("\r\n", "\n")
-                                .replace("\r", "\n")
-                                .encode("utf-8")
-                            ).hexdigest(),
-                        )
-                        for comment in thread.comments
+                    (
+                        comment.url,
+                        comment.created_at,
+                        comment.author_login,
+                        comment.author_association,
+                        comment.original_commit_sha or "",
+                        hashlib.sha256(
+                            comment.body.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+                        ).hexdigest(),
                     )
+                    for comment in thread.comments
                 ),
             )
             for thread in threads
