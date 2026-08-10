@@ -729,6 +729,60 @@ def test_metrics_summary_distinguishes_observed_compaction_states(
     assert metrics_summary["context_compaction"] == expected
 
 
+@pytest.mark.parametrize(
+    ("compaction_states", "expected_gate", "expected_decision"),
+    [
+        ([(False, False, False, 0)], True, "PASS"),
+        ([(True, False, False, 0)], False, "NO-GO"),
+        ([(True, False, False, 0), (True, True, True, 0)], True, "PASS"),
+        ([(True, True, True, 0), (True, True, False, 0)], False, "NO-GO"),
+        ([(True, True, False, 0), (True, False, True, 7)], False, "NO-GO"),
+    ],
+    ids=(
+        "disabled",
+        "all-na",
+        "mixed-na-observed",
+        "attempted-unobserved",
+        "malformed-observed-compensation",
+    ),
+)
+def test_gate_d1_requires_complete_aggregate_compaction_observation(
+    tmp_path: Path,
+    compaction_states: list[tuple[bool, bool, bool, int]],
+    expected_gate: bool,
+    expected_decision: str,
+) -> None:
+    """Aggregate D1 is strict while individual enabled empty traces remain N/A."""
+
+    state = _make_release_gate_state(
+        tmp_path,
+        experiment_id="compaction_d1_matrix",
+        allow_runtime_fallbacks=True,
+    )
+    traces = _passing_release_gate_traces()
+    for index, trace in enumerate(traces):
+        enabled, attempted, observed, compacted = compaction_states[index % len(compaction_states)]
+        trace["retrieval_stats"] = {
+            "context_compaction_enabled": enabled,
+            "context_compaction_attempted": attempted,
+            "context_compaction_result_observed": observed,
+            "chunks_compacted": compacted,
+        }
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert state.strict_violations == []
+    assert metrics_summary["context_compaction"]["chunks_compacted_total"] == 0
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
+    assert release_decision == expected_decision
+
+
 def test_canonical_small_fixture_advisory_preserves_raw_gate_checks_on_weekly_shape(
     tmp_path: Path,
 ) -> None:

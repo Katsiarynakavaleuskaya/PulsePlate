@@ -1851,6 +1851,7 @@ def build_metrics_summary(
             for trace in traces
             if isinstance(trace.get("retrieval_stats"), dict)
             and trace["retrieval_stats"].get("context_compaction_enabled") is True
+            and trace["retrieval_stats"].get("context_compaction_attempted") is True
             and trace["retrieval_stats"].get("context_compaction_result_observed") is True
         ),
         "chunks_compacted_total": sum(
@@ -1858,9 +1859,17 @@ def build_metrics_summary(
             for trace in traces
             if isinstance(trace.get("retrieval_stats"), dict)
             and trace["retrieval_stats"].get("context_compaction_enabled") is True
+            and trace["retrieval_stats"].get("context_compaction_attempted") is True
             and trace["retrieval_stats"].get("context_compaction_result_observed") is True
         ),
     }
+    context_compaction_observation_complete = context_compaction_summary[
+        "enabled_trace_count"
+    ] == 0 or (
+        context_compaction_summary["result_observed_trace_count"] > 0
+        and context_compaction_summary["attempted_trace_count"]
+        == context_compaction_summary["result_observed_trace_count"]
+    )
 
     retrieval_summary = {
         "recall_at_3": nanmean(
@@ -1965,7 +1974,8 @@ def build_metrics_summary(
             <= GATE_THRESHOLDS["escalation_max"]
         ),
         "gate_d1_no_runtime_mode_fallbacks": (
-            not state.strict_violations if not state.config.allow_runtime_fallbacks else True
+            (not state.strict_violations if not state.config.allow_runtime_fallbacks else True)
+            and context_compaction_observation_complete
         ),
     }
     small_fixture_advisory = _small_fixture_numeric_gates_advisory(
