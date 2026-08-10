@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 
-def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch):
+def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.routers.api_key import get_api_key
 
     # Strict mode with expected key

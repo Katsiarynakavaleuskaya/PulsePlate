@@ -1,10 +1,10 @@
+import importlib
 import os
 from unittest.mock import patch
 
 import pytest
 
 from app.effective_routes import iter_effective_route_candidates, route_path
-from app.main import app as canonical_app
 from app.services import pro_nutrition_plate
 
 
@@ -222,10 +222,11 @@ class TestAppVIPComprehensive97:
         # May be 200, 404, or other status depending on VIP module availability
         assert response.status_code in [200, 401, 403, 404]
 
-    def test_app_includes_all_routers(self):
+    def test_app_includes_baseline_routes(self):
         """Test that the canonical application includes its baseline routes."""
+        active_app = importlib.import_module("app.main").app
         route_paths = {
-            route_path(route) for route in iter_effective_route_candidates(canonical_app.routes)
+            route_path(route) for route in iter_effective_route_candidates(active_app.routes)
         }
         assert "/" in route_paths
         assert "/health" in route_paths

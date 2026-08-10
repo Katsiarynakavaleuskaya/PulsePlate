@@ -1,10 +1,10 @@
+import importlib
 from collections.abc import Callable
 from dataclasses import FrozenInstanceError
 from typing import Any
 
 import pytest
 
-import legacy_app
 from app.services import pro_nutrition_plate as plate_service
 
 
@@ -13,6 +13,7 @@ def test_background_updates_wrappers_normal_mode_calls_resolvers(
 ) -> None:
     """Cover start/stop wrappers in normal (non-pytest-sync) mode."""
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    legacy_app = importlib.import_module("legacy_app")
 
     executed: list[tuple[Callable[..., Any], int, object]] = []
     safe_stops: list[Callable[..., Any]] = []

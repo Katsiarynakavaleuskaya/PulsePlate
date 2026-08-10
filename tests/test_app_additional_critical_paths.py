@@ -1,10 +1,6 @@
-from typing import cast
-
 import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
-from app.main import app as application
 from app.schemas.premium_contracts import WHOTargetsRequest
 from app.services import pro_nutrition_plate as plate_service
 from app.services import pro_nutrition_targets as targets_service
@@ -101,13 +97,11 @@ def test_generate_who_targets_response_strict_backend_available() -> None:
     assert isinstance(resp.warnings, list)
 
 
-def test_weekly_plan_pdf_endpoint_not_registered() -> None:
+def test_weekly_plan_pdf_endpoint_not_registered(client: TestClient) -> None:
     """Weekly plan PDF endpoint returns 404 when the route is not registered.
 
     This test verifies that non-existent endpoints properly return 404.
     """
-    client = TestClient(cast(ASGIApp, application))
-
     # Non-existent endpoint should return 404 when the route is not registered
     response = client.get("/api/v1/weekly-plan/pdf/123")
 

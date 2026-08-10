@@ -86,11 +86,12 @@ class TestAppSpecificMissingLines:
             height_cm=100.0,  # Realistic minimum height
             age=0,  # Minimum valid age
             gender="male",
-            activity="sedentary",
+            group="general",
         )
         assert req.weight_kg == 20.0
         assert req.height_cm == 100.0
         assert req.age == 0
+        assert req.group == "general"
 
         # Test with realistic maximum values
         req = BMIRequestV1(
@@ -98,11 +99,12 @@ class TestAppSpecificMissingLines:
             height_cm=250.0,  # Realistic maximum height
             age=120,  # Maximum valid age
             gender="female",
-            activity="very_active",
+            group="athlete",
         )
         assert req.weight_kg == 300.0
         assert req.height_cm == 250.0
         assert req.age == 120
+        assert req.group == "athlete"
 
 
 if __name__ == "__main__":
