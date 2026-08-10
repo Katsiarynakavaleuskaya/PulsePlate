@@ -32,8 +32,8 @@ If it is not recorded here — it does not exist.
   - Target PR: [PR #2257](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2257)
     (replacement PR; supersedes
     [PR #2249](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249))
-  - Status: In review in PR #2257 from exact main
-    `6ccb6a3f9f8f58cb34f26b27a8eb4b67a266d038`
+  - Status: In review in PR #2257; exact current-main provenance is bound by
+    the live PR commit graph and final review seal, not duplicated here.
   - Area: backend / RAG / Insight runtime
   - Business reason (EN): Avoid sending byte-for-byte duplicate final evidence
     carriers to the provider when explicitly enabled, while preserving every
