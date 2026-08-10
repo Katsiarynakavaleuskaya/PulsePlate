@@ -58,6 +58,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     is_provider_no_claim_review_receipt,
     is_provider_no_claim_security_receipt,
     parse_embedded_review_seal,
+    review_thread_inventory as _review_thread_inventory,
     validate_mapping_only_closeout_successor,
     validate_review_seal,
     validated_duplicate_reply_urls,
@@ -367,35 +368,6 @@ def _comment_body_digest(body: str) -> str:
 
     normalized = body.replace("\r\n", "\n").replace("\r", "\n")
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
-def _review_thread_inventory(
-    threads: tuple[ReviewThreadEvidence, ...],
-) -> tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...]:
-    """Bind the complete review-thread state without depending on API ordering."""
-
-    return tuple(
-        sorted(
-            (
-                thread.node_id,
-                thread.is_resolved,
-                tuple(
-                    sorted(
-                        (
-                            comment.url,
-                            comment.created_at,
-                            comment.author_login,
-                            comment.author_association,
-                            comment.original_commit_sha or "",
-                            _comment_body_digest(comment.body),
-                        )
-                        for comment in thread.comments
-                    )
-                ),
-            )
-            for thread in threads
-        )
-    )
 
 
 def _pre_closeout_dirty_paths() -> set[str]:
