@@ -1192,8 +1192,7 @@ def test_write_artifacts_returns_machine_stable_flat_export_path(tmp_path: Path)
     assert artifacts["parquet_or_csv"].endswith((".parquet", ".csv"))
 
 
-@pytest.mark.asyncio
-async def test_missing_agent_input_guard_fails_closed_in_strict_mode(tmp_path: Path) -> None:
+def test_missing_agent_input_guard_fails_closed_in_strict_mode(tmp_path: Path) -> None:
     """Strict mode must not silently bypass the shared AI input guard."""
 
     state = EvalRuntimeState(
@@ -1228,14 +1227,13 @@ async def test_missing_agent_input_guard_fails_closed_in_strict_mode(tmp_path: P
         human_label_if_any=1,
     )
 
-    trace = await evaluate_one(state, row)
+    trace = asyncio.run(evaluate_one(state, row))
 
     assert trace["routing_decision"] == "blocked_by_agent_input_guard"
     assert "agent_input_guard_unavailable:scan_ai_agent_input_missing" in state.strict_violations
 
 
-@pytest.mark.asyncio
-async def test_missing_philosophy_validator_records_strict_violation(
+def test_missing_philosophy_validator_records_strict_violation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1313,7 +1311,7 @@ async def test_missing_philosophy_validator_records_strict_violation(
         ),
     )
 
-    trace = await evaluate_one(state, row)
+    trace = asyncio.run(evaluate_one(state, row))
 
     assert trace["philosophy_output_validation"]["ok"] is False
     assert "philosophy_validator_unavailable:validate_llm_output_missing" in state.strict_violations
