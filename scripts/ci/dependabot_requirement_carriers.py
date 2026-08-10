@@ -86,14 +86,19 @@ _UPSTREAM_MARKER_EXPRESSION_ONE = (
 _UPSTREAM_MARKER_EXPRESSION = (
     rf"(?:{_UPSTREAM_MARKER_EXPRESSION_ONE}|\(\s*|\s*\)|" rf"\s+and\s+|\s+or\s+)+"
 )
-_UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
+_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
     rf"^\s*\\?\s*{_UPSTREAM_NAME}"
     rf"\s*\\?\s*(?:\[\s*{_UPSTREAM_EXTRA}"
     rf"(?:\s*,\s*{_UPSTREAM_EXTRA})*\s*\])?"
     rf"\s*\\?\s*\(?(?:{_UPSTREAM_REQUIREMENTS})?\)?"
     rf"\s*\\?\s*(?:;\s*{_UPSTREAM_MARKER_EXPRESSION})?"
     rf"\s*\\?\s*(?:{_UPSTREAM_HASHES})?"
-    r"\s*(?:#+\s*.*)?$",
+    r"\s*(?:#+\s*.*)?$"
+)
+# Whitespace in this grammar separates tokens. Possessive repetitions prevent
+# adjacent optional branches from redistributing the same whitespace run.
+_UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
+    _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN.replace(r"\s*", r"\s*+").replace(r"\s+", r"\s++"),
     flags=re.ASCII,
 )
 RepoPath = str | PurePath
