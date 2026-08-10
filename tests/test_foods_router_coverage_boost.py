@@ -10,12 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.metrics as app_metrics
+from app.routers.foods import router
 from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
-
-try:
-    from app.routers.foods import router
-except ImportError:
-    router = None
 
 
 class TestFoodsRouterCoverage:
@@ -30,8 +26,6 @@ class TestFoodsRouterCoverage:
 
     def test_router_configuration(self) -> None:
         """Test router configuration."""
-        if router is None:
-            pytest.skip("Foods router is unavailable in this environment.")
         assert "foods" in router.tags
 
     @patch("app.routers.foods.food_store.search_foods")
@@ -511,8 +505,7 @@ def test_metrics_scrape_includes_meili_observability_series(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    if app_metrics.FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL is None:
-        pytest.skip("prometheus_client not available")
+    assert app_metrics.FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL is not None
 
     backend = MeiliSearchBackend(
         base_url="https://meili.example",
