@@ -17,6 +17,10 @@ from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX = (
+    ".insecure-external-code-execution:key is forbidden because external code "
+    "must not receive private registry credentials"
+)
 
 
 def _run_fixture_git(repo: Path, *args: str) -> None:
@@ -901,12 +905,12 @@ def test_mode_a_rejects_update_suppression(
     assert any("updates[0].exclude-paths:key is forbidden" in error for error in errors)
 
 
-def test_external_code_execution_is_bound_to_exact_private_pip_updater() -> None:
+def test_external_code_execution_is_absent_from_private_pip_updater() -> None:
     config = _load_config(REPO_ROOT)
     update = _pip_update(config)
     registries = config["registries"]
 
-    assert update[policy.EXTERNAL_CODE_EXECUTION_KEY] == "allow"
+    assert policy.EXTERNAL_CODE_EXECUTION_KEY not in update
     assert update["package-ecosystem"] == "pip"
     assert update["directory"] == "/"
     assert update["registries"] == [policy.REGISTRY_NAME]
@@ -915,54 +919,31 @@ def test_external_code_execution_is_bound_to_exact_private_pip_updater() -> None
 
 
 @pytest.mark.parametrize(
-    "invalid_value",
-    [None, "", "deny", "ALLOW", True, False, 1, 0, [], {}, ["allow"]],
+    "present_value",
+    ["allow", "deny", False, None, {}],
 )
-def test_external_code_execution_requires_literal_allow(
+def test_external_code_execution_is_forbidden_independent_of_value(
     tmp_path: Path,
-    invalid_value: object,
+    present_value: object,
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
-    _pip_update(config)[policy.EXTERNAL_CODE_EXECUTION_KEY] = invalid_value
+    _pip_update(config)[policy.EXTERNAL_CODE_EXECUTION_KEY] = present_value
     _write_config(repo, config)
 
     errors = policy.validate_repo(repo)
 
-    assert any(
-        "updates[0].insecure-external-code-execution:must be exactly 'allow'" in error
-        for error in errors
+    expected_error = (
+        ".github/dependabot.yml:$.updates[0]" f"{EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX}"
     )
+    assert errors.count(expected_error) == 1
 
 
-def test_external_code_execution_is_mandatory(tmp_path: Path) -> None:
-    repo = _copy_policy_repo(tmp_path)
-    config = _load_config(repo)
-    _pip_update(config).pop(policy.EXTERNAL_CODE_EXECUTION_KEY)
-    _write_config(repo, config)
-
-    errors = policy.validate_repo(repo)
-
-    assert any(
-        error.startswith(".github/dependabot.yml:updates[0]:keys must be exactly")
-        for error in errors
-    )
-    assert any(
-        "updates[0].insecure-external-code-execution:must be exactly 'allow'" in error
-        for error in errors
-    )
-
-
-def test_external_code_execution_is_rejected_at_every_other_mapping_position(
+def test_external_code_execution_is_rejected_at_every_mapping_position(
     tmp_path: Path,
 ) -> None:
     canonical_config = _load_config(REPO_ROOT)
-    authorized_selector: MappingSelector = ("updates", 0)
-    forbidden_selectors = [
-        selector
-        for selector in _iter_mapping_selectors(canonical_config)
-        if selector != authorized_selector
-    ]
+    forbidden_selectors = list(_iter_mapping_selectors(canonical_config))
 
     assert {
         (),
@@ -987,10 +968,10 @@ def test_external_code_execution_is_rejected_at_every_other_mapping_position(
         errors = policy.validate_repo(repo)
 
         expected_error = (
-            f".github/dependabot.yml:{_selector_path(selector)}."
-            "insecure-external-code-execution:key is allowed only at updates[0]"
+            f".github/dependabot.yml:{_selector_path(selector)}"
+            f"{EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX}"
         )
-        assert expected_error in errors
+        assert errors.count(expected_error) == 1
 
 
 @pytest.mark.parametrize(
@@ -1013,10 +994,29 @@ def test_external_code_execution_rejects_recursively_nested_unknown_container(
 
     errors = policy.validate_repo(repo)
 
-    assert any(
-        error.endswith(".insecure-external-code-execution:key is allowed only at updates[0]")
-        for error in errors
-    )
+    matching_errors = [
+        error for error in errors if error.endswith(EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX)
+    ]
+    assert len(matching_errors) == 1
+
+
+@pytest.mark.parametrize("invalid_updates", [None, [], ["not-a-mapping"]])
+def test_external_code_execution_is_reported_before_invalid_update_shape_returns(
+    tmp_path: Path,
+    invalid_updates: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    sentinel = "DO_NOT_RENDER_THIS_VALUE"
+    config[policy.EXTERNAL_CODE_EXECUTION_KEY] = sentinel
+    config["updates"] = invalid_updates
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    expected_error = ".github/dependabot.yml:$" f"{EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX}"
+    assert errors.count(expected_error) == 1
+    assert sentinel not in "\n".join(errors)
 
 
 @pytest.mark.parametrize(
