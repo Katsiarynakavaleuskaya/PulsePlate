@@ -246,12 +246,14 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
 ) -> None:
     """The eval runner must observe context compaction truth at request time."""
     observed: list[bool] = []
+    metadata_observed: list[dict[str, object]] = []
 
     async def fake_retrieve_and_validate_rag(
         query: str,
         **kwargs: object,
     ) -> RAGOrchestrationResult:
-        observed.append(bool(kwargs["context_compaction_enabled"]))
+        context_compaction_enabled = bool(kwargs["context_compaction_enabled"])
+        observed.append(context_compaction_enabled)
         return RAGOrchestrationResult(
             chunks=[],
             formatted_prompt=query,
@@ -259,6 +261,7 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
             confidence=None,
             hops=0,
             latency_ms=0,
+            chunks_compacted=2 if context_compaction_enabled else 0,
         )
 
     state = _make_release_gate_state(tmp_path)
@@ -267,7 +270,7 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
     )
     monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "true")
 
-    asyncio.run(
+    _, metadata = asyncio.run(
         runner.pulseplate_retrieve(
             state,
             "first request",
@@ -275,9 +278,10 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
             subject_id=None,
         )
     )
+    metadata_observed.append(metadata)
 
     monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "false")
-    asyncio.run(
+    _, metadata = asyncio.run(
         runner.pulseplate_retrieve(
             state,
             "second request",
@@ -285,9 +289,10 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
             subject_id=None,
         )
     )
+    metadata_observed.append(metadata)
 
     monkeypatch.delenv("FEATURE_RAG_CONTEXT_COMPACTION", raising=False)
-    asyncio.run(
+    _, metadata = asyncio.run(
         runner.pulseplate_retrieve(
             state,
             "third request",
@@ -295,8 +300,41 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
             subject_id=None,
         )
     )
+    metadata_observed.append(metadata)
 
     assert observed == [True, False, False]
+    assert [
+        (
+            item["context_compaction_enabled"],
+            item["chunks_compacted"],
+        )
+        for item in metadata_observed
+    ] == [(True, 2), (False, 0), (False, 0)]
+
+
+@pytest.mark.parametrize("malformed_count", [-1, True, "4", None])
+def test_map_orchestration_result_sanitizes_malformed_compaction_counts(
+    malformed_count: object,
+) -> None:
+    """Only real nonnegative integer compaction counts may enter eval metadata."""
+
+    result = RAGOrchestrationResult(
+        chunks=[],
+        formatted_prompt="query",
+        rag_actually_used=False,
+        confidence=None,
+        hops=0,
+        latency_ms=0,
+    )
+    setattr(result, "chunks_compacted", malformed_count)
+
+    _, metadata = map_orchestration_result_to_retrieved(
+        result,
+        context_compaction_enabled=True,
+    )
+
+    assert metadata["context_compaction_enabled"] is True
+    assert metadata["chunks_compacted"] == 0
 
 
 def test_philosophy_validator_integration_blocks_correctness() -> None:
@@ -401,6 +439,46 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
 
     assert traces[0]["routing_decision"] == "ship_candidate"
     assert traces[1]["routing_decision"] == "ship_candidate"
+
+
+@pytest.mark.parametrize(
+    ("retrieval_stats", "expected"),
+    [
+        ([], {"enabled_trace_count": 0, "chunks_compacted_total": 0}),
+        (
+            [{"context_compaction_enabled": True, "chunks_compacted": 0}],
+            {"enabled_trace_count": 1, "chunks_compacted_total": 0},
+        ),
+        (
+            [
+                {"context_compaction_enabled": True, "chunks_compacted": 0},
+                {"context_compaction_enabled": True, "chunks_compacted": 3},
+            ],
+            {"enabled_trace_count": 2, "chunks_compacted_total": 3},
+        ),
+    ],
+)
+def test_metrics_summary_distinguishes_observed_compaction_states(
+    tmp_path: Path,
+    retrieval_stats: list[dict[str, object]],
+    expected: dict[str, int],
+) -> None:
+    """Summary must retain request observations, including enabled with zero removals."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_summary")
+    traces = _passing_release_gate_traces()
+    for trace, stats in zip(traces, retrieval_stats):
+        trace["retrieval_stats"] = stats
+
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == expected
 
 
 def test_canonical_small_fixture_advisory_preserves_raw_gate_checks_on_weekly_shape(
@@ -1369,6 +1447,30 @@ def test_notebook_parity_uses_emitted_artifact_from_template(tmp_path: Path) -> 
     assert "::chunk_" not in emitted_text
     assert "recall@50" not in emitted_text
     assert "mean_entailment" not in emitted_text
+
+
+def test_tracked_notebook_forwards_request_time_context_compaction_metadata() -> None:
+    """The canonical notebook adapter must mirror request-time compaction truth."""
+
+    notebook = json.loads(
+        Path("notebooks/pulseplate_rag_release_gates.ipynb").read_text(encoding="utf-8")
+    )
+    source = "".join(
+        source_line for cell in notebook["cells"] for source_line in cell.get("source", [])
+    )
+    adapter_source = source.split("async def pulseplate_retrieve", maxsplit=1)[1].split(
+        "async def retrieve",
+        maxsplit=1,
+    )[0]
+
+    assert (
+        'context_compaction_enabled = os.getenv("FEATURE_RAG_CONTEXT_COMPACTION", "false")'
+        in adapter_source
+    )
+    assert "context_compaction_enabled=context_compaction_enabled" in adapter_source
+    assert "if type(chunks_compacted) is not int or chunks_compacted < 0:" in adapter_source
+    assert '"rag_context_compaction_enabled": context_compaction_enabled' in adapter_source
+    assert '"rag_chunks_compacted":' in adapter_source
 
 
 def test_no_companion_json_keeps_legacy_release_decision_behavior(tmp_path: Path) -> None:

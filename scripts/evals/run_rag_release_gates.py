@@ -233,6 +233,12 @@ def _safe_int(value: Any, *, default: int = 0) -> int:
         return default
 
 
+def _safe_nonnegative_int(value: Any) -> int:
+    """Return a real nonnegative integer, otherwise zero."""
+
+    return value if type(value) is int and value >= 0 else 0
+
+
 def _require_positive_int(value: int, *, label: str) -> int:
     """Fail closed when a numeric config would silently disable evaluation."""
 
@@ -834,6 +840,7 @@ def map_orchestration_result_to_retrieved(
     orchestration_result: Any,
     *,
     retriever: str = "pulseplate",
+    context_compaction_enabled: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Map `RAGOrchestrationResult` into retrieved rows and retrieval metadata."""
 
@@ -865,6 +872,10 @@ def map_orchestration_result_to_retrieved(
         "degraded_reason": (str(getattr(orchestration_result, "degraded_reason", "")) or None),
         "formatted_prompt_present": bool(
             str(getattr(orchestration_result, "formatted_prompt", "")).strip(),
+        ),
+        "context_compaction_enabled": context_compaction_enabled,
+        "chunks_compacted": _safe_nonnegative_int(
+            getattr(orchestration_result, "chunks_compacted", 0),
         ),
     }
     return retrieved, metadata
@@ -909,7 +920,11 @@ async def pulseplate_retrieve(
         context_compaction_enabled=context_compaction_enabled,
         subject_id=subject_id,
     )
-    retrieved, metadata = map_orchestration_result_to_retrieved(result, retriever="pulseplate")
+    retrieved, metadata = map_orchestration_result_to_retrieved(
+        result,
+        retriever="pulseplate",
+        context_compaction_enabled=context_compaction_enabled,
+    )
     metadata["max_supported_top_k"] = len(retrieved) or top_k
     metadata["requested_top_k"] = top_k
     return retrieved, metadata
@@ -1780,6 +1795,20 @@ def build_metrics_summary(
 ) -> tuple[dict[str, Any], dict[str, bool], str]:
     """Build summary metrics, gate checks, and the release decision."""
 
+    context_compaction_summary = {
+        "enabled_trace_count": sum(
+            1
+            for trace in traces
+            if isinstance(trace.get("retrieval_stats"), dict)
+            and trace["retrieval_stats"].get("context_compaction_enabled") is True
+        ),
+        "chunks_compacted_total": sum(
+            _safe_nonnegative_int(trace["retrieval_stats"].get("chunks_compacted"))
+            for trace in traces
+            if isinstance(trace.get("retrieval_stats"), dict)
+        ),
+    }
+
     retrieval_summary = {
         "recall_at_3": nanmean(
             trace["retrieval_metrics"].get("recall_at_3", float("nan")) for trace in traces
@@ -1928,6 +1957,7 @@ def build_metrics_summary(
         "faithfulness": faithfulness_summary,
         "calibration": calibration_metrics,
         "routing": routing_summary,
+        "context_compaction": context_compaction_summary,
         "thresholds": GATE_THRESHOLDS,
         "threshold_results": threshold_results,
         "gate_checks": gate_checks,
