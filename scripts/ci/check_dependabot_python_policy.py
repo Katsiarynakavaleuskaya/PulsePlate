@@ -150,7 +150,6 @@ EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
     "package-ecosystem": "pip",
     "directory": "/",
     "registries": [REGISTRY_NAME],
-    EXTERNAL_CODE_EXECUTION_KEY: "allow",
     "schedule": {"interval": "weekly"},
     "open-pull-requests-limit": 4,
     "commit-message": {"prefix": "deps", "include": "scope"},
@@ -750,6 +749,16 @@ def validate_repo(repo_root: Path) -> list[str]:
         errors.append(_error("$", "root must be a mapping"))
         return errors
 
+    for mapping_path, mapping in _walk_mapping(config, "$"):
+        if EXTERNAL_CODE_EXECUTION_KEY in mapping:
+            errors.append(
+                _error(
+                    f"{mapping_path}.{EXTERNAL_CODE_EXECUTION_KEY}",
+                    "key is forbidden because external code must not receive "
+                    "private registry credentials",
+                )
+            )
+
     try:
         unknown_carriers = _unknown_dependabot_requirement_carriers(repo_root)
     except DependabotRequirementDiscoveryError:
@@ -813,14 +822,6 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(update, Mapping):
         errors.append(_error(update_path, "must be a mapping"))
         return errors
-    for mapping_path, mapping in _walk_mapping(config, "$"):
-        if EXTERNAL_CODE_EXECUTION_KEY in mapping and mapping is not update:
-            errors.append(
-                _error(
-                    f"{mapping_path}.{EXTERNAL_CODE_EXECUTION_KEY}",
-                    f"key is allowed only at {update_path}",
-                )
-            )
     if set(update) != EXPECTED_UPDATE_KEYS:
         errors.append(
             _error(
