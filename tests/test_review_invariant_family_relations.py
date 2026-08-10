@@ -713,9 +713,35 @@ def test_closed_stderr_transport_failure_does_not_escape(
 ) -> None:
     stderr = io.BytesIO()
     stderr.close()
-    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+    monkeypatch.setattr(
+        relations.sys,
+        "stderr",
+        SimpleNamespace(buffer=stderr, close=stderr.close),
+    )
 
     assert relations._write_contract_error("invalid_json") is None
+
+
+def test_cli_sanitizes_real_stderr_pipe_early_close() -> None:
+    process = subprocess.Popen(
+        [sys.executable, str(SCRIPT)],
+        cwd=REPO_ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    process.stderr.close()
+    process.stdin.write(b"bad")
+    process.stdin.close()
+
+    returncode = process.wait(timeout=5)
+    stdout = process.stdout.read()
+
+    assert returncode == 2
+    assert stdout == b""
 
 
 def test_authority_fields_are_required_false_in_source_embedded_snapshot_and_artifact() -> None:

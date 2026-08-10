@@ -569,6 +569,10 @@ def _write_contract_error(code: str) -> None:
         sys.stderr.buffer.write(payload)
         sys.stderr.buffer.flush()
     except (OSError, ValueError):
+        try:
+            sys.stderr.close()
+        except (OSError, ValueError):
+            pass
         return
 
 
