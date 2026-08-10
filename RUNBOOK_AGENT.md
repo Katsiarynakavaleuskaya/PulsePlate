@@ -581,10 +581,12 @@ Use this as the canonical operating loop from branch creation to merge window:
      post the structured reply and resolve the thread. The same reply-only path
      covers one first recordless seed only on the exact direct mapping-only
      successor when the trusted root targets that live head and cites one
-     already mapped reachable FIX. If more than one eligible seed with the same
-     fingerprint is currently visible, the validator covers none and all stay
-     blocking. Rerun merge readiness without a docs commit, Codex review, or
-     security scan.
+     reachable non-empty, non-trigger-only FIX mapped from a live resolved
+     thread root by a commit pushed strictly after that root comment. Cardinality
+     is computed only after full eligibility; if more than one eligible seed with
+     the same fingerprint is currently visible, the validator covers none and
+     all stay blocking. Rerun merge readiness without a docs commit, Codex
+     review, or security scan.
 7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain
@@ -746,9 +748,10 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 8. A later validated canonical-record duplicate, or the single eligible first
    recordless post-mapping seed, uses the exact structured reply contract and
    an explicit thread resolution, followed by one status-check cycle only. If
-   more than one visible recordless seed shares the fingerprint, none is
-   covered and all remain blocking; they must not cause another synthetic
-   closeout commit.
+   more than one fully eligible visible recordless seed shares the fingerprint,
+   none is covered and all remain blocking; ineligible comments do not affect
+   that cardinality, and neither kind may cause another synthetic closeout
+   commit.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
 

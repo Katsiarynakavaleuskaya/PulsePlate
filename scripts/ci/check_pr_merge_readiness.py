@@ -1354,13 +1354,7 @@ def _duplicate_reply_coverage(
         candidate_urls=candidate_urls,
         threads=threads,
         fingerprint_records=records,
-        mapped_fix_shas=frozenset(
-            sha
-            for sha in parse_fixed_mapping_entries(
-                extract_fixed_mapping_section(artifact_text)
-            ).values()
-            if sha
-        ),
+        mapping_entries=parse_fixed_mapping_entries(extract_fixed_mapping_section(artifact_text)),
         material_digest=str(seal["material"]["digest"]),
         material_head_sha=str(seal["material"]["material_head_sha"]),
         repo_root=REPO_ROOT,

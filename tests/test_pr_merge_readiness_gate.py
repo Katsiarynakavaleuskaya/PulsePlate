@@ -171,7 +171,10 @@ def test_duplicate_reply_coverage_wires_recordless_snapshot_inputs(
 
     assert covered == {url}
     assert captured["fingerprint_records"] == {}
-    assert captured["mapped_fix_shas"] == frozenset({fix_sha})
+    assert captured["mapping_entries"] == {
+        "https://github.com/owner/repo/pull/42#discussion_mapped": fix_sha,
+        "https://github.com/owner/repo/pull/42#discussion_not_bug": "",
+    }
     assert captured["material_head_sha"] == material_head_sha
 
 

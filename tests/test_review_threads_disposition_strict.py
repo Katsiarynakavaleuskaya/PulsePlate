@@ -1631,7 +1631,7 @@ def test_main_v1_recordless_mapping_and_inventory_guards(
     assert fetch_count == expected_fetches
     if disposition == "FIXED" and has_resolved_thread:
         assert captured["fingerprint_records"] == {}
-        assert captured["mapped_fix_shas"] == frozenset({fix_sha})
+        assert captured["mapping_entries"] == {mapped_url: fix_sha}
         assert captured["material_head_sha"] == material_head_sha
         if inventory_changes:
             assert "SNAPSHOT_CHANGED: review-thread inventory changed" in output

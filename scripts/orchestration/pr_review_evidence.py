@@ -42,6 +42,10 @@ MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
 REVIEW_FINGERPRINT_DOMAIN = b"pulseplate-review-finding/v1\0"
 UNAVAILABLE_REVIEW_REF_CAUSE = "unavailable_review_ref_ancestry"
+TRIGGER_ONLY_COMMIT_SUBJECT_RE = re.compile(
+    r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
+    re.IGNORECASE,
+)
 CODEX_REVIEW_SOURCE = "codex-github-review"
 SEAL_SCHEMA_VERSION = "pulseplate.pr-review-seal/v1"
 RECEIPT_AUTHORITY = "human_asserted_content_receipt"
@@ -726,7 +730,7 @@ def validated_duplicate_reply_urls(
     candidate_urls: set[str],
     threads: tuple[Any, ...],
     fingerprint_records: Mapping[str, Any],
-    mapped_fix_shas: Iterable[str],
+    mapping_entries: Mapping[str, str],
     material_digest: str,
     material_head_sha: str,
     repo_root: Path,
@@ -914,17 +918,17 @@ def validated_duplicate_reply_urls(
             continue
         covered.add(url)
 
-    recordless_by_fingerprint: dict[str, list[str]] = {}
+    validated_mapping_entries = {
+        url: _require_sha(value, label="mapped FIXED SHA")
+        for url, value in mapping_entries.items()
+        if value
+    }
+    mapped_fixes = frozenset(validated_mapping_entries.values())
+    commit_pushed_at = {commit.sha: commit.pushed_at for commit in snapshot.commits}
+    eligible_recordless_by_fingerprint: dict[str, list[str]] = {}
     for url, fingerprint in candidate_fingerprints.items():
-        if fingerprint not in validated_records:
-            recordless_by_fingerprint.setdefault(fingerprint, []).append(url)
-    mapped_fixes = frozenset(
-        _require_sha(value, label="mapped FIXED SHA") for value in mapped_fix_shas
-    )
-    for fingerprint, urls in recordless_by_fingerprint.items():
-        if len(urls) != 1:
+        if fingerprint in validated_records:
             continue
-        url = urls[0]
         thread, finding_index = candidate_locations[url]
         if finding_index != 0:
             continue
@@ -944,6 +948,46 @@ def validated_duplicate_reply_urls(
             if len(cited_fixes) != 1:
                 continue
             verified_fix = next(iter(cited_fixes))
+            pushed_at_raw = commit_pushed_at.get(verified_fix)
+            if pushed_at_raw is None:
+                continue
+            pushed_at = _parse_timestamp(pushed_at_raw, label="mapped FIX pushedAt")
+            has_qualified_mapping_root = False
+            for mapped_url, mapped_sha in validated_mapping_entries.items():
+                if mapped_sha != verified_fix:
+                    continue
+                mapped_location = comment_locations.get(mapped_url)
+                if (
+                    mapped_location is None
+                    or mapped_location[1] != 0
+                    or not mapped_location[0].is_resolved
+                ):
+                    continue
+                mapped_root_time = _parse_timestamp(
+                    mapped_location[0].comments[0].created_at,
+                    label="mapped FIX thread root createdAt",
+                )
+                if pushed_at > mapped_root_time:
+                    has_qualified_mapping_root = True
+                    break
+            if not has_qualified_mapping_root:
+                continue
+            changed_files = _run_git(
+                repo_root,
+                ["show", "--name-only", "--pretty=format:", verified_fix],
+            ).splitlines()
+            if not any(path.strip() for path in changed_files):
+                continue
+            subject = (
+                _run_git(
+                    repo_root,
+                    ["show", "-s", "--format=%s", verified_fix],
+                )
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+            if TRIGGER_ONLY_COMMIT_SUBJECT_RE.search(subject):
+                continue
             expected_fingerprint = unavailable_review_ref_fingerprint(
                 pr_number=snapshot.pr_number,
                 material_digest=material_digest,
@@ -982,7 +1026,10 @@ def validated_duplicate_reply_urls(
             if "API_UNKNOWN" in str(exc):
                 raise
             continue
-        covered.add(url)
+        eligible_recordless_by_fingerprint.setdefault(fingerprint, []).append(url)
+    for urls in eligible_recordless_by_fingerprint.values():
+        if len(urls) == 1:
+            covered.add(urls[0])
     return covered
 
 
