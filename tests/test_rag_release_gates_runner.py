@@ -2971,6 +2971,44 @@ def test_tracked_notebook_executes_raw_compaction_evidence_with_runner_parity() 
         field: runner_stats[field] for field in d1_fields
     }
 
+    over_limit_result = SimpleNamespace(
+        **{
+            **vars(malformed_result),
+            "chunks": [
+                RAGChunk(
+                    chunk_id=f"over-limit-{index}",
+                    file=f"docs/over-limit-{index}.md",
+                    content="Bounded wellness evidence.",
+                    score=0.9,
+                    hop=1,
+                )
+                for index in range(4)
+            ],
+            "rag_actually_used": True,
+            "chunks_retrieved": 4,
+            "chunks_compacted": 1,
+        }
+    )
+    runner_over_limit, runner_over_limit_stats = map_orchestration_result_to_retrieved(
+        over_limit_result,
+        context_compaction_enabled=True,
+    )
+    notebook_adapter.__globals__["PULSEPLATE_IMPORTS"] = {
+        "retrieve_and_validate_rag": AsyncMock(return_value=over_limit_result),
+    }
+    notebook_over_limit, notebook_over_limit_stats = asyncio.run(
+        notebook_adapter(
+            "over-limit",
+            top_k=3,
+            subject_id=None,
+            context_compaction_enabled=True,
+        )
+    )
+    assert len(notebook_over_limit) == len(runner_over_limit) == 4
+    assert {field: notebook_over_limit_stats[field] for field in d1_fields} == {
+        field: runner_over_limit_stats[field] for field in d1_fields
+    }
+
     cases = [
         ("observed", _observed_compaction_stats(), [{"doc_id": "observed"}], "observed"),
         (
@@ -2991,6 +3029,12 @@ def test_tracked_notebook_executes_raw_compaction_evidence_with_runner_parity() 
             "rollback",
         ),
         ("malformed", runner_stats, runner_retrieved, "malformed"),
+        (
+            "over-limit",
+            runner_over_limit_stats,
+            runner_over_limit,
+            "malformed",
+        ),
     ]
     for case_name, stats, retrieved, expected_state in cases:
         trace = _make_trace(case_name)
