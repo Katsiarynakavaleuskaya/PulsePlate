@@ -68,10 +68,11 @@ _FORBIDDEN_ID_PATTERN = (
     r"[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|"
     r"[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|"
     r"[Gg][Ll][Pp][Aa][Tt]-|"
-    r"[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
+    r"[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Nn][Pp][Mm]_|"
+    r"[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
     r"[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|"
     r"[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|"
-    r"[Tt][Oo][Kk][Ee][Nn])"
+    r"[Tt][Oo][Kk][Ee][Nn]|[Xx][Oo][Xx][AaBbPpRrSs]-)"
 )
 _FORBIDDEN_ID_RE = re.compile(_FORBIDDEN_ID_PATTERN, re.ASCII)
 _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
@@ -588,7 +589,9 @@ def main() -> int:
         return 2
 
     try:
-        sys.stdout.buffer.write(rendered)
+        written = sys.stdout.buffer.write(rendered)
+        if written != len(rendered):
+            raise OSError("short stdout write")
         sys.stdout.buffer.flush()
     except OSError:
         _write_contract_error("output_transport_failure")

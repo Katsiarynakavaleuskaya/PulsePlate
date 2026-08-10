@@ -32,7 +32,7 @@ or authorize a merge. It has no product-runtime or public-API integration.
     "max_id_ascii_bytes": 64
   },
   "id_pattern": "^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,62}[A-Za-z0-9])?$",
-  "forbidden_id_pattern": "(?:[Aa][Cc][Cc][Ee][Ss][Ss][_-]?[Kk][Ee][Yy]|[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|[Gg][Ll][Pp][Aa][Tt]-|[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|[Tt][Oo][Kk][Ee][Nn])",
+  "forbidden_id_pattern": "(?:[Aa][Cc][Cc][Ee][Ss][Ss][_-]?[Kk][Ee][Yy]|[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|[Gg][Ll][Pp][Aa][Tt]-|[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Nn][Pp][Mm]_|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|[Tt][Oo][Kk][Ee][Nn]|[Xx][Oo][Xx][AaBbPpRrSs]-)",
   "relation_values": [
     "equal",
     "left_proper_subset",
@@ -113,6 +113,12 @@ JSON literal `false`. Every object is closed: missing, additional, mistyped,
 unique within the universe and within each family. Every membership must name a
 finding in the finite universe.
 
+Draft 2020-12 `uniqueItems` compares whole family objects and cannot express
+cross-item uniqueness of one property. Schema validation is therefore
+structural only for the family array: every consumer must also run the CLI
+semantic validator, which enforces unique `family_id` values, membership
+subsets, bounds, normalization, and all replay recomputation invariants.
+
 The ID grammar is ASCII-only, at most 64 bytes, and excludes whitespace,
 slashes, dots, colons, URL syntax, query syntax, and other path/secret-bearing
 punctuation. IDs are opaque labels; they are not storage for review text,
@@ -177,11 +183,12 @@ output size are validated in memory before the first stdout byte. Contract and
 schema failures write no stdout, emit one stable bounded ASCII error code on
 stderr without submitted values or a traceback, and exit 2.
 
-The implementation performs one buffered stdout write after validation. A
-transport sink failure during that write is outside the document transaction:
-the operating system may already have accepted a prefix. The command reports a
-sanitized transport failure when possible, but it cannot retract bytes already
-accepted by a broken pipe or failing sink.
+The implementation performs one buffered stdout write after validation and
+requires its return count to equal the complete rendered payload length. A
+short write or transport exception is `output_transport_failure`; the command
+does not retry. The operating system may already have accepted a prefix. The
+command reports a sanitized transport failure when possible, but it cannot
+retract bytes already accepted by a broken pipe or failing sink.
 
 ## Fingerprints and replay
 

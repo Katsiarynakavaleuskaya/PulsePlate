@@ -154,7 +154,13 @@ def test_schema_is_closed_draft_2020_12_oneof_with_actual_bounds() -> None:
     assert cast(dict[str, object], definitions["findingIdList"])["uniqueItems"] is True
     snapshot_properties = cast(dict[str, dict[str, object]], definitions["snapshot"]["properties"])
     artifact_properties = cast(dict[str, dict[str, object]], definitions["artifact"]["properties"])
-    assert cast(dict[str, object], snapshot_properties["families"])["maxItems"] == 32
+    families_schema = cast(dict[str, object], snapshot_properties["families"])
+    assert families_schema["maxItems"] == 32
+    assert families_schema["uniqueItems"] is True
+    assert families_schema["$comment"] == (
+        "Draft 2020-12 uniqueItems compares whole family objects; consumers must run the "
+        "CLI semantic validator for cross-item family_id uniqueness and cross-field invariants."
+    )
     assert cast(dict[str, object], artifact_properties["relations"])["maxItems"] == 496
     assert definitions["falseAuthority"] == {"const": False}
     safe_id = cast(dict[str, object], definitions["safeId"])
@@ -409,6 +415,12 @@ def test_ids_are_ascii_path_and_url_safe_and_errors_never_echo_values() -> None:
         "sk" + "_test_Example123",
         "sk" + "-proj-Example123",
         "gl" + "pat-Example123",
+        "npm" + "_Example123",
+        "xox" + "a-Example123",
+        "xox" + "b-Example123",
+        "xox" + "p-Example123",
+        "xox" + "r-Example123",
+        "xox" + "s-Example123",
         "AK" + "IA1234567890",
         "AS" + "IA123456789",
         "client" + "-secret-value",
@@ -612,6 +624,38 @@ def test_main_reports_output_transport_failure_without_retry(
     assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
 
 
+def test_main_reports_short_output_transport_failure_without_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ShortBuffer:
+        def __init__(self) -> None:
+            self.write_attempts = 0
+            self.flush_attempts = 0
+
+        def write(self, payload: bytes) -> int:
+            self.write_attempts += 1
+            return len(payload) - 1
+
+        def flush(self) -> None:
+            self.flush_attempts += 1
+
+    stdout = ShortBuffer()
+    stderr = io.BytesIO()
+    monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
+    monkeypatch.setattr(
+        relations.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
+    )
+    monkeypatch.setattr(relations.sys, "stdout", SimpleNamespace(buffer=stdout))
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    assert relations.main() == 2
+    assert stdout.write_attempts == 1
+    assert stdout.flush_attempts == 0
+    assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
+
+
 def test_authority_fields_are_required_false_in_source_embedded_snapshot_and_artifact() -> None:
     _, artifact = _fixture_result()
     snapshot = cast(dict[str, object], artifact["snapshot"])
@@ -663,6 +707,7 @@ def test_runtime_script_has_only_bounded_stdlib_imports_and_no_authority_calls()
     allowed_call_names = {
         "ContractError",
         "MappingProxyType",
+        "OSError",
         "SystemExit",
         "_build_artifact",
         "_canonical_json_bytes",
