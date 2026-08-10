@@ -75,6 +75,7 @@ from scripts.orchestration.pr_review_evidence import (
     parse_duplicate_disposition_reply,
     parse_embedded_review_seal,
     render_embedded_review_seal,
+    review_thread_inventory,
     unavailable_review_ref_fingerprint,
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
@@ -2589,7 +2590,7 @@ def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return result.stdout.strip()
 
 
-def _commit(repo: Path, message: str) -> str:
+def _commit(repo: Path, message: str, *, allow_empty: bool = False) -> str:
     env = os.environ.copy()
     env.update(
         {
@@ -2600,7 +2601,10 @@ def _commit(repo: Path, message: str) -> str:
         }
     )
     _git(repo, "add", "-A", env=env)
-    _git(repo, "commit", "-m", message, env=env)
+    commit_args = ["commit", "-m", message]
+    if allow_empty:
+        commit_args.append("--allow-empty")
+    _git(repo, *commit_args, env=env)
     return _git(repo, "rev-parse", "HEAD", env=env)
 
 
@@ -5415,7 +5419,9 @@ def test_sanitized_pr_2137_abbreviated_fix_dedupes_three_unavailable_refs(
         candidate_urls=set(root_urls[1:]),
         threads=threads,
         fingerprint_records={fingerprint: record},
+        mapping_entries={root_urls[0]: real_fix},
         material_digest=DIGEST,
+        material_head_sha=real_head,
         repo_root=Path(),
         snapshot=snapshot,
         repository="owner/repo",
@@ -5448,6 +5454,33 @@ def _comment(url_suffix: str) -> dict[str, Any]:
         "originalCommit": {"oid": FIX_SHA},
         "url": f"https://github.com/owner/repo/pull/42#discussion_r{url_suffix}",
     }
+
+
+def test_review_thread_inventory_preserves_comment_order_within_each_thread() -> None:
+    root = ReviewCommentEvidence(
+        url="https://github.com/owner/repo/pull/42#discussion_r1",
+        body="Root finding",
+        created_at="2026-07-15T10:00:00Z",
+        author_login="chatgpt-codex-connector",
+        author_association="NONE",
+        original_commit_sha=FIX_SHA,
+    )
+    reply = ReviewCommentEvidence(
+        url="https://github.com/owner/repo/pull/42#discussion_r1_reply",
+        body="Disposition reply",
+        created_at="2026-07-15T11:00:00Z",
+        author_login="maintainer",
+        author_association="OWNER",
+        original_commit_sha=HEAD_SHA,
+    )
+    ordered = ReviewThreadEvidence("thread", True, (root, reply))
+    reversed_comments = ReviewThreadEvidence("thread", True, (reply, root))
+    sibling = ReviewThreadEvidence("sibling", False, (root,))
+
+    assert review_thread_inventory((ordered, sibling)) == review_thread_inventory(
+        (sibling, ordered)
+    )
+    assert review_thread_inventory((ordered,)) != review_thread_inventory((reversed_comments,))
 
 
 def test_review_threads_paginate_outer_and_inner_connections() -> None:
@@ -5750,6 +5783,240 @@ def _duplicate_reply(fingerprint: str) -> str:
     )
 
 
+def _recordless_seed_coverage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    seed_count: int = 1,
+    ineligible_seed_indexes: frozenset[int] = frozenset(),
+    mapped_fix: bool = True,
+    mapping_url_kind: str = "resolved-root",
+    fix_pushed_at: str | None = "2026-07-15T09:00:00Z",
+    fix_subject: str = "fix",
+    empty_fix: bool = False,
+    fingerprint_matches: bool = True,
+    unavailable_kind: CommitRefKind = CommitRefKind.REVIEW_REF_UNAVAILABLE,
+) -> tuple[set[str], list[tuple[str, str]]]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    policy = repo / "policy.py"
+    if not empty_fix:
+        policy.write_text("ENFORCED = True\n", encoding="utf-8")
+    fix_sha = _commit(repo, fix_subject, allow_empty=empty_fix)
+    policy.write_text("ENFORCED = True\nBOUND = True\n", encoding="utf-8")
+    material_head_sha = _commit(repo, "material head")
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_head_sha,
+        pr_number=42,
+    )
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text("mapping\n", encoding="utf-8")
+    live_head_sha = _commit(repo, "mapping closeout")
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=live_head_sha,
+        commits=tuple(
+            PrCommitEvidence(sha, fix_pushed_at if sha == fix_sha else None)
+            for sha in (fix_sha, material_head_sha, live_head_sha)
+        ),
+    )
+    unavailable_sha = "6" * 40
+    fingerprint = unavailable_review_ref_fingerprint(
+        pr_number=42,
+        material_digest=manifest.digest,
+        verified_real_fix_sha=fix_sha,
+    )
+    reply_fingerprint = (
+        fingerprint
+        if fingerprint_matches
+        else unavailable_review_ref_fingerprint(
+            pr_number=42,
+            material_digest=manifest.digest,
+            verified_real_fix_sha="f" * 40,
+        )
+    )
+    root_urls = tuple(
+        f"https://github.com/owner/repo/pull/42#discussion_seed_{index}"
+        for index in range(seed_count)
+    )
+    mapped_root_url = "https://github.com/owner/repo/pull/42#discussion_mapped"
+    mapped_entry_url = {
+        "resolved-root": mapped_root_url,
+        "issue": "https://github.com/owner/repo/issues/42#issuecomment-1",
+        "top-level": "https://github.com/owner/repo/pull/42#issuecomment-2",
+    }[mapping_url_kind]
+    mapped_thread = ReviewThreadEvidence(
+        "mapped",
+        True,
+        (
+            ReviewCommentEvidence(
+                url=mapped_root_url,
+                body="Original FIXED finding",
+                created_at="2026-07-15T08:00:00Z",
+                author_login="reviewer",
+                author_association="NONE",
+                original_commit_sha=material_head_sha,
+            ),
+        ),
+    )
+    seed_threads = tuple(
+        ReviewThreadEvidence(
+            f"seed-{index}",
+            True,
+            (
+                ReviewCommentEvidence(
+                    url=url,
+                    body=(
+                        "Commit ancestry finding: verified FIX "
+                        f"{fix_sha}; reviewed material "
+                        f"head {material_head_sha}; reviewer ref {unavailable_sha} is unreachable."
+                    ),
+                    created_at=f"2026-07-15T1{index}:00:00Z",
+                    author_login="chatgpt-codex-connector",
+                    author_association="NONE",
+                    original_commit_sha=(
+                        material_head_sha if index in ineligible_seed_indexes else live_head_sha
+                    ),
+                ),
+                ReviewCommentEvidence(
+                    url=f"{url}-reply",
+                    body=_duplicate_reply(reply_fingerprint),
+                    created_at=f"2026-07-15T1{index}:30:00Z",
+                    author_login="maintainer",
+                    author_association="OWNER",
+                    original_commit_sha=live_head_sha,
+                ),
+            ),
+        )
+        for index, url in enumerate(root_urls)
+    )
+    threads = (mapped_thread, *seed_threads)
+    ancestry_calls: list[tuple[str, str]] = []
+
+    def classify(value: str, *_args: Any, **_kwargs: Any) -> Any:
+        if value == unavailable_sha:
+            return ReviewExecutionRef(value, unavailable_kind, "unavailable")
+        return RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == live_head_sha else CommitRefKind.PR_COMMIT,
+        )
+
+    def ancestor(left: RepositoryCommitRef, right: RepositoryCommitRef, **_kwargs: Any) -> bool:
+        ancestry_calls.append((left.sha, right.sha))
+        assert unavailable_sha not in {left.sha, right.sha}
+        return True
+
+    monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
+    monkeypatch.setattr(identity_module, "is_ancestor", ancestor)
+    covered = validated_duplicate_reply_urls(
+        candidate_urls=set(root_urls),
+        threads=threads,
+        fingerprint_records={},
+        mapping_entries=({mapped_entry_url: fix_sha} if mapped_fix else {}),
+        material_digest=manifest.digest,
+        material_head_sha=material_head_sha,
+        repo_root=repo,
+        snapshot=snapshot,
+        repository="owner/repo",
+        token="opaque",
+    )
+    return covered, ancestry_calls
+
+
+def test_recordless_first_post_mapping_seed_accepts_sanitized_live_finding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, ancestry_calls = _recordless_seed_coverage(tmp_path, monkeypatch)
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_seed_0"}
+    assert ancestry_calls
+
+
+@pytest.mark.parametrize(
+    ("ineligible_seed_indexes", "expected_seed_index"),
+    [
+        (frozenset({1}), 0),
+        (frozenset({0}), 1),
+    ],
+    ids=("eligible-first", "ineligible-first"),
+)
+def test_recordless_cardinality_ignores_ineligible_same_fingerprint_seed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ineligible_seed_indexes: frozenset[int],
+    expected_seed_index: int,
+) -> None:
+    covered, _ = _recordless_seed_coverage(
+        tmp_path,
+        monkeypatch,
+        seed_count=2,
+        ineligible_seed_indexes=ineligible_seed_indexes,
+    )
+
+    assert covered == {
+        f"https://github.com/owner/repo/pull/42#discussion_seed_{expected_seed_index}"
+    }
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "raises_api_unknown"),
+    [
+        ({"seed_count": 2}, False),
+        ({"mapped_fix": False}, False),
+        ({"ineligible_seed_indexes": frozenset({0})}, False),
+        ({"mapping_url_kind": "issue"}, False),
+        ({"mapping_url_kind": "top-level"}, False),
+        ({"fix_pushed_at": None}, False),
+        ({"fix_pushed_at": "2026-07-15T08:00:00Z"}, False),
+        ({"empty_fix": True}, False),
+        ({"fix_subject": "trigger ci"}, False),
+        ({"fingerprint_matches": False}, False),
+        (
+            {
+                "seed_count": 2,
+                "unavailable_kind": CommitRefKind.API_UNKNOWN,
+            },
+            True,
+        ),
+    ],
+    ids=(
+        "second-eligible-seed",
+        "unmapped-fix",
+        "non-live-original",
+        "issue-only-mapping",
+        "top-level-only-mapping",
+        "missing-pushed-at",
+        "not-post-comment",
+        "empty-fix",
+        "trigger-subject",
+        "fingerprint-mismatch",
+        "api-unknown",
+    ),
+)
+def test_recordless_post_mapping_seed_stays_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+    raises_api_unknown: bool,
+) -> None:
+    if raises_api_unknown:
+        with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+            _recordless_seed_coverage(tmp_path, monkeypatch, **kwargs)
+        return
+
+    covered, _ = _recordless_seed_coverage(tmp_path, monkeypatch, **kwargs)
+    assert covered == set()
+
+
 def _validate_duplicate_finding_body(
     monkeypatch: pytest.MonkeyPatch,
     body: str,
@@ -5855,7 +6122,9 @@ def _validate_duplicate_finding_body(
         candidate_urls={duplicate_url},
         threads=threads,
         fingerprint_records={fingerprint: record},
+        mapping_entries={canonical_url: FIX_SHA},
         material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
         repo_root=Path(),
         snapshot=_snapshot(),
         repository="owner/repo",
@@ -6662,7 +6931,9 @@ def test_duplicate_reply_requires_trusted_resolved_thread_and_real_fix(
         candidate_urls={finding.url},
         threads=(canonical_thread, thread),
         fingerprint_records={fingerprint: record},
+        mapping_entries={canonical_finding.url: FIX_SHA},
         material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
         repo_root=Path(),
         snapshot=_snapshot(),
         repository="owner/repo",
@@ -6679,7 +6950,9 @@ def test_duplicate_reply_requires_trusted_resolved_thread_and_real_fix(
         candidate_urls={finding.url},
         threads=(canonical_thread, spoofed),
         fingerprint_records={fingerprint: record},
+        mapping_entries={canonical_finding.url: FIX_SHA},
         material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
         repo_root=Path(),
         snapshot=_snapshot(),
         repository="owner/repo",
@@ -6701,7 +6974,9 @@ def test_duplicate_reply_requires_trusted_resolved_thread_and_real_fix(
             candidate_urls={finding.url},
             threads=(canonical_thread, thread),
             fingerprint_records={fingerprint: record},
+            mapping_entries={canonical_finding.url: FIX_SHA},
             material_digest=DIGEST,
+            material_head_sha=HEAD_SHA,
             repo_root=Path(),
             snapshot=_snapshot(),
             repository="owner/repo",
@@ -6835,7 +7110,9 @@ def test_duplicate_reply_binds_finding_original_commits_to_material_digest(
         candidate_urls={duplicate_url},
         threads=governance_threads,
         fingerprint_records={governance_fingerprint: governance_record},
+        mapping_entries={canonical_url: material_sha},
         material_digest=material_manifest.digest,
+        material_head_sha=material_sha,
         repo_root=repo,
         snapshot=governance_snapshot,
         repository="owner/repo",
@@ -6863,7 +7140,9 @@ def test_duplicate_reply_binds_finding_original_commits_to_material_digest(
             candidate_urls={duplicate_url},
             threads=stale_threads,
             fingerprint_records={stale_fingerprint: stale_record},
+            mapping_entries={canonical_url: material_sha},
             material_digest=changed_manifest.digest,
+            material_head_sha=changed_sha,
             repo_root=repo,
             snapshot=changed_snapshot,
             repository="owner/repo",
