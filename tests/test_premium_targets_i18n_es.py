@@ -9,12 +9,8 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+import app as app_mod
 from tests._client import open_test_client
-
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
 
 @pytest.fixture
@@ -25,7 +21,10 @@ def premium_targets_i18n_client() -> Iterator[TestClient]:
 
 
 @pytest.mark.parametrize("lang", ["es"])
-def test_premium_targets_es_localization(premium_targets_i18n_client: TestClient, lang):
+def test_premium_targets_es_localization(
+    premium_targets_i18n_client: TestClient,
+    lang: str,
+) -> None:
     """Test Spanish localization for premium targets endpoint."""
     payload = {
         "sex": "female",
@@ -42,6 +41,7 @@ def test_premium_targets_es_localization(premium_targets_i18n_client: TestClient
         "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
@@ -78,7 +78,7 @@ def test_premium_targets_es_localization(premium_targets_i18n_client: TestClient
 
 def test_premium_targets_es_life_stage_warnings(
     premium_targets_i18n_client: TestClient,
-):
+) -> None:
     """Test Spanish life stage warnings specifically."""
     test_cases = [
         {
@@ -124,6 +124,7 @@ def test_premium_targets_es_life_stage_warnings(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
 
         data = resp.json()
         warnings = data["warnings"]
@@ -142,7 +143,9 @@ def test_premium_targets_es_life_stage_warnings(
             ), f"Expected keyword '{keyword}' not found in message '{warning['message']}'"
 
 
-def test_premium_targets_es_snapshot_values(premium_targets_i18n_client: TestClient):
+def test_premium_targets_es_snapshot_values(
+    premium_targets_i18n_client: TestClient,
+) -> None:
     """Test that Spanish localization returns consistent values (snapshot test)."""
     payload = {
         "sex": "male",
@@ -159,6 +162,7 @@ def test_premium_targets_es_snapshot_values(premium_targets_i18n_client: TestCli
         "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
@@ -188,7 +192,7 @@ def test_premium_targets_es_snapshot_values(premium_targets_i18n_client: TestCli
 
 def test_premium_targets_es_multilingual_consistency(
     premium_targets_i18n_client: TestClient,
-):
+) -> None:
     """Test that Spanish responses are consistent with other languages."""
     base_payload = {
         "sex": "female",
@@ -210,6 +214,7 @@ def test_premium_targets_es_multilingual_consistency(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
         responses[lang] = resp.json()
 
     # Check that numerical values are consistent across languages
@@ -231,7 +236,9 @@ def test_premium_targets_es_multilingual_consistency(
     assert es_data["priority_micros"] == en_data["priority_micros"] == ru_data["priority_micros"]
 
 
-def test_premium_targets_es_special_cases(premium_targets_i18n_client: TestClient):
+def test_premium_targets_es_special_cases(
+    premium_targets_i18n_client: TestClient,
+) -> None:
     """Test Spanish localization for special cases."""
     # Test with pregnant woman
     payload = {
@@ -249,6 +256,7 @@ def test_premium_targets_es_special_cases(premium_targets_i18n_client: TestClien
         "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
@@ -276,6 +284,7 @@ def test_premium_targets_es_special_cases(premium_targets_i18n_client: TestClien
         "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 

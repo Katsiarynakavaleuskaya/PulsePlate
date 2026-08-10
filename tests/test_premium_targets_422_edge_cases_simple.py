@@ -10,12 +10,8 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+import app as app_mod
 from tests._client import open_test_client
-
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
 
 class TestPremiumTargets422EdgeCasesSimple:

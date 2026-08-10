@@ -54,6 +54,7 @@ def test_weekly_success_200_contains_days(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/weekly", json=payload)
 
     assert r.status_code == status.HTTP_200_OK, r.text
+    assert r.headers["content-type"].startswith("application/json")
     data = r.json()
 
     # Verify response structure
@@ -116,6 +117,7 @@ def test_weekly_multiple_days_returns_all_days(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/weekly", json=payload)
 
     assert r.status_code == status.HTTP_200_OK, r.text
+    assert r.headers["content-type"].startswith("application/json")
     data = r.json()
     assert len(data["days"]) == 2
 
@@ -158,9 +160,10 @@ def test_weekly_insufficient_vip_tier_returns_403(
         )
 
         assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
+        assert r.headers["content-type"].startswith("application/json")
         assert r.json() == {
             "detail": (
-                "API key does not have VIP tier access. " "Upgrade to VIP to access this feature."
+                "API key does not have VIP tier access. Upgrade to VIP to access this feature."
             )
         }
 
@@ -177,6 +180,7 @@ def test_weekly_missing_api_key_returns_403(
         r = managed_client.post("/api/v1/vip/shoplist/weekly", json=payload)
 
         assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
+        assert r.headers["content-type"].startswith("application/json")
         assert r.json() == {"detail": "VIP access required"}
 
 

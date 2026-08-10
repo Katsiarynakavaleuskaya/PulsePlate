@@ -64,6 +64,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         # Check required response structure

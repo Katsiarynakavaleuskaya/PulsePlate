@@ -260,7 +260,7 @@ class TestPremiumPlateAPI:
         )
         assert response.status_code == 422
 
-    def test_premium_plate_missing_api_key(self):
+    def test_premium_plate_missing_api_key(self) -> None:
         """Test Premium Plate API without API key."""
         payload = {
             "weight_kg": 70,
@@ -274,6 +274,7 @@ class TestPremiumPlateAPI:
         # Test without API key header
         response = self.client.post("/api/v1/premium/plate", json=payload)
         assert response.status_code == 403
+        assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Invalid API Key"}
 
     def test_premium_plate_with_bodyfat(self):

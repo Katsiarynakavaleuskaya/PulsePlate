@@ -55,6 +55,7 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["category"] is None
         assert "pregnancy" in data["note"].lower()

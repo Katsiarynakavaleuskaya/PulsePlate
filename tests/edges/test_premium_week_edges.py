@@ -1,15 +1,14 @@
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
-import os
 
 import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from app.middleware.api_tiers import require_pro_tier
 from app.routers import premium_week
 from tests._client import open_test_client
 
@@ -27,7 +26,6 @@ def _make_pro_client() -> Iterator[TestClient]:
     from app.routers import pro
 
     app = FastAPI()
-    app.dependency_overrides[require_pro_tier] = lambda: None
     app.include_router(pro.router)
     with open_test_client(app) as managed_client:
         yield managed_client
@@ -91,7 +89,7 @@ def _canonical_week_payload() -> dict[str, Any]:
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_missing_profile_fields_returns_400():
+def test_premium_week_missing_profile_fields_returns_400() -> None:
     # Missing height/weight triggers the first 400 branch
     payload = {
         "sex": "male",
@@ -110,13 +108,14 @@ def test_premium_week_missing_profile_fields_returns_400():
             headers={"X-API-Key": "test_pro_key"},
         )
         assert resp.status_code == 400
+        assert resp.headers["content-type"].startswith("application/json")
         # Now returns specific field name in error message
         detail = resp.json()["detail"]
         assert "Missing required field" in detail
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_explicit_null_activity_returns_400():
+def test_premium_week_explicit_null_activity_returns_400() -> None:
     # Explicit null does not activate model defaults; activity fails first.
     payload = {
         "sex": "female",
@@ -135,13 +134,14 @@ def test_premium_week_explicit_null_activity_returns_400():
             headers={"X-API-Key": "test_pro_key"},
         )
         assert resp.status_code == status.HTTP_400_BAD_REQUEST, resp.text
+        assert resp.headers["content-type"].startswith("application/json")
         assert resp.json() == {
             "detail": "Missing user profile data (Missing required field: activity)"
         }
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_with_explicit_targets_happy_path_200():
+def test_premium_week_with_explicit_targets_happy_path_200() -> None:
     # Use explicit targets path to avoid relying on data-derived estimation
     payload = {
         "targets": {
@@ -171,6 +171,7 @@ def test_premium_week_with_explicit_targets_happy_path_200():
             headers={"X-API-Key": "test_pro_key"},
         )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
         body = resp.json()
         assert "daily_menus" in body and isinstance(body["daily_menus"], list)
         assert "weekly_coverage" in body and isinstance(body["weekly_coverage"], dict)
@@ -290,12 +291,14 @@ def test_premium_week_profile_derived_targets_branch_is_ci_covered(
         )
 
         assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("application/json")
         assert resp.json()["daily_menus"][0]["meals"][0]["price_est"] == 4.5
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_pro_week_profile_derived_targets_branch_is_ci_covered(
     monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
 ) -> None:
     from app.routers import pro
     from app.services import nutrition_targets
@@ -322,7 +325,9 @@ def test_pro_week_profile_derived_targets_branch_is_ci_covered(
                 "diet_flags": [],
                 "lang": "en",
             },
+            headers=pro_headers,
         )
 
         assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("application/json")
         assert resp.json()["daily_menus"][0]["meals"][0]["price_est"] == 4.5

@@ -9,14 +9,9 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+import app as app_mod
 from app.services import pro_nutrition_plate
 from tests._client import open_test_client
-
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
-
 
 _TEST_MICROS: dict[str, float] = {
     "iron_mg": 3.0,
@@ -81,7 +76,7 @@ def _assert_deterministic_micros(data: dict[str, object]) -> None:
     assert day_micros == pytest.approx(expected_totals)
 
 
-def test_plate_endpoint_has_day_micros(premium_plate_micros_client: TestClient):
+def test_plate_endpoint_has_day_micros(premium_plate_micros_client: TestClient) -> None:
     """Test that plate endpoint returns day_micros field."""
     payload = {
         "sex": "female",
@@ -96,6 +91,7 @@ def test_plate_endpoint_has_day_micros(premium_plate_micros_client: TestClient):
         "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
     assert "day_micros" in data
@@ -103,7 +99,7 @@ def test_plate_endpoint_has_day_micros(premium_plate_micros_client: TestClient):
     _assert_deterministic_micros(data)
 
 
-def test_day_micros_aggregation(premium_plate_micros_client: TestClient):
+def test_day_micros_aggregation(premium_plate_micros_client: TestClient) -> None:
     """Test that day_micros aggregates micronutrients from all meals."""
     payload = {
         "sex": "female",
@@ -118,6 +114,7 @@ def test_day_micros_aggregation(premium_plate_micros_client: TestClient):
         "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
     _assert_deterministic_micros(data)
@@ -141,7 +138,7 @@ def test_day_micros_aggregation(premium_plate_micros_client: TestClient):
         assert day_micros[nutrient] > 0
 
 
-def test_meals_contain_micros(premium_plate_micros_client: TestClient):
+def test_meals_contain_micros(premium_plate_micros_client: TestClient) -> None:
     """Test that individual meals contain micros field."""
     payload = {
         "sex": "female",
@@ -156,6 +153,7 @@ def test_meals_contain_micros(premium_plate_micros_client: TestClient):
         "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
     _assert_deterministic_micros(data)
@@ -184,7 +182,7 @@ def test_meals_contain_micros(premium_plate_micros_client: TestClient):
             assert isinstance(meal["micros"][nutrient], (int, float))
 
 
-def test_day_micros_calculation(premium_plate_micros_client: TestClient):
+def test_day_micros_calculation(premium_plate_micros_client: TestClient) -> None:
     """Test that day_micros values are correctly calculated from meals."""
     payload = {
         "sex": "female",
@@ -199,6 +197,7 @@ def test_day_micros_calculation(premium_plate_micros_client: TestClient):
         "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
     _assert_deterministic_micros(data)
@@ -218,7 +217,9 @@ def test_day_micros_calculation(premium_plate_micros_client: TestClient):
         assert abs(day_micros[nutrient] - expected_total) < 0.01
 
 
-def test_plate_endpoint_with_different_goals(premium_plate_micros_client: TestClient):
+def test_plate_endpoint_with_different_goals(
+    premium_plate_micros_client: TestClient,
+) -> None:
     """Test that day_micros works with different goals."""
     test_cases = [
         {"goal": "loss", "deficit_pct": 15},
@@ -240,6 +241,7 @@ def test_plate_endpoint_with_different_goals(premium_plate_micros_client: TestCl
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
 
         data = resp.json()
         assert "day_micros" in data

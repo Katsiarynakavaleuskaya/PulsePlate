@@ -100,6 +100,7 @@ class TestWeeklyPlanningBlocks:
         )
 
         assert response.status_code == 200, response.text
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["week_summary"] == {
             "week_start": "2026-03-09",
@@ -123,16 +124,14 @@ class TestWeeklyPlanningBlocks:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The legacy alias sanitizes a canonical executor ValueError."""
-        executor = AsyncMock(side_effect=ValueError("private builder detail"))
+
+        def _raise_value_error(*_args: object, **_kwargs: object) -> NoReturn:
+            raise ValueError("private builder detail")
+
         monkeypatch.setattr(
             weekly_plan_router,
             "get_weekly_menu_builder",
-            lambda: _fake_weekly_menu_builder,
-        )
-        monkeypatch.setattr(
-            vip_router,
-            "execute_legacy_premium_week_alias_payload",
-            executor,
+            lambda: _raise_value_error,
         )
 
         response = weekly_planning_client.post(
@@ -142,9 +141,9 @@ class TestWeeklyPlanningBlocks:
         )
 
         assert response.status_code == 400, response.text
+        assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Invalid input"}
         assert "private builder detail" not in response.text
-        executor.assert_awaited_once()
 
     def test_weekly_planning_builder_unavailable_is_exact_503(
         self,
@@ -171,6 +170,7 @@ class TestWeeklyPlanningBlocks:
         )
 
         assert response.status_code == 503, response.text
+        assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Weekly menu generation feature not available"}
         executor.assert_not_awaited()
 
@@ -203,6 +203,7 @@ class TestWeeklyPlanningBlocks:
         )
 
         assert response.status_code == 500, response.text
+        assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Weekly menu generation failed"}
         assert "private getter detail" not in response.text
         executor.assert_not_awaited()

@@ -16,7 +16,7 @@ def _client() -> Iterator[TestClient]:
         yield managed_client
 
 
-def test_bodyfat_bmi_is_derived_when_missing():
+def test_bodyfat_bmi_is_derived_when_missing() -> None:
     with _client() as client:
         # Provide weight/height so BMI is derived and calculators can run
         payload = {
@@ -30,18 +30,20 @@ def test_bodyfat_bmi_is_derived_when_missing():
         }
         resp = client.post("/bodyfat", json=payload)
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
         data = resp.json()
         assert data["lang"] == "en"
         assert "methods" in data and isinstance(data["methods"], dict)
 
 
-def test_bodyfat_handles_invalid_inputs_gracefully():
+def test_bodyfat_handles_invalid_inputs_gracefully() -> None:
     with _client() as client:
         # Provide only minimally required fields to avoid Pydantic 422
         # and ensure the endpoint responds gracefully with empty methods
         payload = {"gender": "female", "language": "es"}
         resp = client.post("/bodyfat", json=payload)
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
         data = resp.json()
         assert data["lang"] == "es"
         # With invalid inputs, methods may be empty but response should be well-formed

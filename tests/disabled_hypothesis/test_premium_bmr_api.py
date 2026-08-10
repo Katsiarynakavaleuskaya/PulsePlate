@@ -53,7 +53,7 @@ class TestPremiumBMRAPI:
 
         assert response.status_code == 200
 
-    def test_premium_bmr_with_bodyfat(self):
+    def test_premium_bmr_with_bodyfat(self) -> None:
         """Test Premium BMR API with body fat percentage."""
         payload = {
             "weight_kg": 70,
@@ -70,6 +70,7 @@ class TestPremiumBMRAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         # Should include Katch-McArdle formula

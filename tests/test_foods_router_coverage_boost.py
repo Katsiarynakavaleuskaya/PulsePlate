@@ -5,7 +5,7 @@ EN: Coverage boost tests for app/routers/foods.py
 """
 
 from collections.abc import Iterator
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,7 +51,7 @@ class TestFoodsRouterCoverage:
         assert "foods" in router.tags
 
     @patch("app.routers.foods.food_store.search_foods")
-    def test_list_foods_success(self, mock_search_foods):
+    def test_list_foods_success(self, mock_search_foods: MagicMock) -> None:
         """Test list_foods endpoint success."""
         mock_search_foods.return_value = [
             {
@@ -74,6 +74,7 @@ class TestFoodsRouterCoverage:
 
         response = self.client.get("/api/v1/foods?query=apple&limit=10&offset=0")
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
 
         data = response.json()
         assert len(data) == 2
