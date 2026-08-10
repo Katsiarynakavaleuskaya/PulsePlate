@@ -26,6 +26,7 @@ from app.utils.feature_flags import (
     is_philosophy_pragmatic_enabled,
     is_philosophy_router_enabled,
     is_philosophy_validation_enabled,
+    is_rag_context_compaction_enabled,
     is_recursive_rag_enabled,
     is_recursive_rag_optimization_enabled,
 )
@@ -140,6 +141,7 @@ async def _traced_retrieve_and_validate_rag(
             ),
             subject_id=subject_id,
             knowledge_policy=knowledge_policy,
+            context_compaction_enabled=is_rag_context_compaction_enabled(),
         )
         set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})
         return rag_result
