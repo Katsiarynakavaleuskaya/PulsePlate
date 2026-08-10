@@ -618,7 +618,7 @@ def test_main_reports_output_transport_failure_without_retry(
     monkeypatch.setattr(
         relations.sys,
         "stdout",
-        SimpleNamespace(buffer=stdout),
+        SimpleNamespace(buffer=stdout, close=lambda: None),
     )
     monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
 
@@ -650,7 +650,11 @@ def test_main_reports_short_output_transport_failure_without_retry(
         "stdin",
         SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
     )
-    monkeypatch.setattr(relations.sys, "stdout", SimpleNamespace(buffer=stdout))
+    monkeypatch.setattr(
+        relations.sys,
+        "stdout",
+        SimpleNamespace(buffer=stdout, close=lambda: None),
+    )
     monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
 
     assert relations.main() == 2
@@ -671,11 +675,37 @@ def test_main_sanitizes_closed_stdout_transport_failure(
         "stdin",
         SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
     )
-    monkeypatch.setattr(relations.sys, "stdout", SimpleNamespace(buffer=stdout))
+    monkeypatch.setattr(
+        relations.sys,
+        "stdout",
+        SimpleNamespace(buffer=stdout, close=stdout.close),
+    )
     monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
 
     assert relations.main() == 2
     assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
+
+
+def test_cli_sanitizes_real_stdout_pipe_early_close() -> None:
+    process = subprocess.Popen(
+        [sys.executable, str(SCRIPT)],
+        cwd=REPO_ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    process.stdout.close()
+    process.stdin.write(FIXTURE.read_bytes())
+    process.stdin.close()
+
+    returncode = process.wait(timeout=5)
+    stderr = process.stderr.read()
+
+    assert returncode == 2
+    assert stderr == b"contract_error:output_transport_failure\n"
 
 
 def test_closed_stderr_transport_failure_does_not_escape(
@@ -777,6 +807,7 @@ def test_runtime_script_has_only_bounded_stdlib_imports_and_no_authority_calls()
         "__init__",
         "add",
         "append",
+        "close",
         "compile",
         "decode",
         "difference",

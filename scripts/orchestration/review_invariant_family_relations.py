@@ -594,6 +594,10 @@ def main() -> int:
             raise OSError("short stdout write")
         sys.stdout.buffer.flush()
     except (OSError, ValueError):
+        try:
+            sys.stdout.close()
+        except (OSError, ValueError):
+            pass
         _write_contract_error("output_transport_failure")
         return 2
     return 0
