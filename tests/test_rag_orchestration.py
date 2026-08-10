@@ -102,6 +102,7 @@ class TestEmptyResult:
         assert result.recursive_executed is False
         assert result.chunks_compacted == 0
         assert result.context_compaction_completed is False
+        assert result.context_compaction_attempted is False
 
     def test_empty_result_preserves_recursive_execution_flag(self) -> None:
         result = _empty_result("my prompt", recursive_executed=True)
@@ -687,7 +688,11 @@ class TestRetrieveAndValidateRag:
             ),
         ):
             result = asyncio.run(
-                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=True,
+                    context_compaction_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -695,6 +700,8 @@ class TestRetrieveAndValidateRag:
         assert result.formatted_prompt == "test prompt"
         assert result.chunks_retrieved == 1
         assert result.chunks_filtered == 1
+        assert result.context_compaction_attempted is False
+        assert result.context_compaction_completed is False
 
     def test_confidence_recalculated_with_validation(self) -> None:
         """With validation enabled, confidence is mean of filtered chunk scores."""
@@ -1633,6 +1640,7 @@ def test_exact_compaction_uses_one_snapshot_for_all_rag_carriers(
     assert result.rag_actually_used is True
     assert [chunk.chunk_id for chunk in result.chunks] == ["duplicate", "distinct"]
     assert result.chunks_compacted == 1
+    assert result.context_compaction_attempted is True
     assert result.context_compaction_completed is True
     assert result.chunks_retrieved == 3
     assert result.chunks_filtered == 0
@@ -1691,6 +1699,7 @@ def test_context_compaction_flag_off_preserves_duplicate_carriers() -> None:
     compact_chunks.assert_not_called()
     assert [item.chunk_id for item in result.chunks] == ["duplicate", "duplicate"]
     assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is False
     assert result.context_compaction_completed is False
     assert result.confidence == 0.8
 
@@ -1723,6 +1732,7 @@ def test_context_compaction_zero_removals_still_completes() -> None:
     assert result.rag_actually_used is True
     assert [item.chunk_id for item in result.chunks] == ["unique"]
     assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is True
     assert result.context_compaction_completed is True
 
 
@@ -1781,6 +1791,7 @@ def test_compaction_failure_rolls_back_response_and_closes_admission(
     assert result.rag_actually_used is True
     assert result.chunks[0].content == "Pristine wellness evidence."
     assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is True
     assert result.context_compaction_completed is False
     assert result.warnings.count("rag_context_compaction_error: internal failure") == 1
     assert result.degraded_reason == expected_reason
@@ -1845,6 +1856,7 @@ def test_late_exception_preserves_observed_compaction_count() -> None:
     assert result.rag_actually_used is False
     assert result.chunks == []
     assert result.chunks_compacted == 1
+    assert result.context_compaction_attempted is True
     assert result.context_compaction_completed is True
     assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
 
@@ -1922,6 +1934,7 @@ def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
     ]
     assert result.rag_actually_used is True
     assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is True
     assert result.context_compaction_completed is False
     assert result.warnings.count("rag_context_compaction_error: internal failure") == 1
     assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION

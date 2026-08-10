@@ -255,13 +255,22 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
         context_compaction_enabled = bool(kwargs["context_compaction_enabled"])
         observed.append(context_compaction_enabled)
         return RAGOrchestrationResult(
-            chunks=[],
+            chunks=[
+                RAGChunk(
+                    chunk_id="unique",
+                    file="docs/unique.md",
+                    content="Unique wellness evidence.",
+                    score=0.9,
+                    hop=1,
+                )
+            ],
             formatted_prompt=query,
-            rag_actually_used=False,
-            confidence=None,
-            hops=0,
+            rag_actually_used=True,
+            confidence=0.9,
+            hops=1,
             latency_ms=0,
-            chunks_compacted=2,
+            chunks_compacted=0 if context_compaction_enabled else 2,
+            context_compaction_attempted=context_compaction_enabled,
             context_compaction_completed=context_compaction_enabled,
         )
 
@@ -307,11 +316,16 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
     assert [
         (
             item["context_compaction_enabled"],
+            item["context_compaction_attempted"],
             item["context_compaction_result_observed"],
             item["chunks_compacted"],
         )
         for item in metadata_observed
-    ] == [(True, True, 2), (False, False, 0), (False, False, 0)]
+    ] == [
+        (True, True, True, 0),
+        (False, False, False, 0),
+        (False, False, False, 0),
+    ]
 
 
 def test_compaction_rollback_is_unobserved_and_fails_strict_d1(tmp_path: Path) -> None:
@@ -327,6 +341,7 @@ def test_compaction_rollback_is_unobserved_and_fails_strict_d1(tmp_path: Path) -
         warnings=["rag_context_compaction_error: internal failure"],
         degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
         chunks_compacted=9,
+        context_compaction_attempted=True,
     )
     state = _make_release_gate_state(
         tmp_path,
@@ -355,6 +370,7 @@ def test_compaction_rollback_is_unobserved_and_fails_strict_d1(tmp_path: Path) -
     )
 
     assert retrieved == []
+    assert metadata["context_compaction_attempted"] is True
     assert metadata["context_compaction_result_observed"] is False
     assert metadata["chunks_compacted"] == 0
     assert state.strict_violations == ["rag_context_compaction_failed"]
@@ -369,12 +385,22 @@ def test_map_orchestration_result_sanitizes_malformed_compaction_counts(
     """Only real nonnegative integer compaction counts may enter eval metadata."""
 
     result = RAGOrchestrationResult(
-        chunks=[],
-        formatted_prompt="query",
-        rag_actually_used=False,
-        confidence=None,
-        hops=0,
+        chunks=[
+            RAGChunk(
+                chunk_id="unique",
+                file="docs/unique.md",
+                content="Unique wellness evidence.",
+                score=0.9,
+                hop=1,
+            )
+        ],
+        formatted_prompt="Context: unique",
+        rag_actually_used=True,
+        confidence=0.9,
+        hops=1,
         latency_ms=0,
+        context_compaction_attempted=True,
+        context_compaction_completed=True,
     )
     setattr(result, "chunks_compacted", malformed_count)
 
@@ -384,7 +410,72 @@ def test_map_orchestration_result_sanitizes_malformed_compaction_counts(
     )
 
     assert metadata["context_compaction_enabled"] is True
+    assert metadata["context_compaction_attempted"] is True
+    assert metadata["context_compaction_result_observed"] is False
     assert metadata["chunks_compacted"] == 0
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_attempted", "expected_violation"),
+    [
+        (
+            RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="query",
+                rag_actually_used=False,
+                confidence=None,
+                hops=0,
+                latency_ms=0,
+                degraded_reason=RAGDegradedReason.RETRIEVAL_EMPTY,
+            ),
+            False,
+            False,
+        ),
+        (
+            RAGOrchestrationResult(
+                chunks=[],
+                formatted_prompt="query",
+                rag_actually_used=False,
+                confidence=None,
+                hops=1,
+                latency_ms=1,
+                degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
+                chunks_compacted=1,
+                context_compaction_attempted=True,
+                context_compaction_completed=True,
+            ),
+            True,
+            True,
+        ),
+    ],
+)
+def test_compaction_observation_distinguishes_empty_na_from_late_degradation(
+    tmp_path: Path,
+    result: RAGOrchestrationResult,
+    expected_attempted: bool,
+    expected_violation: bool,
+) -> None:
+    """Empty retrieval is N/A, while an unusable attempted result fails closed."""
+
+    state = _make_release_gate_state(tmp_path, allow_runtime_fallbacks=False)
+    state.pulseplate_imports = PulsePlateImports(
+        retrieve_and_validate_rag=AsyncMock(return_value=result),
+    )
+
+    _, metadata = asyncio.run(
+        runner.pulseplate_retrieve(
+            state,
+            "query",
+            top_k=3,
+            subject_id=None,
+            context_compaction_enabled=True,
+        )
+    )
+
+    assert metadata["context_compaction_attempted"] is expected_attempted
+    assert metadata["context_compaction_result_observed"] is False
+    assert metadata["chunks_compacted"] == 0
+    assert ("rag_context_compaction_failed" in state.strict_violations) is expected_violation
 
 
 @pytest.mark.parametrize("invalid_override", [1, "true"])
@@ -538,6 +629,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
             [],
             {
                 "enabled_trace_count": 0,
+                "attempted_trace_count": 0,
                 "result_observed_trace_count": 0,
                 "chunks_compacted_total": 0,
             },
@@ -546,12 +638,14 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
             [
                 {
                     "context_compaction_enabled": False,
+                    "context_compaction_attempted": True,
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 7,
                 }
             ],
             {
                 "enabled_trace_count": 0,
+                "attempted_trace_count": 0,
                 "result_observed_trace_count": 0,
                 "chunks_compacted_total": 0,
             },
@@ -560,12 +654,14 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
             [
                 {
                     "context_compaction_enabled": True,
+                    "context_compaction_attempted": False,
                     "context_compaction_result_observed": False,
                     "chunks_compacted": 11,
                 }
             ],
             {
                 "enabled_trace_count": 1,
+                "attempted_trace_count": 0,
                 "result_observed_trace_count": 0,
                 "chunks_compacted_total": 0,
             },
@@ -574,12 +670,14 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
             [
                 {
                     "context_compaction_enabled": True,
+                    "context_compaction_attempted": True,
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 0,
                 }
             ],
             {
                 "enabled_trace_count": 1,
+                "attempted_trace_count": 1,
                 "result_observed_trace_count": 1,
                 "chunks_compacted_total": 0,
             },
@@ -588,17 +686,20 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
             [
                 {
                     "context_compaction_enabled": True,
+                    "context_compaction_attempted": True,
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 0,
                 },
                 {
                     "context_compaction_enabled": True,
+                    "context_compaction_attempted": True,
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 3,
                 },
             ],
             {
                 "enabled_trace_count": 2,
+                "attempted_trace_count": 2,
                 "result_observed_trace_count": 2,
                 "chunks_compacted_total": 3,
             },
@@ -1627,7 +1728,10 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
         in adapter_source
     )
     assert "context_compaction_enabled=context_compaction_enabled" in adapter_source
-    assert "if type(chunks_compacted) is not int or chunks_compacted < 0:" in adapter_source
+    assert (
+        "chunks_compacted_valid = type(chunks_compacted) is int and chunks_compacted >= 0"
+        in adapter_source
+    )
     assert "return retrieved, {" in adapter_source
     assert (
         '"context_compaction_result_observed": context_compaction_result_observed' in adapter_source
@@ -1635,12 +1739,16 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "elif type(context_compaction_enabled) is not bool:" in adapter_source
     assert 'raise TypeError("context_compaction_enabled must be a built-in bool")' in adapter_source
     assert 'getattr(result, "context_compaction_completed", False) is True' in adapter_source
+    assert 'getattr(result, "context_compaction_attempted", False) is True' in adapter_source
+    assert 'getattr(result, "rag_actually_used", False) is True' in adapter_source
+    assert 'getattr(result, "degraded_reason", None) is None' in adapter_source
     assert "if not context_compaction_result_observed:" in adapter_source
     assert '"rag_context_compaction_enabled": context_compaction_enabled' in adapter_source
     assert (
         '"rag_context_compaction_result_observed": context_compaction_result_observed'
         in adapter_source
     )
+    assert '"rag_context_compaction_attempted": context_compaction_attempted' in adapter_source
     assert '"rag_chunks_compacted":' in adapter_source
     assert 'retrieval_stats["context_compaction_enabled"] = context_compaction_enabled' in (
         retrieve_source
@@ -1649,6 +1757,13 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "return local_retriever.retrieve(query, top_k=top_k), retrieval_stats" in retrieve_source
     assert "retrieved, retrieval_stats = await retrieve" in source
     assert '"retrieval_stats": retrieval_stats' in source
+    assert '"Gate D1: Context compaction observation"' in source
+    assert "context_compaction_attempted_unobserved" in source
+    assert "context_compaction_observed_any" in source
+    assert (
+        "or (not context_compaction_attempted_unobserved and "
+        "context_compaction_observed_any)" in source
+    )
 
 
 def test_no_companion_json_keeps_legacy_release_decision_behavior(tmp_path: Path) -> None:

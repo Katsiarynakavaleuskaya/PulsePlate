@@ -848,15 +848,20 @@ def map_orchestration_result_to_retrieved(
         raise TypeError("context_compaction_enabled must be a built-in bool")
 
     chunks = list(getattr(orchestration_result, "chunks", []) or [])
+    context_compaction_attempted = (
+        getattr(orchestration_result, "context_compaction_attempted", False) is True
+    )
+    raw_chunks_compacted = getattr(orchestration_result, "chunks_compacted", 0)
     context_compaction_result_observed = (
         context_compaction_enabled is True
+        and context_compaction_attempted is True
         and getattr(orchestration_result, "context_compaction_completed", False) is True
+        and getattr(orchestration_result, "rag_actually_used", False) is True
+        and getattr(orchestration_result, "degraded_reason", None) is None
+        and type(raw_chunks_compacted) is int
+        and raw_chunks_compacted >= 0
     )
-    chunks_compacted = (
-        _safe_nonnegative_int(getattr(orchestration_result, "chunks_compacted", 0))
-        if context_compaction_result_observed
-        else 0
-    )
+    chunks_compacted = raw_chunks_compacted if context_compaction_result_observed else 0
     retrieved = [
         map_rag_chunk(chunk, rank=rank, retriever=retriever)
         for rank, chunk in enumerate(chunks, start=1)
@@ -886,6 +891,7 @@ def map_orchestration_result_to_retrieved(
             str(getattr(orchestration_result, "formatted_prompt", "")).strip(),
         ),
         "context_compaction_enabled": context_compaction_enabled,
+        "context_compaction_attempted": context_compaction_attempted,
         "context_compaction_result_observed": context_compaction_result_observed,
         "chunks_compacted": chunks_compacted,
     }
@@ -945,6 +951,7 @@ async def pulseplate_retrieve(
     metadata["requested_top_k"] = top_k
     if (
         context_compaction_enabled is True
+        and metadata["context_compaction_attempted"] is True
         and metadata["context_compaction_result_observed"] is not True
     ):
         _record_strict_violation(state, "rag_context_compaction_failed")
@@ -991,6 +998,7 @@ async def retrieve(
         "degraded_reason": None,
         "formatted_prompt_present": False,
         "context_compaction_enabled": context_compaction_enabled,
+        "context_compaction_attempted": False,
         "context_compaction_result_observed": False,
         "chunks_compacted": 0,
         "max_supported_top_k": top_k,
@@ -1830,6 +1838,13 @@ def build_metrics_summary(
             for trace in traces
             if isinstance(trace.get("retrieval_stats"), dict)
             and trace["retrieval_stats"].get("context_compaction_enabled") is True
+        ),
+        "attempted_trace_count": sum(
+            1
+            for trace in traces
+            if isinstance(trace.get("retrieval_stats"), dict)
+            and trace["retrieval_stats"].get("context_compaction_enabled") is True
+            and trace["retrieval_stats"].get("context_compaction_attempted") is True
         ),
         "result_observed_trace_count": sum(
             1

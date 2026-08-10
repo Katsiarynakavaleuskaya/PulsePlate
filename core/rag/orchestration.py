@@ -83,6 +83,9 @@ class RAGOrchestrationResult:
     context_compaction_completed: bool = False
     """True only after enabled exact compaction passes its full postcondition."""
 
+    context_compaction_attempted: bool = False
+    """True only when enabled compaction reached the final safe-snapshot seam."""
+
 
 def _empty_result(
     prompt_input: str,
@@ -186,6 +189,7 @@ def _non_rag_result(
     verification_calls: int = 0,
     chunks_compacted: int = 0,
     context_compaction_completed: bool = False,
+    context_compaction_attempted: bool = False,
 ) -> RAGOrchestrationResult:
     """Return a non-RAG result when no usable context survives to output."""
 
@@ -205,6 +209,7 @@ def _non_rag_result(
         verification_calls=verification_calls,
         chunks_compacted=chunks_compacted,
         context_compaction_completed=context_compaction_completed,
+        context_compaction_attempted=context_compaction_attempted,
     )
 
 
@@ -298,6 +303,7 @@ async def _run_orchestration(
     enrichment_completed = False
     chunks_compacted = 0
     context_compaction_completed = False
+    context_compaction_attempted = False
     try:
         # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
         from core.rag.formatting import (
@@ -445,6 +451,7 @@ async def _run_orchestration(
         effective_degraded_reason = getattr(rag_ctx, "degraded_reason", None)
         pristine_final_chunks = _copy_rag_chunks(chunks_to_use)
         if context_compaction_enabled:
+            context_compaction_attempted = True
             try:
                 from core.rag.context_compaction import (
                     _is_exact_compaction_result,
@@ -500,6 +507,7 @@ async def _run_orchestration(
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
                 context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         if not raw_context.strip():
             return _non_rag_result(
@@ -517,6 +525,7 @@ async def _run_orchestration(
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
                 context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
         if not isinstance(redacted_context, str):
@@ -535,6 +544,7 @@ async def _run_orchestration(
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
                 context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         if not redacted_context.strip():
             return _non_rag_result(
@@ -552,6 +562,7 @@ async def _run_orchestration(
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
                 context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
         verification_bundle = _build_orchestration_verification_bundle(
@@ -610,6 +621,7 @@ async def _run_orchestration(
             verification_calls=verification_calls,
             chunks_compacted=chunks_compacted,
             context_compaction_completed=context_compaction_completed,
+            context_compaction_attempted=context_compaction_attempted,
         )
     except Exception:
         logger.warning("RAG orchestration failed; returning empty result")
@@ -638,6 +650,7 @@ async def _run_orchestration(
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
                 context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         return _empty_result(
             prompt_input,
