@@ -269,6 +269,10 @@ def test_runner_contract_imports_are_available() -> None:
 def test_cli_help_remains_dependency_light_without_site_packages() -> None:
     """Argument help must not require optional PulsePlate dependencies."""
 
+    child_env = os.environ.copy()
+    child_env.pop("PYTHONHOME", None)
+    child_env.pop("PYTHONPATH", None)
+    child_env["PYTHONDONTWRITEBYTECODE"] = "1"
     completed = subprocess.run(
         [
             sys.executable,
@@ -279,7 +283,7 @@ def test_cli_help_remains_dependency_light_without_site_packages() -> None:
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        env=child_env,
     )
 
     assert completed.returncode == 0, completed.stderr
