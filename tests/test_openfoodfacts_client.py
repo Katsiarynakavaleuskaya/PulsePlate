@@ -5,6 +5,8 @@ RU: Тесты для клиента Open Food Facts.
 EN: Tests for Open Food Facts client.
 """
 
+import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -289,6 +291,115 @@ class TestOFFClient:
             # Test search
             results = await self.client.search_products("test")
             assert len(results) == 0
+
+    def test_concrete_logging_sinks_are_secret_safe(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Concrete OFF operations log only stable labels, counts, and categories."""
+        query_marker = "off-query-marker-bd17"
+        barcode_marker = "off-barcode-marker-7259"
+        body_marker = "off-body-marker-70a4"
+        exception_marker = "off-exception-marker-9e13"
+        credential_url_marker = "https://off-credential-url-marker.invalid/private"
+        token_marker = "off-token-marker-6c02"
+        exception_text = (
+            f"{exception_marker} {credential_url_marker}?token={token_marker} "
+            f"body={body_marker} barcode={barcode_marker}"
+        )
+        monkeypatch.setattr(self.client, "BASE_URL", credential_url_marker)
+
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "products": [
+                {
+                    "code": barcode_marker,
+                    "product_name": body_marker,
+                    "nutriments": {"proteins_100g": 10.0},
+                }
+            ]
+        }
+        request_get = AsyncMock(return_value=response)
+        close_http = AsyncMock()
+        monkeypatch.setattr(self.client.client, "get", request_get)
+        monkeypatch.setattr(self.client.client, "aclose", close_http)
+        caplog.set_level(logging.DEBUG, logger="core.food_apis.openfoodfacts_client")
+
+        async def exercise_logging_paths() -> None:
+            results = await self.client.search_products(query_marker, page_size=1)
+            assert len(results) == 1
+
+            request_get.side_effect = RuntimeError(exception_text)
+            assert await self.client.get_product_details(barcode_marker) is None
+
+            assert (
+                self.client._parse_product_item(
+                    {
+                        "code": barcode_marker,
+                        "product_name": body_marker,
+                        "nutriments": body_marker,
+                    }
+                )
+                is None
+            )
+
+            batch_lookup = AsyncMock(side_effect=[RuntimeError(exception_text), None])
+            monkeypatch.setattr(self.client, "get_product_details", batch_lookup)
+            assert await self.client.get_multiple_products([barcode_marker, token_marker]) == []
+
+            close_http.side_effect = RuntimeError(f"event loop is closed; {exception_text}")
+            await self.client.close()
+
+        asyncio.run(exercise_logging_paths())
+
+        client_records = [
+            record
+            for record in caplog.records
+            if record.name == "core.food_apis.openfoodfacts_client"
+        ]
+        rendered_messages = [record.getMessage() for record in client_records]
+        assert (
+            "OFF request succeeded; operation=search_products; result_count=1" in rendered_messages
+        )
+        assert (
+            "OFF request failed; operation=get_product_details; category=RuntimeError"
+            in rendered_messages
+        )
+        assert (
+            "OFF item parse failed; operation=parse_product_item; category=TypeError"
+            in rendered_messages
+        )
+        assert (
+            "OFF batch item failed; operation=get_multiple_products; category=RuntimeError"
+            in rendered_messages
+        )
+        assert (
+            "OFF batch completed; operation=get_multiple_products; result_count=0; batch_count=2"
+            in rendered_messages
+        )
+        assert "OFF close suppressed; operation=close; category=RuntimeError" in rendered_messages
+
+        sensitive_markers = (
+            query_marker,
+            barcode_marker,
+            body_marker,
+            exception_marker,
+            credential_url_marker,
+            token_marker,
+        )
+        rendered_args = "\n".join(repr(record.args) for record in client_records)
+        for marker in sensitive_markers:
+            assert marker not in caplog.text
+            assert marker not in rendered_args
+        failure_records = [
+            record
+            for record in client_records
+            if " failed; " in record.getMessage() or " suppressed; " in record.getMessage()
+        ]
+        assert len(failure_records) == 4
+        assert all(record.exc_info is None for record in failure_records)
 
     @pytest.mark.asyncio
     async def test_search_products_filters_invalid_items(self) -> None:

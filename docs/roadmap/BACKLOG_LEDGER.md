@@ -1693,6 +1693,80 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dashboards cover span volume, full-capture rate, and detector distribution
     - Retention and deletion hooks for telemetry vault references are documented and test-covered
 
+<a id="ledger-p1-weekly-plan-cold-cache-external-food-boundary"></a>
+- [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (paid-path latency / provider reliability / data provenance)
+  - Target PR: `PR-TBD-WEEKLY-PLAN-COLD-CACHE-EXTERNAL-FOOD-BOUNDARY`
+  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary`
+  - Status: Active prerequisite lane, separate from tests-only PR #2255
+  - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
+  - Finding Type: cold-cache provider boundary and incomplete-cache acceptance
+  - Scope boundary: This lane owns only the versioned 20-key common-food
+    manifest, strict warm/cold admission, bounded single-sweep acquisition,
+    atomic publication, and preservation of existing structural nutrition
+    evidence. It does not widen PR #2255, change RecipeDB/FoodDB identity, add
+    nutrient data, or change provider operating policy and ingest governance.
+  - Origin evidence: During the completed TC2-03 enabled-Hypothesis audit on
+    2026-08-10, the repo-resolved node
+    `tests/disabled_hypothesis/test_premium_week_hypothesis_simple.py::TestPremiumWeekHypothesisSimple::test_generate_week_plan_simple_hypothesis`
+    produced a first example at `128460.88 ms` against a `10000 ms` deadline,
+    a later replay at `6.66 ms`, an Open Food Facts `503`, and a published
+    `14/20` common-food cache. This live-provider observation establishes the
+    prerequisite's origin and priority only; this lane's acceptance evidence
+    is deterministic and offline.
+  - Evidence / links:
+    - `app/routers/legacy_premium_weekly_plan.py` (legacy paid route)
+    - `app/services/fitchef_runtime.py` (weekly-plan orchestration boundary)
+    - `core/menu_engine.py` (default common-food loading consumer)
+    - `core/food_apis/unified_db.py` (manifest, admission, acquisition, and
+      publication owner)
+    - `core/food_apis/usda_client.py` and
+      `core/food_apis/openfoodfacts_client.py` (concrete provider logging sinks)
+    - `core/food_apis/update_manager.py` (failed-update result boundary)
+    - `tests/test_food_apis.py`
+    - `tests/test_openfoodfacts_client.py`
+    - `tests/test_unified_db_advanced.py`
+    - `tests/test_food_apis_comprehensive_coverage.py`
+    - `tests/test_food_apis_push95.py`
+  - Finite DoD:
+    - One immutable, versioned manifest declares exactly 20 canonical keys;
+      the only admitted cache envelope has exactly `schema_version`,
+      `manifest_version`, and `items`, with duplicate JSON members rejected
+    - Warm admission rejects malformed, stale, partial, extra, wrong-membership,
+      or evidence-losing cache data; cold `0/20`, observed `14/20`, and `19/20`
+      sweeps raise `CommonFoodsCacheAdmissionError` and publish nothing
+    - A cold sweep calls `search_food(..., save_cache=False)` exactly once per
+      manifest row with no retry, has one total deadline, converts timeout to
+      `CommonFoodsCacheAdmissionError`, and propagates external cancellation
+    - Exact `20/20` data is structurally validated and published through one
+      same-parent temporary file plus atomic replace; serialization, validation,
+      or replace failure raises `CommonFoodsCacheAdmissionError`, preserves any
+      prior target bytes, and cleans the temporary file
+    - Cold-to-warm round-trip preserves source attribution, record/version
+      references, raw structural evidence, aggregate confidence, per-nutrient
+      confidence, and per-nutrient provenance
+    - Row, cache, and concrete USDA/Open Food Facts provider logs expose only
+      fixed operation/outcome labels, bounded counts, and exception categories,
+      never queries, identifiers, provider bodies, tokens, secrets, or
+      credential-bearing URLs
+    - For both USDA and Open Food Facts, an established-version update performs
+      exactly one failed common-food acquisition, stops without continuation or
+      version mutation, and returns the stable `success=false`,
+      `new_version=None`, zero-count admission-failure shape
+    - Common-food JSON admission rejects `NaN`, `Infinity`, `-Infinity`, and
+      non-finite or overflow numeric `raw_payload` values; atomic publication
+      also rejects non-finite serialization before replace
+    - Tests remain offline and public response, OpenAPI, and generated-client
+      contracts remain unchanged
+  - Residuals / out of scope:
+    - Provider-use and redistribution policy remains in
+      [`ledger-p1-external-food-source-policy-enforcement`](#ledger-p1-external-food-source-policy-enforcement)
+    - Upstream replacement-ingest admission remains in
+      [`ledger-p1-food-data-source-update-preflight`](#ledger-p1-food-data-source-update-preflight)
+    - Legacy FoodDB schema-probe caching remains in
+      [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
+
 <a id="ledger-p1-external-food-source-policy-enforcement"></a>
 - [ ] P1: External food-source operating policy enforcement follow-through
   - Owner: @katsiaryna_kavaleuskaya

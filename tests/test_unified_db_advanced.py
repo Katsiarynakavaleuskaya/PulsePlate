@@ -5,12 +5,25 @@ RU: Продвинутые тесты для модуля унифицирова
 EN: Advanced tests for unified database module - common foods and integration.
 """
 
+import asyncio
+import json
+import logging
+import os
 import tempfile
-from unittest.mock import AsyncMock, mock_open, patch
+from dataclasses import asdict
+from io import StringIO
+from pathlib import Path
+from typing import IO
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from core.food_apis import unified_db as unified_db_module
 from core.food_apis.unified_db import (
+    COMMON_FOODS_CACHE_SCHEMA_VERSION,
+    COMMON_FOODS_MANIFEST,
+    COMMON_FOODS_MANIFEST_VERSION,
+    CommonFoodsCacheAdmissionError,
     UnifiedFoodDatabase,
     UnifiedFoodItem,
     get_unified_food_db,
@@ -19,175 +32,609 @@ from core.food_apis.unified_db import (
 from core.food_apis.usda_client import USDAFoodItem
 
 
+def _common_food_item(index: int) -> UnifiedFoodItem:
+    nutrient_key = f"nutrient_{index}"
+    nutrient_value = float(index + 1)
+    return UnifiedFoodItem(
+        name=f"Common Food {index}",
+        nutrients_per_100g={nutrient_key: nutrient_value},
+        cost_per_100g=1.0,
+        tags=["offline-test"],
+        availability_regions=["TEST"],
+        source="Deterministic fixture",
+        source_id=f"fixture-{index}",
+        category="Fixture",
+        nutrition_inputs=[
+            {
+                "source": "usda",
+                "record_id": f"fixture-{index}",
+                "version_ref": "2026-08-10",
+                "nutrients": {nutrient_key: nutrient_value},
+                "raw_payload": {},
+            }
+        ],
+        nutrition_provenance={nutrient_key: "usda"},
+        nutrition_nutrient_confidence={nutrient_key: 0.7},
+        nutrition_confidence=0.7,
+    )
+
+
+def _valid_common_foods_envelope() -> dict[str, object]:
+    return {
+        "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+        "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+        "items": {
+            name: asdict(_common_food_item(index))
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        },
+    }
+
+
+def _write_common_foods_envelope(path: Path, envelope: object) -> None:
+    path.write_text(json.dumps(envelope), encoding="utf-8")
+
+
+def _common_foods_json_with_duplicate(duplicate_kind: str) -> str:
+    envelope = _valid_common_foods_envelope()
+    items = envelope["items"]
+    assert isinstance(items, dict)
+    first_name = next(iter(COMMON_FOODS_MANIFEST))
+    first_item = items[first_name]
+    remaining_items = {name: item for name, item in items.items() if name != first_name}
+
+    if duplicate_kind == "duplicate_top_level":
+        return (
+            "{"
+            f'"schema_version":{json.dumps(COMMON_FOODS_CACHE_SCHEMA_VERSION)},'
+            f'"schema_version":{json.dumps(COMMON_FOODS_CACHE_SCHEMA_VERSION)},'
+            f'"manifest_version":{json.dumps(COMMON_FOODS_MANIFEST_VERSION)},'
+            f'"items":{json.dumps(items)}'
+            "}"
+        )
+    if duplicate_kind == "duplicate_item_key":
+        return (
+            "{"
+            f'"schema_version":{json.dumps(COMMON_FOODS_CACHE_SCHEMA_VERSION)},'
+            f'"manifest_version":{json.dumps(COMMON_FOODS_MANIFEST_VERSION)},'
+            '"items":{'
+            f"{json.dumps(first_name)}:{json.dumps(first_item)},"
+            f"{json.dumps(first_name)}:{json.dumps(first_item)},"
+            f"{json.dumps(remaining_items)[1:]}"
+            "}"
+        )
+    if duplicate_kind == "duplicate_item_member":
+        assert isinstance(first_item, dict)
+        duplicated_item = json.dumps(first_item)[:-1] + ',"name":"duplicate"}'
+        return (
+            "{"
+            f'"schema_version":{json.dumps(COMMON_FOODS_CACHE_SCHEMA_VERSION)},'
+            f'"manifest_version":{json.dumps(COMMON_FOODS_MANIFEST_VERSION)},'
+            '"items":{'
+            f"{json.dumps(first_name)}:{duplicated_item},"
+            f"{json.dumps(remaining_items)[1:]}"
+            "}"
+        )
+    raise AssertionError(f"Unknown duplicate fixture: {duplicate_kind}")
+
+
 class TestUnifiedFoodDatabaseCommonFoods:
     """Test common foods database functionality."""
 
-    @pytest.fixture
-    def temp_cache_dir(self):
-        """Create temporary cache directory."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            yield temp_dir
+    @pytest.fixture(autouse=True)
+    def _disable_inter_row_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
 
-    @pytest.fixture
-    def mock_usda_search_results(self):
-        """Create mock USDA search results for common foods."""
+    def test_manifest_is_exact_versioned_and_immutable(self) -> None:
+        assert COMMON_FOODS_MANIFEST_VERSION == "common-foods-manifest.v1"
+        assert tuple(COMMON_FOODS_MANIFEST.items()) == (
+            ("chicken_breast", "chicken breast meat only cooked roasted"),
+            ("salmon", "salmon atlantic farmed cooked dry heat"),
+            ("lentils", "lentils mature seeds cooked boiled"),
+            ("spinach", "spinach raw"),
+            ("oats", "cereals oats regular and quick unenriched dry"),
+            ("broccoli", "broccoli raw"),
+            ("brown_rice", "rice brown long-grain cooked"),
+            ("quinoa", "quinoa cooked"),
+            ("almonds", "nuts almonds"),
+            ("greek_yogurt", "yogurt greek plain nonfat"),
+            ("eggs", "egg whole raw fresh"),
+            ("sweet_potato", "sweet potato raw unprepared"),
+            ("avocado", "avocados raw all commercial varieties"),
+            ("banana", "bananas raw"),
+            ("black_beans", "beans black mature seeds cooked boiled"),
+            ("tofu", "tofu raw firm prepared with calcium sulfate"),
+            ("olive_oil", "oil olive salad or cooking"),
+            ("milk", "milk reduced fat fluid 2% milkfat"),
+            ("carrots", "carrots raw"),
+            ("tomatoes", "tomatoes red ripe raw year round average"),
+        )
+        assert type(COMMON_FOODS_MANIFEST).__name__ == "mappingproxy"
+        assert not hasattr(COMMON_FOODS_MANIFEST, "__setitem__")
 
-        def create_mock_item(name, fdc_id):
-            item = USDAFoodItem(
-                fdc_id=fdc_id,
-                description=name,
-                food_category="Test Category",
-                nutrients_per_100g={"protein": 20.0, "calories": 150.0},
-                data_type="Foundation",
-                publication_date="2019-04-01",
-            )
-            # Mock the _generate_tags method
-            with patch.object(item, "_generate_tags", return_value=["test"]):
-                return item
+    def test_warm_cache_requires_exact_envelope_and_preserves_evidence(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        envelope = _valid_common_foods_envelope()
+        cache_file = tmp_path / "common_foods.json"
+        _write_common_foods_envelope(cache_file, envelope)
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-        return {
-            "chicken breast meat only cooked roasted": create_mock_item(
-                "Chicken, broilers, breast, meat only, cooked, roasted", 171077
-            ),
-            "salmon atlantic farmed cooked dry heat": create_mock_item(
-                "Fish, salmon, Atlantic, farmed, cooked, dry heat", 175167
-            ),
-            "spinach raw": create_mock_item("Spinach, raw", 168462),
-        }
+        async def unexpected_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            raise AssertionError(f"warm cache searched unexpectedly: {query}, {save_cache}")
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_from_cache(self, temp_cache_dir):
-        """Test getting common foods from cache."""
-        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
+        monkeypatch.setattr(db, "search_food", unexpected_search)
+        foods = asyncio.run(db.get_common_foods_database())
+
+        assert tuple(foods) == tuple(COMMON_FOODS_MANIFEST)
+        expected_items = envelope["items"]
+        assert isinstance(expected_items, dict)
+        assert asdict(foods["chicken_breast"]) == expected_items["chicken_breast"]
+
+    def test_cold_cache_completes_one_exact_sweep_and_publishes_atomically(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        calls: list[tuple[str, bool]] = []
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+
+        async def deterministic_search(
+            query: str, save_cache: bool = True
+        ) -> list[UnifiedFoodItem]:
+            calls.append((query, save_cache))
+            return [_common_food_item(queries.index(query))]
+
+        replace_calls: list[tuple[Path, Path]] = []
+        real_replace = os.replace
+
+        def recording_replace(source: str | Path, target: str | Path) -> None:
+            source_path = Path(source)
+            target_path = Path(target)
+            assert source_path.parent == target_path.parent == tmp_path
+            assert source_path != target_path
+            replace_calls.append((source_path, target_path))
+            real_replace(source_path, target_path)
+
+        monkeypatch.setattr(db, "search_food", deterministic_search)
+        monkeypatch.setattr(unified_db_module.os, "replace", recording_replace)
+        foods = asyncio.run(db.get_common_foods_database())
+
+        assert calls == [(query, False) for query in queries]
+        assert tuple(foods) == tuple(COMMON_FOODS_MANIFEST)
+        assert len(replace_calls) == 1
+        cache_file = tmp_path / "common_foods.json"
+        published = json.loads(cache_file.read_text(encoding="utf-8"))
+        assert set(published) == {"schema_version", "manifest_version", "items"}
+        assert published["schema_version"] == COMMON_FOODS_CACHE_SCHEMA_VERSION
+        assert published["manifest_version"] == COMMON_FOODS_MANIFEST_VERSION
+        assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
+
+    @pytest.mark.parametrize("resolved_count", [0, 14, 19])
+    def test_cold_cache_rejects_incomplete_sweeps(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        resolved_count: int,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        calls: list[str] = []
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+
+        async def incomplete_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            calls.append(query)
+            index = queries.index(query)
+            return [_common_food_item(index)] if index < resolved_count else []
+
+        monkeypatch.setattr(db, "search_food", incomplete_search)
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
+            asyncio.run(db.get_common_foods_database())
+
+        assert calls == list(queries)
+        assert not (tmp_path / "common_foods.json").exists()
+
+    def test_ordinary_row_exception_leaves_unresolved_and_sweep_continues(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        calls: list[str] = []
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+        sensitive_provider_context = "advanced-provider-context-marker-7f31-do-not-log"
+
+        async def one_error_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            calls.append(query)
+            index = queries.index(query)
+            if index == 7:
+                raise RuntimeError(sensitive_provider_context)
+            return [_common_food_item(index)]
+
+        monkeypatch.setattr(db, "search_food", one_error_search)
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            asyncio.run(db.get_common_foods_database())
+
+        assert calls == list(queries)
+        assert not (tmp_path / "common_foods.json").exists()
+        assert sensitive_provider_context not in caplog.text
+        assert "category=RuntimeError" in caplog.text
+
+    def test_real_usda_common_food_path_is_finite_secret_safe_and_unpublished(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
         db.off_client = None
+        provider_marker = "usda-provider-context-marker-a183"
+        usda_search = AsyncMock(side_effect=RuntimeError(provider_marker))
+        monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
+        caplog.set_level(logging.ERROR, logger=unified_db_module.__name__)
 
-        # Write cache file using mock_open and mock Path.exists separately
-        with patch(
-            "builtins.open",
-            mock_open(
-                read_data='{"chicken_breast": {"name": "Chicken Breast", "nutrients_per_100g": {"protein": 25.0, "calories": 165.0}, "cost_per_100g": 4.0, "tags": ["protein", "meat"], "availability_regions": ["US", "BY", "RU"], "source": "USDA FoodData Central", "source_id": "12345", "category": "Poultry"}}'
-            ),
-        ):
-            with patch("pathlib.Path.exists", return_value=True):
-                foods_db = await db.get_common_foods_database()
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
+            asyncio.run(db.get_common_foods_database())
 
-        assert len(foods_db) == 1
-        assert "chicken_breast" in foods_db
-        assert foods_db["chicken_breast"].name == "Chicken Breast"
-        assert foods_db["chicken_breast"].nutrients_per_100g["protein"] == 25.0
+        assert usda_search.await_count == len(COMMON_FOODS_MANIFEST)
+        assert not (tmp_path / "common_foods.json").exists()
+        assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
+        assert provider_marker not in caplog.text
+        sink_records = [
+            record
+            for record in caplog.records
+            if record.getMessage() == "Unified DB USDA search failed; category=RuntimeError"
+        ]
+        assert len(sink_records) == len(COMMON_FOODS_MANIFEST)
+        assert all(record.exc_info is None for record in sink_records)
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_build_new(
-        self, temp_cache_dir, mock_usda_search_results
-    ):
-        """Test building new common foods database."""
-        # Mock USDA client
-        mock_usda_client = AsyncMock()
+    @pytest.mark.parametrize(
+        "corruption",
+        [
+            "malformed_json",
+            "extra_top_level",
+            "stale_schema",
+            "stale_manifest",
+            "wrong_member_twenty",
+            "extra_item_field",
+            "evidence_loss",
+            "duplicate_top_level",
+            "duplicate_item_key",
+            "duplicate_item_member",
+        ],
+    )
+    def test_invalid_warm_cache_is_never_admitted(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        corruption: str,
+    ) -> None:
+        cache_file = tmp_path / "common_foods.json"
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
 
-        # Configure search results for different queries
-        async def mock_search_foods(query, page_size=5):
-            if query in mock_usda_search_results:
-                return [mock_usda_search_results[query]]
+        if corruption == "malformed_json":
+            cache_file.write_text("{broken", encoding="utf-8")
+        elif corruption.startswith("duplicate_"):
+            cache_file.write_text(_common_foods_json_with_duplicate(corruption), encoding="utf-8")
+        else:
+            if corruption == "extra_top_level":
+                envelope["extra"] = "not admitted"
+            elif corruption == "stale_schema":
+                envelope["schema_version"] = "common-foods-cache.v0"
+            elif corruption == "stale_manifest":
+                envelope["manifest_version"] = "common-foods-manifest.v0"
+            elif corruption == "wrong_member_twenty":
+                items["wrong_member"] = items.pop("tomatoes")
+            elif corruption == "extra_item_field":
+                chicken = items["chicken_breast"]
+                assert isinstance(chicken, dict)
+                chicken["extra"] = "not admitted"
+            elif corruption == "evidence_loss":
+                chicken = items["chicken_breast"]
+                assert isinstance(chicken, dict)
+                chicken.pop("nutrition_inputs")
+            _write_common_foods_envelope(cache_file, envelope)
+
+        old_bytes = cache_file.read_bytes()
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        calls: list[str] = []
+
+        async def unresolved_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            calls.append(query)
             return []
 
-        mock_usda_client.search_foods.side_effect = mock_search_foods
+        monkeypatch.setattr(db, "search_food", unresolved_search)
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            asyncio.run(db.get_common_foods_database())
 
-        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
-        db.usda_client = mock_usda_client
-        db.off_client = None
+        assert calls == list(COMMON_FOODS_MANIFEST.values())
+        assert cache_file.read_bytes() == old_bytes
 
-        # Mock asyncio.sleep to speed up test
-        with patch("asyncio.sleep", new_callable=AsyncMock):
-            foods_db = await db.get_common_foods_database()
-            # Verify file-based cache is created after first build
-            cache_file = db.cache_dir / "common_foods.json"
-            assert cache_file.exists(), "Cache file should be created for common foods database"
+    def test_total_deadline_becomes_admission_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        calls: list[str] = []
 
-            # Verify caching/idempotence: second call should return same result,
-            # relying on the in-memory cache populated from the first call
-            foods_db_cached = await db.get_common_foods_database()
-            # Check that cached result has same content (not necessarily same object)
-            assert len(foods_db) == len(foods_db_cached), "Cached result should have same length"
-            assert set(foods_db.keys()) == set(
-                foods_db_cached.keys()
-            ), "Cached result should have same keys"
+        async def blocked_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            calls.append(query)
+            await asyncio.sleep(1.0)
+            return []
 
-        # Should have some foods (at least the ones we mocked)
-        assert len(foods_db) >= 3
-        assert "chicken_breast" in foods_db
-        assert "salmon" in foods_db
-        assert "spinach" in foods_db
+        monkeypatch.setattr(db, "search_food", blocked_search)
+        monkeypatch.setattr(unified_db_module, "COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS", 0.01)
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="total deadline"):
+            asyncio.run(db.get_common_foods_database())
 
-        # Check one food item
-        chicken = foods_db["chicken_breast"]
-        assert chicken.name == "Chicken, broilers, breast, meat only, cooked, roasted"
-        assert chicken.source == "USDA FoodData Central"
+        assert len(calls) == 1
+        assert not (tmp_path / "common_foods.json").exists()
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_cache_error(self, temp_cache_dir):
-        """Test common foods database with cache loading error."""
-        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
-        db.off_client = None
+    @pytest.mark.parametrize(
+        "configured_delay",
+        ["not-an-integer", "1" + "0" * 400],
+        ids=["malformed", "division-overflow"],
+    )
+    def test_invalid_common_food_delay_is_stable_admission_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        configured_delay: str,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        search_food = AsyncMock()
+        monkeypatch.setattr(db, "search_food", search_food)
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", configured_delay)
 
-        # Mock file exists but reading fails
-        with patch("pathlib.Path.exists", return_value=True):
-            with patch("builtins.open", mock_open(read_data="invalid json")):
-                # Mock USDA client to return empty results
-                mock_usda_client = AsyncMock()
-                mock_usda_client.search_foods.return_value = []
-                db.usda_client = mock_usda_client
+        with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
+            asyncio.run(db.get_common_foods_database())
 
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    foods_db = await db.get_common_foods_database()
+        assert str(exc_info.value) == "Invalid common-food inter-row delay configuration"
+        search_food.assert_not_awaited()
+        assert not (tmp_path / "common_foods.json").exists()
 
-        # Should return empty dict due to errors
-        assert isinstance(foods_db, dict)
+    @pytest.mark.parametrize(
+        ("numeric_carrier", "expected_message"),
+        [
+            ("nutrient", "Invalid common-food nutrient shape for chicken_breast"),
+            ("cost", "Invalid common-food numeric shape for chicken_breast"),
+            ("confidence", "Invalid common-food numeric shape for chicken_breast"),
+            (
+                "input_nutrient",
+                "Invalid common-food nutrition evidence for chicken_breast",
+            ),
+            (
+                "raw_payload",
+                "Invalid common-food nutrition evidence for chicken_breast",
+            ),
+            (
+                "nutrient_confidence",
+                "Invalid common-food provenance evidence for chicken_breast",
+            ),
+        ],
+    )
+    def test_extreme_json_integer_numeric_carriers_are_admission_errors(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        numeric_carrier: str,
+        expected_message: str,
+    ) -> None:
+        cache_file = tmp_path / "common_foods.json"
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        chicken = items["chicken_breast"]
+        assert isinstance(chicken, dict)
+        extreme_integer = 10**400
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_search_error(self, temp_cache_dir):
-        """Test common foods database with search errors."""
-        # Mock USDA client that raises errors
-        mock_usda_client = AsyncMock()
-        mock_usda_client.search_foods.side_effect = Exception("API Error")
+        if numeric_carrier == "nutrient":
+            nutrients = chicken["nutrients_per_100g"]
+            assert isinstance(nutrients, dict)
+            nutrients["nutrient_0"] = extreme_integer
+        elif numeric_carrier == "cost":
+            chicken["cost_per_100g"] = extreme_integer
+        elif numeric_carrier == "confidence":
+            chicken["nutrition_confidence"] = extreme_integer
+        elif numeric_carrier == "input_nutrient":
+            nutrition_inputs = chicken["nutrition_inputs"]
+            assert isinstance(nutrition_inputs, list)
+            nutrition_input = nutrition_inputs[0]
+            assert isinstance(nutrition_input, dict)
+            input_nutrients = nutrition_input["nutrients"]
+            assert isinstance(input_nutrients, dict)
+            input_nutrients["nutrient_0"] = extreme_integer
+        elif numeric_carrier == "raw_payload":
+            nutrition_inputs = chicken["nutrition_inputs"]
+            assert isinstance(nutrition_inputs, list)
+            nutrition_input = nutrition_inputs[0]
+            assert isinstance(nutrition_input, dict)
+            raw_payload = nutrition_input["raw_payload"]
+            assert isinstance(raw_payload, dict)
+            raw_payload["extreme"] = extreme_integer
+        else:
+            nutrient_confidence = chicken["nutrition_nutrient_confidence"]
+            assert isinstance(nutrient_confidence, dict)
+            nutrient_confidence["nutrient_0"] = extreme_integer
 
-        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
-        db.usda_client = mock_usda_client
-        db.off_client = None
+        _write_common_foods_envelope(cache_file, envelope)
+        old_bytes = cache_file.read_bytes()
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-        with patch("asyncio.sleep", new_callable=AsyncMock):
-            foods_db = await db.get_common_foods_database()
+        async def replay_invalid_json_envelope() -> dict[str, object]:
+            loaded = json.loads(cache_file.read_text(encoding="utf-8"))
+            assert isinstance(loaded, dict)
+            return loaded
 
-        # Should handle errors gracefully and return empty dict
-        assert isinstance(foods_db, dict)
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", replay_invalid_json_envelope)
+        with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
+            asyncio.run(db.get_common_foods_database())
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_save_error(self, temp_cache_dir):
-        """Test common foods database with cache save error."""
-        # Mock USDA client
-        mock_usda_client = AsyncMock()
-        mock_usda_item = USDAFoodItem(
-            fdc_id=12345,
-            description="Test Food",
-            food_category="Test",
-            nutrients_per_100g={"calories": 100.0},
-            data_type="Foundation",
-            publication_date="2019-04-01",
+        assert str(exc_info.value) == expected_message
+        assert cache_file.read_bytes() == old_bytes
+
+    @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+    def test_strict_loader_rejects_non_finite_json_constants(self, constant: str) -> None:
+        with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
+            unified_db_module._load_common_foods_json(
+                StringIO(f'{{"numeric_evidence": {constant}}}')
+            )
+
+        assert str(exc_info.value) == "Non-finite numeric constant in common-food cache JSON"
+
+    def test_external_cancellation_propagates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+
+        async def cancelled_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(db, "search_food", cancelled_search)
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(db.get_common_foods_database())
+
+        assert not (tmp_path / "common_foods.json").exists()
+
+    @pytest.mark.parametrize("failure", ["serialize", "duplicate_serialized", "replace"])
+    def test_publication_failure_preserves_old_target_and_cleans_temp(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        failure: str,
+    ) -> None:
+        cache_file = tmp_path / "common_foods.json"
+        cache_file.write_bytes(b"old-target")
+        old_bytes = cache_file.read_bytes()
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+
+        async def deterministic_search(
+            query: str, save_cache: bool = True
+        ) -> list[UnifiedFoodItem]:
+            return [_common_food_item(queries.index(query))]
+
+        monkeypatch.setattr(db, "search_food", deterministic_search)
+        if failure == "serialize":
+            monkeypatch.setattr(
+                unified_db_module.json,
+                "dump",
+                lambda *args, **kwargs: (_ for _ in ()).throw(OSError("write failed")),
+            )
+        elif failure == "duplicate_serialized":
+
+            def write_duplicate_member(
+                value: object, file_object: IO[str], **kwargs: object
+            ) -> None:
+                file_object.write(_common_foods_json_with_duplicate("duplicate_item_member"))
+
+            monkeypatch.setattr(unified_db_module.json, "dump", write_duplicate_member)
+        else:
+            monkeypatch.setattr(
+                unified_db_module.os,
+                "replace",
+                lambda *args, **kwargs: (_ for _ in ()).throw(OSError("replace failed")),
+            )
+
+        expected_error = (
+            "Duplicate member" if failure == "duplicate_serialized" else "publication failed"
         )
+        with pytest.raises(CommonFoodsCacheAdmissionError, match=expected_error):
+            asyncio.run(db.get_common_foods_database())
 
-        with patch.object(mock_usda_item, "_generate_tags", return_value=["test"]):
-            mock_usda_client.search_foods.return_value = [mock_usda_item]
+        assert cache_file.read_bytes() == old_bytes
+        assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
 
-        db = UnifiedFoodDatabase(cache_dir=temp_cache_dir)
-        db.usda_client = mock_usda_client
-        db.off_client = None
+    def test_publication_rejects_non_finite_serialization_before_replace(
+        self, tmp_path: Path
+    ) -> None:
+        cache_file = tmp_path / "common_foods.json"
+        cache_file.write_bytes(b"old-target")
+        old_bytes = cache_file.read_bytes()
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        chicken = items["chicken_breast"]
+        assert isinstance(chicken, dict)
+        nutrition_inputs = chicken["nutrition_inputs"]
+        assert isinstance(nutrition_inputs, list)
+        nutrition_input = nutrition_inputs[0]
+        assert isinstance(nutrition_input, dict)
+        raw_payload = nutrition_input["raw_payload"]
+        assert isinstance(raw_payload, dict)
+        raw_payload["non_finite"] = float("nan")
 
-        # Mock file operations to fail on write
-        with patch("builtins.open", side_effect=PermissionError("Cannot write")):
-            with patch("asyncio.sleep", new_callable=AsyncMock):
-                foods_db = await db.get_common_foods_database()
+        with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
+            UnifiedFoodDatabase._publish_common_foods_envelope(cache_file, envelope)
 
-        # Should still return foods even if cache save fails
-        assert isinstance(foods_db, dict)
+        assert str(exc_info.value) == "Common-food cache publication failed"
+        assert cache_file.read_bytes() == old_bytes
+        assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
+
+    def test_cleanup_unlink_failure_log_is_category_only(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+        cleanup_marker = "cleanup-path-context-marker-d4b7"
+
+        async def deterministic_search(
+            query: str, save_cache: bool = True
+        ) -> list[UnifiedFoodItem]:
+            return [_common_food_item(queries.index(query))]
+
+        def fail_replace(source: str | Path, target: str | Path) -> None:
+            raise OSError("replacement failed")
+
+        def fail_unlink(path: Path, missing_ok: bool = False) -> None:
+            raise PermissionError(cleanup_marker)
+
+        monkeypatch.setattr(db, "search_food", deterministic_search)
+        monkeypatch.setattr(unified_db_module.os, "replace", fail_replace)
+        monkeypatch.setattr(Path, "unlink", fail_unlink)
+        caplog.set_level(logging.ERROR, logger=unified_db_module.__name__)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
+            asyncio.run(db.get_common_foods_database())
+
+        assert str(exc_info.value) == "Common-food cache publication failed"
+        assert cleanup_marker not in caplog.text
+        sink_records = [
+            record
+            for record in caplog.records
+            if record.getMessage()
+            == "Common-food temporary cache cleanup failed; category=PermissionError"
+        ]
+        assert len(sink_records) == 1
+        assert sink_records[0].exc_info is None
+
+    def test_cold_to_warm_round_trip_preserves_full_provenance(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cold_db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+
+        async def deterministic_search(
+            query: str, save_cache: bool = True
+        ) -> list[UnifiedFoodItem]:
+            return [_common_food_item(queries.index(query))]
+
+        monkeypatch.setattr(cold_db, "search_food", deterministic_search)
+        cold_foods = asyncio.run(cold_db.get_common_foods_database())
+
+        warm_db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+
+        async def unexpected_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+            raise AssertionError(f"round-trip warm load searched unexpectedly: {query}")
+
+        monkeypatch.setattr(warm_db, "search_food", unexpected_search)
+        warm_foods = asyncio.run(warm_db.get_common_foods_database())
+
+        assert {name: asdict(item) for name, item in warm_foods.items()} == {
+            name: asdict(item) for name, item in cold_foods.items()
+        }
 
 
 class TestUnifiedFoodDatabaseEdgeCases:
@@ -218,6 +665,80 @@ class TestUnifiedFoodDatabaseEdgeCases:
         results = await db.search_food("test query")
 
         assert results == []
+
+    def test_search_food_off_fallback_failure_is_category_only(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        usda_search = AsyncMock(return_value=[])
+        off_client = AsyncMock()
+        provider_marker = "off-fallback-context-marker-b294"
+        off_search = AsyncMock(side_effect=RuntimeError(provider_marker))
+        monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
+        monkeypatch.setattr(off_client, "search_products", off_search)
+        db.off_client = off_client
+        caplog.set_level(logging.ERROR, logger=unified_db_module.__name__)
+
+        results = asyncio.run(db.search_food("offline fallback fixture", save_cache=False))
+
+        assert results == []
+        usda_search.assert_awaited_once_with("offline fallback fixture", page_size=5)
+        off_search.assert_awaited_once_with("offline fallback fixture", page_size=5)
+        assert "search_offline fallback fixture" not in db._memory_cache
+        assert provider_marker not in caplog.text
+        sink_records = [
+            record
+            for record in caplog.records
+            if record.getMessage()
+            == "Unified DB Open Food Facts search failed; category=RuntimeError"
+        ]
+        assert len(sink_records) == 1
+        assert sink_records[0].exc_info is None
+
+    def test_search_food_off_merge_failure_preserves_usda_fallback_and_cache_retry(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        usda_item = USDAFoodItem(
+            fdc_id=731,
+            description="Offline USDA fixture",
+            food_category="Fixture",
+            nutrients_per_100g={"protein_g": 21.0},
+            data_type="Foundation",
+            publication_date="2026-08-10",
+        )
+        usda_search = AsyncMock(return_value=[usda_item])
+        off_client = AsyncMock()
+        provider_marker = "off-merge-context-marker-c3a5"
+        off_search = AsyncMock(side_effect=RuntimeError(provider_marker))
+        monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
+        monkeypatch.setattr(off_client, "search_products", off_search)
+        db.off_client = off_client
+        caplog.set_level(logging.DEBUG, logger=unified_db_module.__name__)
+
+        results = asyncio.run(db.search_food("offline merge fixture", save_cache=False))
+
+        assert len(results) == 1
+        assert results[0].name == "Offline USDA fixture"
+        assert results[0].source == "USDA FoodData Central"
+        usda_search.assert_awaited_once_with("offline merge fixture", page_size=5)
+        off_search.assert_awaited_once_with("offline merge fixture", page_size=1)
+        assert "search_offline merge fixture" not in db._memory_cache
+        assert provider_marker not in caplog.text
+        sink_records = [
+            record
+            for record in caplog.records
+            if record.getMessage()
+            == "Unified DB USDA+OFF nutrition merge skipped; category=RuntimeError"
+        ]
+        assert len(sink_records) == 1
+        assert sink_records[0].exc_info is None
 
     @pytest.mark.asyncio
     async def test_get_food_by_id_off_client_error(self, temp_cache_dir):

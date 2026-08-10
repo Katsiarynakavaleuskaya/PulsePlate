@@ -5,10 +5,12 @@ These tests target the uncovered lines to maximize coverage improvement.
 
 import asyncio
 import json
+import logging
 import os
 import tempfile
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,6 +20,36 @@ import pytest
 def disable_default_off_client(monkeypatch: pytest.MonkeyPatch) -> None:
     """Disable live OFF client by default; tests may override with explicit mocks."""
     monkeypatch.setattr("core.food_apis.unified_db.OFFClient", None)
+
+
+def _admissible_common_food_fixture(index: int):
+    """Build one structurally complete offline common-food result."""
+    from core.food_apis.unified_db import UnifiedFoodItem
+
+    nutrient = f"fixture_nutrient_{index}"
+    value = float(index + 1)
+    return UnifiedFoodItem(
+        name=f"Fixture food {index}",
+        nutrients_per_100g={nutrient: value},
+        cost_per_100g=1.0,
+        tags=["offline"],
+        availability_regions=["TEST"],
+        source="deterministic-fixture",
+        source_id=f"fixture-{index}",
+        category="Fixture",
+        nutrition_inputs=[
+            {
+                "source": "usda",
+                "record_id": f"fixture-{index}",
+                "version_ref": "2026-08-10",
+                "nutrients": {nutrient: value},
+                "raw_payload": {},
+            }
+        ],
+        nutrition_provenance={nutrient: "usda"},
+        nutrition_nutrient_confidence={nutrient: 0.8},
+        nutrition_confidence=0.8,
+    )
 
 
 # Test scheduler module comprehensively
@@ -447,72 +479,98 @@ class TestUnifiedFoodDatabaseComprehensive:
                 result = await db.get_food_by_id("openfoodfacts", "12345")
                 assert result is None
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_cache_load_exception(self):
-        """Test get_common_foods_database with cache load exception."""
-        from core.food_apis.unified_db import UnifiedFoodDatabase
+    def test_get_common_foods_database_invalid_cache_rebuild_must_be_complete(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A rejected cache is preserved when its one replacement sweep is incomplete."""
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_MANIFEST,
+            CommonFoodsCacheAdmissionError,
+            UnifiedFoodDatabase,
+        )
 
-        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
-            mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(return_value=[])
-            mock_usda_class.return_value = mock_usda_instance
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path / "invalid-cache"))
+        cache_file = db.cache_dir / "common_foods.json"
+        cache_file.write_text("invalid json", encoding="utf-8")
+        original_bytes = cache_file.read_bytes()
+        calls: list[tuple[str, bool]] = []
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                db = UnifiedFoodDatabase(cache_dir=temp_dir)
-                db.off_client = None
+        async def unresolved_search(query: str, save_cache: bool = True) -> list[object]:
+            calls.append((query, save_cache))
+            return []
 
-                # Create an invalid cache file
-                cache_file = db.cache_dir / "common_foods.json"
-                with open(cache_file, "w") as f:
-                    f.write("invalid json")
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
+        monkeypatch.setattr(db, "search_food", unresolved_search)
 
-                # Should handle the exception and build from USDA
-                foods_db = await db.get_common_foods_database()
-                assert isinstance(foods_db, dict)
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
+            asyncio.run(db.get_common_foods_database())
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_cache_save_exception(self):
-        """Test get_common_foods_database with cache save exception."""
-        from core.food_apis.unified_db import UnifiedFoodDatabase
+        assert calls == [(query, False) for query in COMMON_FOODS_MANIFEST.values()]
+        assert cache_file.read_bytes() == original_bytes
 
-        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
-            # Mock USDA search to return results
-            mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(return_value=[MagicMock()])
-            mock_usda_class.return_value = mock_usda_instance
+    def test_get_common_foods_database_publication_failure_is_admission_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A complete exact envelope is not returned when atomic publication fails."""
+        from core.food_apis import unified_db as unified_db_module
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_MANIFEST,
+            CommonFoodsCacheAdmissionError,
+            UnifiedFoodDatabase,
+        )
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                db = UnifiedFoodDatabase(cache_dir=temp_dir)
-                db.off_client = None
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path / "publication-failure"))
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+        calls: list[tuple[str, bool]] = []
 
-                # Make the cache directory read-only to cause save exception
-                _ = db.cache_dir / "common_foods.json"
-                # We can't easily make it read-only, so we'll mock json.dump instead
-                with patch(
-                    "core.food_apis.unified_db.json.dump",
-                    side_effect=Exception("Test error"),
-                ):
-                    # Should handle the exception and still return results
-                    foods_db = await db.get_common_foods_database()
-                    assert isinstance(foods_db, dict)
+        async def complete_search(query: str, save_cache: bool = True) -> list[object]:
+            calls.append((query, save_cache))
+            return [_admissible_common_food_fixture(queries.index(query))]
 
-    @pytest.mark.asyncio
-    async def test_get_common_foods_database_search_exception(self):
-        """Test get_common_foods_database with search exception."""
-        from core.food_apis.unified_db import UnifiedFoodDatabase
+        def fail_serialization(*args: object, **kwargs: object) -> None:
+            raise OSError("write failed")
 
-        with patch("core.food_apis.unified_db.USDAClient") as mock_usda_class:
-            mock_usda_instance = MagicMock()
-            mock_usda_instance.search_foods = AsyncMock(side_effect=Exception("Test error"))
-            mock_usda_class.return_value = mock_usda_instance
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
+        monkeypatch.setattr(db, "search_food", complete_search)
+        monkeypatch.setattr(unified_db_module.json, "dump", fail_serialization)
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                db = UnifiedFoodDatabase(cache_dir=temp_dir)
-                db.off_client = None
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="publication failed"):
+            asyncio.run(db.get_common_foods_database())
 
-                # Should handle the exception and continue with other searches
-                foods_db = await db.get_common_foods_database()
-                assert isinstance(foods_db, dict)
+        assert calls == [(query, False) for query in queries]
+        assert not (db.cache_dir / "common_foods.json").exists()
+        assert not list(db.cache_dir.glob(".common_foods.json.*.tmp"))
+
+    def test_get_common_foods_database_search_exception_is_secret_safe(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Row failures finish the finite sweep but cannot leak provider context."""
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_MANIFEST,
+            CommonFoodsCacheAdmissionError,
+            UnifiedFoodDatabase,
+        )
+
+        sensitive_context = "comprehensive-provider-context-marker-91c4-do-not-log"
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path / "search-exception"))
+        calls: list[tuple[str, bool]] = []
+
+        async def failed_search(query: str, save_cache: bool = True) -> list[object]:
+            calls.append((query, save_cache))
+            raise RuntimeError(sensitive_context)
+
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
+        monkeypatch.setattr(db, "search_food", failed_search)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
+            asyncio.run(db.get_common_foods_database())
+
+        assert calls == [(query, False) for query in COMMON_FOODS_MANIFEST.values()]
+        assert sensitive_context not in caplog.text
+        assert "category=RuntimeError" in caplog.text
 
     @pytest.mark.asyncio
     async def test_unified_db_global_functions(self):
@@ -827,24 +885,116 @@ class TestDatabaseUpdateManagerComprehensive:
                     result = await manager._update_usda_database()
                     assert isinstance(result, UpdateResult)
 
-    @pytest.mark.asyncio
-    async def test_update_usda_database_exception(self):
-        """Test _update_usda_database with general exception."""
-        from core.food_apis.update_manager import DatabaseUpdateManager
+    @pytest.mark.parametrize(
+        ("source", "update_method_name"),
+        [
+            ("usda", "_update_usda_database"),
+            ("openfoodfacts", "_update_off_database"),
+        ],
+    )
+    def test_established_version_admission_failure_stops_after_one_acquisition(
+        self,
+        source: str,
+        update_method_name: str,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A failed backup admission cannot reacquire or continue either update."""
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_MANIFEST,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        sensitive_marker = f"{source}-admission-sensitive-marker-cc51"
+        valid_complete_mapping = {
+            name: _admissible_common_food_fixture(index)
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        }
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
+            established_version = DatabaseVersion(
+                source=source,
+                version="established-v1",
+                last_updated="2026-08-10T00:00:00+00:00",
+                record_count=len(valid_complete_mapping),
+                checksum="established-checksum",
+                metadata={"state": "established"},
+            )
+            manager.versions[source] = established_version
+            versions_before = dict(manager.versions)
 
-            # Mock unified_db.get_common_foods_database to raise an exception
-            with patch.object(
-                manager.unified_db,
-                "get_common_foods_database",
-                side_effect=Exception("Test error"),
-            ):
-                # Should handle the exception
-                result = await manager._update_usda_database()
-                assert result.success is False
-                assert len(result.errors) > 0
+            acquisition = AsyncMock(
+                side_effect=[
+                    CommonFoodsCacheAdmissionError(sensitive_marker),
+                    valid_complete_mapping,
+                ]
+            )
+            validation = AsyncMock(return_value=[])
+            checksum = MagicMock(return_value="replacement-checksum")
+            backup_load = AsyncMock(return_value={})
+            version_save = MagicMock()
+            cleanup = AsyncMock()
+            validated_count = AsyncMock(return_value=(0, "replacement-checksum"))
+            off_search = AsyncMock(return_value=[])
+            off_client = MagicMock()
+            off_client.search_products = off_search
+
+            monkeypatch.setattr(manager.unified_db, "get_common_foods_database", acquisition)
+            monkeypatch.setattr(manager, "_validate_food_data", validation)
+            monkeypatch.setattr(manager, "_calculate_checksum", checksum)
+            monkeypatch.setattr(manager, "_load_backup", backup_load)
+            monkeypatch.setattr(manager, "_save_versions", version_save)
+            monkeypatch.setattr(manager, "_cleanup_old_backups", cleanup)
+            monkeypatch.setattr(
+                manager,
+                "_get_validated_record_count_and_checksum",
+                validated_count,
+            )
+            monkeypatch.setattr(manager, "off_client", off_client)
+            monkeypatch.setattr(
+                "core.food_apis.update_manager.asyncio.sleep",
+                AsyncMock(),
+            )
+            caplog.set_level(logging.ERROR, logger="core.food_apis.update_manager")
+
+            update_method = getattr(manager, update_method_name)
+            result = asyncio.run(update_method(force=False))
+
+            assert result.success is False
+            assert result.source == source
+            assert result.old_version == "established-v1"
+            assert result.new_version is None
+            assert result.records_added == 0
+            assert result.records_updated == 0
+            assert result.records_removed == 0
+            assert result.errors == ["common_food_cache_admission_failed"]
+            assert acquisition.await_count == 1
+            validation.assert_not_awaited()
+            checksum.assert_not_called()
+            backup_load.assert_not_awaited()
+            version_save.assert_not_called()
+            cleanup.assert_not_awaited()
+            validated_count.assert_not_awaited()
+            if source == "openfoodfacts":
+                off_search.assert_not_awaited()
+            assert manager.versions == versions_before
+            assert not list(Path(temp_dir).glob(f"{source}_backup_*.json"))
+
+            expected_log = (
+                f"Database update stopped; source={source}; category=CommonFoodsCacheAdmissionError"
+            )
+            matching_records = [
+                record
+                for record in caplog.records
+                if record.name == "core.food_apis.update_manager"
+                and record.getMessage() == expected_log
+            ]
+            assert len(matching_records) == 1
+            assert matching_records[0].exc_info is None
+            assert sensitive_marker not in caplog.text
+            assert sensitive_marker not in repr(matching_records[0].args)
 
     def test_validate_food_data_missing_fields(self):
         """Test _validate_food_data with missing required fields."""

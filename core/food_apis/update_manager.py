@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from core.food_sources.off_delta import OFFTransport
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
-from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
+from .unified_db import CommonFoodsCacheAdmissionError, UnifiedFoodDatabase, UnifiedFoodItem
 from .usda_client import USDAClient
 from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
@@ -470,6 +470,23 @@ class DatabaseUpdateManager:
                 duration_seconds=0.0,
             )
 
+        except CommonFoodsCacheAdmissionError as exc:
+            logger.error(
+                "Database update stopped; source=%s; category=%s",
+                source,
+                type(exc).__name__,
+            )
+            return UpdateResult(
+                success=False,
+                source=source,
+                old_version=old_version,
+                new_version=None,
+                records_added=0,
+                records_updated=0,
+                records_removed=0,
+                errors=["common_food_cache_admission_failed"],
+                duration_seconds=0.0,
+            )
         except Exception as e:
             logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
@@ -620,6 +637,23 @@ class DatabaseUpdateManager:
                 duration_seconds=0.0,
             )
 
+        except CommonFoodsCacheAdmissionError as exc:
+            logger.error(
+                "Database update stopped; source=%s; category=%s",
+                source,
+                type(exc).__name__,
+            )
+            return UpdateResult(
+                success=False,
+                source=source,
+                old_version=old_version,
+                new_version=None,
+                records_added=0,
+                records_updated=0,
+                records_removed=0,
+                errors=["common_food_cache_admission_failed"],
+                duration_seconds=0.0,
+            )
         except Exception as e:
             logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
@@ -856,6 +890,8 @@ class DatabaseUpdateManager:
                 )
 
             logger.info("Created backup for %s version %s", source, version)
+        except CommonFoodsCacheAdmissionError:
+            raise
         except (OSError, TypeError, ValueError) as exc:
             logger.error("Error creating backup for %s: %s", source, str(exc), exc_info=True)
         except Exception as exc:

@@ -25,11 +25,19 @@ from ._testing import is_test_runtime
 logger = logging.getLogger(__name__)
 
 
-def _log_network_error(context: str, exc: Exception) -> None:
+def _log_network_error(operation: str, exc: Exception) -> None:
     if is_test_runtime():
-        logger.info("External HTTP blocked in tests: %s", context)
+        logger.info(
+            "USDA request failed; operation=%s; category=%s",
+            operation,
+            type(exc).__name__,
+        )
         return
-    logger.error("External HTTP error %s: %s", context, exc, exc_info=True)
+    logger.error(
+        "USDA request failed; operation=%s; category=%s",
+        operation,
+        type(exc).__name__,
+    )
 
 
 @dataclass
@@ -199,11 +207,14 @@ class USDAClient:
                 if food_item:
                     foods.append(food_item)
 
-            logger.info(f"Found {len(foods)} foods for query: {query}")
+            logger.info(
+                "USDA request succeeded; operation=search_foods; result_count=%d",
+                len(foods),
+            )
             return foods
 
-        except Exception as e:
-            _log_network_error(f"USDA search foods query={query!r}", e)
+        except Exception as exc:
+            _log_network_error("search_foods", exc)
             return []
 
     async def get_food_details(self, fdc_id: int) -> Optional[USDAFoodItem]:
@@ -225,10 +236,15 @@ class USDAClient:
             response.raise_for_status()
             data = response.json()
 
-            return self._parse_food_item(data)
+            food_item = self._parse_food_item(data)
+            logger.info(
+                "USDA request succeeded; operation=get_food_details; result_count=%d",
+                int(food_item is not None),
+            )
+            return food_item
 
-        except Exception as e:
-            _log_network_error(f"USDA food details fdc_id={fdc_id!r}", e)
+        except Exception as exc:
+            _log_network_error("get_food_details", exc)
             return None
 
     async def get_multiple_foods(self, fdc_ids: List[int]) -> List[USDAFoodItem]:
@@ -260,10 +276,16 @@ class USDAClient:
                 if food_item:
                     foods.append(food_item)
 
+            logger.info(
+                "USDA request succeeded; operation=get_multiple_foods; "
+                "result_count=%d; batch_count=%d",
+                len(foods),
+                min(len(fdc_ids), 20),
+            )
             return foods
 
-        except Exception as e:
-            _log_network_error(f"USDA multiple foods fdc_ids_count={len(fdc_ids)}", e)
+        except Exception as exc:
+            _log_network_error("get_multiple_foods", exc)
             return []
 
     def _validate_fdc_id(self, fdc_id_raw: object) -> Optional[int]:
@@ -280,13 +302,16 @@ class USDAClient:
         if isinstance(fdc_id_raw, str):
             try:
                 return int(fdc_id_raw)
-            except ValueError:
-                logger.error(f"Invalid fdcId string: {fdc_id_raw}")
+            except ValueError as exc:
+                logger.warning(
+                    "USDA identifier rejected; operation=parse_food_item; category=%s",
+                    type(exc).__name__,
+                )
                 return None
         elif isinstance(fdc_id_raw, int) and not isinstance(fdc_id_raw, bool):
             return fdc_id_raw
         else:
-            logger.error(f"Invalid or missing fdcId: {fdc_id_raw}")
+            logger.warning("USDA identifier rejected; operation=parse_food_item")
             return None
 
     def _normalize_nutrient_id(self, nutrient_id_raw: object) -> Optional[int]:
@@ -383,10 +408,7 @@ class USDAClient:
 
             # Only return foods with substantial nutrition data
             if len(nutrients_per_100g) < 3:
-                logger.warning(
-                    f"Food {description} has insufficient nutrition data "
-                    f"({len(nutrients_per_100g)} nutrients)"
-                )
+                logger.warning("USDA item rejected; operation=parse_food_item")
                 return None
 
             return USDAFoodItem(
@@ -401,20 +423,26 @@ class USDAClient:
                 gtin_upc=gtin_upc,
             )
 
-        except Exception as e:
-            logger.error(f"Error parsing USDA food item: {e}")
+        except Exception as exc:
+            logger.error(
+                "USDA item parse failed; operation=parse_food_item; category=%s",
+                type(exc).__name__,
+            )
             return None
 
     async def close(self) -> None:
         """Close the HTTP client."""
         try:
             await self.client.aclose()
-        except RuntimeError as e:
+        except RuntimeError as exc:
             # Mirror OFFClient.close: suppress only when the loop is already closed.
             # (This can happen during interpreter shutdown / pytest teardown.)
-            error_msg = str(e).lower()
+            error_msg = str(exc).lower()
             if "event loop" in error_msg and "closed" in error_msg:
-                logger.debug("RuntimeError during USDA client close (event loop closed): %s", e)
+                logger.debug(
+                    "USDA close suppressed; operation=close; category=%s",
+                    type(exc).__name__,
+                )
                 return
             raise
 
@@ -458,15 +486,25 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
                     # Take the first result (usually most relevant)
                     best_match = search_results[0]
                     foods_db[standard_name] = best_match
-                    logger.info(f"Found USDA food for {standard_name}: {best_match.description}")
+                    logger.info(
+                        "USDA common-food row resolved; operation=fetch_common_foods; "
+                        "result_count=1"
+                    )
 
                 # Small delay to be respectful to the API
                 await asyncio.sleep(0.1)
 
-            except Exception as e:
-                logger.error(f"Error fetching {standard_name}: {e}")
+            except Exception as exc:
+                logger.error(
+                    "USDA common-food row failed; operation=fetch_common_foods; category=%s",
+                    type(exc).__name__,
+                )
                 continue
 
+        logger.info(
+            "USDA common-food fetch completed; operation=fetch_common_foods; result_count=%d",
+            len(foods_db),
+        )
         return foods_db
 
     finally:

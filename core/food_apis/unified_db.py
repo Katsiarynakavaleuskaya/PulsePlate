@@ -14,17 +14,21 @@ import asyncio
 import importlib
 import json
 import logging
+import math
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
+from types import MappingProxyType
+from typing import IO, TYPE_CHECKING, Any, Dict, Final, List, Mapping, Optional, Tuple, TypedDict
 
 from core.off_nutrition.bridge import (
     merge_wire_nutrition_sources,
     nutrition_inputs_from_unified_wire,
 )
 
-from .usda_client import USDAClient, USDAFoodItem
 from .unified_language import normalize_unified_db_language
+from .usda_client import USDAClient, USDAFoodItem
 
 # Type-only imports for Open Food Facts
 if TYPE_CHECKING:
@@ -52,6 +56,93 @@ def _resolve_off_client() -> Tuple[Any, bool]:
 OFFClient, OFF_AVAILABLE = _resolve_off_client()
 
 logger = logging.getLogger(__name__)
+
+
+class CommonFoodsCacheAdmissionError(RuntimeError):
+    """Raised when the common-food snapshot cannot be admitted atomically."""
+
+
+COMMON_FOODS_CACHE_SCHEMA_VERSION: Final = "common-foods-cache.v1"
+COMMON_FOODS_MANIFEST_VERSION: Final = "common-foods-manifest.v1"
+COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS = 30.0
+COMMON_FOODS_MANIFEST: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "chicken_breast": "chicken breast meat only cooked roasted",
+        "salmon": "salmon atlantic farmed cooked dry heat",
+        "lentils": "lentils mature seeds cooked boiled",
+        "spinach": "spinach raw",
+        "oats": "cereals oats regular and quick unenriched dry",
+        "broccoli": "broccoli raw",
+        "brown_rice": "rice brown long-grain cooked",
+        "quinoa": "quinoa cooked",
+        "almonds": "nuts almonds",
+        "greek_yogurt": "yogurt greek plain nonfat",
+        "eggs": "egg whole raw fresh",
+        "sweet_potato": "sweet potato raw unprepared",
+        "avocado": "avocados raw all commercial varieties",
+        "banana": "bananas raw",
+        "black_beans": "beans black mature seeds cooked boiled",
+        "tofu": "tofu raw firm prepared with calcium sulfate",
+        "olive_oil": "oil olive salad or cooking",
+        "milk": "milk reduced fat fluid 2% milkfat",
+        "carrots": "carrots raw",
+        "tomatoes": "tomatoes red ripe raw year round average",
+    }
+)
+
+_COMMON_FOODS_ENVELOPE_FIELDS: Final = frozenset({"schema_version", "manifest_version", "items"})
+_COMMON_FOOD_ITEM_FIELDS: Final = frozenset(
+    {
+        "name",
+        "nutrients_per_100g",
+        "cost_per_100g",
+        "tags",
+        "availability_regions",
+        "source",
+        "source_id",
+        "category",
+        "nutrition_inputs",
+        "nutrition_provenance",
+        "nutrition_nutrient_confidence",
+        "nutrition_confidence",
+    }
+)
+_NUTRITION_INPUT_FIELDS: Final = frozenset(
+    {"source", "record_id", "version_ref", "nutrients", "raw_payload"}
+)
+
+
+def _load_common_foods_json(file_object: IO[str]) -> object:
+    """Load only the common-food envelope while rejecting duplicate members."""
+
+    def reject_duplicate_members(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        loaded: dict[str, object] = {}
+        for key, value in pairs:
+            if key in loaded:
+                raise CommonFoodsCacheAdmissionError("Duplicate member in common-food cache JSON")
+            loaded[key] = value
+        return loaded
+
+    def reject_non_finite_constant(_constant: str) -> object:
+        raise CommonFoodsCacheAdmissionError(
+            "Non-finite numeric constant in common-food cache JSON"
+        )
+
+    return json.load(
+        file_object,
+        object_pairs_hook=reject_duplicate_members,
+        parse_constant=reject_non_finite_constant,
+    )
+
+
+def _has_finite_numeric_shape(value: object) -> bool:
+    """Return whether an admitted numeric value converts to a finite float."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return False
 
 
 def _load_time_module() -> Any:
@@ -348,8 +439,11 @@ class UnifiedFoodDatabase:
                     # Cache the best result
                     if not self._memory_cache.get(cache_key):
                         self._memory_cache[cache_key] = unified_item
-            except Exception:
-                logger.exception("Error searching USDA")
+            except Exception as exc:
+                logger.error(
+                    "Unified DB USDA search failed; category=%s",
+                    type(exc).__name__,
+                )
 
         # When USDA is preferred and returned hits, enrich the top result with OFF using
         # the shared resolver (USDA ranks above OFF per DEFAULT_SOURCE_PRIORITY).
@@ -364,9 +458,8 @@ class UnifiedFoodDatabase:
                         self._memory_cache[cache_key] = merged
             except Exception as exc:
                 logger.debug(
-                    "Unified DB: skipping USDA+OFF nutrition merge for query %r: %s",
-                    query,
-                    exc,
+                    "Unified DB USDA+OFF nutrition merge skipped; category=%s",
+                    type(exc).__name__,
                 )
                 # Drop stale search_* cache so a transient OFF failure can retry merge.
                 self._memory_cache.pop(cache_key, None)
@@ -382,8 +475,11 @@ class UnifiedFoodDatabase:
                     # Cache the best result
                     if not self._memory_cache.get(cache_key):
                         self._memory_cache[cache_key] = unified_item
-            except Exception as e:
-                logger.error(f"Error searching Open Food Facts: {e}")
+            except Exception as exc:
+                logger.error(
+                    "Unified DB Open Food Facts search failed; category=%s",
+                    type(exc).__name__,
+                )
 
         if results and save_cache:
             self._save_cache()
@@ -429,81 +525,250 @@ class UnifiedFoodDatabase:
         RU: Получает базу часто используемых продуктов.
         EN: Gets database of commonly used foods.
 
-        Returns a dictionary of common foods with standardized names.
+        Returns the exact versioned common-food manifest or raises when a complete,
+        provenance-preserving snapshot cannot be atomically admitted.
         """
-        # Check if we have cached common foods
         cache_file = self.cache_dir / "common_foods.json"
 
         if cache_file.exists():
             try:
                 with open(cache_file, "r", encoding="utf-8") as f:
-                    cache_data = json.load(f)
-
-                foods_db = {}
-                for key, item_data in cache_data.items():
-                    foods_db[key] = UnifiedFoodItem(**item_data)
-
+                    cache_envelope = _load_common_foods_json(f)
+                foods_db = self._validate_common_foods_envelope(cache_envelope)
                 logger.info(f"Loaded {len(foods_db)} common foods from cache")
                 return foods_db
-            except Exception as e:
-                logger.error(f"Error loading common foods cache: {e}")
+            except Exception as exc:
+                logger.warning(
+                    "Common-food cache rejected; acquiring replacement; category=%s",
+                    type(exc).__name__,
+                )
 
-        # Build common foods database from USDA
-        common_searches = {
-            "chicken_breast": "chicken breast meat only cooked roasted",
-            "salmon": "salmon atlantic farmed cooked dry heat",
-            "lentils": "lentils mature seeds cooked boiled",
-            "spinach": "spinach raw",
-            "oats": "cereals oats regular and quick unenriched dry",
-            "broccoli": "broccoli raw",
-            "brown_rice": "rice brown long-grain cooked",
-            "quinoa": "quinoa cooked",
-            "almonds": "nuts almonds",
-            "greek_yogurt": "yogurt greek plain nonfat",
-            "eggs": "egg whole raw fresh",
-            "sweet_potato": "sweet potato raw unprepared",
-            "avocado": "avocados raw all commercial varieties",
-            "banana": "bananas raw",
-            "black_beans": "beans black mature seeds cooked boiled",
-            "tofu": "tofu raw firm prepared with calcium sulfate",
-            "olive_oil": "oil olive salad or cooking",
-            "milk": "milk reduced fat fluid 2% milkfat",
-            "carrots": "carrots raw",
-            "tomatoes": "tomatoes red ripe raw year round average",
-        }
+        try:
+            async with asyncio.timeout(COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS):
+                envelope = await self._acquire_common_foods_envelope()
+                foods_db = self._validate_common_foods_envelope(envelope)
+        except TimeoutError as exc:
+            raise CommonFoodsCacheAdmissionError(
+                "Common-food acquisition exceeded its total deadline"
+            ) from exc
 
-        foods_db = {}
+        self._publish_common_foods_envelope(cache_file, envelope)
+        logger.info("Published %d common foods atomically", len(foods_db))
 
-        # Optional sleep override for faster tests
-        import os as _os
+        return foods_db
 
-        _sleep_ms = int(_os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", "100"))
-
-        for standard_name, search_query in common_searches.items():
+    async def _acquire_common_foods_envelope(self) -> dict[str, object]:
+        """Run one bounded, retry-free search for every manifest row."""
+        items: dict[str, object] = {}
+        try:
+            sleep_seconds = max(
+                0.0,
+                int(os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", "100")) / 1000.0,
+            )
+        except (OverflowError, ValueError) as exc:
+            raise CommonFoodsCacheAdmissionError(
+                "Invalid common-food inter-row delay configuration"
+            ) from exc
+        for standard_name, search_query in COMMON_FOODS_MANIFEST.items():
             try:
                 results = await self.search_food(search_query, save_cache=False)
                 if results:
-                    # Take the first result (usually most relevant)
-                    foods_db[standard_name] = results[0]
-                    logger.info(f"Found food for {standard_name}: {results[0].name}")
-
-                # Small delay to be respectful to the API (adjustable)
-                await asyncio.sleep(max(0.0, _sleep_ms / 1000.0))
-
-            except Exception as e:
-                logger.error(f"Error fetching {standard_name}: {e}")
+                    items[standard_name] = asdict(results[0])
+                await asyncio.sleep(sleep_seconds)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning(
+                    "Common-food row unresolved for %s; category=%s",
+                    standard_name,
+                    type(exc).__name__,
+                )
                 continue
 
-        # Save common foods cache
-        try:
-            cache_data = {key: asdict(item) for key, item in foods_db.items()}
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Saved {len(foods_db)} common foods to cache")
-        except Exception as e:
-            logger.error(f"Error saving common foods cache: {e}")
+        return {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": items,
+        }
 
-        return foods_db
+    @staticmethod
+    def _validate_common_foods_envelope(envelope: object) -> Dict[str, UnifiedFoodItem]:
+        """Validate the sole warm/cold admission contract for common foods."""
+        if type(envelope) is not dict or set(envelope) != _COMMON_FOODS_ENVELOPE_FIELDS:
+            raise CommonFoodsCacheAdmissionError("Invalid common-food cache envelope fields")
+        if envelope["schema_version"] != COMMON_FOODS_CACHE_SCHEMA_VERSION:
+            raise CommonFoodsCacheAdmissionError("Unsupported common-food cache schema")
+        if envelope["manifest_version"] != COMMON_FOODS_MANIFEST_VERSION:
+            raise CommonFoodsCacheAdmissionError("Stale common-food manifest version")
+
+        items = envelope["items"]
+        if type(items) is not dict or set(items) != set(COMMON_FOODS_MANIFEST):
+            raise CommonFoodsCacheAdmissionError("Common-food membership is not exact")
+
+        admitted: Dict[str, UnifiedFoodItem] = {}
+        for standard_name in COMMON_FOODS_MANIFEST:
+            item = items[standard_name]
+            if type(item) is not dict or set(item) != _COMMON_FOOD_ITEM_FIELDS:
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food item fields for {standard_name}"
+                )
+
+            string_fields = ("name", "source", "source_id")
+            if any(type(item[field]) is not str or not item[field] for field in string_fields):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food identity shape for {standard_name}"
+                )
+            category = item["category"]
+            if category is not None and type(category) is not str:
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food category shape for {standard_name}"
+                )
+            if any(
+                type(item[field]) is not list
+                or any(type(value) is not str for value in item[field])
+                for field in ("tags", "availability_regions")
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food list shape for {standard_name}"
+                )
+
+            nutrients = item["nutrients_per_100g"]
+            if (
+                type(nutrients) is not dict
+                or not nutrients
+                or any(
+                    type(key) is not str or not _has_finite_numeric_shape(value) or value < 0.0
+                    for key, value in nutrients.items()
+                )
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food nutrient shape for {standard_name}"
+                )
+
+            cost = item["cost_per_100g"]
+            confidence = item["nutrition_confidence"]
+            if (
+                not _has_finite_numeric_shape(cost)
+                or not _has_finite_numeric_shape(confidence)
+                or cost < 0.0
+                or not 0.0 <= confidence <= 1.0
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food numeric shape for {standard_name}"
+                )
+
+            nutrition_inputs = item["nutrition_inputs"]
+            if type(nutrition_inputs) is not list or not nutrition_inputs:
+                raise CommonFoodsCacheAdmissionError(
+                    f"Missing common-food nutrition evidence for {standard_name}"
+                )
+            for nutrition_input in nutrition_inputs:
+                input_nutrients = (
+                    nutrition_input.get("nutrients") if type(nutrition_input) is dict else None
+                )
+                raw_payload = (
+                    nutrition_input.get("raw_payload") if type(nutrition_input) is dict else None
+                )
+                if (
+                    type(nutrition_input) is not dict
+                    or set(nutrition_input) != _NUTRITION_INPUT_FIELDS
+                    or type(nutrition_input["source"]) is not str
+                    or not nutrition_input["source"]
+                    or (
+                        nutrition_input["record_id"] is not None
+                        and type(nutrition_input["record_id"]) is not str
+                    )
+                    or (
+                        nutrition_input["version_ref"] is not None
+                        and type(nutrition_input["version_ref"]) is not str
+                    )
+                    or type(input_nutrients) is not dict
+                    or not input_nutrients
+                    or any(
+                        type(key) is not str or not _has_finite_numeric_shape(value) or value < 0.0
+                        for key, value in input_nutrients.items()
+                    )
+                    or type(raw_payload) is not dict
+                    or any(
+                        type(key) is not str
+                        or not (
+                            value is None
+                            or type(value) is str
+                            or (type(value) in (int, float) and _has_finite_numeric_shape(value))
+                        )
+                        for key, value in raw_payload.items()
+                    )
+                ):
+                    raise CommonFoodsCacheAdmissionError(
+                        f"Invalid common-food nutrition evidence for {standard_name}"
+                    )
+
+            provenance = item["nutrition_provenance"]
+            nutrient_confidence = item["nutrition_nutrient_confidence"]
+            if (
+                type(provenance) is not dict
+                or not provenance
+                or any(
+                    type(key) is not str or type(value) is not str
+                    for key, value in provenance.items()
+                )
+                or type(nutrient_confidence) is not dict
+                or set(nutrient_confidence) != set(provenance)
+                or not set(provenance).issubset(nutrients)
+                or any(
+                    not _has_finite_numeric_shape(value) or not 0.0 <= value <= 1.0
+                    for value in nutrient_confidence.values()
+                )
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food provenance evidence for {standard_name}"
+                )
+
+            admitted[standard_name] = UnifiedFoodItem(**item)
+
+        return admitted
+
+    @classmethod
+    def _publish_common_foods_envelope(cls, cache_file: Path, envelope: dict[str, object]) -> None:
+        """Publish through a unique same-parent temporary file and atomic replace."""
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=cache_file.parent,
+                prefix=f".{cache_file.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                json.dump(
+                    envelope,
+                    temporary_file,
+                    indent=2,
+                    ensure_ascii=False,
+                    allow_nan=False,
+                )
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+
+            with open(temporary_path, "r", encoding="utf-8") as temporary_file:
+                cls._validate_common_foods_envelope(_load_common_foods_json(temporary_file))
+            os.replace(temporary_path, cache_file)
+            temporary_path = None
+        except CommonFoodsCacheAdmissionError:
+            raise
+        except Exception as exc:
+            raise CommonFoodsCacheAdmissionError("Common-food cache publication failed") from exc
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Common-food temporary cache cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
 
     async def close(self):
         """Close all API clients."""
