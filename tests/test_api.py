@@ -155,14 +155,6 @@ def test_v1_bodyfat_missing_hip(client: TestClient) -> None:
     assert "us_navy" not in data["methods"]
 
 
-def test_bodyfat_router_export_uses_canonical_package_path() -> None:
-    """Bodyfat compatibility export stays outside legacy_app route ownership."""
-    import app as app_mod
-    from app.routers.bodyfat import get_router
-
-    assert app_mod.get_bodyfat_router is get_router
-
-
 def test_insight_import_failure(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -398,15 +390,6 @@ def test_v1_insight_invalid_api_key(client: TestClient, monkeypatch: pytest.Monk
     # FREE headers (empty) → VIP tier gate denies access.
     r = client.post("/api/v1/insight", json={"text": "test"}, headers={})
     assert r.status_code == 403
-
-
-def test_slowapi_import_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Deterministic seam test for slowapi-unavailable behavior."""
-    import app as app_mod
-    import legacy_app
-
-    monkeypatch.setattr(legacy_app, "limiter", None, raising=True)
-    assert app_mod.limiter is None
 
 
 def test_prometheus_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

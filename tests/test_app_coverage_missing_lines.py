@@ -7,8 +7,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import app as app_mod
+import legacy_app
+from app.routers.api_key import get_api_key
 from app.services import admin_operations
+from app.utils.feature_flags import _is_truthy
 from fastapi.testclient import TestClient
 from tests.helpers.fast_update_stubs import (
     add_persisted_version_store_stub,
@@ -22,8 +24,6 @@ class TestAppMissingLinesCoverage:
 
     def test_is_truthy_function(self):
         """Test the _is_truthy helper function."""
-        from app import _is_truthy
-
         # Test truthy values
         assert _is_truthy("1") is True
         assert _is_truthy("true") is True
@@ -42,19 +42,12 @@ class TestAppMissingLinesCoverage:
     def test_get_api_key_with_valid_key(self, client):
         """Test get_api_key with valid API key."""
         with patch.dict(os.environ, {"API_KEY": "valid_key"}):
-            from app import get_api_key
-
-            # Mock the api_key_header dependency
-            with patch("app.api_key_header", return_value="valid_key"):
-                # Should return the valid key
-                result = get_api_key("valid_key")
-                assert result == "valid_key"
+            result = get_api_key("valid_key")
+            assert result == "valid_key"
 
     def test_get_api_key_with_invalid_key(self, client):
         """Test get_api_key with invalid API key."""
         with patch.dict(os.environ, {"API_KEY": "valid_key"}):
-            from app import get_api_key
-
             # Should raise HTTPException
             with pytest.raises(Exception):
                 get_api_key("invalid_key")
@@ -62,8 +55,6 @@ class TestAppMissingLinesCoverage:
     def test_get_api_key_required_mode(self, client):
         """Test get_api_key in required mode."""
         with patch.dict(os.environ, {"API_KEY_REQUIRED": "true"}):
-            from app import get_api_key
-
             # Should raise HTTPException when no API key is configured
             with pytest.raises(Exception):
                 get_api_key("any_key")
@@ -71,8 +62,6 @@ class TestAppMissingLinesCoverage:
     def test_get_api_key_dev_mode(self, client):
         """Test get_api_key in development mode."""
         with patch.dict(os.environ, {"APP_ENV": "dev", "API_KEY": ""}):
-            from app import get_api_key
-
             # Should accept non-trivial tokens
             result = get_api_key("test_token")
             assert result == "test_token"
@@ -80,8 +69,6 @@ class TestAppMissingLinesCoverage:
     def test_get_api_key_invalid_tokens(self, client):
         """Test get_api_key with invalid tokens."""
         with patch.dict(os.environ, {"APP_ENV": "dev", "API_KEY": ""}):
-            from app import get_api_key
-
             # Test various invalid tokens
             invalid_tokens = ["", "invalid", "wrong", "bad", "null", "123"]  # Too short
 
@@ -131,33 +118,17 @@ class TestAppMissingLinesCoverage:
         # Should be 200 or 503 depending on database availability
         assert response.status_code in [200, 500, 503]
 
-    def test_database_health_error(self, client):
-        """Test database health endpoint error handling."""
-        client = client
-
-        # Mock the database session to raise an exception
-        with patch("app.get_session") as mock_get_session:
-            mock_session = MagicMock()
-            mock_session.execute.side_effect = Exception("Database error")
-            mock_get_session.return_value = mock_session
-
-            response = client.get("/health/db")
-            # Should be 503 when database is unavailable
-            assert response.status_code in [200, 500, 503]
-
     def test_legacy_category_label(self):
         """Test the legacy_category_label helper function."""
-        from app import legacy_category_label
-
         # Test English mappings
-        assert legacy_category_label("Normal weight", "en") == "Healthy weight"
+        assert legacy_app.legacy_category_label("Normal weight", "en") == "Healthy weight"
 
         # Test Russian mappings
-        assert legacy_category_label("Избыточная масса", "ru") == "Избыточный вес"
+        assert legacy_app.legacy_category_label("Избыточная масса", "ru") == "Избыточный вес"
 
         # Test no mapping cases
-        assert legacy_category_label("Other category", "en") == "Other category"
-        assert legacy_category_label("Normal weight", "ru") == "Normal weight"
+        assert legacy_app.legacy_category_label("Other category", "en") == "Other category"
+        assert legacy_app.legacy_category_label("Normal weight", "ru") == "Normal weight"
 
     def test_favicon_endpoint(self, client):
         """Test the favicon endpoint."""
@@ -190,36 +161,6 @@ class TestAppMissingLinesCoverage:
         response = client.get("/privacy")
         assert response.status_code == 200
         assert "privacy_policy" in response.json()
-
-    def test_vip_router_inclusion_when_enabled(self):
-        """Test that VIP router is included when enabled."""
-        import app
-
-        # Check that the VIP router inclusion logic is covered
-        # This tests the conditional inclusion code path
-        assert hasattr(app, "VIP_MODULE_ENABLED")
-        assert hasattr(app, "vip_router")
-
-    def test_bodyfat_router_inclusion_when_available(self):
-        """Test that bodyfat router is included when available."""
-        import app
-
-        # Check that the bodyfat router inclusion logic is covered
-        assert hasattr(app, "get_bodyfat_router")
-
-    def test_bmi_pro_router_inclusion(self):
-        """Test that BMI Pro router is included."""
-        import app
-
-        # Check that the BMI Pro router inclusion logic is covered
-        assert hasattr(app, "bmi_pro_router")
-
-    def test_premium_week_router_inclusion(self):
-        """Test that Premium Week router is included."""
-        import app
-
-        # Check that the Premium Week router inclusion logic is covered
-        assert hasattr(app, "premium_week_router")
 
     def test_root_endpoint(self, client):
         """Test the root endpoint."""

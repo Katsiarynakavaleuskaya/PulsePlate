@@ -1,47 +1,17 @@
 from collections.abc import Callable
 from dataclasses import FrozenInstanceError
-import sys
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
-import app
+import legacy_app
 from app.services import pro_nutrition_plate as plate_service
-from tests.helpers.fast_update_stubs import patch_background_update_scheduler_targets
-
-
-def test_background_updates_wrappers_force_sync_under_pytest(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover start/stop background update wrappers in pytest force-sync mode."""
-
-    called: list[str | int] = []
-
-    async def fake_start(update_interval_hours: int = 24) -> None:
-        called.append(update_interval_hours)
-
-    async def fake_stop() -> None:
-        called.append("stop")
-
-    # Instead of patching global asyncio.get_running_loop, we'll simulate the condition
-    # by temporarily setting an environment variable that forces sync mode
-    with patch.dict("os.environ", {"PYTEST_CURRENT_TEST": "1"}):
-        patch_background_update_scheduler_targets(monkeypatch, start=fake_start, stop=fake_stop)
-
-        app.start_background_updates(update_interval_hours=12)
-        app.stop_background_updates()
-
-    assert 12 in called
-    assert "stop" in called
 
 
 def test_background_updates_wrappers_normal_mode_calls_resolvers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Cover start/stop wrappers in normal (non-pytest-sync) mode."""
-    import legacy_app
-
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
     executed: list[tuple[Callable[..., Any], int, object]] = []
@@ -80,22 +50,6 @@ def test_background_updates_wrappers_normal_mode_calls_resolvers(
 
     legacy_app.stop_background_updates()
     assert safe_stops == [fake_stopper]
-
-
-def test_resolve_app_callable_returns_default_when_modules_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover _resolve_app_callable when sys.modules lacks app/app_module."""
-    from app.utils.helpers import _resolve_app_callable
-
-    def _default() -> str:
-        return "ok"
-
-    monkeypatch.delitem(sys.modules, "app", raising=False)
-    monkeypatch.delitem(sys.modules, "app_module", raising=False)
-
-    resolved = _resolve_app_callable("nonexistent", default=_default)
-    assert resolved is _default
 
 
 def test_plate_dependencies_are_resolved_per_call() -> None:

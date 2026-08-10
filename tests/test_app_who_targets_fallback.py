@@ -7,7 +7,8 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-import app
+from app.routers import legacy_premium_nutrition as legacy_nutrition_router
+from app.schemas.premium_contracts import WHOTargetsRequest
 from app.services import pro_nutrition_targets as service
 from core.bmr import FALLBACK_BMR_KCAL_PER_KG_PER_DAY
 from core.utils import get_activity_factor
@@ -20,8 +21,8 @@ def _request(
     activity: str = "moderate",
     goal: str = "maintain",
     life_stage: str = "adult",
-) -> app.WHOTargetsRequest:
-    return app.WHOTargetsRequest(
+) -> WHOTargetsRequest:
+    return WHOTargetsRequest(
         sex=sex,
         age=34,
         height_cm=168,
@@ -41,7 +42,7 @@ def test_api_who_targets_value_error_uses_loss_fallback(
     monkeypatch.setattr(service.nutrition_recommendations, "build_nutrition_targets", _reject)
     request = _request(goal="loss", life_stage="pregnant")
 
-    response = asyncio.run(app.api_who_targets(request.model_dump()))
+    response = asyncio.run(legacy_nutrition_router.api_who_targets(request.model_dump()))
 
     tdee = int(
         FALLBACK_BMR_KCAL_PER_KG_PER_DAY * request.weight_kg * get_activity_factor(request.activity)
@@ -64,7 +65,7 @@ def test_api_who_targets_import_error_uses_gain_fallback(
     )
     request = _request(sex="male", weight_kg=78, activity="light", goal="gain")
 
-    response = asyncio.run(app.api_who_targets(request.model_dump()))
+    response = asyncio.run(legacy_nutrition_router.api_who_targets(request.model_dump()))
 
     tdee = int(
         FALLBACK_BMR_KCAL_PER_KG_PER_DAY * request.weight_kg * get_activity_factor(request.activity)
@@ -82,7 +83,7 @@ def test_api_who_targets_unexpected_failure_is_not_false_200(
     monkeypatch.setattr(service.nutrition_recommendations, "build_nutrition_targets", _crash)
 
     with pytest.raises(HTTPException) as raised:
-        asyncio.run(app.api_who_targets(_request().model_dump()))
+        asyncio.run(legacy_nutrition_router.api_who_targets(_request().model_dump()))
 
     assert raised.value.status_code == 500
     assert raised.value.detail == service.WHO_TARGETS_CALCULATION_FAILED_DETAIL
@@ -98,7 +99,7 @@ def test_api_who_targets_returns_safety_warnings(
         lambda _targets: ["hydrate more"],
     )
 
-    response = asyncio.run(app.api_who_targets(_request().model_dump()))
+    response = asyncio.run(legacy_nutrition_router.api_who_targets(_request().model_dump()))
 
     assert {"code": "safety", "message": "hydrate more"} in response.warnings
 
@@ -116,7 +117,7 @@ def test_api_who_targets_safety_failure_is_fail_closed(
     )
 
     with pytest.raises(HTTPException) as raised:
-        asyncio.run(app.api_who_targets(_request().model_dump()))
+        asyncio.run(legacy_nutrition_router.api_who_targets(_request().model_dump()))
 
     assert raised.value.status_code == 500
     assert raised.value.detail == service.WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL

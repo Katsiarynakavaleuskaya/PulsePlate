@@ -1,41 +1,41 @@
 import asyncio
 
 import pytest
+from fastapi import HTTPException
 
 
 def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch):
-    import app as appmod
+    from app.routers.api_key import get_api_key
 
     # Strict mode with expected key
     monkeypatch.setenv("API_KEY", "secret")
-    assert appmod.get_api_key("secret") == "secret"
-    with pytest.raises(appmod.HTTPException):
-        appmod.get_api_key("wrong")
+    assert get_api_key("secret") == "secret"
+    with pytest.raises(HTTPException):
+        get_api_key("wrong")
 
     # No API key configured, strict required → 403
     monkeypatch.delenv("API_KEY", raising=False)
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    with pytest.raises(appmod.HTTPException):
-        appmod.get_api_key("abcd")
+    with pytest.raises(HTTPException):
+        get_api_key("abcd")
 
     # Dev/test mode lenient, but token must be non-trivial
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("APP_ENV", "test")
-    assert appmod.get_api_key("abcd") == "abcd"
-    with pytest.raises(appmod.HTTPException):
-        appmod.get_api_key("bad")
+    assert get_api_key("abcd") == "abcd"
+    with pytest.raises(HTTPException):
+        get_api_key("bad")
 
 
 def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    import app as appmod
     from app.services import admin_operations
 
     async def _none_scheduler():  # noqa: D401
         return None
 
     monkeypatch.setattr(admin_operations, "get_update_scheduler", _none_scheduler)
-    with pytest.raises(appmod.HTTPException) as ei:
-        asyncio.run(appmod.admin_status())
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(admin_operations.admin_status())
     assert ei.value.status_code == 503
 
     class DummyScheduler:
@@ -45,7 +45,7 @@ def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch) -> Non
         return DummyScheduler()
 
     monkeypatch.setattr(admin_operations, "get_update_scheduler", _ok_scheduler)
-    out = asyncio.run(appmod.admin_status())
+    out = asyncio.run(admin_operations.admin_status())
     assert out["status"] == "ok" and out["scheduler"] == "available"
 
 
