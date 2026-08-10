@@ -71,6 +71,7 @@ _FORBIDDEN_ID_PATTERN = (
     r"[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Nn][Pp][Mm]_|"
     r"[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
     r"[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|"
+    r"[Ss][Kk]-[A-Za-z0-9_-]{12,}|"
     r"[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|"
     r"[Tt][Oo][Kk][Ee][Nn]|[Xx][Aa][Pp][Pp]-|[Xx][Oo][Xx][AaBbCcPpRrSs]-)"
 )

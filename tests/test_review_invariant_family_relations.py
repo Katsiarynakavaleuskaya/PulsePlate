@@ -414,6 +414,8 @@ def test_ids_are_ascii_path_and_url_safe_and_errors_never_echo_values() -> None:
         "sk" + "_proj_Example123",
         "sk" + "_test_Example123",
         "sk" + "-proj-Example123",
+        "sk" + "-AbCdEf12345678901234567890",
+        "sk" + "-svcacct-Example1234567890",
         "gl" + "pat-Example123",
         "npm" + "_Example123",
         "xox" + "a-Example123",
