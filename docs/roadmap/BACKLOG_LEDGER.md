@@ -33,7 +33,7 @@ If it is not recorded here — it does not exist.
     (replacement PR; supersedes
     [PR #2249](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249))
   - Status: In review in PR #2257 from exact main
-    `48b04c2267aa7ff8708feb348c64bdf68ac52ba7`
+    `6ccb6a3f9f8f58cb34f26b27a8eb4b67a266d038`
   - Area: backend / RAG / Insight runtime
   - Business reason (EN): Avoid sending byte-for-byte duplicate final evidence
     carriers to the provider when explicitly enabled, while preserving every
