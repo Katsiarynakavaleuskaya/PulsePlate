@@ -874,6 +874,7 @@ def map_orchestration_result_to_retrieved(
             str(getattr(orchestration_result, "formatted_prompt", "")).strip(),
         ),
         "context_compaction_enabled": context_compaction_enabled,
+        "context_compaction_result_observed": context_compaction_enabled is True,
         "chunks_compacted": _safe_nonnegative_int(
             getattr(orchestration_result, "chunks_compacted", 0),
         ),
@@ -897,6 +898,7 @@ async def pulseplate_retrieve(
     *,
     top_k: int,
     subject_id: int | None,
+    context_compaction_enabled: bool | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Execute the real orchestration path and map the output into trace rows."""
 
@@ -908,9 +910,10 @@ async def pulseplate_retrieve(
     optimization_enabled = _truthy_env(
         os.getenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION"),
     )
-    context_compaction_enabled = _truthy_env(
-        os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
-    )
+    if context_compaction_enabled is None:
+        context_compaction_enabled = _truthy_env(
+            os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
+        )
     result = await retrieve_and_validate_rag(
         query,
         max_chunks=top_k,
@@ -939,13 +942,18 @@ async def retrieve(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Retrieve evidence using the requested mode with safe fallback."""
 
+    context_compaction_enabled = False
     if state.config.retriever_mode == "pulseplate":
+        context_compaction_enabled = _truthy_env(
+            os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
+        )
         try:
             return await pulseplate_retrieve(
                 state,
                 query,
                 top_k=top_k,
                 subject_id=subject_id,
+                context_compaction_enabled=context_compaction_enabled,
             )
         except Exception as exc:
             _record_runtime_fallback(
@@ -964,6 +972,9 @@ async def retrieve(
         "recursive_executed": False,
         "degraded_reason": None,
         "formatted_prompt_present": False,
+        "context_compaction_enabled": context_compaction_enabled,
+        "context_compaction_result_observed": False,
+        "chunks_compacted": 0,
         "max_supported_top_k": top_k,
         "requested_top_k": top_k,
     }
@@ -1801,6 +1812,13 @@ def build_metrics_summary(
             for trace in traces
             if isinstance(trace.get("retrieval_stats"), dict)
             and trace["retrieval_stats"].get("context_compaction_enabled") is True
+        ),
+        "result_observed_trace_count": sum(
+            1
+            for trace in traces
+            if isinstance(trace.get("retrieval_stats"), dict)
+            and trace["retrieval_stats"].get("context_compaction_enabled") is True
+            and trace["retrieval_stats"].get("context_compaction_result_observed") is True
         ),
         "chunks_compacted_total": sum(
             _safe_nonnegative_int(trace["retrieval_stats"].get("chunks_compacted"))

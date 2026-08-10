@@ -306,10 +306,11 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
     assert [
         (
             item["context_compaction_enabled"],
+            item["context_compaction_result_observed"],
             item["chunks_compacted"],
         )
         for item in metadata_observed
-    ] == [(True, 2), (False, 0), (False, 0)]
+    ] == [(True, True, 2), (False, False, 0), (False, False, 0)]
 
 
 @pytest.mark.parametrize("malformed_count", [-1, True, "4", None])
@@ -444,17 +445,74 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
 @pytest.mark.parametrize(
     ("retrieval_stats", "expected"),
     [
-        ([], {"enabled_trace_count": 0, "chunks_compacted_total": 0}),
         (
-            [{"context_compaction_enabled": True, "chunks_compacted": 0}],
-            {"enabled_trace_count": 1, "chunks_compacted_total": 0},
+            [],
+            {
+                "enabled_trace_count": 0,
+                "result_observed_trace_count": 0,
+                "chunks_compacted_total": 0,
+            },
         ),
         (
             [
-                {"context_compaction_enabled": True, "chunks_compacted": 0},
-                {"context_compaction_enabled": True, "chunks_compacted": 3},
+                {
+                    "context_compaction_enabled": False,
+                    "context_compaction_result_observed": True,
+                    "chunks_compacted": 0,
+                }
             ],
-            {"enabled_trace_count": 2, "chunks_compacted_total": 3},
+            {
+                "enabled_trace_count": 0,
+                "result_observed_trace_count": 0,
+                "chunks_compacted_total": 0,
+            },
+        ),
+        (
+            [
+                {
+                    "context_compaction_enabled": True,
+                    "context_compaction_result_observed": False,
+                    "chunks_compacted": 0,
+                }
+            ],
+            {
+                "enabled_trace_count": 1,
+                "result_observed_trace_count": 0,
+                "chunks_compacted_total": 0,
+            },
+        ),
+        (
+            [
+                {
+                    "context_compaction_enabled": True,
+                    "context_compaction_result_observed": True,
+                    "chunks_compacted": 0,
+                }
+            ],
+            {
+                "enabled_trace_count": 1,
+                "result_observed_trace_count": 1,
+                "chunks_compacted_total": 0,
+            },
+        ),
+        (
+            [
+                {
+                    "context_compaction_enabled": True,
+                    "context_compaction_result_observed": True,
+                    "chunks_compacted": 0,
+                },
+                {
+                    "context_compaction_enabled": True,
+                    "context_compaction_result_observed": True,
+                    "chunks_compacted": 3,
+                },
+            ],
+            {
+                "enabled_trace_count": 2,
+                "result_observed_trace_count": 2,
+                "chunks_compacted_total": 3,
+            },
         ),
     ],
 )
@@ -1108,7 +1166,10 @@ def test_require_pass_returns_nonzero_for_no_go_dataset(tmp_path: Path) -> None:
     assert exit_code == 2
 
 
-def test_retrieve_marks_strict_violation_when_pulseplate_falls_back(tmp_path: Path) -> None:
+def test_retrieve_marks_strict_violation_when_pulseplate_falls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Strict runtime lanes must record retriever degradations even if they continue locally."""
 
     state = EvalRuntimeState(
@@ -1132,6 +1193,8 @@ def test_retrieve_marks_strict_violation_when_pulseplate_falls_back(tmp_path: Pa
         pulseplate_imports=PulsePlateImports(),
     )
 
+    monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "true")
+
     retrieved, metadata = asyncio.run(
         retrieve(
             state,
@@ -1143,6 +1206,9 @@ def test_retrieve_marks_strict_violation_when_pulseplate_falls_back(tmp_path: Pa
 
     assert retrieved == []
     assert metadata["max_supported_top_k"] == 5
+    assert metadata["context_compaction_enabled"] is True
+    assert metadata["context_compaction_result_observed"] is False
+    assert metadata["chunks_compacted"] == 0
     assert state.strict_violations
     assert state.strict_violations[0].startswith("pulseplate_retriever_fallback:")
 
@@ -1462,6 +1528,10 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
         "async def retrieve",
         maxsplit=1,
     )[0]
+    retrieve_source = source.split("async def retrieve", maxsplit=1)[1].split(
+        "# Smoke test",
+        maxsplit=1,
+    )[0]
 
     assert (
         'context_compaction_enabled = os.getenv("FEATURE_RAG_CONTEXT_COMPACTION", "false")'
@@ -1469,8 +1539,19 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     )
     assert "context_compaction_enabled=context_compaction_enabled" in adapter_source
     assert "if type(chunks_compacted) is not int or chunks_compacted < 0:" in adapter_source
+    assert "return retrieved, {" in adapter_source
+    assert (
+        '"context_compaction_result_observed": context_compaction_enabled is True' in adapter_source
+    )
     assert '"rag_context_compaction_enabled": context_compaction_enabled' in adapter_source
     assert '"rag_chunks_compacted":' in adapter_source
+    assert 'retrieval_stats["context_compaction_enabled"] = context_compaction_enabled' in (
+        retrieve_source
+    )
+    assert "retrieved, retrieval_stats = await pulseplate_retrieve" in retrieve_source
+    assert "return local_retriever.retrieve(query, top_k=top_k), retrieval_stats" in retrieve_source
+    assert "retrieved, retrieval_stats = await retrieve" in source
+    assert '"retrieval_stats": retrieval_stats' in source
 
 
 def test_no_companion_json_keeps_legacy_release_decision_behavior(tmp_path: Path) -> None:
