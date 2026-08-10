@@ -89,7 +89,9 @@ def _canonical_week_payload() -> dict[str, Any]:
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_missing_profile_fields_returns_400() -> None:
+def test_premium_week_missing_profile_fields_returns_400(
+    pro_headers: dict[str, str],
+) -> None:
     # Missing height/weight triggers the first 400 branch
     payload = {
         "sex": "male",
@@ -105,7 +107,7 @@ def test_premium_week_missing_profile_fields_returns_400() -> None:
         resp = client.post(
             "/api/v1/premium/plan/week-flexible",
             json=payload,
-            headers={"X-API-Key": "test_pro_key"},
+            headers=pro_headers,
         )
         assert resp.status_code == 400
         assert resp.headers["content-type"].startswith("application/json")
@@ -115,7 +117,9 @@ def test_premium_week_missing_profile_fields_returns_400() -> None:
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_explicit_null_activity_returns_400() -> None:
+def test_premium_week_explicit_null_activity_returns_400(
+    pro_headers: dict[str, str],
+) -> None:
     # Explicit null does not activate model defaults; activity fails first.
     payload = {
         "sex": "female",
@@ -131,7 +135,7 @@ def test_premium_week_explicit_null_activity_returns_400() -> None:
         resp = client.post(
             "/api/v1/premium/plan/week-flexible",
             json=payload,
-            headers={"X-API-Key": "test_pro_key"},
+            headers=pro_headers,
         )
         assert resp.status_code == status.HTTP_400_BAD_REQUEST, resp.text
         assert resp.headers["content-type"].startswith("application/json")
@@ -141,7 +145,9 @@ def test_premium_week_explicit_null_activity_returns_400() -> None:
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_with_explicit_targets_happy_path_200() -> None:
+def test_premium_week_with_explicit_targets_happy_path_200(
+    pro_headers: dict[str, str],
+) -> None:
     # Use explicit targets path to avoid relying on data-derived estimation
     payload = {
         "targets": {
@@ -168,7 +174,7 @@ def test_premium_week_with_explicit_targets_happy_path_200() -> None:
         resp = client.post(
             "/api/v1/premium/plan/week-flexible",
             json=payload,
-            headers={"X-API-Key": "test_pro_key"},
+            headers=pro_headers,
         )
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("application/json")
@@ -260,6 +266,7 @@ def test_estimate_targets_from_profile_maps_core_payload_for_ci_coverage(
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_premium_week_profile_derived_targets_branch_is_ci_covered(
     monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
 ) -> None:
     from app.services import nutrition_targets
 
@@ -287,7 +294,7 @@ def test_premium_week_profile_derived_targets_branch_is_ci_covered(
                 "diet_flags": [],
                 "lang": "en",
             },
-            headers={"X-API-Key": "test_pro_key"},
+            headers=pro_headers,
         )
 
         assert resp.status_code == 200, resp.text
