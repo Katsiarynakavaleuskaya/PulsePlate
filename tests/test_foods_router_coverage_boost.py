@@ -4,40 +4,32 @@ RU: Тесты для повышения покрытия app/routers/foods.py
 EN: Coverage boost tests for app/routers/foods.py
 """
 
-import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
 import app.metrics as app_metrics
+from app.routers.foods import router
 from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
-
-try:
-    from app.routers.foods import router
-except ImportError:
-    router = None
-
-client = TestClient(app)
 
 
 class TestFoodsRouterCoverage:
     """Test class for foods router coverage boost."""
 
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    client: TestClient
 
-    def test_router_configuration(self):
+    @pytest.fixture(autouse=True)
+    def _bind_client(self, client: TestClient) -> None:
+        """Expose the canonical function-scoped client to class methods."""
+        self.client = client
+
+    def test_router_configuration(self) -> None:
         """Test router configuration."""
-        if router is None:
-            pytest.skip("Foods router is unavailable in this environment.")
         assert "foods" in router.tags
 
     @patch("app.routers.foods.food_store.search_foods")
-    def test_list_foods_success(self, mock_search_foods):
+    def test_list_foods_success(self, mock_search_foods: MagicMock) -> None:
         """Test list_foods endpoint success."""
         mock_search_foods.return_value = [
             {
@@ -58,8 +50,9 @@ class TestFoodsRouterCoverage:
             },
         ]
 
-        response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?query=apple&limit=10&offset=0")
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
 
         data = response.json()
         assert len(data) == 2
@@ -167,8 +160,9 @@ class TestFoodsRouterCoverage:
             ]
 
         monkeypatch.setattr("app.routers.foods.food_store.search_foods", fake_search_foods)
-        response = client.get("/api/v1/foods?query=x&limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?query=x&limit=10&offset=0")
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data[0]["nutrition_confidence"] == 0.0
         assert data[1]["nutrition_confidence"] == 0.0
@@ -182,18 +176,19 @@ class TestFoodsRouterCoverage:
         assert data[9]["nutrition_confidence"] == 0.0
 
     @patch("app.routers.foods.food_store.search_foods")
-    def test_list_foods_empty_query(self, mock_search_foods):
+    def test_list_foods_empty_query(self, mock_search_foods: MagicMock) -> None:
         """Test list_foods with empty query."""
         mock_search_foods.return_value = []
 
-        response = client.get("/api/v1/foods?query=&limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?query=&limit=10&offset=0")
         assert response.status_code == 200
 
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data == []
 
     @patch("app.routers.foods.food_store.search_foods")
-    def test_list_foods_no_query(self, mock_search_foods):
+    def test_list_foods_no_query(self, mock_search_foods: MagicMock) -> None:
         """Test list_foods without query parameter."""
         mock_search_foods.return_value = [
             {
@@ -206,49 +201,53 @@ class TestFoodsRouterCoverage:
             }
         ]
 
-        response = client.get("/api/v1/foods?limit=10&offset=0")
+        response = self.client.get("/api/v1/foods?limit=10&offset=0")
         assert response.status_code == 200
 
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert len(data) == 1
         assert data[0]["name"] == "apple"
 
-    def test_list_foods_limit_too_high(self):
+    def test_list_foods_limit_too_high(self) -> None:
         """Test list_foods with limit too high."""
-        response = client.get("/api/v1/foods?limit=101")
+        response = self.client.get("/api/v1/foods?limit=101")
         assert response.status_code == 422
+        assert response.headers["content-type"].startswith("application/json")
         assert "limit must be in [1,100]" in response.json()["detail"]
 
-    def test_list_foods_limit_too_low(self):
+    def test_list_foods_limit_too_low(self) -> None:
         """Test list_foods with limit too low."""
-        response = client.get("/api/v1/foods?limit=0")
+        response = self.client.get("/api/v1/foods?limit=0")
         assert response.status_code == 422
+        assert response.headers["content-type"].startswith("application/json")
         assert "limit must be in [1,100]" in response.json()["detail"]
 
-    def test_list_foods_limit_negative(self):
+    def test_list_foods_limit_negative(self) -> None:
         """Test list_foods with negative limit."""
-        response = client.get("/api/v1/foods?limit=-1")
+        response = self.client.get("/api/v1/foods?limit=-1")
         assert response.status_code == 422
+        assert response.headers["content-type"].startswith("application/json")
         assert "limit must be in [1,100]" in response.json()["detail"]
 
-    def test_list_foods_limit_maximum(self):
+    def test_list_foods_limit_maximum(self) -> None:
         """Test list_foods with maximum limit."""
         with patch("app.routers.foods.food_store.search_foods") as mock_search_foods:
             mock_search_foods.return_value = []
 
-            response = client.get("/api/v1/foods?limit=100")
+            response = self.client.get("/api/v1/foods?limit=100")
             assert response.status_code == 200
 
-    def test_list_foods_limit_minimum(self):
+    def test_list_foods_limit_minimum(self) -> None:
         """Test list_foods with minimum limit."""
         with patch("app.routers.foods.food_store.search_foods") as mock_search_foods:
             mock_search_foods.return_value = []
 
-            response = client.get("/api/v1/foods?limit=1")
+            response = self.client.get("/api/v1/foods?limit=1")
             assert response.status_code == 200
 
     @patch("app.routers.foods.food_store.search_foods")
-    def test_list_foods_with_offset(self, mock_search_foods):
+    def test_list_foods_with_offset(self, mock_search_foods: MagicMock) -> None:
         """Test list_foods with offset."""
         mock_search_foods.return_value = [
             {
@@ -261,30 +260,31 @@ class TestFoodsRouterCoverage:
             }
         ]
 
-        response = client.get("/api/v1/foods?query=fruit&limit=10&offset=5")
+        response = self.client.get("/api/v1/foods?query=fruit&limit=10&offset=5")
         assert response.status_code == 200
 
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert len(data) == 1
         assert data[0]["name"] == "banana"
 
     @patch("app.routers.foods.food_store.search_foods")
-    def test_list_foods_long_query(self, mock_search_foods):
+    def test_list_foods_long_query(self, mock_search_foods: MagicMock) -> None:
         """Test list_foods with long query."""
         long_query = "a" * 64  # Exactly 64 characters
         mock_search_foods.return_value = []
 
-        response = client.get(f"/api/v1/foods?query={long_query}")
+        response = self.client.get(f"/api/v1/foods?query={long_query}")
         assert response.status_code == 200
 
-    def test_list_foods_query_too_long(self):
+    def test_list_foods_query_too_long(self) -> None:
         """Test list_foods with query too long."""
         long_query = "a" * 65  # More than 64 characters
-        response = client.get(f"/api/v1/foods?query={long_query}")
+        response = self.client.get(f"/api/v1/foods?query={long_query}")
         assert response.status_code == 422
 
     @patch("app.routers.foods.food_store.get_food")
-    def test_get_food_success(self, mock_get_food):
+    def test_get_food_success(self, mock_get_food: MagicMock) -> None:
         """Test get_food endpoint success."""
         mock_get_food.return_value = {
             "id": "1",
@@ -308,9 +308,10 @@ class TestFoodsRouterCoverage:
             "version_date": "2024-01-01",
         }
 
-        response = client.get("/api/v1/foods/1")
+        response = self.client.get("/api/v1/foods/1")
         assert response.status_code == 200
 
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["id"] == "1"
         assert data["canonical_name"] == "apple"
@@ -318,16 +319,17 @@ class TestFoodsRouterCoverage:
         assert data["protein_g"] == 0.3
 
     @patch("app.routers.foods.food_store.get_food")
-    def test_get_food_not_found(self, mock_get_food):
+    def test_get_food_not_found(self, mock_get_food: MagicMock) -> None:
         """Test get_food endpoint when food not found."""
         mock_get_food.return_value = None
 
-        response = client.get("/api/v1/foods/999")
+        response = self.client.get("/api/v1/foods/999")
         assert response.status_code == 404
+        assert response.headers["content-type"].startswith("application/json")
         assert "Food not found" in response.json()["detail"]
 
     @patch("app.routers.foods.food_store.get_food")
-    def test_get_food_with_special_characters(self, mock_get_food):
+    def test_get_food_with_special_characters(self, mock_get_food: MagicMock) -> None:
         """Test get_food with special characters in ID."""
         mock_get_food.return_value = {
             "id": "food-123_abc",
@@ -351,15 +353,16 @@ class TestFoodsRouterCoverage:
             "version_date": "2024-01-01",
         }
 
-        response = client.get("/api/v1/foods/food-123_abc")
+        response = self.client.get("/api/v1/foods/food-123_abc")
         assert response.status_code == 200
 
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["id"] == "food-123_abc"
         assert data["canonical_name"] == "special food"
 
     @patch("app.routers.foods.food_store.get_food")
-    def test_get_food_with_numeric_id(self, mock_get_food):
+    def test_get_food_with_numeric_id(self, mock_get_food: MagicMock) -> None:
         """Test get_food with numeric ID."""
         mock_get_food.return_value = {
             "id": "123",
@@ -383,15 +386,17 @@ class TestFoodsRouterCoverage:
             "version_date": "2024-01-01",
         }
 
-        response = client.get("/api/v1/foods/123")
+        response = self.client.get("/api/v1/foods/123")
         assert response.status_code == 200
 
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["id"] == "123"
         assert data["canonical_name"] == "numeric food"
 
 
 def test_foods_route_contract_remains_stable_with_meili_backend(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     backend = MeiliSearchBackend(
@@ -418,6 +423,7 @@ def test_foods_route_contract_remains_stable_with_meili_backend(
     response = client.get("/api/v1/foods?query=apple&limit=10&offset=0")
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == [
         {
             "id": "m-1",
@@ -432,6 +438,7 @@ def test_foods_route_contract_remains_stable_with_meili_backend(
 
 
 def test_foods_route_contract_remains_stable_with_shadow_backend(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _BaselineBackend:
@@ -480,6 +487,7 @@ def test_foods_route_contract_remains_stable_with_shadow_backend(
     response = client.get("/api/v1/foods/search?query=apple&limit=10&offset=0")
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == [
         {
             "id": "b-1",
@@ -494,10 +502,10 @@ def test_foods_route_contract_remains_stable_with_shadow_backend(
 
 
 def test_metrics_scrape_includes_meili_observability_series(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    if app_metrics.FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL is None:
-        pytest.skip("prometheus_client not available")
+    assert app_metrics.FOOD_SEARCH_MEILI_PERF_EVENTS_TOTAL is not None
 
     backend = MeiliSearchBackend(
         base_url="https://meili.example",
