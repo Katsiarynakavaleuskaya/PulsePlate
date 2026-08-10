@@ -63,13 +63,15 @@ AUTHORITY_FIELDS: tuple[str, ...] = (
 _ID_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,62}[A-Za-z0-9])?$", re.ASCII)
 _FORBIDDEN_ID_PATTERN = (
     r"(?:[Aa][Cc][Cc][Ee][Ss][Ss][_-]?[Kk][Ee][Yy]|"
-    r"[Aa][Kk][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|"
+    r"[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|"
     r"[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|"
     r"[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|"
-    r"[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][Pp]_|"
+    r"[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|"
+    r"[Gg][Ll][Pp][Aa][Tt]-|"
     r"[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
     r"[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|"
-    r"[Ss][Kk][_-]?[Ll][Ii][Vv][Ee]|[Tt][Oo][Kk][Ee][Nn])"
+    r"[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|"
+    r"[Tt][Oo][Kk][Ee][Nn])"
 )
 _FORBIDDEN_ID_RE = re.compile(_FORBIDDEN_ID_PATTERN, re.ASCII)
 _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
