@@ -1759,7 +1759,10 @@ def test_compaction_failure_rolls_back_response_and_closes_admission(
         assert sentinel not in caplog.text
 
 
-@pytest.mark.parametrize("invalid_shape", ["substitution", "reorder", "deletion"])
+@pytest.mark.parametrize(
+    "invalid_shape",
+    ["substitution", "reorder", "deletion", "malformed_count"],
+)
 def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
     invalid_shape: str,
     caplog: pytest.LogCaptureFixture,
@@ -1796,6 +1799,8 @@ def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
             return working_chunks, 0
         if invalid_shape == "reorder":
             return [working_chunks[1], working_chunks[0], working_chunks[2]], 0
+        if invalid_shape == "malformed_count":
+            return working_chunks, False
         return working_chunks[:-1], 1
 
     with (
