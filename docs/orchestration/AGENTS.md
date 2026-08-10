@@ -6,6 +6,7 @@ Scope: `docs/orchestration/**`
 - [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](./AUTOMATION_READINESS_MATRIX.md) is the scope-level SoT for what is policy-only vs launcher-enforced vs host-runtime-constrained automation.
 - When a PR changes workflow or agent behavior only for an orchestration/docs lane, update this scoped file instead of broadcasting initiative-specific routing into root `AGENTS.md`.
 - PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
+- The optional L1 explicit-family relation projection is governed only by [`contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`](./contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md); it is a derived offline view with no runtime, learning, reflection, mapping, oracle, routing, review, or merge authority.
 - Repo-global post-open review gates supersede historical scoped lane shorthand:
   every current non-trivial PR must run
   `qa-engineer-agent -> bug-hunter -> security-auditor`

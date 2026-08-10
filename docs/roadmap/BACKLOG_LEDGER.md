@@ -11118,6 +11118,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
+<a id="ledger-p1-invariant-family-relations-shadow"></a>
+- [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
+  - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
+  - Priority: P1 (review determinism with closed authority)
+  - Target PR: L1 `codex/review-invariant-relations-shadow-v1`; L2/L3 require separate reviewed target PRs
+  - Status: L1 implementation in progress; L2/L3 closed and not authorized by L1
+  - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
+  - Links:
+    - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
+    - `docs/orchestration/contracts/review_invariant_family_relations.v1.schema.json`
+    - `scripts/orchestration/review_invariant_family_relations.py`
+    - `tests/test_review_invariant_family_relations.py`
+  - DoD:
+    - L1 accepts only the closed snapshot/relations `oneOf`, normalizes explicit finite memberships, emits every canonical pair partition plus separate unknown findings, and fully validates deterministic replay with domain-separated fingerprints
+    - L1 enforces input, output, diagnostic, finding, family, membership, pair, derived-reference, ID, strict-JSON, and const-false authority bounds through executable focused tests
+    - L1 remains stdin/stdout only and adds no filesystem, environment, network, provider, subprocess, runtime, workflow, public API, mapping, learning, KPP, oracle, routing, review, promotion, or merge admission
+    - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
+    - L3 may be scoped only by a later reviewed packet with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; L1 output alone cannot open that gate
+
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
