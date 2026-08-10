@@ -250,9 +250,14 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    exact-material validation cycle.
 10. **One closeout commit:** author dispositions and the content-bound human
     receipt locally with `pr_review_closeout.py`, then publish mapping and seal
-    once. A repeated trusted Codex unavailable-ref ancestry finding on the same
-    digest is handled by an authorized structured reply in the resolved thread;
-    it does not create another docs commit or restart review/security scans.
+    once. A validated canonical-record duplicate remains reply-only. The first
+    recordless trusted Codex unavailable-ref ancestry finding may also be
+    reply-only only on the exact direct mapping-only successor, when its root is
+    bound to the live head and same digest and its uniquely cited reachable FIX
+    is already mapped. A fingerprint is covered only when exactly one eligible
+    recordless seed is currently visible; if more than one is visible, none is
+    covered and all remain blocking. Neither path creates another docs commit
+    or restarts review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before
     the sole mapping commit, run
