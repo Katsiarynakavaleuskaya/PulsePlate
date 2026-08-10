@@ -1373,8 +1373,6 @@ def _duplicate_reply_coverage(
     token: str,
 ) -> set[str]:
     records = parse_canonical_fingerprint_records(artifact_text, pr_number=pr_number)
-    if not records:
-        return set()
     candidate_urls = {
         item.url
         for item in actionable_items
@@ -1384,7 +1382,11 @@ def _duplicate_reply_coverage(
         candidate_urls=candidate_urls,
         threads=threads,
         fingerprint_records=records,
+        mapped_fix_shas=frozenset(
+            parse_fixed_mapping_entries(extract_fixed_mapping_section(artifact_text)).values()
+        ),
         material_digest=str(seal["material"]["digest"]),
+        material_head_sha=str(seal["material"]["material_head_sha"]),
         repo_root=REPO_ROOT,
         snapshot=snapshot,
         repository=repository,

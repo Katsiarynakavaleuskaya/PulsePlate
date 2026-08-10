@@ -32,6 +32,8 @@ from scripts.orchestration.pr_commit_identity import (
     CommitRefKind,
     PrCommitEvidence,
     PrSnapshot,
+    ReviewCommentEvidence,
+    ReviewThreadEvidence,
     RepositoryCommitRef,
     ReviewExecutionRef,
 )
@@ -1486,6 +1488,91 @@ def test_main_passes_in_ci_mode_with_valid_gh_token(
     captured = capsys.readouterr()
     assert exc_info.value.code == 0
     assert "OK: No resolved review threads found" in captured.out
+
+
+def test_main_wires_recordless_snapshot_inputs_to_shared_validator(
+    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+) -> None:
+    fix_sha = "a" * 40
+    material_head_sha = "b" * 40
+    live_head_sha = "c" * 40
+    root_url = "https://github.com/owner/repo/pull/42#discussion_recordless"
+    mapped_url = "https://github.com/owner/repo/pull/42#discussion_mapped"
+    artifact = (
+        "## Fixed in Commit Mapping\n"
+        f"- {mapped_url} -> {fix_sha}\n"
+        "Disposition: FIXED\n"
+        f"Commit: {fix_sha}\n"
+    )
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="d" * 40,
+        head_sha=live_head_sha,
+        commits=(
+            PrCommitEvidence(fix_sha, None),
+            PrCommitEvidence(material_head_sha, None),
+            PrCommitEvidence(live_head_sha, None),
+        ),
+    )
+    thread = ReviewThreadEvidence(
+        "thread",
+        True,
+        (
+            ReviewCommentEvidence(
+                url=root_url,
+                body="Commit ancestry finding",
+                created_at="2026-07-15T10:00:00Z",
+                author_login="chatgpt-codex-connector",
+                author_association="NONE",
+                original_commit_sha=live_head_sha,
+            ),
+        ),
+    )
+    captured: dict[str, object] = {}
+
+    def validate(**kwargs: object) -> set[str]:
+        captured.update(kwargs)
+        return {root_url}
+
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(_disposition_mod.sys, "argv", ["guard", "--pr-number", "42"])
+    monkeypatch.setattr(_disposition_mod, "_has_gh_auth", lambda: True)
+    monkeypatch.setattr(_disposition_mod, "read_mapping_artifact", lambda _pr: artifact)
+    monkeypatch.setattr(_disposition_mod, "_validate_fixed_commit_blocks", lambda _s: [])
+    monkeypatch.setattr(_disposition_mod, "review_seal_version", lambda _text: "v1")
+    monkeypatch.setattr(_disposition_mod, "_get_owner_repo", lambda: ("owner", "repo"))
+    monkeypatch.setattr(_disposition_mod, "_github_api_token", lambda: "opaque")
+    monkeypatch.setattr(_disposition_mod, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(_disposition_mod, "fetch_review_threads", lambda *_a, **_k: (thread,))
+    monkeypatch.setattr(
+        _disposition_mod,
+        "parse_embedded_review_seal",
+        lambda _text: {
+            "material": {
+                "digest": "sha256:" + "e" * 64,
+                "material_head_sha": material_head_sha,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        _disposition_mod, "parse_canonical_fingerprint_records", lambda *_a, **_k: {}
+    )
+    monkeypatch.setattr(_disposition_mod, "validated_duplicate_reply_urls", validate)
+    monkeypatch.setattr(_disposition_mod, "_check_real_commit_proofs", lambda *_a, **_k: [])
+    monkeypatch.setattr(_disposition_mod, "_fetch_server_commit_times", lambda **_k: {})
+    monkeypatch.setattr(_disposition_mod, "_check_commit_after_comment", lambda *_a, **_k: [])
+    monkeypatch.setattr(_disposition_mod, "_check_trigger_only_mapping", lambda *_a, **_k: [])
+    monkeypatch.setattr(_disposition_mod, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _disposition_mod.main()
+
+    assert exc_info.value.code == 0
+    assert captured["fingerprint_records"] == {}
+    assert captured["mapped_fix_shas"] == frozenset({fix_sha})
+    assert captured["material_head_sha"] == material_head_sha
+    assert "OK: All 1 resolved review threads" in capsys.readouterr().out
 
 
 def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:
