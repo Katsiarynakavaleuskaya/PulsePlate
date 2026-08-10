@@ -10,8 +10,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-import legacy_app
-from core.utils import resolve_attr
+import app as app_module
 from tests.helpers.fast_update_stubs import patch_admin_get_update_scheduler
 
 
@@ -26,24 +25,24 @@ class TestAppHelperFunctions:
 
     def test_legacy_category_label_mappings(self):
         # English special-case: "Normal weight" -> "Healthy weight"
-        assert legacy_app.legacy_category_label("Normal weight", "en") == "Healthy weight"
+        assert app_module.legacy_category_label("Normal weight", "en") == "Healthy weight"
         # Russian special-case phrase tweak
-        assert legacy_app.legacy_category_label("Избыточная масса", "ru") == "Избыточный вес"
+        assert app_module.legacy_category_label("Избыточная масса", "ru") == "Избыточный вес"
         # Other categories remain unchanged
-        assert legacy_app.legacy_category_label("Obese", "en") == "Obese"
+        assert app_module.legacy_category_label("Obese", "en") == "Obese"
 
     def test_rate_limiting_available_flag(self):
         # Should just return a boolean based on optional slowapi import presence
-        val = legacy_app._is_rate_limiting_available()
+        val = app_module._is_rate_limiting_available()
         assert isinstance(val, bool)
 
     def test_resolve_attr_utility(self):
         # resolve_attr should pick attribute from candidates or return default
         mock_mod = Mock()
         mock_mod.answer = 42
-        val = resolve_attr("answer", "missing", [mock_mod])
+        val = app_module.resolve_attr("answer", "missing", [mock_mod])
         assert val == 42
-        val2 = resolve_attr("nope", "fallback", [mock_mod])
+        val2 = app_module.resolve_attr("nope", "fallback", [mock_mod])
         assert val2 == "fallback"
 
     def test_bmi_endpoint_visualization_flag_safe(self, client: TestClient) -> None:
