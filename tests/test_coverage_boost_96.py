@@ -9,7 +9,6 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 import pytest
 
-import legacy_app
 from app.main import app as application
 from app.services import admin_operations
 
@@ -21,34 +20,6 @@ class TestCoverageBoost96:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def test_legacy_category_label_exception_handling(self):
-        """Test legacy_category_label with exception handling."""
-        # Test exception handling in legacy_category_label
-        # Test with None lang to trigger exception
-        result = legacy_app.legacy_category_label("Normal weight", None)
-        assert result == "Normal weight"  # Should fallback to original
-
-    def test_legacy_category_label_ru_overweight(self):
-        """Test legacy_category_label for Russian overweight."""
-        result = legacy_app.legacy_category_label("Избыточная масса", "ru")
-        assert result == "Избыточный вес"
-
-    def test_legacy_category_label_en_healthy(self):
-        """Test legacy_category_label for English healthy weight."""
-        result = legacy_app.legacy_category_label("Normal weight", "en")
-        assert result == "Healthy weight"
-
-    def test_legacy_category_label_other_languages(self):
-        """Test legacy_category_label for other languages."""
-        result = legacy_app.legacy_category_label("Normal weight", "es")
-        assert result == "Normal weight"  # Should return original
-
-    def test_rate_limiting_availability_check(self):
-        """Test rate limiting availability check."""
-        # Test the rate limiting availability function
-        result = legacy_app._is_rate_limiting_available()
-        assert isinstance(result, bool)
 
     def test_app_routes_coverage(self):
         """Test that all main routes are covered."""

@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import legacy_app
 from app.routers.api_key import get_api_key
 from app.services import admin_operations
 from app.utils.feature_flags import _is_truthy
@@ -117,18 +116,6 @@ class TestAppMissingLinesCoverage:
         response = client.get("/health/db")
         # Should be 200 or 503 depending on database availability
         assert response.status_code in [200, 500, 503]
-
-    def test_legacy_category_label(self):
-        """Test the legacy_category_label helper function."""
-        # Test English mappings
-        assert legacy_app.legacy_category_label("Normal weight", "en") == "Healthy weight"
-
-        # Test Russian mappings
-        assert legacy_app.legacy_category_label("Избыточная масса", "ru") == "Избыточный вес"
-
-        # Test no mapping cases
-        assert legacy_app.legacy_category_label("Other category", "en") == "Other category"
-        assert legacy_app.legacy_category_label("Normal weight", "ru") == "Normal weight"
 
     def test_favicon_endpoint(self, client):
         """Test the favicon endpoint."""

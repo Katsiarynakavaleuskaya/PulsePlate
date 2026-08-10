@@ -155,6 +155,14 @@ def test_v1_bodyfat_missing_hip(client: TestClient) -> None:
     assert "us_navy" not in data["methods"]
 
 
+def test_bodyfat_router_export_uses_canonical_package_path() -> None:
+    """Bodyfat compatibility export stays outside legacy_app route ownership."""
+    import app as app_mod
+    from app.routers.bodyfat import get_router
+
+    assert app_mod.get_bodyfat_router is get_router
+
+
 def test_insight_import_failure(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

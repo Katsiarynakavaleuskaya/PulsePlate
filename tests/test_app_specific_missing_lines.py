@@ -12,20 +12,6 @@ from tests._helpers.bmi_flags import _normalize_flags_for_tests
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
 
-    def test_legacy_category_label_edge_cases(self) -> None:
-        """Test edge cases for legacy_category_label function."""
-        import legacy_app
-
-        # Test with None language
-        result = legacy_app.legacy_category_label("Normal weight", None)
-        # The function should handle None gracefully
-        assert isinstance(result, str)
-
-        # Test with exception in language processing
-        # Note: We can't easily patch the function itself, so we'll test the normal behavior
-        result = legacy_app.legacy_category_label("Normal weight", "en")
-        assert result == "Healthy weight"  # Expected mapping
-
     def test_normalize_flags_edge_cases(self) -> None:
         """Test edge cases for normalize_flags function."""
         # Test with various gender values

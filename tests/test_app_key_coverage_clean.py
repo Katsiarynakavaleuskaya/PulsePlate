@@ -9,7 +9,6 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import legacy_app
 from app.routers.api_key import get_api_key
 from tests._client import open_test_client
 
@@ -131,17 +130,3 @@ class TestEdgeCases:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
-
-    def test_legacy_category_label_function(self) -> None:
-        """Тест legacy_category_label функции"""
-        # Тест английского языка
-        result = legacy_app.legacy_category_label("Normal weight", "en")
-        assert result == "Healthy weight"
-
-        # Тест русского языка
-        result = legacy_app.legacy_category_label("Избыточная масса", "ru")
-        assert result == "Избыточный вес"
-
-        # Тест других случаев
-        result = legacy_app.legacy_category_label("Other", "en")
-        assert result == "Other"
