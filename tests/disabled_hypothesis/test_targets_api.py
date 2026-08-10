@@ -5,26 +5,30 @@ RU: Тесты для эндпоинта целевых значений.
 EN: Tests for targets API endpoint.
 """
 
-import os
+from collections.abc import Generator
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
-
-from app import app
 
 
 class TestTargetsAPI:
     """Test WHO-based targets API endpoint."""
 
-    def setup_method(self):
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app)
-
-    def teardown_method(self):
-        """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+    @pytest.fixture(autouse=True)
+    def _bind_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Bind the managed shared client with a test-scoped API key."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        client: TestClient = request.getfixturevalue("client")
+        self.client = client
+        try:
+            yield
+        finally:
+            del self.client
 
     def test_targets_endpoint_success(self):
         """Test successful targets calculation."""

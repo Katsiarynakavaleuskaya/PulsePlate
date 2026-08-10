@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Generator
 
 import pytest
 from fastapi import status
@@ -10,17 +10,20 @@ _app_env_patch = pytest.MonkeyPatch()
 _app_env_patch.setenv("APP_ENV", "test")
 _app_env_patch.setenv("DEBUG", "true")
 
-from app import app
+from app import app as _app
 from app.routers import premium_week
+from tests._client import open_test_client
 
 _app_env_patch.undo()
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
+    """Open the client only after installing the premium-week environment."""
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("DEBUG", "true")
-    return TestClient(app)
+    with open_test_client(_app) as managed_client:
+        yield managed_client
 
 
 def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, object]:

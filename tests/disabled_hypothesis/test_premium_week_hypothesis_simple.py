@@ -4,14 +4,14 @@ Uses property-based testing to maximize coverage without complex mocking.
 """
 
 import os
+from collections.abc import Generator
 from typing import Dict, List
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
-import app as app_mod
 
 # Hypothesis test timeout in milliseconds
 TEST_DEADLINE_MS: int = 10_000
@@ -20,10 +20,20 @@ TEST_DEADLINE_MS: int = 10_000
 class TestPremiumWeekHypothesisSimple:
     """Simple Hypothesis tests for premium week endpoint coverage."""
 
-    def setup_method(self):
-        """Setup test environment for each test method"""
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app_mod.app)
+    @pytest.fixture(autouse=True)
+    def _bind_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Bind the managed shared client with premium nutrition enabled."""
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        client: TestClient = request.getfixturevalue("client")
+        self.client = client
+        try:
+            yield
+        finally:
+            del self.client
 
     @settings(deadline=TEST_DEADLINE_MS)
     @given(

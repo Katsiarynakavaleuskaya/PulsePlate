@@ -3,23 +3,32 @@ Hypothesis-based snapshot tests for i18n (including ES) for /api/v1/premium/targ
 These tests ensure localization regression protection.
 """
 
-import os
+from collections.abc import Generator
 from typing import Dict
 
+import pytest
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
-import app as app_mod
 
 
 class TestPremiumTargetsI18nSnapshotHypothesis:
     """Hypothesis-based snapshot tests for premium targets i18n."""
 
-    def setup_method(self):
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app_mod.app)
+    @pytest.fixture(autouse=True)
+    def _bind_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Bind the managed shared client with the required API key."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        client: TestClient = request.getfixturevalue("client")
+        self.client = client
+        try:
+            yield
+        finally:
+            del self.client
 
     @given(
         sex=st.sampled_from(["male", "female"]),

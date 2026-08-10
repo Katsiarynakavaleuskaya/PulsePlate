@@ -1693,6 +1693,124 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dashboards cover span volume, full-capture rate, and detector distribution
     - Retention and deletion hooks for telemetry vault references are documented and test-covered
 
+<a id="ledger-p1-premium-plate-recipe-food-identity-integrity"></a>
+- [ ] P1: Premium plate RecipeDB lookup and FoodDB identity integrity
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (paid nutrition correctness / food-data integrity)
+  - Target PR: `PR-TBD-PREMIUM-PLATE-RECIPE-FOOD-IDENTITY-INTEGRITY`
+  - Branch: `codex/premium-plate-recipe-food-identity-integrity`
+  - Status: Open
+  - Area: backend / premium plate / RecipeDB / FoodDB / nutrition provenance
+  - Finding Type: paid-path correctness and cross-store identity defect
+  - Scope boundary: This item owns literal RecipeDB title lookup and
+    RecipeDB-to-FoodDB referential integrity for the paid plate runtime. External
+    provider operating policy, upstream source-update admission, and the legacy
+    `nutrition_confidence` schema-probe cache remain owned by their existing
+    ledger items linked below.
+  - Reason (EN): The paid plate path passes localized display titles directly to
+    RecipeDB FTS5. Titles containing punctuation such as `/` trigger parser
+    errors, and localized titles do not reliably match the English-only recipe
+    corpus. When a recipe does resolve, `scripts/build_recipe_db.py` stores
+    canonical-name slugs as ingredient `food_id` values while
+    `scripts/build_food_db.py` emits hashed FoodDB IDs; the shipped `spinach`
+    recipe reference also differs from the `spinach_raw` food identity. These
+    mismatches systematically drive the paid response to the honest but empty
+    `day_micros={}` fallback despite the feature recorded as enabled by PR #912.
+  - Evidence / links:
+    - `core/plate.py:330`, `core/plate.py:333`, and `core/plate.py:340`
+      (generated localized display-title block, including punctuation passed
+      downstream)
+    - `app/services/pro_nutrition_plate.py:432` and
+      `app/services/pro_nutrition_plate.py:435` (meal-title lookup boundary and
+      raw title RecipeDB lookup)
+    - `app/services/recipe_store.py:116`, `app/services/recipe_store.py:138`,
+      and `app/services/recipe_store.py:146` (search boundary, FTS5 `MATCH`, and
+      empty degradation)
+    - `scripts/build_recipe_db.py:79` and `scripts/build_recipe_db.py:86`
+      (canonical-name ingredient slug construction)
+    - `scripts/build_food_db.py:151` and `scripts/build_food_db.py:201`
+      (canonical-name input and hashed FoodDB identity)
+    - `app/services/food_store.py:989` and `app/services/food_store.py:1035`
+      (FoodDB search and exact-ID lookup boundaries)
+    - `data/recipes_new.csv:3` and `data/food_db.csv:2` (shipped `spinach`
+      recipe reference versus canonical `spinach_raw` food name)
+    - `tests/disabled_hypothesis/test_plate_targets_micros_hypothesis.py`
+    - `tests/disabled_hypothesis/test_premium_plate_micros.py`
+    - [`ledger-p1-external-food-source-policy-enforcement`](#ledger-p1-external-food-source-policy-enforcement)
+    - [`ledger-p1-food-data-source-update-preflight`](#ledger-p1-food-data-source-update-preflight)
+    - [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
+    - [PR #912](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/912)
+  - DoD:
+    - Recipe lookup treats literal Unicode and punctuation-bearing meal titles
+      as data, never as raw FTS5 query syntax, and defines locale matching
+      explicitly
+    - RecipeDB ingredient references and FoodDB IDs share one explicit,
+      versioned cross-store identity contract, including the spinach case
+    - Build or release preflight fails closed on every dangling recipe-to-food
+      reference before artifacts are published
+    - A deterministic real-SQLite integration test proves non-empty paid
+      `day_micros` with exact units and separately proves that its backing food
+      records retain source attribution, confidence, and per-nutrient provenance
+    - Missing or genuinely unresolvable evidence retains the exact honest empty
+      fallback without fabricated nutrient values
+    - Public response, OpenAPI, and generated-client contracts remain unchanged
+
+<a id="ledger-p1-weekly-plan-cold-cache-external-food-boundary"></a>
+- [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (paid-path latency / provider reliability / data provenance)
+  - Target PR: `PR-TBD-WEEKLY-PLAN-COLD-CACHE-EXTERNAL-FOOD-BOUNDARY`
+  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary`
+  - Status: Open
+  - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
+  - Finding Type: cold-cache provider boundary and incomplete-cache acceptance
+  - Scope boundary: This item owns the 20-item common-food cache manifest and
+    cold/warm paid-request boundary. Provider-use policy, upstream source ingest
+    preflight, and the legacy FoodDB schema-probe cache remain owned by their
+    existing ledger items linked below.
+  - Reason (EN): A cold paid weekly-plan request currently performs 20 USDA/OFF
+    food lookups sequentially. The completed blocked-network and live-provider
+    audit observed request time above 100 seconds, Open Food Facts `503`
+    responses, and publication of a partial 14/20 common-food cache with no
+    completeness metadata; the warm path then accepts that partial artifact as
+    complete. Paid response latency and nutrition evidence therefore depend on
+    an unbounded external-provider fill path instead of a bounded, attributable
+    cache contract.
+  - Evidence / links:
+    - `app/routers/legacy_premium_weekly_plan.py:60` (legacy paid route)
+    - `app/services/fitchef_runtime.py:1080` (weekly-plan orchestration boundary)
+    - `core/menu_engine.py:176`, `core/menu_engine.py:188`, and
+      `core/menu_engine.py:233` (weekly builder and default common-food loading)
+    - `core/food_apis/unified_db.py:343`, `core/food_apis/unified_db.py:348`,
+      and `core/food_apis/unified_db.py:358` (USDA/OFF search and per-hit cache)
+    - `core/food_apis/unified_db.py:427` and
+      `core/food_apis/unified_db.py:482` (common-food cache and sequential fill)
+    - `core/food_apis/unified_db.py:497` (partial cache publication)
+    - `core/food_apis/openfoodfacts_client.py:158` (OFF request boundary)
+    - `tests/test_app_premium_week_bmi_flow.py`
+    - [`ledger-p1-external-food-source-policy-enforcement`](#ledger-p1-external-food-source-policy-enforcement)
+    - [`ledger-p1-food-data-source-update-preflight`](#ledger-p1-food-data-source-update-preflight)
+    - [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
+  - DoD:
+    - A deterministic fake-provider test proves the exact provider-call count
+      for cold, partial, complete, degraded, and warm-cache paths
+    - A versioned manifest distinguishes exact `0/20`, `14/20`, and `20/20`
+      completeness states and the warm path never treats a partial state as
+      complete
+    - External food loading is bounded or prewarmed outside the paid request
+      critical path, with an explicit timeout and retry budget
+    - Cache publication is atomic: data and completeness metadata become
+      visible together only after validation
+    - With outbound network blocked, weekly planning follows one deterministic
+      degraded contract without hidden retries, long waits, or partial-cache
+      promotion
+    - Every cached nutrition record preserves attribution, units, confidence,
+      and field-level provenance under the existing external-source policy
+    - Telemetry records completeness, latency, provider result class, and call
+      counts without raw secrets, tokens, or credential-bearing URLs
+    - Public response, OpenAPI, and generated-client contracts remain unchanged
+
 <a id="ledger-p1-external-food-source-policy-enforcement"></a>
 - [ ] P1: External food-source operating policy enforcement follow-through
   - Owner: @katsiaryna_kavaleuskaya

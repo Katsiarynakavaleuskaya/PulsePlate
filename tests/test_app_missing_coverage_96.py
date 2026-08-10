@@ -4,21 +4,30 @@ This module focuses on covering the missing lines in main.py that are preventing
 us from reaching 96% coverage.
 """
 
-import os
+from collections.abc import Generator
 
+import pytest
 from fastapi.testclient import TestClient
-
-from app import app
 
 
 class TestAppMissingCoverage96:
     """Tests to cover missing lines in main.py for 96%+ coverage."""
 
-    def setup_method(self):
-        """Setup test environment and client"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app)
+    @pytest.fixture(autouse=True)
+    def _bind_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Bind the managed shared client with the required test environment."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        client: TestClient = request.getfixturevalue("client")
+        self.client = client
+        try:
+            yield
+        finally:
+            del self.client
 
     def test_bmi_validation_unrealistically_low_bmi(self):
         """Test BMI validation for unrealistically low BMI (< 10)."""

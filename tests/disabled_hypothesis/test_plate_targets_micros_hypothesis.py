@@ -3,23 +3,65 @@ Hypothesis-based integration tests for Plate → Targets micros coverage.
 Focus on Fe/Ca/Mg/K micronutrient coverage and day_micros collection.
 """
 
-import os
+from collections.abc import Generator
 
+import pytest
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-import app as app_mod
+from app.services import pro_nutrition_plate
+
+_TEST_MICROS: dict[str, float] = {
+    "iron_mg": 3.0,
+    "calcium_mg": 120.0,
+    "magnesium_mg": 40.0,
+    "potassium_mg": 350.0,
+    "vitamin_c_mg": 12.0,
+    "folate_ug": 55.0,
+    "vitamin_d_iu": 80.0,
+    "b12_ug": 0.8,
+}
+
+
+async def _deterministic_day_micros(
+    meals: list[dict[str, object]],
+) -> dict[str, float]:
+    """Attach fresh deterministic meal micros and return their exact total."""
+    totals = {nutrient: 0.0 for nutrient in _TEST_MICROS}
+
+    for meal_index, meal in enumerate(meals, start=1):
+        meal_micros = {nutrient: amount * meal_index for nutrient, amount in _TEST_MICROS.items()}
+        meal["micros"] = meal_micros
+        for nutrient, amount in meal_micros.items():
+            totals[nutrient] += amount
+
+    return totals
 
 
 class TestPlateTargetsMicrosHypothesis:
     """Hypothesis-based tests for Plate → Targets micros integration."""
 
-    def setup_method(self):
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(app_mod.app)
+    @pytest.fixture(autouse=True)
+    def _bind_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Bind the managed shared client with the required test environment."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "_aggregate_day_micronutrients",
+            _deterministic_day_micros,
+        )
+        client: TestClient = request.getfixturevalue("client")
+        self.client = client
+        try:
+            yield
+        finally:
+            del self.client
 
     @given(
         sex=st.sampled_from(["male", "female"]),
@@ -145,10 +187,10 @@ class TestPlateTargetsMicrosHypothesis:
         # Key micronutrients to check
         key_micros = ["iron", "calcium", "magnesium", "potassium"]
         micro_aliases = {
-            "iron": ["iron", "fe", "fe_mg"],
-            "calcium": ["calcium", "ca", "ca_mg"],
-            "magnesium": ["magnesium", "mg", "mg_mg"],
-            "potassium": ["potassium", "k", "k_mg"],
+            "iron": ["iron_mg", "iron", "fe", "fe_mg"],
+            "calcium": ["calcium_mg", "calcium", "ca", "ca_mg"],
+            "magnesium": ["magnesium_mg", "magnesium", "mg", "mg_mg"],
+            "potassium": ["potassium_mg", "potassium", "k", "k_mg"],
         }
 
         for micro in key_micros:
