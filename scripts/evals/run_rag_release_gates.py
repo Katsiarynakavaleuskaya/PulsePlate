@@ -897,12 +897,16 @@ async def pulseplate_retrieve(
     optimization_enabled = _truthy_env(
         os.getenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION"),
     )
+    context_compaction_enabled = _truthy_env(
+        os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
+    )
     result = await retrieve_and_validate_rag(
         query,
         max_chunks=top_k,
         philo_validation_enabled=True,
         recursive_rag_enabled=recursive_enabled,
         optimization_enabled=optimization_enabled,
+        context_compaction_enabled=context_compaction_enabled,
         subject_id=subject_id,
     )
     retrieved, metadata = map_orchestration_result_to_retrieved(result, retriever="pulseplate")

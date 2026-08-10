@@ -240,6 +240,55 @@ def test_map_orchestration_result_preserves_degraded_metadata() -> None:
     assert metadata["degraded_reason"] == "RAGDegradedReason.ALL_CHUNKS_FILTERED"
 
 
+def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The eval runner must observe context compaction truth at request time."""
+    observed: list[bool] = []
+
+    async def fake_retrieve_and_validate_rag(
+        query: str,
+        **kwargs: object,
+    ) -> RAGOrchestrationResult:
+        observed.append(bool(kwargs["context_compaction_enabled"]))
+        return RAGOrchestrationResult(
+            chunks=[],
+            formatted_prompt=query,
+            rag_actually_used=False,
+            confidence=None,
+            hops=0,
+            latency_ms=0,
+        )
+
+    state = _make_release_gate_state(tmp_path)
+    state.pulseplate_imports = PulsePlateImports(
+        retrieve_and_validate_rag=fake_retrieve_and_validate_rag,
+    )
+    monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "true")
+
+    asyncio.run(
+        runner.pulseplate_retrieve(
+            state,
+            "first request",
+            top_k=3,
+            subject_id=None,
+        )
+    )
+
+    monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "false")
+    asyncio.run(
+        runner.pulseplate_retrieve(
+            state,
+            "second request",
+            top_k=3,
+            subject_id=None,
+        )
+    )
+
+    assert observed == [True, False]
+
+
 def test_philosophy_validator_integration_blocks_correctness() -> None:
     """Blocker findings must force the correctness proxy to fail closed."""
 
