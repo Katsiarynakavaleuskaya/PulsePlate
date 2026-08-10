@@ -665,6 +665,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "chunks_compacted": 0,
                     "context_compaction_runtime_fallback": False,
                     "rag_actually_used": False,
+                    "degraded_reason": "RAGDegradedReason.RETRIEVAL_EMPTY",
                 }
             ],
             {
@@ -783,6 +784,7 @@ def test_gate_d1_requires_complete_aggregate_compaction_observation(
             "chunks_compacted": compacted,
             "context_compaction_runtime_fallback": False,
             "rag_actually_used": attempted,
+            "degraded_reason": ("RAGDegradedReason.RETRIEVAL_EMPTY" if not attempted else None),
         }
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
@@ -1080,10 +1082,24 @@ def test_gate_d1_rejects_enabled_runtime_fallback_with_observed_peer(
     assert release_decision == "NO-GO"
 
 
-def test_gate_d1_allows_enabled_empty_na_with_observed_peer(tmp_path: Path) -> None:
-    """Legitimate pre-compaction empty retrieval remains enabled N/A."""
+@pytest.mark.parametrize(
+    ("degraded_reason", "expected_gate"),
+    [
+        ("RAGDegradedReason.RETRIEVAL_EMPTY", True),
+        ("RAGDegradedReason.ALL_CHUNKS_FILTERED", True),
+        ("RAGDegradedReason.ORCHESTRATION_EXCEPTION", False),
+        ("RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION", False),
+        (None, False),
+    ],
+)
+def test_gate_d1_classifies_pre_compaction_degraded_result_with_observed_peer(
+    tmp_path: Path,
+    degraded_reason: str | None,
+    expected_gate: bool,
+) -> None:
+    """Only explicit ordinary-empty/filter outcomes are compaction N/A."""
 
-    state = _make_release_gate_state(tmp_path, experiment_id="compaction_empty_na")
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_pre_seam_degraded")
     traces = _passing_release_gate_traces()
     observed = {
         "context_compaction_enabled": True,
@@ -1102,9 +1118,10 @@ def test_gate_d1_allows_enabled_empty_na_with_observed_peer(tmp_path: Path) -> N
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
         "rag_actually_used": False,
+        "degraded_reason": degraded_reason,
     }
 
-    _, gate_checks, release_decision = runner.build_metrics_summary(
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
         state,
         traces,
         {"ece": 0.05},
@@ -1112,8 +1129,63 @@ def test_gate_d1_allows_enabled_empty_na_with_observed_peer(tmp_path: Path) -> N
         dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
     )
 
-    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is True
-    assert release_decision == "PASS"
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 4 if expected_gate else 3,
+        "attempted_trace_count": 3,
+        "result_observed_trace_count": 3,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
+    assert release_decision == ("PASS" if expected_gate else "NO-GO")
+
+
+@pytest.mark.parametrize(
+    ("degraded_reason", "expected_gate"),
+    [
+        (None, True),
+        ("RAGDegradedReason.ORCHESTRATION_EXCEPTION", False),
+        ("RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION", False),
+        (1, False),
+    ],
+)
+def test_gate_d1_requires_non_degraded_observed_compaction(
+    tmp_path: Path,
+    degraded_reason: object,
+    expected_gate: bool,
+) -> None:
+    """Observed compaction evidence cannot coexist with a degraded result."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_observed_degraded")
+    traces = _passing_release_gate_traces()
+    observed = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
+        "degraded_reason": degraded_reason,
+    }
+    for trace in traces:
+        trace["retrieval_stats"] = dict(observed)
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    expected_count = 4 if expected_gate else 0
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": expected_count,
+        "attempted_trace_count": expected_count,
+        "result_observed_trace_count": expected_count,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
+    assert release_decision == ("PASS" if expected_gate else "NO-GO")
 
 
 def test_gate_d1_rejects_unattempted_compaction_when_rag_was_used(
@@ -2349,6 +2421,7 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert (
         '"rag_actually_used": getattr(result, "rag_actually_used", False) is True' in adapter_source
     )
+    assert 'str(getattr(result, "degraded_reason", "")) or None' in adapter_source
     assert '"rag_actually_used": bool(local_retriever.chunks)' in retrieve_source
     assert (
         'retrieval_stats["context_compaction_runtime_fallback"] = '
@@ -2376,6 +2449,10 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "context_compaction_attempted_unobserved" in source
     assert "context_compaction_runtime_fallback_used" in source
     assert "or rag_actually_used is True" in source
+    assert "ordinary_empty_reasons" in source
+    assert 'degraded_reason = retrieval_stats.get("degraded_reason")' in source
+    assert "degraded_reason not in ordinary_empty_reasons" in source
+    assert "if degraded_reason is not None:" in source
     assert "context_compaction_enabled_count == 0" in source
     assert "context_compaction_observed_count > 0" in source
 

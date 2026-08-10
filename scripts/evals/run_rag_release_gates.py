@@ -1852,6 +1852,10 @@ def build_metrics_summary(
     context_compaction_malformed = False
     context_compaction_attempted_unobserved = False
     context_compaction_runtime_fallback_used = False
+    ordinary_empty_reasons = {
+        "RAGDegradedReason.RETRIEVAL_EMPTY",
+        "RAGDegradedReason.ALL_CHUNKS_FILTERED",
+    }
     context_compaction_carrier_active = any(
         trace.get("routing_decision") != "blocked_by_agent_input_guard"
         and isinstance(trace.get("retrieval_stats"), dict)
@@ -1881,6 +1885,7 @@ def build_metrics_summary(
         compacted = retrieval_stats["chunks_compacted"]
         runtime_fallback = retrieval_stats["context_compaction_runtime_fallback"]
         rag_actually_used = retrieval_stats.get("rag_actually_used")
+        degraded_reason = retrieval_stats.get("degraded_reason")
         if (
             type(enabled) is not bool
             or type(attempted) is not bool
@@ -1916,7 +1921,12 @@ def build_metrics_summary(
             continue
 
         if attempted is False:
-            if observed is not False or compacted != 0 or rag_actually_used is True:
+            if (
+                observed is not False
+                or compacted != 0
+                or rag_actually_used is True
+                or degraded_reason not in ordinary_empty_reasons
+            ):
                 context_compaction_malformed = True
                 continue
             context_compaction_summary["enabled_trace_count"] += 1
@@ -1929,6 +1939,10 @@ def build_metrics_summary(
             context_compaction_summary["enabled_trace_count"] += 1
             context_compaction_summary["attempted_trace_count"] += 1
             context_compaction_attempted_unobserved = True
+            continue
+
+        if degraded_reason is not None:
+            context_compaction_malformed = True
             continue
 
         context_compaction_summary["enabled_trace_count"] += 1
