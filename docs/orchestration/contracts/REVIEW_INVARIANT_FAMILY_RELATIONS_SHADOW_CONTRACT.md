@@ -189,6 +189,8 @@ short write or transport exception is `output_transport_failure`; the command
 does not retry. The operating system may already have accepted a prefix. The
 command reports a sanitized transport failure when possible, but it cannot
 retract bytes already accepted by a broken pipe or failing sink.
+Closed binary stdout/stderr streams are transport failures too: their
+`ValueError` state signal is sanitized under the same no-traceback rule.
 
 ## Fingerprints and replay
 

@@ -568,7 +568,7 @@ def _write_contract_error(code: str) -> None:
     try:
         sys.stderr.buffer.write(payload)
         sys.stderr.buffer.flush()
-    except OSError:
+    except (OSError, ValueError):
         return
 
 
@@ -593,7 +593,7 @@ def main() -> int:
         if written != len(rendered):
             raise OSError("short stdout write")
         sys.stdout.buffer.flush()
-    except OSError:
+    except (OSError, ValueError):
         _write_contract_error("output_transport_failure")
         return 2
     return 0

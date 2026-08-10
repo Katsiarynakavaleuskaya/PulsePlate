@@ -656,6 +656,35 @@ def test_main_reports_short_output_transport_failure_without_retry(
     assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
 
 
+def test_main_sanitizes_closed_stdout_transport_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdout = io.BytesIO()
+    stdout.close()
+    stderr = io.BytesIO()
+    monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
+    monkeypatch.setattr(
+        relations.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
+    )
+    monkeypatch.setattr(relations.sys, "stdout", SimpleNamespace(buffer=stdout))
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    assert relations.main() == 2
+    assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
+
+
+def test_closed_stderr_transport_failure_does_not_escape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stderr = io.BytesIO()
+    stderr.close()
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    assert relations._write_contract_error("invalid_json") is None
+
+
 def test_authority_fields_are_required_false_in_source_embedded_snapshot_and_artifact() -> None:
     _, artifact = _fixture_result()
     snapshot = cast(dict[str, object], artifact["snapshot"])
