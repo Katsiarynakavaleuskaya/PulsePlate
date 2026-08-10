@@ -159,8 +159,14 @@ class TestUnifiedFoodDatabaseCommonFoods:
         _write_common_foods_envelope(cache_file, envelope)
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-        async def unexpected_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
-            raise AssertionError(f"warm cache searched unexpectedly: {query}, {save_cache}")
+        async def unexpected_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
+            raise AssertionError(
+                f"warm cache searched unexpectedly: {query}, {save_cache}, {use_memory_cache}"
+            )
 
         monkeypatch.setattr(db, "search_food", unexpected_search)
         foods = asyncio.run(db.get_common_foods_database())
@@ -174,13 +180,15 @@ class TestUnifiedFoodDatabaseCommonFoods:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
-        calls: list[tuple[str, bool]] = []
+        calls: list[tuple[str, bool, bool]] = []
         queries = tuple(COMMON_FOODS_MANIFEST.values())
 
         async def deterministic_search(
-            query: str, save_cache: bool = True
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
         ) -> list[UnifiedFoodItem]:
-            calls.append((query, save_cache))
+            calls.append((query, save_cache, use_memory_cache))
             return [_common_food_item(queries.index(query))]
 
         replace_calls: list[tuple[Path, Path]] = []
@@ -194,11 +202,15 @@ class TestUnifiedFoodDatabaseCommonFoods:
             replace_calls.append((source_path, target_path))
             real_replace(source_path, target_path)
 
+        sleep = AsyncMock()
         monkeypatch.setattr(db, "search_food", deterministic_search)
+        monkeypatch.setattr(unified_db_module.asyncio, "sleep", sleep)
         monkeypatch.setattr(unified_db_module.os, "replace", recording_replace)
         foods = asyncio.run(db.get_common_foods_database())
 
-        assert calls == [(query, False) for query in queries]
+        assert calls == [(query, False, False) for query in queries]
+        assert sleep.await_count == len(queries) - 1
+        assert all(call.args == (0.0,) for call in sleep.await_args_list)
         assert tuple(foods) == tuple(COMMON_FOODS_MANIFEST)
         assert len(replace_calls) == 1
         cache_file = tmp_path / "common_foods.json"
@@ -207,6 +219,40 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert published["schema_version"] == COMMON_FOODS_CACHE_SCHEMA_VERSION
         assert published["manifest_version"] == COMMON_FOODS_MANIFEST_VERSION
         assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
+
+    def test_search_food_memory_cache_bypass_is_explicit_and_default_preserving(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        db.off_client = None
+        query = "bounded cold-cache lookup"
+        stale_item = _common_food_item(0)
+        db._memory_cache[f"search_{query}"] = stale_item
+        fresh_item = USDAFoodItem(
+            fdc_id=991,
+            description="Fresh provider row",
+            food_category="Fixture",
+            nutrients_per_100g={"protein_g": 11.0, "fat_g": 2.0, "carbs_g": 3.0},
+            data_type="Foundation",
+            publication_date="2026-08-11",
+        )
+        provider_search = AsyncMock(return_value=[fresh_item])
+        monkeypatch.setattr(db.usda_client, "search_foods", provider_search)
+
+        default_result = asyncio.run(db.search_food(query, save_cache=False))
+        assert default_result == [stale_item]
+        provider_search.assert_not_awaited()
+
+        bypass_result = asyncio.run(db.search_food(query, save_cache=False, use_memory_cache=False))
+        assert [item.source_id for item in bypass_result] == ["991"]
+        provider_search.assert_awaited_once_with(query, page_size=5)
+        assert db._memory_cache[f"search_{query}"] is stale_item
+
+        fresh_query = "uncached bounded cold-cache lookup"
+        asyncio.run(db.search_food(fresh_query, save_cache=False, use_memory_cache=False))
+        assert f"search_{fresh_query}" not in db._memory_cache
 
     @pytest.mark.parametrize("resolved_count", [0, 14, 19])
     def test_cold_cache_rejects_incomplete_sweeps(
@@ -219,7 +265,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
         calls: list[str] = []
         queries = tuple(COMMON_FOODS_MANIFEST.values())
 
-        async def incomplete_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+        async def incomplete_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
             calls.append(query)
             index = queries.index(query)
             return [_common_food_item(index)] if index < resolved_count else []
@@ -242,7 +292,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
         queries = tuple(COMMON_FOODS_MANIFEST.values())
         sensitive_provider_context = "advanced-provider-context-marker-7f31-do-not-log"
 
-        async def one_error_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+        async def one_error_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
             calls.append(query)
             index = queries.index(query)
             if index == 7:
@@ -339,7 +393,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
         calls: list[str] = []
 
-        async def unresolved_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+        async def unresolved_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
             calls.append(query)
             return []
 
@@ -350,13 +408,35 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert calls == list(COMMON_FOODS_MANIFEST.values())
         assert cache_file.read_bytes() == old_bytes
 
+    def test_duplicate_source_identity_across_manifest_slots_is_rejected(self) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        first_name, second_name = tuple(COMMON_FOODS_MANIFEST)[:2]
+        first_item = items[first_name]
+        second_item = items[second_name]
+        assert isinstance(first_item, dict)
+        assert isinstance(second_item, dict)
+        second_item["source"] = first_item["source"]
+        second_item["source_id"] = first_item["source_id"]
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Duplicate common-food source identity across manifest slots",
+        ):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
     def test_total_deadline_becomes_admission_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
         calls: list[str] = []
 
-        async def blocked_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+        async def blocked_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
             calls.append(query)
             await asyncio.sleep(1.0)
             return []
@@ -472,6 +552,38 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert str(exc_info.value) == expected_message
         assert cache_file.read_bytes() == old_bytes
 
+    @pytest.mark.parametrize(
+        "replay_drift",
+        ["nutrient", "provenance", "nutrient_confidence", "confidence"],
+    )
+    def test_nutrition_evidence_must_match_canonical_replay(self, replay_drift: str) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        chicken = items["chicken_breast"]
+        assert isinstance(chicken, dict)
+
+        if replay_drift == "nutrient":
+            nutrients = chicken["nutrients_per_100g"]
+            assert isinstance(nutrients, dict)
+            nutrients["nutrient_0"] = 999.0
+        elif replay_drift == "provenance":
+            provenance = chicken["nutrition_provenance"]
+            assert isinstance(provenance, dict)
+            provenance["nutrient_0"] = "label"
+        elif replay_drift == "nutrient_confidence":
+            nutrient_confidence = chicken["nutrition_nutrient_confidence"]
+            assert isinstance(nutrient_confidence, dict)
+            nutrient_confidence["nutrient_0"] = 0.6
+        else:
+            chicken["nutrition_confidence"] = 0.6
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Common-food nutrition evidence does not replay for chicken_breast",
+        ):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
     @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
     def test_strict_loader_rejects_non_finite_json_constants(self, constant: str) -> None:
         with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
@@ -486,7 +598,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
     ) -> None:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-        async def cancelled_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+        async def cancelled_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
             raise asyncio.CancelledError
 
         monkeypatch.setattr(db, "search_food", cancelled_search)
@@ -509,7 +625,9 @@ class TestUnifiedFoodDatabaseCommonFoods:
         queries = tuple(COMMON_FOODS_MANIFEST.values())
 
         async def deterministic_search(
-            query: str, save_cache: bool = True
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
         ) -> list[UnifiedFoodItem]:
             return [_common_food_item(queries.index(query))]
 
@@ -570,6 +688,82 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert cache_file.read_bytes() == old_bytes
         assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
 
+    def test_publication_fsyncs_parent_after_replace_and_closes_descriptor(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cache_file = tmp_path / "common_foods.json"
+        events: list[tuple[str, int | None]] = []
+        real_fsync = os.fsync
+        real_close = os.close
+        real_replace = os.replace
+
+        def recording_fsync(descriptor: int) -> None:
+            events.append(("fsync", descriptor))
+            real_fsync(descriptor)
+
+        def recording_replace(source: str | Path, target: str | Path) -> None:
+            real_replace(source, target)
+            events.append(("replace", None))
+
+        def recording_close(descriptor: int) -> None:
+            events.append(("close", descriptor))
+            real_close(descriptor)
+
+        monkeypatch.setattr(unified_db_module.os, "fsync", recording_fsync)
+        monkeypatch.setattr(unified_db_module.os, "replace", recording_replace)
+        monkeypatch.setattr(unified_db_module.os, "close", recording_close)
+
+        UnifiedFoodDatabase._publish_common_foods_envelope(
+            cache_file,
+            _valid_common_foods_envelope(),
+        )
+
+        fsync_events = [event for event in events if event[0] == "fsync"]
+        assert len(fsync_events) == 2
+        parent_descriptor = fsync_events[-1][1]
+        assert parent_descriptor is not None
+        assert [event[0] for event in events] == ["fsync", "replace", "fsync", "close"]
+        assert events[-2:] == [
+            ("fsync", parent_descriptor),
+            ("close", parent_descriptor),
+        ]
+
+    def test_parent_fsync_failure_still_closes_directory_descriptor(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cache_file = tmp_path / "common_foods.json"
+        fsync_descriptors: list[int] = []
+        closed_descriptors: list[int] = []
+        real_fsync = os.fsync
+        real_close = os.close
+
+        def fail_parent_fsync(descriptor: int) -> None:
+            fsync_descriptors.append(descriptor)
+            if len(fsync_descriptors) == 2:
+                raise OSError("parent fsync failed")
+            real_fsync(descriptor)
+
+        def recording_close(descriptor: int) -> None:
+            closed_descriptors.append(descriptor)
+            real_close(descriptor)
+
+        monkeypatch.setattr(unified_db_module.os, "fsync", fail_parent_fsync)
+        monkeypatch.setattr(unified_db_module.os, "close", recording_close)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="publication failed"):
+            UnifiedFoodDatabase._publish_common_foods_envelope(
+                cache_file,
+                _valid_common_foods_envelope(),
+            )
+
+        assert len(fsync_descriptors) == 2
+        assert fsync_descriptors[-1] in closed_descriptors
+        assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
+
     def test_cleanup_unlink_failure_log_is_category_only(
         self,
         tmp_path: Path,
@@ -581,7 +775,9 @@ class TestUnifiedFoodDatabaseCommonFoods:
         cleanup_marker = "cleanup-path-context-marker-d4b7"
 
         async def deterministic_search(
-            query: str, save_cache: bool = True
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
         ) -> list[UnifiedFoodItem]:
             return [_common_food_item(queries.index(query))]
 
@@ -617,7 +813,9 @@ class TestUnifiedFoodDatabaseCommonFoods:
         queries = tuple(COMMON_FOODS_MANIFEST.values())
 
         async def deterministic_search(
-            query: str, save_cache: bool = True
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
         ) -> list[UnifiedFoodItem]:
             return [_common_food_item(queries.index(query))]
 
@@ -626,7 +824,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         warm_db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-        async def unexpected_search(query: str, save_cache: bool = True) -> list[UnifiedFoodItem]:
+        async def unexpected_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
             raise AssertionError(f"round-trip warm load searched unexpectedly: {query}")
 
         monkeypatch.setattr(warm_db, "search_food", unexpected_search)

@@ -86,10 +86,14 @@ def test_unified_db_common_cache_requires_exact_envelope(
     original_bytes = cache_file.read_bytes()
 
     db = UnifiedFoodDatabase(str(cache_dir))
-    calls: list[tuple[str, bool]] = []
+    calls: list[tuple[str, bool, bool]] = []
 
-    async def _search_food(query: str, save_cache: bool = True) -> list[object]:
-        calls.append((query, save_cache))
+    async def _search_food(
+        query: str,
+        save_cache: bool = True,
+        use_memory_cache: bool = True,
+    ) -> list[object]:
+        calls.append((query, save_cache, use_memory_cache))
         return []
 
     monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
@@ -98,7 +102,7 @@ def test_unified_db_common_cache_requires_exact_envelope(
     with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
         asyncio.run(db.get_common_foods_database())
 
-    assert calls == [(query, False) for query in COMMON_FOODS_MANIFEST.values()]
+    assert calls == [(query, False, False) for query in COMMON_FOODS_MANIFEST.values()]
     assert cache_file.read_bytes() == original_bytes
 
 

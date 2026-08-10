@@ -145,6 +145,32 @@ class TestOFFClient:
         assert 0.0 <= item.nutrition_confidence <= 1.0
         assert "VEGAN" in item._generate_tags()
 
+    def test_parse_product_item_rejects_boolean_nutrient_scalars(self) -> None:
+        """Boolean OFF fields are neither nutrients nor retained raw scalar evidence."""
+        item = self.client._parse_product_item(
+            {
+                "code": "boolean-scalars",
+                "product_name": "Boolean Scalars",
+                "nutriments": {
+                    "proteins_100g": True,
+                    "fat_100g": 5.0,
+                    "unknown_boolean_flag": False,
+                    "unknown_numeric_value": 3,
+                    "unknown_text_value": "trace",
+                },
+            }
+        )
+
+        assert item is not None
+        assert "protein_g" not in item.nutrients_per_100g
+        assert item.nutrients_per_100g["fat_g"] == 5.0
+        raw_payload = item.nutrition_inputs[0]["raw_payload"]
+        assert isinstance(raw_payload, dict)
+        assert "proteins_100g" not in raw_payload
+        assert "unknown_boolean_flag" not in raw_payload
+        assert raw_payload["unknown_numeric_value"] == 3
+        assert raw_payload["unknown_text_value"] == "trace"
+
     def test_parse_product_item_missing_data(self):
         """Test parsing with missing required data."""
         # Sample product data with missing code

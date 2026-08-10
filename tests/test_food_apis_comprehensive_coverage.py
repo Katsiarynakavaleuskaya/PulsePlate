@@ -47,8 +47,8 @@ def _admissible_common_food_fixture(index: int):
             }
         ],
         nutrition_provenance={nutrient: "usda"},
-        nutrition_nutrient_confidence={nutrient: 0.8},
-        nutrition_confidence=0.8,
+        nutrition_nutrient_confidence={nutrient: 0.7},
+        nutrition_confidence=0.7,
     )
 
 
@@ -493,10 +493,14 @@ class TestUnifiedFoodDatabaseComprehensive:
         cache_file = db.cache_dir / "common_foods.json"
         cache_file.write_text("invalid json", encoding="utf-8")
         original_bytes = cache_file.read_bytes()
-        calls: list[tuple[str, bool]] = []
+        calls: list[tuple[str, bool, bool]] = []
 
-        async def unresolved_search(query: str, save_cache: bool = True) -> list[object]:
-            calls.append((query, save_cache))
+        async def unresolved_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[object]:
+            calls.append((query, save_cache, use_memory_cache))
             return []
 
         monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
@@ -505,7 +509,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
             asyncio.run(db.get_common_foods_database())
 
-        assert calls == [(query, False) for query in COMMON_FOODS_MANIFEST.values()]
+        assert calls == [(query, False, False) for query in COMMON_FOODS_MANIFEST.values()]
         assert cache_file.read_bytes() == original_bytes
 
     def test_get_common_foods_database_publication_failure_is_admission_error(
@@ -521,10 +525,14 @@ class TestUnifiedFoodDatabaseComprehensive:
 
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path / "publication-failure"))
         queries = tuple(COMMON_FOODS_MANIFEST.values())
-        calls: list[tuple[str, bool]] = []
+        calls: list[tuple[str, bool, bool]] = []
 
-        async def complete_search(query: str, save_cache: bool = True) -> list[object]:
-            calls.append((query, save_cache))
+        async def complete_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[object]:
+            calls.append((query, save_cache, use_memory_cache))
             return [_admissible_common_food_fixture(queries.index(query))]
 
         def fail_serialization(*args: object, **kwargs: object) -> None:
@@ -537,7 +545,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         with pytest.raises(CommonFoodsCacheAdmissionError, match="publication failed"):
             asyncio.run(db.get_common_foods_database())
 
-        assert calls == [(query, False) for query in queries]
+        assert calls == [(query, False, False) for query in queries]
         assert not (db.cache_dir / "common_foods.json").exists()
         assert not list(db.cache_dir.glob(".common_foods.json.*.tmp"))
 
@@ -556,10 +564,14 @@ class TestUnifiedFoodDatabaseComprehensive:
 
         sensitive_context = "comprehensive-provider-context-marker-91c4-do-not-log"
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path / "search-exception"))
-        calls: list[tuple[str, bool]] = []
+        calls: list[tuple[str, bool, bool]] = []
 
-        async def failed_search(query: str, save_cache: bool = True) -> list[object]:
-            calls.append((query, save_cache))
+        async def failed_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[object]:
+            calls.append((query, save_cache, use_memory_cache))
             raise RuntimeError(sensitive_context)
 
         monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
@@ -568,7 +580,7 @@ class TestUnifiedFoodDatabaseComprehensive:
         with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
             asyncio.run(db.get_common_foods_database())
 
-        assert calls == [(query, False) for query in COMMON_FOODS_MANIFEST.values()]
+        assert calls == [(query, False, False) for query in COMMON_FOODS_MANIFEST.values()]
         assert sensitive_context not in caplog.text
         assert "category=RuntimeError" in caplog.text
 

@@ -407,7 +407,11 @@ class UnifiedFoodDatabase:
             logger.error(f"Error saving cache: {e}")
 
     async def search_food(
-        self, query: str, prefer_source: str = "usda", save_cache: bool = True
+        self,
+        query: str,
+        prefer_source: str = "usda",
+        save_cache: bool = True,
+        use_memory_cache: bool = True,
     ) -> List[UnifiedFoodItem]:
         """
         RU: Поиск продуктов по названию.
@@ -417,13 +421,14 @@ class UnifiedFoodDatabase:
             query: Search query (e.g., "chicken breast")
             prefer_source: Preferred data source ("usda", "openfoodfacts")
             save_cache: Whether to save cache after search (default: True)
+            use_memory_cache: Whether to read or update the in-memory search cache
 
         Returns:
             List of unified food items
         """
         # Check cache first
         cache_key = f"search_{query.lower().strip()}"
-        if cache_key in self._memory_cache:
+        if use_memory_cache and cache_key in self._memory_cache:
             return [self._memory_cache[cache_key]]
 
         results = []
@@ -437,7 +442,7 @@ class UnifiedFoodDatabase:
                     results.append(unified_item)
 
                     # Cache the best result
-                    if not self._memory_cache.get(cache_key):
+                    if use_memory_cache and not self._memory_cache.get(cache_key):
                         self._memory_cache[cache_key] = unified_item
             except Exception as exc:
                 logger.error(
@@ -454,7 +459,7 @@ class UnifiedFoodDatabase:
                     off_unified = UnifiedFoodItem.from_off_item(off_results[0])
                     merged = UnifiedFoodItem.from_usda_and_off_merge(results[0], off_unified)
                     results[0] = merged
-                    if cache_key in self._memory_cache:
+                    if use_memory_cache and cache_key in self._memory_cache:
                         self._memory_cache[cache_key] = merged
             except Exception as exc:
                 logger.debug(
@@ -462,7 +467,8 @@ class UnifiedFoodDatabase:
                     type(exc).__name__,
                 )
                 # Drop stale search_* cache so a transient OFF failure can retry merge.
-                self._memory_cache.pop(cache_key, None)
+                if use_memory_cache:
+                    self._memory_cache.pop(cache_key, None)
 
         # Search Open Food Facts if USDA results are empty or if preferred
         if (prefer_source == "openfoodfacts" or not results) and self.off_client:
@@ -473,7 +479,7 @@ class UnifiedFoodDatabase:
                     results.append(unified_item)
 
                     # Cache the best result
-                    if not self._memory_cache.get(cache_key):
+                    if use_memory_cache and not self._memory_cache.get(cache_key):
                         self._memory_cache[cache_key] = unified_item
             except Exception as exc:
                 logger.error(
@@ -569,12 +575,16 @@ class UnifiedFoodDatabase:
             raise CommonFoodsCacheAdmissionError(
                 "Invalid common-food inter-row delay configuration"
             ) from exc
-        for standard_name, search_query in COMMON_FOODS_MANIFEST.items():
+        manifest_rows = tuple(COMMON_FOODS_MANIFEST.items())
+        for row_index, (standard_name, search_query) in enumerate(manifest_rows):
             try:
-                results = await self.search_food(search_query, save_cache=False)
+                results = await self.search_food(
+                    search_query,
+                    save_cache=False,
+                    use_memory_cache=False,
+                )
                 if results:
                     items[standard_name] = asdict(results[0])
-                await asyncio.sleep(sleep_seconds)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -583,7 +593,8 @@ class UnifiedFoodDatabase:
                     standard_name,
                     type(exc).__name__,
                 )
-                continue
+            if row_index < len(manifest_rows) - 1:
+                await asyncio.sleep(sleep_seconds)
 
         return {
             "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
@@ -606,6 +617,7 @@ class UnifiedFoodDatabase:
             raise CommonFoodsCacheAdmissionError("Common-food membership is not exact")
 
         admitted: Dict[str, UnifiedFoodItem] = {}
+        source_identities: set[tuple[str, str]] = set()
         for standard_name in COMMON_FOODS_MANIFEST:
             item = items[standard_name]
             if type(item) is not dict or set(item) != _COMMON_FOOD_ITEM_FIELDS:
@@ -618,6 +630,12 @@ class UnifiedFoodDatabase:
                 raise CommonFoodsCacheAdmissionError(
                     f"Invalid common-food identity shape for {standard_name}"
                 )
+            source_identity = (item["source"], item["source_id"])
+            if source_identity in source_identities:
+                raise CommonFoodsCacheAdmissionError(
+                    "Duplicate common-food source identity across manifest slots"
+                )
+            source_identities.add(source_identity)
             category = item["category"]
             if category is not None and type(category) is not str:
                 raise CommonFoodsCacheAdmissionError(
@@ -724,6 +742,26 @@ class UnifiedFoodDatabase:
                     f"Invalid common-food provenance evidence for {standard_name}"
                 )
 
+            replayed_inputs = nutrition_inputs_from_unified_wire(
+                nutrition_inputs_wire=nutrition_inputs,
+                nutrients_per_100g=nutrients,
+                fallback_source=nutrition_inputs[0]["source"],
+                record_id=item["source_id"],
+            )
+            replayed = merge_wire_nutrition_sources(
+                primary_inputs=replayed_inputs,
+                secondary_inputs=[],
+            )
+            if (
+                dict(replayed.nutrients) != nutrients
+                or dict(replayed.provenance) != provenance
+                or dict(replayed.nutrient_confidence) != nutrient_confidence
+                or replayed.confidence != confidence
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Common-food nutrition evidence does not replay for {standard_name}"
+                )
+
             admitted[standard_name] = UnifiedFoodItem(**item)
 
         return admitted
@@ -756,6 +794,11 @@ class UnifiedFoodDatabase:
                 cls._validate_common_foods_envelope(_load_common_foods_json(temporary_file))
             os.replace(temporary_path, cache_file)
             temporary_path = None
+            parent_descriptor = os.open(cache_file.parent, os.O_RDONLY)
+            try:
+                os.fsync(parent_descriptor)
+            finally:
+                os.close(parent_descriptor)
         except CommonFoodsCacheAdmissionError:
             raise
         except Exception as exc:

@@ -292,7 +292,7 @@ class OFFClient:
 
             for off_nutrient, standard_name in self.nutrient_mapping.items():
                 value = nutrients_raw.get(off_nutrient)
-                if value is not None and isinstance(value, (int, float)):
+                if value is not None and type(value) in (int, float):
                     mapped_nutrients[standard_name] = float(value)
 
             nutrition_input = NutritionInput(
@@ -303,7 +303,7 @@ class OFFClient:
                 raw_payload={
                     key: value
                     for key, value in nutrients_raw.items()
-                    if value is None or isinstance(value, (int, float, str))
+                    if value is None or type(value) in (int, float, str)
                 },
             )
             resolution = resolve_nutrition(inputs=[nutrition_input])
