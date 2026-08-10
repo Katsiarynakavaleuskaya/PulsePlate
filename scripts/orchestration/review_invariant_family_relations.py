@@ -562,6 +562,16 @@ def process_input_bytes(raw: bytes) -> bytes:
     return rendered
 
 
+def _close_underlying_binary_sink(stream: object) -> None:
+    try:
+        binary_sink = getattr(stream, "buffer", None)
+        if binary_sink is None:
+            return
+        getattr(binary_sink, "raw", binary_sink).close()
+    except Exception:
+        return
+
+
 def _write_contract_error(code: str) -> None:
     safe_code = code if code in _SAFE_ERROR_CODES else "internal_error"
     payload = f"contract_error:{safe_code}\n".encode("ascii")
@@ -570,10 +580,7 @@ def _write_contract_error(code: str) -> None:
         sys.stderr.buffer.write(payload)
         sys.stderr.buffer.flush()
     except (OSError, ValueError):
-        try:
-            sys.stderr.close()
-        except (OSError, ValueError):
-            pass
+        _close_underlying_binary_sink(sys.stderr)
         return
 
 
@@ -599,10 +606,7 @@ def main() -> int:
             raise OSError("short stdout write")
         sys.stdout.buffer.flush()
     except (OSError, ValueError):
-        try:
-            sys.stdout.close()
-        except (OSError, ValueError):
-            pass
+        _close_underlying_binary_sink(sys.stdout)
         _write_contract_error("output_transport_failure")
         return 2
     return 0

@@ -97,6 +97,28 @@ def _fixture_result() -> tuple[bytes, dict[str, object]]:
     return completed.stdout, cast(dict[str, object], json.loads(completed.stdout))
 
 
+def _first_flush_failure_stream() -> tuple[SimpleNamespace, dict[str, int]]:
+    attempts = {"write": 0, "flush": 0, "wrapper_close": 0, "underlying_close": 0}
+
+    def write(payload: bytes) -> int:
+        attempts["write"] += 1
+        return len(payload)
+
+    def flush() -> None:
+        attempts["flush"] += 1
+        raise OSError("first flush failed")
+
+    def wrapper_close() -> None:
+        attempts["wrapper_close"] += 1
+
+    def underlying_close() -> None:
+        attempts["underlying_close"] += 1
+
+    raw = SimpleNamespace(close=underlying_close)
+    buffer = SimpleNamespace(raw=raw, write=write, flush=flush)
+    return SimpleNamespace(buffer=buffer, close=wrapper_close), attempts
+
+
 def _relation_map(artifact: Mapping[str, object]) -> dict[tuple[str, str], dict[str, object]]:
     raw_relations = cast(list[dict[str, object]], artifact["relations"])
     return {
@@ -239,6 +261,19 @@ def test_zero_families_leave_the_complete_universe_unknown() -> None:
 
     assert artifact["relations"] == []
     assert artifact["unknown_finding_ids"] == ["a", "b"]
+
+
+def test_fully_empty_universe_emits_closed_empty_artifact() -> None:
+    completed = _run_cli(_compact_bytes(_snapshot([], [])))
+
+    assert completed.returncode == 0
+    assert completed.stderr == b""
+    artifact = cast(dict[str, object], json.loads(completed.stdout))
+    snapshot = cast(dict[str, object], artifact["snapshot"])
+    assert snapshot["universe_finding_ids"] == []
+    assert snapshot["families"] == []
+    assert artifact["relations"] == []
+    assert artifact["unknown_finding_ids"] == []
 
 
 def test_snapshot_permutations_produce_byte_identical_artifacts() -> None:
@@ -401,6 +436,18 @@ def test_ids_are_ascii_path_and_url_safe_and_errors_never_echo_values() -> None:
     assert b"example" not in completed.stderr
     assert b"SECRET" not in completed.stderr
     assert len(completed.stderr) <= relations.MAX_STDERR_BYTES
+
+
+def test_unicode_id_is_rejected_with_sanitized_no_echo_error() -> None:
+    submitted = "fïnding-秘密"
+
+    completed = _run_cli(_compact_bytes(_snapshot([submitted], [])))
+
+    assert completed.returncode == 2
+    assert completed.stdout == b""
+    assert completed.stderr == b"contract_error:invalid_id\n"
+    assert submitted.encode("utf-8") not in completed.stderr
+    assert b"f\\u00efnding" not in completed.stderr
 
 
 @pytest.mark.parametrize(
@@ -595,6 +642,30 @@ def test_main_sanitizes_unexpected_internal_errors(
     assert stderr.getvalue() == b"contract_error:internal_error\n"
 
 
+def test_nonserializable_canonical_json_reports_stable_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdout = io.BytesIO()
+    stderr = io.BytesIO()
+    monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
+    monkeypatch.setattr(
+        relations.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
+    )
+    monkeypatch.setattr(relations.sys, "stdout", SimpleNamespace(buffer=stdout))
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    def build_nonserializable(_snapshot: dict[str, object]) -> dict[str, object]:
+        return {"nonserializable": object()}
+
+    monkeypatch.setattr(relations, "_build_artifact", build_nonserializable)
+
+    assert relations.main() == 2
+    assert stdout.getvalue() == b""
+    assert stderr.getvalue() == b"contract_error:internal_error\n"
+
+
 def test_main_reports_output_transport_failure_without_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -626,6 +697,30 @@ def test_main_reports_output_transport_failure_without_retry(
 
     assert relations.main() == 2
     assert stdout.write_attempts == 1
+    assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
+
+
+def test_stdout_first_flush_failure_closes_only_underlying_sink_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdout, attempts = _first_flush_failure_stream()
+    stderr = io.BytesIO()
+    monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
+    monkeypatch.setattr(
+        relations.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
+    )
+    monkeypatch.setattr(relations.sys, "stdout", stdout)
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    assert relations.main() == 2
+    assert attempts == {
+        "write": 1,
+        "flush": 1,
+        "wrapper_close": 0,
+        "underlying_close": 1,
+    }
     assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
 
 
@@ -724,6 +819,32 @@ def test_closed_stderr_transport_failure_does_not_escape(
     assert relations._write_contract_error("invalid_json") is None
 
 
+def test_stderr_first_flush_failure_closes_only_underlying_sink_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stderr, attempts = _first_flush_failure_stream()
+    monkeypatch.setattr(relations.sys, "stderr", stderr)
+
+    assert relations._write_contract_error("invalid_json") is None
+    assert attempts == {
+        "write": 1,
+        "flush": 1,
+        "wrapper_close": 0,
+        "underlying_close": 1,
+    }
+
+
+def test_close_underlying_binary_sink_contains_close_exception() -> None:
+    def fail_close() -> None:
+        raise RuntimeError("close failure must not escape")
+
+    stream = SimpleNamespace(
+        buffer=SimpleNamespace(raw=SimpleNamespace(close=fail_close)),
+    )
+
+    assert relations._close_underlying_binary_sink(stream) is None
+
+
 def test_cli_sanitizes_real_stderr_pipe_early_close() -> None:
     process = subprocess.Popen(
         [sys.executable, str(SCRIPT)],
@@ -802,6 +923,7 @@ def test_runtime_script_has_only_bounded_stdlib_imports_and_no_authority_calls()
         "_build_artifact",
         "_canonical_json_bytes",
         "_choose_two",
+        "_close_underlying_binary_sink",
         "_domain_digest",
         "_freeze",
         "_normalize_id_list",
@@ -820,6 +942,7 @@ def test_runtime_script_has_only_bounded_stdlib_imports_and_no_authority_calls()
         "combinations",
         "dict",
         "frozenset",
+        "getattr",
         "isinstance",
         "len",
         "list",
