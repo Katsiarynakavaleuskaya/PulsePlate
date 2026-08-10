@@ -1692,7 +1692,19 @@ def test_context_compaction_flag_off_preserves_duplicate_carriers() -> None:
     assert result.confidence == 0.8
 
 
+@pytest.mark.parametrize(
+    ("prior_reason", "expected_reason"),
+    [
+        (None, RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION),
+        (
+            RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+            RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        ),
+    ],
+)
 def test_compaction_failure_rolls_back_response_and_closes_admission(
+    prior_reason: RAGDegradedReason | None,
+    expected_reason: RAGDegradedReason,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A failed optional compactor cannot mutate output or authorize promotion."""
@@ -1704,6 +1716,7 @@ def test_compaction_failure_rolls_back_response_and_closes_admission(
         file="/private/sentinel-compaction-path.md",
     )
     rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    rag_ctx.degraded_reason = prior_reason
     pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
 
     def mutate_then_raise(chunks: list[RAGChunk]) -> tuple[list[RAGChunk], int]:
@@ -1735,7 +1748,7 @@ def test_compaction_failure_rolls_back_response_and_closes_admission(
     assert result.chunks[0].content == "Pristine wellness evidence."
     assert result.chunks_compacted == 0
     assert result.warnings.count("rag_context_compaction_error: internal failure") == 1
-    assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+    assert result.degraded_reason == expected_reason
     assert result.knowledge_candidates == []
     assert result.knowledge_candidates_canonical is False
     assert result.verification_bundle is not None
@@ -1757,6 +1770,47 @@ def test_compaction_failure_rolls_back_response_and_closes_admission(
         "sentinel-private-compaction-exception",
     ):
         assert sentinel not in caplog.text
+
+
+def test_late_exception_preserves_observed_compaction_count() -> None:
+    """Outer fail-closed recovery must retain completed compaction diagnostics."""
+    chunk = _make_chunk(
+        chunk_id="duplicate",
+        content="Exact duplicate before late failure.",
+        score=0.9,
+        file="docs/duplicate.md",
+    )
+    duplicate = _make_chunk(
+        chunk_id=chunk.chunk_id,
+        content=chunk.content,
+        score=chunk.score,
+        file=chunk.file,
+    )
+    raw_chunks = [chunk, duplicate]
+    rag_ctx = _make_rag_context(chunks=raw_chunks, confidence=0.9)
+    pipeline_result = PipelineResult(raw_chunks, [], [], 1.0, True)
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            side_effect=RuntimeError("late formatting failure"),
+        ),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                context_compaction_enabled=True,
+            )
+        )
+
+    assert result.rag_actually_used is False
+    assert result.chunks == []
+    assert result.chunks_compacted == 1
+    assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
 
 
 @pytest.mark.parametrize(

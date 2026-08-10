@@ -463,7 +463,10 @@ async def _run_orchestration(
                     warnings.append(warning)
                 chunks_to_use = pristine_final_chunks
                 chunks_compacted = 0
-                effective_degraded_reason = RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+                if effective_degraded_reason is None:
+                    effective_degraded_reason = (
+                        RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+                    )
 
         confidence = _resolve_confidence(
             chunks_to_use=chunks_to_use,
@@ -620,6 +623,7 @@ async def _run_orchestration(
                     verification_hops=rag_ctx.hops,
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
             )
         return _empty_result(
             prompt_input,

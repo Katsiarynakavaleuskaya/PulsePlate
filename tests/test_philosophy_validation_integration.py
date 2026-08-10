@@ -403,6 +403,7 @@ class TestPhilosophyValidationV1:
         resp = client.post(path, json={"text": "test"}, headers=vip_headers)
 
         assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
         data = resp.json()
         assert data["rag_used"] is True
         assert [source["chunk_id"] for source in data["sources"]] == ["exact:1"]
