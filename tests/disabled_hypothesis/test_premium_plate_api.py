@@ -11,13 +11,8 @@ Tests cover:
 - Error handling
 """
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi.testclient import TestClient
-
-from app import app
-from tests._client import open_test_client
 
 
 class TestPremiumPlateAPI:
@@ -26,17 +21,11 @@ class TestPremiumPlateAPI:
     client: TestClient
 
     @pytest.fixture(autouse=True)
-    def _managed_client(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-        """Own one function-scoped app lifespan for every class test."""
-        monkeypatch.setenv("API_KEY", "test_key")
-        with open_test_client(app) as managed_client:
-            self.client = managed_client
-            try:
-                yield
-            finally:
-                del self.client
+    def _bind_client(self, client: TestClient) -> None:
+        """Expose the canonical function-scoped client to class tests."""
+        self.client = client
 
-    def test_premium_plate_maintenance_goal(self):
+    def test_premium_plate_maintenance_goal(self) -> None:
         """Test Premium Plate API with maintenance goal."""
         payload = {
             "weight_kg": 70,
@@ -53,6 +42,7 @@ class TestPremiumPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         # Check response structure
@@ -80,7 +70,7 @@ class TestPremiumPlateAPI:
         assert isinstance(data["meals"], list)
         assert len(data["meals"]) > 0
 
-    def test_premium_plate_weight_loss_goal(self):
+    def test_premium_plate_weight_loss_goal(self) -> None:
         """Test Premium Plate API with weight loss goal."""
         payload = {
             "weight_kg": 80,
@@ -98,6 +88,7 @@ class TestPremiumPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         assert data["kcal"] > 0
@@ -109,7 +100,7 @@ class TestPremiumPlateAPI:
         # Check that we have some meals
         assert len(data["meals"]) > 0
 
-    def test_premium_plate_muscle_gain_goal(self):
+    def test_premium_plate_muscle_gain_goal(self) -> None:
         """Test Premium Plate API with muscle gain goal."""
         payload = {
             "weight_kg": 65,
@@ -127,6 +118,7 @@ class TestPremiumPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         assert data["kcal"] > 0
@@ -139,7 +131,7 @@ class TestPremiumPlateAPI:
         # Check protein content
         assert macros["protein_g"] > 50  # Should have substantial protein
 
-    def test_premium_plate_russian_language(self):
+    def test_premium_plate_russian_language(self) -> None:
         """Test Premium Plate API with Russian language."""
         payload = {
             "weight_kg": 75,
@@ -156,6 +148,7 @@ class TestPremiumPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         assert data["kcal"] > 0
@@ -163,7 +156,7 @@ class TestPremiumPlateAPI:
         # Check that we have layout data
         assert len(data["layout"]) > 0
 
-    def test_premium_plate_all_activity_levels(self):
+    def test_premium_plate_all_activity_levels(self) -> None:
         """Test Premium Plate API with different activity levels."""
         base_payload = {
             "weight_kg": 70,
@@ -184,13 +177,14 @@ class TestPremiumPlateAPI:
             )
 
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             calorie_targets.append(data["kcal"])
 
         # Higher activity should generally mean more calories
         assert calorie_targets[-1] > calorie_targets[0]  # very_active > sedentary
 
-    def test_premium_plate_validation_errors(self):
+    def test_premium_plate_validation_errors(self) -> None:
         """Test Premium Plate API validation errors."""
         # Test invalid weight
         payload = {
@@ -277,7 +271,7 @@ class TestPremiumPlateAPI:
         assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Invalid API Key"}
 
-    def test_premium_plate_with_bodyfat(self):
+    def test_premium_plate_with_bodyfat(self) -> None:
         """Test Premium Plate API with body fat percentage."""
         payload = {
             "weight_kg": 70,
@@ -295,13 +289,14 @@ class TestPremiumPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         # Should work with body fat included
         assert data["kcal"] > 0
         assert data["macros"]["protein_g"] > 0
 
-    def test_premium_plate_calorie_scaling(self):
+    def test_premium_plate_calorie_scaling(self) -> None:
         """Test that different goals produce appropriate calorie targets."""
         base_payload = {
             "weight_kg": 70,
@@ -323,6 +318,7 @@ class TestPremiumPlateAPI:
             )
 
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             calorie_targets[goal] = data["kcal"]
 
@@ -332,7 +328,7 @@ class TestPremiumPlateAPI:
         # Weight gain should have more calories than maintenance
         assert calorie_targets["gain"] > calorie_targets["maintain"]
 
-    def test_premium_plate_macro_distribution_consistency(self):
+    def test_premium_plate_macro_distribution_consistency(self) -> None:
         """Test that macro distributions are consistent and valid."""
         payload = {
             "weight_kg": 70,
@@ -349,6 +345,7 @@ class TestPremiumPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         # Verify macro distribution is reasonable

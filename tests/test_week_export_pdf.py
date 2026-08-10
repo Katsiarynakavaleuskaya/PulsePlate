@@ -23,6 +23,7 @@ def _signed_pdf_url(client: TestClient, lang: str = "en") -> str:
         headers={"X-API-Key": "test_key"},
     )
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     url: str = response.json()["url"]
     if lang:
         separator = "&" if "?" in url else "?"

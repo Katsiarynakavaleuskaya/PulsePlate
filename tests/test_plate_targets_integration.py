@@ -5,19 +5,15 @@ EN: Integration test for Plate→Targets coverage.
 """
 
 import asyncio
-from collections.abc import Iterator
-
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-import app as app_mod
 import core.bmr as nutrition_bmr
 import core.plate as nutrition_plate
 import core.recommendations as nutrition_recommendations
 from app.schemas.premium_contracts import PlateRequest
 from app.services import pro_nutrition_plate
-from tests._client import open_test_client
 
 
 async def _deterministic_day_micros(
@@ -32,16 +28,7 @@ async def _deterministic_day_micros(
     return {"iron_mg": total_iron_mg}
 
 
-@pytest.fixture
-def plate_targets_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """Open one managed client for the exact imported application."""
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-    with open_test_client(app_mod.app) as managed_client:
-        yield managed_client
-
-
-def test_plate_targets_integration_workflow(plate_targets_client: TestClient) -> None:
+def test_plate_targets_integration_workflow(client: TestClient) -> None:
     """Test complete workflow from Plate generation to Targets comparison."""
     # Step 1: Generate plate
     plate_payload = {
@@ -53,7 +40,7 @@ def test_plate_targets_integration_workflow(plate_targets_client: TestClient) ->
         "goal": "maintain",
     }
 
-    plate_resp = plate_targets_client.post(
+    plate_resp = client.post(
         "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
     )
     assert plate_resp.status_code == 200
@@ -72,7 +59,7 @@ def test_plate_targets_integration_workflow(plate_targets_client: TestClient) ->
         "lang": "en",
     }
 
-    targets_resp = plate_targets_client.post(
+    targets_resp = client.post(
         "/api/v1/premium/targets",
         json=targets_payload,
         headers={"X-API-Key": "test_key"},
@@ -108,7 +95,7 @@ def test_plate_targets_integration_workflow(plate_targets_client: TestClient) ->
 
 
 def test_plate_targets_micros_coverage(
-    plate_targets_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test that plate micros can be compared against target micros."""
     dependencies = pro_nutrition_plate.PlateServiceDependencies(
@@ -148,7 +135,7 @@ def test_plate_targets_micros_coverage(
         "lang": "en",
     }
 
-    targets_resp = plate_targets_client.post(
+    targets_resp = client.post(
         "/api/v1/premium/targets",
         json=targets_payload,
         headers={"X-API-Key": "test_key"},
@@ -174,7 +161,7 @@ def test_plate_targets_micros_coverage(
     assert "iron_mg" in common_micros
 
 
-def test_plate_targets_different_goals(plate_targets_client: TestClient) -> None:
+def test_plate_targets_different_goals(client: TestClient) -> None:
     """Test plate-targets integration with different goals."""
     test_cases = [
         {"goal": "loss", "deficit_pct": 20},
@@ -193,7 +180,7 @@ def test_plate_targets_different_goals(plate_targets_client: TestClient) -> None
 
         # Generate plate
         plate_payload = {**base_payload, **case}
-        plate_resp = plate_targets_client.post(
+        plate_resp = client.post(
             "/api/v1/premium/plate",
             json=plate_payload,
             headers={"X-API-Key": "test_key"},
@@ -204,7 +191,7 @@ def test_plate_targets_different_goals(plate_targets_client: TestClient) -> None
 
         # Generate targets
         targets_payload = {**base_payload, **case, "life_stage": "adult", "lang": "en"}
-        targets_resp = plate_targets_client.post(
+        targets_resp = client.post(
             "/api/v1/premium/targets",
             json=targets_payload,
             headers={"X-API-Key": "test_key"},
@@ -220,7 +207,7 @@ def test_plate_targets_different_goals(plate_targets_client: TestClient) -> None
         assert "priority_micros" in targets_data
 
 
-def test_plate_targets_life_stage_warnings(plate_targets_client: TestClient) -> None:
+def test_plate_targets_life_stage_warnings(client: TestClient) -> None:
     """Test that life stage warnings from targets are relevant for plate generation."""
     # Test with pregnant woman
     payload = {
@@ -235,7 +222,7 @@ def test_plate_targets_life_stage_warnings(plate_targets_client: TestClient) -> 
     }
 
     # Generate targets (should have warnings)
-    targets_resp = plate_targets_client.post(
+    targets_resp = client.post(
         "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert targets_resp.status_code == 200
@@ -252,7 +239,7 @@ def test_plate_targets_life_stage_warnings(plate_targets_client: TestClient) -> 
 
     # Generate plate (should work despite warnings)
     plate_payload = {k: v for k, v in payload.items() if k not in ["life_stage", "lang"]}
-    plate_resp = plate_targets_client.post(
+    plate_resp = client.post(
         "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
     )
     assert plate_resp.status_code == 200
@@ -264,7 +251,7 @@ def test_plate_targets_life_stage_warnings(plate_targets_client: TestClient) -> 
     assert "day_micros" in plate_data
 
 
-def test_plate_targets_validation_consistency(plate_targets_client: TestClient) -> None:
+def test_plate_targets_validation_consistency(client: TestClient) -> None:
     """Test that validation rules are consistent between plate and targets."""
     # Test with invalid data that should fail both endpoints
     invalid_payload = {
@@ -277,13 +264,13 @@ def test_plate_targets_validation_consistency(plate_targets_client: TestClient) 
     }
 
     # Both should return 422 for invalid sex
-    plate_resp = plate_targets_client.post(
+    plate_resp = client.post(
         "/api/v1/premium/plate", json=invalid_payload, headers={"X-API-Key": "test_key"}
     )
     assert plate_resp.status_code == 422
 
     targets_payload = {**invalid_payload, "life_stage": "adult", "lang": "en"}
-    targets_resp = plate_targets_client.post(
+    targets_resp = client.post(
         "/api/v1/premium/targets",
         json=targets_payload,
         headers={"X-API-Key": "test_key"},
@@ -291,7 +278,7 @@ def test_plate_targets_validation_consistency(plate_targets_client: TestClient) 
     assert targets_resp.status_code == 422
 
 
-def test_plate_targets_api_key_consistency(plate_targets_client: TestClient) -> None:
+def test_plate_targets_api_key_consistency(client: TestClient) -> None:
     """Test that both endpoints require the same API key."""
     payload = {
         "sex": "female",
@@ -303,26 +290,26 @@ def test_plate_targets_api_key_consistency(plate_targets_client: TestClient) -> 
     }
 
     # Test without API key
-    plate_resp = plate_targets_client.post("/api/v1/premium/plate", json=payload)
+    plate_resp = client.post("/api/v1/premium/plate", json=payload)
     assert plate_resp.status_code == status.HTTP_403_FORBIDDEN
     assert plate_resp.headers["content-type"].startswith("application/json")
     assert plate_resp.json() == {"detail": "Invalid API Key"}
 
     targets_payload = {**payload, "life_stage": "adult", "lang": "en"}
-    targets_resp = plate_targets_client.post("/api/v1/premium/targets", json=targets_payload)
+    targets_resp = client.post("/api/v1/premium/targets", json=targets_payload)
     assert targets_resp.status_code == status.HTTP_403_FORBIDDEN
     assert targets_resp.headers["content-type"].startswith("application/json")
     assert targets_resp.json() == {"detail": "Invalid API Key"}
 
     # Test with wrong API key
-    plate_resp = plate_targets_client.post(
+    plate_resp = client.post(
         "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "wrong_key"}
     )
     assert plate_resp.status_code == status.HTTP_403_FORBIDDEN
     assert plate_resp.headers["content-type"].startswith("application/json")
     assert plate_resp.json() == {"detail": "Invalid API Key"}
 
-    targets_resp = plate_targets_client.post(
+    targets_resp = client.post(
         "/api/v1/premium/targets",
         json=targets_payload,
         headers={"X-API-Key": "wrong_key"},

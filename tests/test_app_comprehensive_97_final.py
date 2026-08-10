@@ -4,23 +4,12 @@ Comprehensive test coverage for main.py to reach 97% coverage target
 Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets endpoints
 """
 
-from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.services import bmi_compat as bmi_compat_service
-from tests._client import open_test_client
-
-
-def _get_app():
-    """Safely get the FastAPI app instance from main.py."""
-    import main
-
-    if getattr(main, "app", None) is None:
-        raise RuntimeError("FastAPI app in main.py is not initialized")
-    return main.app
 
 
 class TestAppComprehensive97:
@@ -29,14 +18,9 @@ class TestAppComprehensive97:
     client: TestClient
 
     @pytest.fixture(autouse=True)
-    def _managed_client(self) -> Iterator[None]:
-        """Own one function-scoped lifespan for the root ``main.app`` owner."""
-        with open_test_client(_get_app()) as managed_client:
-            self.client = managed_client
-            try:
-                yield
-            finally:
-                del self.client
+    def _bind_client(self, client: TestClient) -> None:
+        """Expose the canonical function-scoped client to class tests."""
+        self.client = client
 
     def test_bmi_endpoint_pregnancy_behavior(self) -> None:
         """Test the pregnant BMI response without invoking optional visualization."""
@@ -97,7 +81,7 @@ class TestAppComprehensive97:
         mock_viz.assert_called_once()
         assert "athlete" in data["note"].lower()
 
-    def test_plan_endpoint_russian_language(self):
+    def test_plan_endpoint_russian_language(self) -> None:
         """Test /plan endpoint with Russian language (lines 720-765)"""
         response = self.client.post(
             "/plan",
@@ -113,6 +97,7 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "Персональный план" in data["summary"]
         assert "Шаги:" in data["next_steps"][0]
@@ -121,7 +106,7 @@ class TestAppComprehensive97:
         assert "прогулку" in data["action"]
         assert data["premium"] is False
 
-    def test_plan_endpoint_russian_with_premium(self):
+    def test_plan_endpoint_russian_with_premium(self) -> None:
         """Test /plan endpoint with Russian language and premium (lines 740-752)"""
         response = self.client.post(
             "/plan",
@@ -137,13 +122,14 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["premium"] is True
         assert "premium_reco" in data
         assert "Дефицит" in data["premium_reco"][0]
         assert "силовые" in data["premium_reco"][1]
 
-    def test_plan_endpoint_english_language(self):
+    def test_plan_endpoint_english_language(self) -> None:
         """Test /plan endpoint with English language (lines 753-765)"""
         response = self.client.post(
             "/plan",
@@ -159,6 +145,7 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "Personal plan" in data["summary"]
         assert "Steps:" in data["next_steps"][0]
@@ -166,7 +153,7 @@ class TestAppComprehensive97:
         assert "Sleep:" in data["next_steps"][2]
         assert "walk" in data["action"]
 
-    def test_plan_endpoint_english_with_premium(self):
+    def test_plan_endpoint_english_with_premium(self) -> None:
         """Test /plan endpoint with English language and premium (lines 758-765)"""
         response = self.client.post(
             "/plan",
@@ -182,13 +169,14 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["premium"] is True
         assert "premium_reco" in data
         assert "deficit" in data["premium_reco"][0].lower()
         assert "strength" in data["premium_reco"][1].lower()
 
-    def test_plan_endpoint_pregnant_case(self):
+    def test_plan_endpoint_pregnant_case(self) -> None:
         """Test /plan endpoint for pregnant user (category=None case)"""
         response = self.client.post(
             "/plan",
@@ -204,10 +192,11 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["category"] is None  # Pregnant case
 
-    def test_premium_bmr_endpoint_success(self):
+    def test_premium_bmr_endpoint_success(self) -> None:
         """Test /premium_bmr endpoint success path (lines 1173-1238)"""
         response = self.client.post(
             "/premium_bmr",
@@ -222,6 +211,7 @@ class TestAppComprehensive97:
             },
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "bmr" in data
         assert "tdee" in data
@@ -232,7 +222,7 @@ class TestAppComprehensive97:
         assert data["recommended_intake"]["maintenance"] == data["tdee"]["mifflin"]
 
     @patch("core.recommendations.build_nutrition_targets")
-    def test_premium_targets_endpoint_success(self, mock_targets):
+    def test_premium_targets_endpoint_success(self, mock_targets: MagicMock) -> None:
         """Test /premium_targets endpoint success path (lines 1265-1339)"""
         # Mock nutrition targets
         mock_targets_obj = MagicMock()
@@ -268,12 +258,13 @@ class TestAppComprehensive97:
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             assert data["kcal_daily"] == 2000
             assert data["macros"]["protein_g"] == 150
             assert data["water_ml"] == 2500
 
-    def test_premium_targets_endpoint_not_available(self):
+    def test_premium_targets_endpoint_not_available(self) -> None:
         """Test /premium_targets when feature not available (lines 1271-1274)"""
         with patch("core.recommendations.build_nutrition_targets", None):
             response = self.client.post(
@@ -292,7 +283,7 @@ class TestAppComprehensive97:
             assert response.status_code == 503
 
     @patch("core.recommendations.build_nutrition_targets")
-    def test_premium_targets_with_safety_warnings(self, mock_targets):
+    def test_premium_targets_with_safety_warnings(self, mock_targets: MagicMock) -> None:
         """Test /premium_targets with safety validation (lines 1305-1320)"""
         mock_targets_obj = MagicMock()
         mock_targets_obj.kcal_daily = 2000
@@ -330,11 +321,12 @@ class TestAppComprehensive97:
                     headers={"X-API-Key": "test_key"},
                 )
                 assert response.status_code == 200
+                assert response.headers["content-type"].startswith("application/json")
                 data = response.json()
                 assert "warnings" in data
                 assert len(data["warnings"]) >= 1
 
-    def test_bmi_endpoint_waist_risk_calculation(self):
+    def test_bmi_endpoint_waist_risk_calculation(self) -> None:
         """Test BMI endpoint with waist risk calculation"""
         response = self.client.post(
             "/bmi",
@@ -352,7 +344,7 @@ class TestAppComprehensive97:
         assert response.status_code == 200
         # Should include waist risk warning in notes
 
-    def test_plan_endpoint_athlete_case(self):
+    def test_plan_endpoint_athlete_case(self) -> None:
         """Test /plan endpoint for athlete"""
         response = self.client.post(
             "/plan",
@@ -370,7 +362,7 @@ class TestAppComprehensive97:
         assert response.status_code == 200
         # Should use athlete BMI category
 
-    def test_premium_targets_import_error_handling(self):
+    def test_premium_targets_import_error_handling(self) -> None:
         """Test premium_targets safety validation import error handling (lines 1315-1320)"""
         with patch("core.recommendations.build_nutrition_targets") as mock_targets:
             mock_targets_obj = MagicMock()

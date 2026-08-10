@@ -12,8 +12,6 @@ Tests cover:
 - Error handling and edge cases
 """
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -22,13 +20,10 @@ from app.middleware.api_tiers import TEST_KEY_PRO
 from app.services import pro_nutrition_plate
 from app.services.pro_nutrition_targets import WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
 
-# Import the FastAPI app from the app package
-from app import app
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
 )
-from tests._client import open_test_client
 
 
 class TestEnhancedPlateAPI:
@@ -37,14 +32,9 @@ class TestEnhancedPlateAPI:
     client: TestClient
 
     @pytest.fixture(autouse=True)
-    def _managed_client(self) -> Iterator[None]:
-        """Own one function-scoped app lifespan for every class test."""
-        with open_test_client(app) as managed_client:
-            self.client = managed_client
-            try:
-                yield
-            finally:
-                del self.client
+    def _bind_client(self, client: TestClient) -> None:
+        """Expose the canonical function-scoped client to class tests."""
+        self.client = client
 
     def test_plate_contract_basic(self) -> None:
         """Test basic plate API contract with all required fields."""
@@ -98,6 +88,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         layout = data["layout"]
@@ -137,6 +128,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         portions = data["portions"]
@@ -174,6 +166,7 @@ class TestEnhancedPlateAPI:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             # Higher deficit should mean fewer calories
             assert data["kcal"] >= 1200  # Minimum safety threshold
@@ -185,6 +178,7 @@ class TestEnhancedPlateAPI:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             assert data["kcal"] > 2000  # Should be above maintenance
 
@@ -205,6 +199,7 @@ class TestEnhancedPlateAPI:
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
@@ -216,6 +211,7 @@ class TestEnhancedPlateAPI:
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
@@ -228,6 +224,7 @@ class TestEnhancedPlateAPI:
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
@@ -249,6 +246,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         macros = data["macros"]
@@ -933,6 +931,7 @@ class TestEnhancedPlateAPI:
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             results[goal] = response.json()
 
         # Loss should have fewer calories than maintenance
@@ -1016,6 +1015,7 @@ class TestEnhancedPlateAPI:
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals = data["meals"]
@@ -1050,6 +1050,7 @@ class TestEnhancedPlateAPI:
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["kcal"] >= 1000  # Should be reasonable for small adult
 
@@ -1068,6 +1069,7 @@ class TestEnhancedPlateAPI:
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["kcal"] > 3000  # Should be very high calories
 

@@ -4,25 +4,13 @@ RU: Тест ES локализации для /api/v1/premium/targets (snapshot 
 EN: Test ES localization for /api/v1/premium/targets (snapshot test).
 """
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi.testclient import TestClient
-
-import app as app_mod
-from tests._client import open_test_client
-
-
-@pytest.fixture
-def premium_targets_i18n_client() -> Iterator[TestClient]:
-    """Open one managed client for the exact imported application."""
-    with open_test_client(app_mod.app) as managed_client:
-        yield managed_client
 
 
 @pytest.mark.parametrize("lang", ["es"])
 def test_premium_targets_es_localization(
-    premium_targets_i18n_client: TestClient,
+    client: TestClient,
     lang: str,
 ) -> None:
     """Test Spanish localization for premium targets endpoint."""
@@ -37,9 +25,7 @@ def test_premium_targets_es_localization(
         "lang": lang,
     }
 
-    resp = premium_targets_i18n_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
 
@@ -77,7 +63,7 @@ def test_premium_targets_es_localization(
 
 
 def test_premium_targets_es_life_stage_warnings(
-    premium_targets_i18n_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test Spanish life stage warnings specifically."""
     test_cases = [
@@ -120,7 +106,7 @@ def test_premium_targets_es_life_stage_warnings(
             "lang": "es",
         }
 
-        resp = premium_targets_i18n_client.post(
+        resp = client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
@@ -144,7 +130,7 @@ def test_premium_targets_es_life_stage_warnings(
 
 
 def test_premium_targets_es_snapshot_values(
-    premium_targets_i18n_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test that Spanish localization returns consistent values (snapshot test)."""
     payload = {
@@ -158,9 +144,7 @@ def test_premium_targets_es_snapshot_values(
         "lang": "es",
     }
 
-    resp = premium_targets_i18n_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
 
@@ -191,7 +175,7 @@ def test_premium_targets_es_snapshot_values(
 
 
 def test_premium_targets_es_multilingual_consistency(
-    premium_targets_i18n_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test that Spanish responses are consistent with other languages."""
     base_payload = {
@@ -210,7 +194,7 @@ def test_premium_targets_es_multilingual_consistency(
 
     for lang in languages:
         payload = {**base_payload, "lang": lang}
-        resp = premium_targets_i18n_client.post(
+        resp = client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
@@ -237,7 +221,7 @@ def test_premium_targets_es_multilingual_consistency(
 
 
 def test_premium_targets_es_special_cases(
-    premium_targets_i18n_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test Spanish localization for special cases."""
     # Test with pregnant woman
@@ -252,9 +236,7 @@ def test_premium_targets_es_special_cases(
         "lang": "es",
     }
 
-    resp = premium_targets_i18n_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
 
@@ -280,9 +262,7 @@ def test_premium_targets_es_special_cases(
         "lang": "es",
     }
 
-    resp = premium_targets_i18n_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
 

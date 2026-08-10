@@ -4,20 +4,8 @@ RU: Тест предупреждений по жизненным этапам �
 EN: Test life stage warnings for /api/v1/premium/targets.
 """
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi.testclient import TestClient
-
-import app as app_mod
-from tests._client import open_test_client
-
-
-@pytest.fixture
-def premium_targets_lifestage_client() -> Iterator[TestClient]:
-    """Open one managed client for the exact imported application."""
-    with open_test_client(app_mod.app) as managed_client:
-        yield managed_client
 
 
 @pytest.mark.parametrize(
@@ -32,7 +20,7 @@ def premium_targets_lifestage_client() -> Iterator[TestClient]:
 )
 @pytest.mark.parametrize("lang", ["ru", "en", "es"])
 def test_life_stage_warnings(
-    premium_targets_lifestage_client: TestClient,
+    client: TestClient,
     case: dict[str, object],
     lang: str,
 ) -> None:
@@ -47,9 +35,7 @@ def test_life_stage_warnings(
         "life_stage": case["life_stage"],
         "lang": lang,
     }
-    resp = premium_targets_lifestage_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
     data = resp.json()
@@ -69,7 +55,7 @@ def test_life_stage_warnings(
 
 
 def test_life_stage_warnings_no_warnings(
-    premium_targets_lifestage_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test that no life-stage warnings are generated for a normal adult."""
     payload = {
@@ -82,9 +68,7 @@ def test_life_stage_warnings_no_warnings(
         "life_stage": "adult",
         "lang": "en",
     }
-    resp = premium_targets_lifestage_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
     data = resp.json()
@@ -97,7 +81,7 @@ def test_life_stage_warnings_no_warnings(
 
 
 def test_life_stage_warnings_localization(
-    premium_targets_lifestage_client: TestClient,
+    client: TestClient,
 ) -> None:
     """Test that warnings are properly localized."""
     payload = {
@@ -110,9 +94,7 @@ def test_life_stage_warnings_localization(
         "life_stage": "teen",
         "lang": "ru",
     }
-    resp = premium_targets_lifestage_client.post(
-        "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/json")
     data = resp.json()

@@ -5,50 +5,39 @@ RU: Рабочие тесты для покрытия модуля app, не mai
 скорректирован для一致ности с импортами).
 """
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
 from app.middleware.api_tiers import TEST_KEY_VIP
-from tests._client import open_test_client
 
 
 @pytest.fixture
-def working_endpoints_client() -> Iterator[TestClient]:
-    """Open one managed working_endpoints_client for the exact imported application."""
-    with open_test_client(app) as managed_client:
-        yield managed_client
-
-
-@pytest.fixture
-def premium_working_endpoints_client(
+def premium_client(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[TestClient]:
-    """Open a managed client with one fixture-scoped premium API key."""
+) -> TestClient:
+    """Return the canonical client with one fixture-scoped premium API key."""
     monkeypatch.setenv("API_KEY", "test_key_123")
-    with open_test_client(app) as managed_client:
-        yield managed_client
+    return client
 
 
 @pytest.fixture
 def insight_disabled_client(
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[TestClient]:
-    """Open a managed client with the insight feature deterministically disabled."""
+) -> TestClient:
+    """Return the canonical client with the insight feature disabled."""
     monkeypatch.setenv("FEATURE_INSIGHT", "false")
-    with open_test_client(app) as managed_client:
-        yield managed_client
+    return client
 
 
 class TestWorkingEndpointCoverage:
     """Рабочие тесты для эндпоинтов с правильными данными"""
 
-    def test_bmi_endpoints_working(self, working_endpoints_client: TestClient) -> None:
+    def test_bmi_endpoints_working(self, client: TestClient) -> None:
         """Тест BMI endpoints с правильными данными"""
         # Legacy BMI endpoint (использует height_m)
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": 70.0,
@@ -62,15 +51,15 @@ class TestWorkingEndpointCoverage:
         assert response.status_code == 200
 
         # V1 BMI endpoint без API key (использует height_cm)
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/bmi",
             json={"weight_kg": 70.0, "height_cm": 170.0, "group": "general"},
         )
         assert response.status_code == 200
 
-    def test_bodyfat_endpoint_working(self, working_endpoints_client: TestClient) -> None:
+    def test_bodyfat_endpoint_working(self, client: TestClient) -> None:
         """Тест bodyfat endpoint с правильными данными"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/bodyfat",
             json={
                 "weight_kg": 70.0,
@@ -85,11 +74,11 @@ class TestWorkingEndpointCoverage:
 
     def test_premium_endpoints_with_api_key(
         self,
-        premium_working_endpoints_client: TestClient,
+        premium_client: TestClient,
     ) -> None:
         """Тест premium endpoints с API ключом"""
         # BMR endpoint
-        response = premium_working_endpoints_client.post(
+        response = premium_client.post(
             "/api/v1/premium/bmr",
             headers={"X-API-Key": "test_key_123"},
             json={
@@ -103,7 +92,7 @@ class TestWorkingEndpointCoverage:
         assert response.status_code == 200
 
         # Enhanced plate endpoint
-        response = premium_working_endpoints_client.post(
+        response = premium_client.post(
             "/api/v1/premium/plate",
             headers={"X-API-Key": "test_key_123"},
             json={
@@ -117,9 +106,9 @@ class TestWorkingEndpointCoverage:
         )
         assert response.status_code == 200
 
-    def test_weekly_plan_endpoint(self, working_endpoints_client: TestClient) -> None:
+    def test_weekly_plan_endpoint(self, client: TestClient) -> None:
         """Тест weekly plan endpoint"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/premium/plan/week",
             json={
                 "sex": "male",
@@ -134,36 +123,36 @@ class TestWorkingEndpointCoverage:
         assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": "Invalid API Key"}
 
-    def test_misc_endpoints(self, working_endpoints_client: TestClient) -> None:
+    def test_misc_endpoints(self, client: TestClient) -> None:
         """Тест различных вспомогательных endpoints"""
         # Health checks
-        response = working_endpoints_client.get("/health")
+        response = client.get("/health")
         assert response.status_code == 200
 
-        response = working_endpoints_client.get("/api/v1/health")
+        response = client.get("/api/v1/health")
         assert response.status_code == 200
 
         # Privacy
-        response = working_endpoints_client.get("/privacy")
+        response = client.get("/privacy")
         assert response.status_code == 200
 
         # Metrics
-        response = working_endpoints_client.get("/metrics")
+        response = client.get("/metrics")
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/plain")
 
         # Root page
-        response = working_endpoints_client.get("/")
+        response = client.get("/")
         assert response.status_code == 200
 
 
 class TestEdgeCasesAndErrorPaths:
     """Тест edge cases и error paths"""
 
-    def test_validation_error_paths(self, working_endpoints_client: TestClient) -> None:
+    def test_validation_error_paths(self, client: TestClient) -> None:
         """Тест различных validation errors"""
         # BMI с отрицательным весом (legacy endpoint использует height_m)
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": -10.0,
@@ -177,7 +166,7 @@ class TestEdgeCasesAndErrorPaths:
         assert response.status_code == 422
 
         # BMI с нулевым ростом (legacy endpoint)
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": 70.0,
@@ -191,7 +180,7 @@ class TestEdgeCasesAndErrorPaths:
         assert response.status_code == 422
 
         # Bodyfat с невалидным полом
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/bodyfat",
             json={
                 "weight_kg": 70.0,
@@ -204,10 +193,10 @@ class TestEdgeCasesAndErrorPaths:
         )
         assert response.status_code == 422
 
-    def test_auth_error_paths(self, working_endpoints_client: TestClient) -> None:
+    def test_auth_error_paths(self, client: TestClient) -> None:
         """Тест authentication error paths"""
         # Premium endpoint без ключа
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/premium/bmr",
             json={
                 "weight_kg": 70.0,
@@ -220,7 +209,7 @@ class TestEdgeCasesAndErrorPaths:
         assert response.status_code == 403
 
         # Premium endpoint с неправильным ключом
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/premium/bmr",
             headers={"X-API-Key": "wrong_key"},
             json={
@@ -233,9 +222,9 @@ class TestEdgeCasesAndErrorPaths:
         )
         assert response.status_code == 403
 
-    def test_malformed_json_paths(self, working_endpoints_client: TestClient) -> None:
+    def test_malformed_json_paths(self, client: TestClient) -> None:
         """Тест malformed JSON handling"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             content="invalid json",
             headers={"Content-Type": "application/json"},
@@ -243,7 +232,7 @@ class TestEdgeCasesAndErrorPaths:
         assert response.status_code == 422
 
         # Пустой JSON
-        response = working_endpoints_client.post("/bmi", json={})
+        response = client.post("/bmi", json={})
         assert response.status_code == 422
 
     def test_insight_endpoints_disabled(self, insight_disabled_client: TestClient) -> None:
@@ -263,9 +252,9 @@ class TestEdgeCasesAndErrorPaths:
 class TestSpecialGroups:
     """Тестирование special groups для BMI"""
 
-    def test_pregnant_group(self, working_endpoints_client: TestClient) -> None:
+    def test_pregnant_group(self, client: TestClient) -> None:
         """Тест pregnant group"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": 70.0,
@@ -278,9 +267,9 @@ class TestSpecialGroups:
         )
         assert response.status_code == 200
 
-    def test_athlete_group(self, working_endpoints_client: TestClient) -> None:
+    def test_athlete_group(self, client: TestClient) -> None:
         """Тест athlete group"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": 80.0,
@@ -293,9 +282,9 @@ class TestSpecialGroups:
         )
         assert response.status_code == 200
 
-    def test_elderly_group(self, working_endpoints_client: TestClient) -> None:
+    def test_elderly_group(self, client: TestClient) -> None:
         """Тест elderly group"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": 75.0,
@@ -312,9 +301,9 @@ class TestSpecialGroups:
 class TestComprehensiveParameterCombinations:
     """Тест различных комбинаций параметров"""
 
-    def test_bmi_with_waist_risk(self, working_endpoints_client: TestClient) -> None:
+    def test_bmi_with_waist_risk(self, client: TestClient) -> None:
         """Тест BMI с waist risk calculation"""
-        response = working_endpoints_client.post(
+        response = client.post(
             "/bmi",
             json={
                 "weight_kg": 90.0,
@@ -332,10 +321,10 @@ class TestComprehensiveParameterCombinations:
         # Может содержать waist_risk в зависимости от логики
         assert "bmi" in data
 
-    def test_bodyfat_all_formulas(self, working_endpoints_client: TestClient) -> None:
+    def test_bodyfat_all_formulas(self, client: TestClient) -> None:
         """Тест bodyfat со всеми доступными формулами"""
         # Navy formula (мужчины)
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/bodyfat",
             json={
                 "weight_kg": 80.0,
@@ -349,7 +338,7 @@ class TestComprehensiveParameterCombinations:
         assert response.status_code == 200
 
         # Navy formula (женщины)
-        response = working_endpoints_client.post(
+        response = client.post(
             "/api/v1/bodyfat",
             json={
                 "weight_kg": 65.0,
@@ -365,11 +354,11 @@ class TestComprehensiveParameterCombinations:
 
     def test_bmr_all_scenarios(
         self,
-        premium_working_endpoints_client: TestClient,
+        premium_client: TestClient,
     ) -> None:
         """Тест BMR endpoint со всеми сценариями"""
         # Мужчина с bodyfat
-        response = premium_working_endpoints_client.post(
+        response = premium_client.post(
             "/api/v1/premium/bmr",
             headers={"X-API-Key": "test_key_123"},
             json={
@@ -384,7 +373,7 @@ class TestComprehensiveParameterCombinations:
         assert response.status_code == 200
 
         # Женщина без bodyfat
-        response = premium_working_endpoints_client.post(
+        response = premium_client.post(
             "/api/v1/premium/bmr",
             headers={"X-API-Key": "test_key_123"},
             json={

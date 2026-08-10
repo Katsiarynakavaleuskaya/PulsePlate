@@ -5,16 +5,13 @@ RU: Тесты для API недельного плана.
 EN: Tests for the weekly plan API.
 """
 
-from collections.abc import Iterator
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
 import app.routers.legacy_premium_weekly_plan as weekly_plan_router
-from tests._client import open_test_client
 
 _TARGETS_ONLY_DETAIL = (
     "Targets-based weekly plans are not supported on this endpoint. "
@@ -41,17 +38,8 @@ def _fake_weekly_menu_builder(_profile: object) -> dict[str, Any]:
     }
 
 
-@pytest.fixture
-def week_plan_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """Open one function-scoped managed client for the canonical app."""
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    with open_test_client(app) as managed_client:
-        yield managed_client
-
-
 def test_week_plan_with_targets(
-    week_plan_client: TestClient,
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Targets-only callers receive exact migration guidance after authentication."""
@@ -82,19 +70,20 @@ def test_week_plan_with_targets(
         "lang": "en",
     }
 
-    response = week_plan_client.post(
+    response = client.post(
         "/api/v1/premium/plan/week",
         json=test_data,
         headers={"X-API-Key": "test_key"},
     )
 
     assert response.status_code == 422, response.text
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"detail": _TARGETS_ONLY_DETAIL}
     builder.assert_not_called()
 
 
 def test_week_plan_with_profile(
-    week_plan_client: TestClient,
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test generating a week plan with user profile."""
@@ -117,13 +106,14 @@ def test_week_plan_with_profile(
         "lang": "en",
     }
 
-    response = week_plan_client.post(
+    response = client.post(
         "/api/v1/premium/plan/week",
         json=test_data,
         headers={"X-API-Key": "test_key"},
     )
 
     assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     assert data["week_summary"] == {
         "week_start": "2026-03-09",
@@ -139,7 +129,7 @@ def test_week_plan_with_profile(
 
 
 def test_week_plan_multilingual(
-    week_plan_client: TestClient,
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Targets-only migration guidance remains exact across languages."""
@@ -174,20 +164,21 @@ def test_week_plan_multilingual(
         test_data = targets_data.copy()
         test_data["lang"] = lang
 
-        response = week_plan_client.post(
+        response = client.post(
             "/api/v1/premium/plan/week",
             json=test_data,
             headers={"X-API-Key": "test_key"},
         )
 
         assert response.status_code == 422, response.text
+        assert response.headers["content-type"].startswith("application/json")
         assert response.json() == {"detail": _TARGETS_ONLY_DETAIL}
 
     builder.assert_not_called()
 
 
 def test_week_plan_missing_data(
-    week_plan_client: TestClient,
+    client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that the API handles missing data correctly."""
@@ -201,13 +192,14 @@ def test_week_plan_missing_data(
     # Test data with missing required fields
     test_data = {"diet_flags": [], "lang": "en"}
 
-    response = week_plan_client.post(
+    response = client.post(
         "/api/v1/premium/plan/week",
         json=test_data,
         headers={"X-API-Key": "test_key"},
     )
 
     assert response.status_code == 422, response.text
+    assert response.headers["content-type"].startswith("application/json")
     detail = response.json()["detail"]
     assert isinstance(detail, list)
     assert len(detail) == 1

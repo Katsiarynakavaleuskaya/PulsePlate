@@ -6,17 +6,14 @@
 Стратегия: создать функцию make_weekly_menu и заставить код выполниться
 """
 
-from collections.abc import Iterator
 from typing import Any, NoReturn
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app.routers.legacy_premium_weekly_plan as weekly_plan_router
 import app.routers.vip as vip_router
-from tests._client import open_test_client
 
 
 def _valid_payload() -> dict[str, Any]:
@@ -65,24 +62,12 @@ def _fake_weekly_menu_builder(
     }
 
 
-@pytest.fixture
-def weekly_planning_client(
-    app: FastAPI,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[TestClient]:
-    """Open one managed client for the canonical fixture-owned application."""
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    with open_test_client(app) as managed_client:
-        yield managed_client
-
-
 class TestWeeklyPlanningBlocks:
     """Специальные тесты для блоков 1265-1339 и 1435-1501"""
 
     def test_weekly_planning_mock_success(
         self,
-        weekly_planning_client: TestClient,
+        client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The exact consumer binding drives the canonical success path."""
@@ -93,7 +78,7 @@ class TestWeeklyPlanningBlocks:
             lambda: builder,
         )
 
-        response = weekly_planning_client.post(
+        response = client.post(
             "/api/v1/premium/plan/week",
             headers={"X-API-Key": "test_key"},
             json=_valid_payload(),
@@ -120,7 +105,7 @@ class TestWeeklyPlanningBlocks:
 
     def test_weekly_planning_executor_value_error_is_static_400(
         self,
-        weekly_planning_client: TestClient,
+        client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The legacy alias sanitizes a canonical executor ValueError."""
@@ -134,7 +119,7 @@ class TestWeeklyPlanningBlocks:
             lambda: _raise_value_error,
         )
 
-        response = weekly_planning_client.post(
+        response = client.post(
             "/api/v1/premium/plan/week",
             headers={"X-API-Key": "test_key"},
             json=_valid_payload(),
@@ -147,7 +132,7 @@ class TestWeeklyPlanningBlocks:
 
     def test_weekly_planning_builder_unavailable_is_exact_503(
         self,
-        weekly_planning_client: TestClient,
+        client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """An unavailable canonical builder short-circuits with the exact 503."""
@@ -163,7 +148,7 @@ class TestWeeklyPlanningBlocks:
             executor,
         )
 
-        response = weekly_planning_client.post(
+        response = client.post(
             "/api/v1/premium/plan/week",
             headers={"X-API-Key": "test_key"},
             json=_valid_payload(),
@@ -176,7 +161,7 @@ class TestWeeklyPlanningBlocks:
 
     def test_weekly_planning_getter_failure_is_sanitized_500(
         self,
-        weekly_planning_client: TestClient,
+        client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A broken canonical getter fails closed without leaking its detail."""
@@ -196,7 +181,7 @@ class TestWeeklyPlanningBlocks:
             executor,
         )
 
-        response = weekly_planning_client.post(
+        response = client.post(
             "/api/v1/premium/plan/week",
             headers={"X-API-Key": "test_key"},
             json=_valid_payload(),

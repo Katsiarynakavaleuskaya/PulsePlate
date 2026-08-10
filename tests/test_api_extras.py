@@ -1,31 +1,19 @@
 # -*- coding: utf-8 -*-
-from collections.abc import Iterator
-
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app import app
-from tests._client import open_test_client
 
-
-@pytest.fixture
-def api_extras_client() -> Iterator[TestClient]:
-    """Open one function-scoped managed client for the canonical app."""
-    with open_test_client(app) as managed_client:
-        yield managed_client
-
-
-def test_bmi_422_missing_fields(api_extras_client: TestClient) -> None:
+def test_bmi_422_missing_fields(client: TestClient) -> None:
     # пустой payload -> 422
-    r = api_extras_client.post("/api/v1/bmi", json={}, headers={"X-API-Key": "test_key"})
+    r = client.post("/api/v1/bmi", json={}, headers={"X-API-Key": "test_key"})
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert r.headers["content-type"].startswith("application/json")
     assert isinstance(r.json()["detail"], list)
 
     # отрицательные значения -> 422
     bad = {"weight_kg": -1, "height_cm": 0, "group": "general"}
-    r2 = api_extras_client.post("/api/v1/bmi", json=bad, headers={"X-API-Key": "test_key"})
+    r2 = client.post("/api/v1/bmi", json=bad, headers={"X-API-Key": "test_key"})
     assert r2.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert r2.headers["content-type"].startswith("application/json")
     assert isinstance(r2.json()["detail"], list)
@@ -41,12 +29,12 @@ def test_bmi_422_missing_fields(api_extras_client: TestClient) -> None:
     ],
 )
 def test_bmi_categories_via_api(
-    api_extras_client: TestClient,
+    client: TestClient,
     weight: float,
     height: float,
     expected_cat: str,
 ) -> None:
-    r = api_extras_client.post(
+    r = client.post(
         "/api/v1/bmi",
         json={"weight_kg": weight, "height_cm": height, "group": "general"},
         headers={"X-API-Key": "test_key"},
@@ -56,19 +44,19 @@ def test_bmi_categories_via_api(
     assert r.json()["category"].startswith(expected_cat)
 
 
-def test_openapi_and_docs_exist(api_extras_client: TestClient) -> None:
+def test_openapi_and_docs_exist(client: TestClient) -> None:
     # /openapi.json
-    r = api_extras_client.get("/openapi.json")
+    r = client.get("/openapi.json")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/json")
     data = r.json()
     assert "paths" in data and isinstance(data["paths"], dict)
 
     # /docs (Swagger UI)
-    r2 = api_extras_client.get("/docs")
+    r2 = client.get("/docs")
     assert r2.status_code == status.HTTP_200_OK
     assert r2.headers["content-type"].startswith("text/html")
     # /redoc (ReDoc UI)
-    r3 = api_extras_client.get("/redoc")
+    r3 = client.get("/redoc")
     assert r3.status_code == status.HTTP_200_OK
     assert r3.headers["content-type"].startswith("text/html")

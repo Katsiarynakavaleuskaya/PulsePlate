@@ -4,14 +4,10 @@ RU: Тест агрегации микронутриентов в /api/v1/premiu
 EN: Test micronutrient aggregation in /api/v1/premium/plate.
 """
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi.testclient import TestClient
 
-import app as app_mod
 from app.services import pro_nutrition_plate
-from tests._client import open_test_client
 
 _TEST_MICROS: dict[str, float] = {
     "iron_mg": 3.0,
@@ -42,16 +38,18 @@ async def _deterministic_day_micros(
 
 
 @pytest.fixture
-def premium_plate_micros_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """Open one managed client with deterministic micronutrient evidence."""
+def premium_plate_micros_client(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> TestClient:
+    """Return the canonical client with deterministic micronutrient evidence."""
     monkeypatch.setattr(
         pro_nutrition_plate,
         "_aggregate_day_micronutrients",
         _deterministic_day_micros,
     )
 
-    with open_test_client(app_mod.app) as managed_client:
-        yield managed_client
+    return client
 
 
 def _assert_deterministic_micros(data: dict[str, object]) -> None:
