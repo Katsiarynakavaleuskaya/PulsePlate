@@ -4,25 +4,14 @@ Real functional tests for main.py endpoints without mocks
 Targets major uncovered blocks: /bmi, /plan endpoints with real data
 """
 
-from typing import Generator
-
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from tests._client import open_test_client
 
 
-@pytest.fixture
-def client(
-    app: FastAPI,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[TestClient, None, None]:
-    """Open the client after installing the class test environment."""
+@pytest.fixture(autouse=True)
+def _setup_client_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the class environment before the shared client starts."""
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-    with open_test_client(app) as managed_client:
-        yield managed_client
 
 
 class TestAppReal97Coverage:

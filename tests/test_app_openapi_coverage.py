@@ -3,20 +3,7 @@
 Покрывает строки: 2271-2272, 2372, 2400-2426
 """
 
-from typing import Any, Generator
-
-import pytest
-from fastapi.testclient import TestClient
-
-from tests._client import open_test_client
-
-
-@pytest.fixture()
-def client(test_environment: None) -> Generator[TestClient, None, None]:
-    import app
-
-    with open_test_client(app.app) as managed_client:
-        yield managed_client
+from typing import Any
 
 
 def _assert_json_content_type(response: Any) -> None:

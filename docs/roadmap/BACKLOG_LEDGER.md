@@ -1788,6 +1788,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `core/food_apis/unified_db.py:497` (partial cache publication)
     - `core/food_apis/openfoodfacts_client.py:158` (OFF request boundary)
     - `tests/test_app_premium_week_bmi_flow.py`
+    - Origin observation (TC2-03 enabled-Hypothesis audit, 2026-08-10):
+      repo-resolved pytest node
+      `tests/disabled_hypothesis/test_premium_week_hypothesis_simple.py::TestPremiumWeekHypothesisSimple::test_generate_week_plan_simple_hypothesis`
+      produced a first example at `128460.88 ms` against the `10000 ms`
+      deadline, a later replay at `6.66 ms`, an Open Food Facts `503`, and a
+      `14/20` common-food cache log. This non-repeatable live-provider
+      observation establishes origin and priority only; the target PR must
+      replace it with the deterministic fake-provider proof required below.
     - [`ledger-p1-external-food-source-policy-enforcement`](#ledger-p1-external-food-source-policy-enforcement)
     - [`ledger-p1-food-data-source-update-preflight`](#ledger-p1-food-data-source-update-preflight)
     - [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
@@ -1795,9 +1803,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - A deterministic fake-provider test proves the exact provider-call count
       for cold, partial, complete, degraded, and warm-cache paths
-    - A versioned manifest distinguishes exact `0/20`, `14/20`, and `20/20`
-      completeness states and the warm path never treats a partial state as
-      complete
+    - A versioned manifest records the exact expected item set; cache
+      completeness requires exact manifest membership, not only item count,
+      and the warm path rejects every partial or mismatched set
+    - Deterministic tests cover `0/20`, the observed `14/20`, another partial
+      count, exact `20/20`, and a 20-item cache with incorrect membership
     - External food loading is bounded or prewarmed outside the paid request
       critical path, with an explicit timeout and retry budget
     - Cache publication is atomic: data and completeness metadata become

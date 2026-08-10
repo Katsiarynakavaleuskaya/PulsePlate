@@ -3,21 +3,9 @@
 Покрывает строки: 2095, 2118, 2151, 2153
 """
 
-from typing import Generator
-
-import pytest
 from fastapi.testclient import TestClient
 
-from tests._client import open_test_client
 from tests._helpers.api_headers import API_KEY_HEADERS
-
-
-@pytest.fixture()
-def client(test_environment: None) -> Generator[TestClient, None, None]:
-    import app
-
-    with open_test_client(app.app) as managed_client:
-        yield managed_client
 
 
 class TestAppRouterInclusionCoverage:

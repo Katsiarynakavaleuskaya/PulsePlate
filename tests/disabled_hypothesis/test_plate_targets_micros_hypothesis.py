@@ -1,6 +1,8 @@
-"""
-Hypothesis-based integration tests for Plate → Targets micros coverage.
-Focus on Fe/Ca/Mg/K micronutrient coverage and day_micros collection.
+"""Hypothesis HTTP-contract tests for Plate → Targets micros wiring.
+
+The controlled aggregation seam keeps lifecycle and response-shape coverage
+deterministic; it does not prove RecipeDB/FoodDB identity or source-data
+completeness. Those production integration requirements are tracked separately.
 """
 
 from collections.abc import Generator
@@ -40,7 +42,7 @@ async def _deterministic_day_micros(
 
 
 class TestPlateTargetsMicrosHypothesis:
-    """Hypothesis-based tests for Plate → Targets micros integration."""
+    """Exercise Plate → Targets transport wiring with controlled micros."""
 
     @pytest.fixture(autouse=True)
     def _bind_client(
@@ -48,7 +50,7 @@ class TestPlateTargetsMicrosHypothesis:
         monkeypatch: pytest.MonkeyPatch,
         request: pytest.FixtureRequest,
     ) -> Generator[None, None, None]:
-        """Bind the managed shared client with the required test environment."""
+        """Bind the shared client and isolate only the aggregation boundary."""
         monkeypatch.setenv("API_KEY", "test_key")
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
         monkeypatch.setattr(
@@ -81,7 +83,7 @@ class TestPlateTargetsMicrosHypothesis:
         activity: str,
         goal: str,
     ):
-        """Test Plate → Targets micros integration with Hypothesis."""
+        """Test Plate → Targets transport wiring with controlled micros."""
         base_payload = {
             "sex": sex,
             "age": age,
