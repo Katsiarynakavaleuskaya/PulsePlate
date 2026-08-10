@@ -5794,6 +5794,7 @@ def _recordless_seed_coverage(
     fix_pushed_at: str | None = "2026-07-15T09:00:00Z",
     fix_subject: str = "fix",
     empty_fix: bool = False,
+    fingerprint_matches: bool = True,
     unavailable_kind: CommitRefKind = CommitRefKind.REVIEW_REF_UNAVAILABLE,
 ) -> tuple[set[str], list[tuple[str, str]]]:
     repo = tmp_path / "repo"
@@ -5832,6 +5833,15 @@ def _recordless_seed_coverage(
         pr_number=42,
         material_digest=manifest.digest,
         verified_real_fix_sha=fix_sha,
+    )
+    reply_fingerprint = (
+        fingerprint
+        if fingerprint_matches
+        else unavailable_review_ref_fingerprint(
+            pr_number=42,
+            material_digest=manifest.digest,
+            verified_real_fix_sha="f" * 40,
+        )
     )
     root_urls = tuple(
         f"https://github.com/owner/repo/pull/42#discussion_seed_{index}"
@@ -5878,7 +5888,7 @@ def _recordless_seed_coverage(
                 ),
                 ReviewCommentEvidence(
                     url=f"{url}-reply",
-                    body=_duplicate_reply(fingerprint),
+                    body=_duplicate_reply(reply_fingerprint),
                     created_at=f"2026-07-15T1{index}:30:00Z",
                     author_login="maintainer",
                     author_association="OWNER",
@@ -5969,6 +5979,7 @@ def test_recordless_cardinality_ignores_ineligible_same_fingerprint_seed(
         ({"fix_pushed_at": "2026-07-15T08:00:00Z"}, False),
         ({"empty_fix": True}, False),
         ({"fix_subject": "trigger ci"}, False),
+        ({"fingerprint_matches": False}, False),
         (
             {
                 "seed_count": 2,
@@ -5987,6 +5998,7 @@ def test_recordless_cardinality_ignores_ineligible_same_fingerprint_seed(
         "not-post-comment",
         "empty-fix",
         "trigger-subject",
+        "fingerprint-mismatch",
         "api-unknown",
     ),
 )
