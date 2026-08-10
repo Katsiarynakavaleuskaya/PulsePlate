@@ -56,6 +56,7 @@ from scripts.orchestration.pr_commit_identity import (
     is_ancestor,
 )
 from scripts.orchestration.pr_review_evidence import (
+    TRIGGER_ONLY_COMMIT_SUBJECT_RE,
     ReviewEvidenceError,
     parse_embedded_review_seal,
     review_thread_inventory,
@@ -134,12 +135,6 @@ def _parse_iso_datetime(value: str) -> datetime:
 
 # Allow only git rev format (7–40 hex chars) so argv is safe (Sourcery / injection)
 _GIT_SHA_RE = re.compile(r"^[a-f0-9]{7,40}$", re.IGNORECASE)
-
-# Trigger-only commit subject patterns (P1: ban mapping to rerun/trigger commits)
-_TRIGGER_SUBJECT_RE = re.compile(
-    r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
-    re.IGNORECASE,
-)
 
 
 def _git_commit_time_iso(commit_sha: str) -> str:
@@ -235,7 +230,7 @@ def _check_trigger_only_mapping(
             )
             continue
         subject = _git_commit_subject(sha)
-        if _TRIGGER_SUBJECT_RE.search(subject):
+        if TRIGGER_ONLY_COMMIT_SUBJECT_RE.search(subject):
             violations.append(
                 f"{t.url}: mapped to {sha} but commit subject looks like CI rerun/trigger "
                 f"('{subject}'). Trigger-only commits are not valid FIXED proof."
@@ -1249,7 +1244,7 @@ def main() -> None:
                 candidate_urls={thread.url for thread in resolved_threads},
                 threads=thread_evidence,
                 fingerprint_records=records,
-                mapped_fix_shas=frozenset(sha for sha in v1_mapping_entries.values() if sha),
+                mapping_entries=v1_mapping_entries,
                 material_digest=seal["material"]["digest"],
                 material_head_sha=seal["material"]["material_head_sha"],
                 repo_root=REPO_ROOT,

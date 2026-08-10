@@ -318,10 +318,15 @@ mapping-only successor. Its resolved thread root must have `originalCommit`
 equal to that live head and the same frozen material digest. One later
 `OWNER|MEMBER|COLLABORATOR` reply must use the exact closed structured fields;
 its fingerprint must bind the unique real reachable FIX already present in the
-canonical FIXED mappings and cited by the finding. The recordless path covers a
-fingerprint only when exactly one eligible seed is currently visible; if more
-than one is visible, none is covered and all remain blocking. This is a
-current-snapshot cardinality rule, not a historical once-ever claim.
+canonical FIXED mappings and cited by the finding. That FIX must be mapped from
+a live resolved thread root, have a snapshot `pushed_at` strictly after the root
+comment, and be a non-empty, non-trigger-only repository commit. Issue or
+top-level-only mappings remain valid ordinary dispositions but cannot qualify
+this recordless exception. The recordless path groups by fingerprint only after
+full eligibility and covers a fingerprint only when exactly one eligible seed
+is currently visible; ineligible comments do not affect cardinality, while two
+eligible seeds leave both blocking. This is a current-snapshot cardinality rule,
+not a historical once-ever claim.
 
 For both paths, the cited review ref must resolve as unavailable (not
 API-unknown). Finding-local commit
