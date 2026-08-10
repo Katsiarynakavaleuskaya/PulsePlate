@@ -286,7 +286,17 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
         )
     )
 
-    assert observed == [True, False]
+    monkeypatch.delenv("FEATURE_RAG_CONTEXT_COMPACTION", raising=False)
+    asyncio.run(
+        runner.pulseplate_retrieve(
+            state,
+            "third request",
+            top_k=3,
+            subject_id=None,
+        )
+    )
+
+    assert observed == [True, False, False]
 
 
 def test_philosophy_validator_integration_blocks_correctness() -> None:
