@@ -1863,7 +1863,7 @@ def test_late_exception_preserves_observed_compaction_count() -> None:
 
 @pytest.mark.parametrize(
     "invalid_shape",
-    ["substitution", "reorder", "deletion", "malformed_count"],
+    ["substitution", "reorder", "deletion", "malformed_count", "int_subclass_count"],
 )
 def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
     invalid_shape: str,
@@ -1896,6 +1896,9 @@ def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
     def invalid_compaction(
         working_chunks: list[RAGChunk],
     ) -> tuple[list[RAGChunk], int]:
+        class IntSubclass(int):
+            pass
+
         if invalid_shape == "substitution":
             working_chunks[0].content = "mutated non-raising carrier"
             return working_chunks, 0
@@ -1903,6 +1906,8 @@ def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
             return [working_chunks[1], working_chunks[0], working_chunks[2]], 0
         if invalid_shape == "malformed_count":
             return working_chunks, False
+        if invalid_shape == "int_subclass_count":
+            return working_chunks, IntSubclass(0)
         return working_chunks[:-1], 1
 
     with (
@@ -1934,6 +1939,7 @@ def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
     ]
     assert result.rag_actually_used is True
     assert result.chunks_compacted == 0
+    assert type(result.chunks_compacted) is int
     assert result.context_compaction_attempted is True
     assert result.context_compaction_completed is False
     assert result.warnings.count("rag_context_compaction_error: internal failure") == 1

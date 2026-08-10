@@ -25,7 +25,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Sequence, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -848,6 +848,20 @@ def map_orchestration_result_to_retrieved(
         _missing_degraded_reason,
     )
     chunks = list(getattr(orchestration_result, "chunks", []) or [])
+    raw_chunks_retrieved = getattr(orchestration_result, "chunks_retrieved", None)
+    raw_chunks_filtered = getattr(orchestration_result, "chunks_filtered", None)
+    chunks_output = len(chunks)
+    count_inputs_are_exact = (
+        type(raw_chunks_retrieved) is int
+        and raw_chunks_retrieved >= 0
+        and type(raw_chunks_filtered) is int
+        and raw_chunks_filtered >= 0
+    )
+    chunks_pre_compaction = (
+        cast(int, raw_chunks_retrieved) - cast(int, raw_chunks_filtered)
+        if count_inputs_are_exact
+        else None
+    )
     context_compaction_attempted = (
         getattr(orchestration_result, "context_compaction_attempted", False) is True
     )
@@ -860,6 +874,9 @@ def map_orchestration_result_to_retrieved(
         and degraded_reason is None
         and type(raw_chunks_compacted) is int
         and raw_chunks_compacted >= 0
+        and type(chunks_pre_compaction) is int
+        and chunks_pre_compaction >= 0
+        and chunks_pre_compaction == chunks_output + raw_chunks_compacted
     )
     chunks_compacted = raw_chunks_compacted if context_compaction_result_observed else 0
     retrieved = [
@@ -875,14 +892,10 @@ def map_orchestration_result_to_retrieved(
             default=0,
         ),
         "warnings": list(getattr(orchestration_result, "warnings", []) or []),
-        "chunks_retrieved": _safe_int(
-            getattr(orchestration_result, "chunks_retrieved", len(chunks)),
-            default=len(chunks),
-        ),
-        "chunks_filtered": _safe_int(
-            getattr(orchestration_result, "chunks_filtered", 0),
-            default=0,
-        ),
+        "chunks_retrieved": raw_chunks_retrieved,
+        "chunks_filtered": raw_chunks_filtered,
+        "chunks_pre_compaction": chunks_pre_compaction,
+        "chunks_output": chunks_output,
         "recursive_executed": bool(
             getattr(orchestration_result, "recursive_executed", False),
         ),
@@ -990,14 +1003,18 @@ async def retrieve(
             )
             context_compaction_runtime_fallback = context_compaction_enabled is True
     local_retriever = ensure_local_retriever(state)
-    return local_retriever.retrieve(query, top_k=top_k), {
+    local_results = local_retriever.retrieve(query, top_k=top_k)
+    local_result_count = len(local_results)
+    return local_results, {
         "rag_actually_used": bool(local_retriever.chunks),
         "confidence": None,
         "hops": 1,
         "latency_ms": 0,
         "warnings": [],
-        "chunks_retrieved": 0,
+        "chunks_retrieved": local_result_count,
         "chunks_filtered": 0,
+        "chunks_pre_compaction": local_result_count,
+        "chunks_output": local_result_count,
         "recursive_executed": False,
         "degraded_reason": None,
         "formatted_prompt_present": False,
@@ -1844,6 +1861,12 @@ def build_metrics_summary(
         "chunks_compacted",
         "context_compaction_runtime_fallback",
     }
+    compaction_cardinality_fields = {
+        "chunks_retrieved",
+        "chunks_filtered",
+        "chunks_pre_compaction",
+        "chunks_output",
+    }
     context_compaction_summary = {
         "enabled_trace_count": 0,
         "attempted_trace_count": 0,
@@ -1908,8 +1931,35 @@ def build_metrics_summary(
                 context_compaction_malformed = True
             continue
 
+        present_cardinality_fields = compaction_cardinality_fields.intersection(retrieval_stats)
+        if present_cardinality_fields != compaction_cardinality_fields:
+            context_compaction_malformed = True
+            continue
+        chunks_retrieved = retrieval_stats["chunks_retrieved"]
+        chunks_filtered = retrieval_stats["chunks_filtered"]
+        chunks_pre_compaction = retrieval_stats["chunks_pre_compaction"]
+        chunks_output = retrieval_stats["chunks_output"]
+        if (
+            type(chunks_retrieved) is not int
+            or type(chunks_filtered) is not int
+            or type(chunks_pre_compaction) is not int
+            or type(chunks_output) is not int
+            or chunks_retrieved < 0
+            or chunks_filtered < 0
+            or chunks_pre_compaction < 0
+            or chunks_output < 0
+            or chunks_retrieved != chunks_filtered + chunks_pre_compaction
+        ):
+            context_compaction_malformed = True
+            continue
+
         if runtime_fallback is True:
-            if attempted is not False or observed is not False or compacted != 0:
+            if (
+                attempted is not False
+                or observed is not False
+                or compacted != 0
+                or chunks_pre_compaction != chunks_output
+            ):
                 context_compaction_malformed = True
                 continue
             context_compaction_summary["enabled_trace_count"] += 1
@@ -1922,6 +1972,16 @@ def build_metrics_summary(
                 or compacted != 0
                 or rag_actually_used is True
                 or degraded_reason not in ordinary_empty_reasons
+                or chunks_pre_compaction != 0
+                or chunks_output != 0
+                or (
+                    degraded_reason == "RAGDegradedReason.RETRIEVAL_EMPTY"
+                    and (chunks_retrieved != 0 or chunks_filtered != 0)
+                )
+                or (
+                    degraded_reason == "RAGDegradedReason.ALL_CHUNKS_FILTERED"
+                    and (chunks_retrieved == 0 or chunks_filtered != chunks_retrieved)
+                )
             ):
                 context_compaction_malformed = True
                 continue
@@ -1938,6 +1998,9 @@ def build_metrics_summary(
             continue
 
         if degraded_reason is not None:
+            context_compaction_malformed = True
+            continue
+        if chunks_pre_compaction != chunks_output + compacted:
             context_compaction_malformed = True
             continue
 

@@ -46,7 +46,7 @@ def _is_exact_compaction_result(
 ) -> bool:
     """Validate the full ordered exact-carrier postcondition."""
 
-    if isinstance(removed_count, bool) or not isinstance(removed_count, int):
+    if type(removed_count) is not int:
         return False
     expected = _first_occurrence_representatives(original)
     return (
