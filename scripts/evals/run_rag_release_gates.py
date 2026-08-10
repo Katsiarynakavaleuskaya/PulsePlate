@@ -1880,14 +1880,20 @@ def build_metrics_summary(
         observed = retrieval_stats["context_compaction_result_observed"]
         compacted = retrieval_stats["chunks_compacted"]
         runtime_fallback = retrieval_stats["context_compaction_runtime_fallback"]
+        rag_actually_used = retrieval_stats.get("rag_actually_used")
         if (
             type(enabled) is not bool
             or type(attempted) is not bool
             or type(observed) is not bool
             or type(compacted) is not int
             or type(runtime_fallback) is not bool
+            or type(rag_actually_used) is not bool
             or compacted < 0
         ):
+            context_compaction_malformed = True
+            continue
+
+        if observed is True and rag_actually_used is False:
             context_compaction_malformed = True
             continue
 
@@ -1910,7 +1916,7 @@ def build_metrics_summary(
             continue
 
         if attempted is False:
-            if observed is not False or compacted != 0:
+            if observed is not False or compacted != 0 or rag_actually_used is True:
                 context_compaction_malformed = True
                 continue
             context_compaction_summary["enabled_trace_count"] += 1

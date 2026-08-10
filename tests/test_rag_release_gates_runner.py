@@ -646,6 +646,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 7,
                     "context_compaction_runtime_fallback": False,
+                    "rag_actually_used": False,
                 }
             ],
             {
@@ -663,6 +664,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "context_compaction_result_observed": False,
                     "chunks_compacted": 0,
                     "context_compaction_runtime_fallback": False,
+                    "rag_actually_used": False,
                 }
             ],
             {
@@ -680,6 +682,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 0,
                     "context_compaction_runtime_fallback": False,
+                    "rag_actually_used": True,
                 }
             ],
             {
@@ -697,6 +700,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 0,
                     "context_compaction_runtime_fallback": False,
+                    "rag_actually_used": True,
                 },
                 {
                     "context_compaction_enabled": True,
@@ -704,6 +708,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "context_compaction_result_observed": True,
                     "chunks_compacted": 3,
                     "context_compaction_runtime_fallback": False,
+                    "rag_actually_used": True,
                 },
             ],
             {
@@ -777,6 +782,7 @@ def test_gate_d1_requires_complete_aggregate_compaction_observation(
             "context_compaction_result_observed": observed,
             "chunks_compacted": compacted,
             "context_compaction_runtime_fallback": False,
+            "rag_actually_used": attempted,
         }
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
@@ -797,18 +803,18 @@ def test_gate_d1_requires_complete_aggregate_compaction_observation(
     "values",
     [
         (True,),
-        (1, False, False, 0, False),
-        (True, True, True, True, False),
-        (True, True, True, -1, False),
-        (True, True, True, "1", False),
-        (True, True, True, None, False),
-        (True, True, True, 1.0, False),
-        (True, True, True, float("nan"), False),
-        (False, True, False, 0, False),
-        (False, False, True, 0, False),
-        (False, False, False, 1, False),
-        (True, False, True, 0, False),
-        (True, True, False, 1, False),
+        (1, False, False, 0, False, False),
+        (True, True, True, True, False, True),
+        (True, True, True, -1, False, True),
+        (True, True, True, "1", False, True),
+        (True, True, True, None, False, True),
+        (True, True, True, 1.0, False, True),
+        (True, True, True, float("nan"), False, True),
+        (False, True, False, 0, False, False),
+        (False, False, True, 0, False, False),
+        (False, False, False, 1, False, False),
+        (True, False, True, 0, False, True),
+        (True, True, False, 1, False, True),
     ],
     ids=(
         "partial-carrier",
@@ -844,6 +850,7 @@ def test_gate_d1_rejects_malformed_compaction_evidence_carriers(
         "context_compaction_result_observed",
         "chunks_compacted",
         "context_compaction_runtime_fallback",
+        "rag_actually_used",
     )
     traces[0]["retrieval_stats"] = dict(zip(field_names, values, strict=False))
 
@@ -883,6 +890,7 @@ def test_gate_d1_does_not_accept_malformed_observation_as_compensation(
         "context_compaction_result_observed": False,
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
     traces[1]["retrieval_stats"] = {
         "context_compaction_enabled": True,
@@ -890,6 +898,7 @@ def test_gate_d1_does_not_accept_malformed_observation_as_compensation(
         "context_compaction_result_observed": True,
         "chunks_compacted": True,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
@@ -932,6 +941,7 @@ def test_gate_d1_requires_carrier_on_every_non_guard_trace_once_active(
         "context_compaction_result_observed": True,
         "chunks_compacted": 1,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
@@ -973,6 +983,7 @@ def test_gate_d1_allows_guard_blocked_trace_without_carrier_when_active(
         "context_compaction_result_observed": True,
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
@@ -1051,6 +1062,7 @@ def test_gate_d1_rejects_enabled_runtime_fallback_with_observed_peer(
         "context_compaction_result_observed": True,
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
@@ -1079,6 +1091,7 @@ def test_gate_d1_allows_enabled_empty_na_with_observed_peer(tmp_path: Path) -> N
         "context_compaction_result_observed": True,
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
@@ -1088,6 +1101,7 @@ def test_gate_d1_allows_enabled_empty_na_with_observed_peer(tmp_path: Path) -> N
         "context_compaction_result_observed": False,
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": False,
     }
 
     _, gate_checks, release_decision = runner.build_metrics_summary(
@@ -1102,6 +1116,174 @@ def test_gate_d1_allows_enabled_empty_na_with_observed_peer(tmp_path: Path) -> N
     assert release_decision == "PASS"
 
 
+def test_gate_d1_rejects_unattempted_compaction_when_rag_was_used(
+    tmp_path: Path,
+) -> None:
+    """An observed peer cannot compensate for skipped applicable compaction."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_applicability")
+    traces = _passing_release_gate_traces()
+    observed = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
+    }
+    for trace in traces:
+        trace["retrieval_stats"] = dict(observed)
+    traces[0]["retrieval_stats"] = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": False,
+        "context_compaction_result_observed": False,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
+    }
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 3,
+        "attempted_trace_count": 3,
+        "result_observed_trace_count": 3,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
+
+
+@pytest.mark.parametrize(
+    "rag_actually_used",
+    [
+        pytest.param(..., id="missing"),
+        pytest.param(None, id="none"),
+        pytest.param(1, id="integer"),
+        pytest.param("true", id="string"),
+    ],
+)
+def test_gate_d1_rejects_malformed_rag_applicability_metadata(
+    tmp_path: Path,
+    rag_actually_used: object,
+) -> None:
+    """Current compaction carriers require an exact applicability boolean."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_applicability_type")
+    traces = _passing_release_gate_traces()
+    observed = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
+    }
+    for trace in traces:
+        trace["retrieval_stats"] = dict(observed)
+    candidate = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": False,
+        "context_compaction_result_observed": False,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+    }
+    if rag_actually_used is not ...:
+        candidate["rag_actually_used"] = rag_actually_used
+    traces[0]["retrieval_stats"] = candidate
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 3,
+        "attempted_trace_count": 3,
+        "result_observed_trace_count": 3,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
+
+
+@pytest.mark.parametrize(
+    (
+        "candidate_observed",
+        "candidate_rag_used",
+        "expected_enabled_count",
+        "expected_observed_count",
+        "expected_gate",
+    ),
+    [
+        (True, False, 3, 3, False),
+        (True, True, 4, 4, True),
+        (False, False, 4, 3, False),
+        (False, True, 4, 3, False),
+    ],
+    ids=(
+        "observed-without-rag-usage",
+        "observed-with-rag-usage",
+        "rollback-without-rag-usage",
+        "rollback-with-rag-usage",
+    ),
+)
+def test_gate_d1_requires_rag_usage_for_observed_compaction(
+    tmp_path: Path,
+    candidate_observed: bool,
+    candidate_rag_used: bool,
+    expected_enabled_count: int,
+    expected_observed_count: int,
+    expected_gate: bool,
+) -> None:
+    """Observed compaction requires RAG use; rollback may carry either bool."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_observation_usage")
+    traces = _passing_release_gate_traces()
+    observed = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
+    }
+    for trace in traces:
+        trace["retrieval_stats"] = dict(observed)
+    traces[0]["retrieval_stats"] = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": candidate_observed,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": False,
+        "rag_actually_used": candidate_rag_used,
+    }
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"]["enabled_trace_count"] == (expected_enabled_count)
+    assert metrics_summary["context_compaction"]["result_observed_trace_count"] == (
+        expected_observed_count
+    )
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
+    assert release_decision == ("PASS" if expected_gate else "NO-GO")
+
+
 def test_gate_d1_rejects_malformed_runtime_fallback_type(tmp_path: Path) -> None:
     """The eval-only runtime-fallback carrier must be an exact built-in bool."""
 
@@ -1113,6 +1295,7 @@ def test_gate_d1_rejects_malformed_runtime_fallback_type(tmp_path: Path) -> None
         "context_compaction_result_observed": True,
         "chunks_compacted": 0,
         "context_compaction_runtime_fallback": False,
+        "rag_actually_used": True,
     }
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
@@ -2164,6 +2347,10 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert '"context_compaction_runtime_fallback": False' in adapter_source
     assert '"context_compaction_runtime_fallback": False' in retrieve_source
     assert (
+        '"rag_actually_used": getattr(result, "rag_actually_used", False) is True' in adapter_source
+    )
+    assert '"rag_actually_used": bool(local_retriever.chunks)' in retrieve_source
+    assert (
         'retrieval_stats["context_compaction_runtime_fallback"] = '
         "context_compaction_enabled is True" in retrieve_source
     )
@@ -2182,9 +2369,13 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "type(observed) is not bool" in source
     assert "type(compacted) is not int" in source
     assert "type(runtime_fallback) is not bool" in source
+    assert 'rag_actually_used = retrieval_stats.get("rag_actually_used")' in source
+    assert "type(rag_actually_used) is not bool" in source
+    assert "if observed is True and rag_actually_used is False:" in source
     assert "context_compaction_malformed" in source
     assert "context_compaction_attempted_unobserved" in source
     assert "context_compaction_runtime_fallback_used" in source
+    assert "or rag_actually_used is True" in source
     assert "context_compaction_enabled_count == 0" in source
     assert "context_compaction_observed_count > 0" in source
 
