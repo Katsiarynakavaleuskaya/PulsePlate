@@ -37,8 +37,10 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.orchestration.review_mapping_artifact import (
     extract_fixed_mapping_section as _artifact_extract_fixed_mapping,
     parse_canonical_fingerprint_records,
+    parse_fixed_mapping_entries,
     read_mapping_artifact,
     review_seal_version,
+    validate_fixed_mapping_section,
 )
 from scripts.orchestration.pr_commit_identity import (
     CommitIdentityError,
@@ -56,6 +58,7 @@ from scripts.orchestration.pr_commit_identity import (
 from scripts.orchestration.pr_review_evidence import (
     ReviewEvidenceError,
     parse_embedded_review_seal,
+    review_thread_inventory,
     validated_duplicate_reply_urls,
 )
 
@@ -935,6 +938,21 @@ def _resolved_threads_from_evidence(
     return resolved
 
 
+def _assert_v1_review_snapshot_unchanged(
+    initial_threads: tuple[ReviewThreadEvidence, ...],
+    *,
+    snapshot: PrSnapshot,
+    repository: str,
+    token: str,
+) -> None:
+    final_threads = fetch_review_threads(repository, snapshot.pr_number, token=token)
+    if review_thread_inventory(final_threads) != review_thread_inventory(initial_threads):
+        raise CommitIdentityError(
+            "SNAPSHOT_CHANGED: review-thread inventory changed during validation"
+        )
+    assert_snapshot_unchanged(snapshot, token=token)
+
+
 def _check_real_commit_proofs(
     resolved_threads: list[ResolvedThreadRef],
     section: str,
@@ -1175,6 +1193,14 @@ def main() -> None:
             print(f"ERROR: {error}")
         sys.exit(1)
     is_v1 = review_seal_version(artifact_text) == "v1"
+    v1_mapping_entries: dict[str, str] = {}
+    if is_v1:
+        semantic_mapping_errors = validate_fixed_mapping_section(section, require_full_shas=True)
+        if semantic_mapping_errors:
+            for error in semantic_mapping_errors:
+                print(f"ERROR: {error}")
+            sys.exit(1)
+        v1_mapping_entries = parse_fixed_mapping_entries(section)
     snapshot: PrSnapshot | None = None
     thread_evidence: tuple[ReviewThreadEvidence, ...] = ()
     repository = ""
@@ -1199,7 +1225,12 @@ def main() -> None:
                 print("ERROR: internal v1 context is missing GitHub API auth")
                 sys.exit(1)
             try:
-                assert_snapshot_unchanged(snapshot, token=api_token)
+                _assert_v1_review_snapshot_unchanged(
+                    thread_evidence,
+                    snapshot=snapshot,
+                    repository=repository,
+                    token=api_token,
+                )
             except (CommitIdentityError, OSError) as exc:
                 print(f"ERROR: {exc}")
                 sys.exit(1)
@@ -1218,7 +1249,7 @@ def main() -> None:
                 candidate_urls={thread.url for thread in resolved_threads},
                 threads=thread_evidence,
                 fingerprint_records=records,
-                mapped_fix_shas=frozenset(_parse_mapping_section(section).values()),
+                mapped_fix_shas=frozenset(sha for sha in v1_mapping_entries.values() if sha),
                 material_digest=seal["material"]["digest"],
                 material_head_sha=seal["material"]["material_head_sha"],
                 repo_root=REPO_ROOT,
@@ -1331,7 +1362,12 @@ def main() -> None:
             print("ERROR: internal v1 context is missing GitHub API auth")
             sys.exit(1)
         try:
-            assert_snapshot_unchanged(snapshot, token=api_token)
+            _assert_v1_review_snapshot_unchanged(
+                thread_evidence,
+                snapshot=snapshot,
+                repository=repository,
+                token=api_token,
+            )
         except (CommitIdentityError, OSError) as exc:
             print(f"ERROR: {exc}")
             sys.exit(1)

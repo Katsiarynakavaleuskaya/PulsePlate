@@ -1490,19 +1490,55 @@ def test_main_passes_in_ci_mode_with_valid_gh_token(
     assert "OK: No resolved review threads found" in captured.out
 
 
-def test_main_wires_recordless_snapshot_inputs_to_shared_validator(
-    monkeypatch: "MonkeyPatch", capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    (
+        "disposition",
+        "has_resolved_thread",
+        "inventory_changes",
+        "expected_code",
+        "expected_fetches",
+    ),
+    [
+        ("FIXED", True, False, 0, 2),
+        ("FIXED", True, True, 1, 2),
+        ("FIXED", False, False, 0, 2),
+        ("FIXED", False, True, 1, 2),
+        ("NOT-A-BUG", True, False, 1, 0),
+        ("DEFERRED", True, False, 1, 0),
+    ],
+    ids=(
+        "stable",
+        "changed-inventory",
+        "stable-empty",
+        "changed-empty-inventory",
+        "not-a-bug-arrow",
+        "deferred-arrow",
+    ),
+)
+def test_main_v1_recordless_mapping_and_inventory_guards(
+    monkeypatch: "MonkeyPatch",
+    capsys: pytest.CaptureFixture[str],
+    disposition: str,
+    has_resolved_thread: bool,
+    inventory_changes: bool,
+    expected_code: int,
+    expected_fetches: int,
 ) -> None:
     fix_sha = "a" * 40
     material_head_sha = "b" * 40
     live_head_sha = "c" * 40
     root_url = "https://github.com/owner/repo/pull/42#discussion_recordless"
     mapped_url = "https://github.com/owner/repo/pull/42#discussion_mapped"
+    proof = {
+        "FIXED": f"Commit: {fix_sha}\nEvidence: policy.py:1\n",
+        "NOT-A-BUG": "Evidence: policy.py:1\nReason: behavior is correct\n",
+        "DEFERRED": "Backlog: docs/roadmap/BACKLOG_LEDGER.md#item\n",
+    }[disposition]
     artifact = (
         "## Fixed in Commit Mapping\n"
         f"- {mapped_url} -> {fix_sha}\n"
-        "Disposition: FIXED\n"
-        f"Commit: {fix_sha}\n"
+        f"Disposition: {disposition}\n"
+        f"{proof}"
     )
     snapshot = PrSnapshot(
         repository="owner/repo",
@@ -1529,11 +1565,33 @@ def test_main_wires_recordless_snapshot_inputs_to_shared_validator(
             ),
         ),
     )
+    changed_thread = ReviewThreadEvidence(
+        thread.node_id,
+        thread.is_resolved,
+        (
+            ReviewCommentEvidence(
+                **{
+                    **thread.comments[0].__dict__,
+                    "body": "Commit ancestry finding edited during validation",
+                }
+            ),
+        ),
+    )
     captured: dict[str, object] = {}
+    fetch_count = 0
 
     def validate(**kwargs: object) -> set[str]:
         captured.update(kwargs)
         return {root_url}
+
+    def fetch_threads(*_args: object, **_kwargs: object) -> tuple[ReviewThreadEvidence, ...]:
+        nonlocal fetch_count
+        fetch_count += 1
+        if fetch_count == 1:
+            return (thread,) if has_resolved_thread else ()
+        if inventory_changes:
+            return (changed_thread,) if has_resolved_thread else (thread,)
+        return (thread,) if has_resolved_thread else ()
 
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.setattr(_disposition_mod.sys, "argv", ["guard", "--pr-number", "42"])
@@ -1544,7 +1602,7 @@ def test_main_wires_recordless_snapshot_inputs_to_shared_validator(
     monkeypatch.setattr(_disposition_mod, "_get_owner_repo", lambda: ("owner", "repo"))
     monkeypatch.setattr(_disposition_mod, "_github_api_token", lambda: "opaque")
     monkeypatch.setattr(_disposition_mod, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
-    monkeypatch.setattr(_disposition_mod, "fetch_review_threads", lambda *_a, **_k: (thread,))
+    monkeypatch.setattr(_disposition_mod, "fetch_review_threads", fetch_threads)
     monkeypatch.setattr(
         _disposition_mod,
         "parse_embedded_review_seal",
@@ -1568,11 +1626,26 @@ def test_main_wires_recordless_snapshot_inputs_to_shared_validator(
     with pytest.raises(SystemExit) as exc_info:
         _disposition_mod.main()
 
-    assert exc_info.value.code == 0
-    assert captured["fingerprint_records"] == {}
-    assert captured["mapped_fix_shas"] == frozenset({fix_sha})
-    assert captured["material_head_sha"] == material_head_sha
-    assert "OK: All 1 resolved review threads" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert exc_info.value.code == expected_code
+    assert fetch_count == expected_fetches
+    if disposition == "FIXED" and has_resolved_thread:
+        assert captured["fingerprint_records"] == {}
+        assert captured["mapped_fix_shas"] == frozenset({fix_sha})
+        assert captured["material_head_sha"] == material_head_sha
+        if inventory_changes:
+            assert "SNAPSHOT_CHANGED: review-thread inventory changed" in output
+        else:
+            assert "OK: All 1 resolved review threads" in output
+    elif disposition == "FIXED":
+        assert captured == {}
+        if inventory_changes:
+            assert "SNAPSHOT_CHANGED: review-thread inventory changed" in output
+        else:
+            assert "OK: No resolved review threads found" in output
+    else:
+        assert captured == {}
+        assert f"Disposition {disposition} must use URL-only review-thread lines" in output
 
 
 def test_trigger_only_mapping_fails_on_empty_commit(monkeypatch: "MonkeyPatch") -> None:
