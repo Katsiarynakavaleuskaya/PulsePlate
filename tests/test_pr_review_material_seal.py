@@ -5931,18 +5931,30 @@ def test_recordless_first_post_mapping_seed_accepts_sanitized_live_finding(
     assert ancestry_calls
 
 
+@pytest.mark.parametrize(
+    ("ineligible_seed_indexes", "expected_seed_index"),
+    [
+        (frozenset({1}), 0),
+        (frozenset({0}), 1),
+    ],
+    ids=("eligible-first", "ineligible-first"),
+)
 def test_recordless_cardinality_ignores_ineligible_same_fingerprint_seed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    ineligible_seed_indexes: frozenset[int],
+    expected_seed_index: int,
 ) -> None:
     covered, _ = _recordless_seed_coverage(
         tmp_path,
         monkeypatch,
         seed_count=2,
-        ineligible_seed_indexes=frozenset({1}),
+        ineligible_seed_indexes=ineligible_seed_indexes,
     )
 
-    assert covered == {"https://github.com/owner/repo/pull/42#discussion_seed_0"}
+    assert covered == {
+        f"https://github.com/owner/repo/pull/42#discussion_seed_{expected_seed_index}"
+    }
 
 
 @pytest.mark.parametrize(
