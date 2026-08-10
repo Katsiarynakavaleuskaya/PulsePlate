@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import asyncio
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -84,7 +89,12 @@ def _make_release_gate_state(
             "allow_runtime_fallbacks": allow_runtime_fallbacks,
         }
     )
-    return EvalRuntimeState(config=config, pulseplate_imports=PulsePlateImports())
+    return EvalRuntimeState(
+        config=config,
+        pulseplate_imports=PulsePlateImports(
+            rag_degraded_reason_type=RAGDegradedReason,
+        ),
+    )
 
 
 def _compaction_cardinality(
@@ -118,6 +128,7 @@ def _observed_compaction_stats(
     return {
         "context_compaction_enabled": True,
         "context_compaction_attempted": True,
+        "context_compaction_completed": True,
         "context_compaction_result_observed": True,
         **_compaction_cardinality(
             chunks_filtered=chunks_filtered,
@@ -133,10 +144,11 @@ def _observed_compaction_stats(
 def _not_attempted_compaction_stats(degraded_reason: object) -> dict[str, object]:
     """Build the exact pre-compaction N/A carrier for a degraded reason."""
 
-    chunks_filtered = 1 if degraded_reason == "RAGDegradedReason.ALL_CHUNKS_FILTERED" else 0
+    chunks_filtered = 1 if degraded_reason is RAGDegradedReason.ALL_CHUNKS_FILTERED else 0
     return {
         "context_compaction_enabled": True,
         "context_compaction_attempted": False,
+        "context_compaction_completed": False,
         "context_compaction_result_observed": False,
         **_compaction_cardinality(
             chunks_filtered=chunks_filtered,
@@ -188,6 +200,7 @@ def _make_trace(
         "retrieval_stats": {
             "context_compaction_enabled": False,
             "context_compaction_attempted": False,
+            "context_compaction_completed": False,
             "context_compaction_result_observed": False,
             **_compaction_cardinality(),
             "context_compaction_runtime_fallback": False,
@@ -250,6 +263,28 @@ def test_runner_contract_imports_are_available() -> None:
     assert imports.retrieve_and_validate_rag is retrieve_and_validate_rag
     assert imports.prepare_insight_runtime is prepare_insight_runtime
     assert imports.generate_traced_insight is generate_traced_insight
+    assert imports.rag_degraded_reason_type is RAGDegradedReason
+
+
+def test_cli_help_remains_dependency_light_without_site_packages() -> None:
+    """Argument help must not require optional PulsePlate dependencies."""
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(Path(runner.__file__).resolve()),
+            "--help",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Run PulsePlate RAG release gates deterministically." in completed.stdout
+    assert "--input-path" in completed.stdout
 
 
 def test_map_rag_chunk_matches_trace_contract() -> None:
@@ -321,7 +356,7 @@ def test_map_orchestration_result_preserves_degraded_metadata() -> None:
     ):
         assert type(metadata[field]) is int
     assert metadata["recursive_executed"] is True
-    assert metadata["degraded_reason"] == "RAGDegradedReason.ALL_CHUNKS_FILTERED"
+    assert metadata["degraded_reason"] is RAGDegradedReason.ALL_CHUNKS_FILTERED
 
 
 @pytest.mark.parametrize(
@@ -397,6 +432,68 @@ def test_adapter_preserves_degraded_reason_presence_for_d1(
     }
     assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
     assert release_decision == expected_decision
+
+
+@pytest.mark.parametrize(
+    ("case_name", "overrides", "missing_field"),
+    [
+        ("bool-lookalike", {"context_compaction_attempted": 1}, None),
+        ("count-subclass", {"chunks_compacted": _IntSubclass(0)}, None),
+        ("rag-usage-lookalike", {"rag_actually_used": "truthy"}, None),
+        (
+            "reason-spoof",
+            {"degraded_reason": "RAGDegradedReason.RETRIEVAL_EMPTY"},
+            None,
+        ),
+        ("missing-completion", {}, "context_compaction_completed"),
+    ],
+)
+def test_adapter_rejects_malformed_raw_compaction_evidence_by_class(
+    case_name: str,
+    overrides: dict[str, object],
+    missing_field: str | None,
+) -> None:
+    """Malformed evidence classes must reach D1 without normalization."""
+
+    result_values: dict[str, object] = {
+        "chunks": [
+            RAGChunk(
+                chunk_id="raw-evidence",
+                file="docs/raw-evidence.md",
+                content="Raw wellness evidence.",
+                score=0.9,
+                hop=1,
+            )
+        ],
+        "formatted_prompt": "Context: raw",
+        "rag_actually_used": True,
+        "confidence": 0.9,
+        "hops": 1,
+        "latency_ms": 5,
+        "warnings": [],
+        "chunks_retrieved": 1,
+        "chunks_filtered": 0,
+        "recursive_executed": False,
+        "context_compaction_attempted": True,
+        "context_compaction_completed": True,
+        "chunks_compacted": 0,
+        "degraded_reason": None,
+    }
+    result_values.update(overrides)
+    if missing_field is not None:
+        result_values.pop(missing_field)
+
+    _, metadata = map_orchestration_result_to_retrieved(
+        SimpleNamespace(**result_values),
+        context_compaction_enabled=True,
+    )
+
+    if missing_field is not None:
+        assert missing_field not in metadata, case_name
+    for field, raw_value in overrides.items():
+        assert type(metadata[field]) is type(raw_value), case_name
+        assert metadata[field] == raw_value, case_name
+    assert metadata["context_compaction_result_observed"] is False
 
 
 def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
@@ -478,15 +575,16 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
         (
             item["context_compaction_enabled"],
             item["context_compaction_attempted"],
+            item["context_compaction_completed"],
             item["context_compaction_result_observed"],
             item["chunks_compacted"],
             item["context_compaction_runtime_fallback"],
         )
         for item in metadata_observed
     ] == [
-        (True, True, True, 0, False),
-        (False, False, False, 0, False),
-        (False, False, False, 0, False),
+        (True, True, True, True, 0, False),
+        (False, False, False, False, 2, False),
+        (False, False, False, False, 2, False),
     ]
 
 
@@ -533,8 +631,9 @@ def test_compaction_rollback_is_unobserved_and_fails_strict_d1(tmp_path: Path) -
 
     assert retrieved == []
     assert metadata["context_compaction_attempted"] is True
+    assert metadata["context_compaction_completed"] is False
     assert metadata["context_compaction_result_observed"] is False
-    assert metadata["chunks_compacted"] == 0
+    assert metadata["chunks_compacted"] == 9
     assert metadata["context_compaction_runtime_fallback"] is False
     assert state.strict_violations == ["rag_context_compaction_failed"]
     assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
@@ -542,10 +641,10 @@ def test_compaction_rollback_is_unobserved_and_fails_strict_d1(tmp_path: Path) -
 
 
 @pytest.mark.parametrize("malformed_count", [-1, True, _IntSubclass(0), "4", None])
-def test_map_orchestration_result_sanitizes_malformed_compaction_counts(
+def test_map_orchestration_result_preserves_malformed_compaction_counts(
     malformed_count: object,
 ) -> None:
-    """Only real nonnegative integer compaction counts may enter eval metadata."""
+    """Malformed raw counts remain visible while observed success stays closed."""
 
     result = RAGOrchestrationResult(
         chunks=[
@@ -574,8 +673,10 @@ def test_map_orchestration_result_sanitizes_malformed_compaction_counts(
 
     assert metadata["context_compaction_enabled"] is True
     assert metadata["context_compaction_attempted"] is True
+    assert metadata["context_compaction_completed"] is True
     assert metadata["context_compaction_result_observed"] is False
-    assert metadata["chunks_compacted"] == 0
+    assert type(metadata["chunks_compacted"]) is type(malformed_count)
+    assert metadata["chunks_compacted"] == malformed_count
     assert metadata["context_compaction_runtime_fallback"] is False
 
 
@@ -637,8 +738,9 @@ def test_compaction_observation_distinguishes_empty_na_from_late_degradation(
     )
 
     assert metadata["context_compaction_attempted"] is expected_attempted
+    assert metadata["context_compaction_completed"] is result.context_compaction_completed
     assert metadata["context_compaction_result_observed"] is False
-    assert metadata["chunks_compacted"] == 0
+    assert metadata["chunks_compacted"] == result.chunks_compacted
     assert metadata["context_compaction_runtime_fallback"] is False
     assert ("rag_context_compaction_failed" in state.strict_violations) is expected_violation
 
@@ -819,7 +921,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
             },
         ),
         (
-            [_not_attempted_compaction_stats("RAGDegradedReason.RETRIEVAL_EMPTY")],
+            [_not_attempted_compaction_stats(RAGDegradedReason.RETRIEVAL_EMPTY)],
             {
                 "enabled_trace_count": 1,
                 "attempted_trace_count": 0,
@@ -861,6 +963,8 @@ def test_metrics_summary_distinguishes_observed_compaction_states(
     traces = _passing_release_gate_traces()
     for trace, stats in zip(traces, retrieval_stats):
         trace["retrieval_stats"] = stats
+        if stats.get("chunks_output") == 0:
+            trace["top_k_retrieved"] = []
 
     metrics_summary, _, _ = runner.build_metrics_summary(
         state,
@@ -953,17 +1057,22 @@ def test_gate_d1_requires_complete_aggregate_compaction_observation(
         stats = {
             "context_compaction_enabled": enabled,
             "context_compaction_attempted": attempted,
+            "context_compaction_completed": observed,
             "context_compaction_result_observed": observed,
             **_compaction_cardinality(
                 chunks_compacted=compacted if type(compacted) is int and compacted >= 0 else 0,
-                chunks_output=0 if not attempted else 1,
+                chunks_output=0 if enabled and not attempted else 1,
             ),
             "chunks_compacted": compacted,
             "context_compaction_runtime_fallback": False,
             "rag_actually_used": attempted,
-            "degraded_reason": ("RAGDegradedReason.RETRIEVAL_EMPTY" if not attempted else None),
+            "degraded_reason": (
+                RAGDegradedReason.RETRIEVAL_EMPTY if enabled and not attempted else None
+            ),
         }
         trace["retrieval_stats"] = stats
+        if enabled and not attempted:
+            trace["top_k_retrieved"] = []
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
         state,
@@ -993,6 +1102,7 @@ def test_gate_d1_rejects_per_trace_compaction_cardinality_compensation(
     valid_stats = {
         "context_compaction_enabled": True,
         "context_compaction_attempted": True,
+        "context_compaction_completed": True,
         "context_compaction_result_observed": True,
         "chunks_retrieved": 3,
         "chunks_filtered": 1,
@@ -1037,6 +1147,41 @@ def test_gate_d1_rejects_inconsistent_retrieval_survivor_cardinality(
     for trace in traces:
         trace["retrieval_stats"] = _observed_compaction_stats(chunks_filtered=1)
     traces[0]["retrieval_stats"]["chunks_retrieved"] = 3
+
+    _, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
+
+
+@pytest.mark.parametrize("invalid_case", ["top-k-mismatch", "spoofed-reason"])
+def test_gate_d1_rejects_raw_evidence_spoofs_without_peer_compensation(
+    tmp_path: Path,
+    invalid_case: str,
+) -> None:
+    """Actual output length and enum provenance must be request-local D1 evidence."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="raw_evidence_spoof")
+    traces = _passing_release_gate_traces()
+    for trace in traces:
+        trace["retrieval_stats"] = {
+            **_observed_compaction_stats(),
+            "context_compaction_completed": True,
+        }
+    if invalid_case == "top-k-mismatch":
+        traces[0]["top_k_retrieved"] = []
+    else:
+        traces[0]["top_k_retrieved"] = []
+        traces[0]["retrieval_stats"] = {
+            **_not_attempted_compaction_stats("RAGDegradedReason.RETRIEVAL_EMPTY"),
+            "context_compaction_completed": False,
+        }
 
     _, gate_checks, release_decision = runner.build_metrics_summary(
         state,
@@ -1143,18 +1288,18 @@ def test_gate_d1_rejects_missing_partial_or_non_dict_cardinality_carriers(
     ("degraded_reason", "overrides"),
     [
         (
-            "RAGDegradedReason.RETRIEVAL_EMPTY",
+            RAGDegradedReason.RETRIEVAL_EMPTY,
             {"chunks_retrieved": 1, "chunks_filtered": 1},
         ),
         (
-            "RAGDegradedReason.ALL_CHUNKS_FILTERED",
+            RAGDegradedReason.ALL_CHUNKS_FILTERED,
             {
                 "chunks_retrieved": 0,
                 "chunks_filtered": 0,
             },
         ),
         (
-            "RAGDegradedReason.ALL_CHUNKS_FILTERED",
+            RAGDegradedReason.ALL_CHUNKS_FILTERED,
             {
                 "chunks_retrieved": 2,
                 "chunks_filtered": 1,
@@ -1180,6 +1325,8 @@ def test_gate_d1_rejects_inconsistent_pre_compaction_na_cardinality(
         **_not_attempted_compaction_stats(degraded_reason),
         **overrides,
     }
+    if traces[0]["retrieval_stats"]["chunks_output"] == 0:
+        traces[0]["top_k_retrieved"] = []
 
     _, gate_checks, release_decision = runner.build_metrics_summary(
         state,
@@ -1280,6 +1427,7 @@ def test_gate_d1_does_not_accept_malformed_observation_as_compensation(
     traces = _passing_release_gate_traces()
     traces[0]["retrieval_stats"] = {
         **_observed_compaction_stats(),
+        "context_compaction_completed": False,
         "context_compaction_result_observed": False,
     }
     traces[1]["retrieval_stats"] = {
@@ -1416,7 +1564,9 @@ def test_gate_d1_rejects_enabled_runtime_fallback_with_observed_peer(
     )
     monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "true")
 
-    _, fallback_stats = asyncio.run(runner.retrieve(state, "query", top_k=3, subject_id=None))
+    fallback_retrieved, fallback_stats = asyncio.run(
+        runner.retrieve(state, "query", top_k=3, subject_id=None)
+    )
 
     assert fallback_stats["context_compaction_enabled"] is True
     assert fallback_stats["context_compaction_attempted"] is False
@@ -1432,6 +1582,7 @@ def test_gate_d1_rejects_enabled_runtime_fallback_with_observed_peer(
     observed = _observed_compaction_stats()
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
+    traces[0]["top_k_retrieved"] = fallback_retrieved
     traces[0]["retrieval_stats"] = fallback_stats
 
     _, gate_checks, release_decision = runner.build_metrics_summary(
@@ -1449,8 +1600,8 @@ def test_gate_d1_rejects_enabled_runtime_fallback_with_observed_peer(
 @pytest.mark.parametrize(
     ("degraded_reason", "expected_gate"),
     [
-        ("RAGDegradedReason.RETRIEVAL_EMPTY", True),
-        ("RAGDegradedReason.ALL_CHUNKS_FILTERED", True),
+        (RAGDegradedReason.RETRIEVAL_EMPTY, True),
+        (RAGDegradedReason.ALL_CHUNKS_FILTERED, True),
         ("RAGDegradedReason.ORCHESTRATION_EXCEPTION", False),
         ("RAGDegradedReason.VECTOR_FALLBACK_EXCEPTION", False),
         (None, False),
@@ -1468,6 +1619,7 @@ def test_gate_d1_classifies_pre_compaction_degraded_result_with_observed_peer(
     observed = _observed_compaction_stats()
     for trace in traces:
         trace["retrieval_stats"] = dict(observed)
+    traces[0]["top_k_retrieved"] = []
     traces[0]["retrieval_stats"] = _not_attempted_compaction_stats(degraded_reason)
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
@@ -1486,6 +1638,39 @@ def test_gate_d1_classifies_pre_compaction_degraded_result_with_observed_peer(
     }
     assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
     assert release_decision == ("PASS" if expected_gate else "NO-GO")
+
+
+def test_gate_d1_fails_closed_when_degraded_reason_type_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    """Ordinary N/A cannot be admitted without the canonical enum identity."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_reason_unavailable")
+    state.pulseplate_imports = PulsePlateImports()
+    traces = _passing_release_gate_traces()
+    for trace in traces:
+        trace["retrieval_stats"] = _observed_compaction_stats()
+    traces[0]["top_k_retrieved"] = []
+    traces[0]["retrieval_stats"] = _not_attempted_compaction_stats(
+        RAGDegradedReason.RETRIEVAL_EMPTY
+    )
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 3,
+        "attempted_trace_count": 3,
+        "result_observed_trace_count": 3,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
 
 
 @pytest.mark.parametrize(
@@ -1542,6 +1727,7 @@ def test_gate_d1_rejects_unattempted_compaction_when_rag_was_used(
     traces[0]["retrieval_stats"] = {
         "context_compaction_enabled": True,
         "context_compaction_attempted": False,
+        "context_compaction_completed": False,
         "context_compaction_result_observed": False,
         **_compaction_cardinality(),
         "context_compaction_runtime_fallback": False,
@@ -1590,6 +1776,7 @@ def test_gate_d1_rejects_malformed_rag_applicability_metadata(
     candidate = {
         "context_compaction_enabled": True,
         "context_compaction_attempted": False,
+        "context_compaction_completed": False,
         "context_compaction_result_observed": False,
         **_compaction_cardinality(chunks_output=0),
         "context_compaction_runtime_fallback": False,
@@ -1597,6 +1784,7 @@ def test_gate_d1_rejects_malformed_rag_applicability_metadata(
     }
     if rag_actually_used is not ...:
         candidate["rag_actually_used"] = rag_actually_used
+    traces[0]["top_k_retrieved"] = []
     traces[0]["retrieval_stats"] = candidate
 
     metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
@@ -1655,6 +1843,7 @@ def test_gate_d1_requires_rag_usage_for_observed_compaction(
         trace["retrieval_stats"] = dict(observed)
     traces[0]["retrieval_stats"] = {
         **_observed_compaction_stats(),
+        "context_compaction_completed": candidate_observed,
         "context_compaction_result_observed": candidate_observed,
         "rag_actually_used": candidate_rag_used,
     }
@@ -2680,6 +2869,144 @@ def test_notebook_parity_uses_emitted_artifact_from_template(tmp_path: Path) -> 
     assert "mean_entailment" not in emitted_text
 
 
+def _load_tracked_notebook_compaction_callables() -> tuple[Any, Any]:
+    """Execute only the two bounded compaction functions from the tracked notebook."""
+
+    notebook = json.loads(
+        Path("notebooks/pulseplate_rag_release_gates.ipynb").read_text(encoding="utf-8")
+    )
+    wanted = {
+        "pulseplate_retrieve",
+        "_classify_context_compaction_trace",
+    }
+    selected: dict[str, ast.AST] = {}
+    for cell in notebook["cells"]:
+        if cell.get("cell_type") != "code":
+            continue
+        tree = ast.parse("".join(cell.get("source", [])))
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in wanted:
+                selected[node.name] = node
+    assert selected.keys() == wanted
+
+    module = ast.fix_missing_locations(
+        ast.Module(
+            body=[selected[name] for name in sorted(wanted)],
+            type_ignores=[],
+        )
+    )
+    namespace: dict[str, Any] = {
+        "Any": Any,
+        "os": os,
+        "PULSEPLATE_IMPORTS": {},
+        "RAG_DEGRADED_REASON_TYPE": RAGDegradedReason,
+    }
+    exec(compile(module, "tracked-notebook-compaction", "exec"), namespace)
+    return (
+        namespace["pulseplate_retrieve"],
+        namespace["_classify_context_compaction_trace"],
+    )
+
+
+def test_tracked_notebook_executes_raw_compaction_evidence_with_runner_parity() -> None:
+    """Notebook and runner must agree on the bounded evidence classes."""
+
+    notebook_adapter, notebook_classifier = _load_tracked_notebook_compaction_callables()
+    malformed_result = SimpleNamespace(
+        chunks=[
+            RAGChunk(
+                chunk_id="parity",
+                file="docs/parity.md",
+                content="Parity wellness evidence.",
+                score=0.9,
+                hop=1,
+            )
+        ],
+        formatted_prompt="Context: parity",
+        rag_actually_used=True,
+        confidence=0.9,
+        hops=1,
+        latency_ms=5,
+        warnings=[],
+        chunks_retrieved=1,
+        chunks_filtered=0,
+        recursive_executed=False,
+        context_compaction_attempted=True,
+        context_compaction_completed=True,
+        chunks_compacted=0,
+        degraded_reason=None,
+    )
+    malformed_result.rag_actually_used = "truthy"
+    runner_retrieved, runner_stats = map_orchestration_result_to_retrieved(
+        malformed_result,
+        context_compaction_enabled=True,
+    )
+    notebook_adapter.__globals__["PULSEPLATE_IMPORTS"] = {
+        "retrieve_and_validate_rag": AsyncMock(return_value=malformed_result),
+    }
+    notebook_retrieved, notebook_stats = asyncio.run(
+        notebook_adapter(
+            "malformed",
+            top_k=3,
+            subject_id=None,
+            context_compaction_enabled=True,
+        )
+    )
+    d1_fields = {
+        "context_compaction_enabled",
+        "context_compaction_attempted",
+        "context_compaction_completed",
+        "context_compaction_result_observed",
+        "chunks_retrieved",
+        "chunks_filtered",
+        "chunks_pre_compaction",
+        "chunks_compacted",
+        "chunks_output",
+        "context_compaction_runtime_fallback",
+        "rag_actually_used",
+        "degraded_reason",
+    }
+    assert len(notebook_retrieved) == len(runner_retrieved)
+    assert {field: notebook_stats[field] for field in d1_fields} == {
+        field: runner_stats[field] for field in d1_fields
+    }
+
+    cases = [
+        ("observed", _observed_compaction_stats(), [{"doc_id": "observed"}], "observed"),
+        (
+            "ordinary-na",
+            _not_attempted_compaction_stats(RAGDegradedReason.RETRIEVAL_EMPTY),
+            [],
+            "ordinary_na",
+        ),
+        (
+            "rollback",
+            {
+                **_observed_compaction_stats(rag_actually_used=False),
+                "context_compaction_completed": False,
+                "context_compaction_result_observed": False,
+                "degraded_reason": RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
+            },
+            [{"doc_id": "baseline"}],
+            "rollback",
+        ),
+        ("malformed", runner_stats, runner_retrieved, "malformed"),
+    ]
+    for case_name, stats, retrieved, expected_state in cases:
+        trace = _make_trace(case_name)
+        trace["top_k_retrieved"] = retrieved
+        trace["retrieval_stats"] = stats
+        expected = (expected_state, 0)
+        assert (
+            runner._classify_context_compaction_trace(
+                trace,
+                rag_degraded_reason_type=RAGDegradedReason,
+            )
+            == expected
+        ), case_name
+        assert notebook_classifier(trace) == expected, case_name
+
+
 def test_tracked_notebook_forwards_request_time_context_compaction_metadata() -> None:
     """The canonical notebook adapter must mirror request-time compaction truth."""
 
@@ -2703,15 +3030,26 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
         in adapter_source
     )
     assert "context_compaction_enabled=context_compaction_enabled" in adapter_source
+    assert "missing = object()" in adapter_source
+    assert 'chunks_retrieved = getattr(result, "chunks_retrieved", missing)' in adapter_source
+    assert 'chunks_filtered = getattr(result, "chunks_filtered", missing)' in adapter_source
+    assert 'chunks_compacted = getattr(result, "chunks_compacted", missing)' in adapter_source
     assert (
-        "chunks_compacted_valid = type(chunks_compacted) is int and chunks_compacted >= 0"
+        'context_compaction_attempted = getattr(result, "context_compaction_attempted", missing)'
         in adapter_source
     )
-    assert 'chunks_retrieved = getattr(result, "chunks_retrieved", None)' in adapter_source
-    assert 'chunks_filtered = getattr(result, "chunks_filtered", None)' in adapter_source
+    assert (
+        'context_compaction_completed = getattr(result, "context_compaction_completed", missing)'
+        in adapter_source
+    )
+    assert 'rag_actually_used = getattr(result, "rag_actually_used", missing)' in adapter_source
+    assert 'degraded_reason = getattr(result, "degraded_reason", missing)' in adapter_source
     assert "type(chunks_retrieved) is int" in adapter_source
     assert "type(chunks_filtered) is int" in adapter_source
     assert "chunks_pre_compaction = chunks_retrieved - chunks_filtered" in adapter_source
+    assert "else missing" in adapter_source
+    assert "and context_compaction_completed is True" in adapter_source
+    assert "and rag_actually_used is True" in adapter_source
     assert "chunks_pre_compaction == chunks_output + chunks_compacted" in adapter_source
     assert "retrieval_stats = {" in adapter_source
     assert (
@@ -2719,40 +3057,23 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     )
     assert "elif type(context_compaction_enabled) is not bool:" in adapter_source
     assert 'raise TypeError("context_compaction_enabled must be a built-in bool")' in adapter_source
-    assert 'getattr(result, "context_compaction_completed", False) is True' in adapter_source
-    assert 'getattr(result, "context_compaction_attempted", False) is True' in adapter_source
-    assert 'getattr(result, "rag_actually_used", False) is True' in adapter_source
-    assert "_missing_degraded_reason = object()" in adapter_source
-    assert (
-        'degraded_reason = getattr(result, "degraded_reason", _missing_degraded_reason)'
-        in adapter_source
-    )
     assert "and degraded_reason is None" in adapter_source
-    assert "if not context_compaction_result_observed:" in adapter_source
     assert '"rag_context_compaction_enabled": context_compaction_enabled' in adapter_source
     assert (
         '"rag_context_compaction_result_observed": context_compaction_result_observed'
         in adapter_source
     )
-    assert '"rag_context_compaction_attempted": context_compaction_attempted' in adapter_source
-    assert '"rag_chunks_compacted":' in adapter_source
-    assert '"chunks_retrieved": chunks_retrieved' in adapter_source
-    assert '"chunks_filtered": chunks_filtered' in adapter_source
-    assert '"chunks_pre_compaction": chunks_pre_compaction' in adapter_source
+    assert '("context_compaction_completed", context_compaction_completed)' in adapter_source
+    assert '("degraded_reason", degraded_reason)' in adapter_source
+    assert "if value is not missing:" in adapter_source
+    assert "str(degraded_reason)" not in adapter_source
     assert '"chunks_output": chunks_output' in adapter_source
     assert 'retrieval_stats["context_compaction_enabled"] = context_compaction_enabled' in (
         retrieve_source
     )
     assert '"context_compaction_runtime_fallback": False' in adapter_source
     assert '"context_compaction_runtime_fallback": False' in retrieve_source
-    assert (
-        '"rag_actually_used": getattr(result, "rag_actually_used", False) is True' in adapter_source
-    )
-    assert "if degraded_reason is not _missing_degraded_reason:" in adapter_source
-    assert (
-        'retrieval_stats["degraded_reason"] = str(degraded_reason) '
-        "if degraded_reason is not None else None" in adapter_source
-    )
+    assert '"context_compaction_completed": False' in retrieve_source
     assert "return retrieved, retrieval_stats" in adapter_source
     assert '"rag_actually_used": bool(local_retriever.chunks)' in retrieve_source
     assert '"degraded_reason": None' in retrieve_source
@@ -2770,33 +3091,35 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert '"retrieval_stats": retrieval_stats' in source
     assert '"Gate D1: Context compaction observation"' in source
     assert "context_compaction_carrier_active" not in source
+    assert "def _classify_context_compaction_trace" in source
     assert 'trace.get("routing_decision") == "blocked_by_agent_input_guard"' in source
-    assert "present_fields != compaction_fields" in source
+    assert '"context_compaction_completed"' in source
+    assert "not required_fields.issubset(retrieval_stats)" in source
     assert "type(enabled) is not bool" in source
     assert "type(attempted) is not bool" in source
+    assert "type(completed) is not bool" in source
     assert "type(observed) is not bool" in source
     assert "type(compacted) is not int" in source
     assert "type(runtime_fallback) is not bool" in source
-    assert 'rag_actually_used = retrieval_stats.get("rag_actually_used")' in source
+    assert 'rag_actually_used = retrieval_stats["rag_actually_used"]' in source
     assert "type(rag_actually_used) is not bool" in source
-    assert "compaction_cardinality_fields" in source
+    assert "type(degraded_reason) is not RAG_DEGRADED_REASON_TYPE" in source
     assert "type(chunks_retrieved) is not int" in source
     assert "type(chunks_filtered) is not int" in source
     assert "type(chunks_pre_compaction) is not int" in source
     assert "type(chunks_output) is not int" in source
     assert "chunks_retrieved != chunks_filtered + chunks_pre_compaction" in source
+    assert "chunks_output != len(top_k_retrieved)" in source
     assert "chunks_pre_compaction != chunks_output + compacted" in source
-    assert "if observed is True and rag_actually_used is False:" in source
     assert "context_compaction_malformed" in source
     assert "context_compaction_attempted_unobserved" in source
     assert "context_compaction_runtime_fallback_used" in source
-    assert "or rag_actually_used is True" in source
-    assert "ordinary_empty_reasons" in source
     assert 'degraded_reason = retrieval_stats["degraded_reason"]' in source
-    assert "degraded_reason not in ordinary_empty_reasons" in source
-    assert 'degraded_reason == "RAGDegradedReason.RETRIEVAL_EMPTY"' in source
-    assert 'degraded_reason == "RAGDegradedReason.ALL_CHUNKS_FILTERED"' in source
-    assert "if degraded_reason is not None:" in source
+    assert "degraded_reason is RAG_DEGRADED_REASON_TYPE.RETRIEVAL_EMPTY" in source
+    assert "degraded_reason is RAG_DEGRADED_REASON_TYPE.ALL_CHUNKS_FILTERED" in source
+    assert 'return "runtime_fallback", 0' in source
+    assert 'return "rollback", 0' in source
+    assert 'return "observed", compacted' in source
     assert "context_compaction_enabled_count == 0" in source
     assert "context_compaction_observed_count > 0" in source
 
