@@ -894,6 +894,7 @@ def map_orchestration_result_to_retrieved(
         "context_compaction_attempted": context_compaction_attempted,
         "context_compaction_result_observed": context_compaction_result_observed,
         "chunks_compacted": chunks_compacted,
+        "context_compaction_runtime_fallback": False,
     }
     return retrieved, metadata
 
@@ -968,6 +969,7 @@ async def retrieve(
     """Retrieve evidence using the requested mode with safe fallback."""
 
     context_compaction_enabled = False
+    context_compaction_runtime_fallback = False
     if state.config.retriever_mode == "pulseplate":
         context_compaction_enabled = _truthy_env(
             os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
@@ -985,6 +987,7 @@ async def retrieve(
                 state,
                 "pulseplate_retriever_fallback:" f"{type(exc).__name__}:{exc}",
             )
+            context_compaction_runtime_fallback = context_compaction_enabled is True
     local_retriever = ensure_local_retriever(state)
     return local_retriever.retrieve(query, top_k=top_k), {
         "rag_actually_used": bool(local_retriever.chunks),
@@ -1001,6 +1004,7 @@ async def retrieve(
         "context_compaction_attempted": False,
         "context_compaction_result_observed": False,
         "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": context_compaction_runtime_fallback,
         "max_supported_top_k": top_k,
         "requested_top_k": top_k,
     }
@@ -1837,6 +1841,7 @@ def build_metrics_summary(
         "context_compaction_attempted",
         "context_compaction_result_observed",
         "chunks_compacted",
+        "context_compaction_runtime_fallback",
     }
     context_compaction_summary = {
         "enabled_trace_count": 0,
@@ -1846,6 +1851,7 @@ def build_metrics_summary(
     }
     context_compaction_malformed = False
     context_compaction_attempted_unobserved = False
+    context_compaction_runtime_fallback_used = False
     context_compaction_carrier_active = any(
         trace.get("routing_decision") != "blocked_by_agent_input_guard"
         and isinstance(trace.get("retrieval_stats"), dict)
@@ -1873,19 +1879,34 @@ def build_metrics_summary(
         attempted = retrieval_stats["context_compaction_attempted"]
         observed = retrieval_stats["context_compaction_result_observed"]
         compacted = retrieval_stats["chunks_compacted"]
+        runtime_fallback = retrieval_stats["context_compaction_runtime_fallback"]
         if (
             type(enabled) is not bool
             or type(attempted) is not bool
             or type(observed) is not bool
             or type(compacted) is not int
+            or type(runtime_fallback) is not bool
             or compacted < 0
         ):
             context_compaction_malformed = True
             continue
 
         if enabled is False:
+            if (
+                attempted is not False
+                or observed is not False
+                or compacted != 0
+                or runtime_fallback is not False
+            ):
+                context_compaction_malformed = True
+            continue
+
+        if runtime_fallback is True:
             if attempted is not False or observed is not False or compacted != 0:
                 context_compaction_malformed = True
+                continue
+            context_compaction_summary["enabled_trace_count"] += 1
+            context_compaction_runtime_fallback_used = True
             continue
 
         if attempted is False:
@@ -1912,6 +1933,7 @@ def build_metrics_summary(
     context_compaction_observation_complete = (
         not context_compaction_malformed
         and not context_compaction_attempted_unobserved
+        and not context_compaction_runtime_fallback_used
         and (
             context_compaction_summary["enabled_trace_count"] == 0
             or context_compaction_summary["result_observed_trace_count"] > 0
