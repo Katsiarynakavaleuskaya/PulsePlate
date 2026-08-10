@@ -18,8 +18,7 @@ from app.utils.feature_flags import is_rag_context_compaction_enabled
 from core.ai.insight_runtime import RecursiveOptimizationHints, RecursiveRolloutPolicy
 
 
-@pytest.mark.asyncio
-async def test_traced_provider_updates_span_provider_name_after_fallback(
+def test_traced_provider_updates_span_provider_name_after_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Fallback winner must be reflected in tracing metadata and wrapper identity."""
@@ -53,15 +52,14 @@ async def test_traced_provider_updates_span_provider_name_after_fallback(
 
     traced = TracedInsightProvider(provider, user_tier="VIP", route="/api/v1/insight")
 
-    result = await traced.generate("hello")
+    result = asyncio.run(traced.generate("hello"))
 
     assert result == "fallback response"
     assert traced.name == "stub"
     assert observed_attrs["gen_ai.provider.name"] == "stub"
 
 
-@pytest.mark.asyncio
-async def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
+def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Tracing adapter must pass prepared recursive hints without recomputing them."""
@@ -130,26 +128,28 @@ async def test_generate_traced_insight_forwards_prepared_recursive_optimization_
         raising=True,
     )
 
-    await generate_traced_insight(
-        runtime=_FakeRuntime(),
-        text="hello",
-        lang=None,
-        provider=SimpleNamespace(name="provider", generate=lambda text: text),
-        use_rag=True,
-        philo_validation_enabled=False,
-        recursive_rag_enabled=True,
-        recursive_rag_optimization_enabled=True,
-        route_path="/api/v1/insight",
-        route_type="deep_reasoning",
-        user_tier="VIP",
-        subject_id=123,
-        knowledge_policy={"enabled": True},
-        recursive_rollout_policy=RecursiveRolloutPolicy(
+    asyncio.run(
+        generate_traced_insight(
+            runtime=_FakeRuntime(),
+            text="hello",
+            lang=None,
+            provider=SimpleNamespace(name="provider", generate=lambda text: text),
             use_rag=True,
+            philo_validation_enabled=False,
             recursive_rag_enabled=True,
             recursive_rag_optimization_enabled=True,
-            optimization_hints=RecursiveOptimizationHints(target_depth_cap=2),
-        ),
+            route_path="/api/v1/insight",
+            route_type="deep_reasoning",
+            user_tier="VIP",
+            subject_id=123,
+            knowledge_policy={"enabled": True},
+            recursive_rollout_policy=RecursiveRolloutPolicy(
+                use_rag=True,
+                recursive_rag_enabled=True,
+                recursive_rag_optimization_enabled=True,
+                optimization_hints=RecursiveOptimizationHints(target_depth_cap=2),
+            ),
+        )
     )
 
     assert observed["runtime_kwargs"]["recursive_rag_enabled"] is True
