@@ -11,15 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 from reportlab.platypus import Flowable, Paragraph, Table
 
-# Import the FastAPI app from app.py file
-from app import app
 from app.routers import plan_export as plan
 
-client = TestClient(app)
-
 # export_client fixture moved to tests/conftest.py
-
-from fastapi.testclient import TestClient
 
 
 def _signed_pdf_url(client: TestClient, lang: str = "en") -> str:

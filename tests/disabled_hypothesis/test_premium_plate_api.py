@@ -11,16 +11,30 @@ Tests cover:
 - Error handling
 """
 
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app import app
-
-client = TestClient(app)
+from tests._client import open_test_client
 
 
 class TestPremiumPlateAPI:
     """Test Premium Plate API endpoint."""
+
+    client: TestClient
+
+    @pytest.fixture(autouse=True)
+    def _managed_client(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+        """Own one function-scoped app lifespan for every class test."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        with open_test_client(app) as managed_client:
+            self.client = managed_client
+            try:
+                yield
+            finally:
+                del self.client
 
     def test_premium_plate_maintenance_goal(self):
         """Test Premium Plate API with maintenance goal."""
@@ -34,7 +48,7 @@ class TestPremiumPlateAPI:
             "lang": "en",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -79,7 +93,7 @@ class TestPremiumPlateAPI:
             "lang": "en",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -108,7 +122,7 @@ class TestPremiumPlateAPI:
             "lang": "en",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -137,7 +151,7 @@ class TestPremiumPlateAPI:
             "lang": "ru",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -165,7 +179,7 @@ class TestPremiumPlateAPI:
 
         for activity in activity_levels:
             payload = {**base_payload, "activity": activity}
-            response = client.post(
+            response = self.client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
 
@@ -187,7 +201,7 @@ class TestPremiumPlateAPI:
             "activity": "moderate",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -196,7 +210,7 @@ class TestPremiumPlateAPI:
         payload["weight_kg"] = 70
         payload["height_cm"] = 0
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -205,7 +219,7 @@ class TestPremiumPlateAPI:
         payload["height_cm"] = 175
         payload["age"] = 150
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -214,7 +228,7 @@ class TestPremiumPlateAPI:
         payload["age"] = 30
         payload["sex"] = "other"
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -223,7 +237,7 @@ class TestPremiumPlateAPI:
         payload["sex"] = "male"
         payload["activity"] = "invalid"
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -232,7 +246,7 @@ class TestPremiumPlateAPI:
         payload["activity"] = "moderate"
         payload["goal"] = "invalid_goal"
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -241,13 +255,10 @@ class TestPremiumPlateAPI:
         payload["goal"] = "maintain"
         payload["bodyfat"] = 70  # Over the limit
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
-        assert response.status_code in [
-            400,
-            422,
-        ]  # Either validation error is acceptable
+        assert response.status_code == 422
 
     def test_premium_plate_missing_api_key(self):
         """Test Premium Plate API without API key."""
@@ -261,13 +272,9 @@ class TestPremiumPlateAPI:
         }
 
         # Test without API key header
-        response = client.post("/api/v1/premium/plate", json=payload)
-        # Behavior depends on whether API_KEY is set in environment
-        assert response.status_code in [
-            200,
-            403,
-            422,
-        ]  # Include 422 for validation errors
+        response = self.client.post("/api/v1/premium/plate", json=payload)
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Invalid API Key"}
 
     def test_premium_plate_with_bodyfat(self):
         """Test Premium Plate API with body fat percentage."""
@@ -282,7 +289,7 @@ class TestPremiumPlateAPI:
             "lang": "en",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -310,7 +317,7 @@ class TestPremiumPlateAPI:
 
         for goal in goals:
             payload = {**base_payload, "goal": goal}
-            response = client.post(
+            response = self.client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
 
@@ -336,7 +343,7 @@ class TestPremiumPlateAPI:
             "lang": "en",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 

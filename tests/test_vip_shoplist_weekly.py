@@ -11,7 +11,6 @@ This test suite ensures weekly endpoint matches /generate contract:
 """
 
 from __future__ import annotations
-from tests._client import get_client
 
 from typing import Any
 
@@ -19,6 +18,7 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
+from tests._client import open_test_client
 from tests.conftest import _disable_vip, _enable_vip
 
 
@@ -147,50 +147,37 @@ def test_weekly_insufficient_vip_tier_returns_403(
     _enable_vip(monkeypatch)
 
     # Create client WITHOUT VIP access override (uses real tier check)
-    client = get_client()
+    with open_test_client() as managed_client:
+        payload = _payload_one_day()
 
-    payload = _payload_one_day()
+        # Use PRO key (insufficient for VIP endpoint)
+        r = managed_client.post(
+            "/api/v1/vip/shoplist/weekly",
+            json=payload,
+            headers={"X-API-Key": "test_pro_key"},
+        )
 
-    # Use PRO key (insufficient for VIP endpoint)
-    r = client.post(
-        "/api/v1/vip/shoplist/weekly",
-        json=payload,
-        headers={"X-API-Key": "test_pro_key"},
-    )
-
-    # In dev mode, may return 401 or 403 depending on implementation
-    assert r.status_code in (
-        status.HTTP_401_UNAUTHORIZED,
-        status.HTTP_403_FORBIDDEN,
-    ), f"Expected 401 or 403, got {r.status_code}: {r.text}"
-
-    data = r.json()
-
-    # Verify error message mentions API key/VIP/tier/permission
-    detail_lower = str(data.get("detail", "")).lower()
-    assert any(
-        kw in detail_lower
-        for kw in ("api key", "vip", "tier", "forbidden", "permission", "upgrade", "invalid")
-    )
+        assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
+        assert r.json() == {
+            "detail": (
+                "API key does not have VIP tier access. " "Upgrade to VIP to access this feature."
+            )
+        }
 
 
-def test_weekly_missing_api_key_returns_401_or_403(
+def test_weekly_missing_api_key_returns_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Missing API key should return 401 or 403."""
+    """Missing API key must use the stable VIP 403 boundary."""
     _enable_vip(monkeypatch)
 
     # Create client WITHOUT VIP access (no dependency override)
-    client = get_client()
+    with open_test_client() as managed_client:
+        payload = _payload_one_day()
+        r = managed_client.post("/api/v1/vip/shoplist/weekly", json=payload)
 
-    payload = _payload_one_day()
-    r = client.post("/api/v1/vip/shoplist/weekly", json=payload)
-
-    # legacy_app may return 401 or 403 depending on implementation
-    assert r.status_code in (
-        status.HTTP_401_UNAUTHORIZED,
-        status.HTTP_403_FORBIDDEN,
-    ), f"Expected 401 or 403, got {r.status_code}: {r.text}"
+        assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
+        assert r.json() == {"detail": "VIP access required"}
 
 
 def test_weekly_empty_days_returns_200(

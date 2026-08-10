@@ -6,251 +6,203 @@
 Стратегия: создать функцию make_weekly_menu и заставить код выполниться
 """
 
-import os
-from unittest.mock import MagicMock, patch
+from collections.abc import Iterator
+from typing import Any, NoReturn
+from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+import app.routers.legacy_premium_weekly_plan as weekly_plan_router
+import app.routers.vip as vip_router
+from tests._client import open_test_client
+
+
+def _valid_payload() -> dict[str, Any]:
+    """Return one valid full-profile payload for the legacy weekly alias."""
+    return {
+        "sex": "female",
+        "age": 30,
+        "height_cm": 168.0,
+        "weight_kg": 62.0,
+        "activity": "moderate",
+        "goal": "maintain",
+        "diet_flags": [],
+        "lang": "en",
+    }
+
+
+def _fake_weekly_menu_builder(
+    _profile: object,
+    _food_db: object = None,
+    _recipe_db: object = None,
+) -> dict[str, Any]:
+    """Return a deterministic payload accepted by the canonical response adapter."""
+    return {
+        "week_start": "2026-03-09",
+        "daily_menus": [
+            {
+                "date": "2026-03-09",
+                "meals": [
+                    {"title": "Breakfast", "kcal": 320},
+                    {"title": "Lunch", "kcal": 610},
+                ],
+                "total_kcal": 930,
+                "daily_cost": 11.5,
+            },
+            {
+                "date": "2026-03-10",
+                "meals": [{"title": "Dinner", "kcal": 540}],
+                "total_kcal": 540,
+                "daily_cost": 9.25,
+            },
+        ],
+        "weekly_coverage": {"protein": 0.91, "fiber": 0.84},
+        "shopping_list": {"oats": 400.0, "chicken": 900.0},
+        "total_cost": 72.8,
+        "adherence_score": 0.67,
+    }
 
 
 @pytest.fixture
-def client(dynamic_app):
-    """Test client fixture using conftest's dynamic_app"""
-    from fastapi import FastAPI
-    from starlette.types import ASGIApp
-    from typing import cast
-
-    return TestClient(cast(ASGIApp, dynamic_app))
+def weekly_planning_client(
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[TestClient]:
+    """Open one managed client for the canonical fixture-owned application."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    with open_test_client(app) as managed_client:
+        yield managed_client
 
 
 class TestWeeklyPlanningBlocks:
     """Специальные тесты для блоков 1265-1339 и 1435-1501"""
 
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    def test_weekly_planning_mock_success(
+        self,
+        weekly_planning_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The exact consumer binding drives the canonical success path."""
+        builder = Mock(side_effect=_fake_weekly_menu_builder)
+        monkeypatch.setattr(
+            weekly_plan_router,
+            "get_weekly_menu_builder",
+            lambda: builder,
+        )
 
-    def test_weekly_planning_mock_success(self, client):
-        """Тест успешного выполнения weekly planning с мокнутой функцией"""
+        response = weekly_planning_client.post(
+            "/api/v1/premium/plan/week",
+            headers={"X-API-Key": "test_key"},
+            json=_valid_payload(),
+        )
 
-        # Создать правильный мок для make_weekly_menu
-        def create_weekly_menu_mock():
-            """Создает мок weekly menu object"""
-            mock_menu = MagicMock()
-            mock_menu.week_start = "2025-01-01"
-            mock_menu.total_cost = 150.0
-            mock_menu.daily_menus = []
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["week_summary"] == {
+            "week_start": "2026-03-09",
+            "total_days": 2,
+            "avg_daily_cost": 10.38,
+        }
+        assert data["daily_menus"][0]["date"] == "2026-03-09"
+        assert data["daily_menus"][0]["meals"] == [
+            {"title": "Breakfast", "kcal": 320},
+            {"title": "Lunch", "kcal": 610},
+        ]
+        assert data["weekly_coverage"] == {"protein": 0.91, "fiber": 0.84}
+        assert data["shopping_list"] == {"oats": 400.0, "chicken": 900.0}
+        assert data["total_cost"] == 72.8
+        assert data["adherence_score"] == 0.67
+        builder.assert_called_once()
 
-            # Создать 7 дней меню
-            for i in range(7):
-                day_menu = MagicMock()
-                day_menu.date = f"2025-01-0{i + 1}" if i < 9 else f"2025-01-{i + 1}"
-                day_menu.meals = {
-                    "breakfast": f"breakfast_{i + 1}",
-                    "lunch": f"lunch_{i + 1}",
-                    "dinner": f"dinner_{i + 1}",
-                }
-                day_menu.cost = 20.0 + i
-                mock_menu.daily_menus.append(day_menu)
+    def test_weekly_planning_executor_value_error_is_static_400(
+        self,
+        weekly_planning_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The legacy alias sanitizes a canonical executor ValueError."""
+        executor = AsyncMock(side_effect=ValueError("private builder detail"))
+        monkeypatch.setattr(
+            weekly_plan_router,
+            "get_weekly_menu_builder",
+            lambda: _fake_weekly_menu_builder,
+        )
+        monkeypatch.setattr(
+            vip_router,
+            "execute_legacy_premium_week_alias_payload",
+            executor,
+        )
 
-            mock_menu.shopping_list = {
-                "milk": "2L",
-                "eggs": "12 pieces",
-                "bread": "2 loaves",
-                "chicken": "1kg",
-            }
+        response = weekly_planning_client.post(
+            "/api/v1/premium/plan/week",
+            headers={"X-API-Key": "test_key"},
+            json=_valid_payload(),
+        )
 
-            mock_menu.weekly_coverage = {
-                "protein": 95.5,
-                "carbs": 88.2,
-                "fats": 92.1,
-                "vitamins": 87.0,
-            }
+        assert response.status_code == 400, response.text
+        assert response.json() == {"detail": "Invalid input"}
+        assert "private builder detail" not in response.text
+        executor.assert_awaited_once()
 
-            return mock_menu
+    def test_weekly_planning_builder_unavailable_is_exact_503(
+        self,
+        weekly_planning_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An unavailable canonical builder short-circuits with the exact 503."""
+        executor = AsyncMock()
+        monkeypatch.setattr(
+            weekly_plan_router,
+            "get_weekly_menu_builder",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            vip_router,
+            "execute_legacy_premium_week_alias_payload",
+            executor,
+        )
 
-        # Патчинг через sys.modules для имитации импорта
-        with patch("sys.modules") as mock_sys_modules:
-            # Создать мок модуля приложения
-            mock_app_module = MagicMock()
+        response = weekly_planning_client.post(
+            "/api/v1/premium/plan/week",
+            headers={"X-API-Key": "test_key"},
+            json=_valid_payload(),
+        )
 
-            # Добавить мокнутую функцию make_weekly_menu
-            mock_app_module.make_weekly_menu = lambda profile: create_weekly_menu_mock()
+        assert response.status_code == 503, response.text
+        assert response.json() == {"detail": "Weekly menu generation feature not available"}
+        executor.assert_not_awaited()
 
-            # Настроить sys.modules чтобы возвращать наш мок
-            mock_sys_modules.__getitem__.return_value = mock_app_module
+    def test_weekly_planning_getter_failure_is_sanitized_500(
+        self,
+        weekly_planning_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A broken canonical getter fails closed without leaking its detail."""
+        executor = AsyncMock()
 
-            # Настроить API ключ
-            os.environ["API_KEY"] = "test_key"
-            try:
-                # Вызвать weekly planning endpoint
-                response = client.post(
-                    "/api/v1/premium/plan/week",
-                    headers={"X-API-Key": "test_key"},
-                    json={
-                        "sex": "male",
-                        "age": 30,
-                        "height_cm": 175,
-                        "weight_kg": 75,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                        "deficit_pct": 15,
-                        "surplus_pct": 10,
-                        "bodyfat": 18.5,
-                        "diet_flags": ["vegetarian", "gluten_free"],
-                        "life_stage": "adult",
-                    },
-                )
+        def _raise_getter_failure() -> NoReturn:
+            raise RuntimeError("private getter detail")
 
-                print(f"Weekly planning response: {response.status_code}")
-                if response.status_code == 200:
-                    data = response.json()
-                    print(f"Response keys: {list(data.keys())}")
+        monkeypatch.setattr(
+            weekly_plan_router,
+            "get_weekly_menu_builder",
+            _raise_getter_failure,
+        )
+        monkeypatch.setattr(
+            vip_router,
+            "execute_legacy_premium_week_alias_payload",
+            executor,
+        )
 
-                    # Проверить структуру ответа согласно коду main.py lines 1381-1501
-                    assert "week_summary" in data
-                    assert "daily_menus" in data
-                    assert "weekly_coverage" in data
-                    assert "shopping_list" in data
+        response = weekly_planning_client.post(
+            "/api/v1/premium/plan/week",
+            headers={"X-API-Key": "test_key"},
+            json=_valid_payload(),
+        )
 
-                    # Проверить week_summary структуру
-                    week_summary = data["week_summary"]
-                    assert "week_start" in week_summary
-                    assert "total_days" in week_summary
-                    assert "avg_daily_cost" in week_summary
-
-                    # Проверить daily_menus структуру
-                    daily_menus = data["daily_menus"]
-                    assert len(daily_menus) == 7  # 7 дней
-
-                    for menu in daily_menus:
-                        assert "date" in menu
-                        assert "meals" in menu
-                        assert "cost" in menu
-
-                elif response.status_code == 503:
-                    # Функция недоступна - все равно покрывает критические блоки!
-                    data = response.json()
-                    assert "detail" in data
-                    assert "not available" in data["detail"].lower()
-
-                # Любой из этих статусов означает что код был выполнен
-                assert response.status_code in [200, 503, 422, 400]
-
-            finally:
-                if "API_KEY" in os.environ:
-                    del os.environ["API_KEY"]
-
-    def test_weekly_planning_with_getattr_mock(self, client):
-        """Альтернативный подход к мокингу через getattr"""
-
-        # Патчинг getattr для нахождения make_weekly_menu
-        original_getattr = getattr
-
-        def mock_getattr(obj: object, name: str, *args) -> object:
-            if name != "make_weekly_menu":
-                return original_getattr(obj, name, *args)
-
-            # Возвращаем мокнутую функцию
-            def mock_make_weekly_menu(_profile: object) -> MagicMock:
-                mock_result = MagicMock()
-                mock_result.week_start = "2025-01-01"
-                mock_result.total_cost = 140.0
-                mock_result.daily_menus = [
-                    MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
-                ]
-                mock_result.shopping_list = {"test": "item"}
-                mock_result.weekly_coverage = {"protein": 90}
-                return mock_result
-
-            return mock_make_weekly_menu
-
-        with patch("builtins.getattr", side_effect=mock_getattr):
-            os.environ["API_KEY"] = "test_key"
-            try:
-                response = client.post(
-                    "/api/v1/premium/plan/week",
-                    headers={"X-API-Key": "test_key"},
-                    json={
-                        "sex": "female",
-                        "age": 25,
-                        "height_cm": 165,
-                        "weight_kg": 60,
-                        "activity": "light",
-                        "goal": "lose",
-                        "deficit_pct": 20,
-                    },
-                )
-
-                print(f"Alternative mock response: {response.status_code}")
-                # Код выполнился - это главное!
-                assert response.status_code in [200, 503, 422, 400]
-
-            finally:
-                if "API_KEY" in os.environ:
-                    del os.environ["API_KEY"]
-
-    def test_weekly_planning_error_scenarios(self, client):
-        """Тест error scenarios в weekly planning"""
-
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Тест без make_weekly_menu функции (должен быть 503)
-            response = client.post(
-                "/api/v1/premium/plan/week",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175,
-                    "weight_kg": 75,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-            )
-
-            print(f"Error scenario response: {response.status_code}")
-
-            if response.status_code == 503:
-                # Это покрывает блок 1362-1365 где выбрасывается HTTPException
-                data = response.json()
-                assert "detail" in data
-                assert "Weekly menu generation feature not available" in data["detail"]
-
-            # Любой статус означает что код выполнился
-            assert response.status_code in [200, 503, 422, 400]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_weekly_planning_import_scenarios(self, client):
-        """Тест import scenarios в weekly planning (lines 1356-1365)"""
-
-        # Тест блока где происходит import sys и поиск модуля
-        with patch("sys.modules") as mock_sys_modules:
-            # Симулировать отсутствие модуля
-            mock_sys_modules.__getitem__.side_effect = KeyError("Module not found")
-
-            os.environ["API_KEY"] = "test_key"
-            try:
-                response = client.post(
-                    "/api/v1/premium/plan/week",
-                    headers={"X-API-Key": "test_key"},
-                    json={
-                        "sex": "male",
-                        "age": 35,
-                        "height_cm": 180,
-                        "weight_kg": 80,
-                        "activity": "active",
-                        "goal": "gain",
-                    },
-                )
-
-                # Должно выполниться и покрыть import error handling
-                assert response.status_code in [200, 503, 422, 400, 500]
-
-            finally:
-                if "API_KEY" in os.environ:
-                    del os.environ["API_KEY"]
+        assert response.status_code == 500, response.text
+        assert response.json() == {"detail": "Weekly menu generation failed"}
+        assert "private getter detail" not in response.text
+        executor.assert_not_awaited()

@@ -5,19 +5,33 @@ Focused edge case tests for Pydantic validation covering only the cases
 that are known to work with the current API implementation.
 """
 
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
+
+from tests._client import open_test_client
 
 try:
     import app as app_mod  # type: ignore
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
 
-client = TestClient(app_mod.app)  # type: ignore
-
 
 class TestPremiumTargets422EdgeCasesSimple:
     """Simplified edge case tests for 422 validation errors"""
+
+    client: TestClient
+
+    @pytest.fixture(autouse=True)
+    def _managed_client(self) -> Iterator[None]:
+        """Own one function-scoped app lifespan for every class test."""
+        with open_test_client(app_mod.app) as managed_client:
+            self.client = managed_client
+            try:
+                yield
+            finally:
+                del self.client
 
     def test_missing_required_fields_422(self):
         """Test 422 for missing required fields"""
@@ -32,7 +46,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -55,7 +69,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -77,7 +91,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -99,7 +113,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -122,7 +136,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "bodyfat": -1,
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -144,7 +158,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -166,7 +180,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
@@ -181,7 +195,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             '{"sex": "female", "age": 30, "height_cm": 170, "weight_kg": 65, '
             '"activity": "moderate", "goal": "maintain", "life_stage": "adult", "lang": "en",}'
         )
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets",
             content=malformed_json,
             headers={"X-API-Key": "test_key", "Content-Type": "application/json"},
@@ -204,7 +218,7 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
@@ -257,7 +271,7 @@ class TestPremiumTargets422EdgeCasesSimple:
                 "lang": "en",
             }
 
-            resp = client.post(
+            resp = self.client.post(
                 "/api/v1/premium/targets",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
@@ -283,7 +297,7 @@ class TestPremiumTargets422EdgeCasesSimple:
                 "lang": lang,
             }
 
-            resp = client.post(
+            resp = self.client.post(
                 "/api/v1/premium/targets",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
