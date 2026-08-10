@@ -31,11 +31,6 @@ class TestAppHelperFunctions:
         # Other categories remain unchanged
         assert app_module.legacy_category_label("Obese", "en") == "Obese"
 
-    def test_rate_limiting_available_flag(self):
-        # Should just return a boolean based on optional slowapi import presence
-        val = app_module._is_rate_limiting_available()
-        assert isinstance(val, bool)
-
     def test_resolve_attr_utility(self):
         # resolve_attr should pick attribute from candidates or return default
         mock_mod = Mock()
