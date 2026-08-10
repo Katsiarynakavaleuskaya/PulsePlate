@@ -338,6 +338,46 @@ def test_map_orchestration_result_sanitizes_malformed_compaction_counts(
     assert metadata["chunks_compacted"] == 0
 
 
+@pytest.mark.parametrize("invalid_override", [1, "true"])
+def test_context_compaction_override_requires_exact_bool(
+    tmp_path: Path,
+    invalid_override: object,
+) -> None:
+    """Integer and string lookalikes must fail before core or metadata use."""
+
+    result = RAGOrchestrationResult(
+        chunks=[],
+        formatted_prompt="query",
+        rag_actually_used=False,
+        confidence=None,
+        hops=0,
+        latency_ms=0,
+    )
+    retrieve_and_validate_rag = AsyncMock(return_value=result)
+    state = _make_release_gate_state(tmp_path)
+    state.pulseplate_imports = PulsePlateImports(
+        retrieve_and_validate_rag=retrieve_and_validate_rag,
+    )
+
+    with pytest.raises(TypeError, match="^context_compaction_enabled must be a built-in bool$"):
+        map_orchestration_result_to_retrieved(
+            result,
+            context_compaction_enabled=invalid_override,
+        )
+    with pytest.raises(TypeError, match="^context_compaction_enabled must be a built-in bool$"):
+        asyncio.run(
+            runner.pulseplate_retrieve(
+                state,
+                "query",
+                top_k=3,
+                subject_id=None,
+                context_compaction_enabled=invalid_override,
+            )
+        )
+
+    retrieve_and_validate_rag.assert_not_awaited()
+
+
 def test_philosophy_validator_integration_blocks_correctness() -> None:
     """Blocker findings must force the correctness proxy to fail closed."""
 
@@ -458,7 +498,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                 {
                     "context_compaction_enabled": False,
                     "context_compaction_result_observed": True,
-                    "chunks_compacted": 0,
+                    "chunks_compacted": 7,
                 }
             ],
             {
@@ -472,7 +512,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                 {
                     "context_compaction_enabled": True,
                     "context_compaction_result_observed": False,
-                    "chunks_compacted": 0,
+                    "chunks_compacted": 11,
                 }
             ],
             {
@@ -1543,6 +1583,8 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert (
         '"context_compaction_result_observed": context_compaction_enabled is True' in adapter_source
     )
+    assert "elif type(context_compaction_enabled) is not bool:" in adapter_source
+    assert 'raise TypeError("context_compaction_enabled must be a built-in bool")' in adapter_source
     assert '"rag_context_compaction_enabled": context_compaction_enabled' in adapter_source
     assert '"rag_chunks_compacted":' in adapter_source
     assert 'retrieval_stats["context_compaction_enabled"] = context_compaction_enabled' in (

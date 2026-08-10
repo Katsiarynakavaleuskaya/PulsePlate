@@ -844,6 +844,9 @@ def map_orchestration_result_to_retrieved(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Map `RAGOrchestrationResult` into retrieved rows and retrieval metadata."""
 
+    if type(context_compaction_enabled) is not bool:
+        raise TypeError("context_compaction_enabled must be a built-in bool")
+
     chunks = list(getattr(orchestration_result, "chunks", []) or [])
     retrieved = [
         map_rag_chunk(chunk, rank=rank, retriever=retriever)
@@ -902,6 +905,13 @@ async def pulseplate_retrieve(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Execute the real orchestration path and map the output into trace rows."""
 
+    if context_compaction_enabled is None:
+        context_compaction_enabled = _truthy_env(
+            os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
+        )
+    elif type(context_compaction_enabled) is not bool:
+        raise TypeError("context_compaction_enabled must be a built-in bool")
+
     retrieve_and_validate_rag = state.pulseplate_imports.retrieve_and_validate_rag
     if retrieve_and_validate_rag is None:
         raise RuntimeError("PulsePlate retrieve_and_validate_rag is unavailable")
@@ -910,10 +920,6 @@ async def pulseplate_retrieve(
     optimization_enabled = _truthy_env(
         os.getenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION"),
     )
-    if context_compaction_enabled is None:
-        context_compaction_enabled = _truthy_env(
-            os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
-        )
     result = await retrieve_and_validate_rag(
         query,
         max_chunks=top_k,
@@ -1824,6 +1830,8 @@ def build_metrics_summary(
             _safe_nonnegative_int(trace["retrieval_stats"].get("chunks_compacted"))
             for trace in traces
             if isinstance(trace.get("retrieval_stats"), dict)
+            and trace["retrieval_stats"].get("context_compaction_enabled") is True
+            and trace["retrieval_stats"].get("context_compaction_result_observed") is True
         ),
     }
 
