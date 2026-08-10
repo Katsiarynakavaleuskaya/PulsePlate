@@ -24,13 +24,60 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
+- [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
+  - Owner: backend-engineer
+  - Priority: P1 (bounded LLM context cost / latency experiment)
+  - Branch: `codex/rag-context-compaction-pilot-b3-r2`
+  - Target PR: TBD (replacement PR; supersedes
+    [PR #2249](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249))
+  - Status: Replacement in progress from exact main
+    `48b04c2267aa7ff8708feb348c64bdf68ac52ba7`
+  - Area: backend / RAG / Insight runtime
+  - Business reason (EN): Avoid sending byte-for-byte duplicate final evidence
+    carriers to the provider when explicitly enabled, while preserving every
+    distinct evidence reference and the existing user response fallback.
+  - Exact invariant (EN): After mandatory Stage 1 and final metadata/content
+    hygiene, collapse only later `RAGChunk` carriers that match an earlier
+    carrier in runtime type and value for all five primitive fields
+    (`chunk_id`, `file`, `content`, `score`, `hop`). Preserve the first
+    occurrence and order. Prompt, sources, confidence, evidence, provenance,
+    bundle, and candidates use that one compacted snapshot. Failure returns an
+    untouched validated snapshot for the response and closes bundle admission
+    and candidates through an existing internal degraded state.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md#34-pilot-3b-exact-carrier-context-compaction`
+    - `core/rag/context_compaction.py`
+    - [Final roadmap PDF (product intent only; not runtime authority)](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
+  - DoD:
+    - optional request-time flag defaults off and is forwarded explicitly from app to core
+    - vector and final merged recursive results cross the same outer seam
+    - exact duplicates collapse without mutable aliasing; every field difference,
+      distinct evidence reference, non-equal score, and original order survive
+    - success reports only the bounded internal `chunks_compacted` count
+    - mutation or exception returns the pristine final snapshot, one stable
+      non-sensitive warning/log record, and closed knowledge admission
+    - both Insight aliases retain DTO/OpenAPI, provider-call count,
+      guard/quota/rate-limit ordering, and non-RAG fallback behavior
+    - focused tests, typecheck, targeted Bandit, branch-diff backend hook,
+      `make validate-changed`, full pre-commit, and current-head CI/governance pass
+  - Rollback (EN): Set `FEATURE_RAG_CONTEXT_COMPACTION=false` (default) or revert
+    the PR. Mandatory Stage 1 and the non-RAG fallback remain unchanged.
+  - Out of scope (EN): Stage 0, content-only/normalized/fuzzy/semantic or
+    boilerplate deduplication, semantic cache, Evidence Graph serving,
+    persistent memory, `TaskNormativeEnvelopeV1`, public routes/DTO/OpenAPI,
+    provider/model, quota/rate-limit, and broad RAG cleanup. Semantic-cache
+    widening remains prohibited until its dedicated gate opens.
+
 <a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
-- [ ] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
+- [x] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
   - Owner: backend-engineer / qa-engineer-agent
   - Priority: P1 (current-main recovery / CI trust)
   - Target PR: [PR #2247](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2247)
   - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on replacement PR #2247
-  - Status: Integrated into the single operator-authorized remediation lane; exact-head CI and closeout pending
+  - Status: Completed in merged PR #2247 at
+    `6a8aabc4b8a3f27b1a3eb363276d6498dc33ada4`; exact-main canonical CI,
+    Nightly Full, security, CD-Test, and CD were terminal success on 2026-08-09
   - Reason (EN): PR #2245 repairs the Stage-1-invalid positive Jaccard fixture
     and the finite `insight_ai` owning-suite gap, but its Trivy check is blocked
     by the dependency identities first assembled in superseded PR #2246 and now
@@ -57,11 +104,13 @@ If it is not recorded here — it does not exist.
       before any main/nightly recovery claim
 
 <a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
-- [ ] P1: RAG-S2 baseline validation boundary
+- [x] P1: RAG-S2 baseline validation boundary
   - Owner: backend-engineer
   - Priority: P1 (AI runtime trust / response continuity)
   - Target PR: [PR #2232](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2232)
-  - Status: In review on `codex/rag-baseline-validation-boundary`
+  - Status: Completed in merged PR #2232 at
+    `ad179450108ab352fe31e6687a33185b99b52127`; post-merge focused RAG sanity
+    passed on exact main `6a8aabc4b8a3f27b1a3eb363276d6498dc33ada4`
   - Area: backend / RAG / Insight runtime / knowledge admission
   - Business reason (EN): Keep the available non-medical wellness response when
     advisory enrichment fails while preventing any unvalidated retrieval chunk

@@ -100,6 +100,9 @@ class TestEmptyResult:
         assert result.hops == 0
         assert result.latency_ms == 0
         assert result.recursive_executed is False
+        assert result.chunks_compacted == 0
+        assert result.context_compaction_completed is False
+        assert result.context_compaction_attempted is False
 
     def test_empty_result_preserves_recursive_execution_flag(self) -> None:
         result = _empty_result("my prompt", recursive_executed=True)
@@ -685,7 +688,11 @@ class TestRetrieveAndValidateRag:
             ),
         ):
             result = asyncio.run(
-                retrieve_and_validate_rag("test prompt", philo_validation_enabled=True)
+                retrieve_and_validate_rag(
+                    "test prompt",
+                    philo_validation_enabled=True,
+                    context_compaction_enabled=True,
+                )
             )
 
         assert result.rag_actually_used is False
@@ -693,6 +700,8 @@ class TestRetrieveAndValidateRag:
         assert result.formatted_prompt == "test prompt"
         assert result.chunks_retrieved == 1
         assert result.chunks_filtered == 1
+        assert result.context_compaction_attempted is False
+        assert result.context_compaction_completed is False
 
     def test_confidence_recalculated_with_validation(self) -> None:
         """With validation enabled, confidence is mean of filtered chunk scores."""
@@ -1573,6 +1582,374 @@ def test_rag_orchestration_builds_candidates_only_from_validated_chunks() -> Non
     assert "jane@example.com" not in provenance_payload
     assert "api_key" not in provenance_payload
     assert "Drop chunk" not in provenance_payload
+
+
+@pytest.mark.parametrize("recursive_enabled", [False, True])
+def test_exact_compaction_uses_one_snapshot_for_all_rag_carriers(
+    recursive_enabled: bool,
+) -> None:
+    """Vector and recursive output carriers must share the compacted snapshot."""
+    duplicate = _make_chunk(
+        chunk_id="duplicate",
+        content="Exact duplicated wellness evidence.",
+        score=0.9,
+        file="docs/duplicate.md",
+    )
+    distinct = _make_chunk(
+        chunk_id="distinct",
+        content="Distinct wellness evidence.",
+        score=0.7,
+        file="docs/distinct.md",
+    )
+    raw_chunks = [
+        duplicate,
+        _make_chunk(
+            chunk_id=duplicate.chunk_id,
+            content=duplicate.content,
+            score=duplicate.score,
+            file=duplicate.file,
+        ),
+        distinct,
+    ]
+    rag_ctx = _make_rag_context(chunks=raw_chunks, confidence=0.7, hops=2)
+    pipeline_result = PipelineResult(
+        filtered_chunks=raw_chunks,
+        stage_results=[],
+        warnings=[],
+        total_latency_ms=1.0,
+        post_stage1_enrichment_completed=True,
+    )
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.recursive_retrieval.retrieve_recursive_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                recursive_rag_enabled=recursive_enabled,
+                context_compaction_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert result.rag_actually_used is True
+    assert [chunk.chunk_id for chunk in result.chunks] == ["duplicate", "distinct"]
+    assert result.chunks_compacted == 1
+    assert result.context_compaction_attempted is True
+    assert result.context_compaction_completed is True
+    assert result.chunks_retrieved == 3
+    assert result.chunks_filtered == 0
+    assert result.confidence == 0.8
+    assert result.formatted_prompt.count("Exact duplicated wellness evidence.") == 1
+    sources = build_rag_source_dicts(result.chunks)
+    assert [source["chunk_id"] for source in sources] == ["duplicate", "distinct"]
+    assert result.verification_bundle is not None
+    assert {
+        evidence_ref
+        for artifact in result.verification_bundle.artifacts
+        for evidence_ref in artifact.evidence_refs
+    } == {"docs/duplicate.md:duplicate", "docs/distinct.md:distinct"}
+    if recursive_enabled:
+        assert result.knowledge_candidates == []
+        assert result.knowledge_candidates_canonical is False
+    else:
+        assert [candidate.provenance[0].chunk_id for candidate in result.knowledge_candidates] == [
+            "duplicate",
+            "distinct",
+        ]
+
+
+def test_context_compaction_flag_off_preserves_duplicate_carriers() -> None:
+    """Default-off behavior must not invoke or apply optional compaction."""
+    chunk = _make_chunk(
+        chunk_id="duplicate",
+        content="Repeated but unconfigured evidence.",
+        score=0.8,
+        file="docs/duplicate.md",
+    )
+    duplicate = _make_chunk(
+        chunk_id=chunk.chunk_id,
+        content=chunk.content,
+        score=chunk.score,
+        file=chunk.file,
+    )
+    raw_chunks = [chunk, duplicate]
+    rag_ctx = _make_rag_context(chunks=raw_chunks, confidence=0.8)
+    pipeline_result = PipelineResult(raw_chunks, [], [], 1.0, True)
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch("core.rag.context_compaction.compact_exact_duplicate_chunks") as compact_chunks,
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                context_compaction_enabled=False,
+            )
+        )
+
+    compact_chunks.assert_not_called()
+    assert [item.chunk_id for item in result.chunks] == ["duplicate", "duplicate"]
+    assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is False
+    assert result.context_compaction_completed is False
+    assert result.confidence == 0.8
+
+
+def test_context_compaction_zero_removals_still_completes() -> None:
+    """A successful enabled postcondition is complete even when it removes nothing."""
+
+    chunk = _make_chunk(
+        chunk_id="unique",
+        content="One unique wellness evidence carrier.",
+        score=0.8,
+        file="docs/unique.md",
+    )
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.8)
+    pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                context_compaction_enabled=True,
+            )
+        )
+
+    assert result.rag_actually_used is True
+    assert [item.chunk_id for item in result.chunks] == ["unique"]
+    assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is True
+    assert result.context_compaction_completed is True
+
+
+@pytest.mark.parametrize(
+    ("prior_reason", "expected_reason"),
+    [
+        (None, RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION),
+        (
+            RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+            RAGDegradedReason.VECTOR_FALLBACK_NO_RESULTS,
+        ),
+    ],
+)
+def test_compaction_failure_rolls_back_response_and_closes_admission(
+    prior_reason: RAGDegradedReason | None,
+    expected_reason: RAGDegradedReason,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed optional compactor cannot mutate output or authorize promotion."""
+    query = "sentinel-private-compaction-query"
+    chunk = _make_chunk(
+        chunk_id="sentinel-private-compaction-id",
+        content="Pristine wellness evidence.",
+        score=0.9,
+        file="/private/sentinel-compaction-path.md",
+    )
+    rag_ctx = _make_rag_context(chunks=[chunk], confidence=0.9)
+    rag_ctx.degraded_reason = prior_reason
+    pipeline_result = PipelineResult([chunk], [], [], 1.0, True)
+
+    def mutate_then_raise(chunks: list[RAGChunk]) -> tuple[list[RAGChunk], int]:
+        chunks[0].content = "sentinel-mutated-compaction-content"
+        raise RuntimeError("sentinel-private-compaction-exception")
+
+    with (
+        caplog.at_level(logging.WARNING, logger="core.rag.orchestration"),
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.context_compaction.compact_exact_duplicate_chunks",
+            side_effect=mutate_then_raise,
+        ),
+        patch("core.rag.orchestration._build_knowledge_candidates") as build_candidates,
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                query,
+                philo_validation_enabled=True,
+                context_compaction_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert result.rag_actually_used is True
+    assert result.chunks[0].content == "Pristine wellness evidence."
+    assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is True
+    assert result.context_compaction_completed is False
+    assert result.warnings.count("rag_context_compaction_error: internal failure") == 1
+    assert result.degraded_reason == expected_reason
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False
+    build_candidates.assert_not_called()
+    records = [record for record in caplog.records if record.name == "core.rag.orchestration"]
+    assert [record.getMessage() for record in records] == [
+        "RAG context compaction failed; preserving validated RAG response"
+    ]
+    assert records[0].args == ()
+    assert records[0].exc_info is None
+    for sentinel in (
+        query,
+        chunk.chunk_id,
+        chunk.file,
+        chunk.content,
+        str(chunk.score),
+        "sentinel-mutated-compaction-content",
+        "sentinel-private-compaction-exception",
+    ):
+        assert sentinel not in caplog.text
+
+
+def test_late_exception_preserves_observed_compaction_count() -> None:
+    """Outer fail-closed recovery must retain completed compaction diagnostics."""
+    chunk = _make_chunk(
+        chunk_id="duplicate",
+        content="Exact duplicate before late failure.",
+        score=0.9,
+        file="docs/duplicate.md",
+    )
+    duplicate = _make_chunk(
+        chunk_id=chunk.chunk_id,
+        content=chunk.content,
+        score=chunk.score,
+        file=chunk.file,
+    )
+    raw_chunks = [chunk, duplicate]
+    rag_ctx = _make_rag_context(chunks=raw_chunks, confidence=0.9)
+    pipeline_result = PipelineResult(raw_chunks, [], [], 1.0, True)
+
+    with (
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.formatting.format_rag_chunks_for_prompt",
+            side_effect=RuntimeError("late formatting failure"),
+        ),
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                context_compaction_enabled=True,
+            )
+        )
+
+    assert result.rag_actually_used is False
+    assert result.chunks == []
+    assert result.chunks_compacted == 1
+    assert result.context_compaction_attempted is True
+    assert result.context_compaction_completed is True
+    assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+
+
+@pytest.mark.parametrize(
+    "invalid_shape",
+    ["substitution", "reorder", "deletion", "malformed_count"],
+)
+def test_invalid_non_raising_compaction_result_rolls_back_and_closes_admission(
+    invalid_shape: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Every invalid exact-carrier postcondition must use the same safe rollback."""
+    chunks = [
+        _make_chunk(
+            chunk_id="first",
+            content="First pristine wellness carrier.",
+            score=0.9,
+            file="docs/first.md",
+        ),
+        _make_chunk(
+            chunk_id="second",
+            content="Second pristine wellness carrier.",
+            score=0.8,
+            file="docs/second.md",
+        ),
+        _make_chunk(
+            chunk_id="third",
+            content="Third pristine wellness carrier.",
+            score=0.7,
+            file="docs/third.md",
+        ),
+    ]
+    rag_ctx = _make_rag_context(chunks=chunks, confidence=0.8)
+    pipeline_result = PipelineResult(chunks, [], [], 1.0, True)
+
+    def invalid_compaction(
+        working_chunks: list[RAGChunk],
+    ) -> tuple[list[RAGChunk], int]:
+        if invalid_shape == "substitution":
+            working_chunks[0].content = "mutated non-raising carrier"
+            return working_chunks, 0
+        if invalid_shape == "reorder":
+            return [working_chunks[1], working_chunks[0], working_chunks[2]], 0
+        if invalid_shape == "malformed_count":
+            return working_chunks, False
+        return working_chunks[:-1], 1
+
+    with (
+        caplog.at_level(logging.WARNING, logger="core.rag.orchestration"),
+        patch("asyncio.to_thread", new_callable=AsyncMock, return_value=rag_ctx),
+        patch("core.rag.vector_rag.retrieve_context_structured"),
+        patch("core.rag.philosophy_pipeline.run_pipeline", return_value=pipeline_result),
+        patch(
+            "core.rag.context_compaction.compact_exact_duplicate_chunks",
+            side_effect=invalid_compaction,
+        ),
+        patch("core.rag.orchestration._build_knowledge_candidates") as build_candidates,
+    ):
+        result = asyncio.run(
+            retrieve_and_validate_rag(
+                "test prompt",
+                philo_validation_enabled=True,
+                context_compaction_enabled=True,
+                subject_id=42,
+                knowledge_policy=_knowledge_policy(),
+            )
+        )
+
+    assert [chunk.chunk_id for chunk in result.chunks] == ["first", "second", "third"]
+    assert [chunk.content for chunk in result.chunks] == [
+        "First pristine wellness carrier.",
+        "Second pristine wellness carrier.",
+        "Third pristine wellness carrier.",
+    ]
+    assert result.rag_actually_used is True
+    assert result.chunks_compacted == 0
+    assert result.context_compaction_attempted is True
+    assert result.context_compaction_completed is False
+    assert result.warnings.count("rag_context_compaction_error: internal failure") == 1
+    assert result.degraded_reason == RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+    assert result.knowledge_candidates == []
+    assert result.knowledge_candidates_canonical is False
+    assert result.verification_bundle is not None
+    assert result.verification_bundle.admission_allowed is False
+    build_candidates.assert_not_called()
+    records = [record for record in caplog.records if record.name == "core.rag.orchestration"]
+    assert [record.getMessage() for record in records] == [
+        "RAG context compaction failed; preserving validated RAG response"
+    ]
+    assert records[0].args == ()
+    assert records[0].exc_info is None
+    assert "mutated non-raising carrier" not in caplog.text
 
 
 @pytest.mark.parametrize("recursive_enabled", [False, True])

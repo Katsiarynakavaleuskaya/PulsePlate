@@ -82,6 +82,12 @@ def is_recursive_rag_optimization_enabled() -> bool:
     return _is_truthy(os.getenv("FEATURE_RAG_RECURSIVE_OPTIMIZATION"))
 
 
+def is_rag_context_compaction_enabled() -> bool:
+    """Check if bounded exact-carrier RAG compaction is enabled."""
+
+    return _is_truthy(os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"))
+
+
 def is_creative_research_pilot_enabled() -> bool:
     """Check if the internal creative research pilot is enabled."""
 
@@ -115,6 +121,7 @@ __all__ = [
     "is_premium_nutrition_enabled",
     "is_vip_module_enabled",
     "is_rag_vector_enabled",
+    "is_rag_context_compaction_enabled",
     "is_philosophy_validation_enabled",
     "is_recursive_rag_optimization_enabled",
     "is_philosophy_router_enabled",

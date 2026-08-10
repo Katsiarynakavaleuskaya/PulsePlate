@@ -834,10 +834,34 @@ def map_orchestration_result_to_retrieved(
     orchestration_result: Any,
     *,
     retriever: str = "pulseplate",
+    context_compaction_enabled: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Map `RAGOrchestrationResult` into retrieved rows and retrieval metadata."""
 
+    if type(context_compaction_enabled) is not bool:
+        raise TypeError("context_compaction_enabled must be a built-in bool")
+
+    _missing_degraded_reason = object()
+    degraded_reason = getattr(
+        orchestration_result,
+        "degraded_reason",
+        _missing_degraded_reason,
+    )
     chunks = list(getattr(orchestration_result, "chunks", []) or [])
+    context_compaction_attempted = (
+        getattr(orchestration_result, "context_compaction_attempted", False) is True
+    )
+    raw_chunks_compacted = getattr(orchestration_result, "chunks_compacted", 0)
+    context_compaction_result_observed = (
+        context_compaction_enabled is True
+        and context_compaction_attempted is True
+        and getattr(orchestration_result, "context_compaction_completed", False) is True
+        and getattr(orchestration_result, "rag_actually_used", False) is True
+        and degraded_reason is None
+        and type(raw_chunks_compacted) is int
+        and raw_chunks_compacted >= 0
+    )
+    chunks_compacted = raw_chunks_compacted if context_compaction_result_observed else 0
     retrieved = [
         map_rag_chunk(chunk, rank=rank, retriever=retriever)
         for rank, chunk in enumerate(chunks, start=1)
@@ -862,11 +886,17 @@ def map_orchestration_result_to_retrieved(
         "recursive_executed": bool(
             getattr(orchestration_result, "recursive_executed", False),
         ),
-        "degraded_reason": (str(getattr(orchestration_result, "degraded_reason", "")) or None),
         "formatted_prompt_present": bool(
             str(getattr(orchestration_result, "formatted_prompt", "")).strip(),
         ),
+        "context_compaction_enabled": context_compaction_enabled,
+        "context_compaction_attempted": context_compaction_attempted,
+        "context_compaction_result_observed": context_compaction_result_observed,
+        "chunks_compacted": chunks_compacted,
+        "context_compaction_runtime_fallback": False,
     }
+    if degraded_reason is not _missing_degraded_reason:
+        metadata["degraded_reason"] = str(degraded_reason) if degraded_reason is not None else None
     return retrieved, metadata
 
 
@@ -886,8 +916,16 @@ async def pulseplate_retrieve(
     *,
     top_k: int,
     subject_id: int | None,
+    context_compaction_enabled: bool | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Execute the real orchestration path and map the output into trace rows."""
+
+    if context_compaction_enabled is None:
+        context_compaction_enabled = _truthy_env(
+            os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
+        )
+    elif type(context_compaction_enabled) is not bool:
+        raise TypeError("context_compaction_enabled must be a built-in bool")
 
     retrieve_and_validate_rag = state.pulseplate_imports.retrieve_and_validate_rag
     if retrieve_and_validate_rag is None:
@@ -903,11 +941,22 @@ async def pulseplate_retrieve(
         philo_validation_enabled=True,
         recursive_rag_enabled=recursive_enabled,
         optimization_enabled=optimization_enabled,
+        context_compaction_enabled=context_compaction_enabled,
         subject_id=subject_id,
     )
-    retrieved, metadata = map_orchestration_result_to_retrieved(result, retriever="pulseplate")
+    retrieved, metadata = map_orchestration_result_to_retrieved(
+        result,
+        retriever="pulseplate",
+        context_compaction_enabled=context_compaction_enabled,
+    )
     metadata["max_supported_top_k"] = len(retrieved) or top_k
     metadata["requested_top_k"] = top_k
+    if (
+        context_compaction_enabled is True
+        and metadata["context_compaction_attempted"] is True
+        and metadata["context_compaction_result_observed"] is not True
+    ):
+        _record_strict_violation(state, "rag_context_compaction_failed")
     return retrieved, metadata
 
 
@@ -920,19 +969,26 @@ async def retrieve(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Retrieve evidence using the requested mode with safe fallback."""
 
+    context_compaction_enabled = False
+    context_compaction_runtime_fallback = False
     if state.config.retriever_mode == "pulseplate":
+        context_compaction_enabled = _truthy_env(
+            os.getenv("FEATURE_RAG_CONTEXT_COMPACTION"),
+        )
         try:
             return await pulseplate_retrieve(
                 state,
                 query,
                 top_k=top_k,
                 subject_id=subject_id,
+                context_compaction_enabled=context_compaction_enabled,
             )
         except Exception as exc:
             _record_runtime_fallback(
                 state,
                 "pulseplate_retriever_fallback:" f"{type(exc).__name__}:{exc}",
             )
+            context_compaction_runtime_fallback = context_compaction_enabled is True
     local_retriever = ensure_local_retriever(state)
     return local_retriever.retrieve(query, top_k=top_k), {
         "rag_actually_used": bool(local_retriever.chunks),
@@ -945,6 +1001,11 @@ async def retrieve(
         "recursive_executed": False,
         "degraded_reason": None,
         "formatted_prompt_present": False,
+        "context_compaction_enabled": context_compaction_enabled,
+        "context_compaction_attempted": False,
+        "context_compaction_result_observed": False,
+        "chunks_compacted": 0,
+        "context_compaction_runtime_fallback": context_compaction_runtime_fallback,
         "max_supported_top_k": top_k,
         "requested_top_k": top_k,
     }
@@ -1776,6 +1837,125 @@ def build_metrics_summary(
 ) -> tuple[dict[str, Any], dict[str, bool], str]:
     """Build summary metrics, gate checks, and the release decision."""
 
+    compaction_fields = {
+        "context_compaction_enabled",
+        "context_compaction_attempted",
+        "context_compaction_result_observed",
+        "chunks_compacted",
+        "context_compaction_runtime_fallback",
+    }
+    context_compaction_summary = {
+        "enabled_trace_count": 0,
+        "attempted_trace_count": 0,
+        "result_observed_trace_count": 0,
+        "chunks_compacted_total": 0,
+    }
+    context_compaction_malformed = False
+    context_compaction_attempted_unobserved = False
+    context_compaction_runtime_fallback_used = False
+    ordinary_empty_reasons = {
+        "RAGDegradedReason.RETRIEVAL_EMPTY",
+        "RAGDegradedReason.ALL_CHUNKS_FILTERED",
+    }
+    for trace in traces:
+        if trace.get("routing_decision") == "blocked_by_agent_input_guard":
+            continue
+        retrieval_stats = trace.get("retrieval_stats")
+        if not isinstance(retrieval_stats, dict):
+            context_compaction_malformed = True
+            continue
+        present_fields = compaction_fields.intersection(retrieval_stats)
+        if not present_fields:
+            context_compaction_malformed = True
+            continue
+        if present_fields != compaction_fields:
+            context_compaction_malformed = True
+            continue
+        if "degraded_reason" not in retrieval_stats:
+            context_compaction_malformed = True
+            continue
+
+        enabled = retrieval_stats["context_compaction_enabled"]
+        attempted = retrieval_stats["context_compaction_attempted"]
+        observed = retrieval_stats["context_compaction_result_observed"]
+        compacted = retrieval_stats["chunks_compacted"]
+        runtime_fallback = retrieval_stats["context_compaction_runtime_fallback"]
+        rag_actually_used = retrieval_stats.get("rag_actually_used")
+        degraded_reason = retrieval_stats["degraded_reason"]
+        if (
+            type(enabled) is not bool
+            or type(attempted) is not bool
+            or type(observed) is not bool
+            or type(compacted) is not int
+            or type(runtime_fallback) is not bool
+            or type(rag_actually_used) is not bool
+            or compacted < 0
+        ):
+            context_compaction_malformed = True
+            continue
+
+        if observed is True and rag_actually_used is False:
+            context_compaction_malformed = True
+            continue
+
+        if enabled is False:
+            if (
+                attempted is not False
+                or observed is not False
+                or compacted != 0
+                or runtime_fallback is not False
+            ):
+                context_compaction_malformed = True
+            continue
+
+        if runtime_fallback is True:
+            if attempted is not False or observed is not False or compacted != 0:
+                context_compaction_malformed = True
+                continue
+            context_compaction_summary["enabled_trace_count"] += 1
+            context_compaction_runtime_fallback_used = True
+            continue
+
+        if attempted is False:
+            if (
+                observed is not False
+                or compacted != 0
+                or rag_actually_used is True
+                or degraded_reason not in ordinary_empty_reasons
+            ):
+                context_compaction_malformed = True
+                continue
+            context_compaction_summary["enabled_trace_count"] += 1
+            continue
+
+        if observed is False:
+            if compacted != 0:
+                context_compaction_malformed = True
+                continue
+            context_compaction_summary["enabled_trace_count"] += 1
+            context_compaction_summary["attempted_trace_count"] += 1
+            context_compaction_attempted_unobserved = True
+            continue
+
+        if degraded_reason is not None:
+            context_compaction_malformed = True
+            continue
+
+        context_compaction_summary["enabled_trace_count"] += 1
+        context_compaction_summary["attempted_trace_count"] += 1
+        context_compaction_summary["result_observed_trace_count"] += 1
+        context_compaction_summary["chunks_compacted_total"] += compacted
+
+    context_compaction_observation_complete = (
+        not context_compaction_malformed
+        and not context_compaction_attempted_unobserved
+        and not context_compaction_runtime_fallback_used
+        and (
+            context_compaction_summary["enabled_trace_count"] == 0
+            or context_compaction_summary["result_observed_trace_count"] > 0
+        )
+    )
+
     retrieval_summary = {
         "recall_at_3": nanmean(
             trace["retrieval_metrics"].get("recall_at_3", float("nan")) for trace in traces
@@ -1879,7 +2059,8 @@ def build_metrics_summary(
             <= GATE_THRESHOLDS["escalation_max"]
         ),
         "gate_d1_no_runtime_mode_fallbacks": (
-            not state.strict_violations if not state.config.allow_runtime_fallbacks else True
+            (not state.strict_violations if not state.config.allow_runtime_fallbacks else True)
+            and context_compaction_observation_complete
         ),
     }
     small_fixture_advisory = _small_fixture_numeric_gates_advisory(
@@ -1924,6 +2105,7 @@ def build_metrics_summary(
         "faithfulness": faithfulness_summary,
         "calibration": calibration_metrics,
         "routing": routing_summary,
+        "context_compaction": context_compaction_summary,
         "thresholds": GATE_THRESHOLDS,
         "threshold_results": threshold_results,
         "gate_checks": gate_checks,
