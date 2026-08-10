@@ -120,9 +120,9 @@ Evidence: scripts/evals/run_rag_release_gates.py requires exact built-in rag_act
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249#discussion_r3748531565 -> eccae01aadae72505538f5892353e2bbce70a5dd
 
 Disposition: FIXED
-Commit: eccae01aadae72505538f5892353e2bbce70a5dd
-Evidence: The previously omitted applicability finding discussion_r3748531565 is fixed by eccae01aadae72505538f5892353e2bbce70a5dd and is included in this refrozen closeout draft; the canonical mapping is regenerated only after the exact material review and pre-closeout gate.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249#discussion_r3748593822 -> eccae01aadae72505538f5892353e2bbce70a5dd
+Commit: 259806975b40c8762baa9f7542fad2e20ae0128e
+Evidence: docs/review/PR_2249_FIXED_MAPPING.md is corrected to bind the omitted applicability finding to the actual post-comment closeout commit 259806975b40c8762baa9f7542fad2e20ae0128e.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249#discussion_r3748593822 -> 259806975b40c8762baa9f7542fad2e20ae0128e
 
 Disposition: FIXED
 Commit: 9eaa4e69ee008b594ac3d4a3548bf035ae5580f4
@@ -220,7 +220,7 @@ Reason: The top-level review body contains no independent finding beyond its dis
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249#pullrequestreview-4895696495
 
 Disposition: NOT-A-BUG
-Evidence: The review aggregation has one actionable inline child discussion_r3748593822, separately mapped FIXED to eccae01aadae72505538f5892353e2bbce70a5dd and the regenerated seal.
+Evidence: The review aggregation has one actionable inline child discussion_r3748593822, separately mapped FIXED to the proven post-comment closeout commit 259806975b40c8762baa9f7542fad2e20ae0128e.
 Reason: The top-level review body contains no independent finding beyond its disposition-mapped child thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249#pullrequestreview-4895760027
 

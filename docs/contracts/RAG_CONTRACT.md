@@ -209,6 +209,12 @@ existing post-retrieval degraded state. Logs contain fixed text only. The
 fallback does not change provider-call count, quota/rate-limit ordering, route
 schemas, DTOs, or OpenAPI.
 
+Offline release-gate evidence treats enabled but unattempted compaction as N/A
+only for the explicit `RETRIEVAL_EMPTY` and `ALL_CHUNKS_FILTERED` outcomes.
+Missing, exception, or fallback reasons are malformed evidence, and an observed
+compaction result must have no degraded reason. This classifier reports runtime
+evidence; it does not create runtime, verification, or knowledge authority.
+
 This pilot is request-local and is not a semantic cache, persistent memory,
 Evidence Graph serving, Stage 0, or a new authority/approval boundary.
 
