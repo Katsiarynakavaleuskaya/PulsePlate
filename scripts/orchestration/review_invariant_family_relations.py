@@ -72,7 +72,7 @@ _FORBIDDEN_ID_PATTERN = (
     r"[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
     r"[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|"
     r"[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|"
-    r"[Tt][Oo][Kk][Ee][Nn]|[Xx][Oo][Xx][AaBbPpRrSs]-)"
+    r"[Tt][Oo][Kk][Ee][Nn]|[Xx][Aa][Pp][Pp]-|[Xx][Oo][Xx][AaBbCcPpRrSs]-)"
 )
 _FORBIDDEN_ID_RE = re.compile(_FORBIDDEN_ID_PATTERN, re.ASCII)
 _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
