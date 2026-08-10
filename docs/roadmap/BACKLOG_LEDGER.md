@@ -71,14 +71,12 @@ If it is not recorded here — it does not exist.
     widening remains prohibited until its dedicated gate opens.
 
 <a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
-- [x] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
+- [ ] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
   - Owner: backend-engineer / qa-engineer-agent
   - Priority: P1 (current-main recovery / CI trust)
   - Target PR: [PR #2247](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2247)
   - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on replacement PR #2247
-  - Status: Completed in merged PR #2247 at
-    `6a8aabc4b8a3f27b1a3eb363276d6498dc33ada4`; exact-main canonical CI,
-    Nightly Full, security, CD-Test, and CD were terminal success on 2026-08-09
+  - Status: Integrated into the single operator-authorized remediation lane; exact-head CI and closeout pending
   - Reason (EN): PR #2245 repairs the Stage-1-invalid positive Jaccard fixture
     and the finite `insight_ai` owning-suite gap, but its Trivy check is blocked
     by the dependency identities first assembled in superseded PR #2246 and now
@@ -105,13 +103,11 @@ If it is not recorded here — it does not exist.
       before any main/nightly recovery claim
 
 <a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
-- [x] P1: RAG-S2 baseline validation boundary
+- [ ] P1: RAG-S2 baseline validation boundary
   - Owner: backend-engineer
   - Priority: P1 (AI runtime trust / response continuity)
   - Target PR: [PR #2232](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2232)
-  - Status: Completed in merged PR #2232 at
-    `ad179450108ab352fe31e6687a33185b99b52127`; post-merge focused RAG sanity
-    passed on exact main `6a8aabc4b8a3f27b1a3eb363276d6498dc33ada4`
+  - Status: In review on `codex/rag-baseline-validation-boundary`
   - Area: backend / RAG / Insight runtime / knowledge admission
   - Business reason (EN): Keep the available non-medical wellness response when
     advisory enrichment fails while preventing any unvalidated retrieval chunk
