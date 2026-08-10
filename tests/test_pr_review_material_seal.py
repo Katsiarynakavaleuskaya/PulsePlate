@@ -75,6 +75,7 @@ from scripts.orchestration.pr_review_evidence import (
     parse_duplicate_disposition_reply,
     parse_embedded_review_seal,
     render_embedded_review_seal,
+    review_thread_inventory,
     unavailable_review_ref_fingerprint,
     validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
@@ -5450,6 +5451,33 @@ def _comment(url_suffix: str) -> dict[str, Any]:
         "originalCommit": {"oid": FIX_SHA},
         "url": f"https://github.com/owner/repo/pull/42#discussion_r{url_suffix}",
     }
+
+
+def test_review_thread_inventory_preserves_comment_order_within_each_thread() -> None:
+    root = ReviewCommentEvidence(
+        url="https://github.com/owner/repo/pull/42#discussion_r1",
+        body="Root finding",
+        created_at="2026-07-15T10:00:00Z",
+        author_login="chatgpt-codex-connector",
+        author_association="NONE",
+        original_commit_sha=FIX_SHA,
+    )
+    reply = ReviewCommentEvidence(
+        url="https://github.com/owner/repo/pull/42#discussion_r1_reply",
+        body="Disposition reply",
+        created_at="2026-07-15T11:00:00Z",
+        author_login="maintainer",
+        author_association="OWNER",
+        original_commit_sha=HEAD_SHA,
+    )
+    ordered = ReviewThreadEvidence("thread", True, (root, reply))
+    reversed_comments = ReviewThreadEvidence("thread", True, (reply, root))
+    sibling = ReviewThreadEvidence("sibling", False, (root,))
+
+    assert review_thread_inventory((ordered, sibling)) == review_thread_inventory(
+        (sibling, ordered)
+    )
+    assert review_thread_inventory((ordered,)) != review_thread_inventory((reversed_comments,))
 
 
 def test_review_threads_paginate_outer_and_inner_connections() -> None:
