@@ -2189,6 +2189,24 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "context_compaction_observed_count > 0" in source
 
 
+def test_tracked_notebook_preserves_empty_pulseplate_result_without_substitution() -> None:
+    """Successful empty PulsePlate retrieval must not fall through to local TF-IDF."""
+
+    notebook = json.loads(
+        Path("notebooks/pulseplate_rag_release_gates.ipynb").read_text(encoding="utf-8")
+    )
+    source = "".join(
+        source_line for cell in notebook["cells"] for source_line in cell.get("source", [])
+    )
+    retrieve_source = source.split("async def retrieve", maxsplit=1)[1].split(
+        "# Smoke test",
+        maxsplit=1,
+    )[0]
+
+    assert "if retrieved:" not in retrieve_source
+    assert "return retrieved, retrieval_stats" in retrieve_source
+
+
 def test_no_companion_json_keeps_legacy_release_decision_behavior(tmp_path: Path) -> None:
     """Missing companion input must preserve legacy release-gate behavior."""
 
