@@ -4,18 +4,31 @@ RU: Интеграционный тест покрытия Plate→Targets.
 EN: Integration test for Plate→Targets coverage.
 """
 
+import asyncio
 import pytest
+from fastapi import status
 from fastapi.testclient import TestClient
 
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
+import core.bmr as nutrition_bmr
+import core.plate as nutrition_plate
+import core.recommendations as nutrition_recommendations
+from app.schemas.premium_contracts import PlateRequest
+from app.services import pro_nutrition_plate
 
-client = TestClient(app_mod.app)  # type: ignore
+
+async def _deterministic_day_micros(
+    meals: list[dict[str, object]],
+) -> dict[str, float]:
+    """Attach deterministic iron values for the plate-target integration check."""
+    total_iron_mg = 0.0
+    for meal_index, meal in enumerate(meals, start=1):
+        iron_mg = 3.0 * meal_index
+        meal["micros"] = {"iron_mg": iron_mg}
+        total_iron_mg += iron_mg
+    return {"iron_mg": total_iron_mg}
 
 
-def test_plate_targets_integration_workflow():
+def test_plate_targets_integration_workflow(client: TestClient) -> None:
     """Test complete workflow from Plate generation to Targets comparison."""
     # Step 1: Generate plate
     plate_payload = {
@@ -31,6 +44,7 @@ def test_plate_targets_integration_workflow():
         "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
     )
     assert plate_resp.status_code == 200
+    assert plate_resp.headers["content-type"].startswith("application/json")
     plate_data = plate_resp.json()
 
     # Step 2: Generate targets for the same profile
@@ -51,6 +65,7 @@ def test_plate_targets_integration_workflow():
         headers={"X-API-Key": "test_key"},
     )
     assert targets_resp.status_code == 200
+    assert targets_resp.headers["content-type"].startswith("application/json")
     targets_data = targets_resp.json()
 
     # Step 3: Compare plate vs targets
@@ -66,19 +81,31 @@ def test_plate_targets_integration_workflow():
     # Check macro alignment
     plate_macros = plate_data["macros"]
     target_macros = targets_data["macros"]
+    required_macro_keys = {"protein_g", "fat_g", "carbs_g"}
+    assert required_macro_keys <= plate_macros.keys()
+    assert required_macro_keys <= target_macros.keys()
 
-    for macro in ["protein_g", "fat_g", "carbs_g"]:
-        if macro in plate_macros and macro in target_macros:
-            plate_val = plate_macros[macro]
-            target_val = target_macros[macro]
-            # Allow 15% deviation for macros
-            assert (
-                abs(plate_val - target_val) / target_val <= 0.15
-            ), f"{macro}: plate {plate_val} vs target {target_val}"
+    for macro in sorted(required_macro_keys):
+        plate_val = plate_macros[macro]
+        target_val = target_macros[macro]
+        # Allow 15% deviation for macros
+        assert (
+            abs(plate_val - target_val) / target_val <= 0.15
+        ), f"{macro}: plate {plate_val} vs target {target_val}"
 
 
-def test_plate_targets_micros_coverage():
+def test_plate_targets_micros_coverage(
+    client: TestClient,
+) -> None:
     """Test that plate micros can be compared against target micros."""
+    dependencies = pro_nutrition_plate.PlateServiceDependencies(
+        make_plate=nutrition_plate.make_plate,
+        calculate_all_bmr=nutrition_bmr.calculate_all_bmr,
+        calculate_all_tdee=nutrition_bmr.calculate_all_tdee,
+        build_nutrition_targets=nutrition_recommendations.build_nutrition_targets,
+        aggregate_day_micronutrients=_deterministic_day_micros,
+    )
+
     # Generate plate with micros
     plate_payload = {
         "sex": "male",
@@ -89,11 +116,12 @@ def test_plate_targets_micros_coverage():
         "goal": "maintain",
     }
 
-    plate_resp = client.post(
-        "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
-    )
-    assert plate_resp.status_code == 200
-    plate_data = plate_resp.json()
+    plate_data = asyncio.run(
+        pro_nutrition_plate.generate_plate_response(
+            PlateRequest(**plate_payload),
+            dependencies=dependencies,
+        )
+    ).model_dump(mode="json")
 
     # Generate targets
     targets_payload = {
@@ -113,6 +141,7 @@ def test_plate_targets_micros_coverage():
         headers={"X-API-Key": "test_key"},
     )
     assert targets_resp.status_code == 200
+    assert targets_resp.headers["content-type"].startswith("application/json")
     targets_data = targets_resp.json()
 
     # Check that both have micros data
@@ -125,20 +154,14 @@ def test_plate_targets_micros_coverage():
     # Targets should always have micronutrient data
     assert target_micros, "Targets should have micronutrient data"
 
-    # Plate day_micros may be empty if ingredients/recipes are not found (acceptable)
-    # This test verifies integration when both are available
-    if len(plate_micros) == 0:
-        pytest.skip(
-            "Plate day_micros is empty (likely due to missing recipe ingredients). "
-            "This is acceptable when recipe lookup fails."
-        )
+    assert plate_micros
 
-    # Check for common micronutrients
+    # Check the deterministic nutrient shared by both response contracts.
     common_micros = set(plate_micros.keys()) & set(target_micros.keys())
-    assert len(common_micros) > 0, "No common micronutrients between plate and targets"
+    assert "iron_mg" in common_micros
 
 
-def test_plate_targets_different_goals():
+def test_plate_targets_different_goals(client: TestClient) -> None:
     """Test plate-targets integration with different goals."""
     test_cases = [
         {"goal": "loss", "deficit_pct": 20},
@@ -163,6 +186,7 @@ def test_plate_targets_different_goals():
             headers={"X-API-Key": "test_key"},
         )
         assert plate_resp.status_code == 200
+        assert plate_resp.headers["content-type"].startswith("application/json")
         plate_data = plate_resp.json()
 
         # Generate targets
@@ -173,6 +197,7 @@ def test_plate_targets_different_goals():
             headers={"X-API-Key": "test_key"},
         )
         assert targets_resp.status_code == 200
+        assert targets_resp.headers["content-type"].startswith("application/json")
         targets_data = targets_resp.json()
 
         # Verify both have the expected structure
@@ -182,7 +207,7 @@ def test_plate_targets_different_goals():
         assert "priority_micros" in targets_data
 
 
-def test_plate_targets_life_stage_warnings():
+def test_plate_targets_life_stage_warnings(client: TestClient) -> None:
     """Test that life stage warnings from targets are relevant for plate generation."""
     # Test with pregnant woman
     payload = {
@@ -201,6 +226,7 @@ def test_plate_targets_life_stage_warnings():
         "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
     )
     assert targets_resp.status_code == 200
+    assert targets_resp.headers["content-type"].startswith("application/json")
     targets_data = targets_resp.json()
 
     # Check that warnings are present
@@ -217,6 +243,7 @@ def test_plate_targets_life_stage_warnings():
         "/api/v1/premium/plate", json=plate_payload, headers={"X-API-Key": "test_key"}
     )
     assert plate_resp.status_code == 200
+    assert plate_resp.headers["content-type"].startswith("application/json")
     plate_data = plate_resp.json()
 
     # Plate should still be generated successfully
@@ -224,7 +251,7 @@ def test_plate_targets_life_stage_warnings():
     assert "day_micros" in plate_data
 
 
-def test_plate_targets_validation_consistency():
+def test_plate_targets_validation_consistency(client: TestClient) -> None:
     """Test that validation rules are consistent between plate and targets."""
     # Test with invalid data that should fail both endpoints
     invalid_payload = {
@@ -251,7 +278,7 @@ def test_plate_targets_validation_consistency():
     assert targets_resp.status_code == 422
 
 
-def test_plate_targets_api_key_consistency():
+def test_plate_targets_api_key_consistency(client: TestClient) -> None:
     """Test that both endpoints require the same API key."""
     payload = {
         "sex": "female",
@@ -264,21 +291,29 @@ def test_plate_targets_api_key_consistency():
 
     # Test without API key
     plate_resp = client.post("/api/v1/premium/plate", json=payload)
-    assert plate_resp.status_code in (200, 403)
+    assert plate_resp.status_code == status.HTTP_403_FORBIDDEN
+    assert plate_resp.headers["content-type"].startswith("application/json")
+    assert plate_resp.json() == {"detail": "Invalid API Key"}
 
     targets_payload = {**payload, "life_stage": "adult", "lang": "en"}
     targets_resp = client.post("/api/v1/premium/targets", json=targets_payload)
-    assert targets_resp.status_code in (200, 403)
+    assert targets_resp.status_code == status.HTTP_403_FORBIDDEN
+    assert targets_resp.headers["content-type"].startswith("application/json")
+    assert targets_resp.json() == {"detail": "Invalid API Key"}
 
     # Test with wrong API key
     plate_resp = client.post(
         "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "wrong_key"}
     )
-    assert plate_resp.status_code in (200, 403)
+    assert plate_resp.status_code == status.HTTP_403_FORBIDDEN
+    assert plate_resp.headers["content-type"].startswith("application/json")
+    assert plate_resp.json() == {"detail": "Invalid API Key"}
 
     targets_resp = client.post(
         "/api/v1/premium/targets",
         json=targets_payload,
         headers={"X-API-Key": "wrong_key"},
     )
-    assert targets_resp.status_code in (200, 403)
+    assert targets_resp.status_code == status.HTTP_403_FORBIDDEN
+    assert targets_resp.headers["content-type"].startswith("application/json")
+    assert targets_resp.json() == {"detail": "Invalid API Key"}

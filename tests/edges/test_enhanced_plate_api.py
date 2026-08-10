@@ -20,18 +20,21 @@ from app.middleware.api_tiers import TEST_KEY_PRO
 from app.services import pro_nutrition_plate
 from app.services.pro_nutrition_targets import WHO_TARGETS_SAFETY_VALIDATION_FAILED_DETAIL
 
-# Import the FastAPI app from the app package
-from app import app
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
 )
 
-client = TestClient(app)
-
 
 class TestEnhancedPlateAPI:
     """Test Enhanced My Plate API endpoint."""
+
+    client: TestClient
+
+    @pytest.fixture(autouse=True)
+    def _bind_client(self, client: TestClient) -> None:
+        """Expose the canonical function-scoped client to class tests."""
+        self.client = client
 
     def test_plate_contract_basic(self) -> None:
         """Test basic plate API contract with all required fields."""
@@ -46,11 +49,12 @@ class TestEnhancedPlateAPI:
             "diet_flags": ["LOW_COST", "DAIRY_FREE"],
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         # Check required response structure
@@ -79,11 +83,12 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         layout = data["layout"]
@@ -118,11 +123,12 @@ class TestEnhancedPlateAPI:
             "surplus_pct": 10,
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         portions = data["portions"]
@@ -156,10 +162,11 @@ class TestEnhancedPlateAPI:
         # Test different deficit percentages for loss
         for deficit in [10, 15, 20]:
             payload = {**base_payload, "goal": "loss", "deficit_pct": deficit}
-            response = client.post(
+            response = self.client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             # Higher deficit should mean fewer calories
             assert data["kcal"] >= 1200  # Minimum safety threshold
@@ -167,10 +174,11 @@ class TestEnhancedPlateAPI:
         # Test different surplus percentages for gain
         for surplus in [8, 12, 15]:
             payload = {**base_payload, "goal": "gain", "surplus_pct": surplus}
-            response = client.post(
+            response = self.client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             data = response.json()
             assert data["kcal"] > 2000  # Should be above maintenance
 
@@ -187,10 +195,11 @@ class TestEnhancedPlateAPI:
 
         # Test VEG flag
         payload = {**base_payload, "diet_flags": ["VEG"]}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
@@ -198,10 +207,11 @@ class TestEnhancedPlateAPI:
 
         # Test GF flag
         payload = {**base_payload, "diet_flags": ["GF"]}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
@@ -210,10 +220,11 @@ class TestEnhancedPlateAPI:
 
         # Test LOW_COST flag
         payload = {**base_payload, "diet_flags": ["LOW_COST"]}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
@@ -230,11 +241,12 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         macros = data["macros"]
@@ -295,7 +307,7 @@ class TestEnhancedPlateAPI:
             "activity": "moderate",
             "goal": "maintain",
         }
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -324,7 +336,7 @@ class TestEnhancedPlateAPI:
             "activity": "moderate",
             "goal": "maintain",
         }
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
@@ -387,7 +399,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(
+        response = self.client.post(
             route,
             json=payload,
             headers=headers,
@@ -454,7 +466,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(route, json=payload, headers=headers)
+        response = self.client.post(route, json=payload, headers=headers)
 
         assert response.status_code == 500
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -506,7 +518,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(route, json=payload, headers=headers)
+        response = self.client.post(route, json=payload, headers=headers)
 
         assert response.status_code == 500
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -613,7 +625,7 @@ class TestEnhancedPlateAPI:
             lambda: fallback_dependencies,
         )
 
-        response = client.post(route, json=payload, headers=headers)
+        response = self.client.post(route, json=payload, headers=headers)
 
         assert response.status_code == 200
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -708,7 +720,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(route, json=payload, headers=headers)
+        response = self.client.post(route, json=payload, headers=headers)
 
         assert response.status_code == 500
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -801,7 +813,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(route, json=payload, headers=headers)
+        response = self.client.post(route, json=payload, headers=headers)
 
         assert response.status_code == 500
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -885,7 +897,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(route, json=payload, headers=headers)
+        response = self.client.post(route, json=payload, headers=headers)
 
         assert response.status_code == 200
         assert response.headers.get("content-type", "").startswith("application/json")
@@ -915,10 +927,11 @@ class TestEnhancedPlateAPI:
                 extra_params["surplus_pct"] = 12
 
             payload = {**base_payload, "goal": goal, **extra_params}
-            response = client.post(
+            response = self.client.post(
                 "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             results[goal] = response.json()
 
         # Loss should have fewer calories than maintenance
@@ -946,28 +959,28 @@ class TestEnhancedPlateAPI:
 
         # Test invalid age
         payload = {**base_payload, "age": 5}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
         # Test invalid deficit percentage
         payload = {**base_payload, "goal": "loss", "deficit_pct": 30}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
         # Test invalid surplus percentage
         payload = {**base_payload, "goal": "gain", "surplus_pct": 25}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
 
         # Test invalid body fat
         payload = {**base_payload, "bodyfat": 65}
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 422
@@ -983,7 +996,7 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post("/api/v1/premium/plate", json=payload)
+        response = self.client.post("/api/v1/premium/plate", json=payload)
         assert response.status_code == 403
 
     def test_plate_meal_suggestions_structure(self) -> None:
@@ -997,11 +1010,12 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
 
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
 
         meals = data["meals"]
@@ -1032,10 +1046,11 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["kcal"] >= 1000  # Should be reasonable for small adult
 
@@ -1050,10 +1065,11 @@ class TestEnhancedPlateAPI:
             "surplus_pct": 20,  # Maximum surplus
         }
 
-        response = client.post(
+        response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert data["kcal"] > 3000  # Should be very high calories
 

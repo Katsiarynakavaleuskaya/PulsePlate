@@ -1,30 +1,34 @@
-from types import SimpleNamespace
-from typing import Any, cast
-from unittest.mock import patch
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import patch
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
-from app.middleware.api_tiers import require_pro_tier
 from app.routers import premium_week
+from tests._client import open_test_client
 
 
-def _make_client() -> TestClient:
+@contextmanager
+def _make_client() -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(premium_week.router)
-    return TestClient(cast(ASGIApp, app))
+    with open_test_client(app) as managed_client:
+        yield managed_client
 
 
-def _make_pro_client() -> TestClient:
+@contextmanager
+def _make_pro_client() -> Iterator[TestClient]:
     from app.routers import pro
 
     app = FastAPI()
-    app.dependency_overrides[require_pro_tier] = lambda: None
     app.include_router(pro.router)
-    return TestClient(cast(ASGIApp, app))
+    with open_test_client(app) as managed_client:
+        yield managed_client
 
 
 def _complete_targets() -> dict[str, Any]:
@@ -85,8 +89,9 @@ def _canonical_week_payload() -> dict[str, Any]:
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_missing_profile_fields_returns_400():
-    client = _make_client()
+def test_premium_week_missing_profile_fields_returns_400(
+    pro_headers: dict[str, str],
+) -> None:
     # Missing height/weight triggers the first 400 branch
     payload = {
         "sex": "male",
@@ -98,44 +103,51 @@ def test_premium_week_missing_profile_fields_returns_400():
         "diet_flags": [],
         "lang": "en",
     }
-    resp = client.post(
-        "/api/v1/premium/plan/week-flexible",
-        json=payload,
-        headers={"X-API-Key": "test_pro_key"},
-    )
-    assert resp.status_code == 400
-    # Now returns specific field name in error message
-    detail = resp.json()["detail"]
-    assert "Missing required field" in detail
+    with _make_client() as client:
+        resp = client.post(
+            "/api/v1/premium/plan/week-flexible",
+            json=payload,
+            headers=pro_headers,
+        )
+        assert resp.status_code == 400
+        assert resp.headers["content-type"].startswith("application/json")
+        # Now returns specific field name in error message
+        detail = resp.json()["detail"]
+        assert "Missing required field" in detail
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_activity_goal_required_branch_returns_400():
-    client = _make_client()
-    # Note: activity and goal have defaults, so setting to null will use defaults
-    # This test verifies the endpoint handles null values gracefully
+def test_premium_week_explicit_null_activity_returns_400(
+    pro_headers: dict[str, str],
+) -> None:
+    # Explicit null does not activate model defaults; activity fails first.
     payload = {
         "sex": "female",
         "age": 28,
         "height_cm": 165,
         "weight_kg": 58,
-        "activity": None,  # Will use default "moderate"
-        "goal": None,  # Will use default "maintain"
+        "activity": None,  # Explicit null is rejected before goal is evaluated.
+        "goal": None,  # Unreachable because activity fails first.
         "diet_flags": [],
         "lang": "en",
     }
-    resp = client.post(
-        "/api/v1/premium/plan/week-flexible",
-        json=payload,
-        headers={"X-API-Key": "test_pro_key"},
-    )
-    # Should succeed with defaults or return expected status
-    assert resp.status_code in [200, 400, 422]
+    with _make_client() as client:
+        resp = client.post(
+            "/api/v1/premium/plan/week-flexible",
+            json=payload,
+            headers=pro_headers,
+        )
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST, resp.text
+        assert resp.headers["content-type"].startswith("application/json")
+        assert resp.json() == {
+            "detail": "Missing user profile data (Missing required field: activity)"
+        }
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-def test_premium_week_with_explicit_targets_happy_path_200():
-    client = _make_client()
+def test_premium_week_with_explicit_targets_happy_path_200(
+    pro_headers: dict[str, str],
+) -> None:
     # Use explicit targets path to avoid relying on data-derived estimation
     payload = {
         "targets": {
@@ -158,15 +170,17 @@ def test_premium_week_with_explicit_targets_happy_path_200():
         "diet_flags": [],
         "lang": "en",
     }
-    resp = client.post(
-        "/api/v1/premium/plan/week-flexible",
-        json=payload,
-        headers={"X-API-Key": "test_pro_key"},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert "daily_menus" in body and isinstance(body["daily_menus"], list)
-    assert "weekly_coverage" in body and isinstance(body["weekly_coverage"], dict)
+    with _make_client() as client:
+        resp = client.post(
+            "/api/v1/premium/plan/week-flexible",
+            json=payload,
+            headers=pro_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
+        body = resp.json()
+        assert "daily_menus" in body and isinstance(body["daily_menus"], list)
+        assert "weekly_coverage" in body and isinstance(body["weekly_coverage"], dict)
 
 
 def test_planning_target_service_validation_branches_for_ci_coverage() -> None:
@@ -252,10 +266,10 @@ def test_estimate_targets_from_profile_maps_core_payload_for_ci_coverage(
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_premium_week_profile_derived_targets_branch_is_ci_covered(
     monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
 ) -> None:
     from app.services import nutrition_targets
 
-    client = _make_client()
     monkeypatch.setattr(premium_week, "_get_food_db", lambda: object())
     monkeypatch.setattr(premium_week, "_get_recipe_db", lambda: object())
     monkeypatch.setattr(
@@ -267,33 +281,35 @@ def test_premium_week_profile_derived_targets_branch_is_ci_covered(
         lambda **_kwargs: _complete_targets(),
     )
 
-    resp = client.post(
-        "/api/v1/premium/plan/week-flexible",
-        json={
-            "sex": "female",
-            "age": 34,
-            "height_cm": 168,
-            "weight_kg": 64,
-            "activity": "active",
-            "goal": "maintain",
-            "diet_flags": [],
-            "lang": "en",
-        },
-        headers={"X-API-Key": "test_pro_key"},
-    )
+    with _make_client() as client:
+        resp = client.post(
+            "/api/v1/premium/plan/week-flexible",
+            json={
+                "sex": "female",
+                "age": 34,
+                "height_cm": 168,
+                "weight_kg": 64,
+                "activity": "active",
+                "goal": "maintain",
+                "diet_flags": [],
+                "lang": "en",
+            },
+            headers=pro_headers,
+        )
 
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["daily_menus"][0]["meals"][0]["price_est"] == 4.5
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("application/json")
+        assert resp.json()["daily_menus"][0]["meals"][0]["price_est"] == 4.5
 
 
 @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_pro_week_profile_derived_targets_branch_is_ci_covered(
     monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
 ) -> None:
     from app.routers import pro
     from app.services import nutrition_targets
 
-    client = _make_pro_client()
     monkeypatch.setattr(pro, "get_food_db", lambda: object())
     monkeypatch.setattr(pro, "get_recipe_db", lambda: object())
     monkeypatch.setattr(pro, "build_week", lambda *_args, **_kwargs: _canonical_week_payload())
@@ -303,19 +319,22 @@ def test_pro_week_profile_derived_targets_branch_is_ci_covered(
         lambda **_kwargs: _complete_targets(),
     )
 
-    resp = client.post(
-        "/api/v1/pro/meal/weekly",
-        json={
-            "sex": "female",
-            "age": 34,
-            "height_cm": 168,
-            "weight_kg": 64,
-            "activity": "active",
-            "goal": "maintain",
-            "diet_flags": [],
-            "lang": "en",
-        },
-    )
+    with _make_pro_client() as client:
+        resp = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 34,
+                "height_cm": 168,
+                "weight_kg": 64,
+                "activity": "active",
+                "goal": "maintain",
+                "diet_flags": [],
+                "lang": "en",
+            },
+            headers=pro_headers,
+        )
 
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["daily_menus"][0]["meals"][0]["price_est"] == 4.5
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("application/json")
+        assert resp.json()["daily_menus"][0]["meals"][0]["price_est"] == 4.5

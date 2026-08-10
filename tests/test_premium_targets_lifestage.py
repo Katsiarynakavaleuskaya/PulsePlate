@@ -7,13 +7,6 @@ EN: Test life stage warnings for /api/v1/premium/targets.
 import pytest
 from fastapi.testclient import TestClient
 
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
-
-client = TestClient(app_mod.app)  # type: ignore
-
 
 @pytest.mark.parametrize(
     "case",
@@ -26,7 +19,11 @@ client = TestClient(app_mod.app)  # type: ignore
     ],
 )
 @pytest.mark.parametrize("lang", ["ru", "en", "es"])
-def test_life_stage_warnings(case, lang):
+def test_life_stage_warnings(
+    client: TestClient,
+    case: dict[str, object],
+    lang: str,
+) -> None:
     """Test that life stage warnings are generated correctly."""
     payload = {
         "sex": "female",
@@ -40,6 +37,7 @@ def test_life_stage_warnings(case, lang):
     }
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
     data = resp.json()
 
     # Check that warnings are present
@@ -56,8 +54,10 @@ def test_life_stage_warnings(case, lang):
     assert len(warning["message"]) > 0
 
 
-def test_life_stage_warnings_no_warnings():
-    """Test that no warnings are generated for normal adult."""
+def test_life_stage_warnings_no_warnings(
+    client: TestClient,
+) -> None:
+    """Test that no life-stage warnings are generated for a normal adult."""
     payload = {
         "sex": "female",
         "age": 30,
@@ -70,15 +70,19 @@ def test_life_stage_warnings_no_warnings():
     }
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
     data = resp.json()
 
-    # Check that warnings are present but empty for normal adult
+    # Other warning categories may still be present for a normal adult.
     assert "warnings" in data
     assert isinstance(data["warnings"], list)
-    # For normal adult, there should be no life stage warnings
+    life_stage_warning_codes = {"teen", "pregnant", "lactating", "elderly", "child"}
+    assert life_stage_warning_codes.isdisjoint(warning.get("code") for warning in data["warnings"])
 
 
-def test_life_stage_warnings_localization():
+def test_life_stage_warnings_localization(
+    client: TestClient,
+) -> None:
     """Test that warnings are properly localized."""
     payload = {
         "sex": "female",
@@ -92,6 +96,7 @@ def test_life_stage_warnings_localization():
     }
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
     data = resp.json()
 
     # Find the teen warning

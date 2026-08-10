@@ -7,16 +7,12 @@ EN: Test ES localization for /api/v1/premium/targets (snapshot test).
 import pytest
 from fastapi.testclient import TestClient
 
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
-
-client = TestClient(app_mod.app)  # type: ignore
-
 
 @pytest.mark.parametrize("lang", ["es"])
-def test_premium_targets_es_localization(lang):
+def test_premium_targets_es_localization(
+    client: TestClient,
+    lang: str,
+) -> None:
     """Test Spanish localization for premium targets endpoint."""
     payload = {
         "sex": "female",
@@ -31,6 +27,7 @@ def test_premium_targets_es_localization(lang):
 
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
@@ -65,7 +62,9 @@ def test_premium_targets_es_localization(lang):
                 ), f"Message '{message}' doesn't contain Spanish keywords"
 
 
-def test_premium_targets_es_life_stage_warnings():
+def test_premium_targets_es_life_stage_warnings(
+    client: TestClient,
+) -> None:
     """Test Spanish life stage warnings specifically."""
     test_cases = [
         {
@@ -111,21 +110,28 @@ def test_premium_targets_es_life_stage_warnings():
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
 
         data = resp.json()
         warnings = data["warnings"]
 
         # Find the expected warning
         expected_code = case["life_stage"]
-        if warning := next((w for w in warnings if w.get("code") == expected_code), None):
-            message = warning["message"].lower()
-            for keyword in case["expected_keywords"]:
-                assert (
-                    keyword in message
-                ), f"Expected keyword '{keyword}' not found in message '{warning['message']}'"
+        warning = next(
+            (w for w in warnings if w.get("code") == expected_code),
+            None,
+        )
+        assert warning is not None, f"Missing expected warning code '{expected_code}'"
+        message = warning["message"].lower()
+        for keyword in case["expected_keywords"]:
+            assert (
+                keyword in message
+            ), f"Expected keyword '{keyword}' not found in message '{warning['message']}'"
 
 
-def test_premium_targets_es_snapshot_values():
+def test_premium_targets_es_snapshot_values(
+    client: TestClient,
+) -> None:
     """Test that Spanish localization returns consistent values (snapshot test)."""
     payload = {
         "sex": "male",
@@ -140,6 +146,7 @@ def test_premium_targets_es_snapshot_values():
 
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
@@ -149,6 +156,7 @@ def test_premium_targets_es_snapshot_values():
     assert data["macros"]["fat_g"] > 50  # Should have adequate fat
     assert data["macros"]["carbs_g"] > 200  # Should have adequate carbs
     assert data["water_ml"] > 2000  # Should have adequate water intake
+    assert data["ui_labels"]["kcal_daily"] == "Calorías diarias"
 
     # Check priority micros structure
     priority_micros = data["priority_micros"]
@@ -166,7 +174,9 @@ def test_premium_targets_es_snapshot_values():
     assert len(data["calculation_date"]) > 0
 
 
-def test_premium_targets_es_multilingual_consistency():
+def test_premium_targets_es_multilingual_consistency(
+    client: TestClient,
+) -> None:
     """Test that Spanish responses are consistent with other languages."""
     base_payload = {
         "sex": "female",
@@ -188,6 +198,7 @@ def test_premium_targets_es_multilingual_consistency():
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
         responses[lang] = resp.json()
 
     # Check that numerical values are consistent across languages
@@ -206,16 +217,12 @@ def test_premium_targets_es_multilingual_consistency():
     assert es_data["water_ml"] == en_data["water_ml"] == ru_data["water_ml"]
 
     # Priority micros should have the same values
-    for nutrient in es_data["priority_micros"]:
-        if nutrient in en_data["priority_micros"] and nutrient in ru_data["priority_micros"]:
-            assert (
-                es_data["priority_micros"][nutrient]
-                == en_data["priority_micros"][nutrient]
-                == ru_data["priority_micros"][nutrient]
-            )
+    assert es_data["priority_micros"] == en_data["priority_micros"] == ru_data["priority_micros"]
 
 
-def test_premium_targets_es_special_cases():
+def test_premium_targets_es_special_cases(
+    client: TestClient,
+) -> None:
     """Test Spanish localization for special cases."""
     # Test with pregnant woman
     payload = {
@@ -231,6 +238,7 @@ def test_premium_targets_es_special_cases():
 
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
@@ -240,7 +248,7 @@ def test_premium_targets_es_special_cases():
 
     pregnancy_warning = pregnancy_warnings[0]
     message = pregnancy_warning["message"].lower()
-    assert "embarazo" in message or "pregnancy" in message  # Should be in Spanish
+    assert "embarazo" in message
 
     # Test with elderly person
     payload = {
@@ -256,6 +264,7 @@ def test_premium_targets_es_special_cases():
 
     resp = client.post("/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"})
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
 
