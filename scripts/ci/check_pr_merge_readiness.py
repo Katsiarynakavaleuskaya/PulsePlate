@@ -1383,7 +1383,11 @@ def _duplicate_reply_coverage(
         threads=threads,
         fingerprint_records=records,
         mapped_fix_shas=frozenset(
-            parse_fixed_mapping_entries(extract_fixed_mapping_section(artifact_text)).values()
+            sha
+            for sha in parse_fixed_mapping_entries(
+                extract_fixed_mapping_section(artifact_text)
+            ).values()
+            if sha
         ),
         material_digest=str(seal["material"]["digest"]),
         material_head_sha=str(seal["material"]["material_head_sha"]),

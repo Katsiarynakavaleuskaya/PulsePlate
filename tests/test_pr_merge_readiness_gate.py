@@ -127,6 +127,9 @@ def test_duplicate_reply_coverage_wires_recordless_snapshot_inputs(
         f"- https://github.com/owner/repo/pull/42#discussion_mapped -> {fix_sha}\n"
         "Disposition: FIXED\n"
         f"Commit: {fix_sha}\n"
+        "- https://github.com/owner/repo/pull/42#discussion_not_bug\n"
+        "Disposition: NOT-A-BUG\n"
+        "Evidence: canonical contract\n"
     )
     captured: dict[str, Any] = {}
 
