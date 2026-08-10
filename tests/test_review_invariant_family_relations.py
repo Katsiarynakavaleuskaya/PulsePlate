@@ -5,13 +5,14 @@ from __future__ import annotations
 import ast
 import copy
 import hashlib
+import io
 import json
 import operator
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 from typing import cast
 
 import pytest
@@ -351,20 +352,27 @@ def test_strict_parser_rejects_ambiguous_or_coerced_json(
 
 
 @pytest.mark.parametrize(
-    "mutation",
+    ("mutation", "expected_code"),
     [
-        lambda source: source.update({"extra": False}),
-        lambda source: source.pop("families"),
-        lambda source: source.update({"families": None}),
-        lambda source: source.update({"families": "[]"}),
-        lambda source: source.update({"side_effects_allowed": "false"}),
-        lambda source: cast(list[dict[str, object]], source["families"])[0].update(
-            {"extra": False}
+        (lambda source: source.update({"extra": False}), "schema_validation_failed"),
+        (lambda source: source.pop("families"), "schema_validation_failed"),
+        (lambda source: source.update({"families": None}), "schema_validation_failed"),
+        (lambda source: source.update({"families": "[]"}), "schema_validation_failed"),
+        (
+            lambda source: source.update({"side_effects_allowed": "false"}),
+            "authority_boundary_violation",
+        ),
+        (
+            lambda source: cast(list[dict[str, object]], source["families"])[0].update(
+                {"extra": False}
+            ),
+            "schema_validation_failed",
         ),
     ],
 )
 def test_closed_snapshot_schema_rejects_extra_missing_null_and_coercion(
     mutation: Callable[[dict[str, object]], object],
+    expected_code: str,
 ) -> None:
     source = _fixture_snapshot()
     mutation(source)
@@ -372,6 +380,7 @@ def test_closed_snapshot_schema_rejects_extra_missing_null_and_coercion(
 
     assert completed.returncode == 2
     assert completed.stdout == b""
+    assert completed.stderr == f"contract_error:{expected_code}\n".encode("ascii")
 
 
 def test_ids_are_ascii_path_and_url_safe_and_errors_never_echo_values() -> None:
@@ -545,6 +554,58 @@ def test_final_stdout_size_check_occurs_before_transport_write(
         relations.process_input_bytes(FIXTURE.read_bytes())
 
 
+def test_main_sanitizes_unexpected_internal_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stdout = io.BytesIO()
+    stderr = io.BytesIO()
+    monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
+    monkeypatch.setattr(
+        relations.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
+    )
+    monkeypatch.setattr(relations.sys, "stdout", SimpleNamespace(buffer=stdout))
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    def raise_unexpected(_raw: bytes) -> bytes:
+        raise RuntimeError("must not escape")
+
+    monkeypatch.setattr(relations, "process_input_bytes", raise_unexpected)
+
+    assert relations.main() == 2
+    assert stdout.getvalue() == b""
+    assert stderr.getvalue() == b"contract_error:internal_error\n"
+
+
+def test_main_reports_output_transport_failure_without_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingBuffer:
+        def write(self, _payload: bytes) -> int:
+            raise OSError("sink unavailable")
+
+        def flush(self) -> None:
+            return None
+
+    stderr = io.BytesIO()
+    monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
+    monkeypatch.setattr(
+        relations.sys,
+        "stdin",
+        SimpleNamespace(buffer=io.BytesIO(FIXTURE.read_bytes())),
+    )
+    monkeypatch.setattr(
+        relations.sys,
+        "stdout",
+        SimpleNamespace(buffer=FailingBuffer()),
+    )
+    monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
+
+    assert relations.main() == 2
+    assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
+
+
 def test_authority_fields_are_required_false_in_source_embedded_snapshot_and_artifact() -> None:
     _, artifact = _fixture_result()
     snapshot = cast(dict[str, object], artifact["snapshot"])
@@ -697,6 +758,8 @@ def test_sidecar_has_no_runtime_workflow_or_authority_integration_references() -
         REPO_ROOT / "scripts" / "orchestration" / "review_mapping_artifact.py",
     )
     for candidate in integration_files:
+        if not candidate.exists():
+            continue
         if needle in candidate.read_text(encoding="utf-8"):
             matches.append(candidate.relative_to(REPO_ROOT).as_posix())
     assert matches == []
