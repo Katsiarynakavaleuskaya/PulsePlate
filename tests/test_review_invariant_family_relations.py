@@ -582,12 +582,17 @@ def test_main_reports_output_transport_failure_without_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FailingBuffer:
+        def __init__(self) -> None:
+            self.write_attempts = 0
+
         def write(self, _payload: bytes) -> int:
+            self.write_attempts += 1
             raise OSError("sink unavailable")
 
         def flush(self) -> None:
             return None
 
+    stdout = FailingBuffer()
     stderr = io.BytesIO()
     monkeypatch.setattr(relations.sys, "argv", [str(SCRIPT)])
     monkeypatch.setattr(
@@ -598,11 +603,12 @@ def test_main_reports_output_transport_failure_without_retry(
     monkeypatch.setattr(
         relations.sys,
         "stdout",
-        SimpleNamespace(buffer=FailingBuffer()),
+        SimpleNamespace(buffer=stdout),
     )
     monkeypatch.setattr(relations.sys, "stderr", SimpleNamespace(buffer=stderr))
 
     assert relations.main() == 2
+    assert stdout.write_attempts == 1
     assert stderr.getvalue() == b"contract_error:output_transport_failure\n"
 
 
