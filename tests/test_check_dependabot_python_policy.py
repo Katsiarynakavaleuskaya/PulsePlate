@@ -226,6 +226,23 @@ def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches()
     )
 
 
+def test_frozen_upstream_requirement_grammar_rejects_long_invalid_version_near_match() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "is_dependabot_requirement_carrier_text\n"
+        "content = f\"package=={'1' * 10000}!\\n\"\n"
+        "assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
+
+
 def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> None:
     snapshot = carriers.DEPENDABOT_REQUIREMENT_CARRIER_UPSTREAM_SNAPSHOT
     assert asdict(snapshot) == {
