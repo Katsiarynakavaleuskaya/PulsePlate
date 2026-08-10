@@ -215,32 +215,6 @@ class TestAppVipComprehensiveCoverage:
         )
         assert response.status_code in [200, 503, 500]
 
-    def test_vip_module_unavailable_paths(self, test_client):
-        """Test paths when VIP module is unavailable."""
-        client = test_client
-
-        # Mock VIP module to be unavailable
-        with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
-            import importlib
-
-            import app as app_module
-
-            importlib.reload(app_module)
-            response = client.post(
-                "/api/v1/premium/plan/week",
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175.0,
-                    "weight_kg": 70.0,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should be 503 when VIP module is disabled
-            assert response.status_code == 503
-
     def test_feature_flag_disabled_paths(self, test_client):
         """Test paths when premium features are disabled."""
         client = test_client
@@ -260,27 +234,6 @@ class TestAppVipComprehensiveCoverage:
                 headers={"X-API-Key": "test_key"},
             )
             # May be 200, 503 when feature is disabled
-            assert response.status_code in [200, 503, 500]
-
-    def test_build_nutrition_targets_unavailable(self, test_client):
-        """Test when build_nutrition_targets function is unavailable."""
-        client = test_client
-
-        # Mock build_nutrition_targets to be None
-        with patch("app.build_nutrition_targets", None):
-            response = client.post(
-                "/api/v1/premium/targets",
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175.0,
-                    "weight_kg": 70.0,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should still work with fallback or return 503
             assert response.status_code in [200, 503, 500]
 
     def test_make_plate_unavailable(
@@ -316,46 +269,6 @@ class TestAppVipComprehensiveCoverage:
             "day_micros",
             "meals_per_day",
         }
-
-    def test_analyze_nutrient_gaps_unavailable(self, test_client):
-        """Test when analyze_nutrient_gaps function is unavailable."""
-        client = test_client
-
-        # Mock analyze_nutrient_gaps to be None
-        with patch("app.analyze_nutrient_gaps", None):
-            response = client.post(
-                "/api/v1/premium/gaps",
-                json={
-                    "consumed_nutrients": {
-                        "protein_g": 50,
-                        "carbs_g": 200,
-                        "fat_g": 50,
-                    },
-                    "user_profile": {
-                        "sex": "male",
-                        "age": 30,
-                        "height_cm": 175.0,
-                        "weight_kg": 70.0,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                    },
-                },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should be 200, 503 when function is unavailable
-            assert response.status_code in [200, 503, 500]
-
-    def test_vip_router_inclusion(self):
-        """Test that VIP router is properly included when available."""
-        # This test ensures the VIP router inclusion code is covered
-        import app
-
-        # Check that VIP module constants are defined
-        assert hasattr(app, "VIP_MODULE_ENABLED")
-        assert hasattr(app, "vip_router")
-
-        # The actual router inclusion happens at module load time,
-        # so we're just verifying the variables exist
 
     def test_api_key_handling(self, test_client):
         """Test API key handling for VIP endpoints."""

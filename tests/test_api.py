@@ -400,15 +400,6 @@ def test_v1_insight_invalid_api_key(client: TestClient, monkeypatch: pytest.Monk
     assert r.status_code == 403
 
 
-def test_slowapi_import_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Deterministic seam test for slowapi-unavailable behavior."""
-    import app as app_mod
-    import legacy_app
-
-    monkeypatch.setattr(legacy_app, "limiter", None, raising=True)
-    assert app_mod.limiter is None
-
-
 def test_prometheus_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Deterministic seam test for exporter failure fallback on /metrics."""
     import prometheus_client

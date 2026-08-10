@@ -7,25 +7,9 @@ or runtime initialization logic.
 from __future__ import annotations
 
 import re
-import sys
-from typing import Any, Callable, Optional, cast
 
 # Regex for validating hex digest (used by _short_git_sha)
 _HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
-
-
-def _resolve_app_callable(
-    attr_name: str, default: Optional[Callable[..., Any]] = None
-) -> Optional[Callable[..., Any]]:
-    """Return callable attribute from app_module or app package if available."""
-    for module_name in ("app", "app_module"):
-        module = sys.modules.get(module_name)
-        if module is None:
-            continue
-        candidate = getattr(module, attr_name, None)
-        if callable(candidate):
-            return cast(Optional[Callable[..., Any]], candidate)
-    return default
 
 
 def _short_git_sha(raw: str | None) -> str:

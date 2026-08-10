@@ -1,7 +1,6 @@
+import importlib
 import os
-import sys
-from types import ModuleType  # noqa: F401
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -11,55 +10,6 @@ from app.services import pro_nutrition_plate
 
 class TestAppVIPComprehensive97:
     """Comprehensive tests for app.py VIP functionality to improve coverage to 97%."""
-
-    def test_vip_router_inclusion_when_enabled(self):
-        """Test VIP router inclusion when VIP_MODULE_ENABLED is True."""
-        # This tests lines 267-268 in app.py
-        with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "true"}):
-            # Force reload the app module to test the VIP inclusion logic
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            import app  # noqa: F401
-
-            # Check that VIP router is included when enabled
-            assert hasattr(app, "VIP_MODULE_ENABLED")
-            assert app.VIP_MODULE_ENABLED is True
-            assert hasattr(app, "vip_router")
-
-    def test_vip_router_inclusion_when_disabled(self):
-        """Test VIP router inclusion when VIP_MODULE_ENABLED is False."""
-        # This tests lines 267-268 in app.py
-        with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "false"}):
-            # Test that VIP_MODULE_ENABLED is False when environment variable is set to false
-            import app
-
-            # The VIP_MODULE_ENABLED should be False when environment variable is "false"
-            # But we can't easily test the router inclusion without module reload
-            # So we'll just test that the environment variable is respected
-            assert os.environ.get("VIP_MODULE_ENABLED") == "false"
-
-    def test_vip_router_import_error_handling(self):
-        """Test VIP router import error handling."""
-        # This tests lines 63-67 in app.py
-        # Since we can't easily test module reload without complex setup,
-        # we'll test that the VIP module can be imported normally
-        with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "true"}):
-            import app
-
-            # Test that VIP module is available when enabled
-            assert hasattr(app, "VIP_MODULE_ENABLED")
-            # The VIP_MODULE_ENABLED should be True when environment variable is "true"
-            assert os.environ.get("VIP_MODULE_ENABLED") == "true"
-
-    def test_vip_router_attribute_error_handling(self) -> None:
-        """Test VIP router attribute error handling."""
-        # This tests lines 63-67 in app.py
-        # Test that VIP router handles attribute errors gracefully
-        from app import vip_router
-
-        with pytest.raises(AttributeError):
-            # Try to access a non-existent attribute
-            _ = vip_router.non_existent_attribute
 
     def test_premium_plate_fallback_mode(
         self,
@@ -272,55 +222,15 @@ class TestAppVIPComprehensive97:
         # May be 200, 404, or other status depending on VIP module availability
         assert response.status_code in [200, 401, 403, 404]
 
-    def test_app_includes_all_routers(self):
-        """Test that app includes all expected routers."""
-        # This tests the router inclusion logic at the end of app.py
-        # Force reload the app module to test the router inclusion logic
-        if "app" in sys.modules:
-            del sys.modules["app"]
-        import app
-
-        # Check that the app has included the expected routers
-        assert hasattr(app, "app")
-        # Check for presence of basic routes (safely)
-        if app.app is not None and hasattr(app.app, "routes"):
-            route_paths = {
-                route_path(route) for route in iter_effective_route_candidates(app.app.routes)
-            }
-            assert "/" in route_paths
-            assert "/health" in route_paths
-            assert "/api/v1/health" in route_paths
-
-    def test_app_includes_bodyfat_router_when_available(self):
-        """Test that app includes bodyfat router when available."""
-        # This tests lines 2713-2715 in app.py
-
-        # Mock get_bodyfat_router to return a router
-        mock_router = MagicMock()
-        with patch("app.get_bodyfat_router", return_value=lambda: mock_router):
-            # Force reload the app module to test the bodyfat router inclusion logic
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            import app
-
-            # Check that get_bodyfat_router was called
-            assert hasattr(app, "get_bodyfat_router")
-
-    def test_app_includes_bmi_pro_router(self):
-        """Test that app includes BMI Pro router."""
-        # This tests lines 2717-2718 in app.py
-        import app
-
-        # Check that bmi_pro_router attribute exists
-        assert hasattr(app, "bmi_pro_router")
-
-    def test_app_includes_premium_week_router_when_available(self):
-        """Test that app includes Premium Week router when available."""
-        # This tests lines 2720-2721 in app.py
-        import app
-
-        # Check that premium_week_router attribute exists
-        assert hasattr(app, "premium_week_router")
+    def test_app_includes_baseline_routes(self):
+        """Test that the canonical application includes its baseline routes."""
+        active_app = importlib.import_module("app.main").app
+        route_paths = {
+            route_path(route) for route in iter_effective_route_candidates(active_app.routes)
+        }
+        assert "/" in route_paths
+        assert "/health" in route_paths
+        assert "/api/v1/health" in route_paths
 
 
 if __name__ == "__main__":

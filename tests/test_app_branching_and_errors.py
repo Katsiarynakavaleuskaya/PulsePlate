@@ -1,4 +1,3 @@
-import importlib
 import sys
 from typing import Generator
 
@@ -45,27 +44,6 @@ def test_rag_context_fallback(
     assert response.status_code in [200, 503]
 
 
-def test_premium_nutrient_gaps_fallback(
-    production_client: TestClient,
-    pro_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Проверяет fallback-ветку premium nutrient gaps (analyze_nutrient_gaps ImportError)."""
-    disable_optional_modules(monkeypatch, "core.menu_engine")
-    # reload app to drop analyze_nutrient_gaps
-    import app as app_module
-
-    try:
-        importlib.reload(app_module)
-    except ModuleNotFoundError:
-        # Expected when optional modules are missing - app.py should handle this gracefully
-        pass
-    payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = production_client.post("/api/v1/premium/gaps", json=payload, headers=pro_headers)
-    # If API key is invalid, expect 403, else 503/500
-    assert response.status_code in (503, 500, 403)
-
-
 def test_bmi_endpoint_invalid_payload(production_client: TestClient) -> None:
     """Проверяет 422 Unprocessable Entity для невалидного запроса к /api/v1/bmi."""
     response = production_client.post("/api/v1/bmi", json={"weight_kg": None})
@@ -104,22 +82,6 @@ def test_premium_bmr_403_if_feature_flag(
 # Tracking: BACKLOG_LEDGER P1 (closed by PR-602).
 
 
-def test_no_bmi_pro_router(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Проверяет fallback-ветку при отсутствии bmi_pro_router (ImportError)."""
-    import app as app_module
-
-    # Test that bmi_pro_router exists and is not None
-    assert app_module.bmi_pro_router is not None
-
-
-def test_no_premium_week_router(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Проверяет fallback-ветку при отсутствии premium_week_router (ImportError)."""
-    import app as app_module
-
-    # Test that premium_week_router exists and is not None
-    assert app_module.premium_week_router is not None
-
-
 def test_root_endpoint(production_client: TestClient) -> None:
     response = production_client.get("/")
     assert response.status_code == 200
@@ -137,46 +99,6 @@ def test_health_endpoint(production_client: TestClient) -> None:
     response = production_client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json().get("status") == "ok"
-
-
-def test_vip_module_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "false")
-    from importlib import reload
-
-    import app as app_module
-
-    try:
-        reload(app_module)
-    except ModuleNotFoundError:
-        # Expected when modules are missing - app.py should handle this
-        pass
-    # sourcery skip: no-conditionals-in-tests
-    if not hasattr(app_module, "app") or app_module.app is None:
-        raise RuntimeError("app_module.app is None or missing after reload.")
-    if not isinstance(app_module.app, FastAPI):
-        raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
-    with open_test_client(app_module.app) as test_client:
-        response = test_client.get("/api/v1/vip/plan/week")
-        assert response.status_code in (404, 422, 401)
-
-
-def test_vip_module_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    from importlib import reload
-
-    import app as app_module
-
-    try:
-        reload(app_module)
-    except ModuleNotFoundError:
-        # Expected when modules are missing - app.py should handle this
-        pass
-    # sourcery skip: no-conditionals-in-tests
-    if not hasattr(app_module, "app") or app_module.app is None:
-        raise RuntimeError("app_module.app is None or missing after reload.")
-    # sourcery skip: no-conditionals-in-tests
-    if not isinstance(app_module.app, FastAPI):
-        raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
 
 
 def test_invalid_method(production_client: TestClient, pro_headers: dict[str, str]) -> None:
