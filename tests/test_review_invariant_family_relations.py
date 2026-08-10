@@ -423,6 +423,7 @@ def test_ids_are_ascii_path_and_url_safe_and_errors_never_echo_values() -> None:
         "xox" + "r-Example123",
         "xox" + "s-Example123",
         "x" + "app-Example123",
+        "AI" + "zaExample123",
         "AK" + "IA1234567890",
         "AS" + "IA123456789",
         "client" + "-secret-value",

@@ -63,7 +63,7 @@ AUTHORITY_FIELDS: tuple[str, ...] = (
 _ID_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,62}[A-Za-z0-9])?$", re.ASCII)
 _FORBIDDEN_ID_PATTERN = (
     r"(?:[Aa][Cc][Cc][Ee][Ss][Ss][_-]?[Kk][Ee][Yy]|"
-    r"[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|"
+    r"[Aa][Ii][Zz][Aa]|[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|"
     r"[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|"
     r"[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|"
     r"[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|"
