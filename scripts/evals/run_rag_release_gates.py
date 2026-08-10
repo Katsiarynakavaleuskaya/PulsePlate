@@ -1832,43 +1832,78 @@ def build_metrics_summary(
 ) -> tuple[dict[str, Any], dict[str, bool], str]:
     """Build summary metrics, gate checks, and the release decision."""
 
-    context_compaction_summary = {
-        "enabled_trace_count": sum(
-            1
-            for trace in traces
-            if isinstance(trace.get("retrieval_stats"), dict)
-            and trace["retrieval_stats"].get("context_compaction_enabled") is True
-        ),
-        "attempted_trace_count": sum(
-            1
-            for trace in traces
-            if isinstance(trace.get("retrieval_stats"), dict)
-            and trace["retrieval_stats"].get("context_compaction_enabled") is True
-            and trace["retrieval_stats"].get("context_compaction_attempted") is True
-        ),
-        "result_observed_trace_count": sum(
-            1
-            for trace in traces
-            if isinstance(trace.get("retrieval_stats"), dict)
-            and trace["retrieval_stats"].get("context_compaction_enabled") is True
-            and trace["retrieval_stats"].get("context_compaction_attempted") is True
-            and trace["retrieval_stats"].get("context_compaction_result_observed") is True
-        ),
-        "chunks_compacted_total": sum(
-            _safe_nonnegative_int(trace["retrieval_stats"].get("chunks_compacted"))
-            for trace in traces
-            if isinstance(trace.get("retrieval_stats"), dict)
-            and trace["retrieval_stats"].get("context_compaction_enabled") is True
-            and trace["retrieval_stats"].get("context_compaction_attempted") is True
-            and trace["retrieval_stats"].get("context_compaction_result_observed") is True
-        ),
+    compaction_fields = {
+        "context_compaction_enabled",
+        "context_compaction_attempted",
+        "context_compaction_result_observed",
+        "chunks_compacted",
     }
-    context_compaction_observation_complete = context_compaction_summary[
-        "enabled_trace_count"
-    ] == 0 or (
-        context_compaction_summary["result_observed_trace_count"] > 0
-        and context_compaction_summary["attempted_trace_count"]
-        == context_compaction_summary["result_observed_trace_count"]
+    context_compaction_summary = {
+        "enabled_trace_count": 0,
+        "attempted_trace_count": 0,
+        "result_observed_trace_count": 0,
+        "chunks_compacted_total": 0,
+    }
+    context_compaction_malformed = False
+    context_compaction_attempted_unobserved = False
+    for trace in traces:
+        retrieval_stats = trace.get("retrieval_stats")
+        if not isinstance(retrieval_stats, dict):
+            continue
+        present_fields = compaction_fields.intersection(retrieval_stats)
+        if not present_fields:
+            continue
+        if present_fields != compaction_fields:
+            context_compaction_malformed = True
+            continue
+
+        enabled = retrieval_stats["context_compaction_enabled"]
+        attempted = retrieval_stats["context_compaction_attempted"]
+        observed = retrieval_stats["context_compaction_result_observed"]
+        compacted = retrieval_stats["chunks_compacted"]
+        if (
+            type(enabled) is not bool
+            or type(attempted) is not bool
+            or type(observed) is not bool
+            or type(compacted) is not int
+            or compacted < 0
+        ):
+            context_compaction_malformed = True
+            continue
+
+        if enabled is False:
+            if attempted is not False or observed is not False or compacted != 0:
+                context_compaction_malformed = True
+            continue
+
+        if attempted is False:
+            if observed is not False or compacted != 0:
+                context_compaction_malformed = True
+                continue
+            context_compaction_summary["enabled_trace_count"] += 1
+            continue
+
+        if observed is False:
+            if compacted != 0:
+                context_compaction_malformed = True
+                continue
+            context_compaction_summary["enabled_trace_count"] += 1
+            context_compaction_summary["attempted_trace_count"] += 1
+            context_compaction_attempted_unobserved = True
+            continue
+
+        context_compaction_summary["enabled_trace_count"] += 1
+        context_compaction_summary["attempted_trace_count"] += 1
+        context_compaction_summary["result_observed_trace_count"] += 1
+        context_compaction_summary["chunks_compacted_total"] += compacted
+
+    context_compaction_observation_complete = (
+        not context_compaction_malformed
+        and not context_compaction_attempted_unobserved
+        and (
+            context_compaction_summary["enabled_trace_count"] == 0
+            or context_compaction_summary["result_observed_trace_count"] > 0
+        )
     )
 
     retrieval_summary = {

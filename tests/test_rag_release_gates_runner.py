@@ -656,7 +656,7 @@ def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshol
                     "context_compaction_enabled": True,
                     "context_compaction_attempted": False,
                     "context_compaction_result_observed": False,
-                    "chunks_compacted": 11,
+                    "chunks_compacted": 0,
                 }
             ],
             {
@@ -781,6 +781,120 @@ def test_gate_d1_requires_complete_aggregate_compaction_observation(
     assert metrics_summary["context_compaction"]["chunks_compacted_total"] == 0
     assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is expected_gate
     assert release_decision == expected_decision
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        (True,),
+        (1, False, False, 0),
+        (True, True, True, True),
+        (True, True, True, -1),
+        (True, True, True, "1"),
+        (True, True, True, None),
+        (True, True, True, 1.0),
+        (True, True, True, float("nan")),
+        (False, True, False, 0),
+        (False, False, True, 0),
+        (False, False, False, 1),
+        (True, False, True, 0),
+        (True, True, False, 1),
+    ],
+    ids=(
+        "partial-carrier",
+        "integer-enabled",
+        "boolean-count",
+        "negative-count",
+        "string-count",
+        "none-count",
+        "float-count",
+        "nan-count",
+        "disabled-attempted",
+        "disabled-observed",
+        "disabled-nonzero-count",
+        "observed-without-attempt",
+        "attempted-unobserved-nonzero-count",
+    ),
+)
+def test_gate_d1_rejects_malformed_compaction_evidence_carriers(
+    tmp_path: Path,
+    values: tuple[object, ...],
+) -> None:
+    """Any relevant malformed carrier fails D1 without contributing evidence."""
+
+    state = _make_release_gate_state(
+        tmp_path,
+        experiment_id="compaction_malformed_carrier",
+        allow_runtime_fallbacks=True,
+    )
+    traces = _passing_release_gate_traces()
+    field_names = (
+        "context_compaction_enabled",
+        "context_compaction_attempted",
+        "context_compaction_result_observed",
+        "chunks_compacted",
+    )
+    traces[0]["retrieval_stats"] = dict(zip(field_names, values, strict=False))
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 0,
+        "attempted_trace_count": 0,
+        "result_observed_trace_count": 0,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
+    assert metrics_summary["small_fixture_metric_gates_advisory"] is True
+
+
+def test_gate_d1_does_not_accept_malformed_observation_as_compensation(
+    tmp_path: Path,
+) -> None:
+    """Malformed evidence cannot compensate for an attempted-unobserved trace."""
+
+    state = _make_release_gate_state(
+        tmp_path,
+        experiment_id="compaction_malformed_compensation",
+        allow_runtime_fallbacks=True,
+    )
+    traces = _passing_release_gate_traces()
+    traces[0]["retrieval_stats"] = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": False,
+        "chunks_compacted": 0,
+    }
+    traces[1]["retrieval_stats"] = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": True,
+    }
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 1,
+        "attempted_trace_count": 1,
+        "result_observed_trace_count": 0,
+        "chunks_compacted_total": 0,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
 
 
 def test_canonical_small_fixture_advisory_preserves_raw_gate_checks_on_weekly_shape(
@@ -1812,12 +1926,15 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "retrieved, retrieval_stats = await retrieve" in source
     assert '"retrieval_stats": retrieval_stats' in source
     assert '"Gate D1: Context compaction observation"' in source
+    assert "present_fields != compaction_fields" in source
+    assert "type(enabled) is not bool" in source
+    assert "type(attempted) is not bool" in source
+    assert "type(observed) is not bool" in source
+    assert "type(compacted) is not int" in source
+    assert "context_compaction_malformed" in source
     assert "context_compaction_attempted_unobserved" in source
-    assert "context_compaction_observed_any" in source
-    assert (
-        "or (not context_compaction_attempted_unobserved and "
-        "context_compaction_observed_any)" in source
-    )
+    assert "context_compaction_enabled_count == 0" in source
+    assert "context_compaction_observed_count > 0" in source
 
 
 def test_no_companion_json_keeps_legacy_release_decision_behavior(tmp_path: Path) -> None:
