@@ -24,9 +24,12 @@ def _chunk(
 
 
 def test_empty_input_returns_new_empty_list() -> None:
-    compacted, removed = compact_exact_duplicate_chunks([])
+    raw: list[RAGChunk] = []
+
+    compacted, removed = compact_exact_duplicate_chunks(raw)
 
     assert compacted == []
+    assert compacted is not raw
     assert removed == 0
 
 
