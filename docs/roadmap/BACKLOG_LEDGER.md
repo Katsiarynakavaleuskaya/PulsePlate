@@ -11122,7 +11122,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 `codex/review-invariant-relations-shadow-v1`; L2/L3 require separate reviewed target PRs
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2/L3 require separate reviewed target PRs
   - Status: L1 implementation in progress; L2/L3 closed and not authorized by L1
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
