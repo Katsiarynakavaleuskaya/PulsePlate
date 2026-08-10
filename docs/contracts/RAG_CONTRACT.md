@@ -183,6 +183,35 @@ request-specific diagnostics. The roadmap
 is product-intent input only; runtime authority remains with this contract, the
 canonical ledger entry, code, and deterministic tests.
 
+### 3.4 Pilot 3B exact-carrier context compaction
+
+`FEATURE_RAG_CONTEXT_COMPACTION` is an optional, default-off request-time
+optimization after the mandatory Stage-1 boundary and final metadata,
+sanitization, and redaction hygiene. When enabled, it removes only later
+carriers whose five primitive fields (`chunk_id`, `file`, `content`, `score`,
+`hop`) have the same runtime types and equal values as an earlier carrier. The
+first occurrence and request-local order are preserved. Same-content carriers
+with any different provenance, score, or hop remain distinct; this is not
+content-only, normalized, fuzzy, semantic, or boilerplate deduplication.
+
+The compacted snapshot is the single source for prompt context, response
+sources, confidence, evidence references, provenance, verification bundle, and
+knowledge candidates. Compaction does not validate truth, corroborate evidence,
+or grant admission authority. Existing Stage-1, enrichment-completion,
+degraded-path, recursive-path, policy, confidence, and verification-bundle
+gates remain mandatory.
+
+If compaction fails, the user response falls back to an untouched copy of the
+final validated/hygienic snapshot, `chunks_compacted` remains zero, and the
+stable internal warning is `rag_context_compaction_error: internal failure`.
+The verification bundle and knowledge admission fail closed through the
+existing post-retrieval degraded state. Logs contain fixed text only. The
+fallback does not change provider-call count, quota/rate-limit ordering, route
+schemas, DTOs, or OpenAPI.
+
+This pilot is request-local and is not a semantic cache, persistent memory,
+Evidence Graph serving, Stage 0, or a new authority/approval boundary.
+
 ---
 
 ## 4. Бюджет рекурсии и латентности
