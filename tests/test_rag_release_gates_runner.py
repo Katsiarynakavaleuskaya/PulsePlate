@@ -897,6 +897,105 @@ def test_gate_d1_does_not_accept_malformed_observation_as_compensation(
     assert release_decision == "NO-GO"
 
 
+@pytest.mark.parametrize(
+    "missing_carrier",
+    ["missing", "non-dict", "empty"],
+)
+def test_gate_d1_requires_carrier_on_every_non_guard_trace_once_active(
+    tmp_path: Path,
+    missing_carrier: str,
+) -> None:
+    """One observed trace cannot compensate for a missing non-guard carrier."""
+
+    state = _make_release_gate_state(
+        tmp_path,
+        experiment_id="compaction_missing_carrier",
+        allow_runtime_fallbacks=True,
+    )
+    traces = _passing_release_gate_traces()
+    observed = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": 1,
+    }
+    for trace in traces:
+        trace["retrieval_stats"] = dict(observed)
+    if missing_carrier == "missing":
+        del traces[1]["retrieval_stats"]
+    elif missing_carrier == "non-dict":
+        traces[1]["retrieval_stats"] = []
+    else:
+        traces[1]["retrieval_stats"] = {}
+
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["context_compaction"] == {
+        "enabled_trace_count": 3,
+        "attempted_trace_count": 3,
+        "result_observed_trace_count": 3,
+        "chunks_compacted_total": 3,
+    }
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
+
+
+def test_gate_d1_allows_guard_blocked_trace_without_carrier_when_active(
+    tmp_path: Path,
+) -> None:
+    """Input-guard rejection is a legitimate pre-retrieval N/A trace."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_guard_na")
+    traces = _passing_release_gate_traces()
+    observed = {
+        "context_compaction_enabled": True,
+        "context_compaction_attempted": True,
+        "context_compaction_result_observed": True,
+        "chunks_compacted": 0,
+    }
+    for trace in traces:
+        trace["retrieval_stats"] = dict(observed)
+    traces[0]["routing_decision"] = "blocked_by_agent_input_guard"
+    traces[0]["retrieval_stats"] = {}
+
+    _, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is True
+    assert release_decision == "PASS"
+
+
+def test_gate_d1_preserves_all_legacy_trace_compatibility(tmp_path: Path) -> None:
+    """A run with no non-guard carrier remains legacy-compatible."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="compaction_legacy")
+    traces = _passing_release_gate_traces()
+    traces[0]["retrieval_stats"] = {}
+    traces[1]["retrieval_stats"] = []
+
+    _, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is True
+    assert release_decision == "PASS"
+
+
 def test_canonical_small_fixture_advisory_preserves_raw_gate_checks_on_weekly_shape(
     tmp_path: Path,
 ) -> None:
@@ -1926,6 +2025,10 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "retrieved, retrieval_stats = await retrieve" in source
     assert '"retrieval_stats": retrieval_stats' in source
     assert '"Gate D1: Context compaction observation"' in source
+    assert "context_compaction_carrier_active = any(" in source
+    assert 'trace.get("routing_decision") != "blocked_by_agent_input_guard"' in source
+    assert 'trace.get("routing_decision") == "blocked_by_agent_input_guard"' in source
+    assert "if not context_compaction_carrier_active:" in source
     assert "present_fields != compaction_fields" in source
     assert "type(enabled) is not bool" in source
     assert "type(attempted) is not bool" in source

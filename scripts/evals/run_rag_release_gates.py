@@ -1846,12 +1846,24 @@ def build_metrics_summary(
     }
     context_compaction_malformed = False
     context_compaction_attempted_unobserved = False
+    context_compaction_carrier_active = any(
+        trace.get("routing_decision") != "blocked_by_agent_input_guard"
+        and isinstance(trace.get("retrieval_stats"), dict)
+        and bool(compaction_fields.intersection(trace["retrieval_stats"]))
+        for trace in traces
+    )
     for trace in traces:
+        if trace.get("routing_decision") == "blocked_by_agent_input_guard":
+            continue
+        if not context_compaction_carrier_active:
+            continue
         retrieval_stats = trace.get("retrieval_stats")
         if not isinstance(retrieval_stats, dict):
+            context_compaction_malformed = True
             continue
         present_fields = compaction_fields.intersection(retrieval_stats)
         if not present_fields:
+            context_compaction_malformed = True
             continue
         if present_fields != compaction_fields:
             context_compaction_malformed = True
