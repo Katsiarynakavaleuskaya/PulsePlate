@@ -95,10 +95,16 @@ _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
     rf"\s*\\?\s*(?:{_UPSTREAM_HASHES})?"
     r"\s*(?:#+\s*.*)?$"
 )
-# Whitespace in this grammar separates tokens. Possessive repetitions prevent
-# adjacent optional branches from redistributing the same whitespace run.
+# The release prefix and its following version class both accept digits, while
+# whitespace separates tokens. Possessive repetitions prevent either shared
+# run from being redistributed across adjacent grammar components.
 _UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
-    _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN.replace(r"\s*", r"\s*+").replace(r"\s+", r"\s++"),
+    _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN.replace(
+        r"[0-9]+[A-Za-z0-9_.*-]*",
+        r"[0-9]++[A-Za-z0-9_.*-]*",
+    )
+    .replace(r"\s*", r"\s*+")
+    .replace(r"\s+", r"\s++"),
     flags=re.ASCII,
 )
 RepoPath = str | PurePath
