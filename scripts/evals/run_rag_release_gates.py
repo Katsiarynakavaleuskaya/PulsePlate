@@ -848,6 +848,15 @@ def map_orchestration_result_to_retrieved(
         raise TypeError("context_compaction_enabled must be a built-in bool")
 
     chunks = list(getattr(orchestration_result, "chunks", []) or [])
+    context_compaction_result_observed = (
+        context_compaction_enabled is True
+        and getattr(orchestration_result, "context_compaction_completed", False) is True
+    )
+    chunks_compacted = (
+        _safe_nonnegative_int(getattr(orchestration_result, "chunks_compacted", 0))
+        if context_compaction_result_observed
+        else 0
+    )
     retrieved = [
         map_rag_chunk(chunk, rank=rank, retriever=retriever)
         for rank, chunk in enumerate(chunks, start=1)
@@ -877,10 +886,8 @@ def map_orchestration_result_to_retrieved(
             str(getattr(orchestration_result, "formatted_prompt", "")).strip(),
         ),
         "context_compaction_enabled": context_compaction_enabled,
-        "context_compaction_result_observed": context_compaction_enabled is True,
-        "chunks_compacted": _safe_nonnegative_int(
-            getattr(orchestration_result, "chunks_compacted", 0),
-        ),
+        "context_compaction_result_observed": context_compaction_result_observed,
+        "chunks_compacted": chunks_compacted,
     }
     return retrieved, metadata
 
@@ -936,6 +943,11 @@ async def pulseplate_retrieve(
     )
     metadata["max_supported_top_k"] = len(retrieved) or top_k
     metadata["requested_top_k"] = top_k
+    if (
+        context_compaction_enabled is True
+        and metadata["context_compaction_result_observed"] is not True
+    ):
+        _record_strict_violation(state, "rag_context_compaction_failed")
     return retrieved, metadata
 
 

@@ -261,7 +261,8 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
             confidence=None,
             hops=0,
             latency_ms=0,
-            chunks_compacted=2 if context_compaction_enabled else 0,
+            chunks_compacted=2,
+            context_compaction_completed=context_compaction_enabled,
         )
 
     state = _make_release_gate_state(tmp_path)
@@ -311,6 +312,54 @@ def test_pulseplate_retrieve_forwards_context_compaction_flag_per_call(
         )
         for item in metadata_observed
     ] == [(True, True, 2), (False, False, 0), (False, False, 0)]
+
+
+def test_compaction_rollback_is_unobserved_and_fails_strict_d1(tmp_path: Path) -> None:
+    """Canonical compaction rollback evidence must close strict eval admission."""
+
+    rollback_result = RAGOrchestrationResult(
+        chunks=[],
+        formatted_prompt="query",
+        rag_actually_used=False,
+        confidence=None,
+        hops=0,
+        latency_ms=0,
+        warnings=["rag_context_compaction_error: internal failure"],
+        degraded_reason=RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION,
+        chunks_compacted=9,
+    )
+    state = _make_release_gate_state(
+        tmp_path,
+        experiment_id="compaction_rollback",
+        allow_runtime_fallbacks=False,
+    )
+    state.pulseplate_imports = PulsePlateImports(
+        retrieve_and_validate_rag=AsyncMock(return_value=rollback_result),
+    )
+
+    retrieved, metadata = asyncio.run(
+        runner.pulseplate_retrieve(
+            state,
+            "query",
+            top_k=3,
+            subject_id=None,
+            context_compaction_enabled=True,
+        )
+    )
+    _, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert retrieved == []
+    assert metadata["context_compaction_result_observed"] is False
+    assert metadata["chunks_compacted"] == 0
+    assert state.strict_violations == ["rag_context_compaction_failed"]
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
 
 
 @pytest.mark.parametrize("malformed_count", [-1, True, "4", None])
@@ -1581,11 +1630,17 @@ def test_tracked_notebook_forwards_request_time_context_compaction_metadata() ->
     assert "if type(chunks_compacted) is not int or chunks_compacted < 0:" in adapter_source
     assert "return retrieved, {" in adapter_source
     assert (
-        '"context_compaction_result_observed": context_compaction_enabled is True' in adapter_source
+        '"context_compaction_result_observed": context_compaction_result_observed' in adapter_source
     )
     assert "elif type(context_compaction_enabled) is not bool:" in adapter_source
     assert 'raise TypeError("context_compaction_enabled must be a built-in bool")' in adapter_source
+    assert 'getattr(result, "context_compaction_completed", False) is True' in adapter_source
+    assert "if not context_compaction_result_observed:" in adapter_source
     assert '"rag_context_compaction_enabled": context_compaction_enabled' in adapter_source
+    assert (
+        '"rag_context_compaction_result_observed": context_compaction_result_observed'
+        in adapter_source
+    )
     assert '"rag_chunks_compacted":' in adapter_source
     assert 'retrieval_stats["context_compaction_enabled"] = context_compaction_enabled' in (
         retrieve_source

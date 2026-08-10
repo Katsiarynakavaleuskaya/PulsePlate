@@ -80,6 +80,9 @@ class RAGOrchestrationResult:
     chunks_compacted: int = 0
     """Exact duplicate carriers removed after final validation hygiene."""
 
+    context_compaction_completed: bool = False
+    """True only after enabled exact compaction passes its full postcondition."""
+
 
 def _empty_result(
     prompt_input: str,
@@ -182,6 +185,7 @@ def _non_rag_result(
     verification_bundle: "VerificationBundle | None" = None,
     verification_calls: int = 0,
     chunks_compacted: int = 0,
+    context_compaction_completed: bool = False,
 ) -> RAGOrchestrationResult:
     """Return a non-RAG result when no usable context survives to output."""
 
@@ -200,6 +204,7 @@ def _non_rag_result(
         verification_bundle=verification_bundle,
         verification_calls=verification_calls,
         chunks_compacted=chunks_compacted,
+        context_compaction_completed=context_compaction_completed,
     )
 
 
@@ -292,6 +297,7 @@ async def _run_orchestration(
     verification_calls = 0
     enrichment_completed = False
     chunks_compacted = 0
+    context_compaction_completed = False
     try:
         # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
         from core.rag.formatting import (
@@ -456,6 +462,7 @@ async def _run_orchestration(
                     raise ValueError("invalid context compaction result")
                 chunks_to_use = _copy_rag_chunks(compacted_chunks)
                 chunks_compacted = removed_count
+                context_compaction_completed = True
             except Exception:
                 logger.warning("RAG context compaction failed; preserving validated RAG response")
                 warning = "rag_context_compaction_error: internal failure"
@@ -463,6 +470,7 @@ async def _run_orchestration(
                     warnings.append(warning)
                 chunks_to_use = pristine_final_chunks
                 chunks_compacted = 0
+                context_compaction_completed = False
                 if effective_degraded_reason is None:
                     effective_degraded_reason = (
                         RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
@@ -491,6 +499,7 @@ async def _run_orchestration(
                 ),
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
             )
         if not raw_context.strip():
             return _non_rag_result(
@@ -507,6 +516,7 @@ async def _run_orchestration(
                 ),
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
         if not isinstance(redacted_context, str):
@@ -524,6 +534,7 @@ async def _run_orchestration(
                 ),
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
             )
         if not redacted_context.strip():
             return _non_rag_result(
@@ -540,6 +551,7 @@ async def _run_orchestration(
                 ),
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
             )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
         verification_bundle = _build_orchestration_verification_bundle(
@@ -597,6 +609,7 @@ async def _run_orchestration(
             verification_bundle=verification_bundle,
             verification_calls=verification_calls,
             chunks_compacted=chunks_compacted,
+            context_compaction_completed=context_compaction_completed,
         )
     except Exception:
         logger.warning("RAG orchestration failed; returning empty result")
@@ -624,6 +637,7 @@ async def _run_orchestration(
                 ),
                 verification_calls=verification_calls,
                 chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
             )
         return _empty_result(
             prompt_input,
