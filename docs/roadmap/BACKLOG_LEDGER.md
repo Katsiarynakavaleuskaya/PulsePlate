@@ -29,9 +29,10 @@ If it is not recorded here — it does not exist.
   - Owner: backend-engineer
   - Priority: P1 (bounded LLM context cost / latency experiment)
   - Branch: `codex/rag-context-compaction-pilot-b3-r2`
-  - Target PR: TBD (replacement PR; supersedes
+  - Target PR: [PR #2257](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2257)
+    (replacement PR; supersedes
     [PR #2249](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249))
-  - Status: Replacement in progress from exact main
+  - Status: In review in PR #2257 from exact main
     `48b04c2267aa7ff8708feb348c64bdf68ac52ba7`
   - Area: backend / RAG / Insight runtime
   - Business reason (EN): Avoid sending byte-for-byte duplicate final evidence
