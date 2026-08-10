@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 import pytest
 import yaml
@@ -205,6 +206,24 @@ def test_non_requirement_text_file_is_not_misclassified_as_carrier(
 )
 def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -> None:
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "is_dependabot_requirement_carrier_text\n"
+        "for suffix in ('!', '@', '='):\n"
+        "    content = f\"package{' ' * 1000}{suffix}\\n\"\n"
+        "    assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
 
 
 def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> None:
