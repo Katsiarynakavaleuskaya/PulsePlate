@@ -45,9 +45,12 @@ class TestFoodAPIsSimple:
             assert versions == {}
             mock_logger.error.assert_called_once()
 
-    def test_save_versions_error(self, manager):
+    def test_save_versions_error(self, manager: DatabaseUpdateManager) -> None:
         """Test save_versions with write error (lines 171-172)."""
-        with patch("builtins.open", side_effect=OSError("Write error")):
+        with patch(
+            "core.food_apis.update_manager.json.dump",
+            side_effect=OSError("Write error"),
+        ):
             with pytest.raises(
                 CommonFoodsCacheAdmissionError,
                 match="Database versions publication failed",

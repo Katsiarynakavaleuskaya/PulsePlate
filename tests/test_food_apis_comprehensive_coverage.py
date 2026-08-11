@@ -743,6 +743,54 @@ class TestDatabaseUpdateManagerComprehensive:
         assert fsync_count == 4
         assert not list(tmp_path.glob(".database_versions.json.*.tmp"))
 
+    def test_save_versions_restore_failure_is_distinct_and_logged(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from core.food_apis import update_manager as update_manager_module
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        manager.versions["usda"] = DatabaseVersion(
+            source="usda",
+            version="established-v1",
+            last_updated="2026-08-11T00:00:00+00:00",
+            record_count=20,
+            checksum="established",
+            metadata={},
+        )
+        manager._save_versions()
+        manager.versions["usda"].version = "replacement-v2"
+        real_fsync = os.fsync
+        fsync_count = 0
+
+        def fail_parent_fsync(descriptor: int) -> None:
+            nonlocal fsync_count
+            fsync_count += 1
+            if fsync_count == 2:
+                raise OSError("forced version parent fsync failure")
+            real_fsync(descriptor)
+
+        restoration = MagicMock(side_effect=OSError("forced exact restoration failure"))
+        monkeypatch.setattr(update_manager_module.os, "fsync", fail_parent_fsync)
+        monkeypatch.setattr(update_manager_module, "_restore_exact_file_state", restoration)
+        caplog.set_level(logging.ERROR, logger="core.food_apis.update_manager")
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Database versions restore failed after publication",
+        ):
+            manager._save_versions()
+
+        restoration.assert_called_once()
+        assert [record.getMessage() for record in caplog.records] == [
+            "Database versions restore failed after publication; category=OSError"
+        ]
+        assert not list(tmp_path.glob(".database_versions.json.*.tmp"))
+
     @pytest.mark.asyncio
     async def test_check_for_updates_usda_exception(self):
         """Test check_for_updates with USDA exception."""
@@ -940,6 +988,40 @@ class TestDatabaseUpdateManagerComprehensive:
                 result = await manager._update_usda_database()
                 assert result.success is False
                 assert len(result.errors) > 0
+
+    def test_usda_validation_and_compensation_failures_preserve_both_errors(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis import update_manager as update_manager_module
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        candidate = _admissible_common_food_fixture(106)
+        monkeypatch.setattr(
+            manager.unified_db,
+            "get_common_foods_database",
+            AsyncMock(return_value={"candidate": candidate}),
+        )
+        monkeypatch.setattr(
+            manager,
+            "_validate_food_data",
+            AsyncMock(return_value=["candidate_failed_validation"]),
+        )
+        monkeypatch.setattr(
+            update_manager_module,
+            "_restore_exact_file_state",
+            MagicMock(side_effect=OSError("forced compensation failure")),
+        )
+
+        result = asyncio.run(manager._update_usda_database(force=True))
+
+        assert result.success is False
+        assert result.errors == [
+            "candidate_failed_validation",
+            "common_food_cache_admission_failed",
+        ]
 
     @pytest.mark.asyncio
     async def test_update_usda_database_load_backup_exception(self):
@@ -1867,7 +1949,11 @@ class TestDatabaseUpdateManagerComprehensive:
 
         assert asyncio.run(manager._load_backup("openfoodfacts", "overflow")) == {}
 
-    def test_load_backup_rejects_mixed_snapshot_as_a_whole(self, tmp_path: Path) -> None:
+    def test_load_backup_rejects_mixed_snapshot_as_a_whole(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         manager = DatabaseUpdateManager(cache_dir=tmp_path)
@@ -1881,8 +1967,13 @@ class TestDatabaseUpdateManagerComprehensive:
             ),
             encoding="utf-8",
         )
+        caplog.set_level(logging.WARNING, logger="core.food_apis.update_manager")
 
         assert asyncio.run(manager._load_backup("openfoodfacts", "mixed")) == {}
+        assert [record.getMessage() for record in caplog.records] == [
+            "Backup snapshot rejected; "
+            "source=openfoodfacts; category=CommonFoodsCacheAdmissionError"
+        ]
 
     def test_rollback_refuses_empty_backup_without_mutating_version(
         self,
@@ -1910,6 +2001,36 @@ class TestDatabaseUpdateManagerComprehensive:
         assert success is False
         assert manager.versions["openfoodfacts"] is established
         save_versions.assert_not_called()
+
+    def test_rollback_refuses_valid_backup_without_established_version(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        manager._write_backup_snapshot(
+            "openfoodfacts",
+            "target-v1",
+            {"target_food": _admissible_common_food_fixture(107)},
+        )
+        backup_publication = MagicMock()
+        version_publication = MagicMock()
+        monkeypatch.setattr(manager, "_write_backup_snapshot", backup_publication)
+        monkeypatch.setattr(manager, "_save_versions", version_publication)
+        caplog.set_level(logging.WARNING, logger="core.food_apis.update_manager")
+
+        success = asyncio.run(manager.rollback_database("openfoodfacts", "target-v1"))
+
+        assert success is False
+        assert manager.versions == {}
+        backup_publication.assert_not_called()
+        version_publication.assert_not_called()
+        assert [record.getMessage() for record in caplog.records] == [
+            "Rollback refused; source=openfoodfacts; no established version entry"
+        ]
 
     def test_successful_off_rollback_persists_refreshable_version_snapshot(
         self,

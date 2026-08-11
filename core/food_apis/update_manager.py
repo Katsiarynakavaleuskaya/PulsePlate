@@ -291,11 +291,20 @@ class DatabaseUpdateManager:
                 finally:
                     os.close(parent_descriptor)
             except OSError:
-                _restore_exact_file_state(
-                    self.versions_file,
-                    prior_target_exists,
-                    prior_target_bytes,
-                )
+                try:
+                    _restore_exact_file_state(
+                        self.versions_file,
+                        prior_target_exists,
+                        prior_target_bytes,
+                    )
+                except Exception as restore_exc:
+                    logger.error(
+                        "Database versions restore failed after publication; category=%s",
+                        type(restore_exc).__name__,
+                    )
+                    raise CommonFoodsCacheAdmissionError(
+                        "Database versions restore failed after publication"
+                    ) from restore_exc
                 raise
         except CommonFoodsCacheAdmissionError:
             raise
@@ -515,7 +524,10 @@ class DatabaseUpdateManager:
                 try:
                     compensate_active_cache()
                 except CommonFoodsCacheAdmissionError:
-                    validation_errors = ["common_food_cache_admission_failed"]
+                    validation_errors = [
+                        *validation_errors,
+                        "common_food_cache_admission_failed",
+                    ]
                 return UpdateResult(
                     success=False,
                     source=source,
@@ -1325,7 +1337,7 @@ class DatabaseUpdateManager:
                 data = _load_common_foods_json(file_object)
             return self._reconstruct_backup_snapshot(data)
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "Backup snapshot rejected; source=%s; category=%s",
                 source,
                 type(exc).__name__,
@@ -1457,6 +1469,12 @@ class DatabaseUpdateManager:
             backup_data = await self._load_backup(source, target_version)
             if not backup_data:
                 logger.warning("Rollback refused; source=%s; backup is unrestorable", source)
+                return False
+            if source not in self.versions:
+                logger.warning(
+                    "Rollback refused; source=%s; no established version entry",
+                    source,
+                )
                 return False
 
             # Restore the data (implementation depends on storage method)

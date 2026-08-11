@@ -62,9 +62,15 @@ class TestFoodAPIsUpdatePipelineBasic:
             mock_logger.error.assert_called_once()
             assert "Error loading versions" in str(mock_logger.error.call_args)
 
-    def test_update_manager_save_versions_error_mock_path(self, update_manager):
+    def test_update_manager_save_versions_error_mock_path(
+        self,
+        update_manager: DatabaseUpdateManager,
+    ) -> None:
         """Test save_versions with write error using mock (lines 171-172)."""
-        with patch("builtins.open", side_effect=OSError("Write error")):
+        with patch(
+            "core.food_apis.update_manager.json.dump",
+            side_effect=OSError("Write error"),
+        ):
             with pytest.raises(
                 CommonFoodsCacheAdmissionError,
                 match="Database versions publication failed",

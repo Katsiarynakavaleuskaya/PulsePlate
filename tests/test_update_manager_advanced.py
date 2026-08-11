@@ -59,9 +59,12 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
                 max_rollback_versions=5,
             )
 
-    def test_save_versions_with_error(self, mock_manager):
+    def test_save_versions_with_error(self, mock_manager: DatabaseUpdateManager) -> None:
         """Test saving versions when file write fails."""
-        with patch("builtins.open", side_effect=IOError("Write failed")):
+        with patch(
+            "core.food_apis.update_manager.json.dump",
+            side_effect=OSError("Write failed"),
+        ):
             with pytest.raises(
                 CommonFoodsCacheAdmissionError,
                 match="Database versions publication failed",

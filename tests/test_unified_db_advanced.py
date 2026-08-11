@@ -792,33 +792,46 @@ class TestUnifiedFoodDatabaseCommonFoods:
     ) -> None:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
         owner_started = asyncio.Event()
+        release_owner_timeout = asyncio.Event()
+        waiter_polling = asyncio.Event()
         waiter_acquisition_started = asyncio.Event()
         acquisition_count = 0
         publication = MagicMock()
+        real_sleep = asyncio.sleep
+        clock = MagicMock()
+        clock.monotonic.return_value = 100.0
 
         async def acquire_with_owner_timeout() -> dict[str, object]:
             nonlocal acquisition_count
             acquisition_count += 1
             if acquisition_count == 1:
                 owner_started.set()
-                await asyncio.Event().wait()
+                await release_owner_timeout.wait()
+                raise TimeoutError
             waiter_acquisition_started.set()
-            await asyncio.sleep(0.22)
             return _valid_common_foods_envelope()
+
+        async def signal_waiter_lock_poll(delay: float) -> None:
+            assert delay == unified_db_module.COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS
+            waiter_polling.set()
+            await real_sleep(0)
 
         monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquire_with_owner_timeout)
         monkeypatch.setattr(db, "_publish_common_foods_envelope", publication)
+        monkeypatch.setattr(unified_db_module, "_load_time_module", lambda: clock)
+        monkeypatch.setattr(unified_db_module.asyncio, "sleep", signal_waiter_lock_poll)
         monkeypatch.setattr(
             unified_db_module,
             "COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS",
-            0.3,
+            30.0,
         )
 
         async def run_owner_and_waiter() -> tuple[object, object]:
             owner = asyncio.create_task(db.get_common_foods_database())
             await owner_started.wait()
-            await asyncio.sleep(0.18)
             waiter = asyncio.create_task(db.get_common_foods_database())
+            await waiter_polling.wait()
+            release_owner_timeout.set()
             owner_result, waiter_result = await asyncio.gather(
                 owner,
                 waiter,
@@ -836,6 +849,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert str(waiter_result) == (
             "Common-food acquisition is cooling down after a recent failure"
         )
+        assert db._common_foods_failure_cooldown_until == 130.0
         publication.assert_not_called()
         assert not (tmp_path / "common_foods.json").exists()
 
