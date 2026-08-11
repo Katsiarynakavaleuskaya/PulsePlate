@@ -995,7 +995,14 @@ class DatabaseUpdateManager:
                         raise CommonFoodsCacheAdmissionError(
                             "Legacy USDA backup membership is not exact"
                         )
-                    current_data = self._reconstruct_backup_snapshot(loaded)
+                    reconstructed = self._reconstruct_backup_snapshot(loaded)
+                    current_data = self.unified_db._validate_common_foods_envelope(
+                        {
+                            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                            "items": {name: asdict(food) for name, food in reconstructed.items()},
+                        }
+                    )
             elif source == "openfoodfacts":
                 with open(backup_file, "r", encoding="utf-8") as file_object:
                     current_data = _load_common_foods_json(file_object)

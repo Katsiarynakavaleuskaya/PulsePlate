@@ -2501,6 +2501,80 @@ class TestDatabaseUpdateManagerComprehensive:
         provider_acquisition.assert_not_awaited()
         assert backup_file.read_bytes() == established_backup_bytes
 
+    def test_legacy_usda_backup_requires_exact_envelope_identity_parity(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_MANIFEST,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        established_items = {
+            name: asdict(_admissible_common_food_fixture(index))
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        first_name, second_name = tuple(COMMON_FOODS_MANIFEST)[:2]
+        shared_source_id = established_items[first_name]["source_id"]
+        for name, evidence_source, evidence_confidence in (
+            (first_name, "usda", 0.7),
+            (second_name, "producer", 0.9),
+        ):
+            item = established_items[name]
+            item["source"] = "Shared display source"
+            item["source_id"] = shared_source_id
+            nutrition_input = item["nutrition_inputs"][0]
+            nutrition_input["source"] = evidence_source
+            nutrition_input["record_id"] = shared_source_id
+            item["nutrition_provenance"] = {
+                nutrient: evidence_source for nutrient in item["nutrition_provenance"]
+            }
+            item["nutrition_nutrient_confidence"] = {
+                nutrient: evidence_confidence for nutrient in item["nutrition_nutrient_confidence"]
+            }
+            item["nutrition_confidence"] = evidence_confidence
+
+        reconstructed = manager._reconstruct_backup_snapshot(established_items)
+        assert set(reconstructed) == set(COMMON_FOODS_MANIFEST)
+
+        cache_file = tmp_path / "common_foods.json"
+        cache_file.write_text(json.dumps(established_items), encoding="utf-8")
+        provider_acquisition = AsyncMock()
+        monkeypatch.setattr(
+            manager.unified_db,
+            "_acquire_common_foods_envelope",
+            provider_acquisition,
+        )
+        established_version = DatabaseVersion(
+            source="usda",
+            version="established",
+            last_updated="2026-08-11T00:00:00+00:00",
+            record_count=len(COMMON_FOODS_MANIFEST),
+            checksum="established-checksum",
+            metadata={"state": "established"},
+        )
+        manager.versions["usda"] = established_version
+        manager._save_versions()
+        versions_before = dict(manager.versions)
+        versions_bytes_before = manager.versions_file.read_bytes()
+        backup_file = tmp_path / "usda_backup_established.json"
+        established_backup_bytes = b"established-usda-backup"
+        backup_file.write_bytes(established_backup_bytes)
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Established source snapshot cannot be backed up",
+        ):
+            asyncio.run(manager._create_backup("usda", "established"))
+
+        provider_acquisition.assert_not_awaited()
+        assert backup_file.read_bytes() == established_backup_bytes
+        assert manager.versions == versions_before
+        assert manager.versions_file.read_bytes() == versions_bytes_before
+
     @pytest.mark.parametrize(
         ("violation", "expected_error"),
         [
