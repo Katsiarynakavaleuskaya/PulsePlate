@@ -1268,7 +1268,15 @@ class DatabaseUpdateManager:
             prefix = f"{source}_backup_"
             for candidate in cache_dir.glob(backup_pattern):
                 version = candidate.name[len(prefix) : -len(".json")]
-                backup_files.append(self._resolve_backup_path(source, version))
+                try:
+                    backup_files.append(self._resolve_backup_path(source, version))
+                except CommonFoodsCacheAdmissionError:
+                    logger.warning(
+                        "Ignoring invalid backup candidate during cleanup; "
+                        "source=%s; category=CommonFoodsCacheAdmissionError",
+                        source,
+                    )
+                    continue
 
             # Sort by modification time (newest first)
             backup_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)

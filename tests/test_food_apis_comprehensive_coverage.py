@@ -1972,6 +1972,47 @@ class TestDatabaseUpdateManagerComprehensive:
                 # Should handle the exception gracefully
                 await manager._cleanup_old_backups("usda")
 
+    def test_cleanup_old_backups_ignores_invalid_candidate_and_continues(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        cache_dir = tmp_path / "cache"
+        manager = DatabaseUpdateManager(cache_dir=cache_dir, max_rollback_versions=2)
+        valid_backups = [cache_dir / f"usda_backup_{index}.json" for index in range(4)]
+        for index, backup_file in enumerate(valid_backups, start=1):
+            backup_file.write_text("{}", encoding="utf-8")
+            os.utime(backup_file, (index, index))
+
+        outside_file = tmp_path / "outside-backup.json"
+        outside_bytes = b"outside-backup-must-remain-unchanged"
+        outside_file.write_bytes(outside_bytes)
+        stray_symlink = cache_dir / "usda_backup_stray.json"
+        stray_symlink.symlink_to(outside_file)
+        invalid_backup = cache_dir / "usda_backup_.json"
+        invalid_backup.write_text("invalid-name-must-be-ignored", encoding="utf-8")
+        caplog.set_level(logging.WARNING, logger="core.food_apis.update_manager")
+
+        asyncio.run(manager._cleanup_old_backups("usda"))
+
+        assert [backup.exists() for backup in valid_backups] == [False, False, True, True]
+        assert stray_symlink.is_symlink()
+        assert invalid_backup.read_text(encoding="utf-8") == "invalid-name-must-be-ignored"
+        assert outside_file.read_bytes() == outside_bytes
+        cleanup_warnings = [
+            record.getMessage()
+            for record in caplog.records
+            if record.name == "core.food_apis.update_manager"
+        ]
+        assert cleanup_warnings == 2 * [
+            "Ignoring invalid backup candidate during cleanup; "
+            "source=usda; category=CommonFoodsCacheAdmissionError"
+        ]
+        assert "stray" not in caplog.text
+        assert str(outside_file) not in caplog.text
+
     @pytest.mark.asyncio
     async def test_rollback_database_exception(self):
         """Test rollback_database with exception."""
