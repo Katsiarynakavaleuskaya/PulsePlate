@@ -883,21 +883,24 @@ class TestDatabaseUpdateManagerComprehensive:
     @pytest.mark.asyncio
     async def test_update_usda_database_no_change(self):
         """Test _update_usda_database when no data change."""
+        from core.food_apis.unified_db import COMMON_FOODS_MANIFEST
         from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
-            test_food = _admissible_common_food_fixture(103)
-            test_data = {"chicken": test_food}
-            checksum_data = {"chicken": asdict(test_food)}
+            test_data = {
+                name: _admissible_common_food_fixture(index)
+                for index, name in enumerate(COMMON_FOODS_MANIFEST)
+            }
+            checksum_data = {name: asdict(food) for name, food in test_data.items()}
             checksum = manager._calculate_checksum(checksum_data)
 
             version = DatabaseVersion(
                 source="usda",
                 version="1.0",
                 last_updated="2023-01-01T10:00:00",
-                record_count=1,
+                record_count=len(COMMON_FOODS_MANIFEST),
                 checksum=checksum,
                 metadata={},
             )
@@ -907,16 +910,13 @@ class TestDatabaseUpdateManagerComprehensive:
                 encoding="utf-8",
             )
 
-            # Mock unified_db.get_common_foods_database to return same data
             with patch.object(
                 manager.unified_db, "get_common_foods_database", new_callable=AsyncMock
             ) as mock_get_foods:
                 mock_get_foods.return_value = test_data
 
-                # Should detect no change and return early
                 result = await manager._update_usda_database(force=False)
                 assert result.success is True
-                # For no change, new_version should equal old_version
                 assert result.new_version == "1.0"  # Same version
 
     @pytest.mark.asyncio
@@ -1264,17 +1264,17 @@ class TestDatabaseUpdateManagerComprehensive:
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
             marker = f"established-{cache_shape}-marker"
-            established_item = _admissible_common_food_fixture(91)
-            established_item.name = marker
-            established_items = {"legacy_slot": asdict(established_item)}
+            established_items = {
+                name: asdict(_admissible_common_food_fixture(index))
+                for index, name in enumerate(COMMON_FOODS_MANIFEST)
+            }
+            first_manifest_name = next(iter(COMMON_FOODS_MANIFEST))
+            established_items[first_manifest_name]["name"] = marker
+            assert set(established_items) == set(COMMON_FOODS_MANIFEST)
+            assert len(established_items) == 20
+            assert established_items[first_manifest_name]["name"] == marker
             cache_payload: object = established_items
             if cache_shape == "versioned":
-                established_items = {
-                    name: asdict(_admissible_common_food_fixture(index))
-                    for index, name in enumerate(COMMON_FOODS_MANIFEST)
-                }
-                first_manifest_name = next(iter(COMMON_FOODS_MANIFEST))
-                established_items[first_manifest_name]["name"] = marker
                 cache_payload = {
                     "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
                     "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
@@ -2453,6 +2453,114 @@ class TestDatabaseUpdateManagerComprehensive:
 
             assert "usda" in results
             assert results["usda"].success is True
+
+    @pytest.mark.parametrize("legacy_shape", ["missing", "extra", "wrong_member"])
+    def test_legacy_usda_backup_requires_exact_manifest_before_replacement(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        legacy_shape: str,
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_MANIFEST,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        established_items = {
+            name: asdict(_admissible_common_food_fixture(index))
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        if legacy_shape == "missing":
+            established_items.pop(next(iter(COMMON_FOODS_MANIFEST)))
+        elif legacy_shape == "extra":
+            established_items["extra"] = asdict(_admissible_common_food_fixture(90))
+        else:
+            established_items["wrong_member"] = established_items.pop(
+                next(iter(COMMON_FOODS_MANIFEST))
+            )
+        cache_file = tmp_path / "common_foods.json"
+        cache_file.write_text(json.dumps(established_items), encoding="utf-8")
+        provider_acquisition = AsyncMock()
+        monkeypatch.setattr(
+            manager.unified_db,
+            "_acquire_common_foods_envelope",
+            provider_acquisition,
+        )
+        backup_file = tmp_path / "usda_backup_established.json"
+        established_backup_bytes = b"established-usda-backup"
+        backup_file.write_bytes(established_backup_bytes)
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Established source snapshot cannot be backed up",
+        ):
+            asyncio.run(manager._create_backup("usda", "established"))
+
+        provider_acquisition.assert_not_awaited()
+        assert backup_file.read_bytes() == established_backup_bytes
+
+    @pytest.mark.parametrize(
+        ("violation", "expected_error"),
+        [
+            ("blank_name", "invalid identity"),
+            ("blank_source", "invalid identity"),
+            ("blank_source_id", "invalid identity"),
+            ("blank_input_source", "invalid evidence identity"),
+            ("duplicate_within_item", "duplicate nutrition evidence"),
+            ("duplicate_across_items", "reuses nutrition evidence across items"),
+            ("unbound_source_id", "source identity is not bound to evidence"),
+        ],
+    )
+    def test_backup_evidence_identity_is_nonblank_unique_and_bound(
+        self,
+        tmp_path: Path,
+        violation: str,
+        expected_error: str,
+    ) -> None:
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        first = asdict(_admissible_common_food_fixture(103))
+        second = asdict(_admissible_common_food_fixture(104))
+        snapshot = {"first": first, "second": second}
+        first_input = first["nutrition_inputs"][0]
+        second_input = second["nutrition_inputs"][0]
+
+        if violation.startswith("blank_"):
+            carrier = violation.removeprefix("blank_")
+            if carrier == "input_source":
+                first_input["source"] = "   "
+            else:
+                first[carrier] = "   "
+        elif violation == "duplicate_within_item":
+            duplicate = dict(first_input)
+            duplicate["source"] = f" {str(first_input['source']).upper()} "
+            duplicate["record_id"] = f" {first_input['record_id']} "
+            first["nutrition_inputs"].append(duplicate)
+        elif violation == "duplicate_across_items":
+            second["source"] = "Independent display source"
+            second["source_id"] = first["source_id"]
+            second_input["source"] = f" {str(first_input['source']).upper()} "
+            second_input["record_id"] = f" {first_input['record_id']} "
+        else:
+            first["source_id"] = "unbound-source-record"
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match=expected_error):
+            manager._reconstruct_backup_snapshot(snapshot)
+
+    def test_backup_display_source_need_not_equal_evidence_source(self, tmp_path: Path) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        candidate = asdict(_admissible_common_food_fixture(105))
+        candidate["source"] = "Merged provider display label"
+
+        restored = manager._reconstruct_backup_snapshot({"candidate": candidate})
+
+        assert restored["candidate"].source == "Merged provider display label"
 
     @pytest.mark.parametrize(
         ("blank_carrier", "expected_error"),

@@ -67,6 +67,7 @@ COMMON_FOODS_CACHE_SCHEMA_VERSION: Final = "common-foods-cache.v1"
 COMMON_FOODS_MANIFEST_VERSION: Final = "common-foods-manifest.v1"
 COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS = 30.0
 COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS: Final = 0.01
+_COMMON_FOODS_FAILURE_COOLDOWN_SECONDS: Final = 30.0
 COMMON_FOODS_MANIFEST: Final[Mapping[str, str]] = MappingProxyType(
     {
         "chicken_breast": "chicken breast meat only cooked roasted",
@@ -362,6 +363,8 @@ class UnifiedFoodDatabase:
         # In-memory cache for this session
         self._memory_cache: Dict[str, UnifiedFoodItem] = {}
         self._common_foods_admission_lock = threading.Lock()
+        self._common_foods_publication_generation = 0
+        self._common_foods_failure_cooldown_until: float | None = None
 
         # Load persistent cache
         self._load_cache()
@@ -548,6 +551,8 @@ class UnifiedFoodDatabase:
         if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
             raise CommonFoodsCacheAdmissionError("Common-food cache path is not a regular file")
 
+        observed_publication_generation = self._common_foods_publication_generation
+
         if cache_file.exists() and not force_refresh:
             try:
                 with open(cache_file, "r", encoding="utf-8") as f:
@@ -561,14 +566,27 @@ class UnifiedFoodDatabase:
                     type(exc).__name__,
                 )
 
+        cooldown_until = self._common_foods_failure_cooldown_until
+        if cooldown_until is not None and _load_time_module().monotonic() < cooldown_until:
+            raise CommonFoodsCacheAdmissionError(
+                "Common-food acquisition is cooling down after a recent failure"
+            )
+
         event_loop = asyncio.get_running_loop()
         admission_deadline = event_loop.time() + COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS
         lock_acquired = False
+        managed_refresh_started = False
         try:
             async with asyncio.timeout_at(admission_deadline):
                 while not self._common_foods_admission_lock.acquire(blocking=False):
                     await asyncio.sleep(COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS)
                 lock_acquired = True
+
+                cooldown_until = self._common_foods_failure_cooldown_until
+                if cooldown_until is not None and _load_time_module().monotonic() < cooldown_until:
+                    raise CommonFoodsCacheAdmissionError(
+                        "Common-food acquisition is cooling down after a recent failure"
+                    )
 
                 if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
                     raise CommonFoodsCacheAdmissionError(
@@ -595,6 +613,31 @@ class UnifiedFoodDatabase:
                             type(exc).__name__,
                         )
 
+                if (
+                    force_refresh
+                    and self._common_foods_publication_generation != observed_publication_generation
+                ):
+                    try:
+                        with open(cache_file, "r", encoding="utf-8") as f:
+                            cache_envelope = _load_common_foods_json(f)
+                        foods_db = self._validate_common_foods_envelope(cache_envelope)
+                        if event_loop.time() >= admission_deadline:
+                            raise TimeoutError
+                        logger.info(
+                            "Loaded %d common foods from overlapping forced publication",
+                            len(foods_db),
+                        )
+                        return foods_db
+                    except TimeoutError:
+                        raise
+                    except Exception as exc:
+                        logger.warning(
+                            "Overlapping forced common-food publication rejected; "
+                            "acquiring replacement; category=%s",
+                            type(exc).__name__,
+                        )
+
+                managed_refresh_started = True
                 envelope = await self._acquire_common_foods_envelope()
                 foods_db = self._validate_common_foods_envelope(envelope)
                 if event_loop.time() >= admission_deadline:
@@ -648,11 +691,26 @@ class UnifiedFoodDatabase:
                     raise TimeoutError
                 logger.info("Published %d common foods atomically", len(foods_db))
 
+                self._common_foods_publication_generation += 1
+                self._common_foods_failure_cooldown_until = None
+
                 return foods_db
+        except asyncio.CancelledError:
+            raise
         except TimeoutError as exc:
+            if managed_refresh_started:
+                self._common_foods_failure_cooldown_until = (
+                    _load_time_module().monotonic() + _COMMON_FOODS_FAILURE_COOLDOWN_SECONDS
+                )
             raise CommonFoodsCacheAdmissionError(
                 "Common-food acquisition exceeded its total deadline"
             ) from exc
+        except Exception:
+            if managed_refresh_started:
+                self._common_foods_failure_cooldown_until = (
+                    _load_time_module().monotonic() + _COMMON_FOODS_FAILURE_COOLDOWN_SECONDS
+                )
+            raise
         finally:
             if lock_acquired:
                 self._common_foods_admission_lock.release()
@@ -712,6 +770,7 @@ class UnifiedFoodDatabase:
 
         admitted: Dict[str, UnifiedFoodItem] = {}
         source_identities: set[tuple[str, str]] = set()
+        admitted_evidence_pairs: set[tuple[str, str]] = set()
         for standard_name in COMMON_FOODS_MANIFEST:
             item = items[standard_name]
             if type(item) is not dict or set(item) != _COMMON_FOOD_ITEM_FIELDS:
@@ -720,7 +779,9 @@ class UnifiedFoodDatabase:
                 )
 
             string_fields = ("name", "source", "source_id")
-            if any(type(item[field]) is not str or not item[field] for field in string_fields):
+            if any(
+                type(item[field]) is not str or not item[field].strip() for field in string_fields
+            ):
                 raise CommonFoodsCacheAdmissionError(
                     f"Invalid common-food identity shape for {standard_name}"
                 )
@@ -783,6 +844,8 @@ class UnifiedFoodDatabase:
                 raise CommonFoodsCacheAdmissionError(
                     f"Missing common-food nutrition evidence for {standard_name}"
                 )
+            item_evidence_pairs: set[tuple[str, str]] = set()
+            source_id_is_bound = False
             for nutrition_input in nutrition_inputs:
                 input_nutrients = (
                     nutrition_input.get("nutrients") if type(nutrition_input) is dict else None
@@ -794,7 +857,7 @@ class UnifiedFoodDatabase:
                     type(nutrition_input) is not dict
                     or set(nutrition_input) != _NUTRITION_INPUT_FIELDS
                     or type(nutrition_input["source"]) is not str
-                    or not nutrition_input["source"]
+                    or not nutrition_input["source"].strip()
                     or (
                         nutrition_input["record_id"] is not None
                         and (
@@ -833,6 +896,30 @@ class UnifiedFoodDatabase:
                     raise CommonFoodsCacheAdmissionError(
                         f"Invalid common-food nutrition evidence for {standard_name}"
                     )
+
+                record_id = nutrition_input["record_id"]
+                if record_id is not None:
+                    evidence_pair = (
+                        nutrition_input["source"].strip().lower(),
+                        record_id.strip(),
+                    )
+                    if evidence_pair in item_evidence_pairs:
+                        raise CommonFoodsCacheAdmissionError(
+                            f"Duplicate common-food nutrition evidence for {standard_name}"
+                        )
+                    if evidence_pair in admitted_evidence_pairs:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Duplicate common-food nutrition evidence across manifest slots"
+                        )
+                    item_evidence_pairs.add(evidence_pair)
+                    if record_id.strip() == item["source_id"].strip():
+                        source_id_is_bound = True
+
+            if not source_id_is_bound:
+                raise CommonFoodsCacheAdmissionError(
+                    f"Common-food source identity is not bound to evidence for {standard_name}"
+                )
+            admitted_evidence_pairs.update(item_evidence_pairs)
 
             provenance = item["nutrition_provenance"]
             nutrient_confidence = item["nutrition_nutrient_confidence"]

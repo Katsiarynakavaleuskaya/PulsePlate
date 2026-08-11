@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import (
     COMMON_FOODS_CACHE_SCHEMA_VERSION,
+    COMMON_FOODS_MANIFEST,
     COMMON_FOODS_MANIFEST_VERSION,
     CommonFoodsCacheAdmissionError,
     UnifiedFoodDatabase,
@@ -990,6 +991,10 @@ class DatabaseUpdateManager:
                 if set(loaded) == {"schema_version", "manifest_version", "items"}:
                     current_data = self.unified_db._validate_common_foods_envelope(loaded)
                 else:
+                    if set(loaded) != set(COMMON_FOODS_MANIFEST):
+                        raise CommonFoodsCacheAdmissionError(
+                            "Legacy USDA backup membership is not exact"
+                        )
                     current_data = self._reconstruct_backup_snapshot(loaded)
             elif source == "openfoodfacts":
                 with open(backup_file, "r", encoding="utf-8") as file_object:
@@ -1038,8 +1043,9 @@ class DatabaseUpdateManager:
             raise CommonFoodsCacheAdmissionError("Backup snapshot is empty or invalid")
 
         foods: Dict[str, UnifiedFoodItem] = {}
+        admitted_evidence_pairs: set[tuple[str, str]] = set()
         for name, food_data in snapshot.items():
-            if type(name) is not str or not name:
+            if type(name) is not str or not name.strip():
                 raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid identity")
             if isinstance(food_data, UnifiedFoodItem):
                 candidate = asdict(food_data)
@@ -1051,7 +1057,7 @@ class DatabaseUpdateManager:
                 raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid fields")
 
             identity_fields = (candidate["name"], candidate["source"], candidate["source_id"])
-            if any(type(value) is not str or not value for value in identity_fields):
+            if any(type(value) is not str or not value.strip() for value in identity_fields):
                 raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid identity")
             category = candidate["category"]
             if category is not None and type(category) is not str:
@@ -1088,12 +1094,14 @@ class DatabaseUpdateManager:
             nutrition_inputs = candidate["nutrition_inputs"]
             if type(nutrition_inputs) is not list or not nutrition_inputs:
                 raise CommonFoodsCacheAdmissionError("Backup snapshot lacks nutrition evidence")
+            item_evidence_pairs: set[tuple[str, str]] = set()
+            source_id_is_bound = False
             for nutrition_input in nutrition_inputs:
                 if (
                     type(nutrition_input) is not dict
                     or set(nutrition_input) != _NUTRITION_INPUT_FIELDS
                     or type(nutrition_input["source"]) is not str
-                    or not nutrition_input["source"]
+                    or not nutrition_input["source"].strip()
                     or (
                         nutrition_input["record_id"] is not None
                         and (
@@ -1139,6 +1147,30 @@ class DatabaseUpdateManager:
                     raise CommonFoodsCacheAdmissionError(
                         "Backup snapshot contains invalid nutrition evidence"
                     )
+
+                record_id = nutrition_input["record_id"]
+                if record_id is not None:
+                    evidence_pair = (
+                        nutrition_input["source"].strip().lower(),
+                        record_id.strip(),
+                    )
+                    if evidence_pair in item_evidence_pairs:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Backup snapshot contains duplicate nutrition evidence"
+                        )
+                    if evidence_pair in admitted_evidence_pairs:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Backup snapshot reuses nutrition evidence across items"
+                        )
+                    item_evidence_pairs.add(evidence_pair)
+                    if record_id.strip() == candidate["source_id"].strip():
+                        source_id_is_bound = True
+
+            if not source_id_is_bound:
+                raise CommonFoodsCacheAdmissionError(
+                    "Backup snapshot source identity is not bound to evidence"
+                )
+            admitted_evidence_pairs.update(item_evidence_pairs)
 
             provenance = candidate["nutrition_provenance"]
             nutrient_confidence = candidate["nutrition_nutrient_confidence"]

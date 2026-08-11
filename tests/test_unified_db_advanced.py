@@ -361,6 +361,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
         acquisition.assert_not_awaited()
         assert cache_file.is_symlink()
         assert outside.exists()
+        assert db._common_foods_failure_cooldown_until is None
 
     def test_search_food_memory_cache_bypass_is_explicit_and_default_preserving(
         self,
@@ -568,6 +569,92 @@ class TestUnifiedFoodDatabaseCommonFoods:
         ):
             UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
 
+    @pytest.mark.parametrize(
+        "blank_carrier",
+        ["name", "source", "source_id", "input_source"],
+    )
+    def test_common_food_identity_strings_must_be_nonblank(
+        self,
+        blank_carrier: str,
+    ) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        first_item = items[next(iter(COMMON_FOODS_MANIFEST))]
+        assert isinstance(first_item, dict)
+
+        if blank_carrier == "input_source":
+            nutrition_inputs = first_item["nutrition_inputs"]
+            assert isinstance(nutrition_inputs, list)
+            nutrition_inputs[0]["source"] = "   "
+        else:
+            first_item[blank_carrier] = "   "
+
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
+    @pytest.mark.parametrize(
+        ("violation", "expected_error"),
+        [
+            ("duplicate_within_item", "Duplicate common-food nutrition evidence"),
+            (
+                "duplicate_across_items",
+                "Duplicate common-food nutrition evidence across manifest slots",
+            ),
+            ("unbound_source_id", "source identity is not bound to evidence"),
+        ],
+    )
+    def test_common_food_evidence_identity_is_unique_and_bound(
+        self,
+        violation: str,
+        expected_error: str,
+    ) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        first_name, second_name = tuple(COMMON_FOODS_MANIFEST)[:2]
+        first_item = items[first_name]
+        second_item = items[second_name]
+        assert isinstance(first_item, dict)
+        assert isinstance(second_item, dict)
+        first_inputs = first_item["nutrition_inputs"]
+        second_inputs = second_item["nutrition_inputs"]
+        assert isinstance(first_inputs, list)
+        assert isinstance(second_inputs, list)
+        first_input = first_inputs[0]
+        second_input = second_inputs[0]
+        assert isinstance(first_input, dict)
+        assert isinstance(second_input, dict)
+
+        if violation == "duplicate_within_item":
+            duplicate = dict(first_input)
+            duplicate["source"] = f" {str(first_input['source']).upper()} "
+            duplicate["record_id"] = f" {first_input['record_id']} "
+            first_inputs.append(duplicate)
+        elif violation == "duplicate_across_items":
+            second_item["source"] = "Independent display source"
+            second_item["source_id"] = first_item["source_id"]
+            second_input["source"] = f" {str(first_input['source']).upper()} "
+            second_input["record_id"] = f" {first_input['record_id']} "
+        else:
+            first_item["source_id"] = "unbound-source-record"
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match=expected_error):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
+    def test_common_food_display_source_need_not_equal_evidence_source(self) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        first_name = next(iter(COMMON_FOODS_MANIFEST))
+        first_item = items[first_name]
+        assert isinstance(first_item, dict)
+        first_item["source"] = "Merged provider display label"
+
+        admitted = UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
+        assert admitted[first_name].source == "Merged provider display label"
+
     def test_total_deadline_becomes_admission_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -741,12 +828,14 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         owner_result, waiter_result = asyncio.run(run_owner_and_waiter())
 
-        assert waiter_acquisition_started.is_set()
-        assert acquisition_count == 2
+        assert not waiter_acquisition_started.is_set()
+        assert acquisition_count == 1
         assert isinstance(owner_result, CommonFoodsCacheAdmissionError)
         assert isinstance(waiter_result, CommonFoodsCacheAdmissionError)
         assert str(owner_result) == "Common-food acquisition exceeded its total deadline"
-        assert str(waiter_result) == "Common-food acquisition exceeded its total deadline"
+        assert str(waiter_result) == (
+            "Common-food acquisition is cooling down after a recent failure"
+        )
         publication.assert_not_called()
         assert not (tmp_path / "common_foods.json").exists()
 
@@ -1064,6 +1153,141 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert acquisition_count == 1
         assert publication_count == 1
         assert tuple(first) == tuple(second) == tuple(COMMON_FOODS_MANIFEST)
+
+    def test_overlapping_force_callers_share_publication_but_sequential_force_refreshes(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        first_sweep_started = asyncio.Event()
+        release_first_sweep = asyncio.Event()
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+        calls: list[str] = []
+
+        async def deterministic_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
+            sweep_index = len(calls) // len(queries)
+            row_index = queries.index(query)
+            calls.append(query)
+            if len(calls) == 1:
+                first_sweep_started.set()
+                await release_first_sweep.wait()
+            return [_common_food_item(sweep_index * 100 + row_index)]
+
+        monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
+        monkeypatch.setattr(db, "search_food", deterministic_search)
+
+        async def run_force_callers() -> tuple[
+            dict[str, UnifiedFoodItem],
+            dict[str, UnifiedFoodItem],
+            dict[str, UnifiedFoodItem],
+        ]:
+            owner = asyncio.create_task(db.get_common_foods_database(force_refresh=True))
+            await first_sweep_started.wait()
+            waiter = asyncio.create_task(db.get_common_foods_database(force_refresh=True))
+            await asyncio.sleep(0)
+            release_first_sweep.set()
+            first, overlapping = await asyncio.gather(owner, waiter)
+            sequential = await db.get_common_foods_database(force_refresh=True)
+            return first, overlapping, sequential
+
+        first, overlapping, sequential = asyncio.run(run_force_callers())
+
+        assert calls == [*queries, *queries]
+        assert first["chicken_breast"].source_id == "fixture-0"
+        assert overlapping["chicken_breast"].source_id == "fixture-0"
+        assert sequential["chicken_breast"].source_id == "fixture-100"
+        assert db._common_foods_publication_generation == 2
+
+    @pytest.mark.parametrize("failure_stage", ["acquisition", "validation", "publication"])
+    def test_managed_refresh_failure_arms_fixed_non_sliding_cooldown(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        failure_stage: str,
+    ) -> None:
+        now = [100.0]
+        clock = MagicMock()
+        clock.monotonic.side_effect = lambda: now[0]
+        monkeypatch.setattr(unified_db_module, "_load_time_module", lambda: clock)
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        acquisition = AsyncMock(return_value=_valid_common_foods_envelope())
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquisition)
+
+        if failure_stage == "acquisition":
+            acquisition.side_effect = CommonFoodsCacheAdmissionError("managed acquisition failed")
+        elif failure_stage == "validation":
+            monkeypatch.setattr(
+                db,
+                "_validate_common_foods_envelope",
+                MagicMock(side_effect=CommonFoodsCacheAdmissionError("managed validation failed")),
+            )
+        else:
+            monkeypatch.setattr(
+                db,
+                "_publish_common_foods_envelope",
+                MagicMock(side_effect=CommonFoodsCacheAdmissionError("managed publication failed")),
+            )
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match=f"managed {failure_stage} failed"):
+            asyncio.run(db.get_common_foods_database())
+
+        assert db._common_foods_failure_cooldown_until == 130.0
+        now[0] = 110.0
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="cooling down"):
+            asyncio.run(db.get_common_foods_database(force_refresh=True))
+        assert db._common_foods_failure_cooldown_until == 130.0
+        assert acquisition.await_count == 1
+
+    def test_failure_cooldown_allows_warm_reads_expires_and_ignores_cancellation(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        now = [100.0]
+        clock = MagicMock()
+        clock.monotonic.side_effect = lambda: now[0]
+        monkeypatch.setattr(unified_db_module, "_load_time_module", lambda: clock)
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        acquisition = AsyncMock(
+            side_effect=CommonFoodsCacheAdmissionError("managed acquisition failed")
+        )
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquisition)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="managed acquisition failed"):
+            asyncio.run(db.get_common_foods_database())
+        assert db._common_foods_failure_cooldown_until == 130.0
+
+        cache_file = tmp_path / "common_foods.json"
+        _write_common_foods_envelope(cache_file, _valid_common_foods_envelope())
+        now[0] = 105.0
+        warm = asyncio.run(db.get_common_foods_database())
+        assert tuple(warm) == tuple(COMMON_FOODS_MANIFEST)
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="cooling down"):
+            asyncio.run(db.get_common_foods_database(force_refresh=True))
+        now[0] = 110.0
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="cooling down"):
+            asyncio.run(db.get_common_foods_database(force_refresh=True))
+        assert db._common_foods_failure_cooldown_until == 130.0
+
+        now[0] = 130.0
+        acquisition.side_effect = None
+        acquisition.return_value = _valid_common_foods_envelope()
+        refreshed = asyncio.run(db.get_common_foods_database(force_refresh=True))
+        assert tuple(refreshed) == tuple(COMMON_FOODS_MANIFEST)
+        assert db._common_foods_failure_cooldown_until is None
+
+        db._common_foods_failure_cooldown_until = 120.0
+        generation_before_cancellation = db._common_foods_publication_generation
+        acquisition.side_effect = asyncio.CancelledError
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(db.get_common_foods_database(force_refresh=True))
+        assert db._common_foods_failure_cooldown_until == 120.0
+        assert db._common_foods_publication_generation == generation_before_cancellation
 
     def test_one_instance_cold_admission_spans_overlapping_event_loops(
         self,
