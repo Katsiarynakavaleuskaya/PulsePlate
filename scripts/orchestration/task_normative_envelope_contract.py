@@ -489,7 +489,8 @@ def _normalize_optional_fingerprint(value: str | None, category: str) -> str | N
         return None
     _require_exact_string(value, category)
     try:
-        return validate_fingerprint(value)
+        normalized: str = validate_fingerprint(value)
+        return normalized
     except ValueError as exc:
         raise ValueError(f"invalid {category}") from exc
 
