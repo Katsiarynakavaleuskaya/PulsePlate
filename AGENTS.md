@@ -265,10 +265,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     `chatgpt-codex-connector` with `originalCommit` equal to the exact live head;
     that live head must be the sole direct mapping-only successor of the sealed
     material, and both heads must recompute to the sealed digest. The root must
-    name the exact sealed material SHA and bind the selected full lowercase ref,
-    with hexadecimal token boundaries, directly as the object of its
-    `not an ancestor of` assertion. The phrase may vary in case; the selected SHA
-    may not. Labels, URLs, and unrelated SHA occurrences are insufficient. After an
+    name the exact sealed material SHA and contain the exact literal fragment
+    `not an ancestor of \`<full-40-sha>\`` with the selected lowercase ref.
+    Phrase case, the single ASCII space, and both backticks are fixed; uppercase,
+    tabs, newlines, missing backticks, extra spaces, labels, URLs, and unrelated
+    SHA occurrences are insufficient. After an
     explicit human decision to post it, exactly one later GraphQL-authenticated
     `OWNER` reply must be this single line, with no Markdown, whitespace, newline,
     or extra text:

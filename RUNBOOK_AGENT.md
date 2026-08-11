@@ -593,9 +593,11 @@ Use this as the canonical operating loop from branch creation to merge window:
      Confirm first that the root `originalCommit` is the live head, the live
      head is the sole direct mapping-only successor of the sealed material, the
      digest recomputes exactly, and the root names the exact sealed material SHA
-     while binding the selected lowercase reviewer ref directly as the object of
-     its `not an ancestor of` assertion. Phrase casing may vary, but SHA casing
-     may not; labels, URLs, and unrelated SHA mentions are not evidence. A human must
+     and contain the exact literal fragment
+     `not an ancestor of \`<full-40-sha>\`` with the selected lowercase reviewer
+     ref. Phrase case, the single ASCII space, and both backticks are fixed;
+     uppercase, tabs, newlines, missing backticks, extra spaces, labels, URLs, and
+     unrelated SHA mentions are not evidence. A human must
      explicitly confirm the disposition before posting exactly this one line:
      `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
      There must be exactly one later comment whose authenticated GraphQL

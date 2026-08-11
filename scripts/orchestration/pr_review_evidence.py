@@ -1101,12 +1101,7 @@ def validated_duplicate_reply_urls(
 
         if not has_exact_token(material_head_sha):
             return False
-        selected_token = rf"(?<![0-9A-Fa-f])`?{re.escape(selected_ref)}`?(?![0-9A-Fa-f])"
-        direct_ancestry_claim = re.search(
-            rf"(?i:\bnot an ancestor of)[ \t]+{selected_token}",
-            body,
-        )
-        return direct_ancestry_claim is not None
+        return f"not an ancestor of `{selected_ref}`" in body
 
     def root_has_canonical_mapping_path(url: str) -> bool:
         match = root_url_re.fullmatch(url)

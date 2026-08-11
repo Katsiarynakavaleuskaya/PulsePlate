@@ -337,10 +337,10 @@ live head. That head must be the sole direct mapping-only successor whose direct
 parent is the sealed material head; recomputing both material projections must
 equal the sealed digest. The root body is not sent through the generic SHA
 lexer. It must contain the exact, hex-boundary-delimited sealed material SHA and
-bind the exact lowercase reply-selected ref directly as the object of a
-`not an ancestor of` assertion. Phrase words may match case-insensitively, but
-the selected SHA may not; labels, URLs, and unrelated occurrences are
-insufficient. After an explicit human decision to post it, exactly
+contain the exact literal fragment `not an ancestor of \`<full-40-sha>\`` with
+the lowercase reply-selected ref. Phrase case, the single ASCII space, and both
+backticks are fixed; uppercase, tabs, newlines, missing backticks, extra spaces,
+labels, URLs, and unrelated occurrences are insufficient. After an explicit human decision to post it, exactly
 one later comment with GraphQL `authorAssociation=OWNER` must equal this one
 line byte-for-byte:
 

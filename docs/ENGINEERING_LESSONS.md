@@ -892,9 +892,11 @@ Classify the new review item before choosing the recovery path:
    It applies only to one resolved connector root on the canonical mapping file
    whose `originalCommit` is the exact live direct mapping-only successor, whose
    sealed digest recomputes, and whose body names the sealed material SHA while
-   binding the exact lowercase selected ref directly as the object of `not an
-   ancestor of`. Phrase casing may vary, but SHA casing may not; labels, URLs,
-   and unrelated SHA mentions are insufficient.
+   containing the exact literal fragment
+   `not an ancestor of \`<full-40-sha>\`` with the lowercase selected ref. Phrase
+   case, the single ASCII space, and both backticks are fixed; uppercase, tabs,
+   newlines, missing backticks, extra spaces, labels, URLs, and unrelated SHA
+   mentions are insufficient.
    The selected ref must be definitively unavailable; unknown
    or real refs and multiple eligible roots remain blocking. Count every live
    thread root before URL-only disposition filtering, and bind authenticated

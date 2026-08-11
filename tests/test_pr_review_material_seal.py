@@ -6091,7 +6091,7 @@ def _owner_only_empty_mapping_coverage(
     exact_reply = _owner_unavailable_reply(selected_ref) if reply_body is None else reply_body
     root_body = (
         "Commit ancestry finding on docs/review/PR_42_FIXED_MAPPING.md: "
-        f"sealed material {sealed_head_sha} is not an ancestor of {selected_ref}. "
+        f"sealed material {sealed_head_sha} is not an ancestor of `{selected_ref}`. "
         "Unrelated base-short 909aed84... and live URL "
         f"https://github.com/owner/repo/commit/{live_head_sha}."
     )
@@ -6120,6 +6120,16 @@ def _owner_only_empty_mapping_coverage(
     elif root_body_variant == "mixed-case-selected-ref":
         mixed_selected_ref = selected_ref[:20].upper() + selected_ref[20:]
         root_body = f"Material {sealed_head_sha} is not an ancestor of `{mixed_selected_ref}`."
+    elif root_body_variant == "uppercase-phrase":
+        root_body = f"Material {sealed_head_sha} is NOT AN ANCESTOR OF `{selected_ref}`."
+    elif root_body_variant == "tab-before-selected-ref":
+        root_body = f"Material {sealed_head_sha} is not an ancestor of\t`{selected_ref}`."
+    elif root_body_variant == "newline-before-selected-ref":
+        root_body = f"Material {sealed_head_sha} is not an ancestor of\n`{selected_ref}`."
+    elif root_body_variant == "selected-ref-without-backticks":
+        root_body = f"Material {sealed_head_sha} is not an ancestor of {selected_ref}."
+    elif root_body_variant == "multiple-spaces-before-selected-ref":
+        root_body = f"Material {sealed_head_sha} is not an ancestor of  `{selected_ref}`."
     elif root_body_variant == "missing-cause":
         root_body = root_body.replace("Commit ancestry finding", "Review finding").replace(
             "is not an ancestor of", "has an unrelated comparison with"
@@ -6345,6 +6355,31 @@ def test_owner_only_empty_mapping_rejects_nonexact_selected_ref_claims(
         monkeypatch,
         root_body_variant=root_body_variant,
         selected_ref_value=selected_ref_value,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "root_body_variant",
+    [
+        "uppercase-phrase",
+        "tab-before-selected-ref",
+        "newline-before-selected-ref",
+        "selected-ref-without-backticks",
+        "multiple-spaces-before-selected-ref",
+    ],
+    ids=("uppercase-phrase", "tab", "newline", "no-backticks", "multiple-spaces"),
+)
+def test_owner_only_empty_mapping_rejects_ancestry_fragment_variations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    root_body_variant: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_body_variant=root_body_variant,
     )
 
     assert covered == set()
