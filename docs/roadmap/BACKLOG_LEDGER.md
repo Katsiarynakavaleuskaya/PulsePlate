@@ -1743,9 +1743,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (paid-path latency / provider reliability / data provenance)
-  - Target PR: #2261
-  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r2`
-  - Status: Active replacement carrier for #2259, separate from tests-only PR #2255
+  - Target PR: PR-TBD-R3 (replacement carrier for #2261 and #2259)
+  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r3`
+  - Status: Active R3 replacement carrier, separate from tests-only PR #2255
   - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
   - Finding Type: cold-cache provider boundary and incomplete-cache acceptance
   - Scope boundary: This lane owns only the versioned 20-key common-food
@@ -1785,10 +1785,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - A cold sweep calls `search_food(..., save_cache=False)` exactly once per
       manifest row with no retry, has one total deadline, converts timeout to
       `CommonFoodsCacheAdmissionError`, and propagates external cancellation
+    - A forced USDA refresh bypasses both warm disk and in-memory search cache
+      through that same exact 20-row acquisition; no parallel refresh path is
+      introduced
     - Exact `20/20` data is structurally validated and published through one
       same-parent temporary file plus atomic replace; serialization, validation,
       or replace failure raises `CommonFoodsCacheAdmissionError`, preserves any
       prior target bytes, and cleans the temporary file
+    - Warm, post-wait, prior-byte, and publication boundaries reject symlink,
+      dangling-symlink, and non-regular common-food paths; a deadline observed
+      after publication compensates the new bytes before reporting failure
+    - Admitted top-level nutrition keeps every `*_g` value at or below `100`,
+      requires `protein_g > 0` or `fat_g > 0`, and accepts evidence record/version
+      references only as `None` or nonblank strings
     - Cold-to-warm round-trip preserves source attribution, record/version
       references, raw structural evidence, aggregate confidence, per-nutrient
       confidence, and per-nutrient provenance
@@ -1800,6 +1809,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       Open Food Facts update persists its own complete source snapshot, and later
       updates revalidate that source-specific snapshot without depending on
       `common_foods.json`
+    - The configured seven-query Open Food Facts sweep completes every call and
+      conversion before any non-empty snapshot publication, propagates
+      cancellation, and derives version count/checksum from the exact reloaded
+      final mapping rather than an unrelated SQLite or export cache
+    - Version metadata publication is atomic and fail-raising; failed USDA/OFF
+      update or rollback metadata publication performs bounded compensation of
+      newly published active/snapshot bytes and restores in-memory version state
     - Backup write/load is all-or-nothing through `UnifiedFoodItem`
       reconstruction; mixed, malformed, empty, or unrestorable snapshots are
       rejected, and rollback refuses them without version mutation
@@ -1816,6 +1832,52 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Legacy FoodDB schema-probe caching remains in
       [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
 
+<a id="ledger-p1-recipe-food-identity-micronutrient-provenance"></a>
+- [ ] P1: RecipeDB/FoodDB identity and micronutrient provenance contract
+  - Owner: @katsiaryna_kavaleuskaya (Food Data / Backend)
+  - Priority: P1 (paid-feature trust / nutrition-data moat / data integrity)
+  - Target PR: PR-TBD-RECIPE-FOOD-IDENTITY-MICRONUTRIENT-PROVENANCE
+  - Status: Backlogged; sequenced immediately after the weekly cold-cache R3
+    availability and atomicity prerequisite
+  - Area: backend / RecipeDB / FoodDB / micronutrients / provenance
+  - Origin: R3 review of the weekly cold-cache execution path found that cache
+    availability can be closed independently, while canonical identity between
+    recipe ingredients and food records plus source/version evidence for
+    micronutrients remains a separate product-data gap. This item records that
+    gap without widening the cache-integrity carrier into nutrient ingestion or
+    paid-feature behavior.
+  - Business reason (EN): Micronutrient planning is a paid-feature
+    differentiator. Values that cannot be traced to one canonical food identity,
+    source record, source version, unit, and confidence can silently corrupt
+    recipe totals and weaken user trust and PulsePlate's defensible nutrition
+    data layer.
+  - Links:
+    - `core/food_db_new.py`
+    - `core/recipe_db_new.py`
+    - `core/menu_engine_new.py`
+    - `app/routers/pro.py`
+    - `app/routers/premium_week.py`
+    - `core/food_apis/unified_db.py`
+  - Finite DoD:
+    - Define one backend-owned canonical identity join between each RecipeDB
+      ingredient reference and exactly one FoodDB record, with deterministic
+      rejection or an explicit unresolved state for missing and ambiguous joins
+    - Bind every admitted micronutrient value to source, source record identity,
+      source version or retrieval timestamp, normalized unit, and bounded
+      confidence; `None` remains distinct from measured zero
+    - Specify deterministic source precedence and conflict handling without
+      attributing synthetic defaults to USDA, Open Food Facts, or another
+      provider
+    - Add a bounded migration/backfill plan for existing CSV/SQLite records and
+      deterministic tests for identity collision, unit conversion, missing
+      evidence, source conflict, recipe aggregation, and replay
+    - Preserve wellness-only language and expose uncertainty; no clinical or
+      diagnostic claim, provider-policy widening, live-network test, or silent
+      fallback is introduced
+    - If a public DTO/OpenAPI change is required, deliver it in an explicitly
+      scoped contract slice with generated-client parity rather than hiding it
+      inside data migration
+
 <a id="ledger-p2-scheduler-remaining-edges-unawaited-asyncmock"></a>
 - [ ] P2: Remove the scheduler remaining-edges unawaited-AsyncMock warning
   - Owner: @katsiaryna_kavaleuskaya (QA / scheduler)
@@ -1827,7 +1889,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     whole-file execution
   - Reason: The warning is isolated to an unchanged scheduler test mock lifecycle;
     resolving it requires scheduler-owned diagnosis and does not belong to the
-    cold-cache admission or source-backup authority of PR #2261.
+    cold-cache admission or source-backup authority of the active R3 carrier.
   - Links:
     - `tests/test_food_apis_push95.py::test_scheduler_remaining_edges`
     - `core/food_apis/scheduler.py`
