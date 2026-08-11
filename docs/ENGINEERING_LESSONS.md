@@ -884,8 +884,19 @@ Classify the new review item before choosing the recovery path:
    otherwise keep the finding unresolved and use the same clean replacement
    flow.
 8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
-   refs, force-push history, or use operator approval to bypass the hard
-   disposition gate.
+   refs, force-push history, or use generic operator approval to bypass the hard
+   disposition gate. The only owner response recognized without a canonical
+   fingerprint or FIXED mapping is the closed empty-mapping class: after an
+   explicit human decision, one exact GraphQL-`OWNER` reply may say
+   `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
+   It applies only to one resolved connector root on the canonical mapping file
+   whose `originalCommit` is the exact live direct mapping-only successor, whose
+   sealed digest recomputes, and whose body binds the cause, sealed material SHA,
+   and selected ref. The selected ref must be definitively unavailable; unknown
+   or real refs and multiple eligible roots remain blocking. Count every live
+   thread root before URL-only disposition filtering, and bind authenticated
+   evidence to the case-insensitively equal snapshot repository. The validator
+   never posts the reply or sends the unavailable ref to ancestry.
 
 The mapping artifact remains excluded from the material digest. Every real
 correction must be based on and advance material, invalidate the prior seal,
@@ -902,6 +913,9 @@ into another parser variant.
   technical CI.
 - Reuse a structured reply only when the validator can bind it to an existing
   same-digest fingerprint record.
+- For the disjoint empty-mapping owner-only class, obtain explicit human
+  confirmation and use only the exact one-line response; do not translate it
+  into another mapping, fingerprint, generic approval, or parser variant.
 - Treat a strict-wrapper disposition failure as evidence to restart the
   governed recovery, not as grounds for a carrier commit or operator merge
   exception.

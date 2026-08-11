@@ -6017,6 +6017,475 @@ def test_recordless_post_mapping_seed_stays_fail_closed(
     assert covered == set()
 
 
+def _owner_unavailable_reply(review_ref: str) -> str:
+    return (
+        "OWNER NOT-A-BUG: ignore unavailable reviewer ref "
+        f"{review_ref}; authenticated live PR graph is authoritative."
+    )
+
+
+def _owner_only_empty_mapping_coverage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    root_count: int = 1,
+    root_resolved: bool = True,
+    root_is_first: bool = True,
+    root_author: str = "chatgpt-codex-connector",
+    original_commit: str = "live",
+    reply_body: str | None = None,
+    reply_association: str = "OWNER",
+    reply_count: int = 1,
+    reply_created_at: str = "2026-08-11T11:00:00Z",
+    root_body_variant: str = "valid",
+    ref_resolution: str = "unavailable",
+    mapping_path: str = "canonical",
+    successor_shape: str = "direct",
+    material_digest_matches: bool = True,
+    mapping_entries: dict[str, str] | None = None,
+    forbid_generic: bool = True,
+    comment_path_matches: bool = True,
+    selected_ref_source: str = "review",
+    candidate_indexes: frozenset[int] | None = None,
+    repository_arg: str = "owner/repo",
+    snapshot_repository: str = "owner/repo",
+    root_repository: str = "owner/repo",
+    additional_owner_reply_body: str | None = None,
+    classified_values: list[str] | None = None,
+) -> tuple[set[str], list[str]]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_head_sha = _commit(repo, "material")
+    manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_head_sha,
+        pr_number=42,
+    )
+    if successor_shape == "two-successors":
+        mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text("first closeout\n", encoding="utf-8")
+        _commit(repo, "first mapping closeout")
+        mapping.write_text("second closeout\n", encoding="utf-8")
+    elif mapping_path == "wrong":
+        mapping = repo / "docs" / "review" / "PR_41_FIXED_MAPPING.md"
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text("wrong closeout\n", encoding="utf-8")
+    else:
+        mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+        mapping.parent.mkdir(parents=True)
+        mapping.write_text("closeout\n", encoding="utf-8")
+    live_head_sha = _commit(repo, "mapping closeout")
+    sealed_head_sha = base_sha if successor_shape == "non-direct" else material_head_sha
+    selected_ref = material_head_sha if selected_ref_source == "pr-commit" else "6" * 40
+    exact_reply = _owner_unavailable_reply(selected_ref) if reply_body is None else reply_body
+    root_body = (
+        "Commit ancestry finding on docs/review/PR_42_FIXED_MAPPING.md: "
+        f"sealed material {sealed_head_sha}; reviewer execution ref {selected_ref} "
+        "is unavailable. Unrelated base-short 909aed84... and live URL "
+        f"https://github.com/owner/repo/commit/{live_head_sha}."
+    )
+    if root_body_variant == "missing-cause":
+        root_body = root_body.replace("Commit ancestry finding", "Review finding")
+    elif root_body_variant == "missing-material":
+        root_body = root_body.replace(sealed_head_sha, "material-head-missing", 1)
+    elif root_body_variant == "missing-ref":
+        root_body = root_body.replace(selected_ref, "review-ref-missing", 1)
+    elif root_body_variant == "material-boundary":
+        root_body = root_body.replace(sealed_head_sha, f"a{sealed_head_sha}", 1)
+    elif root_body_variant == "ref-boundary":
+        root_body = root_body.replace(selected_ref, f"{selected_ref}a", 1)
+
+    snapshot = PrSnapshot(
+        repository=snapshot_repository,
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=live_head_sha,
+        commits=tuple(PrCommitEvidence(sha, None) for sha in (material_head_sha, live_head_sha)),
+    )
+    root_urls = tuple(
+        f"https://github.com/{root_repository}/pull/42#discussion_r{100 + index}"
+        for index in range(root_count)
+    )
+    threads: list[ReviewThreadEvidence] = []
+    for index, root_url in enumerate(root_urls):
+        root = ReviewCommentEvidence(
+            url=root_url,
+            body=root_body,
+            created_at="2026-08-11T10:00:00Z",
+            author_login=root_author,
+            author_association="NONE",
+            original_commit_sha=(live_head_sha if original_commit == "live" else material_head_sha),
+        )
+        replies = tuple(
+            ReviewCommentEvidence(
+                url=f"{root_url}_reply_{reply_index}",
+                body=exact_reply,
+                created_at=reply_created_at,
+                author_login="repository-owner",
+                author_association=reply_association,
+                original_commit_sha=live_head_sha,
+            )
+            for reply_index in range(reply_count)
+        )
+        additional_owner_replies = (
+            (
+                ReviewCommentEvidence(
+                    url=f"{root_url}_additional_owner_reply",
+                    body=additional_owner_reply_body,
+                    created_at="2026-08-11T11:30:00Z",
+                    author_login="repository-owner",
+                    author_association="OWNER",
+                    original_commit_sha=live_head_sha,
+                ),
+            )
+            if additional_owner_reply_body is not None
+            else ()
+        )
+        comments = (root, *replies, *additional_owner_replies)
+        if not root_is_first:
+            sibling = ReviewCommentEvidence(
+                url=f"{root_url}_earlier",
+                body="Earlier thread root",
+                created_at="2026-08-11T09:00:00Z",
+                author_login="reviewer",
+                author_association="NONE",
+                original_commit_sha=live_head_sha,
+            )
+            comments = (sibling, root, *replies, *additional_owner_replies)
+        threads.append(
+            ReviewThreadEvidence(
+                f"owner-seed-{index}",
+                root_resolved,
+                comments,
+            )
+        )
+
+    api_calls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        api_calls.append(url)
+        if "/pulls/comments/" in url:
+            return {
+                "html_url": root_urls[int(url.rsplit("/", 1)[-1]) - 100],
+                "path": (
+                    "docs/review/PR_42_FIXED_MAPPING.md"
+                    if comment_path_matches
+                    else "docs/review/PR_41_FIXED_MAPPING.md"
+                ),
+            }
+        if url.endswith(f"/commits/{selected_ref}"):
+            if ref_resolution == "unavailable":
+                raise GitHubHttpError(404)
+            if ref_resolution == "unavailable-422":
+                raise GitHubHttpError(
+                    422,
+                    api_message=f"No commit found for SHA: {selected_ref}",
+                )
+            if ref_resolution == "api-unknown-422":
+                raise GitHubHttpError(422, api_message="Validation Failed")
+            if ref_resolution == "api-unknown":
+                raise GitHubHttpError(503)
+            if ref_resolution == "response-not-ready":
+                raise http.client.ResponseNotReady("deterministic transport failure")
+            return {"sha": selected_ref}
+        raise AssertionError(f"unexpected GitHub API call: {url}")
+
+    def forbidden_generic(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("owner-only path called generic finding parsing or ancestry")
+
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    if classified_values is not None:
+        canonical_classifier = identity_module.classify_commit_ref
+
+        def tracked_classifier(
+            value: str, snapshot: PrSnapshot, *, token: str, **_kwargs: Any
+        ) -> Any:
+            classified_values.append(value)
+            return canonical_classifier(
+                value,
+                snapshot,
+                token=token,
+                request_json=request_json,
+            )
+
+        monkeypatch.setattr(identity_module, "classify_commit_ref", tracked_classifier)
+    if forbid_generic:
+        monkeypatch.setattr(identity_module, "is_ancestor", forbidden_generic)
+        monkeypatch.setattr(evidence_module, "review_finding_sha_candidates", forbidden_generic)
+    covered = validated_duplicate_reply_urls(
+        candidate_urls={
+            root_urls[index]
+            for index in (range(root_count) if candidate_indexes is None else candidate_indexes)
+        },
+        threads=tuple(threads),
+        fingerprint_records={},
+        mapping_entries=mapping_entries or {},
+        material_digest=(manifest.digest if material_digest_matches else DIGEST),
+        material_head_sha=sealed_head_sha,
+        repo_root=repo,
+        snapshot=snapshot,
+        repository=repository_arg,
+        token="opaque",
+    )
+    return covered, api_calls
+
+
+def test_owner_only_empty_mapping_accepts_exact_sanitized_finding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    classified_values: list[str] = []
+    covered, api_calls = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        classified_values=classified_values,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+    assert classified_values == ["6" * 40]
+    assert any("/pulls/comments/100" in call for call in api_calls)
+    assert any(call.endswith("/commits/" + "6" * 40) for call in api_calls)
+
+
+def test_owner_only_empty_mapping_accepts_exact_unavailable_422(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        ref_resolution="unavailable-422",
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_only_empty_mapping_counts_root_hidden_by_url_only_disposition_filter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # URL-only NOT-A-BUG/DEFERRED entries are removed from candidate_urls by
+    # callers, but they must remain in the global owner-eligibility census.
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_count=2,
+        candidate_indexes=frozenset({0}),
+    )
+
+    assert covered == set()
+
+
+def test_owner_only_empty_mapping_rejects_additional_malformed_owner_reply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        additional_owner_reply_body="OWNER acknowledgement without the exact contract",
+    )
+
+    assert covered == set()
+
+
+def test_owner_only_empty_mapping_binds_repository_to_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="repository.*snapshot"):
+        _owner_only_empty_mapping_coverage(
+            tmp_path,
+            monkeypatch,
+            repository_arg="other/repo",
+        )
+
+
+def test_owner_only_empty_mapping_repository_binding_is_case_insensitive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        repository_arg="Owner/Repo",
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_only_empty_mapping_root_url_repository_is_case_insensitive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        repository_arg="owner/repo",
+        snapshot_repository="Owner/Repo",
+        root_repository="owner/repo",
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _owner_unavailable_reply("6" * 39),
+        _owner_unavailable_reply("6" * 41),
+        _owner_unavailable_reply("A" * 40),
+        " " + _owner_unavailable_reply("6" * 40),
+        _owner_unavailable_reply("6" * 40) + " ",
+        _owner_unavailable_reply("6" * 40) + "\n",
+        _owner_unavailable_reply("6" * 40) + " extra",
+        _owner_unavailable_reply("6" * 40).replace("OWNER NOT-A-BUG", "NOT-A-BUG"),
+    ],
+    ids=(
+        "sha-39",
+        "sha-41",
+        "uppercase",
+        "leading-whitespace",
+        "trailing-whitespace",
+        "newline",
+        "extra",
+        "syntax-variant",
+    ),
+)
+def test_owner_unavailable_reply_parser_is_exact(body: str) -> None:
+    with pytest.raises(ReviewEvidenceError, match="owner unavailable-ref reply"):
+        evidence_module.parse_owner_unavailable_ref_reply(body)
+
+
+def test_owner_unavailable_reply_parser_returns_selected_ref() -> None:
+    review_ref = "6" * 40
+    assert (
+        evidence_module.parse_owner_unavailable_ref_reply(_owner_unavailable_reply(review_ref))
+        == review_ref
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"reply_association": "MEMBER"},
+        {"reply_association": "COLLABORATOR"},
+        {"reply_association": "NONE"},
+        {"reply_count": 0},
+        {"reply_count": 2},
+        {"reply_created_at": "2026-08-11T09:00:00Z"},
+        {"root_resolved": False},
+        {"root_is_first": False},
+        {"root_author": "other-reviewer"},
+        {"original_commit": "material"},
+        {"root_body_variant": "missing-cause"},
+        {"root_body_variant": "missing-material"},
+        {"root_body_variant": "missing-ref"},
+        {"root_body_variant": "material-boundary"},
+        {"root_body_variant": "ref-boundary"},
+        {"material_digest_matches": False},
+        {"successor_shape": "non-direct"},
+        {"successor_shape": "two-successors"},
+        {"mapping_path": "wrong"},
+        {"comment_path_matches": False},
+        {"ref_resolution": "real"},
+        {"selected_ref_source": "pr-commit"},
+        {"root_count": 2},
+        {"mapping_entries": {"https://github.com/owner/repo/pull/42#discussion_mapped": FIX_SHA}},
+    ],
+    ids=(
+        "member",
+        "collaborator",
+        "none",
+        "zero-replies",
+        "two-replies",
+        "earlier-reply",
+        "unresolved",
+        "nonroot",
+        "wrong-author",
+        "stale-original",
+        "missing-cause",
+        "missing-material",
+        "missing-ref",
+        "material-boundary",
+        "ref-boundary",
+        "wrong-digest",
+        "non-direct",
+        "two-successors",
+        "wrong-mapping-path",
+        "wrong-review-comment-path",
+        "real-commit",
+        "real-pr-commit",
+        "two-eligible-roots",
+        "mapped-fix-route",
+    ),
+)
+def test_owner_only_empty_mapping_rejects_ineligible_shapes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(tmp_path, monkeypatch, **kwargs)
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize("ref_resolution", ["api-unknown", "api-unknown-422"])
+def test_owner_only_empty_mapping_keeps_api_unknown_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ref_resolution: str,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _owner_only_empty_mapping_coverage(
+            tmp_path,
+            monkeypatch,
+            ref_resolution=ref_resolution,
+        )
+
+
+def test_owner_only_empty_mapping_converts_http_exception_to_api_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="owner unavailable-ref selected ref identity is API_UNKNOWN",
+    ):
+        _owner_only_empty_mapping_coverage(
+            tmp_path,
+            monkeypatch,
+            ref_resolution="response-not-ready",
+        )
+
+
+def test_old_five_field_reply_does_not_authorize_empty_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fingerprint = unavailable_review_ref_fingerprint(
+        pr_number=42,
+        material_digest=DIGEST,
+        verified_real_fix_sha=FIX_SHA,
+    )
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_body=_duplicate_reply(fingerprint),
+        forbid_generic=False,
+    )
+
+    assert covered == set()
+
+
 def _validate_duplicate_finding_body(
     monkeypatch: pytest.MonkeyPatch,
     body: str,

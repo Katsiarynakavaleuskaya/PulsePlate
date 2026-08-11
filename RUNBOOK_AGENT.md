@@ -587,6 +587,26 @@ Use this as the canonical operating loop from branch creation to merge window:
      the same fingerprint is currently visible, the validator covers none and
      all stay blocking. Rerun merge readiness without a docs commit, Codex
      review, or security scan.
+   - When both canonical fingerprint records and FIXED mappings are empty, a
+     different owner-only recordless class may cover exactly one resolved
+     `chatgpt-codex-connector` root on the canonical current-PR mapping file.
+     Confirm first that the root `originalCommit` is the live head, the live
+     head is the sole direct mapping-only successor of the sealed material, the
+     digest recomputes exactly, and the root binds the ancestry/commit-graph
+     cause plus the exact sealed material SHA and reviewer ref. A human must
+     explicitly confirm the disposition before posting exactly this one line:
+     `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
+     There must be exactly one later comment whose authenticated GraphQL
+     association is exactly `OWNER`, and that sole OWNER comment must equal the
+     exact line above. Its selected full lowercase ref must classify as
+     `REVIEW_REF_UNAVAILABLE`. `API_UNKNOWN`, a real commit,
+     any syntax variation, multiple eligible roots, any fingerprint record, or
+     any FIXED mapping leaves the root blocking. Never pass the unavailable ref
+     to ancestry. Count eligibility across all live thread roots before URL-only
+     disposition filtering, and require the authenticated evidence repository
+     to match the snapshot repository case-insensitively. The validator only
+     reads this evidence; it never posts it and the line grants no approval or
+     merge authority.
 7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain
@@ -745,13 +765,14 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    unchanged authenticated strict wrapper without `--pre-closeout`; this
    post-push pass owns thread resolution, current-head CI, and the final merge
    verdict.
-8. A later validated canonical-record duplicate, or the single eligible first
-   recordless post-mapping seed, uses the exact structured reply contract and
-   an explicit thread resolution, followed by one status-check cycle only. If
-   more than one fully eligible visible recordless seed shares the fingerprint,
-   none is covered and all remain blocking; ineligible comments do not affect
-   that cardinality, and neither kind may cause another synthetic closeout
-   commit.
+8. A later validated canonical-record duplicate, the single eligible first
+   mapped-FIX recordless seed, or the mutually exclusive empty-mapping
+   owner-only class uses only its exact reply contract and an explicit thread
+   resolution, followed by one status-check cycle. The owner-only class requires
+   an explicit human confirmation before the exact `OWNER NOT-A-BUG` line is
+   posted; validators remain read-only. More than one fully eligible visible
+   seed in the applicable class leaves all blocking. None may cause another
+   synthetic closeout commit.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
 

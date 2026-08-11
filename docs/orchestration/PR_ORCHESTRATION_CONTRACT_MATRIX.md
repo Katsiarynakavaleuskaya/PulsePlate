@@ -310,7 +310,7 @@ Evidence:
 - Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
-The closed reply-only validator has two mutually exclusive paths. Existing
+The closed reply-only validator has three mutually exclusive paths. Existing
 canonical fingerprint records retain their current later-duplicate semantics.
 The recordless path covers only the first currently visible trusted Codex/App
 `unavailable_review_ref_ancestry` seed on the exact live direct single
@@ -328,7 +328,42 @@ is currently visible; ineligible comments do not affect cardinality, while two
 eligible seeds leave both blocking. This is a current-snapshot cardinality rule,
 not a historical once-ever claim.
 
-For both paths, the cited review ref must resolve as unavailable (not
+The third path is a separate repository-owner authority class and activates
+only when canonical fingerprint records and FIXED mappings are both empty. Its
+resolved thread root must be the first comment, have authenticated author login
+exactly `chatgpt-codex-connector`, target
+`docs/review/PR_<N>_FIXED_MAPPING.md`, and have `originalCommit` equal to the
+live head. That head must be the sole direct mapping-only successor whose direct
+parent is the sealed material head; recomputing both material projections must
+equal the sealed digest. The root body is not sent through the generic SHA
+lexer. It is checked only for an ancestry/commit-graph cause and exact,
+hex-boundary-delimited occurrences of the sealed material SHA and the reviewer
+ref selected by the reply. After an explicit human decision to post it, exactly
+one later comment with GraphQL `authorAssociation=OWNER` must equal this one
+line byte-for-byte:
+
+`OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
+
+The placeholder is replaced by exactly one full lowercase 40-character SHA;
+leading/trailing whitespace, newline, Markdown, capitalization changes, or any
+extra text are invalid. The selected ref is classified independently of the
+generic finding parser. Only a definitive `REVIEW_REF_UNAVAILABLE` result is
+eligible. `API_UNKNOWN` is terminal, a repository-addressable or live-PR commit
+is ineligible, and the unavailable ref is never passed to ancestry. Coverage is
+granted only when exactly one root is globally eligible; two leave all roots
+blocking. That census examines every live thread root before caller-side URL
+filtering, so a URL-only NOT-A-BUG or DEFERRED disposition cannot hide a second
+eligible root. The authenticated repository argument must parse to the same
+case-insensitive owner/name identity as the live PR snapshot; mixed-repository
+evidence fails closed. The validator is read-only and never posts the reply. This record is
+only a bounded NOT-A-BUG disposition; it is not review, provider output,
+approval, merge authority, or a bypass of actual findings, current-head CI,
+trusted security checks, unresolved threads, ancestry, mapping-only closeout,
+or the wait window. A canonical fingerprint record or any FIXED mapping keeps
+this owner-only branch inactive and preserves the existing paths unchanged.
+
+For the canonical-fingerprint and mapped-FIX recordless paths, the cited review
+ref must resolve as unavailable (not
 API-unknown). Finding-local commit
 candidates are capped at four unique values and admit only a full lowercase
 40-character SHA or a lowercase 7–39-character hexadecimal ref carried by

@@ -259,7 +259,29 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     is covered only when exactly one fully eligible recordless seed is currently
     visible; ineligible same-fingerprint comments do not affect cardinality, but
     if more than one eligible seed is visible, none is covered and all remain
-    blocking. Neither path creates another docs commit or restarts
+    blocking. A separate owner-only recordless path is available only when both
+    canonical fingerprint records and FIXED mappings are empty. It requires one
+    resolved root on the canonical current-PR mapping artifact, authored by
+    `chatgpt-codex-connector` with `originalCommit` equal to the exact live head;
+    that live head must be the sole direct mapping-only successor of the sealed
+    material, and both heads must recompute to the sealed digest. The root must
+    name the ancestry/commit-graph cause, the exact sealed material SHA, and one
+    full lowercase reviewer ref with hexadecimal token boundaries. After an
+    explicit human decision to post it, exactly one later GraphQL-authenticated
+    `OWNER` reply must be this single line, with no Markdown, whitespace, newline,
+    or extra text:
+    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
+    The selected ref comes only from that reply and must resolve specifically as
+    `REVIEW_REF_UNAVAILABLE`; `API_UNKNOWN` is terminal, and any real repository
+    or PR commit is ineligible. Unavailable refs never enter ancestry. Exactly one
+    globally eligible owner-only root may be covered; two leave both blocking.
+    Global eligibility is counted across every live thread root before caller
+    URL filtering, and the case-insensitive owner/repository identity used for
+    authenticated evidence must equal the live PR snapshot repository.
+    The validator is read-only and never authors the reply. This narrow
+    NOT-A-BUG disposition is not review, approval, merge authority, or a bypass
+    of findings, CI, security, mapping, thread, ancestry, or wait-window gates.
+    None of the reply-only paths creates another docs commit or restarts
     review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before

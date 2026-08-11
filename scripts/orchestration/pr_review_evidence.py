@@ -42,6 +42,10 @@ MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
 REVIEW_FINGERPRINT_DOMAIN = b"pulseplate-review-finding/v1\0"
 UNAVAILABLE_REVIEW_REF_CAUSE = "unavailable_review_ref_ancestry"
+_OWNER_UNAVAILABLE_REF_REPLY_RE = re.compile(
+    r"OWNER NOT-A-BUG: ignore unavailable reviewer ref "
+    r"(?P<review_ref>[0-9a-f]{40}); authenticated live PR graph is authoritative\."
+)
 TRIGGER_ONLY_COMMIT_SUBJECT_RE = re.compile(
     r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
     re.IGNORECASE,
@@ -539,6 +543,22 @@ def parse_duplicate_disposition_reply(body: str) -> str:
     return fingerprint
 
 
+def parse_owner_unavailable_ref_reply(body: str) -> str:
+    """Return the ref from the exact one-line repository-owner contract."""
+
+    if not isinstance(body, str):
+        raise ReviewEvidenceError("owner unavailable-ref reply is malformed")
+    try:
+        if len(body.encode("utf-8")) > 1024:
+            raise ReviewEvidenceError("owner unavailable-ref reply is malformed")
+    except UnicodeEncodeError as exc:
+        raise ReviewEvidenceError("owner unavailable-ref reply is malformed") from exc
+    match = _OWNER_UNAVAILABLE_REF_REPLY_RE.fullmatch(body)
+    if match is None:
+        raise ReviewEvidenceError("owner unavailable-ref reply is malformed")
+    return match.group("review_ref")
+
+
 def _is_finding_atom_char(char: str) -> bool:
     category = unicodedata.category(char)
     return (
@@ -741,9 +761,13 @@ def validated_duplicate_reply_urls(
     """Return candidate URLs covered by the closed v1 duplicate-reply contract."""
 
     from scripts.orchestration.pr_commit_identity import (
+        CommitIdentityError,
         CommitRefKind,
+        GitHubHttpError,
         RepositoryCommitRef,
+        _require_repository,
         classify_commit_ref,
+        github_api_request,
         is_ancestor,
     )
 
@@ -1030,6 +1054,177 @@ def validated_duplicate_reply_urls(
     for urls in eligible_recordless_by_fingerprint.values():
         if len(urls) == 1:
             covered.add(urls[0])
+
+    # The owner-only class is intentionally disjoint from both existing
+    # canonical-fingerprint and mapped-FIX authority. It exists only for one
+    # first recordless finding after an otherwise empty mapping closeout.
+    if fingerprint_records or validated_mapping_entries:
+        return covered
+
+    try:
+        supplied_owner, supplied_name = _require_repository(repository)
+        snapshot_owner, snapshot_name = _require_repository(snapshot.repository)
+    except CommitIdentityError as exc:
+        raise ReviewEvidenceError("owner unavailable-ref repository identity is malformed") from exc
+    if (supplied_owner.lower(), supplied_name.lower()) != (
+        snapshot_owner.lower(),
+        snapshot_name.lower(),
+    ):
+        raise ReviewEvidenceError(
+            "owner unavailable-ref repository does not match snapshot repository"
+        )
+    owner, name = snapshot_owner, snapshot_name
+    canonical_mapping_path = f"docs/review/PR_{snapshot.pr_number}_FIXED_MAPPING.md"
+    root_url_re = re.compile(
+        r"https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/"
+        r"(?P<name>[A-Za-z0-9_.-]+)/pull/"
+        rf"{snapshot.pr_number}#discussion_r(?P<comment_id>[1-9][0-9]*)"
+    )
+
+    def root_body_has_bound_evidence(body: Any, *, selected_ref: str) -> bool:
+        if not isinstance(body, str):
+            return False
+        try:
+            if len(body.encode("utf-8")) > 256 * 1024:
+                return False
+        except UnicodeEncodeError:
+            return False
+        lowered = body.lower()
+        if not any(term in lowered for term in ("ancestry", "commit graph", "commit-graph")):
+            return False
+
+        def has_exact_token(value: str) -> bool:
+            return (
+                re.search(
+                    rf"(?<![0-9A-Fa-f]){re.escape(value)}(?![0-9A-Fa-f])",
+                    body,
+                )
+                is not None
+            )
+
+        return has_exact_token(material_head_sha) and has_exact_token(selected_ref)
+
+    def root_has_canonical_mapping_path(url: str) -> bool:
+        match = root_url_re.fullmatch(url)
+        if match is None or (
+            match.group("owner").lower(),
+            match.group("name").lower(),
+        ) != (owner.lower(), name.lower()):
+            return False
+        try:
+            response = github_api_request(
+                f"https://api.github.com/repos/{owner}/{name}/pulls/comments/"
+                f"{match.group('comment_id')}",
+                token=token,
+            )
+        except (
+            GitHubHttpError,
+            CommitIdentityError,
+            OSError,
+            TimeoutError,
+            http.client.HTTPException,
+        ) as exc:
+            raise ReviewEvidenceError(
+                "owner unavailable-ref review-comment identity is API_UNKNOWN"
+            ) from exc
+        if not isinstance(response, dict):
+            raise ReviewEvidenceError(
+                "owner unavailable-ref review-comment identity is API_UNKNOWN"
+            )
+        return response.get("html_url") == url and response.get("path") == canonical_mapping_path
+
+    owner_eligible_urls: list[str] = []
+    closeout_validated = False
+    live_roots = sorted((thread.comments[0].url, thread) for thread in threads if thread.comments)
+    for url, thread in live_roots:
+        location = comment_locations.get(url)
+        if location is None or location[0] is not thread or location[1] != 0:
+            continue
+        finding_index = 0
+        finding = thread.comments[finding_index]
+        if (
+            not thread.is_resolved
+            or finding.author_login != "chatgpt-codex-connector"
+            or finding.original_commit_sha != snapshot.head_sha
+        ):
+            continue
+        finding_time = _parse_timestamp(
+            finding.created_at,
+            label="owner unavailable-ref finding createdAt",
+        )
+        owner_replies = [
+            reply
+            for reply in thread.comments[finding_index + 1 :]
+            if reply.author_association == "OWNER"
+        ]
+        if len(owner_replies) != 1:
+            continue
+        owner_reply = owner_replies[0]
+        try:
+            selected_ref = parse_owner_unavailable_ref_reply(owner_reply.body)
+        except ReviewEvidenceError:
+            continue
+        reply_time = _parse_timestamp(
+            owner_reply.created_at,
+            label="owner unavailable-ref reply createdAt",
+        )
+        if reply_time <= finding_time or not root_body_has_bound_evidence(
+            finding.body,
+            selected_ref=selected_ref,
+        ):
+            continue
+        try:
+            validated_material_head = _require_sha(
+                material_head_sha,
+                label="material_head_sha",
+            )
+            if not closeout_validated:
+                validate_mapping_only_closeout_successor(
+                    repo_root,
+                    material_head_sha=validated_material_head,
+                    live_head_sha=snapshot.head_sha,
+                    pr_number=snapshot.pr_number,
+                )
+                if (
+                    original_commit_digest(validated_material_head) != material_digest
+                    or original_commit_digest(snapshot.head_sha) != material_digest
+                ):
+                    raise ReviewEvidenceError(
+                        "owner unavailable-ref material digest does not recompute"
+                    )
+                closeout_validated = True
+            if not root_has_canonical_mapping_path(url):
+                continue
+            if selected_ref in {
+                snapshot.base_sha,
+                snapshot.head_sha,
+                *snapshot.commit_shas,
+            }:
+                continue
+            try:
+                selected_ref_resolution = classify_commit_ref(
+                    selected_ref,
+                    snapshot,
+                    token=token,
+                    request_json=github_api_request,
+                )
+            except http.client.HTTPException as exc:
+                raise ReviewEvidenceError(
+                    "owner unavailable-ref selected ref identity is API_UNKNOWN"
+                ) from exc
+            if selected_ref_resolution.kind is CommitRefKind.API_UNKNOWN:
+                raise ReviewEvidenceError(
+                    "owner unavailable-ref selected ref identity is API_UNKNOWN"
+                )
+            if selected_ref_resolution.kind is not CommitRefKind.REVIEW_REF_UNAVAILABLE:
+                continue
+        except ReviewEvidenceError as exc:
+            if "API_UNKNOWN" in str(exc):
+                raise
+            continue
+        owner_eligible_urls.append(url)
+    if len(owner_eligible_urls) == 1 and owner_eligible_urls[0] in candidate_urls:
+        covered.add(owner_eligible_urls[0])
     return covered
 
 
