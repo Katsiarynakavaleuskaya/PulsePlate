@@ -6052,6 +6052,7 @@ def _owner_only_empty_mapping_coverage(
     root_repository: str = "owner/repo",
     additional_owner_reply_body: str | None = None,
     classified_values: list[str] | None = None,
+    selected_ref_value: str | None = None,
 ) -> tuple[set[str], list[str]]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -6084,12 +6085,14 @@ def _owner_only_empty_mapping_coverage(
         mapping.write_text("closeout\n", encoding="utf-8")
     live_head_sha = _commit(repo, "mapping closeout")
     sealed_head_sha = base_sha if successor_shape == "non-direct" else material_head_sha
-    selected_ref = material_head_sha if selected_ref_source == "pr-commit" else "6" * 40
+    selected_ref = (
+        material_head_sha if selected_ref_source == "pr-commit" else selected_ref_value or "6" * 40
+    )
     exact_reply = _owner_unavailable_reply(selected_ref) if reply_body is None else reply_body
     root_body = (
         "Commit ancestry finding on docs/review/PR_42_FIXED_MAPPING.md: "
-        f"sealed material {sealed_head_sha}; reviewer execution ref {selected_ref} "
-        "is unavailable. Unrelated base-short 909aed84... and live URL "
+        f"sealed material {sealed_head_sha} is not an ancestor of {selected_ref}. "
+        "Unrelated base-short 909aed84... and live URL "
         f"https://github.com/owner/repo/commit/{live_head_sha}."
     )
     if root_body_variant == "real-2265":
@@ -6102,8 +6105,25 @@ def _owner_only_empty_mapping_coverage(
             f"Commit ancestry finding for sealed material {sealed_head_sha}. "
             f"An unrelated appendix mentions SHA {selected_ref}."
         )
+    elif root_body_variant == "url-query-label":
+        root_body = (
+            f"Commit ancestry finding for sealed material {sealed_head_sha}. "
+            f"Appendix: https://example.invalid/?unavailable-ref={selected_ref}."
+        )
+    elif root_body_variant == "wrong-ancestry-sha-appendix-label":
+        root_body = (
+            f"Material {sealed_head_sha} is not an ancestor of {'7' * 40}. "
+            f"Appendix unavailable-ref={selected_ref}."
+        )
+    elif root_body_variant == "uppercase-selected-ref":
+        root_body = f"Material {sealed_head_sha} is not an ancestor of `{selected_ref.upper()}`."
+    elif root_body_variant == "mixed-case-selected-ref":
+        mixed_selected_ref = selected_ref[:20].upper() + selected_ref[20:]
+        root_body = f"Material {sealed_head_sha} is not an ancestor of `{mixed_selected_ref}`."
     elif root_body_variant == "missing-cause":
-        root_body = root_body.replace("Commit ancestry finding", "Review finding")
+        root_body = root_body.replace("Commit ancestry finding", "Review finding").replace(
+            "is not an ancestor of", "has an unrelated comparison with"
+        )
     elif root_body_variant == "missing-material":
         root_body = root_body.replace(sealed_head_sha, "material-head-missing", 1)
     elif root_body_variant == "missing-ref":
@@ -6299,6 +6319,32 @@ def test_owner_only_empty_mapping_rejects_unrelated_selected_ref_mention(
         tmp_path,
         monkeypatch,
         root_body_variant="unrelated-selected-ref",
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    ("root_body_variant", "selected_ref_value"),
+    [
+        ("url-query-label", None),
+        ("wrong-ancestry-sha-appendix-label", None),
+        ("uppercase-selected-ref", "abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+        ("mixed-case-selected-ref", "abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+    ],
+    ids=("url-query-label", "wrong-ancestry-target", "uppercase", "mixed-case"),
+)
+def test_owner_only_empty_mapping_rejects_nonexact_selected_ref_claims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    root_body_variant: str,
+    selected_ref_value: str | None,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_body_variant=root_body_variant,
+        selected_ref_value=selected_ref_value,
     )
 
     assert covered == set()
