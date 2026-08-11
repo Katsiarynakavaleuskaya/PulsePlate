@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import logging
 import threading
 from collections.abc import Callable, Mapping
@@ -9,7 +10,6 @@ import httpx
 import pytest
 from typing import Literal
 
-import app.metrics as app_metrics
 import app.bootstrap.food_search as food_search_module
 from app.bootstrap.food_search import (
     FoodSearchLifecycleLease,
@@ -38,6 +38,8 @@ from app.services.search_meili import (
     MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE,
     ShadowSearchBackend,
 )
+
+app_metrics = importlib.import_module("app.metrics")
 
 
 def test_meili_backend_falls_back_to_legacy_on_transport_error() -> None:

@@ -24,6 +24,103 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-task-normative-envelope-v1-shadow"></a>
+- [ ] P1: Task normative envelope v1 shadow contract umbrella
+  - Owner: orchestration / security-auditor
+  - Priority: P1 (delegated-authority and normative-boundary trust)
+  - Target PR: TBD (`codex/task-normative-envelope-v1-shadow`)
+  - Status: Bounded shadow contract implementation; no integration authority
+  - Area: orchestration / task contracts / fail-closed validation
+  - Reason (EN): Task packets need one deterministic, non-authoritative envelope
+    for declared purpose, normative boundaries, delegated authority, capability
+    evidence, evaluation, and change controls before any later integration is
+    considered. The first slice must stay pure and offline so a structurally
+    valid or consistent shadow cannot silently become routing, execution,
+    approval, promotion, blocking, or merge authority.
+  - Links:
+    - `docs/orchestration/contracts/TASK_NORMATIVE_ENVELOPE_V1.md`
+    - `scripts/orchestration/task_normative_envelope_contract.py`
+    - `tests/test_task_normative_envelope_contract.py`
+  - DoD:
+    - exactly five frozen slot dataclasses and four public functions define the
+      explicit v1 surface
+    - builder normalization and direct canonical validation enforce the frozen
+      ASCII token grammars without echoing rejected raw values
+    - the stable mapping and envelope identity reuse the shared evidence
+      fingerprint helpers and keep every authority flag literal `False`
+    - assessment is limited to local and exact immediate-parent checks, exactly
+      16 reasons, and exactly five bounded witnesses
+    - authority-basis requirements, norm-conflict classification, parent
+      reversibility comparison, recursive ancestry, CLI/I/O, dispatch/runtime
+      wiring, and additional authority are excluded
+    - focused deterministic tests and type/syntax checks pass before any later
+      integration lane is proposed
+  - Empirical sequence (exact): N1 internal shadow contract -> 3-5 sanitized
+    completed trajectories -> GO/DEFER/STOP -> N2 consumer inventory only after
+    GO -> N3 read-only lineage projection only after sufficient outcomes.
+  - GO criteria (all required):
+    - at least one previously implicit authority or corrigibility mismatch is found
+    - no more than one false positive is observed
+    - no semantic prose interpretation is required
+    - the reviewer judges the assessment more useful than a simple task-packet check
+  - DEFER / STOP criteria (any is sufficient):
+    - five cases yield zero novel mismatch
+    - more than one false positive is observed
+    - utility requires free-text interpretation
+  - Rollback (EN): Before any consumer exists, remove the pure module, focused
+    tests, contract document, and this umbrella entry. N1 has no consumer or
+    persisted artifact, so no runtime-state or data migration is required.
+  - Deferred / follow-ups (EN): Any bootstrap/dispatcher integration, persisted
+    artifact or schema, recursive ancestry, reason/witness expansion, or policy
+    enforcement requires its own reviewed follow-up PR and an update to this
+    umbrella. This shadow contract alone opens none of those gates.
+
+<a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
+- [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
+  - Owner: backend-engineer
+  - Priority: P1 (bounded LLM context cost / latency experiment)
+  - Branch: `codex/rag-context-compaction-pilot-b3-r2`
+  - Target PR: [PR #2257](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2257)
+    (replacement PR; supersedes
+    [PR #2249](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249))
+  - Status: In review in PR #2257; exact current-main provenance is bound by
+    the live PR commit graph and final review seal, not duplicated here.
+  - Area: backend / RAG / Insight runtime
+  - Business reason (EN): Avoid sending byte-for-byte duplicate final evidence
+    carriers to the provider when explicitly enabled, while preserving every
+    distinct evidence reference and the existing user response fallback.
+  - Exact invariant (EN): After mandatory Stage 1 and final metadata/content
+    hygiene, collapse only later `RAGChunk` carriers that match an earlier
+    carrier in runtime type and value for all five primitive fields
+    (`chunk_id`, `file`, `content`, `score`, `hop`). Preserve the first
+    occurrence and order. Prompt, sources, confidence, evidence, provenance,
+    bundle, and candidates use that one compacted snapshot. Failure returns an
+    untouched validated snapshot for the response and closes bundle admission
+    and candidates through an existing internal degraded state.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md#34-pilot-3b-exact-carrier-context-compaction`
+    - `core/rag/context_compaction.py`
+    - [Final roadmap PDF (product intent only; not runtime authority)](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
+  - DoD:
+    - optional request-time flag defaults off and is forwarded explicitly from app to core
+    - vector and final merged recursive results cross the same outer seam
+    - exact duplicates collapse without mutable aliasing; every field difference,
+      distinct evidence reference, non-equal score, and original order survive
+    - success reports only the bounded internal `chunks_compacted` count
+    - mutation or exception returns the pristine final snapshot, one stable
+      non-sensitive warning/log record, and closed knowledge admission
+    - both Insight aliases retain DTO/OpenAPI, provider-call count,
+      guard/quota/rate-limit ordering, and non-RAG fallback behavior
+    - focused tests, typecheck, targeted Bandit, branch-diff backend hook,
+      `make validate-changed`, full pre-commit, and current-head CI/governance pass
+  - Rollback (EN): Set `FEATURE_RAG_CONTEXT_COMPACTION=false` (default) or revert
+    the PR. Mandatory Stage 1 and the non-RAG fallback remain unchanged.
+  - Out of scope (EN): Stage 0, content-only/normalized/fuzzy/semantic or
+    boilerplate deduplication, semantic cache, Evidence Graph serving,
+    persistent memory, `TaskNormativeEnvelopeV1`, public routes/DTO/OpenAPI,
+    provider/model, quota/rate-limit, and broad RAG cleanup. Semantic-cache
+    widening remains prohibited until its dedicated gate opens.
+
 <a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
 - [ ] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
   - Owner: backend-engineer / qa-engineer-agent
@@ -11245,6 +11342,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       and deferred-item ledger block
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
+
+<a id="ledger-p1-invariant-family-relations-shadow"></a>
+- [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
+  - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
+  - Priority: P1 (review determinism with closed authority)
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2/L3 require separate reviewed target PRs
+  - Status: L1 implementation in progress; L2/L3 closed and not authorized by L1
+  - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
+  - Links:
+    - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
+    - `docs/orchestration/contracts/review_invariant_family_relations.v1.schema.json`
+    - `scripts/orchestration/review_invariant_family_relations.py`
+    - `tests/test_review_invariant_family_relations.py`
+  - DoD:
+    - L1 accepts only the closed snapshot/relations `oneOf`, normalizes explicit finite memberships, emits every canonical pair partition plus separate unknown findings, and fully validates deterministic replay with domain-separated fingerprints
+    - L1 enforces input, output, diagnostic, finding, family, membership, pair, derived-reference, ID, strict-JSON, and const-false authority bounds through executable focused tests
+    - L1 remains stdin/stdout only and adds no filesystem, environment, network, provider, subprocess, runtime, workflow, public API, mapping, learning, KPP, oracle, routing, review, promotion, or merge admission
+    - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
+    - L3 may be scoped only by a later reviewed packet with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; L1 output alone cannot open that gate
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)

@@ -25,6 +25,7 @@ from scripts.ci.check_python_dependency_surfaces import (
     registered_dependabot_requirement_carriers,
 )
 from scripts.ci.dependabot_requirement_carriers import (
+    DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS as MAX_REQUIREMENT_LINE_CHARS,
     DependabotRequirementDiscoveryError,
     discover_dependabot_requirement_carriers,
 )
@@ -150,7 +151,6 @@ EXPECTED_UPDATE_EXACT_VALUES: dict[str, object] = {
     "package-ecosystem": "pip",
     "directory": "/",
     "registries": [REGISTRY_NAME],
-    EXTERNAL_CODE_EXECUTION_KEY: "allow",
     "schedule": {"interval": "weekly"},
     "open-pull-requests-limit": 4,
     "commit-message": {"prefix": "deps", "include": "scope"},
@@ -161,7 +161,6 @@ MAX_YAML_TOKENS = 4096
 MAX_YAML_NESTING = 32
 MAX_REQUIREMENT_SOURCE_BYTES = 64 * 1024
 MAX_REQUIREMENT_SOURCE_LINES = 4096
-MAX_REQUIREMENT_LINE_CHARS = 4096
 ALLOWED_REQUIREMENT_DIRECTIVES = {"-c requirements.txt"}
 ALLOWED_LOCK_DIRECTIVES = {"requirements-all.txt": {"-r requirements.txt"}}
 INPUT_UNREADABLE = "unreadable"
@@ -590,10 +589,15 @@ def _validate_exact_mapping(
         )
     for key, expected_value in expected.items():
         if key in actual and not _exact_value_matches(actual[key], expected_value):
+            expected_description = (
+                "configured secret reference"
+                if key_path == f"registries.{REGISTRY_NAME}" and key in {"username", "password"}
+                else repr(expected_value)
+            )
             errors.append(
                 _error(
                     f"{key_path}.{key}",
-                    f"must be {expected_value!r}; got {_value_shape(actual[key])}",
+                    f"must be {expected_description}; got {_value_shape(actual[key])}",
                 )
             )
 
@@ -750,6 +754,16 @@ def validate_repo(repo_root: Path) -> list[str]:
         errors.append(_error("$", "root must be a mapping"))
         return errors
 
+    for mapping_path, mapping in _walk_mapping(config, "$"):
+        if EXTERNAL_CODE_EXECUTION_KEY in mapping:
+            errors.append(
+                _error(
+                    f"{mapping_path}.{EXTERNAL_CODE_EXECUTION_KEY}",
+                    "key is forbidden because external code must not receive "
+                    "private registry credentials",
+                )
+            )
+
     try:
         unknown_carriers = _unknown_dependabot_requirement_carriers(repo_root)
     except DependabotRequirementDiscoveryError:
@@ -813,14 +827,6 @@ def validate_repo(repo_root: Path) -> list[str]:
     if not isinstance(update, Mapping):
         errors.append(_error(update_path, "must be a mapping"))
         return errors
-    for mapping_path, mapping in _walk_mapping(config, "$"):
-        if EXTERNAL_CODE_EXECUTION_KEY in mapping and mapping is not update:
-            errors.append(
-                _error(
-                    f"{mapping_path}.{EXTERNAL_CODE_EXECUTION_KEY}",
-                    f"key is allowed only at {update_path}",
-                )
-            )
     if set(update) != EXPECTED_UPDATE_KEYS:
         errors.append(
             _error(

@@ -111,3 +111,5 @@ Canonical process: `docs/memory/kpp_knowledge_promotion_pipeline.md`.
 
 - KPP: `docs/memory/kpp_knowledge_promotion_pipeline.md`
 - Message envelopes: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+- Explicit-family shadow relations (derived, no reflection/KPP authority):
+  `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
