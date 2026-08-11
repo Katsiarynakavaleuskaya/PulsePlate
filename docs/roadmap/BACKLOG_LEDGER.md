@@ -1794,9 +1794,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (paid-path latency / provider reliability / data provenance)
-  - Target PR: [PR #2267](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2267)
-  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r3`
-  - Status: Active R3 replacement carrier, separate from tests-only PR #2255
+  - Target PR: [PR #2269](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2269)
+  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r4`
+  - Status: Active R4 replacement carrier, separate from tests-only PR #2255
   - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
   - Finding Type: cold-cache provider boundary and incomplete-cache acceptance
   - Scope boundary: This lane owns only the versioned 20-key common-food
@@ -1888,10 +1888,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya (Food Data / Backend)
   - Priority: P1 (paid-feature trust / nutrition-data moat / data integrity)
   - Target PR: PR-TBD-RECIPE-FOOD-IDENTITY-MICRONUTRIENT-PROVENANCE
-  - Status: Backlogged; sequenced immediately after the weekly cold-cache R3
+  - Status: Backlogged; sequenced immediately after the weekly cold-cache R4
     availability and atomicity prerequisite
   - Area: backend / RecipeDB / FoodDB / micronutrients / provenance
-  - Origin: R3 review of the weekly cold-cache execution path found that cache
+  - Origin: R4 review of the weekly cold-cache execution path found that cache
     availability can be closed independently, while canonical identity between
     recipe ingredients and food records plus source/version evidence for
     micronutrients remains a separate product-data gap. This item records that
