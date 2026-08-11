@@ -385,17 +385,23 @@ class TestUnifiedFoodDatabaseCommonFoods:
         monkeypatch.setattr(db.usda_client, "search_foods", provider_search)
 
         default_result = asyncio.run(db.search_food(query, save_cache=False))
-        assert default_result == [stale_item]
-        provider_search.assert_not_awaited()
+        assert [item.source_id for item in default_result] == ["991"]
+        provider_search.assert_awaited_once_with(query, page_size=5)
+        assert db._memory_cache[f"search_{query}"] is stale_item
+        assert db._memory_cache[f"search_usda_{query}"].source_id == "991"
 
         bypass_result = asyncio.run(db.search_food(query, save_cache=False, use_memory_cache=False))
         assert [item.source_id for item in bypass_result] == ["991"]
-        provider_search.assert_awaited_once_with(query, page_size=5)
+        assert provider_search.await_args_list == [
+            call(query, page_size=5),
+            call(query, page_size=5),
+        ]
         assert db._memory_cache[f"search_{query}"] is stale_item
 
         fresh_query = "uncached bounded cold-cache lookup"
         asyncio.run(db.search_food(fresh_query, save_cache=False, use_memory_cache=False))
         assert f"search_{fresh_query}" not in db._memory_cache
+        assert f"search_usda_{fresh_query}" not in db._memory_cache
 
     @pytest.mark.parametrize("resolved_count", [0, 14, 19])
     def test_cold_cache_rejects_incomplete_sweeps(
@@ -1864,6 +1870,67 @@ class TestUnifiedFoodDatabaseEdgeCases:
             call("Shared Source Fixture", page_size=5),
             call("Shared Source Fixture", page_size=1),
         ]
+
+    def test_reloaded_legacy_off_search_entry_cannot_satisfy_usda_preference(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        query = "Persisted Legacy Fixture"
+        legacy_db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        legacy_off_item = UnifiedFoodItem.from_off_item(
+            OFFFoodItem(
+                code="legacy-off-identity",
+                product_name="Persisted legacy OFF fixture",
+                categories=["Fixture"],
+                nutrients_per_100g={"protein_g": 7.0},
+                ingredients_text=None,
+                brands=None,
+                labels=[],
+                countries=["TEST"],
+                packaging=[],
+                image_url=None,
+                last_modified_t=0,
+                nutrition_inputs=[
+                    {
+                        "source": "estimate",
+                        "record_id": "legacy-off-identity",
+                        "version_ref": None,
+                        "nutrients": {"protein_g": 7.0},
+                        "raw_payload": {},
+                    }
+                ],
+                nutrition_provenance={"protein_g": "estimate"},
+                nutrition_nutrient_confidence={"protein_g": 0.4},
+                nutrition_confidence=0.4,
+            )
+        )
+        legacy_key = f"search_{query.lower()}"
+        legacy_db._memory_cache[legacy_key] = legacy_off_item
+        legacy_db._save_cache()
+
+        reloaded_db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        usda_item = USDAFoodItem(
+            fdc_id=735,
+            description="Authoritative USDA fixture",
+            food_category="Fixture",
+            nutrients_per_100g={"protein_g": 21.0},
+            data_type="Foundation",
+            publication_date="2026-08-11",
+        )
+        usda_search = AsyncMock(return_value=[usda_item])
+        monkeypatch.setattr(reloaded_db.usda_client, "search_foods", usda_search)
+        reloaded_db.off_client = None
+
+        results = asyncio.run(
+            reloaded_db.search_food(query, prefer_source="usda", save_cache=False)
+        )
+
+        assert reloaded_db._memory_cache[legacy_key].source_id == "legacy-off-identity"
+        assert results[0].source_id == "735"
+        usda_search.assert_awaited_once_with(query, page_size=5)
+        source_aware_key = f"search_usda_{query.lower()}"
+        assert reloaded_db._memory_cache[source_aware_key].source_id == "735"
 
     def test_search_food_off_merge_failure_preserves_usda_fallback_and_cache_retry(
         self,

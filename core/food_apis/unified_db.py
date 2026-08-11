@@ -442,15 +442,8 @@ class UnifiedFoodDatabase:
         normalized_query = query.lower().strip()
         effective_prefer_source = prefer_source.strip().lower()
         cache_key = f"search_{effective_prefer_source}_{normalized_query}"
-        legacy_usda_cache_key = f"search_{normalized_query}"
         if use_memory_cache and cache_key in self._memory_cache:
             return [self._memory_cache[cache_key]]
-        if (
-            use_memory_cache
-            and effective_prefer_source == "usda"
-            and legacy_usda_cache_key in self._memory_cache
-        ):
-            return [self._memory_cache[legacy_usda_cache_key]]
 
         results = []
 
