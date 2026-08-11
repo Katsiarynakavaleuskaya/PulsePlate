@@ -247,8 +247,10 @@ def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches()
 def test_frozen_upstream_requirement_grammar_rejects_long_invalid_version_near_match() -> None:
     probe = (
         "from scripts.ci.dependabot_requirement_carriers import "
+        "DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS, "
         "is_dependabot_requirement_carrier_text\n"
-        "content = f\"package=={'1' * 10000}!\\n\"\n"
+        "digit_count = DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS - len('package==!')\n"
+        "content = f\"package=={'1' * digit_count}!\\n\"\n"
         "assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
     )
 
@@ -259,6 +261,69 @@ def test_frozen_upstream_requirement_grammar_rejects_long_invalid_version_near_m
         shell=False,
         timeout=5,
     )
+
+
+def test_requirement_carrier_line_budget_precedes_all_classification() -> None:
+    limit = carriers.DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS
+    assert limit == 4096
+    assert policy.MAX_REQUIREMENT_LINE_CHARS == limit
+    assert carriers.is_dependabot_requirement_carrier_text("extra.txt", "a" * limit)
+
+    overlong_cases = (
+        ("extra.txt", "a" * (limit + 1)),
+        ("requirements.txt", "package" + " " * limit),
+        ("extra.txt", " " * (limit + 1)),
+        ("extra.txt", "#" + " " * limit),
+        ("extra.txt", "--" + " " * limit),
+        ("extra.txt", "not a requirement @\n" + " " * (limit + 1)),
+    )
+    for relative_path, content in overlong_cases:
+        with pytest.raises(carriers.DependabotRequirementDiscoveryError):
+            carriers.is_dependabot_requirement_carrier_text(relative_path, content)
+
+
+def test_marker_near_match_over_line_budget_fails_closed_in_child_process() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS, DependabotRequirementDiscoveryError, "
+        "is_dependabot_requirement_carrier_text\n"
+        "space_count = DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS - len('package;!')\n"
+        "admitted = f\"package;{' ' * space_count}!\\n\"\n"
+        "assert not is_dependabot_requirement_carrier_text('extra.txt', admitted)\n"
+        "content = f\"package;{' ' * 20000}!\\n\"\n"
+        "try:\n"
+        "    is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+        "except DependabotRequirementDiscoveryError:\n"
+        "    pass\n"
+        "else:\n"
+        "    raise AssertionError('overlong carrier input did not fail closed')\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
+
+
+def test_overlong_carrier_discovery_error_is_sanitized(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    sentinel = "carrier-content-must-not-leak"
+    (repo / "extra.txt").write_text(
+        "package;" + " " * 4097 + sentinel,
+        encoding="utf-8",
+    )
+    _stage_fixture_paths(repo, "extra.txt")
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree"
+    ]
+    assert sentinel not in "\n".join(errors)
 
 
 def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> None:
@@ -1495,7 +1560,9 @@ def test_direct_requirement_source_resource_budgets_fail_closed(tmp_path: Path) 
     errors = policy.validate_repo(repo)
 
     assert errors == [
-        "requirements.in:1:" f"line length exceeds limit {policy.MAX_REQUIREMENT_LINE_CHARS}"
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree",
+        "requirements.in:1:" f"line length exceeds limit {policy.MAX_REQUIREMENT_LINE_CHARS}",
     ]
 
 

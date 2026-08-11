@@ -25,6 +25,7 @@ from scripts.ci.check_python_dependency_surfaces import (
     registered_dependabot_requirement_carriers,
 )
 from scripts.ci.dependabot_requirement_carriers import (
+    DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS as MAX_REQUIREMENT_LINE_CHARS,
     DependabotRequirementDiscoveryError,
     discover_dependabot_requirement_carriers,
 )
@@ -160,7 +161,6 @@ MAX_YAML_TOKENS = 4096
 MAX_YAML_NESTING = 32
 MAX_REQUIREMENT_SOURCE_BYTES = 64 * 1024
 MAX_REQUIREMENT_SOURCE_LINES = 4096
-MAX_REQUIREMENT_LINE_CHARS = 4096
 ALLOWED_REQUIREMENT_DIRECTIVES = {"-c requirements.txt"}
 ALLOWED_LOCK_DIRECTIVES = {"requirements-all.txt": {"-r requirements.txt"}}
 INPUT_UNREADABLE = "unreadable"
