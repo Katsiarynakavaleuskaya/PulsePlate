@@ -2565,6 +2565,49 @@ def test_no_actionable_marker_accepts_fully_covered_owner_reply_only_root(
     )
 
 
+def test_no_actionable_marker_accepts_fully_covered_review_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    review_id = 4709310816
+    summary_url = "https://github.com/owner/repo/pull/42#pullrequestreview-4709310816"
+    child_one = "https://github.com/owner/repo/pull/42#discussion_r1"
+    child_two = "https://github.com/owner/repo/pull/42#discussion_r2"
+    actionable_items = [
+        merge_gate.ActionableItem(
+            author="coderabbitai[bot]",
+            url=summary_url,
+            created_at="2026-07-16T00:43:28Z",
+            kind="review",
+            review_id=review_id,
+        ),
+        merge_gate.ActionableItem(
+            author="coderabbitai[bot]",
+            url=child_one,
+            created_at="2026-07-16T00:43:26Z",
+            kind="review_comment",
+            review_id=review_id,
+        ),
+        merge_gate.ActionableItem(
+            author="coderabbitai[bot]",
+            url=child_two,
+            created_at="2026-07-16T00:43:26Z",
+            kind="review_comment",
+            review_id=review_id,
+        ),
+    ]
+    _configure_post_wait_revalidation_main(
+        monkeypatch,
+        actionable_items=actionable_items,
+        covered_urls={child_one, child_two},
+    )
+
+    assert merge_gate.main() == 0
+    assert (
+        "Canonical artifact claims `No actionable review comments`" not in capsys.readouterr().out
+    )
+
+
 def test_no_actionable_marker_still_rejects_uncovered_actionable_root(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
