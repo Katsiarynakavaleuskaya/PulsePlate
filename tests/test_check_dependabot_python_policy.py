@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from dataclasses import FrozenInstanceError, asdict
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -206,6 +207,23 @@ def test_non_requirement_text_file_is_not_misclassified_as_carrier(
 )
 def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -> None:
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_frozen_upstream_marker_language_matches_raw_pattern() -> None:
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    marker_lines = (
+        "package; (  and ",
+        "package; (  or ",
+        'package; python_version == "3" and  or ',
+        'package; python_version == "3" or  and ',
+    )
+
+    for marker_line in marker_lines:
+        assert raw_pattern.fullmatch(marker_line) is not None
+        assert carriers._UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(marker_line) is not None
 
 
 def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches() -> None:
@@ -806,6 +824,52 @@ def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
     assert exit_code == 1
     assert sentinel not in captured.out
     assert sentinel not in captured.err
+
+
+@pytest.mark.parametrize("credential_key", ["username", "password"])
+def test_registry_credential_mapping_diagnostics_are_redacted(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    credential_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    registries = config["registries"]
+    assert isinstance(registries, dict)
+    registry = registries[policy.REGISTRY_NAME]
+    assert isinstance(registry, dict)
+    sentinel = f"mapping-{credential_key}-must-not-leak"
+    registry[credential_key] = {
+        policy.EXTERNAL_CODE_EXECUTION_KEY: sentinel,
+    }
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+    forbidden_error = (
+        f".github/dependabot.yml:$.registries.{policy.REGISTRY_NAME}.{credential_key}."
+        f"{policy.EXTERNAL_CODE_EXECUTION_KEY}:key is forbidden because external code "
+        "must not receive private registry credentials"
+    )
+    exact_mapping_error = (
+        f".github/dependabot.yml:registries.{policy.REGISTRY_NAME}.{credential_key}:"
+        "must be configured secret reference; got mapping(len=1)"
+    )
+    rendered_errors = "\n".join(errors)
+
+    assert errors.count(forbidden_error) == 1
+    assert exact_mapping_error in errors
+    assert sentinel not in rendered_errors
+    assert "${{secrets." not in rendered_errors
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out.count(forbidden_error) == 1
+    assert sentinel not in captured.out
+    assert sentinel not in captured.err
+    assert "${{secrets." not in captured.out
+    assert "${{secrets." not in captured.err
 
 
 def test_registry_url_userinfo_is_redacted_from_errors_and_cli_output(

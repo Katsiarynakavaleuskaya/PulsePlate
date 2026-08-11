@@ -589,10 +589,15 @@ def _validate_exact_mapping(
         )
     for key, expected_value in expected.items():
         if key in actual and not _exact_value_matches(actual[key], expected_value):
+            expected_description = (
+                "configured secret reference"
+                if key_path == f"registries.{REGISTRY_NAME}" and key in {"username", "password"}
+                else repr(expected_value)
+            )
             errors.append(
                 _error(
                     f"{key_path}.{key}",
-                    f"must be {expected_value!r}; got {_value_shape(actual[key])}",
+                    f"must be {expected_description}; got {_value_shape(actual[key])}",
                 )
             )
 
