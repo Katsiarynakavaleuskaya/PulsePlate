@@ -1210,6 +1210,12 @@ class TestDatabaseUpdateManagerComprehensive:
             established_items = {"legacy_slot": asdict(established_item)}
             cache_payload: object = established_items
             if cache_shape == "versioned":
+                established_items = {
+                    name: asdict(_admissible_common_food_fixture(index))
+                    for index, name in enumerate(COMMON_FOODS_MANIFEST)
+                }
+                first_manifest_name = next(iter(COMMON_FOODS_MANIFEST))
+                established_items[first_manifest_name]["name"] = marker
                 cache_payload = {
                     "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
                     "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
@@ -1243,7 +1249,64 @@ class TestDatabaseUpdateManagerComprehensive:
 
             asyncio.run(manager.unified_db.get_common_foods_database())
 
-            acquisition.assert_awaited_once_with()
+            if cache_shape == "legacy":
+                acquisition.assert_awaited_once_with()
+            else:
+                acquisition.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "invalid_envelope",
+        ["stale_schema", "stale_manifest", "incomplete_manifest"],
+    )
+    def test_versioned_usda_backup_rejects_noncanonical_envelope_before_replacement(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        invalid_envelope: str,
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        envelope = {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": {
+                name: asdict(_admissible_common_food_fixture(index))
+                for index, name in enumerate(COMMON_FOODS_MANIFEST)
+            },
+        }
+        if invalid_envelope == "stale_schema":
+            envelope["schema_version"] = "common-foods-cache.stale"
+        elif invalid_envelope == "stale_manifest":
+            envelope["manifest_version"] = "common-foods-manifest.stale"
+        else:
+            items = envelope["items"]
+            assert isinstance(items, dict)
+            items.pop(next(iter(COMMON_FOODS_MANIFEST)))
+
+        cache_file = tmp_path / "common_foods.json"
+        cache_file.write_text(json.dumps(envelope), encoding="utf-8")
+        provider_acquisition = AsyncMock()
+        monkeypatch.setattr(
+            manager.unified_db,
+            "_acquire_common_foods_envelope",
+            provider_acquisition,
+        )
+        backup_file = tmp_path / "usda_backup_established.json"
+        established_backup_bytes = b"established-usda-backup"
+        backup_file.write_bytes(established_backup_bytes)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            asyncio.run(manager._create_backup("usda", "established"))
+
+        provider_acquisition.assert_not_awaited()
+        assert backup_file.read_bytes() == established_backup_bytes
 
     def test_first_and_second_off_updates_use_source_specific_backups(
         self,
@@ -1430,6 +1493,71 @@ class TestDatabaseUpdateManagerComprehensive:
         assert success is False
         assert manager.versions["openfoodfacts"] is established
         save_versions.assert_not_called()
+
+    def test_successful_off_rollback_persists_refreshable_version_snapshot(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis.openfoodfacts_client import OFFFoodItem
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        manager.versions["openfoodfacts"] = DatabaseVersion(
+            source="openfoodfacts",
+            version="current-v2",
+            last_updated="2026-08-11T09:00:00+00:00",
+            record_count=1,
+            checksum="current-checksum",
+            metadata={},
+        )
+        manager._write_backup_snapshot(
+            tmp_path / "openfoodfacts_backup_target-v1.json",
+            {"target_food": _admissible_common_food_fixture(95)},
+        )
+        update_times = iter(
+            [
+                datetime(2026, 8, 11, 10, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 8, 11, 10, 0, 1, tzinfo=timezone.utc),
+            ]
+        )
+        monkeypatch.setattr("core.food_apis.update_manager.now_utc", lambda: next(update_times))
+
+        rolled_back = asyncio.run(manager.rollback_database("openfoodfacts", "target-v1"))
+        rollback_version = "target-v1_rollback_100000"
+        rollback_backup = tmp_path / f"openfoodfacts_backup_{rollback_version}.json"
+
+        assert rolled_back is True
+        assert manager.versions["openfoodfacts"].version == rollback_version
+        assert rollback_backup.exists()
+        assert tuple(asyncio.run(manager._load_backup("openfoodfacts", rollback_version))) == (
+            "target_food",
+        )
+
+        off_item = OFFFoodItem(
+            code="off-after-rollback",
+            product_name="OFF After Rollback",
+            categories=["fixture"],
+            nutrients_per_100g={"protein_g": 6.0, "fat_g": 2.0, "carbs_g": 4.0},
+            ingredients_text=None,
+            brands=None,
+            labels=[],
+            countries=["TEST"],
+            packaging=[],
+            image_url=None,
+            last_modified_t=2,
+        )
+        off_client = MagicMock()
+        off_client.search_products = AsyncMock(return_value=[off_item])
+        manager.off_client = off_client
+        monkeypatch.setattr("core.food_apis.update_manager.asyncio.sleep", AsyncMock())
+
+        refresh = asyncio.run(manager._update_off_database(force=True))
+
+        assert refresh.success is True
+        assert refresh.old_version == rollback_version
+        assert refresh.new_version == "20260811_100001"
+        assert rollback_backup.exists()
 
     @pytest.mark.asyncio
     async def test_load_backup(self):

@@ -557,40 +557,49 @@ class UnifiedFoodDatabase:
                     type(exc).__name__,
                 )
 
-        while not self._common_foods_admission_lock.acquire(blocking=False):
-            await asyncio.sleep(COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS)
+        event_loop = asyncio.get_running_loop()
+        admission_deadline = event_loop.time() + COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS
+        lock_acquired = False
         try:
-            if cache_file.exists():
-                try:
-                    with open(cache_file, "r", encoding="utf-8") as f:
-                        cache_envelope = _load_common_foods_json(f)
-                    foods_db = self._validate_common_foods_envelope(cache_envelope)
-                    logger.info(
-                        "Loaded %d common foods from cache after admission wait", len(foods_db)
-                    )
-                    return foods_db
-                except Exception as exc:
-                    logger.warning(
-                        "Common-food cache rejected after admission wait; "
-                        "acquiring replacement; category=%s",
-                        type(exc).__name__,
-                    )
+            async with asyncio.timeout_at(admission_deadline):
+                while not self._common_foods_admission_lock.acquire(blocking=False):
+                    await asyncio.sleep(COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS)
+                lock_acquired = True
 
-            try:
-                async with asyncio.timeout(COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS):
-                    envelope = await self._acquire_common_foods_envelope()
-                    foods_db = self._validate_common_foods_envelope(envelope)
-            except TimeoutError as exc:
-                raise CommonFoodsCacheAdmissionError(
-                    "Common-food acquisition exceeded its total deadline"
-                ) from exc
+                if cache_file.exists():
+                    try:
+                        with open(cache_file, "r", encoding="utf-8") as f:
+                            cache_envelope = _load_common_foods_json(f)
+                        foods_db = self._validate_common_foods_envelope(cache_envelope)
+                        if event_loop.time() >= admission_deadline:
+                            raise TimeoutError
+                        logger.info(
+                            "Loaded %d common foods from cache after admission wait", len(foods_db)
+                        )
+                        return foods_db
+                    except TimeoutError:
+                        raise
+                    except Exception as exc:
+                        logger.warning(
+                            "Common-food cache rejected after admission wait; "
+                            "acquiring replacement; category=%s",
+                            type(exc).__name__,
+                        )
 
-            self._publish_common_foods_envelope(cache_file, envelope)
-            logger.info("Published %d common foods atomically", len(foods_db))
+                envelope = await self._acquire_common_foods_envelope()
+                foods_db = self._validate_common_foods_envelope(envelope)
 
-            return foods_db
+                self._publish_common_foods_envelope(cache_file, envelope)
+                logger.info("Published %d common foods atomically", len(foods_db))
+
+                return foods_db
+        except TimeoutError as exc:
+            raise CommonFoodsCacheAdmissionError(
+                "Common-food acquisition exceeded its total deadline"
+            ) from exc
         finally:
-            self._common_foods_admission_lock.release()
+            if lock_acquired:
+                self._common_foods_admission_lock.release()
 
     async def _acquire_common_foods_envelope(self) -> dict[str, object]:
         """Run one bounded, retry-free search for every manifest row."""

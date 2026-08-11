@@ -15,7 +15,7 @@ from dataclasses import asdict
 from io import StringIO
 from pathlib import Path
 from typing import IO
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -454,6 +454,58 @@ class TestUnifiedFoodDatabaseCommonFoods:
             asyncio.run(db.get_common_foods_database())
 
         assert len(calls) == 1
+        assert not (tmp_path / "common_foods.json").exists()
+
+    def test_waiter_lock_wait_and_acquisition_share_one_total_deadline(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        owner_started = asyncio.Event()
+        waiter_acquisition_started = asyncio.Event()
+        acquisition_count = 0
+        publication = MagicMock()
+
+        async def acquire_with_owner_timeout() -> dict[str, object]:
+            nonlocal acquisition_count
+            acquisition_count += 1
+            if acquisition_count == 1:
+                owner_started.set()
+                await asyncio.Event().wait()
+            waiter_acquisition_started.set()
+            await asyncio.sleep(0.22)
+            return _valid_common_foods_envelope()
+
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquire_with_owner_timeout)
+        monkeypatch.setattr(db, "_publish_common_foods_envelope", publication)
+        monkeypatch.setattr(
+            unified_db_module,
+            "COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS",
+            0.3,
+        )
+
+        async def run_owner_and_waiter() -> tuple[object, object]:
+            owner = asyncio.create_task(db.get_common_foods_database())
+            await owner_started.wait()
+            await asyncio.sleep(0.18)
+            waiter = asyncio.create_task(db.get_common_foods_database())
+            owner_result, waiter_result = await asyncio.gather(
+                owner,
+                waiter,
+                return_exceptions=True,
+            )
+            return owner_result, waiter_result
+
+        owner_result, waiter_result = asyncio.run(run_owner_and_waiter())
+
+        assert waiter_acquisition_started.is_set()
+        assert acquisition_count == 2
+        assert isinstance(owner_result, CommonFoodsCacheAdmissionError)
+        assert isinstance(waiter_result, CommonFoodsCacheAdmissionError)
+        assert str(owner_result) == "Common-food acquisition exceeded its total deadline"
+        assert str(waiter_result) == "Common-food acquisition exceeded its total deadline"
+        publication.assert_not_called()
         assert not (tmp_path / "common_foods.json").exists()
 
     @pytest.mark.parametrize(

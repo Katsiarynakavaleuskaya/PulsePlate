@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
@@ -293,7 +294,12 @@ class OFFClient:
             for off_nutrient, standard_name in self.nutrient_mapping.items():
                 value = nutrients_raw.get(off_nutrient)
                 if value is not None and type(value) in (int, float):
-                    mapped_nutrients[standard_name] = float(value)
+                    try:
+                        normalized_value = float(value)
+                    except OverflowError:
+                        continue
+                    if math.isfinite(normalized_value):
+                        mapped_nutrients[standard_name] = normalized_value
 
             nutrition_input = NutritionInput(
                 source="estimate",
@@ -303,7 +309,10 @@ class OFFClient:
                 raw_payload={
                     key: value
                     for key, value in nutrients_raw.items()
-                    if value is None or type(value) in (int, float, str)
+                    if value is None
+                    or type(value) is str
+                    or type(value) is int
+                    or (type(value) is float and math.isfinite(value))
                 },
             )
             resolution = resolve_nutrition(inputs=[nutrition_input])

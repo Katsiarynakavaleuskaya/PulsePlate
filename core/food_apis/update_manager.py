@@ -891,6 +891,7 @@ class DatabaseUpdateManager:
         """Create backup of current database version."""
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
         try:
+            current_data: object
             if source == "usda":
                 cache_file = self.cache_dir / "common_foods.json"
                 with open(cache_file, "r", encoding="utf-8") as file_object:
@@ -898,9 +899,9 @@ class DatabaseUpdateManager:
                 if type(loaded) is not dict:
                     raise ValueError("common-food cache must be a mapping")
                 if set(loaded) == {"schema_version", "manifest_version", "items"}:
-                    current_data = loaded["items"]
+                    current_data = self.unified_db._validate_common_foods_envelope(loaded)
                 else:
-                    current_data = loaded
+                    current_data = self._reconstruct_backup_snapshot(loaded)
             elif source == "openfoodfacts":
                 with open(backup_file, "r", encoding="utf-8") as file_object:
                     current_data = _load_common_foods_json(file_object)
@@ -1086,11 +1087,18 @@ class DatabaseUpdateManager:
             # For now, just update the version tracking
             if source in self.versions:
                 old_version = self.versions[source]
+                rollback_version_name = f"{target_version}_rollback_{now_utc().strftime('%H%M%S')}"
+
+                if source == "openfoodfacts":
+                    self._write_backup_snapshot(
+                        self.cache_dir / f"{source}_backup_{rollback_version_name}.json",
+                        backup_data,
+                    )
 
                 # Create new version entry for rollback
                 rollback_version = DatabaseVersion(
                     source=source,
-                    version=f"{target_version}_rollback_{now_utc().strftime('%H%M%S')}",
+                    version=rollback_version_name,
                     last_updated=isoformat_utc(),
                     record_count=len(backup_data),
                     checksum=self._calculate_checksum(

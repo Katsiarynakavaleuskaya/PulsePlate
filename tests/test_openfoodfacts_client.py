@@ -171,6 +171,44 @@ class TestOFFClient:
         assert raw_payload["unknown_numeric_value"] == 3
         assert raw_payload["unknown_text_value"] == "trace"
 
+    def test_parse_product_item_omits_non_finite_numeric_evidence(self) -> None:
+        item = self.client._parse_product_item(
+            {
+                "code": "non-finite-scalars",
+                "product_name": "Non-finite Scalars",
+                "nutriments": {
+                    "proteins_100g": float("nan"),
+                    "fat_100g": float("inf"),
+                    "carbohydrates_100g": float("-inf"),
+                    "energy-kcal_100g": 150.0,
+                    "unknown_nan": float("nan"),
+                    "unknown_positive_infinity": float("inf"),
+                    "unknown_negative_infinity": float("-inf"),
+                    "unknown_none": None,
+                    "unknown_text": "trace",
+                    "unknown_integer": 3,
+                    "unknown_float": 2.5,
+                },
+            }
+        )
+
+        assert item is not None
+        assert item.nutrients_per_100g == {"kcal": 150.0}
+        nutrition_input = item.nutrition_inputs[0]
+        assert nutrition_input["nutrients"] == {"kcal": 150.0}
+        raw_payload = nutrition_input["raw_payload"]
+        assert isinstance(raw_payload, dict)
+        assert "proteins_100g" not in raw_payload
+        assert "fat_100g" not in raw_payload
+        assert "carbohydrates_100g" not in raw_payload
+        assert "unknown_nan" not in raw_payload
+        assert "unknown_positive_infinity" not in raw_payload
+        assert "unknown_negative_infinity" not in raw_payload
+        assert raw_payload["unknown_none"] is None
+        assert raw_payload["unknown_text"] == "trace"
+        assert raw_payload["unknown_integer"] == 3
+        assert raw_payload["unknown_float"] == 2.5
+
     def test_parse_product_item_missing_data(self):
         """Test parsing with missing required data."""
         # Sample product data with missing code
