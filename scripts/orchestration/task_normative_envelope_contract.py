@@ -134,7 +134,6 @@ def build_task_normative_envelope(
     parent: TaskNormativeEnvelopeV1 | None = None,
 ) -> TaskNormativeEnvelopeV1:
     """Normalize builder inputs and return a validated canonical envelope."""
-
     if parent is not None:
         validate_task_normative_envelope(parent)
     normalized_boundary = _normalize_boundary(normative_boundary)
@@ -192,7 +191,6 @@ def task_normative_envelope_to_stable_mapping(
     include_fingerprint: bool = True,
 ) -> dict[str, object]:
     """Return the explicit JSON-ready stable mapping for an envelope."""
-
     if type(include_fingerprint) is not bool:
         raise ValueError("invalid include_fingerprint")
     validate_task_normative_envelope(envelope)
@@ -206,7 +204,6 @@ def validate_task_normative_envelope(
     envelope: TaskNormativeEnvelopeV1,
 ) -> None:
     """Validate exact types, canonical form, fixed flags, and fingerprint."""
-
     if type(envelope) is not TaskNormativeEnvelopeV1:
         raise ValueError("invalid task_normative_envelope")
     _require_exact_string(envelope.schema_version, "schema_version")
@@ -259,7 +256,6 @@ def assess_task_normative_envelope(
     parent: TaskNormativeEnvelopeV1 | None = None,
 ) -> TaskNormativeAssessmentV1:
     """Assess local consistency and, when exactly bound, the immediate parent."""
-
     validate_task_normative_envelope(envelope)
     if parent is not None:
         validate_task_normative_envelope(parent)
