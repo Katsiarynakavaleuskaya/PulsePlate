@@ -96,15 +96,17 @@ _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
     r"\s*(?:#+\s*.*)?$"
 )
 # The release prefix and its following version class both accept digits, while
-# whitespace separates tokens. Possessive repetitions prevent either shared
-# run from being redistributed across adjacent grammar components.
+# the top-level continuation boundaries can redistribute long whitespace runs
+# across adjacent optional components. Keep marker-clause whitespace identical
+# to the frozen raw pattern because that accepted language relies on backtracking.
 _UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
     _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN.replace(
         r"[0-9]+[A-Za-z0-9_.*-]*",
         r"[0-9]++[A-Za-z0-9_.*-]*",
-    )
-    .replace(r"\s*", r"\s*+")
-    .replace(r"\s+", r"\s++"),
+    ).replace(
+        r"\s*\\?\s*",
+        r"\s*+\\?\s*+",
+    ),
     flags=re.ASCII,
 )
 RepoPath = str | PurePath
