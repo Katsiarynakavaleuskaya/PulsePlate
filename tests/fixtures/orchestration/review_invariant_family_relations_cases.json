@@ -1,0 +1,55 @@
+{
+  "schema_version": "review_invariant_family_snapshot.v1",
+  "universe_finding_ids": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f"
+  ],
+  "families": [
+    {
+      "family_id": "A",
+      "finding_ids": [
+        "a"
+      ]
+    },
+    {
+      "family_id": "B",
+      "finding_ids": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "family_id": "C",
+      "finding_ids": [
+        "a"
+      ]
+    },
+    {
+      "family_id": "D",
+      "finding_ids": [
+        "b",
+        "c"
+      ]
+    }
+  ],
+  "side_effects_allowed": false,
+  "posting_allowed": false,
+  "thread_resolution_allowed": false,
+  "mapping_authority": false,
+  "implementation_authority": false,
+  "approval_authority": false,
+  "review_authority": false,
+  "security_authority": false,
+  "runtime_authority": false,
+  "learning_authority": false,
+  "reflection_authority": false,
+  "kpp_authority": false,
+  "oracle_authority": false,
+  "routing_authority": false,
+  "promotion_authority": false,
+  "merge_authority": false
+}
