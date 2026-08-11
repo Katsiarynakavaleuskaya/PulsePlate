@@ -803,27 +803,13 @@ class TestDatabaseUpdateManagerComprehensive:
     @pytest.mark.asyncio
     async def test_update_usda_database_no_change(self):
         """Test _update_usda_database when no data change."""
-        from core.food_apis.unified_db import UnifiedFoodItem
         from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
-            # Create a proper food item for testing
-            # UnifiedFoodItem already imported above
-
-            test_food = UnifiedFoodItem(
-                name="Chicken",
-                nutrients_per_100g={"protein_g": 31.0},
-                cost_per_100g=2.5,
-                tags=["meat", "chicken"],
-                availability_regions=["US"],
-                source="USDA",
-                source_id="12345",
-            )
-
+            test_food = _admissible_common_food_fixture(103)
             test_data = {"chicken": test_food}
-            # Calculate checksum using the proper method
             checksum_data = {"chicken": asdict(test_food)}
             checksum = manager._calculate_checksum(checksum_data)
 
@@ -1273,7 +1259,7 @@ class TestDatabaseUpdateManagerComprehensive:
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         manager = DatabaseUpdateManager(cache_dir=tmp_path)
-        envelope = {
+        envelope: dict[str, object] = {
             "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
             "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
             "items": {
@@ -1332,7 +1318,7 @@ class TestDatabaseUpdateManagerComprehensive:
             last_modified_t=1,
             nutrition_inputs=[
                 {
-                    "source": "openfoodfacts",
+                    "source": "estimate",
                     "record_id": "off-source-snapshot-1",
                     "version_ref": "1",
                     "nutrients": {"protein_g": 7.0, "fat_g": 2.0, "carbs_g": 3.0},
@@ -1340,16 +1326,16 @@ class TestDatabaseUpdateManagerComprehensive:
                 }
             ],
             nutrition_provenance={
-                "protein_g": "openfoodfacts",
-                "fat_g": "openfoodfacts",
-                "carbs_g": "openfoodfacts",
+                "protein_g": "estimate",
+                "fat_g": "estimate",
+                "carbs_g": "estimate",
             },
             nutrition_nutrient_confidence={
-                "protein_g": 0.55,
-                "fat_g": 0.55,
-                "carbs_g": 0.55,
+                "protein_g": 0.4,
+                "fat_g": 0.4,
+                "carbs_g": 0.4,
             },
-            nutrition_confidence=0.55,
+            nutrition_confidence=0.4,
         )
         off_client = MagicMock()
         off_client.search_products = AsyncMock(return_value=[off_item])
@@ -1411,7 +1397,11 @@ class TestDatabaseUpdateManagerComprehensive:
         backup_file.write_bytes(established_bytes)
 
         with pytest.raises(CommonFoodsCacheAdmissionError):
-            manager._write_backup_snapshot(backup_file, snapshots[snapshot_shape])
+            manager._write_backup_snapshot(
+                "openfoodfacts",
+                snapshot_shape,
+                snapshots[snapshot_shape],
+            )
 
         assert backup_file.read_bytes() == established_bytes
 
@@ -1443,7 +1433,8 @@ class TestDatabaseUpdateManagerComprehensive:
             match="Backup snapshot write failed",
         ):
             manager._write_backup_snapshot(
-                backup_file,
+                "openfoodfacts",
+                "established",
                 {"valid": asdict(_admissible_common_food_fixture(94))},
             )
 
@@ -1482,7 +1473,8 @@ class TestDatabaseUpdateManagerComprehensive:
         monkeypatch.setattr(update_manager_module.os, "close", recording_close)
 
         manager._write_backup_snapshot(
-            backup_file,
+            "openfoodfacts",
+            "parent-fsync",
             {"valid": _admissible_common_food_fixture(96)},
         )
 
@@ -1535,7 +1527,8 @@ class TestDatabaseUpdateManagerComprehensive:
 
         with pytest.raises(CommonFoodsCacheAdmissionError, match="Backup snapshot write failed"):
             manager._write_backup_snapshot(
-                backup_file,
+                "openfoodfacts",
+                "parent-fsync-failure",
                 {"valid": _admissible_common_food_fixture(97)},
             )
 
@@ -1548,6 +1541,114 @@ class TestDatabaseUpdateManagerComprehensive:
         else:
             assert backup_file.read_bytes() == prior_target_bytes
         assert not list(tmp_path.glob(f".{backup_file.name}.*.tmp"))
+
+    @pytest.mark.parametrize(
+        ("source", "version"),
+        [
+            ("usda", "../escape"),
+            ("usda", "/absolute/path"),
+            ("USDA", "valid-version"),
+            ("openfoodfacts", "v" * 129),
+        ],
+    )
+    def test_backup_path_resolver_rejects_unsafe_source_or_version(
+        self,
+        tmp_path: Path,
+        source: str,
+        version: str,
+    ) -> None:
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            manager._write_backup_snapshot(
+                source,
+                version,
+                {"valid": _admissible_common_food_fixture(98)},
+            )
+
+        assert not list(tmp_path.glob("*_backup_*.json"))
+
+    def test_backup_path_resolver_rejects_symlink_input_and_target(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        cache_dir = tmp_path / "cache"
+        manager = DatabaseUpdateManager(cache_dir=cache_dir)
+        outside_file = tmp_path / "outside-backup.json"
+        outside_bytes = json.dumps({"valid": asdict(_admissible_common_food_fixture(99))}).encode()
+        outside_file.write_bytes(outside_bytes)
+        symlink = cache_dir / "openfoodfacts_backup_link.json"
+        symlink.symlink_to(outside_file)
+
+        assert asyncio.run(manager._load_backup("openfoodfacts", "link")) == {}
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            manager._write_backup_snapshot(
+                "openfoodfacts",
+                "link",
+                {"replacement": _admissible_common_food_fixture(100)},
+            )
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            asyncio.run(manager._create_backup("openfoodfacts", "link"))
+
+        assert symlink.is_symlink()
+        assert outside_file.read_bytes() == outside_bytes
+
+    @pytest.mark.parametrize(
+        "invalid_shape",
+        ["nonfinite", "confidence", "evidence", "provenance"],
+    )
+    def test_generic_backup_rejects_invalid_nutrition_evidence_as_a_whole(
+        self,
+        tmp_path: Path,
+        invalid_shape: str,
+    ) -> None:
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        candidate = asdict(_admissible_common_food_fixture(101))
+        nutrient = "fixture_nutrient_101"
+        if invalid_shape == "nonfinite":
+            candidate["nutrients_per_100g"][nutrient] = float("inf")
+        elif invalid_shape == "confidence":
+            candidate["nutrition_confidence"] = 1.1
+        elif invalid_shape == "evidence":
+            candidate["nutrition_inputs"][0]["record_id"] = ""
+        else:
+            candidate["nutrition_provenance"][nutrient] = "estimate"
+
+        backup_file = tmp_path / f"openfoodfacts_backup_{invalid_shape}.json"
+        established_bytes = b"established-valid-backup"
+        backup_file.write_bytes(established_bytes)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError):
+            manager._write_backup_snapshot(
+                "openfoodfacts",
+                invalid_shape,
+                {"invalid": candidate},
+            )
+
+        assert backup_file.read_bytes() == established_bytes
+
+    def test_generic_backup_loader_rejects_json_exponent_overflow(self, tmp_path: Path) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        payload = json.dumps({"overflow": asdict(_admissible_common_food_fixture(102))})
+        payload = payload.replace("103.0", "1e400", 1)
+        assert "1e400" in payload
+        (tmp_path / "openfoodfacts_backup_overflow.json").write_text(
+            payload,
+            encoding="utf-8",
+        )
+
+        assert asyncio.run(manager._load_backup("openfoodfacts", "overflow")) == {}
 
     def test_load_backup_rejects_mixed_snapshot_as_a_whole(self, tmp_path: Path) -> None:
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -1611,7 +1712,8 @@ class TestDatabaseUpdateManagerComprehensive:
             metadata={},
         )
         manager._write_backup_snapshot(
-            tmp_path / "openfoodfacts_backup_target-v1.json",
+            "openfoodfacts",
+            "target-v1",
             {"target_food": _admissible_common_food_fixture(95)},
         )
         update_times = iter(
@@ -1645,6 +1747,26 @@ class TestDatabaseUpdateManagerComprehensive:
             packaging=[],
             image_url=None,
             last_modified_t=2,
+            nutrition_inputs=[
+                {
+                    "source": "estimate",
+                    "record_id": "off-after-rollback",
+                    "version_ref": "2",
+                    "nutrients": {"protein_g": 6.0, "fat_g": 2.0, "carbs_g": 4.0},
+                    "raw_payload": {},
+                }
+            ],
+            nutrition_provenance={
+                "protein_g": "estimate",
+                "fat_g": "estimate",
+                "carbs_g": "estimate",
+            },
+            nutrition_nutrient_confidence={
+                "protein_g": 0.4,
+                "fat_g": 0.4,
+                "carbs_g": 0.4,
+            },
+            nutrition_confidence=0.4,
         )
         off_client = MagicMock()
         off_client.search_products = AsyncMock(return_value=[off_item])
@@ -1658,6 +1780,146 @@ class TestDatabaseUpdateManagerComprehensive:
         assert refresh.new_version == "20260811_100001"
         assert rollback_backup.exists()
 
+    def test_usda_rollback_restores_active_cache_snapshot_and_supports_next_update(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        target_items: dict[str, dict[str, object]] = {}
+        for index, standard_name in enumerate(COMMON_FOODS_MANIFEST):
+            food = _admissible_common_food_fixture(index)
+            protein = float(index + 1)
+            food.nutrients_per_100g = {
+                "protein_g": protein,
+                "fat_g": 0.0,
+                "carbs_g": 0.0,
+            }
+            food.nutrition_inputs = [
+                {
+                    "source": "usda",
+                    "record_id": food.source_id,
+                    "version_ref": "target-v1",
+                    "nutrients": {"protein_g": protein},
+                    "raw_payload": {},
+                }
+            ]
+            food.nutrition_provenance = {"protein_g": "usda"}
+            food.nutrition_nutrient_confidence = {"protein_g": 0.7}
+            food.nutrition_confidence = 0.7
+            target_items[standard_name] = asdict(food)
+
+        target_envelope: dict[str, object] = {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": target_items,
+        }
+        old_envelope = json.loads(json.dumps(target_envelope))
+        old_items = old_envelope["items"]
+        assert isinstance(old_items, dict)
+        for item in old_items.values():
+            assert isinstance(item, dict)
+            item["name"] = f"Old {item['name']}"
+
+        active_cache = tmp_path / "common_foods.json"
+        manager.unified_db._publish_common_foods_envelope(active_cache, old_envelope)
+        old_active_bytes = active_cache.read_bytes()
+        manager._write_backup_snapshot("usda", "target-v1", target_items)
+        manager.versions["usda"] = DatabaseVersion(
+            source="usda",
+            version="current-v2",
+            last_updated="2026-08-11T09:00:00+00:00",
+            record_count=len(target_items),
+            checksum="current-checksum",
+            metadata={},
+        )
+        update_times = iter(
+            [
+                datetime(2026, 8, 11, 10, 0, 0, tzinfo=timezone.utc),
+                datetime(2026, 8, 11, 10, 0, 1, tzinfo=timezone.utc),
+            ]
+        )
+        monkeypatch.setattr("core.food_apis.update_manager.now_utc", lambda: next(update_times))
+        provider_acquisition = AsyncMock()
+        monkeypatch.setattr(
+            manager.unified_db,
+            "_acquire_common_foods_envelope",
+            provider_acquisition,
+        )
+
+        rolled_back = asyncio.run(manager.rollback_database("usda", "target-v1"))
+        rollback_version = "target-v1_rollback_100000"
+
+        assert rolled_back is True
+        assert active_cache.read_bytes() != old_active_bytes
+        assert json.loads(active_cache.read_text(encoding="utf-8")) == target_envelope
+        assert manager.versions["usda"].version == rollback_version
+        assert tuple(asyncio.run(manager._load_backup("usda", rollback_version))) == tuple(
+            COMMON_FOODS_MANIFEST
+        )
+
+        update_result = asyncio.run(manager._update_usda_database(force=True))
+
+        assert update_result.success is True
+        assert update_result.old_version == rollback_version
+        assert update_result.new_version == "20260811_100001"
+        provider_acquisition.assert_not_awaited()
+
+    def test_usda_rollback_publication_failure_preserves_active_bytes_and_metadata(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        items = {
+            name: asdict(_admissible_common_food_fixture(index))
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        envelope: dict[str, object] = {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": items,
+        }
+        active_cache = tmp_path / "common_foods.json"
+        manager.unified_db._publish_common_foods_envelope(active_cache, envelope)
+        active_bytes = active_cache.read_bytes()
+        manager._write_backup_snapshot("usda", "target-v1", items)
+        established = DatabaseVersion(
+            source="usda",
+            version="current-v2",
+            last_updated="2026-08-11T09:00:00+00:00",
+            record_count=len(items),
+            checksum="current-checksum",
+            metadata={},
+        )
+        manager.versions["usda"] = established
+        monkeypatch.setattr(
+            manager.unified_db,
+            "_publish_common_foods_envelope",
+            MagicMock(side_effect=CommonFoodsCacheAdmissionError("forced publication failure")),
+        )
+
+        rolled_back = asyncio.run(manager.rollback_database("usda", "target-v1"))
+
+        assert rolled_back is False
+        assert active_cache.read_bytes() == active_bytes
+        assert manager.versions["usda"] is established
+
     @pytest.mark.asyncio
     async def test_load_backup(self):
         """Test _load_backup method."""
@@ -1667,19 +1929,7 @@ class TestDatabaseUpdateManagerComprehensive:
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
-            # Create a backup file
-            backup_data = {
-                "chicken": {
-                    "name": "Chicken Breast",
-                    "nutrients_per_100g": {"protein_g": 31.0},
-                    "cost_per_100g": 2.5,
-                    "tags": ["protein"],
-                    "availability_regions": ["US"],
-                    "source": "USDA",
-                    "source_id": "12345",
-                    "category": "Meat",
-                }
-            }
+            backup_data = {"chicken": asdict(_admissible_common_food_fixture(98))}
 
             backup_file = manager.cache_dir / "usda_backup_1.0.json"
             with open(backup_file, "w") as f:
