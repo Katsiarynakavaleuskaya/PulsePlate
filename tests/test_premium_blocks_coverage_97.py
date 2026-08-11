@@ -18,23 +18,16 @@ import os
 import sys
 
 import pytest
-from fastapi.testclient import TestClient
-from app import app
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Test client fixture"""
-    return TestClient(app)
 
 
 class TestPremiumEndpointBlocks:
     """Тесты для блоков 820-836, 854-870, 885-897 premium endpoints"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _setup_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set the class environment with function-scoped restoration."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
     def test_premium_bmr_error_conditions(self, client) -> None:
         """Тест error conditions в premium BMR (820-836)"""
@@ -131,10 +124,11 @@ class TestPremiumEndpointBlocks:
 class TestWeeklyPlanningBlocks:
     """Тесты для больших блоков weekly planning (1265-1339, 1435-1501)"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _setup_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set the class environment with function-scoped restoration."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
     def test_weekly_plan_creation_logic(self, client) -> None:
         """Тест logic создания weekly plans (1265-1339)"""
@@ -223,10 +217,11 @@ class TestWeeklyPlanningBlocks:
 class TestPremiumEndpointErrorHandling:
     """Тесты error handling в premium endpoints"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _setup_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set the class environment with function-scoped restoration."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
     def test_premium_endpoints_without_implementation(self, client) -> None:
         """Тест endpoints которые могут быть не реализованы"""

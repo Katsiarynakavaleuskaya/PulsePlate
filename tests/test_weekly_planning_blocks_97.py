@@ -13,17 +13,6 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-from fastapi.testclient import TestClient
-
-from app import app
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Test client fixture"""
-    return TestClient(app)
-
 
 class TestWeeklyPlanningCriticalBlocks:
     """Тесты для критически важных блоков weekly planning"""

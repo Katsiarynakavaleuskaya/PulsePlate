@@ -10,14 +10,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
-
-
-@pytest.fixture(scope="session")
-def client() -> TestClient:
-    """Provide a TestClient configured from the app package."""
-    return TestClient(app)
-
 
 @pytest.fixture(autouse=True)
 def setup_environment():

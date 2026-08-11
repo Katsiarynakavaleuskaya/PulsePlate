@@ -4,23 +4,22 @@ from typing import Dict
 
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
 _app_env_patch = pytest.MonkeyPatch()
 _app_env_patch.setenv("APP_ENV", "test")
 _app_env_patch.setenv("DEBUG", "true")
 
-from app import app
+from app import app as _app
 from app.routers import premium_week
 
 _app_env_patch.undo()
 
 
-@pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+@pytest.fixture(autouse=True)
+def _setup_client_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the premium-week environment before the shared client starts."""
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("DEBUG", "true")
-    return TestClient(app)
 
 
 def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, object]:

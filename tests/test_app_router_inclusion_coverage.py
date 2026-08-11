@@ -3,20 +3,9 @@
 Покрывает строки: 2095, 2118, 2151, 2153
 """
 
-from typing import cast
-
-import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 from tests._helpers.api_headers import API_KEY_HEADERS
-
-
-@pytest.fixture()
-def client(test_environment):
-    import app
-
-    return TestClient(cast(ASGIApp, app.app))
 
 
 class TestAppRouterInclusionCoverage:

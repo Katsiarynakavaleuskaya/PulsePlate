@@ -6,10 +6,9 @@ Covers all VIP endpoints with happy path, 422 validation, and 500 error cases.
 import os
 
 import pytest
-from fastapi.testclient import TestClient
 
 try:
-    import app as app_mod
+    import app as _app_mod
 except ImportError:
     pytest.skip("Required modules not available", allow_module_level=True)
 
@@ -17,12 +16,6 @@ except ImportError:
 VIP_ENABLED = os.getenv("VIP_MODULE_ENABLED", "false").lower() == "true"
 
 # Note: Do not skip VIP tests as they should handle both enabled/disabled states
-
-
-@pytest.fixture
-def client():
-    """Test client for the app."""
-    return TestClient(app_mod.app)
 
 
 @pytest.fixture

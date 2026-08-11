@@ -11,14 +11,7 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app import app
 from app.schemas.bmi import BMICalculateRequest
-
-
-@pytest.fixture()
-def client() -> TestClient:
-    """TestClient fixture for BMI API tests."""
-    return TestClient(app)
 
 
 class TestGenderPregnantValidation:
