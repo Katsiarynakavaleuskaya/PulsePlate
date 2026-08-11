@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import tempfile
+import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -65,6 +66,7 @@ class CommonFoodsCacheAdmissionError(RuntimeError):
 COMMON_FOODS_CACHE_SCHEMA_VERSION: Final = "common-foods-cache.v1"
 COMMON_FOODS_MANIFEST_VERSION: Final = "common-foods-manifest.v1"
 COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS = 30.0
+COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS: Final = 0.01
 COMMON_FOODS_MANIFEST: Final[Mapping[str, str]] = MappingProxyType(
     {
         "chicken_breast": "chicken breast meat only cooked roasted",
@@ -359,7 +361,7 @@ class UnifiedFoodDatabase:
 
         # In-memory cache for this session
         self._memory_cache: Dict[str, UnifiedFoodItem] = {}
-        self._common_foods_admission_lock = asyncio.Lock()
+        self._common_foods_admission_lock = threading.Lock()
 
         # Load persistent cache
         self._load_cache()
@@ -555,7 +557,9 @@ class UnifiedFoodDatabase:
                     type(exc).__name__,
                 )
 
-        async with self._common_foods_admission_lock:
+        while not self._common_foods_admission_lock.acquire(blocking=False):
+            await asyncio.sleep(COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS)
+        try:
             if cache_file.exists():
                 try:
                     with open(cache_file, "r", encoding="utf-8") as f:
@@ -585,6 +589,8 @@ class UnifiedFoodDatabase:
             logger.info("Published %d common foods atomically", len(foods_db))
 
             return foods_db
+        finally:
+            self._common_foods_admission_lock.release()
 
     async def _acquire_common_foods_envelope(self) -> dict[str, object]:
         """Run one bounded, retry-free search for every manifest row."""

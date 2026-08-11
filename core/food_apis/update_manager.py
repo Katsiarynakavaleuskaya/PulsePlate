@@ -15,7 +15,9 @@ import inspect
 import hashlib
 import json
 import logging
+import os
 import re
+import tempfile
 import unicodedata
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, timedelta
@@ -607,6 +609,10 @@ class DatabaseUpdateManager:
             actual_record_count, checksum = await self._get_validated_record_count_and_checksum(
                 source, unified_foods
             )
+            self._write_backup_snapshot(
+                self.cache_dir / f"{source}_backup_{new_version}.json",
+                unified_foods,
+            )
 
             # Update version tracking
             new_db_version = DatabaseVersion(
@@ -883,79 +889,114 @@ class DatabaseUpdateManager:
 
     async def _create_backup(self, source: str, version: str) -> None:
         """Create backup of current database version."""
-        cache_file = self.cache_dir / "common_foods.json"
         backup_file = self.cache_dir / f"{source}_backup_{version}.json"
         try:
-            with open(cache_file, "r", encoding="utf-8") as file_object:
-                loaded = _load_common_foods_json(file_object)
-            if type(loaded) is not dict:
-                raise ValueError("common-food cache must be a mapping")
-            if set(loaded) == {"schema_version", "manifest_version", "items"}:
-                current_data = loaded["items"]
+            if source == "usda":
+                cache_file = self.cache_dir / "common_foods.json"
+                with open(cache_file, "r", encoding="utf-8") as file_object:
+                    loaded = _load_common_foods_json(file_object)
+                if type(loaded) is not dict:
+                    raise ValueError("common-food cache must be a mapping")
+                if set(loaded) == {"schema_version", "manifest_version", "items"}:
+                    current_data = loaded["items"]
+                else:
+                    current_data = loaded
+            elif source == "openfoodfacts":
+                with open(backup_file, "r", encoding="utf-8") as file_object:
+                    current_data = _load_common_foods_json(file_object)
+                self._reconstruct_backup_snapshot(current_data)
             else:
-                current_data = loaded
-            if (
-                type(current_data) is not dict
-                or not current_data
-                or any(
-                    type(name) is not str or type(food) is not dict
-                    for name, food in current_data.items()
-                )
-            ):
-                raise ValueError("common-food cache items must be a non-empty mapping")
+                raise ValueError("unsupported backup source")
 
-            with open(backup_file, "w", encoding="utf-8") as f:
-                json.dump(current_data, f, indent=2)
+            if source == "usda":
+                self._write_backup_snapshot(backup_file, current_data)
 
-            logger.info("Created backup for %s version %s", source, version)
+            logger.info("Prepared backup for %s version %s", source, version)
         except Exception as exc:
             raise CommonFoodsCacheAdmissionError(
-                "Established common-food cache cannot be backed up"
+                "Established source snapshot cannot be backed up"
             ) from exc
 
-    async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
-        """Load backup database version."""
-        backup_file = self.cache_dir / f"{source}_backup_{version}.json"
+    @staticmethod
+    def _reconstruct_backup_snapshot(snapshot: object) -> Dict[str, UnifiedFoodItem]:
+        """Reconstruct one complete, non-empty source snapshot or reject it."""
+        if type(snapshot) is not dict or not snapshot:
+            raise CommonFoodsCacheAdmissionError("Backup snapshot is empty or invalid")
 
-        try:
-            with open(backup_file, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    logger.debug("Backup file %s is empty", backup_file)
-                    return {}
-                data = json.loads(content)
-        except json.JSONDecodeError as json_err:
-            logger.debug("Failed to parse backup file %s: %s", backup_file, str(json_err))
-            return {}
-        except FileNotFoundError:
-            logger.debug("Backup file %s not found", backup_file)
-            return {}
-
-        # Basic schema validation: ensure minimal keys exist
-        required = {
-            "name",
-            "nutrients_per_100g",
-            "cost_per_100g",
-            "tags",
-            "availability_regions",
-            "source",
-            "source_id",
-        }
         foods: Dict[str, UnifiedFoodItem] = {}
-        if not isinstance(data, dict):
-            logger.debug("Backup file %s does not contain a dict", backup_file)
-            return {}
-
-        for name, food_data in data.items():
+        for name, food_data in snapshot.items():
+            if type(name) is not str or not name:
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid identity")
+            if isinstance(food_data, UnifiedFoodItem):
+                candidate = asdict(food_data)
+            elif type(food_data) is dict:
+                candidate = food_data
+            else:
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid item")
             try:
-                if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
-                    continue
-                foods[name] = UnifiedFoodItem(**food_data)
-            except (TypeError, ValueError) as parse_err:
-                logger.debug("Skipping malformed backup entry %s: %s", name, parse_err)
-                continue
-
+                foods[name] = UnifiedFoodItem(**candidate)
+            except (TypeError, ValueError) as exc:
+                raise CommonFoodsCacheAdmissionError(
+                    "Backup snapshot contains unrestorable item"
+                ) from exc
         return foods
+
+    def _write_backup_snapshot(self, backup_file: Path, snapshot: object) -> None:
+        """Validate and atomically publish one complete source snapshot."""
+        foods = self._reconstruct_backup_snapshot(snapshot)
+        temporary_path: Path | None = None
+        try:
+            serialized = json.dumps(
+                {name: asdict(food) for name, food in foods.items()},
+                indent=2,
+                allow_nan=False,
+            )
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=backup_file.parent,
+                prefix=f".{backup_file.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(serialized)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+
+            with open(temporary_path, "r", encoding="utf-8") as temporary_file:
+                staged_snapshot = _load_common_foods_json(temporary_file)
+            self._reconstruct_backup_snapshot(staged_snapshot)
+            os.replace(temporary_path, backup_file)
+            temporary_path = None
+        except CommonFoodsCacheAdmissionError:
+            raise
+        except Exception as exc:
+            raise CommonFoodsCacheAdmissionError("Backup snapshot write failed") from exc
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Backup snapshot temporary cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
+
+    async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
+        """Load a backup only when the complete snapshot is restorable."""
+        backup_file = self.cache_dir / f"{source}_backup_{version}.json"
+        try:
+            with open(backup_file, "r", encoding="utf-8") as file_object:
+                data = _load_common_foods_json(file_object)
+            return self._reconstruct_backup_snapshot(data)
+        except Exception as exc:
+            logger.debug(
+                "Backup snapshot rejected; source=%s; category=%s",
+                source,
+                type(exc).__name__,
+            )
+            return {}
 
     def _food_to_dict(self, food: Any) -> Dict[str, Any]:
         """Safely convert a food item to a serializable dict.
@@ -1037,6 +1078,9 @@ class DatabaseUpdateManager:
         try:
             # Load backup data
             backup_data = await self._load_backup(source, target_version)
+            if not backup_data:
+                logger.warning("Rollback refused; source=%s; backup is unrestorable", source)
+                return False
 
             # Restore the data (implementation depends on storage method)
             # For now, just update the version tracking

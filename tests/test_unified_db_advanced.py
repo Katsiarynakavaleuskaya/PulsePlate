@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 from dataclasses import asdict
 from io import StringIO
 from pathlib import Path
@@ -769,6 +770,75 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert acquisition_count == 1
         assert publication_count == 1
         assert tuple(first) == tuple(second) == tuple(COMMON_FOODS_MANIFEST)
+
+    def test_one_instance_cold_admission_spans_overlapping_event_loops(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        acquisition_started = threading.Event()
+        release_acquisition = threading.Event()
+        waiter_is_polling = threading.Event()
+        counter_lock = threading.Lock()
+        result_lock = threading.Lock()
+        acquisition_count = 0
+        publication_count = 0
+        results: list[dict[str, UnifiedFoodItem]] = []
+        errors: list[BaseException] = []
+        real_publish = db._publish_common_foods_envelope
+        real_sleep = asyncio.sleep
+
+        async def acquire_once() -> dict[str, object]:
+            nonlocal acquisition_count
+            with counter_lock:
+                acquisition_count += 1
+            acquisition_started.set()
+            while not release_acquisition.is_set():
+                await real_sleep(0)
+            return _valid_common_foods_envelope()
+
+        async def observe_lock_poll(delay: float) -> None:
+            if threading.current_thread().name == "common-food-waiter":
+                waiter_is_polling.set()
+            await real_sleep(delay)
+
+        def record_publication(cache_file: Path, envelope: dict[str, object]) -> None:
+            nonlocal publication_count
+            with counter_lock:
+                publication_count += 1
+            real_publish(cache_file, envelope)
+
+        def run_in_thread() -> None:
+            try:
+                result = asyncio.run(db.get_common_foods_database())
+                with result_lock:
+                    results.append(result)
+            except BaseException as exc:
+                with result_lock:
+                    errors.append(exc)
+
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquire_once)
+        monkeypatch.setattr(db, "_publish_common_foods_envelope", record_publication)
+        monkeypatch.setattr(unified_db_module.asyncio, "sleep", observe_lock_poll)
+
+        owner = threading.Thread(target=run_in_thread, name="common-food-owner", daemon=True)
+        waiter = threading.Thread(target=run_in_thread, name="common-food-waiter", daemon=True)
+        owner.start()
+        assert acquisition_started.wait(timeout=2)
+        waiter.start()
+        assert waiter_is_polling.wait(timeout=2)
+        release_acquisition.set()
+        owner.join(timeout=2)
+        waiter.join(timeout=2)
+
+        assert not owner.is_alive()
+        assert not waiter.is_alive()
+        assert errors == []
+        assert acquisition_count == 1
+        assert publication_count == 1
+        assert len(results) == 2
+        assert all(tuple(result) == tuple(COMMON_FOODS_MANIFEST) for result in results)
 
     def test_cancelled_cold_waiter_does_not_cancel_lock_owner(
         self,

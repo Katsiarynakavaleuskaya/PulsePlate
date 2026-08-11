@@ -757,8 +757,7 @@ class TestUnifiedFoodDatabase:
 
         await db.close()
 
-    @pytest.mark.asyncio
-    async def test_unified_database_get_foods(self, tmp_path: Path) -> None:
+    def test_unified_database_get_foods(self, tmp_path: Path) -> None:
         """Test getting foods from unified database."""
         mock_usda_food = USDAFoodItem(
             fdc_id=123,
@@ -791,13 +790,13 @@ class TestUnifiedFoodDatabase:
         db.usda_client.search_foods.side_effect = search_with_unique_source_id
 
         with patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()):
-            foods = await db.get_common_foods_database()
+            foods = asyncio.run(db.get_common_foods_database())
 
         assert "chicken_breast" in foods
         assert isinstance(foods["chicken_breast"], UnifiedFoodItem)
         assert foods["chicken_breast"].source == "USDA FoodData Central"
 
-        await db.close()
+        asyncio.run(db.close())
 
 
 class TestDatabaseUpdateManager:

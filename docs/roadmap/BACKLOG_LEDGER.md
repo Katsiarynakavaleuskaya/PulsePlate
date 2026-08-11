@@ -1750,10 +1750,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       fixed operation/outcome labels, bounded counts, and exception categories,
       never queries, identifiers, provider bodies, tokens, secrets, or
       credential-bearing URLs
-    - For both USDA and Open Food Facts, an established-version update performs
-      exactly one failed common-food acquisition, stops without continuation or
-      version mutation, and returns the stable `success=false`,
-      `new_version=None`, zero-count admission-failure shape
+    - USDA backs up only validated on-disk common-food truth; the first successful
+      Open Food Facts update persists its own complete source snapshot, and later
+      updates revalidate that source-specific snapshot without depending on
+      `common_foods.json`
+    - Backup write/load is all-or-nothing through `UnifiedFoodItem`
+      reconstruction; mixed, malformed, empty, or unrestorable snapshots are
+      rejected, and rollback refuses them without version mutation
     - Common-food JSON admission rejects `NaN`, `Infinity`, `-Infinity`, and
       non-finite or overflow numeric `raw_payload` values; atomic publication
       also rejects non-finite serialization before replace
@@ -1776,6 +1779,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: tests / scheduler / async mock lifecycle
   - Finding Type: pre-existing teardown warning observed by validation-only
     whole-file execution
+  - Reason: The warning is isolated to an unchanged scheduler test mock lifecycle;
+    resolving it requires scheduler-owned diagnosis and does not belong to the
+    cold-cache admission or source-backup authority of PR #2261.
+  - Links:
+    - `tests/test_food_apis_push95.py::test_scheduler_remaining_edges`
+    - `core/food_apis/scheduler.py`
   - Origin evidence: The local five-file food-cache cohort and the final
     network-disabled Apple Experiment Runner oracle for PR #2259 both passed,
     but the unchanged node
