@@ -1515,21 +1515,22 @@ class DatabaseUpdateManager:
                 self._write_backup_snapshot(source, rollback_version_name, backup_data)
                 published_rollback_file = rollback_file
                 if active_envelope is not None:
-                    active_cache_file = self.unified_db.cache_dir / "common_foods.json"
-                    if active_cache_file.is_symlink() or (
-                        active_cache_file.exists() and not active_cache_file.is_file()
+                    active_cache_path = self.unified_db.cache_dir / "common_foods.json"
+                    if active_cache_path.is_symlink() or (
+                        active_cache_path.exists() and not active_cache_path.is_file()
                     ):
                         raise CommonFoodsCacheAdmissionError(
                             "Active common-food cache is not a regular file"
                         )
-                    prior_active_exists = active_cache_file.exists()
+                    prior_active_exists = active_cache_path.exists()
                     prior_active_bytes = (
-                        active_cache_file.read_bytes() if prior_active_exists else b""
+                        active_cache_path.read_bytes() if prior_active_exists else b""
                     )
                     self.unified_db._publish_common_foods_envelope(
-                        active_cache_file,
+                        active_cache_path,
                         active_envelope,
                     )
+                    active_cache_file = active_cache_path
                     active_published = True
 
                 self.versions[source] = rollback_version
