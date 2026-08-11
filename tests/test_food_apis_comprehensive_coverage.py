@@ -1572,6 +1572,45 @@ class TestDatabaseUpdateManagerComprehensive:
         assert version.record_count == len(persisted_mapping) == 7
         assert version.checksum == manager._calculate_checksum(persisted_mapping)
 
+    @pytest.mark.parametrize("same_identity", [False, True], ids=["collision", "idempotent"])
+    def test_off_update_normalized_key_collision_requires_stable_identity_parity(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        same_identity: bool,
+    ) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        first = _admissible_off_food_fixture("collision-a")
+        second = _admissible_off_food_fixture("collision-a" if same_identity else "collision-b")
+        first.product_name = "Normalized Collision!"
+        second.product_name = "Normalized Collision"
+        remaining = [
+            _admissible_off_food_fixture(identity)
+            for identity in ("chicken", "bread", "milk", "cheese", "rice")
+        ]
+        off_client = MagicMock()
+        off_client.search_products = AsyncMock(
+            side_effect=[[first], [second], *[[item] for item in remaining]]
+        )
+        manager.off_client = off_client
+        monkeypatch.setattr("core.food_apis.update_manager.asyncio.sleep", AsyncMock())
+
+        result = asyncio.run(manager._update_off_database(force=True))
+
+        if same_identity:
+            assert result.success is True
+            assert result.new_version is not None
+            persisted = asyncio.run(manager._load_backup("openfoodfacts", result.new_version))
+            assert len(persisted) == 6
+            assert persisted["normalized_collision"].source_id == "off-collision-a"
+        else:
+            assert result.success is False
+            assert result.errors == ["common_food_cache_admission_failed"]
+            assert "openfoodfacts" not in manager.versions
+            assert not list(tmp_path.glob("openfoodfacts_backup_*.json"))
+
     @pytest.mark.parametrize("failure", ["empty", "conversion"])
     def test_off_update_refuses_partial_sweep_or_conversion_before_publication(
         self,
@@ -2574,6 +2613,40 @@ class TestDatabaseUpdateManagerComprehensive:
 
             assert "usda" in results
             assert results["usda"].success is True
+            manager.update_database.assert_awaited_once_with("usda", force=True)
+
+    def test_scheduled_usda_update_forces_acquisition_past_prewarmed_cache(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, run_scheduled_update
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        envelope = {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": {
+                name: asdict(_admissible_common_food_fixture(index))
+                for index, name in enumerate(COMMON_FOODS_MANIFEST)
+            },
+        }
+        (tmp_path / "common_foods.json").write_text(json.dumps(envelope), encoding="utf-8")
+        acquisition = AsyncMock(return_value=envelope)
+        monkeypatch.setattr(manager.unified_db, "_acquire_common_foods_envelope", acquisition)
+        check_for_updates = AsyncMock(return_value={"usda": True})
+        monkeypatch.setattr(manager, "check_for_updates", check_for_updates)
+
+        results = asyncio.run(run_scheduled_update(manager))
+
+        acquisition.assert_awaited_once_with()
+        assert results["usda"].success is True
+        assert manager.versions["usda"].metadata["update_type"] == "forced"
 
     @pytest.mark.parametrize("legacy_shape", ["missing", "extra", "wrong_member"])
     def test_legacy_usda_backup_requires_exact_manifest_before_replacement(

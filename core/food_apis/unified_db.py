@@ -437,14 +437,24 @@ class UnifiedFoodDatabase:
         Returns:
             List of unified food items
         """
-        # Check cache first
-        cache_key = f"search_{query.lower().strip()}"
+        # Keep source preferences isolated so one provider cannot satisfy a later
+        # request that explicitly selected the other provider.
+        normalized_query = query.lower().strip()
+        effective_prefer_source = prefer_source.strip().lower()
+        cache_key = f"search_{effective_prefer_source}_{normalized_query}"
+        legacy_usda_cache_key = f"search_{normalized_query}"
         if use_memory_cache and cache_key in self._memory_cache:
             return [self._memory_cache[cache_key]]
+        if (
+            use_memory_cache
+            and effective_prefer_source == "usda"
+            and legacy_usda_cache_key in self._memory_cache
+        ):
+            return [self._memory_cache[legacy_usda_cache_key]]
 
         results = []
 
-        if prefer_source == "usda":
+        if effective_prefer_source == "usda":
             # Search USDA first
             try:
                 usda_results = await self.usda_client.search_foods(query, page_size=5)
@@ -463,15 +473,30 @@ class UnifiedFoodDatabase:
 
         # When USDA is preferred and returned hits, enrich the top result with OFF using
         # the shared resolver (USDA ranks above OFF per DEFAULT_SOURCE_PRIORITY).
-        if prefer_source == "usda" and results and self.off_client:
+        if effective_prefer_source == "usda" and results and self.off_client:
             try:
                 off_results = await self.off_client.search_products(query, page_size=1)
                 if off_results:
                     off_unified = UnifiedFoodItem.from_off_item(off_results[0])
-                    merged = UnifiedFoodItem.from_usda_and_off_merge(results[0], off_unified)
-                    results[0] = merged
-                    if use_memory_cache and cache_key in self._memory_cache:
-                        self._memory_cache[cache_key] = merged
+                    has_stable_identity_parity = False
+                    for nutrition_input in off_unified.nutrition_inputs:
+                        if type(nutrition_input) is not dict:
+                            continue
+                        input_source = nutrition_input.get("source")
+                        record_id = nutrition_input.get("record_id")
+                        if (
+                            isinstance(input_source, str)
+                            and input_source.strip().lower() == "usda"
+                            and isinstance(record_id, str)
+                            and record_id.strip() == results[0].source_id.strip()
+                        ):
+                            has_stable_identity_parity = True
+                            break
+                    if has_stable_identity_parity:
+                        merged = UnifiedFoodItem.from_usda_and_off_merge(results[0], off_unified)
+                        results[0] = merged
+                        if use_memory_cache and cache_key in self._memory_cache:
+                            self._memory_cache[cache_key] = merged
             except Exception as exc:
                 logger.debug(
                     "Unified DB USDA+OFF nutrition merge skipped; category=%s",
@@ -482,7 +507,7 @@ class UnifiedFoodDatabase:
                     self._memory_cache.pop(cache_key, None)
 
         # Search Open Food Facts if USDA results are empty or if preferred
-        if (prefer_source == "openfoodfacts" or not results) and self.off_client:
+        if (effective_prefer_source == "openfoodfacts" or not results) and self.off_client:
             try:
                 off_results = await self.off_client.search_products(query, page_size=5)
                 for off_item in off_results:

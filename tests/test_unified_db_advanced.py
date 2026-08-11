@@ -15,7 +15,7 @@ from dataclasses import asdict
 from io import StringIO
 from pathlib import Path
 from typing import IO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -1749,6 +1749,121 @@ class TestUnifiedFoodDatabaseEdgeCases:
         ]
         assert len(sink_records) == 1
         assert sink_records[0].exc_info is None
+
+    def test_search_food_off_enrichment_requires_stable_usda_identity_parity(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        usda_item = USDAFoodItem(
+            fdc_id=733,
+            description="Identity-bound USDA fixture",
+            food_category="Fixture",
+            nutrients_per_100g={"protein_g": 21.0},
+            data_type="Foundation",
+            publication_date="2026-08-11",
+        )
+        off_item = OFFFoodItem(
+            code="off-mismatched-identity",
+            product_name="Unrelated OFF fixture",
+            categories=["Fixture"],
+            nutrients_per_100g={"fiber_g": 3.0},
+            ingredients_text=None,
+            brands=None,
+            labels=[],
+            countries=["TEST"],
+            packaging=[],
+            image_url=None,
+            last_modified_t=0,
+            nutrition_inputs=[
+                {
+                    "source": "usda",
+                    "record_id": "999",
+                    "version_ref": "2026-08-11",
+                    "nutrients": {"fiber_g": 3.0},
+                    "raw_payload": {},
+                }
+            ],
+            nutrition_provenance={"fiber_g": "usda"},
+            nutrition_nutrient_confidence={"fiber_g": 0.7},
+            nutrition_confidence=0.7,
+        )
+        usda_search = AsyncMock(return_value=[usda_item])
+        off_search = AsyncMock(return_value=[off_item])
+        monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
+        db.off_client = MagicMock(search_products=off_search)
+
+        results = asyncio.run(db.search_food("identity parity fixture", save_cache=False))
+
+        assert len(results) == 1
+        assert results[0].source == "USDA FoodData Central"
+        assert results[0].source_id == "733"
+        assert "fiber_g" not in results[0].nutrients_per_100g
+        assert db._memory_cache["search_usda_identity parity fixture"].source_id == "733"
+        usda_search.assert_awaited_once_with("identity parity fixture", page_size=5)
+        off_search.assert_awaited_once_with("identity parity fixture", page_size=1)
+
+    def test_search_food_cache_isolated_by_normalized_preferred_source(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        usda_item = USDAFoodItem(
+            fdc_id=734,
+            description="USDA source fixture",
+            food_category="Fixture",
+            nutrients_per_100g={"protein_g": 21.0},
+            data_type="Foundation",
+            publication_date="2026-08-11",
+        )
+        off_item = OFFFoodItem(
+            code="off-source-fixture",
+            product_name="OFF source fixture",
+            categories=["Fixture"],
+            nutrients_per_100g={"protein_g": 7.0},
+            ingredients_text=None,
+            brands=None,
+            labels=[],
+            countries=["TEST"],
+            packaging=[],
+            image_url=None,
+            last_modified_t=0,
+            nutrition_inputs=[
+                {
+                    "source": "estimate",
+                    "record_id": "off-source-fixture",
+                    "version_ref": None,
+                    "nutrients": {"protein_g": 7.0},
+                    "raw_payload": {},
+                }
+            ],
+            nutrition_provenance={"protein_g": "estimate"},
+            nutrition_nutrient_confidence={"protein_g": 0.4},
+            nutrition_confidence=0.4,
+        )
+        usda_search = AsyncMock(return_value=[usda_item])
+        off_search = AsyncMock(return_value=[off_item])
+        monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
+        db.off_client = MagicMock(search_products=off_search)
+
+        off_results = asyncio.run(
+            db.search_food("Shared Source Fixture", prefer_source=" OpenFoodFacts ")
+        )
+        usda_results = asyncio.run(db.search_food("Shared Source Fixture", prefer_source=" USDA "))
+
+        assert off_results[0].source_id == "off-source-fixture"
+        assert usda_results[0].source_id == "734"
+        assert db._memory_cache["search_openfoodfacts_shared source fixture"].source_id == (
+            "off-source-fixture"
+        )
+        assert db._memory_cache["search_usda_shared source fixture"].source_id == "734"
+        usda_search.assert_awaited_once_with("Shared Source Fixture", page_size=5)
+        assert off_search.await_args_list == [
+            call("Shared Source Fixture", page_size=5),
+            call("Shared Source Fixture", page_size=1),
+        ]
 
     def test_search_food_off_merge_failure_preserves_usda_fallback_and_cache_retry(
         self,

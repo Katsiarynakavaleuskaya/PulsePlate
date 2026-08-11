@@ -717,7 +717,7 @@ class DatabaseUpdateManager:
                     await asyncio.sleep(0.1)
 
             # Convert to unified format
-            unified_foods = {}
+            unified_foods: Dict[str, UnifiedFoodItem] = {}
             for off_item in sample_products:
                 try:
                     unified_item = UnifiedFoodItem.from_off_item(off_item)
@@ -727,6 +727,21 @@ class DatabaseUpdateManager:
                     ) from exc
                 # Use a standardized name for the key
                 key = self._generate_food_key(unified_item.name)
+                existing_item = unified_foods.get(key)
+                if existing_item is not None:
+                    existing_identity = (
+                        existing_item.source.strip().lower(),
+                        existing_item.source_id.strip(),
+                    )
+                    candidate_identity = (
+                        unified_item.source.strip().lower(),
+                        unified_item.source_id.strip(),
+                    )
+                    if existing_identity != candidate_identity:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Open Food Facts normalized key collision"
+                        )
+                    continue
                 unified_foods[key] = unified_item
             if not unified_foods:
                 raise CommonFoodsCacheAdmissionError("Open Food Facts acquired snapshot is empty")
@@ -1622,7 +1637,7 @@ async def run_scheduled_update(
     for source, has_updates in available_updates.items():
         if has_updates:
             logger.info("Running scheduled update for %s", source)
-            result = await update_manager.update_database(source)
+            result = await update_manager.update_database(source, force=True)
             results[source] = result
         else:
             logger.info("No updates available for %s", source)
