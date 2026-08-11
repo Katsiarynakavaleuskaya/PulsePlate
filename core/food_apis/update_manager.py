@@ -56,6 +56,7 @@ from .unified_db import (
     _NUTRITION_INPUT_FIELDS,
     _PRIMARY_MACRONUTRIENT_DEFAULTS,
     _has_finite_numeric_shape,
+    _has_exact_canonical_provider_record_identity,
     _load_common_foods_json,
 )
 from .usda_client import USDAClient
@@ -1030,6 +1031,31 @@ class DatabaseUpdateManager:
                             "items": {name: asdict(food) for name, food in reconstructed.items()},
                         }
                     )
+                canonical_mapping = {name: asdict(food) for name, food in current_data.items()}
+                established_version = self.versions.get("usda")
+                canonical_checksum = self._calculate_checksum(canonical_mapping)
+                if (
+                    established_version is None
+                    or established_version.source != "usda"
+                    or established_version.version != version
+                    or established_version.record_count != len(canonical_mapping)
+                    or established_version.checksum != canonical_checksum
+                ):
+                    raise CommonFoodsCacheAdmissionError(
+                        "USDA backup metadata does not match canonical disk truth"
+                    )
+
+                if backup_file.exists():
+                    with open(backup_file, "r", encoding="utf-8") as file_object:
+                        existing_loaded = _load_common_foods_json(file_object)
+                    existing_foods = self._reconstruct_backup_snapshot(existing_loaded)
+                    existing_mapping = {name: asdict(food) for name, food in existing_foods.items()}
+                    if existing_mapping != canonical_mapping:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Existing USDA backup conflicts with canonical disk truth"
+                        )
+                    logger.info("Prepared backup for %s version %s", source, version)
+                    return
             elif source == "openfoodfacts":
                 with open(backup_file, "r", encoding="utf-8") as file_object:
                     current_data = _load_common_foods_json(file_object)
@@ -1197,7 +1223,12 @@ class DatabaseUpdateManager:
                             "Backup snapshot reuses nutrition evidence across items"
                         )
                     item_evidence_pairs.add(evidence_pair)
-                    if record_id.strip() == candidate["source_id"].strip():
+                    if _has_exact_canonical_provider_record_identity(
+                        item_source=candidate["source"],
+                        item_source_id=candidate["source_id"],
+                        evidence_source=nutrition_input["source"],
+                        evidence_record_id=record_id,
+                    ):
                         source_id_is_bound = True
 
             if not source_id_is_bound:

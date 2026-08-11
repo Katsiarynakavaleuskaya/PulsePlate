@@ -1836,6 +1836,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - A cold sweep calls `search_food(..., save_cache=False)` exactly once per
       manifest row with no retry, has one total deadline, converts timeout to
       `CommonFoodsCacheAdmissionError`, and propagates external cancellation
+    - A successful preferred USDA search makes zero Open Food Facts calls; OFF
+      remains available only when explicitly preferred or as the USDA-empty
+      fallback, so an exact 20-row USDA sweep performs exactly 20 provider calls
     - A forced USDA refresh bypasses both warm disk and in-memory search cache
       through that same exact 20-row acquisition; no parallel refresh path is
       introduced
@@ -1851,15 +1854,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       references only as `None` or nonblank strings
     - Cold-to-warm round-trip preserves source attribution, record/version
       references, raw structural evidence, aggregate confidence, per-nutrient
-      confidence, and per-nutrient provenance
+      confidence, and per-nutrient provenance; raw OFF evidence is labeled
+      `off` while the existing resolver remains conservative `estimate`
     - Row, cache, and concrete USDA/Open Food Facts provider logs expose only
       fixed operation/outcome labels, bounded counts, and exception categories,
       never queries, identifiers, provider bodies, tokens, secrets, or
       credential-bearing URLs
-    - USDA backs up only validated on-disk common-food truth; the first successful
-      Open Food Facts update persists its own complete source snapshot, and later
-      updates revalidate that source-specific snapshot without depending on
-      `common_foods.json`
+    - USDA backs up only validated on-disk common-food truth whose exact source,
+      version, record count, and canonical mapping checksum match
+      `versions["usda"]`; an identical existing backup is a byte-preserving
+      no-op, while malformed or conflicting existing bytes fail before write
+    - The first successful Open Food Facts update persists its own complete
+      source snapshot, and later updates revalidate that source-specific
+      snapshot without depending on `common_foods.json`
     - The configured seven-query Open Food Facts sweep completes every call and
       conversion before any non-empty snapshot publication, propagates
       cancellation, and derives version count/checksum from the exact reloaded
@@ -1882,6 +1889,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       [`ledger-p1-food-data-source-update-preflight`](#ledger-p1-food-data-source-update-preflight)
     - Legacy FoodDB schema-probe caching remains in
       [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
+
+<a id="ledger-p1-common-food-manifest-slot-identity"></a>
+- [ ] P1: Bind all 20 common-food manifest slots to canonical source identities
+  - Owner: @katsiaryna_kavaleuskaya (Food Data / Backend)
+  - Priority: P1 (blocking data identity / paid-path determinism)
+  - Target PR: PR-TBD-COMMON-FOOD-MANIFEST-SLOT-IDENTITY
+  - Status: Backlogged blocking prerequisite for PR #2269 closeout and before
+    any RecipeDB/FoodDB micronutrient ingestion
+  - Area: backend / common-food manifest / canonical food identity
+  - Origin: Review finding `r3760922228` established that exact provider/record
+    binding prevents cross-provider evidence spoofing but does not prove that a
+    search result is the intended canonical food for a particular one of the 20
+    semantic manifest slots.
+  - Scope boundary: This follow-up defines and validates the 20 slot identities.
+    PR #2269 does not invent those IDs, add micronutrient values, migrate
+    RecipeDB/FoodDB, or widen provider ingestion policy.
+  - Finite DoD:
+    - Each immutable manifest key declares one governed canonical provider and
+      record identity, with source version or snapshot identity where available
+    - Cold acquisition rejects a provider result whose identity does not equal
+      the declared slot identity even when its query text or nutrition shape is
+      plausible
+    - Warm admission and backups replay the same 20-key slot-to-record mapping
+      without fuzzy name matching or record-ID reuse across slots
+    - A migration plan handles any already-published cache rows whose identities
+      differ, preserving fail-closed publication and rollback behavior
+    - Deterministic tests cover exact matches, swapped slots, wrong providers,
+      duplicate records, stale versions, and incomplete identity declarations
+    - The PR adds no micronutrient ingestion, RecipeDB/FoodDB join migration,
+      public DTO/OpenAPI change, or live-network test
 
 <a id="ledger-p1-recipe-food-identity-micronutrient-provenance"></a>
 - [ ] P1: RecipeDB/FoodDB identity and micronutrient provenance contract

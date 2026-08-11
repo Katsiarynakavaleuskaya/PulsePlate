@@ -27,7 +27,7 @@ Implemented foundation already exists:
 
 - source integration: USDA + Open Food Facts (`core/food_apis/unified_db.py:152`, `core/food_apis/update_manager.py:134`, `core/food_apis/scheduler.py:28`, `core/food_sources/usda.py:20`, `core/food_sources/off.py:19`)
 - merge layer: `core/food_merge.py:50` (multi-record catalog merge via `core/off_nutrition/resolver.py:66`)
-- live unified search merge (MVP): when `prefer_source="usda"`, `UnifiedFoodDatabase.search_food` enriches the top USDA hit with the best Open Food Facts match using the same resolver priority as catalog merge (`core/food_apis/unified_db.py:318`, `core/off_nutrition/bridge.py:17`, `core/off_nutrition/resolver.py:15`)
+- source-directed unified search: a successful preferred USDA search returns USDA rows without an automatic OFF request; OFF is queried only when explicitly preferred or when USDA returns no rows (`core/food_apis/unified_db.py`, `core/off_nutrition/resolver.py`)
 - build/export flow: `scripts/build_food_db.py:62`
 - existing API surface: `/api/v1/foods`, `/api/v1/foods/search`, `/api/v1/foods/{food_id}` (`app/routers/foods.py:29`, `app/routers/foods.py:53`, `app/routers/foods.py:66`)
 
@@ -152,9 +152,9 @@ Every canonical record update must preserve:
 - snapshot date
 - raw payload reference for audit/debug
 
-### 5.4 Live USDA + OFF nutrition merge (MVP, no new HTTP routes)
+### 5.4 Source-directed search and provider evidence (no new HTTP routes)
 
-When the unified DB runs with USDA as the preferred source and both USDA and OFF clients are available, the first USDA result is merged with the top OFF search hit for the same query string. Field-level values follow `DEFAULT_SOURCE_PRIORITY` in `core/off_nutrition/resolver.py:15` (for example `usda` wins over `estimate` for the same nutrient key). Complementary nutrients present only in OFF are retained with `estimate` provenance. Implementation: `UnifiedFoodItem.from_usda_and_off_merge` in `core/food_apis/unified_db.py`, wire rebuild via `nutrition_inputs_from_unified_wire` in `core/off_nutrition/bridge.py`. This does not add or change public HTTP routes; it only affects internal unified search results used by menu-engine-style helpers.
+`UnifiedFoodDatabase.search_food` does not perform automatic cross-provider enrichment after a successful USDA hit. OFF remains available through explicit `prefer_source="openfoodfacts"` searches and as the fallback when USDA returns no rows. Parsed OFF evidence keeps the raw provider identity `source="off"`; the existing resolver deliberately normalizes that provider to conservative `estimate` provenance and confidence until a separately governed identity and source-policy lane promotes stronger semantics. Common-food admission requires the exact canonical item-source/provider-record pairing (`USDA FoodData Central`/`usda` or `Open Food Facts`/`off`) and never infers provider identity from a matching record string alone.
 
 ---
 

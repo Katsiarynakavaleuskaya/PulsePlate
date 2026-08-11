@@ -111,6 +111,15 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
             ),
             encoding="utf-8",
         )
+        canonical_mapping = {name: asdict(food) for name, food in test_foods.items()}
+        mock_manager.versions["usda"] = DatabaseVersion(
+            source="usda",
+            version="1.0.0",
+            last_updated="2026-08-11T00:00:00+00:00",
+            record_count=len(canonical_mapping),
+            checksum=mock_manager._calculate_checksum(canonical_mapping),
+            metadata={"state": "established"},
+        )
 
         await mock_manager._create_backup("usda", "1.0.0")
 
@@ -458,16 +467,6 @@ class TestAsyncMethods:
         """Test USDA update when data hasn't changed and not forced."""
         mock_manager.unified_db = UnifiedFoodDatabase(cache_dir=mock_manager.cache_dir.path)
         # Set up existing version with same checksum as new data
-        existing_version = DatabaseVersion(
-            source="usda",
-            version="1.0.0",
-            last_updated="2023-01-01T00:00:00",
-            record_count=100,
-            checksum="same_checksum",
-            metadata={},
-        )
-        mock_manager.versions["usda"] = existing_version
-
         established_foods = {
             standard_name: UnifiedFoodItem(
                 name=standard_name,
@@ -504,12 +503,23 @@ class TestAsyncMethods:
             ),
             encoding="utf-8",
         )
+        established_mapping = {name: asdict(food) for name, food in established_foods.items()}
+        established_checksum = mock_manager._calculate_checksum(established_mapping)
+        existing_version = DatabaseVersion(
+            source="usda",
+            version="1.0.0",
+            last_updated="2023-01-01T00:00:00",
+            record_count=len(established_mapping),
+            checksum=established_checksum,
+            metadata={},
+        )
+        mock_manager.versions["usda"] = existing_version
 
         test_foods = {"apple": MagicMock()}
         mock_manager.unified_db.get_common_foods_database = AsyncMock(return_value=test_foods)
 
         # Mock checksum calculation to return same value
-        mock_manager._calculate_checksum = MagicMock(return_value="same_checksum")
+        mock_manager._calculate_checksum = MagicMock(return_value=established_checksum)
 
         result = await mock_manager._update_usda_database(force=False)
 

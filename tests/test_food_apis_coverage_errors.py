@@ -417,6 +417,9 @@ class TestFoodAPIsUpdatePipeline:
             ),
             encoding="utf-8",
         )
+        canonical_mapping = {name: asdict(food) for name, food in established_foods.items()}
+        current_version.record_count = len(canonical_mapping)
+        current_version.checksum = update_manager._calculate_checksum(canonical_mapping)
 
         # Mock get_common_foods_database to return minimal data with proper type
         with patch.object(

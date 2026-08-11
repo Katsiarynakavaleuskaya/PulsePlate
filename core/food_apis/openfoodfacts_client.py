@@ -303,7 +303,7 @@ class OFFClient:
 
             last_modified_t = product_data.get("last_modified_t")
             nutrition_input = NutritionInput(
-                source="estimate",
+                source="off",
                 nutrients=mapped_nutrients,
                 record_id=code,
                 version_ref=str(last_modified_t) if last_modified_t else None,

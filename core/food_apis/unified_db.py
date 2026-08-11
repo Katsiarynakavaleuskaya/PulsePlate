@@ -151,6 +151,23 @@ def _has_finite_numeric_shape(value: object) -> bool:
         return False
 
 
+def _has_exact_canonical_provider_record_identity(
+    *,
+    item_source: object,
+    item_source_id: object,
+    evidence_source: object,
+    evidence_record_id: object,
+) -> bool:
+    """Bind one canonical item source to its exact provider record evidence."""
+    if item_source == "USDA FoodData Central":
+        canonical_provider = "usda"
+    elif item_source == "Open Food Facts":
+        canonical_provider = "off"
+    else:
+        return False
+    return evidence_source == canonical_provider and evidence_record_id == item_source_id
+
+
 def _load_time_module() -> Any:
     """RU: Изолирует import time для deterministic tests.
     EN: Isolates the `time` import for deterministic tests.
@@ -267,64 +284,6 @@ class UnifiedFoodItem:
                 getattr(off_item, "nutrition_nutrient_confidence", {})
             ),
             nutrition_confidence=float(getattr(off_item, "nutrition_confidence", 0.0)),
-        )
-
-    @classmethod
-    def from_usda_and_off_merge(
-        cls,
-        usda_unified: "UnifiedFoodItem",
-        off_unified: "UnifiedFoodItem",
-    ) -> "UnifiedFoodItem":
-        """Merge USDA primary hit with Open Food Facts via shared nutrition resolver.
-
-        RU: Слияние первичной строки USDA с OFF через общий nutrition resolver.
-        EN: Merge USDA primary row with OFF using the shared resolver priority order.
-        """
-
-        usda_inputs = nutrition_inputs_from_unified_wire(
-            nutrition_inputs_wire=usda_unified.nutrition_inputs,
-            nutrients_per_100g=usda_unified.nutrients_per_100g,
-            fallback_source="usda",
-            record_id=usda_unified.source_id,
-        )
-        off_inputs = nutrition_inputs_from_unified_wire(
-            nutrition_inputs_wire=off_unified.nutrition_inputs,
-            nutrients_per_100g=(
-                {} if off_unified.nutrition_inputs else off_unified.nutrients_per_100g
-            ),
-            fallback_source="estimate",
-            record_id=off_unified.source_id,
-        )
-        off_inputs = [
-            nutrition_input for nutrition_input in off_inputs if nutrition_input.nutrients
-        ]
-        key_union = set(usda_unified.nutrients_per_100g) | set(off_unified.nutrients_per_100g)
-        nutrient_keys = sorted(key_union) if key_union else None
-        resolved = merge_wire_nutrition_sources(
-            primary_inputs=usda_inputs,
-            secondary_inputs=off_inputs,
-            nutrient_keys=nutrient_keys,
-        )
-        nutrients = dict(resolved.nutrients)
-        for nutrient, default_value in _PRIMARY_MACRONUTRIENT_DEFAULTS.items():
-            nutrients.setdefault(nutrient, default_value)
-        tags = list(dict.fromkeys([*usda_unified.tags, *off_unified.tags]))
-        regions = list(
-            dict.fromkeys([*usda_unified.availability_regions, *off_unified.availability_regions])
-        )
-        return cls(
-            name=usda_unified.name,
-            nutrients_per_100g=nutrients,
-            cost_per_100g=usda_unified.cost_per_100g,
-            tags=tags,
-            availability_regions=regions,
-            source="USDA FoodData Central + Open Food Facts (merged)",
-            source_id=usda_unified.source_id,
-            category=usda_unified.category or off_unified.category,
-            nutrition_inputs=[entry.to_dict() for entry in resolved.raw_inputs],
-            nutrition_provenance=dict(resolved.provenance),
-            nutrition_nutrient_confidence=dict(resolved.nutrient_confidence),
-            nutrition_confidence=resolved.confidence,
         )
 
     def to_menu_engine_format(self) -> UnifiedFoodResult:
@@ -463,41 +422,6 @@ class UnifiedFoodDatabase:
                     "Unified DB USDA search failed; category=%s",
                     type(exc).__name__,
                 )
-
-        # When USDA is preferred and returned hits, enrich the top result with OFF using
-        # the shared resolver (USDA ranks above OFF per DEFAULT_SOURCE_PRIORITY).
-        if effective_prefer_source == "usda" and results and self.off_client:
-            try:
-                off_results = await self.off_client.search_products(query, page_size=1)
-                if off_results:
-                    off_unified = UnifiedFoodItem.from_off_item(off_results[0])
-                    has_stable_identity_parity = False
-                    for nutrition_input in off_unified.nutrition_inputs:
-                        if type(nutrition_input) is not dict:
-                            continue
-                        input_source = nutrition_input.get("source")
-                        record_id = nutrition_input.get("record_id")
-                        if (
-                            isinstance(input_source, str)
-                            and input_source.strip().lower() == "usda"
-                            and isinstance(record_id, str)
-                            and record_id.strip() == results[0].source_id.strip()
-                        ):
-                            has_stable_identity_parity = True
-                            break
-                    if has_stable_identity_parity:
-                        merged = UnifiedFoodItem.from_usda_and_off_merge(results[0], off_unified)
-                        results[0] = merged
-                        if use_memory_cache and cache_key in self._memory_cache:
-                            self._memory_cache[cache_key] = merged
-            except Exception as exc:
-                logger.debug(
-                    "Unified DB USDA+OFF nutrition merge skipped; category=%s",
-                    type(exc).__name__,
-                )
-                # Drop stale search_* cache so a transient OFF failure can retry merge.
-                if use_memory_cache:
-                    self._memory_cache.pop(cache_key, None)
 
         # Search Open Food Facts if USDA results are empty or if preferred
         if (effective_prefer_source == "openfoodfacts" or not results) and self.off_client:
@@ -930,7 +854,12 @@ class UnifiedFoodDatabase:
                             "Duplicate common-food nutrition evidence across manifest slots"
                         )
                     item_evidence_pairs.add(evidence_pair)
-                    if record_id.strip() == item["source_id"].strip():
+                    if _has_exact_canonical_provider_record_identity(
+                        item_source=item["source"],
+                        item_source_id=item["source_id"],
+                        evidence_source=nutrition_input["source"],
+                        evidence_record_id=record_id,
+                    ):
                         source_id_is_bound = True
 
             if not source_id_is_bound:

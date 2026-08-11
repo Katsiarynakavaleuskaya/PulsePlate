@@ -48,7 +48,7 @@ def _common_food_item(index: int) -> UnifiedFoodItem:
         cost_per_100g=1.0,
         tags=["offline-test"],
         availability_regions=["TEST"],
-        source="Deterministic fixture",
+        source="USDA FoodData Central",
         source_id=f"fixture-{index}",
         category="Fixture",
         nutrition_inputs=[
@@ -608,6 +608,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
                 "Duplicate common-food nutrition evidence across manifest slots",
             ),
             ("unbound_source_id", "source identity is not bound to evidence"),
+            ("wrong_provider", "source identity is not bound to evidence"),
         ],
     )
     def test_common_food_evidence_identity_is_unique_and_bound(
@@ -642,13 +643,15 @@ class TestUnifiedFoodDatabaseCommonFoods:
             second_item["source_id"] = first_item["source_id"]
             second_input["source"] = f" {str(first_input['source']).upper()} "
             second_input["record_id"] = f" {first_input['record_id']} "
-        else:
+        elif violation == "unbound_source_id":
             first_item["source_id"] = "unbound-source-record"
+        else:
+            first_input["source"] = "off"
 
         with pytest.raises(CommonFoodsCacheAdmissionError, match=expected_error):
             UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
 
-    def test_common_food_display_source_need_not_equal_evidence_source(self) -> None:
+    def test_common_food_display_source_must_map_to_exact_evidence_provider(self) -> None:
         envelope = _valid_common_foods_envelope()
         items = envelope["items"]
         assert isinstance(items, dict)
@@ -657,9 +660,11 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert isinstance(first_item, dict)
         first_item["source"] = "Merged provider display label"
 
-        admitted = UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
-
-        assert admitted[first_name].source == "Merged provider display label"
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="source identity is not bound to evidence",
+        ):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
 
     def test_total_deadline_becomes_admission_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1020,63 +1025,6 @@ class TestUnifiedFoodDatabaseCommonFoods:
         }
         assert chicken.nutrition_provenance == {"protein_g": "usda"}
         assert chicken.nutrition_nutrient_confidence == {"protein_g": 0.7}
-
-    @pytest.mark.parametrize("secondary_nutrients", [{}, {"fiber_g": 3.0}])
-    def test_merge_filters_only_empty_secondary_evidence(
-        self,
-        secondary_nutrients: dict[str, float],
-    ) -> None:
-        usda = UnifiedFoodItem.from_usda_item(
-            USDAFoodItem(
-                fdc_id=732,
-                description="Primary fixture",
-                food_category="Fixture",
-                nutrients_per_100g={"protein_g": 21.0},
-                data_type="Foundation",
-                publication_date="2026-08-11",
-            )
-        )
-        off = UnifiedFoodItem.from_off_item(
-            OFFFoodItem(
-                code="off-secondary-732",
-                product_name="Secondary fixture",
-                categories=["Fixture"],
-                nutrients_per_100g=secondary_nutrients,
-                ingredients_text=None,
-                brands=None,
-                labels=[],
-                countries=["TEST"],
-                packaging=[],
-                image_url=None,
-                last_modified_t=0,
-                nutrition_inputs=[
-                    {
-                        "source": "estimate",
-                        "record_id": "off-secondary-732",
-                        "version_ref": None,
-                        "nutrients": secondary_nutrients,
-                        "raw_payload": {},
-                    }
-                ],
-                nutrition_provenance={nutrient: "estimate" for nutrient in secondary_nutrients},
-                nutrition_nutrient_confidence={nutrient: 0.4 for nutrient in secondary_nutrients},
-                nutrition_confidence=0.4 if secondary_nutrients else 0.0,
-            )
-        )
-
-        merged = UnifiedFoodItem.from_usda_and_off_merge(usda, off)
-
-        assert all(entry["nutrients"] for entry in merged.nutrition_inputs)
-        assert merged.nutrition_provenance["protein_g"] == "usda"
-        if secondary_nutrients:
-            assert merged.nutrients_per_100g["fiber_g"] == 3.0
-            assert merged.nutrition_provenance["fiber_g"] == "estimate"
-            assert merged.nutrition_nutrient_confidence["fiber_g"] == 0.4
-            assert merged.nutrition_confidence == 0.55
-        else:
-            assert merged.nutrition_provenance == {"protein_g": "usda"}
-            assert merged.nutrition_nutrient_confidence == {"protein_g": 0.7}
-            assert merged.nutrition_confidence == 0.7
 
     @pytest.mark.parametrize(
         "fabrication",
@@ -1756,7 +1704,7 @@ class TestUnifiedFoodDatabaseEdgeCases:
         assert len(sink_records) == 1
         assert sink_records[0].exc_info is None
 
-    def test_search_food_off_enrichment_requires_stable_usda_identity_parity(
+    def test_search_food_usda_hit_never_queries_off(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -1770,33 +1718,8 @@ class TestUnifiedFoodDatabaseEdgeCases:
             data_type="Foundation",
             publication_date="2026-08-11",
         )
-        off_item = OFFFoodItem(
-            code="off-mismatched-identity",
-            product_name="Unrelated OFF fixture",
-            categories=["Fixture"],
-            nutrients_per_100g={"fiber_g": 3.0},
-            ingredients_text=None,
-            brands=None,
-            labels=[],
-            countries=["TEST"],
-            packaging=[],
-            image_url=None,
-            last_modified_t=0,
-            nutrition_inputs=[
-                {
-                    "source": "usda",
-                    "record_id": "999",
-                    "version_ref": "2026-08-11",
-                    "nutrients": {"fiber_g": 3.0},
-                    "raw_payload": {},
-                }
-            ],
-            nutrition_provenance={"fiber_g": "usda"},
-            nutrition_nutrient_confidence={"fiber_g": 0.7},
-            nutrition_confidence=0.7,
-        )
         usda_search = AsyncMock(return_value=[usda_item])
-        off_search = AsyncMock(return_value=[off_item])
+        off_search = AsyncMock()
         monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
         db.off_client = MagicMock(search_products=off_search)
 
@@ -1808,7 +1731,7 @@ class TestUnifiedFoodDatabaseEdgeCases:
         assert "fiber_g" not in results[0].nutrients_per_100g
         assert db._memory_cache["search_usda_identity parity fixture"].source_id == "733"
         usda_search.assert_awaited_once_with("identity parity fixture", page_size=5)
-        off_search.assert_awaited_once_with("identity parity fixture", page_size=1)
+        off_search.assert_not_awaited()
 
     def test_search_food_cache_isolated_by_normalized_preferred_source(
         self,
@@ -1866,10 +1789,7 @@ class TestUnifiedFoodDatabaseEdgeCases:
         )
         assert db._memory_cache["search_usda_shared source fixture"].source_id == "734"
         usda_search.assert_awaited_once_with("Shared Source Fixture", page_size=5)
-        assert off_search.await_args_list == [
-            call("Shared Source Fixture", page_size=5),
-            call("Shared Source Fixture", page_size=1),
-        ]
+        off_search.assert_awaited_once_with("Shared Source Fixture", page_size=5)
 
     def test_reloaded_legacy_off_search_entry_cannot_satisfy_usda_preference(
         self,
@@ -1932,11 +1852,10 @@ class TestUnifiedFoodDatabaseEdgeCases:
         source_aware_key = f"search_usda_{query.lower()}"
         assert reloaded_db._memory_cache[source_aware_key].source_id == "735"
 
-    def test_search_food_off_merge_failure_preserves_usda_fallback_and_cache_retry(
+    def test_search_food_usda_hit_is_independent_of_off_failure(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
         usda_item = USDAFoodItem(
@@ -1949,30 +1868,18 @@ class TestUnifiedFoodDatabaseEdgeCases:
         )
         usda_search = AsyncMock(return_value=[usda_item])
         off_client = AsyncMock()
-        provider_marker = "off-merge-context-marker-c3a5"
-        off_search = AsyncMock(side_effect=RuntimeError(provider_marker))
+        off_search = AsyncMock(side_effect=RuntimeError("must not be called"))
         monkeypatch.setattr(db.usda_client, "search_foods", usda_search)
         monkeypatch.setattr(off_client, "search_products", off_search)
         db.off_client = off_client
-        caplog.set_level(logging.DEBUG, logger=unified_db_module.__name__)
-
         results = asyncio.run(db.search_food("offline merge fixture", save_cache=False))
 
         assert len(results) == 1
         assert results[0].name == "Offline USDA fixture"
         assert results[0].source == "USDA FoodData Central"
         usda_search.assert_awaited_once_with("offline merge fixture", page_size=5)
-        off_search.assert_awaited_once_with("offline merge fixture", page_size=1)
-        assert "search_offline merge fixture" not in db._memory_cache
-        assert provider_marker not in caplog.text
-        sink_records = [
-            record
-            for record in caplog.records
-            if record.getMessage()
-            == "Unified DB USDA+OFF nutrition merge skipped; category=RuntimeError"
-        ]
-        assert len(sink_records) == 1
-        assert sink_records[0].exc_info is None
+        off_search.assert_not_awaited()
+        assert db._memory_cache["search_usda_offline merge fixture"].source_id == "731"
 
     @pytest.mark.asyncio
     async def test_get_food_by_id_off_client_error(self, temp_cache_dir):
