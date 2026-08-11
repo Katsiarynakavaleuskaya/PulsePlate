@@ -352,6 +352,66 @@ class TestPhilosophyValidationV1:
         generate.assert_awaited_once()
 
     @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    def test_exact_compaction_preserves_route_contract_and_provider_count(
+        self,
+        path: str,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Both aliases expose one exact carrier and still call the provider once."""
+        import llm
+
+        provider = _EchoProvider()
+        generate = AsyncMock(wraps=provider.generate)
+        monkeypatch.setattr(provider, "generate", generate)
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        monkeypatch.setenv("FEATURE_PHILOSOPHY_VALIDATION", "true")
+        monkeypatch.setenv("FEATURE_RAG_CONTEXT_COMPACTION", "true")
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: provider, raising=True)
+
+        def _rag_with_exact_duplicate(
+            query: str,
+            max_chunks: int = 3,
+            agent_id: str | None = None,
+            user_tier: str | None = None,
+            subject_id: int | None = None,
+        ) -> _FakeCtx:
+            del max_chunks, agent_id, user_tier, subject_id
+            carrier = _FakeChunk(
+                "exact:1",
+                "wellness.md",
+                "Balanced meals support everyday wellness.",
+                0.85,
+            )
+            return _FakeCtx(
+                query=query,
+                refined_queries=[query],
+                chunks=[carrier, _FakeChunk(**vars(carrier))],
+                confidence=0.85,
+                hops=1,
+                latency_ms=7,
+            )
+
+        monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            _rag_with_exact_duplicate,
+            raising=True,
+        )
+
+        resp = client.post(path, json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        assert data["rag_used"] is True
+        assert [source["chunk_id"] for source in data["sources"]] == ["exact:1"]
+        assert data["confidence"] == 0.85
+        assert "Balanced meals support everyday wellness." in data["insight"]
+        generate.assert_awaited_once()
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
     def test_flag_on_validation_error_fails_closed(
         self,
         path: str,
