@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Literal, cast
 
 from core.evidence.fingerprints import JsonValue, fingerprint_payload
@@ -114,8 +114,8 @@ class TaskNormativeAssessmentV1:
     dropped_obligation_refs: tuple[str, ...]
     dropped_prohibition_refs: tuple[str, ...]
     dropped_non_tradeable_constraint_refs: tuple[str, ...]
-    blocking_authority: Literal[False] = False
-    merge_authority: Literal[False] = False
+    blocking_authority: Literal[False] = field(default=False, init=False)
+    merge_authority: Literal[False] = field(default=False, init=False)
 
 
 def build_task_normative_envelope(

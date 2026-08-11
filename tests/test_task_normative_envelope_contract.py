@@ -810,3 +810,25 @@ def test_exact_dataclass_field_inventory_and_literal_false_authority() -> None:
         assert envelope_hints[field_name] == Literal[False]
     for field_name in ("blocking_authority", "merge_authority"):
         assert assessment_hints[field_name] == Literal[False]
+
+    assessment_fields = {field.name: field for field in fields(TaskNormativeAssessmentV1)}
+    assessment_parameters = signature(TaskNormativeAssessmentV1).parameters
+    assessment = assess_task_normative_envelope(_build())
+    assessment_arguments: dict[str, object] = {
+        "state": "consistent",
+        "reason_codes": (),
+        "excess_action_classes": (),
+        "excess_resource_scope_refs": (),
+        "dropped_obligation_refs": (),
+        "dropped_prohibition_refs": (),
+        "dropped_non_tradeable_constraint_refs": (),
+    }
+    for field_name in ("blocking_authority", "merge_authority"):
+        assert assessment_fields[field_name].init is False
+        assert field_name not in assessment_parameters
+        with pytest.raises(TypeError):
+            TaskNormativeAssessmentV1(**assessment_arguments, **{field_name: True})
+        with pytest.raises(TypeError):
+            replace(assessment, **{field_name: True})
+    assert assessment.blocking_authority is False
+    assert assessment.merge_authority is False
