@@ -24,6 +24,57 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-task-normative-envelope-v1-shadow"></a>
+- [ ] P1: Task normative envelope v1 shadow contract umbrella
+  - Owner: orchestration / security-auditor
+  - Priority: P1 (delegated-authority and normative-boundary trust)
+  - Target PR: TBD (`codex/task-normative-envelope-v1-shadow`)
+  - Status: Bounded shadow contract implementation; no integration authority
+  - Area: orchestration / task contracts / fail-closed validation
+  - Reason (EN): Task packets need one deterministic, non-authoritative envelope
+    for declared purpose, normative boundaries, delegated authority, capability
+    evidence, evaluation, and change controls before any later integration is
+    considered. The first slice must stay pure and offline so a structurally
+    valid or consistent shadow cannot silently become routing, execution,
+    approval, promotion, blocking, or merge authority.
+  - Links:
+    - `docs/orchestration/contracts/TASK_NORMATIVE_ENVELOPE_V1.md`
+    - `scripts/orchestration/task_normative_envelope_contract.py`
+    - `tests/test_task_normative_envelope_contract.py`
+  - DoD:
+    - exactly five frozen slot dataclasses and four public functions define the
+      explicit v1 surface
+    - builder normalization and direct canonical validation enforce the frozen
+      ASCII token grammars without echoing rejected raw values
+    - the stable mapping and envelope identity reuse the shared evidence
+      fingerprint helpers and keep every authority flag literal `False`
+    - assessment is limited to local and exact immediate-parent checks, exactly
+      16 reasons, and exactly five bounded witnesses
+    - authority-basis requirements, norm-conflict classification, parent
+      reversibility comparison, recursive ancestry, CLI/I/O, dispatch/runtime
+      wiring, and additional authority are excluded
+    - focused deterministic tests and type/syntax checks pass before any later
+      integration lane is proposed
+  - Empirical sequence (exact): N1 internal shadow contract -> 3-5 sanitized
+    completed trajectories -> GO/DEFER/STOP -> N2 consumer inventory only after
+    GO -> N3 read-only lineage projection only after sufficient outcomes.
+  - GO criteria (all required):
+    - at least one previously implicit authority or corrigibility mismatch is found
+    - no more than one false positive is observed
+    - no semantic prose interpretation is required
+    - the reviewer judges the assessment more useful than a simple task-packet check
+  - DEFER / STOP criteria (any is sufficient):
+    - five cases yield zero novel mismatch
+    - more than one false positive is observed
+    - utility requires free-text interpretation
+  - Rollback (EN): Before any consumer exists, remove the pure module, focused
+    tests, contract document, and this umbrella entry. N1 has no consumer or
+    persisted artifact, so no runtime-state or data migration is required.
+  - Deferred / follow-ups (EN): Any bootstrap/dispatcher integration, persisted
+    artifact or schema, recursive ancestry, reason/witness expansion, or policy
+    enforcement requires its own reviewed follow-up PR and an update to this
+    umbrella. This shadow contract alone opens none of those gates.
+
 <a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
 - [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
   - Owner: backend-engineer
