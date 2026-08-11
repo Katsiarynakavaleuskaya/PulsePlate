@@ -259,9 +259,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     is covered only when exactly one fully eligible recordless seed is currently
     visible; ineligible same-fingerprint comments do not affect cardinality, but
     if more than one eligible seed is visible, none is covered and all remain
-    blocking. A separate owner-only recordless path is available only when both
-    canonical fingerprint records and FIXED mappings are empty. It requires one
-    resolved root on the canonical current-PR mapping artifact, authored by
+    blocking. A separate owner-only recordless path is available only when that
+    same thread root has no canonical fingerprint record or FIXED mapping. It may
+    coexist with unrelated canonical records and requires one resolved root on
+    the canonical current-PR mapping artifact, authored by
     `chatgpt-codex-connector` with `originalCommit` equal to the exact live head;
     that live head must be the sole direct mapping-only successor of the sealed
     material, and both heads must recompute to the sealed digest. The root must

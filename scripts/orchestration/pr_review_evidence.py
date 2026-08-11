@@ -1055,11 +1055,8 @@ def validated_duplicate_reply_urls(
         if len(urls) == 1:
             covered.add(urls[0])
 
-    # The owner-only class is intentionally disjoint from both existing
-    # canonical-fingerprint and mapped-FIX authority. It exists only for one
-    # first recordless finding after an otherwise empty mapping closeout.
-    if fingerprint_records or validated_mapping_entries:
-        return covered
+    # The owner-only class may coexist with unrelated canonical records, but it
+    # must never replace an existing disposition for the same thread root.
 
     try:
         supplied_owner, supplied_name = _require_repository(repository)
@@ -1141,7 +1138,13 @@ def validated_duplicate_reply_urls(
     live_roots = sorted((thread.comments[0].url, thread) for thread in threads if thread.comments)
     for url, thread in live_roots:
         location = comment_locations.get(url)
-        if location is None or location[0] is not thread or location[1] != 0:
+        if (
+            url in covered
+            or url in validated_mapping_entries
+            or location is None
+            or location[0] is not thread
+            or location[1] != 0
+        ):
             continue
         finding_index = 0
         finding = thread.comments[finding_index]

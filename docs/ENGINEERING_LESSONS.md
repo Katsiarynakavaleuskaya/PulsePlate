@@ -923,9 +923,10 @@ into another parser variant.
   technical CI.
 - Reuse a structured reply only when the validator can bind it to an existing
   same-digest fingerprint record.
-- For the disjoint empty-mapping owner-only class, obtain explicit human
-  confirmation and use only the exact one-line response; do not translate it
-  into another mapping, fingerprint, generic approval, or parser variant.
+- For the per-root owner-only class, obtain explicit human confirmation and use
+  only the exact one-line response; unrelated canonical records may coexist, but
+  do not translate the covered root into another mapping, fingerprint, generic
+  approval, or parser variant.
 - Treat a strict-wrapper disposition failure as evidence to restart the
   governed recovery, not as grounds for a carrier commit or operator merge
   exception.

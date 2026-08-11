@@ -6279,6 +6279,32 @@ def test_owner_only_empty_mapping_accepts_exact_unavailable_422(
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
 
 
+def test_owner_only_accepts_unrelated_fixed_mapping_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_mapped": FIX_SHA},
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_only_rejects_root_with_its_own_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": FIX_SHA},
+    )
+
+    assert covered == set()
+
+
 def test_owner_only_empty_mapping_accepts_real_2265_ancestry_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6436,7 +6462,6 @@ def test_owner_unavailable_reply_parser_returns_selected_ref() -> None:
         {"ref_resolution": "real"},
         {"selected_ref_source": "pr-commit"},
         {"root_count": 2},
-        {"mapping_entries": {"https://github.com/owner/repo/pull/42#discussion_mapped": FIX_SHA}},
     ],
     ids=(
         "member",
@@ -6462,7 +6487,6 @@ def test_owner_unavailable_reply_parser_returns_selected_ref() -> None:
         "real-commit",
         "real-pr-commit",
         "two-eligible-roots",
-        "mapped-fix-route",
     ),
 )
 def test_owner_only_empty_mapping_rejects_ineligible_shapes(

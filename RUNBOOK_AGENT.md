@@ -587,8 +587,9 @@ Use this as the canonical operating loop from branch creation to merge window:
      the same fingerprint is currently visible, the validator covers none and
      all stay blocking. Rerun merge readiness without a docs commit, Codex
      review, or security scan.
-   - When both canonical fingerprint records and FIXED mappings are empty, a
-     different owner-only recordless class may cover exactly one resolved
+   - When the same thread root has no canonical fingerprint record or FIXED
+     mapping, a different owner-only recordless class may coexist with unrelated
+     canonical records and cover exactly one resolved
      `chatgpt-codex-connector` root on the canonical current-PR mapping file.
      Confirm first that the root `originalCommit` is the live head, the live
      head is the sole direct mapping-only successor of the sealed material, the
@@ -604,9 +605,9 @@ Use this as the canonical operating loop from branch creation to merge window:
      association is exactly `OWNER`, and that sole OWNER comment must equal the
      exact line above. Its selected full lowercase ref must classify as
      `REVIEW_REF_UNAVAILABLE`. `API_UNKNOWN`, a real commit,
-     any syntax variation, multiple eligible roots, any fingerprint record, or
-     any FIXED mapping leaves the root blocking. Never pass the unavailable ref
-     to ancestry. Count eligibility across all live thread roots before URL-only
+     any syntax variation, multiple eligible roots, or a fingerprint record or
+     FIXED mapping for that same root leaves it blocking. Never pass the
+     unavailable ref to ancestry. Count eligibility across all live thread roots before URL-only
      disposition filtering, and require the authenticated evidence repository
      to match the snapshot repository case-insensitively. The validator only
      reads this evidence; it never posts it and the line grants no approval or

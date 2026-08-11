@@ -329,8 +329,9 @@ eligible seeds leave both blocking. This is a current-snapshot cardinality rule,
 not a historical once-ever claim.
 
 The third path is a separate repository-owner authority class and activates
-only when canonical fingerprint records and FIXED mappings are both empty. Its
-resolved thread root must be the first comment, have authenticated author login
+only when that same thread root has no canonical fingerprint record or FIXED
+mapping; unrelated canonical records may coexist. Its resolved thread root must
+be the first comment, have authenticated author login
 exactly `chatgpt-codex-connector`, target
 `docs/review/PR_<N>_FIXED_MAPPING.md`, and have `originalCommit` equal to the
 live head. That head must be the sole direct mapping-only successor whose direct
@@ -365,9 +366,9 @@ read-only and never posts the reply. This record is
 only a bounded NOT-A-BUG disposition; it is not review, provider output,
 approval, merge authority, or a bypass of actual findings, current-head CI,
 trusted security checks, unresolved threads, ancestry, mapping-only closeout,
-or the wait window. A canonical fingerprint record or any FIXED mapping keeps
-this owner-only branch inactive and preserves the existing paths unchanged. A
-root actually covered by a canonical reply-only validator is the narrow
+or the wait window. A canonical fingerprint record or FIXED mapping for the
+same root keeps this owner-only branch inactive and preserves the existing paths
+unchanged. A root actually covered by a canonical reply-only validator is the narrow
 exception to ordinary artifact mapping: its exact reply plus resolved thread is
 the disposition evidence, and no second mapping entry or docs commit is created.
 Every non-covered resolved actionable retains the ordinary mapping requirement.
