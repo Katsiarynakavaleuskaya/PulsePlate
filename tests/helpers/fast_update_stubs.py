@@ -85,7 +85,12 @@ def patch_unified_db_common_foods_fast(monkeypatch: Any) -> None:
     """
     from core.food_apis.unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 
-    async def _fast_common_foods(self: UnifiedFoodDatabase) -> dict[str, UnifiedFoodItem]:
+    async def _fast_common_foods(
+        self: UnifiedFoodDatabase,
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, UnifiedFoodItem]:
+        _ = force_refresh
         return {
             "oats": UnifiedFoodItem(
                 name="oats",

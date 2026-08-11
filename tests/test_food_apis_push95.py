@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 
 def test_usda_fooditem_to_menu_format():
@@ -65,32 +68,42 @@ def test_usda_common_foods_database():
         loop.close()
 
 
-def test_unified_db_common_cache_error_and_save_error(tmp_path: Path):
-    from core.food_apis.unified_db import UnifiedFoodDatabase
+def test_unified_db_common_cache_requires_exact_envelope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.food_apis.unified_db import (
+        COMMON_FOODS_MANIFEST,
+        CommonFoodsCacheAdmissionError,
+        UnifiedFoodDatabase,
+    )
 
     cache_dir = tmp_path / "cdb"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    # Write broken cache file to trigger load error (202-203)
-    (cache_dir / "common_foods.json").write_text("{ broken json")
+    cache_file = cache_dir / "common_foods.json"
+    cache_file.write_text(
+        json.dumps({name: {} for name in COMMON_FOODS_MANIFEST}), encoding="utf-8"
+    )
+    original_bytes = cache_file.read_bytes()
 
     db = UnifiedFoodDatabase(str(cache_dir))
+    calls: list[tuple[str, bool, bool]] = []
 
-    async def _search_food(q):
+    async def _search_food(
+        query: str,
+        save_cache: bool = True,
+        use_memory_cache: bool = True,
+    ) -> list[object]:
+        calls.append((query, save_cache, use_memory_cache))
         return []
 
-    loop = asyncio.new_event_loop()
-    try:
-        # Patch search to avoid network and patch open to fail on save (252-253)
-        with (
-            patch.object(db, "search_food", _search_food),
-            patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()),
-            patch("builtins.open", side_effect=OSError("fail")),
-        ):
-            res = loop.run_until_complete(db.get_common_foods_database())
-        assert isinstance(res, dict)
-    finally:
-        loop.run_until_complete(db.close())
-        loop.close()
+    monkeypatch.setenv("UNIFIED_DB_COMMON_SLEEP_MS", "0")
+    monkeypatch.setattr(db, "search_food", _search_food)
+
+    with pytest.raises(CommonFoodsCacheAdmissionError, match="membership is not exact"):
+        asyncio.run(db.get_common_foods_database())
+
+    assert calls == [(query, False, False) for query in COMMON_FOODS_MANIFEST.values()]
+    assert cache_file.read_bytes() == original_bytes
 
 
 def test_unified_search_foods_unified(tmp_path: Path):

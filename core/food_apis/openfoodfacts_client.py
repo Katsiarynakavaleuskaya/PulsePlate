@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
@@ -190,19 +191,28 @@ class OFFClient:
                 if food_item:
                     products.append(food_item)
 
-            logger.info(f"Found {len(products)} products for query: {query}")
+            logger.info(
+                "OFF request succeeded; operation=search_products; result_count=%d",
+                len(products),
+            )
             return products
 
-        except Exception as e:
+        except Exception as exc:
             # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
             # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
-            error_msg = str(e)
+            error_msg = str(exc)
             # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
             # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
             if EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE in error_msg and is_test_runtime():
-                logger.debug("OFF search blocked in tests for %r: %s", query, e)
+                logger.debug(
+                    "OFF request blocked; operation=search_products; category=%s",
+                    type(exc).__name__,
+                )
             else:
-                logger.error("Error searching Open Food Facts products for %r: %s", query, e)
+                logger.error(
+                    "OFF request failed; operation=search_products; category=%s",
+                    type(exc).__name__,
+                )
             return []
 
     async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
@@ -231,25 +241,33 @@ class OFFClient:
             data = response.json()
 
             if data.get("status") == 1:  # Product found
-                return self._parse_product_item(data.get("product", {}))
+                food_item = self._parse_product_item(data.get("product", {}))
+                logger.info(
+                    "OFF request succeeded; operation=get_product_details; result_count=%d",
+                    int(food_item is not None),
+                )
+                return food_item
 
-        except Exception as e:
+        except Exception as exc:
             # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
             # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
-            error_msg = str(e)
+            error_msg = str(exc)
             # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
             # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
             if EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE in error_msg and is_test_runtime():
-                logger.debug("OFF product details blocked in tests for %r: %s", barcode, e)
+                logger.debug(
+                    "OFF request blocked; operation=get_product_details; category=%s",
+                    type(exc).__name__,
+                )
             else:
                 logger.error(
-                    "Error getting Open Food Facts product details for barcode %r: %s",
-                    barcode,
-                    e,
+                    "OFF request failed; operation=get_product_details; category=%s",
+                    type(exc).__name__,
                 )
             return None
 
         # Explicitly return None when product is not found
+        logger.info("OFF request succeeded; operation=get_product_details; result_count=0")
         return None
 
     def _parse_product_item(self, product_data: dict[str, Any]) -> OFFFoodItem | None:
@@ -275,18 +293,27 @@ class OFFClient:
 
             for off_nutrient, standard_name in self.nutrient_mapping.items():
                 value = nutrients_raw.get(off_nutrient)
-                if value is not None and isinstance(value, (int, float)):
-                    mapped_nutrients[standard_name] = float(value)
+                if value is not None and type(value) in (int, float):
+                    try:
+                        normalized_value = float(value)
+                    except OverflowError:
+                        continue
+                    if math.isfinite(normalized_value):
+                        mapped_nutrients[standard_name] = normalized_value
 
+            last_modified_t = product_data.get("last_modified_t")
             nutrition_input = NutritionInput(
-                source="estimate",
+                source="off",
                 nutrients=mapped_nutrients,
                 record_id=code,
-                version_ref=str(product_data.get("last_modified_t") or ""),
+                version_ref=str(last_modified_t) if last_modified_t else None,
                 raw_payload={
                     key: value
                     for key, value in nutrients_raw.items()
-                    if value is None or isinstance(value, (int, float, str))
+                    if value is None
+                    or type(value) is str
+                    or type(value) is int
+                    or (type(value) is float and math.isfinite(value))
                 },
             )
             resolution = resolve_nutrition(inputs=[nutrition_input])
@@ -342,8 +369,11 @@ class OFFClient:
                 nutrition_confidence=resolution.confidence,
             )
 
-        except Exception as e:
-            logger.error(f"Error parsing Open Food Facts product data: {e}")
+        except Exception as exc:
+            logger.error(
+                "OFF item parse failed; operation=parse_product_item; category=%s",
+                type(exc).__name__,
+            )
             return None
 
     async def get_multiple_products(self, barcodes: list[str]) -> list[OFFFoodItem]:
@@ -359,10 +389,18 @@ class OFFClient:
         valid_results: list[OFFFoodItem] = []
         for result in results:
             if isinstance(result, BaseException):
-                logger.error(f"Error fetching product: {result}")
+                logger.error(
+                    "OFF batch item failed; operation=get_multiple_products; category=%s",
+                    type(result).__name__,
+                )
             elif result is not None:
                 valid_results.append(result)
 
+        logger.info(
+            "OFF batch completed; operation=get_multiple_products; result_count=%d; batch_count=%d",
+            len(valid_results),
+            len(barcodes),
+        )
         return valid_results
 
     def _is_event_loop_closed(self, error: RuntimeError) -> bool:
@@ -400,9 +438,12 @@ class OFFClient:
         """Close the HTTP client."""
         try:
             await self.client.aclose()
-        except RuntimeError as e:
+        except RuntimeError as exc:
             # Only suppress if it's an event loop closure error
-            if self._is_event_loop_closed(e):
-                logger.debug("RuntimeError during client close (event loop closed): %s", e)
+            if self._is_event_loop_closed(exc):
+                logger.debug(
+                    "OFF close suppressed; operation=close; category=%s",
+                    type(exc).__name__,
+                )
             else:
                 raise

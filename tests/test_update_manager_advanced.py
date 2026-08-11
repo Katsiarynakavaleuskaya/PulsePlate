@@ -8,13 +8,21 @@ EN: Additional coverage tests for database update manager module.
 import json
 import shutil
 import tempfile
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.food_apis.unified_db import UnifiedFoodItem
+from core.food_apis.unified_db import (
+    COMMON_FOODS_CACHE_SCHEMA_VERSION,
+    COMMON_FOODS_MANIFEST,
+    COMMON_FOODS_MANIFEST_VERSION,
+    CommonFoodsCacheAdmissionError,
+    UnifiedFoodDatabase,
+    UnifiedFoodItem,
+)
 from core.food_apis.update_manager import (
     DatabaseUpdateManager,
     DatabaseVersion,
@@ -51,30 +59,67 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
                 max_rollback_versions=5,
             )
 
-    def test_save_versions_with_error(self, mock_manager):
+    def test_save_versions_with_error(self, mock_manager: DatabaseUpdateManager) -> None:
         """Test saving versions when file write fails."""
-        # Mock the file writing to fail
-        with patch("builtins.open", side_effect=IOError("Write failed")):
-            # Should not raise exception, just log error
-            mock_manager._save_versions()
-            # Test passes if no exception is raised
+        with patch(
+            "core.food_apis.update_manager.json.dump",
+            side_effect=OSError("Write failed"),
+        ):
+            with pytest.raises(
+                CommonFoodsCacheAdmissionError,
+                match="Database versions publication failed",
+            ):
+                mock_manager._save_versions()
 
     @pytest.mark.asyncio
     async def test_create_backup_success(self, mock_manager):
         """Test creating backup successfully."""
-        # Mock unified_db to return some test data
+        mock_manager.unified_db = UnifiedFoodDatabase(cache_dir=mock_manager.cache_dir.path)
         test_foods = {
-            "apple": UnifiedFoodItem(
-                name="Apple",
-                source="test",
-                nutrients_per_100g={"protein_g": 0.3},
-                source_id="apple_001",
+            standard_name: UnifiedFoodItem(
+                name=standard_name,
+                source="USDA FoodData Central",
+                nutrients_per_100g={"protein_g": 1.0, "fat_g": 0.0, "carbs_g": 0.0},
+                source_id=f"fixture-{index}",
                 cost_per_100g=1.0,
                 tags=["fruit"],
                 availability_regions=["US"],
+                category="Fixture",
+                nutrition_inputs=[
+                    {
+                        "source": "usda",
+                        "record_id": f"fixture-{index}",
+                        "version_ref": "2026-08-11",
+                        "nutrients": {"protein_g": 1.0},
+                        "raw_payload": {},
+                    }
+                ],
+                nutrition_provenance={"protein_g": "usda"},
+                nutrition_nutrient_confidence={"protein_g": 0.7},
+                nutrition_confidence=0.7,
             )
+            for index, standard_name in enumerate(COMMON_FOODS_MANIFEST)
         }
-        mock_manager.unified_db.get_common_foods_database = AsyncMock(return_value=test_foods)
+        cache_file = mock_manager.unified_db.cache_dir / "common_foods.json"
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                    "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                    "items": {name: asdict(food) for name, food in test_foods.items()},
+                }
+            ),
+            encoding="utf-8",
+        )
+        canonical_mapping = {name: asdict(food) for name, food in test_foods.items()}
+        mock_manager.versions["usda"] = DatabaseVersion(
+            source="usda",
+            version="1.0.0",
+            last_updated="2026-08-11T00:00:00+00:00",
+            record_count=len(canonical_mapping),
+            checksum=mock_manager._calculate_checksum(canonical_mapping),
+            metadata={"state": "established"},
+        )
 
         await mock_manager._create_backup("usda", "1.0.0")
 
@@ -83,23 +128,22 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
         assert backup_file.exists()
 
         # Check backup content
-        with open(backup_file, "r") as f:
+        with open(backup_file, "r", encoding="utf-8") as f:
             backup_data = json.load(f)
 
-        assert "apple" in backup_data
-        assert backup_data["apple"]["name"] == "Apple"
+        assert set(backup_data) == set(COMMON_FOODS_MANIFEST)
+        assert backup_data["chicken_breast"]["name"] == "chicken_breast"
 
     @pytest.mark.asyncio
     async def test_create_backup_with_error(self, mock_manager):
         """Test creating backup when error occurs."""
-        # Mock unified_db to raise an error
-        mock_manager.unified_db.get_common_foods_database = AsyncMock(
-            side_effect=Exception("DB error")
-        )
+        mock_manager.unified_db = UnifiedFoodDatabase(cache_dir=mock_manager.cache_dir.path)
 
-        # Should not raise exception, just log error
-        await mock_manager._create_backup("usda", "1.0.0")
-        # Test passes if no exception is raised
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Established source snapshot cannot be backed up",
+        ):
+            await mock_manager._create_backup("usda", "1.0.0")
 
     @pytest.mark.asyncio
     async def test_load_backup_success(self, mock_manager):
@@ -109,23 +153,40 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
         test_data = {
             "apple": {
                 "name": "Apple",
-                "source": "test",
-                "nutrients_per_100g": {"protein_g": 0.3},
+                "source": "USDA FoodData Central",
+                "nutrients_per_100g": {
+                    "protein_g": 1.0,
+                    "fat_g": 0.0,
+                    "carbs_g": 0.0,
+                },
                 "source_id": "apple_001",
                 "cost_per_100g": 1.0,
                 "tags": ["fruit"],
                 "availability_regions": ["US"],
+                "category": "Fixture",
+                "nutrition_inputs": [
+                    {
+                        "source": "usda",
+                        "record_id": "apple_001",
+                        "version_ref": "2026-08-11",
+                        "nutrients": {"protein_g": 1.0},
+                        "raw_payload": {},
+                    }
+                ],
+                "nutrition_provenance": {"protein_g": "usda"},
+                "nutrition_nutrient_confidence": {"protein_g": 0.7},
+                "nutrition_confidence": 0.7,
             }
         }
 
-        with open(backup_file, "w") as f:
+        with open(backup_file, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
         loaded_foods = await mock_manager._load_backup("usda", "1.0.0")
 
         assert "apple" in loaded_foods
         assert loaded_foods["apple"].name == "Apple"
-        assert loaded_foods["apple"].source == "test"
+        assert loaded_foods["apple"].source == "USDA FoodData Central"
 
     @pytest.mark.asyncio
     async def test_cleanup_old_backups(self, mock_manager):
@@ -155,21 +216,41 @@ class TestDatabaseUpdateManagerAdditionalCoverage:
     @pytest.mark.asyncio
     async def test_rollback_database_success(self, mock_manager):
         """Test successful database rollback."""
-        # Create a backup to rollback to
+        mock_manager.unified_db = UnifiedFoodDatabase(cache_dir=mock_manager.cache_dir.path)
         backup_file = mock_manager.cache_dir / "usda_backup_1.0.0.json"
         test_data = {
-            "apple": {
-                "name": "Apple",
-                "source": "test",
-                "nutrients_per_100g": {"protein_g": 0.3},
-                "source_id": "apple_001",
-                "cost_per_100g": 1.0,
-                "tags": ["fruit"],
-                "availability_regions": ["US"],
-            }
+            standard_name: asdict(
+                UnifiedFoodItem(
+                    name=standard_name,
+                    source="USDA FoodData Central",
+                    nutrients_per_100g={
+                        "protein_g": 1.0,
+                        "fat_g": 0.0,
+                        "carbs_g": 0.0,
+                    },
+                    source_id=f"fixture-{index}",
+                    cost_per_100g=1.0,
+                    tags=["fixture"],
+                    availability_regions=["US"],
+                    category="Fixture",
+                    nutrition_inputs=[
+                        {
+                            "source": "usda",
+                            "record_id": f"fixture-{index}",
+                            "version_ref": "2026-08-11",
+                            "nutrients": {"protein_g": 1.0},
+                            "raw_payload": {},
+                        }
+                    ],
+                    nutrition_provenance={"protein_g": "usda"},
+                    nutrition_nutrient_confidence={"protein_g": 0.7},
+                    nutrition_confidence=0.7,
+                )
+            )
+            for index, standard_name in enumerate(COMMON_FOODS_MANIFEST)
         }
 
-        with open(backup_file, "w") as f:
+        with open(backup_file, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
         # Add current version
@@ -384,23 +465,61 @@ class TestAsyncMethods:
     @pytest.mark.asyncio
     async def test_update_usda_database_no_force_no_change(self, mock_manager):
         """Test USDA update when data hasn't changed and not forced."""
+        mock_manager.unified_db = UnifiedFoodDatabase(cache_dir=mock_manager.cache_dir.path)
         # Set up existing version with same checksum as new data
+        established_foods = {
+            standard_name: UnifiedFoodItem(
+                name=standard_name,
+                source="USDA FoodData Central",
+                nutrients_per_100g={"protein_g": 1.0, "fat_g": 0.0, "carbs_g": 0.0},
+                source_id=f"fixture-{index}",
+                cost_per_100g=1.0,
+                tags=["fixture"],
+                availability_regions=["US"],
+                category="Fixture",
+                nutrition_inputs=[
+                    {
+                        "source": "usda",
+                        "record_id": f"fixture-{index}",
+                        "version_ref": "2026-08-11",
+                        "nutrients": {"protein_g": 1.0},
+                        "raw_payload": {},
+                    }
+                ],
+                nutrition_provenance={"protein_g": "usda"},
+                nutrition_nutrient_confidence={"protein_g": 0.7},
+                nutrition_confidence=0.7,
+            )
+            for index, standard_name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        cache_file = mock_manager.unified_db.cache_dir / "common_foods.json"
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                    "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                    "items": {name: asdict(food) for name, food in established_foods.items()},
+                }
+            ),
+            encoding="utf-8",
+        )
+        established_mapping = {name: asdict(food) for name, food in established_foods.items()}
+        established_checksum = mock_manager._calculate_checksum(established_mapping)
         existing_version = DatabaseVersion(
             source="usda",
             version="1.0.0",
             last_updated="2023-01-01T00:00:00",
-            record_count=100,
-            checksum="same_checksum",
+            record_count=len(established_mapping),
+            checksum=established_checksum,
             metadata={},
         )
         mock_manager.versions["usda"] = existing_version
 
-        # Mock data that would produce same checksum
         test_foods = {"apple": MagicMock()}
         mock_manager.unified_db.get_common_foods_database = AsyncMock(return_value=test_foods)
 
         # Mock checksum calculation to return same value
-        mock_manager._calculate_checksum = MagicMock(return_value="same_checksum")
+        mock_manager._calculate_checksum = MagicMock(return_value=established_checksum)
 
         result = await mock_manager._update_usda_database(force=False)
 
@@ -410,6 +529,9 @@ class TestAsyncMethods:
         assert result.records_added == 0
         assert result.records_updated == 0
         assert result.records_removed == 0
+        mock_manager.unified_db.get_common_foods_database.assert_awaited_once_with(
+            force_refresh=False
+        )
 
 
 class TestUtilityMethods:

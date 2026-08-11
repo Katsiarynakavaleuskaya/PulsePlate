@@ -15,7 +15,9 @@ import inspect
 import hashlib
 import json
 import logging
+import os
 import re
+import tempfile
 import unicodedata
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, timedelta
@@ -25,23 +27,38 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    ClassVar,
     Dict,
     List,
     Optional,
-    Sequence,
     TypeVar,
     Union,
     cast,
 )
 
 from core.food_sources.snapshot_manager import SnapshotMeta
+from core.off_nutrition.bridge import (
+    merge_wire_nutrition_sources,
+    nutrition_inputs_from_unified_wire,
+)
 
 if TYPE_CHECKING:
     from core.food_sources.off_delta import OFFTransport
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
-from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
+from .unified_db import (
+    COMMON_FOODS_CACHE_SCHEMA_VERSION,
+    COMMON_FOODS_MANIFEST,
+    COMMON_FOODS_MANIFEST_VERSION,
+    CommonFoodsCacheAdmissionError,
+    UnifiedFoodDatabase,
+    UnifiedFoodItem,
+    _COMMON_FOOD_ITEM_FIELDS,
+    _NUTRITION_INPUT_FIELDS,
+    _PRIMARY_MACRONUTRIENT_DEFAULTS,
+    _has_finite_numeric_shape,
+    _has_exact_canonical_provider_record_identity,
+    _load_common_foods_json,
+)
 from .usda_client import USDAClient
 from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
@@ -55,6 +72,43 @@ async def _maybe_await(value: Union[T, Awaitable[T]]) -> T:
     if inspect.isawaitable(value):
         return await value
     return value
+
+
+def _restore_exact_file_state(path: Path, existed: bool, content: bytes) -> None:
+    """Restore one same-parent file state after a bounded publication failure."""
+    temporary_path: Path | None = None
+    try:
+        if existed:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                dir=path.parent,
+                prefix=f".{path.name}.restore.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(content)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            os.replace(temporary_path, path)
+            temporary_path = None
+        else:
+            path.unlink(missing_ok=True)
+
+        parent_descriptor = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.error(
+                    "File-state restore cleanup failed; category=%s",
+                    type(exc).__name__,
+                )
 
 
 class _PatchablePathWrapper:
@@ -151,24 +205,6 @@ class DatabaseUpdateManager:
     - Notification system for update events
     """
 
-    _OFF_SQLITE_FILENAME: ClassVar[str] = "off.sqlite"
-    _OFF_JSONL_PATTERNS: ClassVar[List[str]] = [
-        "*.openfoodfacts.org.products.jsonl",
-        "*.openfoodfacts.org.products.ndjson",
-        "*off*.jsonl",
-        "*off*.ndjson",
-        "*products*.jsonl",
-        "*products*.ndjson",
-    ]
-    _OFF_CSV_PATTERNS: ClassVar[List[str]] = [
-        "*.openfoodfacts.org.products.csv",
-        "*.csv",
-        "*.tsv",
-        "*_export.csv",
-        "*off*.csv",
-        "*products*.csv",
-    ]
-
     def __init__(
         self,
         cache_dir: str | Path = "cache/food_db",
@@ -213,16 +249,77 @@ class DatabaseUpdateManager:
             logger.error("Error loading versions: %s", e)
             return {}
 
-    def _save_versions(self):
-        """Save database version information."""
+    def _save_versions(self) -> None:
+        """Atomically publish database version information or raise."""
+        temporary_path: Path | None = None
         try:
+            if self.versions_file.is_symlink() or (
+                self.versions_file.exists() and not self.versions_file.is_file()
+            ):
+                raise CommonFoodsCacheAdmissionError("Database versions path is not a regular file")
             data = {source: asdict(version) for source, version in self.versions.items()}
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.versions_file.parent,
+                prefix=f".{self.versions_file.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                json.dump(data, temporary_file, indent=2, allow_nan=False)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
 
-            with open(self.versions_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            with open(temporary_path, "r", encoding="utf-8") as temporary_file:
+                if json.load(temporary_file) != data:
+                    raise CommonFoodsCacheAdmissionError(
+                        "Database versions staged content is inconsistent"
+                    )
 
-        except Exception as e:
-            logger.error("Error saving versions: %s", e, exc_info=True)
+            if self.versions_file.is_symlink() or (
+                self.versions_file.exists() and not self.versions_file.is_file()
+            ):
+                raise CommonFoodsCacheAdmissionError("Database versions path is not a regular file")
+            prior_target_exists = self.versions_file.exists()
+            prior_target_bytes = self.versions_file.read_bytes() if prior_target_exists else b""
+            os.replace(temporary_path, self.versions_file)
+            temporary_path = None
+            try:
+                parent_descriptor = os.open(self.versions_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(parent_descriptor)
+                finally:
+                    os.close(parent_descriptor)
+            except OSError:
+                try:
+                    _restore_exact_file_state(
+                        self.versions_file,
+                        prior_target_exists,
+                        prior_target_bytes,
+                    )
+                except Exception as restore_exc:
+                    logger.error(
+                        "Database versions restore failed after publication; category=%s",
+                        type(restore_exc).__name__,
+                    )
+                    raise CommonFoodsCacheAdmissionError(
+                        "Database versions restore failed after publication"
+                    ) from restore_exc
+                raise
+        except CommonFoodsCacheAdmissionError:
+            raise
+        except Exception as exc:
+            raise CommonFoodsCacheAdmissionError("Database versions publication failed") from exc
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Database versions temporary cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
 
     def sync_openfoodfacts_raw_snapshot(
         self,
@@ -257,27 +354,6 @@ class DatabaseUpdateManager:
         # Convert to sorted JSON string for consistent hashing
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
-
-    def _find_off_export_file(self, cache_dir: Path, file_types: Sequence[str]) -> Optional[Path]:
-        """Return a deterministically selected OFF export file for the given types.
-
-        Selection strategy:
-        - Collect matches for each pattern
-        - Sort by modification time (newest first) to prefer the most recent export
-        - Return the single chosen Path for stable, repeatable behavior
-        """
-        pattern_map: dict[str, List[str]] = {
-            "jsonl": self._OFF_JSONL_PATTERNS,
-            "csv": self._OFF_CSV_PATTERNS,
-        }
-        for file_type in file_types:
-            for pattern in pattern_map.get(file_type, []):
-                matches = list(cache_dir.glob(pattern))
-                if matches:
-                    # Deterministic selection: newest by modification time
-                    matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                    return matches[0]
-        return None
 
     async def check_for_updates(self) -> Dict[str, bool]:
         """
@@ -380,6 +456,37 @@ class DatabaseUpdateManager:
         source = "usda"
         current_version = self.versions.get(source)
         old_version = current_version.version if current_version else None
+        active_cache_file = self.unified_db.cache_dir / "common_foods.json"
+        if active_cache_file.is_symlink() or (
+            active_cache_file.exists() and not active_cache_file.is_file()
+        ):
+            return UpdateResult(
+                success=False,
+                source=source,
+                old_version=old_version,
+                new_version=None,
+                records_added=0,
+                records_updated=0,
+                records_removed=0,
+                errors=["common_food_cache_admission_failed"],
+                duration_seconds=0.0,
+            )
+        prior_cache_exists = active_cache_file.exists()
+        prior_cache_bytes = active_cache_file.read_bytes() if prior_cache_exists else b""
+        acquisition_completed = False
+        metadata_committed = False
+
+        def compensate_active_cache() -> None:
+            if not acquisition_completed or metadata_committed:
+                return
+            try:
+                _restore_exact_file_state(
+                    active_cache_file,
+                    prior_cache_exists,
+                    prior_cache_bytes,
+                )
+            except Exception as exc:
+                raise CommonFoodsCacheAdmissionError("USDA update compensation failed") from exc
 
         try:
             # Create backup of current data
@@ -388,7 +495,8 @@ class DatabaseUpdateManager:
 
             # Get updated common foods from USDA
             logger.info("Fetching updated USDA food data...")
-            updated_foods = await self.unified_db.get_common_foods_database()
+            updated_foods = await self.unified_db.get_common_foods_database(force_refresh=force)
+            acquisition_completed = True
 
             # Calculate new version info
             new_version = now_utc().strftime("%Y%m%d_%H%M%S")
@@ -398,6 +506,7 @@ class DatabaseUpdateManager:
 
             # Check if data actually changed (unless forced)
             if not force and current_version and current_version.checksum == checksum:
+                metadata_committed = True
                 return UpdateResult(
                     success=True,
                     source=source,
@@ -413,6 +522,13 @@ class DatabaseUpdateManager:
             # Validate new data
             validation_errors = await self._validate_food_data(updated_foods)
             if validation_errors:
+                try:
+                    compensate_active_cache()
+                except CommonFoodsCacheAdmissionError:
+                    validation_errors = [
+                        *validation_errors,
+                        "common_food_cache_admission_failed",
+                    ]
                 return UpdateResult(
                     success=False,
                     source=source,
@@ -452,6 +568,7 @@ class DatabaseUpdateManager:
 
             self.versions[source] = new_db_version
             self._save_versions()
+            metadata_committed = True
 
             # Clean up old backups
             await self._cleanup_old_backups(source)
@@ -470,7 +587,59 @@ class DatabaseUpdateManager:
                 duration_seconds=0.0,
             )
 
+        except asyncio.CancelledError:
+            if current_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = current_version
+            try:
+                compensate_active_cache()
+            except CommonFoodsCacheAdmissionError as exc:
+                logger.error(
+                    "USDA cancellation compensation failed; category=%s",
+                    type(exc).__name__,
+                )
+            raise
+        except CommonFoodsCacheAdmissionError as exc:
+            if current_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = current_version
+            try:
+                compensate_active_cache()
+            except CommonFoodsCacheAdmissionError as compensation_exc:
+                logger.error(
+                    "USDA update compensation failed; category=%s",
+                    type(compensation_exc).__name__,
+                )
+            logger.error(
+                "Database update stopped; source=%s; category=%s",
+                source,
+                type(exc).__name__,
+            )
+            return UpdateResult(
+                success=False,
+                source=source,
+                old_version=old_version,
+                new_version=None,
+                records_added=0,
+                records_updated=0,
+                records_removed=0,
+                errors=["common_food_cache_admission_failed"],
+                duration_seconds=0.0,
+            )
         except Exception as e:
+            if current_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = current_version
+            try:
+                compensate_active_cache()
+            except CommonFoodsCacheAdmissionError as compensation_exc:
+                logger.error(
+                    "USDA update compensation failed; category=%s",
+                    type(compensation_exc).__name__,
+                )
             logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
                 success=False,
@@ -489,6 +658,24 @@ class DatabaseUpdateManager:
         source = "openfoodfacts"
         current_version = self.versions.get(source)
         old_version = current_version.version if current_version else None
+        published_backup_file: Path | None = None
+        prior_backup_exists = False
+        prior_backup_bytes = b""
+        metadata_committed = False
+
+        def compensate_backup_publication() -> None:
+            if published_backup_file is None or metadata_committed:
+                return
+            try:
+                _restore_exact_file_state(
+                    published_backup_file,
+                    prior_backup_exists,
+                    prior_backup_bytes,
+                )
+            except Exception as exc:
+                raise CommonFoodsCacheAdmissionError(
+                    "Open Food Facts update compensation failed"
+                ) from exc
 
         try:
             # Create backup of current data
@@ -500,38 +687,65 @@ class DatabaseUpdateManager:
             logger.info("Fetching Open Food Facts data...")
 
             # This is a simplified approach - in reality, we'd want to implement
-            # a more comprehensive update strategy for Open Food Facts
+            # a more comprehensive update strategy for Open Food Facts.
+            if self.off_client is None:
+                raise CommonFoodsCacheAdmissionError("Open Food Facts client is unavailable")
             sample_products = []
-            if self.off_client:
-                # Search for some common products to include in our database
-                common_searches = [
-                    "apple",
-                    "banana",
-                    "chicken",
-                    "bread",
-                    "milk",
-                    "cheese",
-                    "rice",
-                ]
-                for search_term in common_searches:
-                    try:
-                        products = await self.off_client.search_products(search_term, page_size=5)
-                        sample_products.extend(products)
-                        # Small delay to respect API limits
-                        await asyncio.sleep(0.1)
-                    except Exception as e:
-                        logger.warning("Error searching for %s: %s", search_term, e)
+            common_searches = (
+                "apple",
+                "banana",
+                "chicken",
+                "bread",
+                "milk",
+                "cheese",
+                "rice",
+            )
+            for search_index, search_term in enumerate(common_searches):
+                try:
+                    products = await self.off_client.search_products(search_term, page_size=5)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    raise CommonFoodsCacheAdmissionError(
+                        "Open Food Facts acquisition sweep failed"
+                    ) from exc
+                if not products:
+                    raise CommonFoodsCacheAdmissionError(
+                        "Open Food Facts acquisition sweep was incomplete"
+                    )
+                sample_products.extend(products)
+                if search_index < len(common_searches) - 1:
+                    await asyncio.sleep(0.1)
 
             # Convert to unified format
-            unified_foods = {}
+            unified_foods: Dict[str, UnifiedFoodItem] = {}
             for off_item in sample_products:
                 try:
                     unified_item = UnifiedFoodItem.from_off_item(off_item)
-                    # Use a standardized name for the key
-                    key = self._generate_food_key(unified_item.name)
-                    unified_foods[key] = unified_item
-                except Exception as e:
-                    logger.warning("Error converting OFF item to unified format: %s", e)
+                except Exception as exc:
+                    raise CommonFoodsCacheAdmissionError(
+                        "Open Food Facts conversion sweep failed"
+                    ) from exc
+                # Use a standardized name for the key
+                key = self._generate_food_key(unified_item.name)
+                existing_item = unified_foods.get(key)
+                if existing_item is not None:
+                    existing_identity = (
+                        existing_item.source.strip().lower(),
+                        existing_item.source_id.strip(),
+                    )
+                    candidate_identity = (
+                        unified_item.source.strip().lower(),
+                        unified_item.source_id.strip(),
+                    )
+                    if existing_identity != candidate_identity:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Open Food Facts normalized key collision"
+                        )
+                    continue
+                unified_foods[key] = unified_item
+            if not unified_foods:
+                raise CommonFoodsCacheAdmissionError("Open Food Facts acquired snapshot is empty")
 
             # Calculate new version info
             new_version = now_utc().strftime("%Y%m%d_%H%M%S")
@@ -582,9 +796,19 @@ class DatabaseUpdateManager:
             records_updated = len(set(unified_foods.keys()) & set(old_foods.keys()))
             records_removed = len(old_foods) - len(unified_foods)
 
-            actual_record_count, checksum = await self._get_validated_record_count_and_checksum(
-                source, unified_foods
-            )
+            backup_file = self._resolve_backup_path(source, new_version)
+            prior_backup_exists = backup_file.exists()
+            prior_backup_bytes = backup_file.read_bytes() if prior_backup_exists else b""
+            self._write_backup_snapshot(source, new_version, unified_foods)
+            published_backup_file = backup_file
+            persisted_foods = await self._load_backup(source, new_version)
+            if not persisted_foods:
+                raise CommonFoodsCacheAdmissionError(
+                    "Open Food Facts persisted snapshot is unrestorable"
+                )
+            persisted_mapping = {name: asdict(food) for name, food in persisted_foods.items()}
+            actual_record_count = len(persisted_mapping)
+            checksum = self._calculate_checksum(persisted_mapping)
 
             # Update version tracking
             new_db_version = DatabaseVersion(
@@ -602,6 +826,7 @@ class DatabaseUpdateManager:
 
             self.versions[source] = new_db_version
             self._save_versions()
+            metadata_committed = True
 
             # Clean up old backups
             await self._cleanup_old_backups(source)
@@ -620,7 +845,59 @@ class DatabaseUpdateManager:
                 duration_seconds=0.0,
             )
 
+        except asyncio.CancelledError:
+            if current_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = current_version
+            try:
+                compensate_backup_publication()
+            except CommonFoodsCacheAdmissionError as exc:
+                logger.error(
+                    "OFF cancellation compensation failed; category=%s",
+                    type(exc).__name__,
+                )
+            raise
+        except CommonFoodsCacheAdmissionError as exc:
+            if current_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = current_version
+            try:
+                compensate_backup_publication()
+            except CommonFoodsCacheAdmissionError as compensation_exc:
+                logger.error(
+                    "OFF update compensation failed; category=%s",
+                    type(compensation_exc).__name__,
+                )
+            logger.error(
+                "Database update stopped; source=%s; category=%s",
+                source,
+                type(exc).__name__,
+            )
+            return UpdateResult(
+                success=False,
+                source=source,
+                old_version=old_version,
+                new_version=None,
+                records_added=0,
+                records_updated=0,
+                records_removed=0,
+                errors=["common_food_cache_admission_failed"],
+                duration_seconds=0.0,
+            )
         except Exception as e:
+            if current_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = current_version
+            try:
+                compensate_backup_publication()
+            except CommonFoodsCacheAdmissionError as compensation_exc:
+                logger.error(
+                    "OFF update compensation failed; category=%s",
+                    type(compensation_exc).__name__,
+                )
             logger.error("Error updating %s database: %s", source, e)
             return UpdateResult(
                 success=False,
@@ -633,124 +910,6 @@ class DatabaseUpdateManager:
                 errors=[str(e)],
                 duration_seconds=0.0,
             )
-
-    async def _get_actual_record_count(self, source: str) -> int:
-        """Get the actual record count from the existing database."""
-        try:
-            # Try to count from cache files
-            cache_dir = Path(self.cache_dir)
-            if source == "openfoodfacts":
-                # Check for SQLite database first
-                sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
-                if sqlite_file.exists():
-                    import sqlite3
-
-                    conn = sqlite3.connect(str(sqlite_file))
-                    try:
-                        cur = conn.execute("SELECT COUNT(*) FROM products")
-                        (count,) = cur.fetchone()
-                        return int(count or 0)
-                    finally:
-                        conn.close()
-
-                export_file = self._find_off_export_file(cache_dir, ("jsonl", "csv"))
-                if export_file:
-                    if export_file.suffix in {".csv", ".tsv"}:
-                        with export_file.open("r", encoding="utf-8") as f:
-                            count = sum(1 for _ in f)
-                            return int(max(0, count - 1))
-                    else:
-                        with export_file.open("r", encoding="utf-8") as f:
-                            count = sum(1 for _ in f)
-                            return int(count)
-
-            # If no database files found, return 0
-            logger.warning("No database files found for %s", source)
-            return 0
-
-        except Exception as e:
-            logger.error("Error getting record count for %s: %s", source, e)
-            return 0
-
-    async def _get_cache_data_for_checksum(self, source: str) -> Dict[str, Any]:
-        """Get cache data for checksum calculation."""
-        try:
-            cache_dir = self.cache_dir
-            if source == "openfoodfacts":
-                # Try to get data from SQLite cache
-                sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
-                if sqlite_file.exists():
-                    import sqlite3
-
-                    conn = sqlite3.connect(str(sqlite_file))
-                    try:
-                        cur = conn.execute("SELECT name, data FROM products")
-                        cache_data = {}
-                        for name, data in cur:
-                            try:
-                                # For checksum purposes, we can hash the raw data without parsing JSON
-                                # This avoids the memory overhead of json.loads() for every row
-                                # If we only need checksums, hash the raw data string
-                                checksum = hashlib.sha256(data.encode("utf-8")).hexdigest()
-                                cache_data[name] = {"checksum": checksum}
-                            except (json.JSONDecodeError, UnicodeEncodeError):
-                                continue
-                        return cache_data
-                    finally:
-                        conn.close()
-
-                json_export = self._find_off_export_file(Path(str(cache_dir)), ("jsonl",))
-                if json_export:
-                    cache_data = {}
-                    with json_export.open("r", encoding="utf-8") as f:
-                        for line in f:
-                            try:
-                                data = json.loads(line.strip())
-                            except json.JSONDecodeError:
-                                continue
-                            if isinstance(data, dict) and "name" in data:
-                                cache_data[data["name"]] = data
-                    return cache_data
-
-                csv_export = self._find_off_export_file(Path(str(cache_dir)), ("csv",))
-                if csv_export:
-                    cache_data = {}
-                    with csv_export.open("r", encoding="utf-8") as f:
-                        import csv
-
-                        reader = csv.DictReader(f)
-                        for row in reader:
-                            if isinstance(row, dict) and "name" in row:
-                                cache_data[row["name"]] = row
-                    return cache_data
-        except Exception as e:
-            logger.warning("Could not get cache data for checksum for %s: %s", source, e)
-
-        return {}
-
-    async def _get_validated_record_count_and_checksum(
-        self, source: str, unified_foods: Dict[str, UnifiedFoodItem]
-    ) -> tuple[int, str]:
-        """Return record count and checksum with cache-aware fallbacks."""
-        record_count = await self._get_actual_record_count(source)
-        if record_count == 0:
-            record_count = len(unified_foods)
-
-        cache_data = await self._get_cache_data_for_checksum(source)
-        if cache_data:
-            checksum = self._calculate_checksum(cache_data)
-        else:
-            checksum = self._calculate_checksum(
-                {name: self._food_to_dict(food) for name, food in unified_foods.items()}
-            )
-
-        if record_count == 0:
-            logger.warning(
-                "No records found in %s database. This may indicate an empty cache.", source
-            )
-            logger.warning("Consider running the ingestion pipeline to populate the database.")
-
-        return record_count, checksum
 
     def _generate_food_key(self, name: str) -> str:
         """Generate a standardized key for food items."""
@@ -842,70 +1001,394 @@ class DatabaseUpdateManager:
 
         return errors
 
-    async def _create_backup(self, source: str, version: str):
+    async def _create_backup(self, source: str, version: str) -> None:
         """Create backup of current database version."""
         try:
-            current_data = await self.unified_db.get_common_foods_database()
-            backup_file = self.cache_dir / f"{source}_backup_{version}.json"
+            backup_file = self._resolve_backup_path(source, version)
+            current_data: object
+            if source == "usda":
+                cache_file = self.unified_db.cache_dir / "common_foods.json"
+                if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
+                    raise CommonFoodsCacheAdmissionError(
+                        "Established common-food cache is not a regular file"
+                    )
+                with open(cache_file, "r", encoding="utf-8") as file_object:
+                    loaded = _load_common_foods_json(file_object)
+                if type(loaded) is not dict:
+                    raise ValueError("common-food cache must be a mapping")
+                if set(loaded) == {"schema_version", "manifest_version", "items"}:
+                    current_data = self.unified_db._validate_common_foods_envelope(loaded)
+                else:
+                    if set(loaded) != set(COMMON_FOODS_MANIFEST):
+                        raise CommonFoodsCacheAdmissionError(
+                            "Legacy USDA backup membership is not exact"
+                        )
+                    reconstructed = self._reconstruct_backup_snapshot(loaded)
+                    current_data = self.unified_db._validate_common_foods_envelope(
+                        {
+                            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                            "items": {name: asdict(food) for name, food in reconstructed.items()},
+                        }
+                    )
+                canonical_mapping = {name: asdict(food) for name, food in current_data.items()}
+                established_version = self.versions.get("usda")
+                canonical_checksum = self._calculate_checksum(canonical_mapping)
+                if (
+                    established_version is None
+                    or established_version.source != "usda"
+                    or established_version.version != version
+                    or established_version.record_count != len(canonical_mapping)
+                    or established_version.checksum != canonical_checksum
+                ):
+                    raise CommonFoodsCacheAdmissionError(
+                        "USDA backup metadata does not match canonical disk truth"
+                    )
 
-            with open(backup_file, "w", encoding="utf-8") as f:
-                json.dump(
-                    {name: self._food_to_dict(food) for name, food in current_data.items()},
-                    f,
-                    indent=2,
+                if backup_file.exists():
+                    with open(backup_file, "r", encoding="utf-8") as file_object:
+                        existing_loaded = _load_common_foods_json(file_object)
+                    existing_foods = self._reconstruct_backup_snapshot(existing_loaded)
+                    existing_mapping = {name: asdict(food) for name, food in existing_foods.items()}
+                    if existing_mapping != canonical_mapping:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Existing USDA backup conflicts with canonical disk truth"
+                        )
+                    logger.info("Prepared backup for %s version %s", source, version)
+                    return
+            elif source == "openfoodfacts":
+                with open(backup_file, "r", encoding="utf-8") as file_object:
+                    current_data = _load_common_foods_json(file_object)
+                self._reconstruct_backup_snapshot(current_data)
+            else:
+                raise ValueError("unsupported backup source")
+
+            if source == "usda":
+                self._write_backup_snapshot(source, version, current_data)
+
+            logger.info("Prepared backup for %s version %s", source, version)
+        except Exception as exc:
+            raise CommonFoodsCacheAdmissionError(
+                "Established source snapshot cannot be backed up"
+            ) from exc
+
+    def _resolve_backup_path(self, source: str, version: str | None) -> Path:
+        """Resolve one supported backup path inside the configured cache directory."""
+        if source not in {"usda", "openfoodfacts"}:
+            raise CommonFoodsCacheAdmissionError("Unsupported backup source")
+
+        cache_dir = self.cache_dir.path.resolve(strict=True)
+        if not cache_dir.is_dir():
+            raise CommonFoodsCacheAdmissionError("Backup cache directory is invalid")
+        if version is None:
+            return cache_dir
+        if (
+            type(version) is not str
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", version) is None
+            or ".." in version
+        ):
+            raise CommonFoodsCacheAdmissionError("Invalid backup version")
+
+        backup_file = cache_dir / f"{source}_backup_{version}.json"
+        if backup_file.parent.resolve(strict=True) != cache_dir:
+            raise CommonFoodsCacheAdmissionError("Backup path escapes cache directory")
+        if backup_file.is_symlink() or (backup_file.exists() and not backup_file.is_file()):
+            raise CommonFoodsCacheAdmissionError("Backup path is not a regular file")
+        return backup_file
+
+    @staticmethod
+    def _reconstruct_backup_snapshot(snapshot: object) -> Dict[str, UnifiedFoodItem]:
+        """Reconstruct one complete, non-empty source snapshot or reject it."""
+        if type(snapshot) is not dict or not snapshot:
+            raise CommonFoodsCacheAdmissionError("Backup snapshot is empty or invalid")
+
+        foods: Dict[str, UnifiedFoodItem] = {}
+        admitted_evidence_pairs: set[tuple[str, str]] = set()
+        for name, food_data in snapshot.items():
+            if type(name) is not str or not name.strip():
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid identity")
+            if isinstance(food_data, UnifiedFoodItem):
+                candidate = asdict(food_data)
+            elif type(food_data) is dict:
+                candidate = food_data
+            else:
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid item")
+            if set(candidate) != _COMMON_FOOD_ITEM_FIELDS:
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid fields")
+
+            identity_fields = (candidate["name"], candidate["source"], candidate["source_id"])
+            if any(type(value) is not str or not value.strip() for value in identity_fields):
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid identity")
+            category = candidate["category"]
+            if category is not None and type(category) is not str:
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid category")
+            if any(
+                type(candidate[field]) is not list
+                or any(type(value) is not str for value in candidate[field])
+                for field in ("tags", "availability_regions")
+            ):
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid lists")
+
+            nutrients = candidate["nutrients_per_100g"]
+            cost = candidate["cost_per_100g"]
+            confidence = candidate["nutrition_confidence"]
+            if (
+                type(nutrients) is not dict
+                or not nutrients
+                or any(
+                    type(key) is not str
+                    or not key.strip()
+                    or not _has_finite_numeric_shape(value)
+                    or value < 0.0
+                    for key, value in nutrients.items()
+                )
+                or any(key.endswith("_g") and value > 100.0 for key, value in nutrients.items())
+                or (nutrients.get("protein_g", 0.0) <= 0.0 and nutrients.get("fat_g", 0.0) <= 0.0)
+                or not _has_finite_numeric_shape(cost)
+                or cost < 0.0
+                or not _has_finite_numeric_shape(confidence)
+                or not 0.0 <= confidence <= 1.0
+            ):
+                raise CommonFoodsCacheAdmissionError("Backup snapshot contains invalid nutrition")
+
+            nutrition_inputs = candidate["nutrition_inputs"]
+            if type(nutrition_inputs) is not list or not nutrition_inputs:
+                raise CommonFoodsCacheAdmissionError("Backup snapshot lacks nutrition evidence")
+            item_evidence_pairs: set[tuple[str, str]] = set()
+            source_id_is_bound = False
+            for nutrition_input in nutrition_inputs:
+                if (
+                    type(nutrition_input) is not dict
+                    or set(nutrition_input) != _NUTRITION_INPUT_FIELDS
+                    or type(nutrition_input["source"]) is not str
+                    or not nutrition_input["source"].strip()
+                    or (
+                        nutrition_input["record_id"] is not None
+                        and (
+                            type(nutrition_input["record_id"]) is not str
+                            or not nutrition_input["record_id"].strip()
+                        )
+                    )
+                    or (
+                        nutrition_input["version_ref"] is not None
+                        and (
+                            type(nutrition_input["version_ref"]) is not str
+                            or not nutrition_input["version_ref"].strip()
+                        )
+                    )
+                ):
+                    raise CommonFoodsCacheAdmissionError(
+                        "Backup snapshot contains invalid evidence identity"
+                    )
+                input_nutrients = nutrition_input["nutrients"]
+                raw_payload = nutrition_input["raw_payload"]
+                if (
+                    type(input_nutrients) is not dict
+                    or not input_nutrients
+                    or any(
+                        type(key) is not str
+                        or not key.strip()
+                        or not _has_finite_numeric_shape(value)
+                        or value < 0.0
+                        for key, value in input_nutrients.items()
+                    )
+                    or type(raw_payload) is not dict
+                    or any(
+                        type(key) is not str
+                        or not key.strip()
+                        or not (
+                            value is None
+                            or type(value) is str
+                            or (type(value) in (int, float) and _has_finite_numeric_shape(value))
+                        )
+                        for key, value in raw_payload.items()
+                    )
+                ):
+                    raise CommonFoodsCacheAdmissionError(
+                        "Backup snapshot contains invalid nutrition evidence"
+                    )
+
+                record_id = nutrition_input["record_id"]
+                if record_id is not None:
+                    evidence_pair = (
+                        nutrition_input["source"].strip().lower(),
+                        record_id.strip(),
+                    )
+                    if evidence_pair in item_evidence_pairs:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Backup snapshot contains duplicate nutrition evidence"
+                        )
+                    if evidence_pair in admitted_evidence_pairs:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Backup snapshot reuses nutrition evidence across items"
+                        )
+                    item_evidence_pairs.add(evidence_pair)
+                    if _has_exact_canonical_provider_record_identity(
+                        item_source=candidate["source"],
+                        item_source_id=candidate["source_id"],
+                        evidence_source=nutrition_input["source"],
+                        evidence_record_id=record_id,
+                    ):
+                        source_id_is_bound = True
+
+            if not source_id_is_bound:
+                raise CommonFoodsCacheAdmissionError(
+                    "Backup snapshot source identity is not bound to evidence"
+                )
+            admitted_evidence_pairs.update(item_evidence_pairs)
+
+            provenance = candidate["nutrition_provenance"]
+            nutrient_confidence = candidate["nutrition_nutrient_confidence"]
+            if (
+                type(provenance) is not dict
+                or not provenance
+                or any(
+                    type(key) is not str
+                    or not key.strip()
+                    or type(value) is not str
+                    or not value.strip()
+                    for key, value in provenance.items()
+                )
+                or type(nutrient_confidence) is not dict
+                or set(nutrient_confidence) != set(provenance)
+                or not set(provenance).issubset(nutrients)
+                or any(
+                    not _has_finite_numeric_shape(value) or not 0.0 <= value <= 1.0
+                    for value in nutrient_confidence.values()
+                )
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    "Backup snapshot contains invalid provenance evidence"
                 )
 
-            logger.info("Created backup for %s version %s", source, version)
-        except (OSError, TypeError, ValueError) as exc:
-            logger.error("Error creating backup for %s: %s", source, str(exc), exc_info=True)
-        except Exception as exc:
-            logger.error(
-                "Unexpected error creating backup for %s: %s", source, str(exc), exc_info=True
+            replayed_inputs = nutrition_inputs_from_unified_wire(
+                nutrition_inputs_wire=nutrition_inputs,
+                nutrients_per_100g=nutrients,
+                fallback_source=nutrition_inputs[0]["source"],
+                record_id=candidate["source_id"],
             )
+            replayed = merge_wire_nutrition_sources(
+                primary_inputs=replayed_inputs,
+                secondary_inputs=[],
+            )
+            replayed_nutrients = dict(replayed.nutrients)
+            for nutrient, default_value in _PRIMARY_MACRONUTRIENT_DEFAULTS.items():
+                replayed_nutrients.setdefault(nutrient, default_value)
+            if (
+                replayed_nutrients != nutrients
+                or dict(replayed.provenance) != provenance
+                or dict(replayed.nutrient_confidence) != nutrient_confidence
+                or replayed.confidence != confidence
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    "Backup snapshot nutrition evidence does not replay"
+                )
+            try:
+                foods[name] = UnifiedFoodItem(**candidate)
+            except (TypeError, ValueError) as exc:
+                raise CommonFoodsCacheAdmissionError(
+                    "Backup snapshot contains unrestorable item"
+                ) from exc
+        return foods
+
+    def _write_backup_snapshot(self, source: str, version: str, snapshot: object) -> None:
+        """Validate and atomically publish one complete source snapshot."""
+        backup_file = self._resolve_backup_path(source, version)
+        foods = self._reconstruct_backup_snapshot(snapshot)
+        temporary_path: Path | None = None
+        rollback_path: Path | None = None
+        try:
+            serialized = json.dumps(
+                {name: asdict(food) for name, food in foods.items()},
+                indent=2,
+                allow_nan=False,
+            )
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=backup_file.parent,
+                prefix=f".{backup_file.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(serialized)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+
+            with open(temporary_path, "r", encoding="utf-8") as temporary_file:
+                staged_snapshot = _load_common_foods_json(temporary_file)
+            self._reconstruct_backup_snapshot(staged_snapshot)
+            prior_target_exists = backup_file.exists()
+            prior_target_bytes = backup_file.read_bytes() if prior_target_exists else b""
+            os.replace(temporary_path, backup_file)
+            temporary_path = None
+            try:
+                parent_descriptor = os.open(backup_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(parent_descriptor)
+                finally:
+                    os.close(parent_descriptor)
+            except OSError:
+                if prior_target_exists:
+                    with tempfile.NamedTemporaryFile(
+                        mode="wb",
+                        dir=backup_file.parent,
+                        prefix=f".{backup_file.name}.rollback.",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as rollback_file:
+                        rollback_path = Path(rollback_file.name)
+                        rollback_file.write(prior_target_bytes)
+                        rollback_file.flush()
+                        os.fsync(rollback_file.fileno())
+                    os.replace(rollback_path, backup_file)
+                    rollback_path = None
+                else:
+                    backup_file.unlink(missing_ok=True)
+
+                rollback_parent_descriptor = os.open(backup_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(rollback_parent_descriptor)
+                finally:
+                    os.close(rollback_parent_descriptor)
+                raise
+        except CommonFoodsCacheAdmissionError:
+            raise
+        except Exception as exc:
+            raise CommonFoodsCacheAdmissionError("Backup snapshot write failed") from exc
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Backup snapshot temporary cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
+            if rollback_path is not None:
+                try:
+                    rollback_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Backup snapshot rollback cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
 
     async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
-        """Load backup database version."""
-        backup_file = self.cache_dir / f"{source}_backup_{version}.json"
-
+        """Load a backup only when the complete snapshot is restorable."""
         try:
-            with open(backup_file, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    logger.debug("Backup file %s is empty", backup_file)
-                    return {}
-                data = json.loads(content)
-        except json.JSONDecodeError as json_err:
-            logger.debug("Failed to parse backup file %s: %s", backup_file, str(json_err))
+            backup_file = self._resolve_backup_path(source, version)
+            with open(backup_file, "r", encoding="utf-8") as file_object:
+                data = _load_common_foods_json(file_object)
+            return self._reconstruct_backup_snapshot(data)
+        except Exception as exc:
+            logger.warning(
+                "Backup snapshot rejected; source=%s; category=%s",
+                source,
+                type(exc).__name__,
+            )
             return {}
-        except FileNotFoundError:
-            logger.debug("Backup file %s not found", backup_file)
-            return {}
-
-        # Basic schema validation: ensure minimal keys exist
-        required = {
-            "name",
-            "nutrients_per_100g",
-            "cost_per_100g",
-            "tags",
-            "availability_regions",
-            "source",
-            "source_id",
-        }
-        foods: Dict[str, UnifiedFoodItem] = {}
-        if not isinstance(data, dict):
-            logger.debug("Backup file %s does not contain a dict", backup_file)
-            return {}
-
-        for name, food_data in data.items():
-            try:
-                if not isinstance(food_data, dict) or not required.issubset(food_data.keys()):
-                    continue
-                foods[name] = UnifiedFoodItem(**food_data)
-            except (TypeError, ValueError) as parse_err:
-                logger.debug("Skipping malformed backup entry %s: %s", name, parse_err)
-                continue
-
-        return foods
 
     def _food_to_dict(self, food: Any) -> Dict[str, Any]:
         """Safely convert a food item to a serializable dict.
@@ -959,8 +1442,21 @@ class DatabaseUpdateManager:
     async def _cleanup_old_backups(self, source: str):
         """Remove old backup files beyond the retention limit."""
         try:
+            cache_dir = self._resolve_backup_path(source, None)
             backup_pattern = f"{source}_backup_*.json"
-            backup_files = list(self.cache_dir.glob(backup_pattern))
+            backup_files: list[Path] = []
+            prefix = f"{source}_backup_"
+            for candidate in cache_dir.glob(backup_pattern):
+                version = candidate.name[len(prefix) : -len(".json")]
+                try:
+                    backup_files.append(self._resolve_backup_path(source, version))
+                except CommonFoodsCacheAdmissionError:
+                    logger.warning(
+                        "Ignoring invalid backup candidate during cleanup; "
+                        "source=%s; category=CommonFoodsCacheAdmissionError",
+                        source,
+                    )
+                    continue
 
             # Sort by modification time (newest first)
             backup_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
@@ -984,24 +1480,65 @@ class DatabaseUpdateManager:
         Returns:
             True if rollback successful, False otherwise
         """
+        established_version = self.versions.get(source)
+        published_rollback_file: Path | None = None
+        prior_rollback_exists = False
+        prior_rollback_bytes = b""
+        active_cache_file: Path | None = None
+        prior_active_exists = False
+        prior_active_bytes = b""
+        active_published = False
+        metadata_committed = False
+
+        def compensate_rollback_publication() -> None:
+            try:
+                if active_published and active_cache_file is not None:
+                    _restore_exact_file_state(
+                        active_cache_file,
+                        prior_active_exists,
+                        prior_active_bytes,
+                    )
+
+                if published_rollback_file is not None and not metadata_committed:
+                    _restore_exact_file_state(
+                        published_rollback_file,
+                        prior_rollback_exists,
+                        prior_rollback_bytes,
+                    )
+            except Exception as exc:
+                raise CommonFoodsCacheAdmissionError(
+                    "Rollback publication compensation failed"
+                ) from exc
+
         try:
             # Load backup data
             backup_data = await self._load_backup(source, target_version)
+            if not backup_data:
+                logger.warning("Rollback refused; source=%s; backup is unrestorable", source)
+                return False
+            if source not in self.versions:
+                logger.warning(
+                    "Rollback refused; source=%s; no established version entry",
+                    source,
+                )
+                return False
 
             # Restore the data (implementation depends on storage method)
             # For now, just update the version tracking
             if source in self.versions:
                 old_version = self.versions[source]
+                rollback_version_name = f"{target_version}_rollback_{now_utc().strftime('%H%M%S')}"
+                rollback_checksum = self._calculate_checksum(
+                    {name: asdict(food) for name, food in backup_data.items()}
+                )
 
                 # Create new version entry for rollback
                 rollback_version = DatabaseVersion(
                     source=source,
-                    version=f"{target_version}_rollback_{now_utc().strftime('%H%M%S')}",
+                    version=rollback_version_name,
                     last_updated=isoformat_utc(),
                     record_count=len(backup_data),
-                    checksum=self._calculate_checksum(
-                        {name: asdict(food) for name, food in backup_data.items()}
-                    ),
+                    checksum=rollback_checksum,
                     metadata={
                         "update_type": "rollback",
                         "rolled_back_from": old_version.version,
@@ -1009,13 +1546,71 @@ class DatabaseUpdateManager:
                     },
                 )
 
+                active_envelope: dict[str, object] | None = None
+                if source == "usda":
+                    active_envelope = {
+                        "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                        "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                        "items": {name: asdict(food) for name, food in backup_data.items()},
+                    }
+                    self.unified_db._validate_common_foods_envelope(active_envelope)
+
+                rollback_file = self._resolve_backup_path(source, rollback_version_name)
+                prior_rollback_exists = rollback_file.exists()
+                prior_rollback_bytes = rollback_file.read_bytes() if prior_rollback_exists else b""
+                self._write_backup_snapshot(source, rollback_version_name, backup_data)
+                published_rollback_file = rollback_file
+                if active_envelope is not None:
+                    active_cache_path = self.unified_db.cache_dir / "common_foods.json"
+                    if active_cache_path.is_symlink() or (
+                        active_cache_path.exists() and not active_cache_path.is_file()
+                    ):
+                        raise CommonFoodsCacheAdmissionError(
+                            "Active common-food cache is not a regular file"
+                        )
+                    prior_active_exists = active_cache_path.exists()
+                    prior_active_bytes = (
+                        active_cache_path.read_bytes() if prior_active_exists else b""
+                    )
+                    self.unified_db._publish_common_foods_envelope(
+                        active_cache_path,
+                        active_envelope,
+                    )
+                    active_cache_file = active_cache_path
+                    active_published = True
+
                 self.versions[source] = rollback_version
                 self._save_versions()
+                metadata_committed = True
 
                 logger.info("Successfully rolled back %s to version %s", source, target_version)
                 return True
 
+        except asyncio.CancelledError:
+            if established_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = established_version
+            try:
+                compensate_rollback_publication()
+            except CommonFoodsCacheAdmissionError as exc:
+                logger.error(
+                    "Rollback cancellation compensation failed; category=%s",
+                    type(exc).__name__,
+                )
+            raise
         except Exception as exc:
+            if established_version is None:
+                self.versions.pop(source, None)
+            else:
+                self.versions[source] = established_version
+            try:
+                compensate_rollback_publication()
+            except CommonFoodsCacheAdmissionError as compensation_exc:
+                logger.error(
+                    "Rollback compensation failed; category=%s",
+                    type(compensation_exc).__name__,
+                )
             logger.error(
                 "Error rolling back %s to %s: %s", source, target_version, str(exc), exc_info=True
             )
@@ -1073,7 +1668,7 @@ async def run_scheduled_update(
     for source, has_updates in available_updates.items():
         if has_updates:
             logger.info("Running scheduled update for %s", source)
-            result = await update_manager.update_database(source)
+            result = await update_manager.update_database(source, force=True)
             results[source] = result
         else:
             logger.info("No updates available for %s", source)

@@ -1790,6 +1790,214 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dashboards cover span volume, full-capture rate, and detector distribution
     - Retention and deletion hooks for telemetry vault references are documented and test-covered
 
+<a id="ledger-p1-weekly-plan-cold-cache-external-food-boundary"></a>
+- [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (paid-path latency / provider reliability / data provenance)
+  - Target PR: [PR #2269](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2269)
+  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r4`
+  - Status: Active R4 replacement carrier, separate from tests-only PR #2255
+  - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
+  - Finding Type: cold-cache provider boundary and incomplete-cache acceptance
+  - Scope boundary: This lane owns only the versioned 20-key common-food
+    manifest, strict warm/cold admission, bounded single-sweep acquisition,
+    atomic publication, and preservation of existing structural nutrition
+    evidence. It does not widen PR #2255, change RecipeDB/FoodDB identity, add
+    nutrient data, or change provider operating policy and ingest governance.
+  - Origin evidence: During the completed TC2-03 enabled-Hypothesis audit on
+    2026-08-10, the repo-resolved node
+    `tests/disabled_hypothesis/test_premium_week_hypothesis_simple.py::TestPremiumWeekHypothesisSimple::test_generate_week_plan_simple_hypothesis`
+    produced a first example at `128460.88 ms` against a `10000 ms` deadline,
+    a later replay at `6.66 ms`, an Open Food Facts `503`, and a published
+    `14/20` common-food cache. This live-provider observation establishes the
+    prerequisite's origin and priority only; this lane's acceptance evidence
+    is deterministic and offline.
+  - Evidence / links:
+    - `app/routers/legacy_premium_weekly_plan.py` (legacy paid route)
+    - `app/services/fitchef_runtime.py` (weekly-plan orchestration boundary)
+    - `core/menu_engine.py` (default common-food loading consumer)
+    - `core/food_apis/unified_db.py` (manifest, admission, acquisition, and
+      publication owner)
+    - `core/food_apis/usda_client.py` and
+      `core/food_apis/openfoodfacts_client.py` (concrete provider logging sinks)
+    - `core/food_apis/update_manager.py` (failed-update result boundary)
+    - `tests/test_food_apis.py`
+    - `tests/test_openfoodfacts_client.py`
+    - `tests/test_unified_db_advanced.py`
+    - `tests/test_food_apis_comprehensive_coverage.py`
+    - `tests/test_food_apis_push95.py`
+  - Finite DoD:
+    - One immutable, versioned manifest declares exactly 20 canonical keys;
+      the only admitted cache envelope has exactly `schema_version`,
+      `manifest_version`, and `items`, with duplicate JSON members rejected
+    - Warm admission rejects malformed, stale, partial, extra, wrong-membership,
+      or evidence-losing cache data; cold `0/20`, observed `14/20`, and `19/20`
+      sweeps raise `CommonFoodsCacheAdmissionError` and publish nothing
+    - A cold sweep calls `search_food(..., save_cache=False)` exactly once per
+      manifest row with no retry, has one total deadline, converts timeout to
+      `CommonFoodsCacheAdmissionError`, and propagates external cancellation
+    - A successful preferred USDA search makes zero Open Food Facts calls; OFF
+      remains available only when explicitly preferred or as the USDA-empty
+      fallback, so an exact 20-row USDA sweep performs exactly 20 provider calls
+    - A forced USDA refresh bypasses both warm disk and in-memory search cache
+      through that same exact 20-row acquisition; no parallel refresh path is
+      introduced
+    - Exact `20/20` data is structurally validated and published through one
+      same-parent temporary file plus atomic replace; serialization, validation,
+      or replace failure raises `CommonFoodsCacheAdmissionError`, preserves any
+      prior target bytes, and cleans the temporary file
+    - Warm, post-wait, prior-byte, and publication boundaries reject symlink,
+      dangling-symlink, and non-regular common-food paths; a deadline observed
+      after publication compensates the new bytes before reporting failure
+    - Admitted top-level nutrition keeps every `*_g` value at or below `100`,
+      requires `protein_g > 0` or `fat_g > 0`, and accepts evidence record/version
+      references only as `None` or nonblank strings
+    - Cold-to-warm round-trip preserves source attribution, record/version
+      references, raw structural evidence, aggregate confidence, per-nutrient
+      confidence, and per-nutrient provenance; raw OFF evidence is labeled
+      `off` while the existing resolver remains conservative `estimate`
+    - Row, cache, and concrete USDA/Open Food Facts provider logs expose only
+      fixed operation/outcome labels, bounded counts, and exception categories,
+      never queries, identifiers, provider bodies, tokens, secrets, or
+      credential-bearing URLs
+    - USDA backs up only validated on-disk common-food truth whose exact source,
+      version, record count, and canonical mapping checksum match
+      `versions["usda"]`; an identical existing backup is a byte-preserving
+      no-op, while malformed or conflicting existing bytes fail before write
+    - The first successful Open Food Facts update persists its own complete
+      source snapshot, and later updates revalidate that source-specific
+      snapshot without depending on `common_foods.json`
+    - The configured seven-query Open Food Facts sweep completes every call and
+      conversion before any non-empty snapshot publication, propagates
+      cancellation, and derives version count/checksum from the exact reloaded
+      final mapping rather than an unrelated SQLite or export cache
+    - Version metadata publication is atomic and fail-raising; failed USDA/OFF
+      update or rollback metadata publication performs bounded compensation of
+      newly published active/snapshot bytes and restores in-memory version state
+    - Backup write/load is all-or-nothing through `UnifiedFoodItem`
+      reconstruction; mixed, malformed, empty, or unrestorable snapshots are
+      rejected, and rollback refuses them without version mutation
+    - Common-food JSON admission rejects `NaN`, `Infinity`, `-Infinity`, and
+      non-finite or overflow numeric `raw_payload` values; atomic publication
+      also rejects non-finite serialization before replace
+    - Tests remain offline and public response, OpenAPI, and generated-client
+      contracts remain unchanged
+  - Residuals / out of scope:
+    - Provider-use and redistribution policy remains in
+      [`ledger-p1-external-food-source-policy-enforcement`](#ledger-p1-external-food-source-policy-enforcement)
+    - Upstream replacement-ingest admission remains in
+      [`ledger-p1-food-data-source-update-preflight`](#ledger-p1-food-data-source-update-preflight)
+    - Legacy FoodDB schema-probe caching remains in
+      [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
+
+<a id="ledger-p1-common-food-manifest-slot-identity"></a>
+- [ ] P1: Bind all 20 common-food manifest slots to canonical source identities
+  - Owner: @katsiaryna_kavaleuskaya (Food Data / Backend)
+  - Priority: P1 (blocking data identity / paid-path determinism)
+  - Target PR: PR-TBD-COMMON-FOOD-MANIFEST-SLOT-IDENTITY
+  - Status: Backlogged blocking prerequisite for PR #2269 closeout and before
+    any RecipeDB/FoodDB micronutrient ingestion
+  - Area: backend / common-food manifest / canonical food identity
+  - Origin: Review finding `r3760922228` established that exact provider/record
+    binding prevents cross-provider evidence spoofing but does not prove that a
+    search result is the intended canonical food for a particular one of the 20
+    semantic manifest slots.
+  - Scope boundary: This follow-up defines and validates the 20 slot identities.
+    PR #2269 does not invent those IDs, add micronutrient values, migrate
+    RecipeDB/FoodDB, or widen provider ingestion policy.
+  - Finite DoD:
+    - Each immutable manifest key declares one governed canonical provider and
+      record identity, with source version or snapshot identity where available
+    - Cold acquisition rejects a provider result whose identity does not equal
+      the declared slot identity even when its query text or nutrition shape is
+      plausible
+    - Warm admission and backups replay the same 20-key slot-to-record mapping
+      without fuzzy name matching or record-ID reuse across slots
+    - A migration plan handles any already-published cache rows whose identities
+      differ, preserving fail-closed publication and rollback behavior
+    - Deterministic tests cover exact matches, swapped slots, wrong providers,
+      duplicate records, stale versions, and incomplete identity declarations
+    - The PR adds no micronutrient ingestion, RecipeDB/FoodDB join migration,
+      public DTO/OpenAPI change, or live-network test
+
+<a id="ledger-p1-recipe-food-identity-micronutrient-provenance"></a>
+- [ ] P1: RecipeDB/FoodDB identity and micronutrient provenance contract
+  - Owner: @katsiaryna_kavaleuskaya (Food Data / Backend)
+  - Priority: P1 (paid-feature trust / nutrition-data moat / data integrity)
+  - Target PR: PR-TBD-RECIPE-FOOD-IDENTITY-MICRONUTRIENT-PROVENANCE
+  - Status: Backlogged; sequenced immediately after the weekly cold-cache R4
+    availability and atomicity prerequisite
+  - Area: backend / RecipeDB / FoodDB / micronutrients / provenance
+  - Origin: R4 review of the weekly cold-cache execution path found that cache
+    availability can be closed independently, while canonical identity between
+    recipe ingredients and food records plus source/version evidence for
+    micronutrients remains a separate product-data gap. This item records that
+    gap without widening the cache-integrity carrier into nutrient ingestion or
+    paid-feature behavior.
+  - Business reason (EN): Micronutrient planning is a paid-feature
+    differentiator. Values that cannot be traced to one canonical food identity,
+    source record, source version, unit, and confidence can silently corrupt
+    recipe totals and weaken user trust and PulsePlate's defensible nutrition
+    data layer.
+  - Links:
+    - `core/food_db_new.py`
+    - `core/recipe_db_new.py`
+    - `core/menu_engine_new.py`
+    - `app/routers/pro.py`
+    - `app/routers/premium_week.py`
+    - `core/food_apis/unified_db.py`
+  - Finite DoD:
+    - Define one backend-owned canonical identity join between each RecipeDB
+      ingredient reference and exactly one FoodDB record, with deterministic
+      rejection or an explicit unresolved state for missing and ambiguous joins
+    - Bind every admitted micronutrient value to source, source record identity,
+      source version or retrieval timestamp, normalized unit, and bounded
+      confidence; `None` remains distinct from measured zero
+    - Specify deterministic source precedence and conflict handling without
+      attributing synthetic defaults to USDA, Open Food Facts, or another
+      provider
+    - Add a bounded migration/backfill plan for existing CSV/SQLite records and
+      deterministic tests for identity collision, unit conversion, missing
+      evidence, source conflict, recipe aggregation, and replay
+    - Preserve wellness-only language and expose uncertainty; no clinical or
+      diagnostic claim, provider-policy widening, live-network test, or silent
+      fallback is introduced
+    - If a public DTO/OpenAPI change is required, deliver it in an explicitly
+      scoped contract slice with generated-client parity rather than hiding it
+      inside data migration
+
+<a id="ledger-p2-scheduler-remaining-edges-unawaited-asyncmock"></a>
+- [ ] P2: Remove the scheduler remaining-edges unawaited-AsyncMock warning
+  - Owner: @katsiaryna_kavaleuskaya (QA / scheduler)
+  - Priority: P2 (test isolation / warning hygiene)
+  - Target PR: PR-TBD-SCHEDULER-ASYNC-MOCK-CLEANUP
+  - Status: Backlogged; explicitly outside the weekly cold-cache prerequisite
+  - Area: tests / scheduler / async mock lifecycle
+  - Finding Type: pre-existing teardown warning observed by validation-only
+    whole-file execution
+  - Reason: The warning is isolated to an unchanged scheduler test mock lifecycle;
+    resolving it requires scheduler-owned diagnosis and does not belong to the
+    cold-cache admission or source-backup authority of the active R3 carrier.
+  - Links:
+    - `tests/test_food_apis_push95.py::test_scheduler_remaining_edges`
+    - `core/food_apis/scheduler.py`
+  - Origin evidence: The local five-file food-cache cohort and the final
+    network-disabled Apple Experiment Runner oracle for PR #2259 both passed,
+    but the unchanged node
+    `tests/test_food_apis_push95.py::test_scheduler_remaining_edges` emitted
+    `RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never
+    awaited` from `_pytest/stash.py:108` during teardown. The changed food-cache
+    nodes pass with `ResourceWarning` and `PytestUnraisableExceptionWarning`
+    promoted to errors; this scheduler-only warning does not authorize widening
+    the current cache-integrity implementation lane.
+  - DoD:
+    - Reproduce the warning from the exact scheduler node with warnings promoted
+      to errors and identify the specific unawaited mock call or side effect
+    - Correct the mock/await lifecycle without changing scheduler runtime
+      behavior or adding skip, xfail, warning suppression, or allowlist entries
+    - Run the exact node, its scheduler-focused cohort, and the applicable
+      repository policy/pre-commit gates with no unawaited-coroutine warning
+
 <a id="ledger-p1-external-food-source-policy-enforcement"></a>
 - [ ] P1: External food-source operating policy enforcement follow-through
   - Owner: @katsiaryna_kavaleuskaya

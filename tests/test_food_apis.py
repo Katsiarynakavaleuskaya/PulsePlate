@@ -4,6 +4,9 @@ Tests for Food APIs modules
 Tests USDA client, unified database, update manager, and scheduler.
 """
 
+import asyncio
+import logging
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -173,6 +176,117 @@ class TestUSDAClient:
             assert results == []
 
         await client.close()
+
+    def test_concrete_logging_sinks_are_secret_safe(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Concrete USDA operations log only stable labels, counts, and categories."""
+        query_marker = "usda-query-marker-9f31"
+        identifier = 918273645546372819
+        identifier_marker = str(identifier)
+        body_marker = "usda-body-marker-01ce"
+        exception_marker = "usda-exception-marker-a720"
+        credential_url_marker = "https://usda-credential-url-marker.invalid/private"
+        token_marker = "usda-token-marker-b44d"
+        exception_text = (
+            f"{exception_marker} {credential_url_marker}?api_key={token_marker} "
+            f"body={body_marker} id={identifier_marker}"
+        )
+        client = USDAClient(api_key=token_marker)
+        monkeypatch.setattr(client, "BASE_URL", credential_url_marker)
+
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "foods": [
+                {
+                    "fdcId": identifier,
+                    "description": body_marker,
+                    "dataType": "Foundation",
+                    "foodNutrients": [
+                        {"nutrientId": 1003, "value": 10.0},
+                        {"nutrientId": 1004, "value": 5.0},
+                        {"nutrientId": 1005, "value": 2.0},
+                    ],
+                }
+            ]
+        }
+        request_get = AsyncMock(return_value=response)
+        request_post = AsyncMock()
+        close_http = AsyncMock()
+        monkeypatch.setattr(client.client, "get", request_get)
+        monkeypatch.setattr(client.client, "post", request_post)
+        monkeypatch.setattr(client.client, "aclose", close_http)
+        caplog.set_level(logging.DEBUG, logger="core.food_apis.usda_client")
+
+        async def exercise_logging_paths() -> None:
+            results = await client.search_foods(query_marker, page_size=1)
+            assert len(results) == 1
+
+            request_get.side_effect = RuntimeError(exception_text)
+            assert await client.get_food_details(identifier) is None
+
+            assert (
+                client._parse_food_item(
+                    {
+                        "fdcId": identifier,
+                        "description": body_marker,
+                        "foodNutrients": [
+                            {"nutrientId": 1003, "value": body_marker},
+                        ],
+                    }
+                )
+                is None
+            )
+
+            request_post.side_effect = LookupError(exception_text)
+            assert await client.get_multiple_foods([identifier, identifier + 1]) == []
+
+            close_http.side_effect = RuntimeError(f"event loop is closed; {exception_text}")
+            await client.close()
+
+        asyncio.run(exercise_logging_paths())
+
+        client_records = [
+            record for record in caplog.records if record.name == "core.food_apis.usda_client"
+        ]
+        rendered_messages = [record.getMessage() for record in client_records]
+        assert "USDA request succeeded; operation=search_foods; result_count=1" in rendered_messages
+        assert (
+            "USDA request failed; operation=get_food_details; category=RuntimeError"
+            in rendered_messages
+        )
+        assert (
+            "USDA item parse failed; operation=parse_food_item; category=ValueError"
+            in rendered_messages
+        )
+        assert (
+            "USDA request failed; operation=get_multiple_foods; category=LookupError"
+            in rendered_messages
+        )
+        assert "USDA close suppressed; operation=close; category=RuntimeError" in rendered_messages
+
+        sensitive_markers = (
+            query_marker,
+            identifier_marker,
+            body_marker,
+            exception_marker,
+            credential_url_marker,
+            token_marker,
+        )
+        rendered_args = "\n".join(repr(record.args) for record in client_records)
+        for marker in sensitive_markers:
+            assert marker not in caplog.text
+            assert marker not in rendered_args
+        failure_records = [
+            record
+            for record in client_records
+            if " failed; " in record.getMessage() or " suppressed; " in record.getMessage()
+        ]
+        assert len(failure_records) == 4
+        assert all(record.exc_info is None for record in failure_records)
 
     @pytest.mark.asyncio
     async def test_get_food_details_success(self):
@@ -643,8 +757,7 @@ class TestUnifiedFoodDatabase:
 
         await db.close()
 
-    @pytest.mark.asyncio
-    async def test_unified_database_get_foods(self):
+    def test_unified_database_get_foods(self, tmp_path: Path) -> None:
         """Test getting foods from unified database."""
         mock_usda_food = USDAFoodItem(
             fdc_id=123,
@@ -660,19 +773,30 @@ class TestUnifiedFoodDatabase:
             publication_date="2024-01-01",
         )
 
-        db = UnifiedFoodDatabase("test_cache")
+        db = UnifiedFoodDatabase(str(tmp_path / "unified-food-cache"))
         db.off_client = None
         db.usda_client = AsyncMock()
-        db.usda_client.search_foods.return_value = [mock_usda_food]
+        next_fdc_id = 123
+
+        async def search_with_unique_source_id(
+            query: str,
+            page_size: int = 5,
+        ) -> list[USDAFoodItem]:
+            nonlocal next_fdc_id
+            mock_usda_food.fdc_id = next_fdc_id
+            next_fdc_id += 1
+            return [mock_usda_food]
+
+        db.usda_client.search_foods.side_effect = search_with_unique_source_id
 
         with patch("core.food_apis.unified_db.asyncio.sleep", new=AsyncMock()):
-            foods = await db.get_common_foods_database()
+            foods = asyncio.run(db.get_common_foods_database())
 
         assert "chicken_breast" in foods
         assert isinstance(foods["chicken_breast"], UnifiedFoodItem)
         assert foods["chicken_breast"].source == "USDA FoodData Central"
 
-        await db.close()
+        asyncio.run(db.close())
 
 
 class TestDatabaseUpdateManager:

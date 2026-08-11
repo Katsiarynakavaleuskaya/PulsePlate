@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Mapping
@@ -215,59 +214,6 @@ def test_core_db_init_db_warns_on_remove_failure(
 
 
 @pytest.mark.asyncio
-async def test_update_manager_record_count_and_checksum_sqlite_paths(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Cover SQLite cache paths in DatabaseUpdateManager."""
-    from core.food_apis.update_manager import DatabaseUpdateManager
-
-    cache_dir = tmp_path / "food_db"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    sqlite_file = cache_dir / "off.sqlite"
-
-    conn = sqlite3.connect(str(sqlite_file))
-    try:
-        conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
-        conn.execute("INSERT INTO products (name, data) VALUES (?, ?)", ("ok", '{"k":1}'))
-        conn.commit()
-    finally:
-        conn.close()
-
-    mgr = DatabaseUpdateManager(cache_dir=cache_dir)
-
-    count = await mgr._get_actual_record_count("openfoodfacts")
-    assert count == 1
-
-    class _BadData:
-        def encode(self, _encoding: str) -> bytes:
-            raise UnicodeEncodeError("utf-8", "x", 0, 1, "boom")
-
-    class _FakeConn:
-        def execute(self, _sql: str):
-            return iter([("ok", '{"k":1}'), ("bad", _BadData())])
-
-        def close(self) -> None:
-            return None
-
-    # Patch sqlite3.connect only for checksum-loading path to hit the UnicodeEncodeError handler.
-    monkeypatch.setattr(sqlite3, "connect", lambda _p: _FakeConn())
-    cache_data = await mgr._get_cache_data_for_checksum("openfoodfacts")
-
-    assert "ok" in cache_data
-
-    # Cover cache_data branch in validated checksum method.
-    def _calc(_data: dict[str, Any]) -> str:
-        return "abc"
-
-    monkeypatch.setattr(mgr, "_calculate_checksum", _calc, raising=True)
-    rc, checksum = await mgr._get_validated_record_count_and_checksum(
-        "openfoodfacts", unified_foods={}
-    )
-    assert checksum == "abc"
-    assert rc >= 0
-
-
-@pytest.mark.asyncio
 async def test_update_manager_load_backup_schema_validation(tmp_path: Path) -> None:
     """Cover _load_backup schema validation branches (non-dict + malformed entry)."""
     from core.food_apis.update_manager import DatabaseUpdateManager
@@ -357,20 +303,6 @@ def test_update_manager_patchable_path_wrapper_eq_and_hash(tmp_path: Path) -> No
     assert p == p2
     assert p == tmp_path
     assert len({p, p2}) == 1
-
-
-@pytest.mark.asyncio
-async def test_update_manager_get_cache_data_for_checksum_handles_exception(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Cover broad exception handler in _get_cache_data_for_checksum."""
-    from core.food_apis.update_manager import DatabaseUpdateManager
-
-    mgr = DatabaseUpdateManager(cache_dir=tmp_path / "food_db")
-    # Force a TypeError inside the try block (cache_dir / filename) to hit except.
-    monkeypatch.setattr(mgr, "cache_dir", object(), raising=True)
-    res = await mgr._get_cache_data_for_checksum("openfoodfacts")
-    assert res == {}
 
 
 def test_meal_optimizer_break_when_optimized_meals_empty() -> None:
