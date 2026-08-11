@@ -946,6 +946,7 @@ class DatabaseUpdateManager:
         """Validate and atomically publish one complete source snapshot."""
         foods = self._reconstruct_backup_snapshot(snapshot)
         temporary_path: Path | None = None
+        rollback_path: Path | None = None
         try:
             serialized = json.dumps(
                 {name: asdict(food) for name, food in foods.items()},
@@ -968,8 +969,40 @@ class DatabaseUpdateManager:
             with open(temporary_path, "r", encoding="utf-8") as temporary_file:
                 staged_snapshot = _load_common_foods_json(temporary_file)
             self._reconstruct_backup_snapshot(staged_snapshot)
+            prior_target_exists = backup_file.exists()
+            prior_target_bytes = backup_file.read_bytes() if prior_target_exists else b""
             os.replace(temporary_path, backup_file)
             temporary_path = None
+            try:
+                parent_descriptor = os.open(backup_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(parent_descriptor)
+                finally:
+                    os.close(parent_descriptor)
+            except OSError:
+                if prior_target_exists:
+                    with tempfile.NamedTemporaryFile(
+                        mode="wb",
+                        dir=backup_file.parent,
+                        prefix=f".{backup_file.name}.rollback.",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as rollback_file:
+                        rollback_path = Path(rollback_file.name)
+                        rollback_file.write(prior_target_bytes)
+                        rollback_file.flush()
+                        os.fsync(rollback_file.fileno())
+                    os.replace(rollback_path, backup_file)
+                    rollback_path = None
+                else:
+                    backup_file.unlink(missing_ok=True)
+
+                rollback_parent_descriptor = os.open(backup_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(rollback_parent_descriptor)
+                finally:
+                    os.close(rollback_parent_descriptor)
+                raise
         except CommonFoodsCacheAdmissionError:
             raise
         except Exception as exc:
@@ -981,6 +1014,14 @@ class DatabaseUpdateManager:
                 except OSError as exc:
                     logger.error(
                         "Backup snapshot temporary cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
+            if rollback_path is not None:
+                try:
+                    rollback_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Backup snapshot rollback cleanup failed; category=%s",
                         type(exc).__name__,
                     )
 

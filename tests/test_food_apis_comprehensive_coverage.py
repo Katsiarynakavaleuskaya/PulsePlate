@@ -1450,6 +1450,105 @@ class TestDatabaseUpdateManagerComprehensive:
         assert backup_file.read_bytes() == established_bytes
         assert not list(tmp_path.glob(f".{backup_file.name}.*.tmp"))
 
+    def test_backup_snapshot_fsyncs_parent_and_closes_descriptor(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from core.food_apis import update_manager as update_manager_module
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        backup_file = tmp_path / "openfoodfacts_backup_parent-fsync.json"
+        events: list[tuple[str, int | None]] = []
+        real_fsync = os.fsync
+        real_close = os.close
+        real_replace = os.replace
+
+        def recording_fsync(descriptor: int) -> None:
+            events.append(("fsync", descriptor))
+            real_fsync(descriptor)
+
+        def recording_replace(source: str | Path, target: str | Path) -> None:
+            real_replace(source, target)
+            events.append(("replace", None))
+
+        def recording_close(descriptor: int) -> None:
+            events.append(("close", descriptor))
+            real_close(descriptor)
+
+        monkeypatch.setattr(update_manager_module.os, "fsync", recording_fsync)
+        monkeypatch.setattr(update_manager_module.os, "replace", recording_replace)
+        monkeypatch.setattr(update_manager_module.os, "close", recording_close)
+
+        manager._write_backup_snapshot(
+            backup_file,
+            {"valid": _admissible_common_food_fixture(96)},
+        )
+
+        fsync_events = [event for event in events if event[0] == "fsync"]
+        assert len(fsync_events) == 2
+        parent_descriptor = fsync_events[-1][1]
+        assert parent_descriptor is not None
+        assert [event[0] for event in events] == ["fsync", "replace", "fsync", "close"]
+        assert events[-2:] == [
+            ("fsync", parent_descriptor),
+            ("close", parent_descriptor),
+        ]
+
+    @pytest.mark.parametrize(
+        "prior_target_bytes",
+        [b"exact-prior-backup", None],
+        ids=["existing-target", "no-prior-target"],
+    )
+    def test_backup_parent_fsync_failure_restores_prior_state_and_closes_descriptors(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        prior_target_bytes: bytes | None,
+    ) -> None:
+        from core.food_apis import update_manager as update_manager_module
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        backup_file = tmp_path / "openfoodfacts_backup_parent-fsync-failure.json"
+        if prior_target_bytes is not None:
+            backup_file.write_bytes(prior_target_bytes)
+        fsync_descriptors: list[int] = []
+        closed_descriptors: list[int] = []
+        real_fsync = os.fsync
+        real_close = os.close
+
+        def fail_first_parent_fsync(descriptor: int) -> None:
+            fsync_descriptors.append(descriptor)
+            if len(fsync_descriptors) == 2:
+                raise OSError("forced backup parent fsync failure")
+            real_fsync(descriptor)
+
+        def recording_close(descriptor: int) -> None:
+            closed_descriptors.append(descriptor)
+            real_close(descriptor)
+
+        monkeypatch.setattr(update_manager_module.os, "fsync", fail_first_parent_fsync)
+        monkeypatch.setattr(update_manager_module.os, "close", recording_close)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="Backup snapshot write failed"):
+            manager._write_backup_snapshot(
+                backup_file,
+                {"valid": _admissible_common_food_fixture(97)},
+            )
+
+        expected_fsync_count = 4 if prior_target_bytes is not None else 3
+        assert len(fsync_descriptors) == expected_fsync_count
+        assert fsync_descriptors[1] in closed_descriptors
+        assert fsync_descriptors[-1] in closed_descriptors
+        if prior_target_bytes is None:
+            assert not backup_file.exists()
+        else:
+            assert backup_file.read_bytes() == prior_target_bytes
+        assert not list(tmp_path.glob(f".{backup_file.name}.*.tmp"))
+
     def test_load_backup_rejects_mixed_snapshot_as_a_whole(self, tmp_path: Path) -> None:
         from core.food_apis.update_manager import DatabaseUpdateManager
 

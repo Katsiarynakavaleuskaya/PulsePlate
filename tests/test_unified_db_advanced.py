@@ -456,6 +456,77 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert len(calls) == 1
         assert not (tmp_path / "common_foods.json").exists()
 
+    def test_synchronous_validation_overrun_times_out_before_publication(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        real_validate = db._validate_common_foods_envelope
+        publication = MagicMock()
+
+        def validate_after_deadline(envelope: object) -> dict[str, UnifiedFoodItem]:
+            foods = real_validate(envelope)
+            threading.Event().wait(0.03)
+            return foods
+
+        monkeypatch.setattr(
+            db,
+            "_acquire_common_foods_envelope",
+            AsyncMock(return_value=_valid_common_foods_envelope()),
+        )
+        monkeypatch.setattr(db, "_validate_common_foods_envelope", validate_after_deadline)
+        monkeypatch.setattr(db, "_publish_common_foods_envelope", publication)
+        monkeypatch.setattr(
+            unified_db_module,
+            "COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS",
+            0.01,
+        )
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="total deadline"):
+            asyncio.run(db.get_common_foods_database())
+
+        publication.assert_not_called()
+        assert not (tmp_path / "common_foods.json").exists()
+
+    def test_synchronous_publication_overrun_times_out_with_valid_cache(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        cache_file = tmp_path / "common_foods.json"
+        real_publish = db._publish_common_foods_envelope
+
+        def publish_before_deadline_check(
+            target: Path,
+            envelope: dict[str, object],
+        ) -> None:
+            real_publish(target, envelope)
+            threading.Event().wait(0.03)
+
+        monkeypatch.setattr(
+            db,
+            "_acquire_common_foods_envelope",
+            AsyncMock(return_value=_valid_common_foods_envelope()),
+        )
+        monkeypatch.setattr(db, "_publish_common_foods_envelope", publish_before_deadline_check)
+        monkeypatch.setattr(
+            unified_db_module,
+            "COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS",
+            0.01,
+        )
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="total deadline"):
+            asyncio.run(db.get_common_foods_database())
+
+        assert cache_file.exists()
+        with open(cache_file, "r", encoding="utf-8") as file_object:
+            admitted = UnifiedFoodDatabase._validate_common_foods_envelope(
+                unified_db_module._load_common_foods_json(file_object)
+            )
+        assert tuple(admitted) == tuple(COMMON_FOODS_MANIFEST)
+
     def test_waiter_lock_wait_and_acquisition_share_one_total_deadline(
         self,
         tmp_path: Path,

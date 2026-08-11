@@ -588,8 +588,12 @@ class UnifiedFoodDatabase:
 
                 envelope = await self._acquire_common_foods_envelope()
                 foods_db = self._validate_common_foods_envelope(envelope)
+                if event_loop.time() >= admission_deadline:
+                    raise TimeoutError
 
                 self._publish_common_foods_envelope(cache_file, envelope)
+                if event_loop.time() >= admission_deadline:
+                    raise TimeoutError
                 logger.info("Published %d common foods atomically", len(foods_db))
 
                 return foods_db
