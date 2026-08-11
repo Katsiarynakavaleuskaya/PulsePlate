@@ -11,6 +11,7 @@ Coverage targets:
 - Error handling (500 on targets failure)
 """
 
+import importlib
 from unittest.mock import patch
 
 import pytest
@@ -504,7 +505,7 @@ def test_app_metrics_build_legacy_alias_requests_total_returns_none_on_importerr
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Guard: app.metrics must handle missing prometheus_client deterministically."""
-    import app.metrics as app_metrics
+    app_metrics = importlib.import_module("app.metrics")
 
     monkeypatch.setattr(
         app_metrics, "_import_prometheus", lambda: (_ for _ in ()).throw(ImportError("boom"))
@@ -516,7 +517,7 @@ def test_app_metrics_build_legacy_alias_requests_total_returns_none_on_duplicate
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Guard: duplicate metric registration must disable legacy counter (no crash)."""
-    import app.metrics as app_metrics
+    app_metrics = importlib.import_module("app.metrics")
 
     def _bad_counter(*_args: object, **_kwargs: object) -> object:
         raise ValueError("duplicate metric name")
@@ -529,7 +530,7 @@ def test_record_legacy_alias_hit_noop_when_not_in_allowlist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """record_legacy_alias_hit must be low-cardinality (allowlist-only)."""
-    import app.metrics as app_metrics
+    app_metrics = importlib.import_module("app.metrics")
 
     class _ExplodeCounter:
         def labels(self, *, alias_route: str) -> object:  # pragma: no cover
@@ -543,7 +544,7 @@ def test_record_legacy_alias_hit_noop_when_counter_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """record_legacy_alias_hit must be best-effort when counter is disabled."""
-    import app.metrics as app_metrics
+    app_metrics = importlib.import_module("app.metrics")
 
     monkeypatch.setattr(app_metrics, "LEGACY_ALIAS_REQUESTS_TOTAL", None)
     app_metrics.record_legacy_alias_hit(LEGACY_ALIAS_ROUTE)
@@ -553,7 +554,7 @@ def test_record_legacy_alias_hit_swallows_counter_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """record_legacy_alias_hit must never raise (observability best-effort)."""
-    import app.metrics as app_metrics
+    app_metrics = importlib.import_module("app.metrics")
 
     class _BadChild:
         def inc(self, amount: float = 1.0) -> None:

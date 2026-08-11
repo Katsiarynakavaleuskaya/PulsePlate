@@ -4,14 +4,16 @@ RU: Тесты для повышения покрытия app/routers/foods.py
 EN: Coverage boost tests for app/routers/foods.py
 """
 
+import importlib
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-import app.metrics as app_metrics
 from app.routers.foods import router
 from app.services.search_meili import MeiliSearchBackend, ShadowSearchBackend
+
+app_metrics = importlib.import_module("app.metrics")
 
 
 class TestFoodsRouterCoverage:
