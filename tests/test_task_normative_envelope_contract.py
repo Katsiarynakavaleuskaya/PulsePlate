@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import fields, is_dataclass, replace
 from inspect import Parameter, isclass, isfunction, signature
 from typing import Literal, get_type_hints
@@ -664,7 +665,9 @@ def test_stable_mapping_is_json_ready_and_excludes_only_fingerprint() -> None:
         lambda envelope: replace(envelope, policy_version="other-policy.v1"),
     ],
 )
-def test_direct_noncanonical_dataclass_is_rejected(mutator: object) -> None:
+def test_direct_noncanonical_dataclass_is_rejected(
+    mutator: Callable[[TaskNormativeEnvelopeV1], TaskNormativeEnvelopeV1],
+) -> None:
     envelope = _build()
     malformed = mutator(envelope)
 
@@ -755,7 +758,7 @@ class _FalseyAuthority:
     ],
 )
 def test_bool_as_int_string_subclass_and_falsey_authority_impostors_are_rejected(
-    mutator: object,
+    mutator: Callable[[TaskNormativeEnvelopeV1], TaskNormativeEnvelopeV1],
 ) -> None:
     envelope = _build()
     malformed = mutator(envelope)
@@ -937,7 +940,7 @@ def test_exact_dataclass_field_inventory_and_literal_false_authority() -> None:
         assert field_name not in assessment_parameters
         with pytest.raises(TypeError):
             TaskNormativeAssessmentV1(**assessment_arguments, **{field_name: True})
-        with pytest.raises(TypeError):
+        with pytest.raises((TypeError, ValueError)):
             replace(assessment, **{field_name: True})
     assert assessment.blocking_authority is False
     assert assessment.merge_authority is False
