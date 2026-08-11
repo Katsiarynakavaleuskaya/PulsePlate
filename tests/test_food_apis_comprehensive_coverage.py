@@ -2454,6 +2454,56 @@ class TestDatabaseUpdateManagerComprehensive:
             assert "usda" in results
             assert results["usda"].success is True
 
+    @pytest.mark.parametrize(
+        ("blank_carrier", "expected_error"),
+        [
+            ("top_level_nutrient_key", "Backup snapshot contains invalid nutrition"),
+            (
+                "input_nutrient_key",
+                "Backup snapshot contains invalid nutrition evidence",
+            ),
+            ("raw_payload_key", "Backup snapshot contains invalid nutrition evidence"),
+            (
+                "provenance_key",
+                "Backup snapshot contains invalid provenance evidence",
+            ),
+            (
+                "provenance_value",
+                "Backup snapshot contains invalid provenance evidence",
+            ),
+        ],
+    )
+    def test_generic_backup_rejects_whitespace_only_nutrition_mapping_strings(
+        self,
+        tmp_path: Path,
+        blank_carrier: str,
+        expected_error: str,
+    ) -> None:
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        candidate = asdict(_admissible_common_food_fixture(102))
+        nutrient = "fixture_nutrient_102"
+        nutrition_input = candidate["nutrition_inputs"][0]
+
+        if blank_carrier == "top_level_nutrient_key":
+            candidate["nutrients_per_100g"]["   "] = 1.0
+        elif blank_carrier == "input_nutrient_key":
+            nutrition_input["nutrients"]["   "] = 1.0
+        elif blank_carrier == "raw_payload_key":
+            nutrition_input["raw_payload"]["   "] = "evidence"
+        elif blank_carrier == "provenance_key":
+            candidate["nutrition_provenance"]["   "] = "usda"
+            candidate["nutrition_nutrient_confidence"]["   "] = 0.7
+        else:
+            candidate["nutrition_provenance"][nutrient] = "   "
+
+        with pytest.raises(CommonFoodsCacheAdmissionError) as error:
+            manager._reconstruct_backup_snapshot({"invalid": candidate})
+
+        assert str(error.value) == expected_error
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1071,7 +1071,7 @@ class DatabaseUpdateManager:
                 or not nutrients
                 or any(
                     type(key) is not str
-                    or not key
+                    or not key.strip()
                     or not _has_finite_numeric_shape(value)
                     or value < 0.0
                     for key, value in nutrients.items()
@@ -1119,7 +1119,7 @@ class DatabaseUpdateManager:
                     or not input_nutrients
                     or any(
                         type(key) is not str
-                        or not key
+                        or not key.strip()
                         or not _has_finite_numeric_shape(value)
                         or value < 0.0
                         for key, value in input_nutrients.items()
@@ -1127,7 +1127,7 @@ class DatabaseUpdateManager:
                     or type(raw_payload) is not dict
                     or any(
                         type(key) is not str
-                        or not key
+                        or not key.strip()
                         or not (
                             value is None
                             or type(value) is str
@@ -1146,7 +1146,10 @@ class DatabaseUpdateManager:
                 type(provenance) is not dict
                 or not provenance
                 or any(
-                    type(key) is not str or not key or type(value) is not str or not value
+                    type(key) is not str
+                    or not key.strip()
+                    or type(value) is not str
+                    or not value.strip()
                     for key, value in provenance.items()
                 )
                 or type(nutrient_confidence) is not dict

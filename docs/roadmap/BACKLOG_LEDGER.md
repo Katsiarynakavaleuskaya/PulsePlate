@@ -1743,7 +1743,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (paid-path latency / provider reliability / data provenance)
-  - Target PR: PR-TBD-R3 (replacement carrier for #2261 and #2259)
+  - Target PR: [PR #2267](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2267)
   - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r3`
   - Status: Active R3 replacement carrier, separate from tests-only PR #2255
   - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
