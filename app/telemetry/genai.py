@@ -65,6 +65,7 @@ _ALLOWED_ATTRS: frozenset[str] = frozenset(
         "pulseplate.feature_flags.philosophy_router",
         "pulseplate.feature_flags.philosophy_validation",
         "pulseplate.feature_flags.rag",
+        "pulseplate.feature_flags.rag_context_compaction",
         "pulseplate.feature_flags.rag_recursive",
         "pulseplate.feature_flags.rag_vector",
         "pulseplate.rag.agent_id",

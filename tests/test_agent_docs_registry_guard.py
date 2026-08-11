@@ -21,14 +21,16 @@ from markdown_it.token import Token
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-LESSON_33_HEADING = "## 33) Scope dependency remediation by invariant class, not advisory variant"
+LESSON_33_HEADING = (
+    "## 33) Keep one dependency identity by default; batch only an exact scanner snapshot"
+)
 APPLICATION_POLICY_HEADING = "**Security: Dependency CVE bumps (application deps):**"
 APPLICATION_POLICY_END = "**Security: Yanked packages on PyPI:**"
 LESSON_33_END = "## Repo Commands Reference"
 SECURITY_PARENT_START = "## Security: Unfixed Distro CVE Policy"
 SECURITY_PARENT_END = "## CI: GitHub Container Registry (GHCR) Policy"
-ADMISSION_AUTHORITY_START = "<!-- dependency-remediation-admission:v1:start -->"
-ADMISSION_AUTHORITY_END = "<!-- dependency-remediation-admission:v1:end -->"
+ADMISSION_AUTHORITY_START = "<!-- dependency-remediation-admission:v2:start -->"
+ADMISSION_AUTHORITY_END = "<!-- dependency-remediation-admission:v2:end -->"
 EVIDENCE_STATUS_START = "<!-- dependency-remediation-evidence-status:v1:start -->"
 EVIDENCE_STATUS_END = "<!-- dependency-remediation-evidence-status:v1:end -->"
 HISTORICAL_TITLE = (
@@ -213,14 +215,17 @@ def _unique_top_level_json_triplet(
     assert fence.level == 0
     assert fence.markup == "```"
     assert fence.info.strip() == "json"
-    assert fence.map is not None
+    start_map = tokens[start.start].map
+    fence_map = fence.map
+    end_map = tokens[end.start].map
+    assert start_map is not None
+    assert fence_map is not None
+    assert end_map is not None
     fence_lines = _token_source(lines, fence).splitlines()
     assert fence_lines[0] == "```json"
     assert fence_lines[-1] == "```"
-    assert tokens[start.start].map is not None
-    assert tokens[end.start].map is not None
-    assert tokens[start.start].map[1] == fence.map[0]
-    assert fence.map[1] == tokens[end.start].map[0]
+    assert start_map[1] == fence_map[0]
+    assert fence_map[1] == end_map[0]
     return MarkdownSpan(start.start, end.stop)
 
 
@@ -417,65 +422,71 @@ def _extract_dependency_security_sections(agents_md: str, lessons_md: str) -> tu
 # Only platform line-ending differences are normalized. A reviewed normative change
 # must update its document and this digest together.
 _EXPECTED_SECTION_DIGESTS = {
-    "AGENTS Security parent region": "d4d4f41f6835f04dbb324734df742034c86bf355c82100449b67480e7b4dbc0d",  # pragma: allowlist secret
-    "engineering lesson 33": "b5912ae176f5f7d014740a6ec72937fc5176dd2b3d9bf2188d2faf5980d8aa4d",  # pragma: allowlist secret
-    "historical evidence authority summary": "a68ff8645ace964286c17457820c3dfcc71ad7616378500043ed79600388c1e8",  # pragma: allowlist secret
+    "AGENTS Security parent region": "ae55676b8b2d9d7d99ceae7910665c491f5acba992da36b3ef119f7ab32c1fb8",  # pragma: allowlist secret
+    "engineering lesson 33": "538729c57c7c927a8418a231d79a340f790f8f55767ca55e9eebce152bbe9653",  # pragma: allowlist secret
+    "historical evidence authority summary": "1f0975a81cc4ddd2e262854ac103e1f8aacbba4deff674ec6540a83c08cbb5a8",  # pragma: allowlist secret
 }
 _EXPECTED_ADMISSION_AUTHORITY = {
-    "schema": "pulseplate.dependency_remediation_admission.v1",
-    "dependency_identities": 1,
+    "schema": "pulseplate.dependency_remediation_admission.v2",
+    "default_dependency_identities": 1,
     "ecosystems": 1,
-    "remediation_action_classes": 1,
-    "remediation_action_domain": (
-        "declared_operator_intent_transitions_not_raw_resolver_occurrence_delta"
+    "batch_exception": "external_operator_exact_immutable_scanner_snapshot_only",
+    "policy_effect": "prospective_after_merge",
+    "policy_transition_authority": (
+        "external_direct_operator_instruction_outside_candidate_diff_exact_transition_only"
     ),
-    "remediation_action_relation": (
-        "uniform_non_identity_same_authored_operation_kind_and_semantic_intent"
-    ),
-    "operator_intent_delta": "non_empty",
+    "policy_transition_grants_future_authority": False,
+    "candidate_self_authorization": "forbidden",
+    "candidate_authorization_authentication": "forbidden",
+    "batch_identity_set": "exact_finite_complete_snapshot_derived_unresolved_set",
+    "batch_identity_omission_or_addition": "fail",
+    "per_identity_authored_actions": 1,
+    "per_identity_action_kinds": "replacement_or_removal",
+    "operator_intent_delta_per_identity": "non_empty",
     "literal_target_versions": "parameters_not_classes",
-    "material_transition_partition": (
-        "exactly_one_of_operator_intent_or_deterministic_solver_closure"
-    ),
-    "solver_closure": ("exact_canonical_replay_from_exact_base_using_only_single_operator_intent"),
-    "solver_closure_transition_shapes": "mixed_presence_shapes_allowed",
+    "material_transition_partition": "per_identity_authored_action_or_deterministic_solver_closure",
+    "solver_closure": "exact_canonical_replay_from_exact_base_per_authored_action",
     "solver_closure_independent_intent": "forbidden",
     "manual_unclassified_or_unreplayable_delta": "fail",
     "aggregate_goal_is_postcondition_not_intent": True,
-    "surfaces": "non_empty_complete_mechanically_enumerated_base_and_head",
-    "candidate_advisory_inventory": "finite_reconciled_at_recorded_cutoff",
+    "surfaces": "non_empty_complete_mechanically_enumerated_base_and_head_per_identity",
+    "scanner_snapshot": "one_immutable_external_run_and_analysis",
+    "candidate_advisory_inventory": "finite_reconciled_per_identity_at_recorded_snapshot",
     "applicable_advisory_inventory": (
-        "non_empty_exactly_all_candidates_with_affected_comparable_base_witness"
+        "non_empty_exactly_all_candidates_with_affected_comparable_base_witness_per_identity"
     ),
     "advisory_applicability_quantifier": (
-        "for_every_advisory_exists_affected_comparable_governed_base_occurrence"
+        "for_every_advisory_exists_affected_comparable_governed_base_occurrence_or_disposition"
     ),
     "non_applicable_candidates": (
-        "base_non_applicable_disposition_with_no_affected_unresolved_or_"
-        "incomparable_governed_head_occurrence"
+        "base_non_applicable_disposition_and_universal_head_safety_check"
     ),
-    "disposition_only_lane": (
-        "separate_when_inventory_empty_or_no_applicable_affected_base_occurrence_"
-        "no_mutation_or_remediation_claim"
+    "disposition_only_lane": ("separate_non_mutating_when_per_identity_applicable_inventory_empty"),
+    "remediation_postcondition_inventory": (
+        "every_candidate_advisory_in_each_per_identity_F_cutoff"
     ),
-    "remediation_postcondition_inventory": "every_candidate_advisory_in_F_cutoff",
     "occurrences": (
-        "for_every_F_cutoff_advisory_all_head_occurrences_resolved_outside_"
-        "affected_range_or_executable_absence"
+        "for_every_F_cutoff_advisory_all_head_occurrences_outside_affected_range_or_"
+        "executable_absence"
     ),
     "base_only_surfaces": "reconciled_by_operator_intent_or_solver_closure_or_fail",
-    "unparseable_unresolved_or_unclassified": "fail",
+    "postcondition": "conjunction_all_per_identity_universal_head_postconditions",
+    "partial_success": "fail",
+    "unparseable_unresolved_omitted_or_unclassified": "fail",
     "same_floor_required": False,
-    "evidence_owner": "exactly_one_docs_security_document",
+    "obsolete_suppression_deletion": (
+        "only_exact_target_suppression_for_remediated_batch_identity"
+    ),
+    "suppression_addition_broadening_replacement_or_other_deletion": "forbidden",
+    "evidence_owner": "exactly_one_docs_security_batch_document",
     "per_advisory_evidence": "required",
-    "suppression_may_mix": False,
 }
 _EXPECTED_HISTORICAL_EVIDENCE_STATUS = {
     "schema": "pulseplate.dependency_remediation_evidence_status.v1",
     "evidence_status": "historical",
     "current_scoping_authority": False,
     "future_multi_dependency_batching_authority": False,
-    "current_authority_ref": "AGENTS.md::dependency-remediation-admission:v1",
+    "current_authority_ref": "AGENTS.md::dependency-remediation-admission:v2",
 }
 
 
@@ -868,114 +879,112 @@ _SUPPRESSION_MUTATIONS = (
     ),
 )
 _AUTHORITY_FIELD_MUTATIONS = (
-    pytest.param("schema", "pulseplate.dependency_remediation_admission.v2", id="schema"),
-    pytest.param("dependency_identities", 2, id="plural-D"),
+    pytest.param("schema", "pulseplate.dependency_remediation_admission.v1", id="schema"),
+    pytest.param("default_dependency_identities", 2, id="plural-default-D"),
     pytest.param("ecosystems", 2, id="plural-ecosystems"),
-    pytest.param("remediation_action_classes", 0, id="missing-R"),
-    pytest.param("remediation_action_classes", 2, id="plural-R"),
-    pytest.param("remediation_action_domain", "raw_resolver_occurrence_delta", id="raw-delta-R"),
-    pytest.param("remediation_action_relation", "aggregate_goal_make_safe", id="goal-as-R"),
-    pytest.param("operator_intent_delta", "empty_allowed", id="identity-no-op-R"),
+    pytest.param("batch_exception", "candidate_declared_batch", id="candidate-batch"),
+    pytest.param("policy_effect", "candidate_effective_before_merge", id="early-effect"),
+    pytest.param(
+        "policy_transition_authority", "candidate_policy_text", id="transition-self-authority"
+    ),
+    pytest.param(
+        "policy_transition_grants_future_authority", True, id="transition-future-authority"
+    ),
+    pytest.param("candidate_self_authorization", "allowed", id="self-authorization"),
+    pytest.param(
+        "candidate_authorization_authentication", "allowed", id="candidate-authentication"
+    ),
+    pytest.param("batch_identity_set", "selected_subset", id="selected-subset"),
+    pytest.param("batch_identity_omission_or_addition", "allow", id="set-drift"),
+    pytest.param("per_identity_authored_actions", 0, id="missing-action"),
+    pytest.param("per_identity_authored_actions", 2, id="plural-actions"),
+    pytest.param("per_identity_action_kinds", "aggregate_make_safe", id="goal-as-action"),
+    pytest.param("operator_intent_delta_per_identity", "empty_allowed", id="empty-intent"),
     pytest.param("literal_target_versions", "different_classes", id="target-variant-split"),
     pytest.param("material_transition_partition", "unclassified_allowed", id="partial-delta"),
     pytest.param("solver_closure", "unreplayed_claim", id="unreplayed-closure"),
-    pytest.param(
-        "solver_closure_transition_shapes",
-        "uniform_presence_shape_required",
-        id="solver-shape-deadlock",
-    ),
-    pytest.param("solver_closure_independent_intent", "allowed", id="second-intent-escape"),
+    pytest.param("solver_closure_independent_intent", "allowed", id="closure-intent"),
     pytest.param("manual_unclassified_or_unreplayable_delta", "allow", id="manual-delta"),
     pytest.param("aggregate_goal_is_postcondition_not_intent", False, id="goal-as-intent"),
-    pytest.param("surfaces", "empty_base_and_head", id="empty-S"),
     pytest.param("surfaces", "representative_sample", id="partial-S"),
-    pytest.param("surfaces", "head_only", id="missing-base-S"),
-    pytest.param("candidate_advisory_inventory", "unreconciled", id="unreconciled-candidates"),
-    pytest.param("applicable_advisory_inventory", "empty_allowed", id="empty-A"),
+    pytest.param("scanner_snapshot", "mutable_latest", id="mutable-snapshot"),
+    pytest.param("candidate_advisory_inventory", "unreconciled", id="unreconciled-advisories"),
+    pytest.param("applicable_advisory_inventory", "empty_allowed", id="empty-applicable"),
     pytest.param(
-        "advisory_applicability_quantifier",
-        "exists_one_advisory_with_affected_base",
-        id="existential-A",
+        "advisory_applicability_quantifier", "exists_one_advisory", id="existential-applicable"
     ),
-    pytest.param("non_applicable_candidates", "ignored", id="omitted-disposition"),
-    pytest.param("disposition_only_lane", "may_mutate_or_mix", id="disposition-escape"),
+    pytest.param("non_applicable_candidates", "ignored", id="head-only-advisory-escape"),
+    pytest.param("disposition_only_lane", "may_mutate", id="disposition-mutation"),
     pytest.param(
-        "remediation_postcondition_inventory",
-        "base_applicable_advisories_A_only",
-        id="head-only-advisory-escape",
+        "remediation_postcondition_inventory", "base_applicable_only", id="partial-inventory"
     ),
-    pytest.param("occurrences", "one_representative_head_resolution", id="partial-P"),
-    pytest.param("base_only_surfaces", "ignored", id="unreconciled-base-only-S"),
-    pytest.param("unparseable_unresolved_or_unclassified", "allow", id="allow-unresolved"),
+    pytest.param("occurrences", "one_representative_head", id="partial-occurrences"),
+    pytest.param("base_only_surfaces", "ignored", id="base-only-surface"),
+    pytest.param("postcondition", "any_identity_safe", id="disjunctive-postcondition"),
+    pytest.param("partial_success", "allow", id="partial-success"),
+    pytest.param("unparseable_unresolved_omitted_or_unclassified", "allow", id="allow-unresolved"),
     pytest.param("same_floor_required", True, id="same-floor"),
+    pytest.param("obsolete_suppression_deletion", "any_suppression", id="broad-deletion"),
+    pytest.param(
+        "suppression_addition_broadening_replacement_or_other_deletion",
+        "allowed",
+        id="suppression-escape",
+    ),
     pytest.param("evidence_owner", "pr_body_or_issue", id="evidence-owner"),
     pytest.param("per_advisory_evidence", "shared_aggregate", id="shared-evidence"),
-    pytest.param("suppression_may_mix", True, id="mix-suppression"),
 )
 _STRICT_JSON_MUTATIONS = (
     pytest.param(
-        '"dependency_identities": 1',
-        '"dependency_identities": true',
-        r"dependency_identities.*expected int, got bool",
+        '"default_dependency_identities": 1',
+        '"default_dependency_identities": true',
+        r"default_dependency_identities.*expected int, got bool",
         id="identity-bool",
     ),
     pytest.param(
-        '"dependency_identities": 1',
-        '"dependency_identities": 1.0',
-        r"dependency_identities.*expected int, got float",
+        '"default_dependency_identities": 1',
+        '"default_dependency_identities": 1.0',
+        r"default_dependency_identities.*expected int, got float",
         id="identity-float",
     ),
     pytest.param(
-        '"remediation_action_classes": 1',
-        '"remediation_action_classes": true',
-        r"remediation_action_classes.*expected int, got bool",
+        '"per_identity_authored_actions": 1',
+        '"per_identity_authored_actions": true',
+        r"per_identity_authored_actions.*expected int, got bool",
         id="action-bool",
     ),
     pytest.param(
-        '"remediation_action_classes": 1',
-        '"remediation_action_classes": 1.0',
-        r"remediation_action_classes.*expected int, got float",
+        '"per_identity_authored_actions": 1',
+        '"per_identity_authored_actions": 1.0',
+        r"per_identity_authored_actions.*expected int, got float",
         id="action-float",
     ),
     pytest.param(
-        '"aggregate_goal_is_postcondition_not_intent": true',
-        '"aggregate_goal_is_postcondition_not_intent": 1',
-        r"aggregate_goal_is_postcondition_not_intent.*expected bool, got int",
-        id="aggregate-goal-int",
+        '"policy_transition_grants_future_authority": false',
+        '"policy_transition_grants_future_authority": 0',
+        r"policy_transition_grants_future_authority.*expected bool, got int",
+        id="transition-authority-int",
     ),
     pytest.param(
-        '"same_floor_required": false',
-        '"same_floor_required": 0',
-        r"same_floor_required.*expected bool, got int",
-        id="same-floor-int",
-    ),
-    pytest.param(
-        '"suppression_may_mix": false',
-        '"suppression_may_mix": 0',
-        r"suppression_may_mix.*expected bool, got int",
-        id="suppression-int",
-    ),
-    pytest.param(
-        '"dependency_identities": 1,',
-        '"dependency_identities": 2,\n  "dependency_identities": 1,',
-        r"duplicate JSON key 'dependency_identities'",
+        '"default_dependency_identities": 1,',
+        '"default_dependency_identities": 2,\n  "default_dependency_identities": 1,',
+        r"duplicate JSON key 'default_dependency_identities'",
         id="duplicate-identity-last-expected",
     ),
     pytest.param(
-        '"same_floor_required": false,',
-        '"same_floor_required": true,\n  "same_floor_required": false,',
+        '"same_floor_required": false',
+        '"same_floor_required": true,\n  "same_floor_required": false',
         r"duplicate JSON key 'same_floor_required'",
         id="duplicate-bool-last-expected",
     ),
     pytest.param(
-        '  "per_advisory_evidence": "required",\n',
+        '  "scanner_snapshot": "one_immutable_external_run_and_analysis",\n',
         "",
         r"key set mismatch",
         id="missing-key",
     ),
     pytest.param(
-        '"suppression_may_mix": false',
-        '"unexpected": true,\n  "suppression_may_mix": false',
+        '"per_advisory_evidence": "required"',
+        '"unexpected": true,\n  "per_advisory_evidence": "required"',
         r"key set mismatch",
         id="unexpected-key",
     ),
@@ -1041,7 +1050,7 @@ _HISTORICAL_STATUS_MUTATIONS = (
         id="historical-claims-future-batching-authority",
     ),
     pytest.param(
-        '"current_authority_ref": "AGENTS.md::dependency-remediation-admission:v1"',
+        '"current_authority_ref": "AGENTS.md::dependency-remediation-admission:v2"',
         '"current_authority_ref": "this-document"',
         id="historical-self-authority",
     ),
@@ -1103,6 +1112,20 @@ def test_dependency_security_policy_scopes_remediation_by_invariant_class() -> N
     _validate_dependency_security_policy(agents_md, lessons_md)
 
 
+def test_dependency_security_policy_models_exact_conjunctive_scanner_batch() -> None:
+    """Positive v2 model: exact snapshot set plus all-member success is admitted."""
+    agents_md, lessons_md = _current_dependency_policy_docs()
+    remediation, _lesson, _parent = _extract_dependency_security_sections(agents_md, lessons_md)
+    authority = _parse_dependency_remediation_authority(agents_md, remediation)
+    assert (
+        authority["batch_identity_set"] == "exact_finite_complete_snapshot_derived_unresolved_set"
+    )
+    assert authority["candidate_self_authorization"] == "forbidden"
+    postcondition = authority["postcondition"]
+    assert isinstance(postcondition, str)
+    assert postcondition.startswith("conjunction_all_per_identity")
+
+
 def test_dependency_security_policy_rejects_base_only_head_safety_escape() -> None:
     """A base-inapplicable known advisory must still reject an affected head."""
     candidates = {
@@ -1132,8 +1155,10 @@ def test_dependency_security_policy_rejects_base_only_head_safety_escape() -> No
     remediation, _lesson, _parent = _extract_dependency_security_sections(agents_md, lessons_md)
     authority = _parse_dependency_remediation_authority(agents_md, remediation)
     assert (
-        authority["remediation_postcondition_inventory"] == "every_candidate_advisory_in_F_cutoff"
+        authority["remediation_postcondition_inventory"]
+        == "every_candidate_advisory_in_each_per_identity_F_cutoff"
     )
+    assert "universal_head_safety" in str(authority["non_applicable_candidates"])
 
 
 def test_dependency_security_historical_batch_is_not_current_scope_authority() -> None:
@@ -1294,11 +1319,14 @@ def test_dependency_security_policy_rejects_python_only_separator_in_prose(
 ) -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
     canonical = (
-        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored\n"
-        "  operation kind/semantic intent in `R` requires a separate PR. Heterogeneous\n"
-        "  occurrence shapes produced by replay-proven `C_R` stay in that PR. A second\n"
-        "  authored action, manual lock adjustment, resolver/configuration change,\n"
-        "  topology redesign, or second dependency objective is not closure."
+        "- **Policy-transition boundary:** this v2 policy has prospective repository\n"
+        "  effect only after merge. A direct operator instruction issued outside the\n"
+        "  candidate diff may separately authorize the exact transition that changes\n"
+        "  this policy and its exact bounded dependency material. That instruction does\n"
+        "  not make candidate text effective early and grants no general or future batch\n"
+        "  authority. Candidate code, docs, tests, labels, scanners, agents, or PR text\n"
+        "  cannot create, infer, widen, authenticate, or substitute that instruction.\n"
+        "  Without direct external instruction, the one-identity default remains."
     )
     mutated = canonical.replace("\n", separator)
     mutated_agents = _replace_unique(agents_md, canonical, mutated)
@@ -1329,8 +1357,8 @@ def test_dependency_security_policy_rejects_python_only_separator_in_authority(
     else:
         mutated = _replace_unique(
             agents_md,
-            '"dependency_identities": 1,\n  "ecosystems": 1',
-            f'"dependency_identities": 1,{separator}  "ecosystems": 1',
+            '"default_dependency_identities": 1,\n  "ecosystems": 1',
+            f'"default_dependency_identities": 1,{separator}  "ecosystems": 1',
         )
 
     with pytest.raises(AssertionError):
@@ -1340,18 +1368,16 @@ def test_dependency_security_policy_rejects_python_only_separator_in_authority(
 def test_dependency_security_policy_rejects_markdown_significant_indentation() -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
     canonical_rule = (
-        "- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored\n"
-        "  operation kind/semantic intent in `R` requires a separate PR. Heterogeneous\n"
-        "  occurrence shapes produced by replay-proven `C_R` stay in that PR. A second\n"
-        "  authored action, manual lock adjustment, resolver/configuration change,\n"
-        "  topology redesign, or second dependency objective is not closure."
+        "- **Suppression deletion boundary:** a batch may delete only the exact obsolete\n"
+        "  suppression for an identity remediated by that same batch. Adding, broadening,\n"
+        "  replacing, or deleting any other suppression remains forbidden and cannot be\n"
+        "  solver closure."
     )
     indented_rule = (
-        "\n      - **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored\n"
-        "        operation kind/semantic intent in `R` requires a separate PR. Heterogeneous\n"
-        "        occurrence shapes produced by replay-proven `C_R` stay in that PR. A second\n"
-        "        authored action, manual lock adjustment, resolver/configuration change,\n"
-        "        topology redesign, or second dependency objective is not closure."
+        "\n      - **Suppression deletion boundary:** a batch may delete only the exact obsolete\n"
+        "        suppression for an identity remediated by that same batch. Adding, broadening,\n"
+        "        replacing, or deleting any other suppression remains forbidden and cannot be\n"
+        "        solver closure."
     )
     mutated_agents = _replace_unique(agents_md, canonical_rule, indented_rule)
 
@@ -1402,7 +1428,11 @@ def test_dependency_security_policy_rejects_missing_or_duplicate_authority_marke
 
 def test_dependency_security_policy_rejects_invalid_authority_json() -> None:
     agents_md, lessons_md = _current_dependency_policy_docs()
-    invalid = _replace_unique(agents_md, '"dependency_identities": 1', '"dependency_identities": ,')
+    invalid = _replace_unique(
+        agents_md,
+        '"default_dependency_identities": 1',
+        '"default_dependency_identities": ,',
+    )
     with pytest.raises(AssertionError):
         _validate_dependency_security_policy(invalid, lessons_md)
 

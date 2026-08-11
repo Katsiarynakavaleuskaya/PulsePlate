@@ -528,6 +528,28 @@ def _job_step_by_name(
     raise AssertionError(f"missing step {step_name!r} in {job_id!r}")
 
 
+def test_backend_test_jobs_run_permanent_npm_dependency_guards() -> None:
+    """Both backend PR jobs keep the two npm guard owners in critical smoke."""
+    workflow = _load_ci_workflow()
+    required_targets = (
+        "tests/test_frontend_dependency_guards.py",
+        "tests/test_root_npm_dependency_guards.py",
+    )
+
+    for job_id in ("test-pr", "test-feature"):
+        step = _job_step_by_name(
+            workflow,
+            job_id=job_id,
+            step_name="Critical smoke (deterministic merge blocker)",
+        )
+        run_script = step.get("run")
+        assert isinstance(run_script, str)
+        for target in required_targets:
+            assert (
+                run_script.count(target) == 1
+            ), f"{job_id} critical smoke must run {target} exactly once"
+
+
 def _docker_environment_flags(run_script: str) -> set[str]:
     """Return normalized ``docker run -e`` arguments from a workflow script."""
 
@@ -565,35 +587,6 @@ def _contract_suite_targets_by_group(
         assert targets, f"contract/risk group {group!r} in {job_id!r} has no test targets"
         blocks[group] = targets
     return blocks
-
-
-def _nested_minimatch_10_paths(packages: object) -> set[str]:
-    """Select only nested minimatch 10.x records, never the root package path."""
-
-    assert isinstance(packages, dict), "frontend lockfile packages must be an object"
-    nested_paths: set[str] = set()
-    for raw_path, package_info in packages.items():
-        package_path = str(raw_path)
-        if package_path == "node_modules/minimatch" or not package_path.endswith(
-            "node_modules/minimatch"
-        ):
-            continue
-        assert isinstance(package_info, dict), f"{package_path}: package record must be an object"
-        if str(package_info.get("version", "")).startswith("10."):
-            nested_paths.add(package_path)
-    return nested_paths
-
-
-def test_nested_minimatch_10_selection_keeps_root_assertion_separate() -> None:
-    """A future root minimatch 10.x must not reuse nested brace-expansion evidence."""
-
-    packages = {
-        "node_modules/minimatch": {"version": "10.9.9"},
-        "node_modules/glob/node_modules/minimatch": {"version": "10.2.5"},
-        "node_modules/legacy/node_modules/minimatch": {"version": "3.1.5"},
-    }
-
-    assert _nested_minimatch_10_paths(packages) == {"node_modules/glob/node_modules/minimatch"}
 
 
 NODE24_FRONTEND_BUILD_LINE = (
@@ -827,17 +820,7 @@ def test_node24_runtime_baseline_surfaces_stay_coherent() -> None:
     assert "24.16.0" not in public_readme
     assert frontend_package["engines"]["node"] == ">=24.0.0 <25.0.0"
     assert frontend_lock["packages"][""]["engines"]["node"] == ">=24.0.0 <25.0.0"
-    assert frontend_package["overrides"]["minimatch@10"]["brace-expansion"] == "5.0.8"
     assert frontend_package["overrides"]["ws"] == "8.21.0"
-    packages = frontend_lock["packages"]
-    minimatch_10_paths = _nested_minimatch_10_paths(packages)
-    assert minimatch_10_paths, "frontend lockfile must retain a minimatch 10.x subtree"
-    for minimatch_path in minimatch_10_paths:
-        brace_path = minimatch_path.removesuffix("node_modules/minimatch") + (
-            "node_modules/brace-expansion"
-        )
-        assert packages[brace_path]["version"] == "5.0.8"
-    assert packages["node_modules/brace-expansion"]["version"] == "2.1.3"
     assert frontend_lock["packages"]["node_modules/ws"]["version"] == "8.21.0"
     assert devcontainer["features"]["ghcr.io/devcontainers/features/node:1"]["version"] == "24"
     contract_errors = _node24_frontend_builder_contract_errors(dockerfile)
@@ -3357,6 +3340,12 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     workflow = _load_ci_workflow()
     test_pr_groups = _contract_suite_targets_by_group(workflow, job_id="test-pr")
     test_feature_groups = _contract_suite_targets_by_group(workflow, job_id="test-feature")
+    expected_rag_owner_targets = (
+        "tests/test_insight_rag_response_fields.py",
+        "tests/test_philosophy_pipeline.py",
+        "tests/test_rag_validation.py",
+        "tests/test_rag_vector_feature_flag_guard.py",
+    )
     expected_slack_operator_targets = (
         "tests/test_ci_risk_profile.py",
         "tests/test_ci_workflow_pr_size_governance_contract.py",
@@ -3367,6 +3356,15 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_required_targets() ->
     )
 
     assert test_pr_groups == test_feature_groups
+    for job_id, groups in (
+        ("test-pr", test_pr_groups),
+        ("test-feature", test_feature_groups),
+    ):
+        for group, targets in groups.items():
+            assert len(targets) == len(
+                set(targets)
+            ), f"contract/risk group {group!r} in {job_id!r} has duplicate test targets"
+    assert set(expected_rag_owner_targets).issubset(test_pr_groups["insight_ai"])
     assert "tests/test_admin_scheduler_access.py" in test_pr_groups["food_catalog"]
     assert "tests/test_scheduler_final_coverage.py" in test_pr_groups["food_catalog"]
     assert "tests/test_admin_scheduler_access.py" in test_feature_groups["food_catalog"]

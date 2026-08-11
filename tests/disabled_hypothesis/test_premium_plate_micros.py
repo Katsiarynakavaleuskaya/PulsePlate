@@ -7,15 +7,74 @@ EN: Test micronutrient aggregation in /api/v1/premium/plate.
 import pytest
 from fastapi.testclient import TestClient
 
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
+from app.services import pro_nutrition_plate
 
-client = TestClient(app_mod.app)  # type: ignore
+_TEST_MICROS: dict[str, float] = {
+    "iron_mg": 3.0,
+    "calcium_mg": 120.0,
+    "magnesium_mg": 40.0,
+    "potassium_mg": 350.0,
+    "vitamin_c_mg": 12.0,
+    "folate_ug": 55.0,
+    "vitamin_d_iu": 80.0,
+    "b12_ug": 0.8,
+}
 
 
-def test_plate_endpoint_has_day_micros():
+async def _deterministic_day_micros(
+    meals: list[dict[str, object]],
+) -> dict[str, float]:
+    """Attach deterministic per-meal micros and return their exact sum."""
+    totals = {nutrient: 0.0 for nutrient in _TEST_MICROS}
+
+    for meal_index, meal in enumerate(meals, start=1):
+        meal_micros = {nutrient: amount * meal_index for nutrient, amount in _TEST_MICROS.items()}
+        meal["micros"] = meal_micros
+
+        for nutrient, amount in meal_micros.items():
+            totals[nutrient] += amount
+
+    return totals
+
+
+@pytest.fixture
+def premium_plate_micros_client(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> TestClient:
+    """Return the canonical client with deterministic micronutrient evidence."""
+    monkeypatch.setattr(
+        pro_nutrition_plate,
+        "_aggregate_day_micronutrients",
+        _deterministic_day_micros,
+    )
+
+    return client
+
+
+def _assert_deterministic_micros(data: dict[str, object]) -> None:
+    """Prove each meal and the day total use the deterministic aggregation seam."""
+    meals = data["meals"]
+    day_micros = data["day_micros"]
+
+    assert isinstance(meals, list)
+    assert meals
+    assert isinstance(day_micros, dict)
+
+    expected_totals = {nutrient: 0.0 for nutrient in _TEST_MICROS}
+
+    for meal_index, meal in enumerate(meals, start=1):
+        assert isinstance(meal, dict)
+        expected_meal = {nutrient: amount * meal_index for nutrient, amount in _TEST_MICROS.items()}
+        assert meal["micros"] == pytest.approx(expected_meal)
+
+        for nutrient, amount in expected_meal.items():
+            expected_totals[nutrient] += amount
+
+    assert day_micros == pytest.approx(expected_totals)
+
+
+def test_plate_endpoint_has_day_micros(premium_plate_micros_client: TestClient) -> None:
     """Test that plate endpoint returns day_micros field."""
     payload = {
         "sex": "female",
@@ -26,15 +85,19 @@ def test_plate_endpoint_has_day_micros():
         "goal": "maintain",
     }
 
-    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_plate_micros_client.post(
+        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
     assert "day_micros" in data
     assert isinstance(data["day_micros"], dict)
+    _assert_deterministic_micros(data)
 
 
-def test_day_micros_aggregation():
+def test_day_micros_aggregation(premium_plate_micros_client: TestClient) -> None:
     """Test that day_micros aggregates micronutrients from all meals."""
     payload = {
         "sex": "female",
@@ -45,10 +108,14 @@ def test_day_micros_aggregation():
         "goal": "maintain",
     }
 
-    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_plate_micros_client.post(
+        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
+    _assert_deterministic_micros(data)
     day_micros = data["day_micros"]
 
     # Check that we have expected micronutrients
@@ -69,7 +136,7 @@ def test_day_micros_aggregation():
         assert day_micros[nutrient] > 0
 
 
-def test_meals_contain_micros():
+def test_meals_contain_micros(premium_plate_micros_client: TestClient) -> None:
     """Test that individual meals contain micros field."""
     payload = {
         "sex": "female",
@@ -80,10 +147,14 @@ def test_meals_contain_micros():
         "goal": "maintain",
     }
 
-    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_plate_micros_client.post(
+        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
+    _assert_deterministic_micros(data)
     meals = data["meals"]
 
     assert len(meals) > 0
@@ -109,7 +180,7 @@ def test_meals_contain_micros():
             assert isinstance(meal["micros"][nutrient], (int, float))
 
 
-def test_day_micros_calculation():
+def test_day_micros_calculation(premium_plate_micros_client: TestClient) -> None:
     """Test that day_micros values are correctly calculated from meals."""
     payload = {
         "sex": "female",
@@ -120,10 +191,14 @@ def test_day_micros_calculation():
         "goal": "maintain",
     }
 
-    resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
+    resp = premium_plate_micros_client.post(
+        "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+    )
     assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
 
     data = resp.json()
+    _assert_deterministic_micros(data)
     meals = data["meals"]
     day_micros = data["day_micros"]
 
@@ -140,7 +215,9 @@ def test_day_micros_calculation():
         assert abs(day_micros[nutrient] - expected_total) < 0.01
 
 
-def test_plate_endpoint_with_different_goals():
+def test_plate_endpoint_with_different_goals(
+    premium_plate_micros_client: TestClient,
+) -> None:
     """Test that day_micros works with different goals."""
     test_cases = [
         {"goal": "loss", "deficit_pct": 15},
@@ -158,10 +235,14 @@ def test_plate_endpoint_with_different_goals():
             **case,
         }
 
-        resp = client.post("/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"})
+        resp = premium_plate_micros_client.post(
+            "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
+        )
         assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
 
         data = resp.json()
         assert "day_micros" in data
         assert isinstance(data["day_micros"], dict)
         assert len(data["day_micros"]) > 0
+        _assert_deterministic_micros(data)

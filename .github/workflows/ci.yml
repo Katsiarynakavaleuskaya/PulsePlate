@@ -868,6 +868,8 @@ jobs:
           python -m coverage run -m pytest -q \
             tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
             tests/core/evidence \
+            tests/test_frontend_dependency_guards.py \
+            tests/test_root_npm_dependency_guards.py \
             --maxfail=3 \
             --junitxml=tests/smoke-results.xml \
             -o junit_family=legacy
@@ -921,12 +923,16 @@ jobs:
                   tests/test_fitchef_structured_api.py \
                   tests/test_fitchef_structured_contracts.py \
                   tests/test_insight_error_hygiene.py \
+                  tests/test_insight_rag_response_fields.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
                   tests/test_legacy_insight_registration_bootstrap.py \
                   tests/test_legacy_insight_router.py \
                   tests/test_llm_extras.py \
+                  tests/test_philosophy_pipeline.py \
                   tests/test_rag_orchestration.py \
+                  tests/test_rag_validation.py \
+                  tests/test_rag_vector_feature_flag_guard.py \
                   tests/test_vector_rag.py \
                   tests/test_philosophy_validation_integration.py \
                   tests/test_rate_limit_llm_and_exports_api.py
@@ -1263,6 +1269,8 @@ jobs:
             -p no:xdist \
             tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
             tests/core/evidence \
+            tests/test_frontend_dependency_guards.py \
+            tests/test_root_npm_dependency_guards.py \
             --maxfail=3 \
             --junitxml=tests/smoke-results.xml \
             -o junit_family=legacy
@@ -1316,12 +1324,16 @@ jobs:
                   tests/test_fitchef_structured_api.py \
                   tests/test_fitchef_structured_contracts.py \
                   tests/test_insight_error_hygiene.py \
+                  tests/test_insight_rag_response_fields.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
                   tests/test_legacy_insight_registration_bootstrap.py \
                   tests/test_legacy_insight_router.py \
                   tests/test_llm_extras.py \
+                  tests/test_philosophy_pipeline.py \
                   tests/test_rag_orchestration.py \
+                  tests/test_rag_validation.py \
+                  tests/test_rag_vector_feature_flag_guard.py \
                   tests/test_vector_rag.py \
                   tests/test_philosophy_validation_integration.py \
                   tests/test_rate_limit_llm_and_exports_api.py

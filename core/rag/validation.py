@@ -1,7 +1,9 @@
-"""Philosophy-agent RAG validation layer.
+"""Mandatory baseline RAG validation layer.
 
 Deterministic, rule-based validation of RAG chunks before LLM generation.
-Feature-gated via ``FEATURE_PHILOSOPHY_VALIDATION``.
+Always runs at the final orchestration boundary. The
+``FEATURE_PHILOSOPHY_VALIDATION`` flag controls only optional post-Stage-1
+enrichment in ``core.rag.philosophy_pipeline``.
 
 Rules enforce:
 - **Medical boundary**: reject chunks with therapy/diagnosis language
@@ -130,10 +132,7 @@ def validate_rag_chunks(
     try:
         return _run_validation(chunks, agent_id)
     except Exception:
-        logger.warning(
-            "RAG validation failed; rejecting all chunks",
-            exc_info=True,
-        )
+        logger.warning("RAG validation failed; rejecting all chunks")
         return ValidationResult(
             passed=False,
             filtered_chunks=[],
@@ -165,22 +164,14 @@ def _run_validation(
             continue
 
         # Rule 2: medical boundary (blocking + warning)
-        medical_match = _MEDICAL_RE.search(chunk.content)
-        if medical_match:
-            warnings.append(
-                f"medical_boundary: chunk {chunk.chunk_id} rejected "
-                f"(matched '{medical_match.group()}')"
-            )
+        if _MEDICAL_RE.search(chunk.content):
+            warnings.append("medical_boundary")
             rejected += 1
             continue
 
         # Rule 3: weasel word detection (advisory only)
-        weasel_match = _WEASEL_RE.search(chunk.content)
-        if weasel_match:
-            warnings.append(
-                f"weasel_word: chunk {chunk.chunk_id} contains "
-                f"unverifiable pattern '{weasel_match.group()}'"
-            )
+        if _WEASEL_RE.search(chunk.content):
+            warnings.append("weasel_word")
 
         # Chunk passed blocking rules
         filtered.append(chunk)

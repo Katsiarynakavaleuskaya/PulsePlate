@@ -8,18 +8,18 @@ that are known to work with the current API implementation.
 import pytest
 from fastapi.testclient import TestClient
 
-try:
-    import app as app_mod  # type: ignore
-except Exception as exc:  # pragma: no cover
-    pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
-
-client = TestClient(app_mod.app)  # type: ignore
-
 
 class TestPremiumTargets422EdgeCasesSimple:
     """Simplified edge case tests for 422 validation errors"""
 
-    def test_missing_required_fields_422(self):
+    client: TestClient
+
+    @pytest.fixture(autouse=True)
+    def _bind_client(self, client: TestClient) -> None:
+        """Expose the canonical function-scoped client to class tests."""
+        self.client = client
+
+    def test_missing_required_fields_422(self) -> None:
         """Test 422 for missing required fields"""
         # Test missing sex field
         payload = {
@@ -32,16 +32,17 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
         assert any("field required" in str(error).lower() for error in error_data["detail"])
 
-    def test_boundary_age_values_422(self):
+    def test_boundary_age_values_422(self) -> None:
         """Test 422 for boundary age values"""
         # Test age 0 (should be 422)
         payload = {
@@ -55,15 +56,16 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
 
-    def test_boundary_height_values_422(self):
+    def test_boundary_height_values_422(self) -> None:
         """Test 422 for boundary height values"""
         # Test zero height (should be 422)
         payload = {
@@ -77,15 +79,16 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
 
-    def test_boundary_weight_values_422(self):
+    def test_boundary_weight_values_422(self) -> None:
         """Test 422 for boundary weight values"""
         # Test zero weight (should be 422)
         payload = {
@@ -99,15 +102,16 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
 
-    def test_boundary_bodyfat_values_422(self):
+    def test_boundary_bodyfat_values_422(self) -> None:
         """Test 422 for boundary bodyfat values"""
         # Test negative bodyfat (should be 422)
         payload = {
@@ -122,15 +126,16 @@ class TestPremiumTargets422EdgeCasesSimple:
             "bodyfat": -1,
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
 
-    def test_type_mismatch_422(self):
+    def test_type_mismatch_422(self) -> None:
         """Test 422 for type mismatches"""
         # Test string instead of int for age
         payload = {
@@ -144,15 +149,16 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
 
-    def test_null_values_422(self):
+    def test_null_values_422(self) -> None:
         """Test 422 for null values in required fields"""
         # Test null age
         payload = {
@@ -166,22 +172,23 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 422
 
+        assert resp.headers["content-type"].startswith("application/json")
         error_data = resp.json()
         assert "detail" in error_data
 
-    def test_malformed_json_422(self):
+    def test_malformed_json_422(self) -> None:
         """Test 422 for malformed JSON"""
         # Test with invalid JSON structure (trailing comma)
         malformed_json = (
             '{"sex": "female", "age": 30, "height_cm": 170, "weight_kg": 65, '
             '"activity": "moderate", "goal": "maintain", "life_stage": "adult", "lang": "en",}'
         )
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets",
             content=malformed_json,
             headers={"X-API-Key": "test_key", "Content-Type": "application/json"},
@@ -190,7 +197,7 @@ class TestPremiumTargets422EdgeCasesSimple:
         # Malformed JSON should be 422
         assert resp.status_code == 422
 
-    def test_valid_boundary_values_200(self):
+    def test_valid_boundary_values_200(self) -> None:
         """Test that valid boundary values return 200"""
         # Test minimum valid values (but not too extreme)
         payload = {
@@ -204,15 +211,16 @@ class TestPremiumTargets422EdgeCasesSimple:
             "lang": "en",
         }
 
-        resp = client.post(
+        resp = self.client.post(
             "/api/v1/premium/targets", json=payload, headers={"X-API-Key": "test_key"}
         )
         assert resp.status_code == 200
 
+        assert resp.headers["content-type"].startswith("application/json")
         data = resp.json()
         assert "kcal_daily" in data
 
-    def test_valid_enum_values_200(self):
+    def test_valid_enum_values_200(self) -> None:
         """Test that valid enum values return 200"""
         # Test all valid enum values
         valid_combinations = [
@@ -257,17 +265,18 @@ class TestPremiumTargets422EdgeCasesSimple:
                 "lang": "en",
             }
 
-            resp = client.post(
+            resp = self.client.post(
                 "/api/v1/premium/targets",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
             assert resp.status_code == 200
 
+            assert resp.headers["content-type"].startswith("application/json")
             data = resp.json()
             assert "kcal_daily" in data
 
-    def test_valid_language_values_200(self):
+    def test_valid_language_values_200(self) -> None:
         """Test that valid language values return 200"""
         valid_langs = ["en", "ru", "es"]
 
@@ -283,12 +292,13 @@ class TestPremiumTargets422EdgeCasesSimple:
                 "lang": lang,
             }
 
-            resp = client.post(
+            resp = self.client.post(
                 "/api/v1/premium/targets",
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
             assert resp.status_code == 200
 
+            assert resp.headers["content-type"].startswith("application/json")
             data = resp.json()
             assert "kcal_daily" in data

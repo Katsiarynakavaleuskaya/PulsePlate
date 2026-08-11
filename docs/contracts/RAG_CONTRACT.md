@@ -131,6 +131,96 @@ def retrieve_context(
 `subject_id` обязателен для любого retrieval из `user_knowledge`. Если `subject_id` отсутствует,
 vector path должен fail-closed и перейти на non-personal fallback, не читая персональный corpus.
 
+### 3.3 Mandatory Stage-1 validation boundary
+
+Stage 1 in `core/rag/validation.py` is mandatory for every final request-local
+vector result and every final merged recursive result before a chunk can affect
+the prompt, sources, confidence, provenance, a verification bundle, or a
+knowledge candidate. `FEATURE_PHILOSOPHY_VALIDATION` controls only advisory
+Stages 2-4. Those stages receive separate chunk copies and cannot change the
+canonical Stage-1 survivor set.
+
+| Stage-1 baseline | Optional Stages 2-4 | User RAG response | Knowledge admission |
+|---|---|---|---|
+| Exception or no survivors | Not run | `rag_used=false`, `sources=[]`, `confidence=null`; the original non-RAG prompt remains available | Closed |
+| Survivors; feature flag off | Not run | Baseline survivors only | Closed |
+| Survivors; enrichment completes | Completed | The same baseline survivors plus advisory metadata or warnings | Possible only through all existing canonical policy and verification-bundle gates |
+| Survivors; enrichment raises | Rolled back | Untouched baseline survivors | Closed |
+| Formatting or redaction produces no usable context | Irrelevant | Existing fail-closed non-RAG result | Closed |
+
+Normative terms are deliberately bounded:
+
+- **valid** means accepted by the current Stage-1 validator version; it does
+  not mean proven true or comprehensively safe.
+- **all** means every chunk on the finite final request-local vector and merged
+  recursive carriers named above; it is not an open-world text-recognition claim.
+- **authorized** means Stage-1 survival, observed completion of configured
+  enrichment, and every existing verification and policy gate passed for the
+  same survivor snapshot.
+- **complete** describes only the finite decision table above, not recognition
+  of every possible harmful, misleading, or unsupported statement.
+
+Formatting and redaction must finish before the final verification bundle and
+knowledge candidates are built. Disabled or failed enrichment may preserve an
+available wellness response from baseline survivors, but it cannot authorize
+knowledge promotion. After Stage 1, one final request-local hygiene boundary
+rejects chunks whose `chunk_id` or `file` is not an exact built-in string, is
+blank, exceeds 256 code points, or contains control, format, surrogate,
+unassigned/noncharacter, line-separator, or paragraph-separator characters.
+Metadata must contain at least one letter, number, punctuation character,
+symbol, or assigned private-use character; combining marks and variation
+selectors remain allowed when attached to such accepted content. This is a
+post-Stage-1 carrier boundary, not a new Stage 0. The resulting sanitized and
+redacted snapshot is the only source for the prompt, response chunks and
+sources, confidence, evidence references, provenance, verification bundle, and
+knowledge candidates.
+
+Runtime warnings use stable codes only. Internal stage metadata may contain
+bounded aggregate counts, but neither surface may include raw query or chunk
+content, chunk identifiers, file paths, scores, exception messages, or other
+request-specific diagnostics. The roadmap
+[PDF](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
+is product-intent input only; runtime authority remains with this contract, the
+canonical ledger entry, code, and deterministic tests.
+
+### 3.4 Pilot 3B exact-carrier context compaction
+
+`FEATURE_RAG_CONTEXT_COMPACTION` is an optional, default-off request-time
+optimization after the mandatory Stage-1 boundary and final metadata,
+sanitization, and redaction hygiene. When enabled, it removes only later
+carriers whose five primitive fields (`chunk_id`, `file`, `content`, `score`,
+`hop`) have the same runtime types and equal values as an earlier carrier. The
+first occurrence and request-local order are preserved. Same-content carriers
+with any different provenance, score, or hop remain distinct; this is not
+content-only, normalized, fuzzy, semantic, or boilerplate deduplication.
+
+The compacted snapshot is the single source for prompt context, response
+sources, confidence, evidence references, provenance, verification bundle, and
+knowledge candidates. Compaction does not validate truth, corroborate evidence,
+or grant admission authority. Existing Stage-1, enrichment-completion,
+degraded-path, recursive-path, policy, confidence, and verification-bundle
+gates remain mandatory.
+
+If compaction fails, the user response falls back to an untouched copy of the
+final validated/hygienic snapshot, `chunks_compacted` remains zero, and the
+stable internal warning is `rag_context_compaction_error: internal failure`.
+The verification bundle and knowledge admission fail closed through the
+existing post-retrieval degraded state. Logs contain fixed text only. The
+fallback does not change provider-call count, quota/rate-limit ordering, route
+schemas, DTOs, or OpenAPI.
+
+Offline release-gate evidence treats enabled but unattempted compaction as N/A
+only for the explicit `RETRIEVAL_EMPTY` and `ALL_CHUNKS_FILTERED` outcomes.
+The `degraded_reason` key must be present on every active compaction carrier:
+an explicit `None` records observed success, while a missing key is malformed
+and unobserved. Missing, exception, or fallback reasons are malformed evidence,
+and an observed compaction result must have no degraded reason. This classifier
+reports runtime evidence; it does not create runtime, verification, or knowledge
+authority.
+
+This pilot is request-local and is not a semantic cache, persistent memory,
+Evidence Graph serving, Stage 0, or a new authority/approval boundary.
+
 ---
 
 ## 4. Бюджет рекурсии и латентности

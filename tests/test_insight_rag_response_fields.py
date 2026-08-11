@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Generator, Optional
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -18,9 +19,30 @@ from fastapi.testclient import TestClient
 from core.insight import philosophical_runtime as runtime_mod
 from tests._client import (
     disable_rate_limiting_for_test_app,
+    open_test_client,
     override_rate_limit_identity_for_test_app,
 )
 from tests.helpers.module_resolve import resolve_module
+
+_INSIGHT_RESPONSE_FIELDS = {
+    "provider",
+    "insight",
+    "sources",
+    "confidence",
+    "rag_used",
+    "hops",
+    "latency_ms",
+    "route_type",
+    "depth_used",
+    "verification_rate",
+    "falsifiability_rate",
+    "contradiction_count",
+    "reason_codes",
+    "optimization_applied",
+    "automated_analysis",
+    "transparency_notice_id",
+    "wellness_boundary",
+}
 
 
 @dataclass
@@ -98,6 +120,41 @@ def _make_empty_structured(
         confidence=0.0,
         hops=1,
         latency_ms=5,
+        agent_id=agent_id,
+        user_tier=user_tier,
+    )
+
+
+def _make_boundary_structured(
+    query: str,
+    max_chunks: int = 3,
+    agent_id: str | None = None,
+    user_tier: str | None = None,
+    subject_id: int | None = None,
+) -> _FakeRAGContext:
+    """Return one rejected raw chunk and one valid baseline survivor."""
+    del subject_id
+    chunks = [
+        _FakeRAGChunk(
+            chunk_id="raw:rejected",
+            file="raw.md",
+            content="A diagnosis is required for this claim.",
+            score=0.95,
+        ),
+        _FakeRAGChunk(
+            chunk_id="baseline:survivor",
+            file="wellness.md",
+            content="Balanced meals support sustainable daily wellness.",
+            score=0.85,
+        ),
+    ]
+    return _FakeRAGContext(
+        query=query,
+        refined_queries=[query],
+        chunks=chunks[:max_chunks],
+        confidence=0.90,
+        hops=1,
+        latency_ms=17,
         agent_id=agent_id,
         user_tier=user_tier,
     )
@@ -213,7 +270,10 @@ def _patch_insight_provider(
 @pytest.fixture
 def rag_client(app: FastAPI) -> Generator[TestClient, None, None]:
     """Use a unique client host per test to avoid shared rate-limit buckets."""
-    with TestClient(app, client=(f"rag-contract-{uuid4().hex}", 50000)) as test_client:
+    with open_test_client(
+        app,
+        client=(f"rag-contract-{uuid4().hex}", 50000),
+    ) as test_client:
         yield test_client
 
 
@@ -444,8 +504,9 @@ class TestInsightV1RAGFields:
         pipeline_result = PipelineResult(
             filtered_chunks=filtered_subset,
             stage_results=[],
-            warnings=["medical_boundary: chunk faq.md:1 rejected"],
+            warnings=["medical_boundary"],
             total_latency_ms=1.0,
+            post_stage1_enrichment_completed=True,
         )
 
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
@@ -459,7 +520,7 @@ class TestInsightV1RAGFields:
         )
         monkeypatch.setattr(
             "core.rag.philosophy_pipeline.run_pipeline",
-            lambda chunks, query: pipeline_result,
+            lambda chunks, query, *, enrichment_enabled=True: pipeline_result,
             raising=True,
         )
 
@@ -768,6 +829,132 @@ class TestInsightLegacyRAGFields:
         assert data["confidence"] is None
         assert data["hops"] == 0
         assert data["latency_ms"] == 0
+
+
+class TestMandatoryStage1HTTPBoundary:
+    """Both retained routes expose the same fail-closed Stage-1 contract."""
+
+    @pytest.mark.parametrize("path", ["/api/v1/insight", "/insight"])
+    @pytest.mark.parametrize(
+        "scenario",
+        [
+            "stage1_empty",
+            "stage1_exception",
+            "enrichment_disabled",
+            "enrichment_exception",
+        ],
+    )
+    def test_route_matrix_preserves_baseline_response_boundary(
+        self,
+        path: str,
+        scenario: str,
+        rag_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """Stage-1 truth controls response fields independently of enrichment."""
+        prompt = "How do balanced meals support sustainable daily wellness?"
+        provider = _SequenceEchoProvider(responses=["Available wellness response."])
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+        for disabled_flag in (
+            "FEATURE_RAG_RECURSIVE",
+            "FEATURE_RAG_RECURSIVE_OPTIMIZATION",
+            "FEATURE_PHILOSOPHY_ROUTER",
+            "FEATURE_PHILOSOPHY_PHASE12",
+            "FEATURE_PHILOSOPHY_LINGUISTIC",
+            "FEATURE_PHILOSOPHY_PRAGMATIC",
+        ):
+            monkeypatch.setenv(disabled_flag, "false")
+        monkeypatch.setenv(
+            "FEATURE_PHILOSOPHY_VALIDATION",
+            "false" if scenario == "enrichment_disabled" else "true",
+        )
+        _patch_insight_provider(monkeypatch, provider)
+
+        guard_calls: list[str] = []
+        agent_input_guard = resolve_module("app.security.agent_input_guard")
+        monkeypatch.setattr(
+            agent_input_guard,
+            "require_safe_ai_agent_input",
+            lambda text: guard_calls.append(text),
+            raising=True,
+        )
+
+        vector_rag = resolve_module("core.rag.vector_rag")
+
+        def _retrieve_boundary(*args: Any, **kwargs: Any) -> _FakeRAGContext:
+            """Return scenario-specific retrieval chunks for the route matrix."""
+            context = _make_boundary_structured(*args, **kwargs)
+            if scenario == "stage1_empty":
+                context.chunks = context.chunks[:1]
+            return context
+
+        monkeypatch.setattr(
+            vector_rag,
+            "retrieve_context_structured",
+            _retrieve_boundary,
+            raising=True,
+        )
+
+        philosophy_pipeline = resolve_module("core.rag.philosophy_pipeline")
+
+        def _raise_private_failure(*_args: object, **_kwargs: object) -> None:
+            """Simulate a private validation-stage failure without leaking details."""
+            raise RuntimeError("private boundary failure")
+
+        failure_stage = {
+            "stage1_exception": "_stage1_rule_validation",
+            "enrichment_exception": "_stage2_claim_classification",
+        }.get(scenario)
+        if failure_stage is not None:
+            monkeypatch.setattr(
+                philosophy_pipeline,
+                failure_stage,
+                _raise_private_failure,
+                raising=True,
+            )
+
+        promotion_observer = AsyncMock()
+        if scenario == "enrichment_exception":
+            application_service = resolve_module("app.services.insight_application_service")
+            monkeypatch.setattr(
+                application_service,
+                "_maybe_promote_knowledge_candidates",
+                promotion_observer,
+                raising=True,
+            )
+
+        response = rag_client.post(path, json={"text": prompt}, headers=vip_headers)
+
+        assert response.status_code == 200, response.text
+        assert response.headers.get("content-type", "").startswith("application/json")
+        data = response.json()
+        assert set(data) == _INSIGHT_RESPONSE_FIELDS
+        assert data["provider"] == provider.name
+        assert data["insight"] == "Available wellness response."
+        assert provider.calls == 1
+        assert guard_calls == [prompt]
+
+        if scenario in {"stage1_empty", "stage1_exception"}:
+            assert data["rag_used"] is False
+            assert data["sources"] == []
+            assert data["confidence"] is None
+        else:
+            assert data["rag_used"] is True
+            assert [source["chunk_id"] for source in data["sources"]] == ["baseline:survivor"]
+            assert data["confidence"] == 0.85
+
+        assert "raw:rejected" not in response.text
+        assert "A diagnosis is required" not in response.text
+        if scenario in {"stage1_exception", "enrichment_exception"}:
+            assert "private boundary failure" not in response.text
+
+        if scenario == "enrichment_exception":
+            promotion_observer.assert_awaited_once()
+            promotion_inputs = promotion_observer.await_args.kwargs
+            assert promotion_inputs["candidates"] == []
+            assert promotion_inputs["verification_bundle"].admission_allowed is False
 
 
 class TestRAGSourceItemModel:

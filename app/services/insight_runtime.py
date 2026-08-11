@@ -26,6 +26,7 @@ from app.utils.feature_flags import (
     is_philosophy_pragmatic_enabled,
     is_philosophy_router_enabled,
     is_philosophy_validation_enabled,
+    is_rag_context_compaction_enabled,
     is_recursive_rag_enabled,
     is_recursive_rag_optimization_enabled,
 )
@@ -75,6 +76,7 @@ def insight_feature_flag_state(
     *,
     use_rag: bool | None = None,
     recursive_rollout_policy: RecursiveRolloutPolicy | None = None,
+    context_compaction_enabled: bool | None = None,
 ) -> dict[str, bool]:
     """Return deterministic feature-flag snapshot for insight tracing."""
 
@@ -94,6 +96,8 @@ def insight_feature_flag_state(
         if recursive_rollout_policy is None
         else recursive_rollout_policy.optimization_path_enabled
     )
+    if context_compaction_enabled is None:
+        context_compaction_enabled = bool(is_rag_context_compaction_enabled())
 
     return {
         "insight": _is_truthy(os.getenv("FEATURE_INSIGHT", "false")),
@@ -103,6 +107,7 @@ def insight_feature_flag_state(
         "philosophy_pragmatic": is_philosophy_pragmatic_enabled(),
         "philosophy_validation": is_philosophy_validation_enabled(),
         "rag": rag_enabled,
+        "rag_context_compaction": context_compaction_enabled,
         "rag_recursive": recursive_enabled,
         "rag_recursive_optimization": recursive_optimization_enabled,
         "rag_vector": _is_truthy(os.getenv("FEATURE_RAG_VECTOR", "false")),
@@ -119,8 +124,12 @@ async def _traced_retrieve_and_validate_rag(
     knowledge_policy: Any,
     user_tier: str,
     route_path: str,
+    context_compaction_enabled: bool | None = None,
 ) -> Any:
     """Wrap RAG retrieval in a deterministic retriever span."""
+
+    if context_compaction_enabled is None:
+        context_compaction_enabled = bool(is_rag_context_compaction_enabled())
 
     with retrieval_span(
         user_tier=user_tier,
@@ -140,6 +149,7 @@ async def _traced_retrieve_and_validate_rag(
             ),
             subject_id=subject_id,
             knowledge_policy=knowledge_policy,
+            context_compaction_enabled=context_compaction_enabled,
         )
         set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})
         return rag_result
@@ -179,6 +189,7 @@ async def generate_traced_insight(
         recursive_rag_enabled=recursive_rag_enabled,
         recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
     )
+    context_compaction_enabled = bool(is_rag_context_compaction_enabled())
 
     async def _rag_retriever(
         prompt_input: str,
@@ -198,6 +209,7 @@ async def generate_traced_insight(
             knowledge_policy=knowledge_policy,
             user_tier=user_tier,
             route_path=route_path,
+            context_compaction_enabled=context_compaction_enabled,
         )
 
     with chain_span(
@@ -208,6 +220,7 @@ async def generate_traced_insight(
         feature_flags=insight_feature_flag_state(
             use_rag=use_rag,
             recursive_rollout_policy=resolved_recursive_rollout_policy,
+            context_compaction_enabled=context_compaction_enabled,
         ),
     ):
         return await runtime.generate_insight(

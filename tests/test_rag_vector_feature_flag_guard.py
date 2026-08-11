@@ -206,10 +206,11 @@ class TestFeatureFlagIntegration:
             user_tier: str | None = None,
             subject_id: int | None = None,
         ) -> _FakeCtx:
+            # Mock content must satisfy the mandatory Stage-1 baseline validation contract.
             return _FakeCtx(
                 query=query,
                 refined_queries=[query],
-                chunks=[_FakeChunk("j:1", "doc.md", "jaccard", 0.45)],
+                chunks=[_FakeChunk("j:1", "doc.md", "jaccard fallback result", 0.45)],
                 confidence=0.45,
                 hops=1,
                 latency_ms=3,

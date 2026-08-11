@@ -117,53 +117,7 @@ function parseProposalSpec() {
   };
 }
 
-function parseDeckSpec() {
-  const sourcePath = resolveRepoPath(
-    "docs",
-    "audience_pack",
-    "B2B_PITCH_DECK_SPEC.md",
-  );
-  const { title, blocks } = parseMarkdownBlocks(readUtf8(sourcePath));
-  const slides = [];
-  let currentSlide = null;
-
-  for (const block of blocks) {
-    if (block.type === "heading1" && /^Slide\s+\d+/i.test(block.text)) {
-      if (currentSlide) {
-        slides.push(currentSlide);
-      }
-
-      currentSlide = {
-        title: block.text.replace(/^Slide\s+\d+\s*-\s*/i, "").trim(),
-        paragraphs: [],
-        bullets: [],
-      };
-      continue;
-    }
-
-    if (!currentSlide) {
-      continue;
-    }
-
-    if (block.type === "bullet") {
-      currentSlide.bullets.push(block.text);
-      continue;
-    }
-
-    if (block.type === "paragraph" || block.type === "heading2") {
-      currentSlide.paragraphs.push(block.text);
-    }
-  }
-
-  if (currentSlide) {
-    slides.push(currentSlide);
-  }
-
-  return { sourcePath, title, slides };
-}
-
 module.exports = {
-  parseDeckSpec,
   parseMarkdownBlocks,
   parseProposalSpec,
   resolveRepoPath,

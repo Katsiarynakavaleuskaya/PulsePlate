@@ -15,20 +15,7 @@ _EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 _REVIEW_BY_RE = re.compile(r"Review-by:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 _CANONICAL_IGNORE_HEAD_LINE_RE = re.compile(r"[ \t]*ignore[ \t]+if[ \t]*\{[ \t]*(?:#.*)?")
 _DEFAULT_IGNORE_LINE_RE = re.compile(r"[ \t]*default[ \t]+ignore[ \t]*:=[ \t]*false[ \t]*(?:#.*)?")
-_REACT_ROUTER_RSC_CANONICAL_PREDICATES = (
-    'input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
-    'input.PkgName == "react-router"',
-    'input.InstalledVersion == "7.18.1"',
-    'input.PkgID == "react-router@7.18.1"',
-    'input.FixedVersion == "8.3.0"',
-)
-_REACT_ROUTER_RSC_TARGET = {
-    "VulnerabilityID": "GHSA-qwww-vcr4-c8h2",
-    "PkgName": "react-router",
-    "InstalledVersion": "7.18.1",
-    "PkgID": "react-router@7.18.1",
-    "FixedVersion": "8.3.0",
-}
+_RETIRED_REACT_ROUTER_RSC_ADVISORY = "GHSA-qwww-vcr4-c8h2"
 
 
 @dataclass(frozen=True)
@@ -220,14 +207,24 @@ def _top_level_body_token_lines(body: str) -> tuple[tuple[_RegoToken, ...], ...]
 def _top_level_body_token_expressions(
     body: str,
 ) -> tuple[tuple[tuple[_RegoToken, ...], ...], ...]:
-    """Group following-line ``with`` modifiers with their executable expression."""
+    """Group multiline delimiters and ``with`` modifiers into full expressions."""
 
     expressions: list[list[tuple[_RegoToken, ...]]] = []
+    delimiter_stack: list[str] = []
+    closing_delimiters = {")": "(", "]": "["}
     for token_line in _top_level_body_token_lines(body):
-        if token_line[0].value == "with" and expressions:
+        if (delimiter_stack or token_line[0].value == "with") and expressions:
             expressions[-1].append(token_line)
-            continue
-        expressions.append([token_line])
+        else:
+            expressions.append([token_line])
+        for token in token_line:
+            if token.value in {"(", "["}:
+                delimiter_stack.append(token.value)
+            elif token.value in closing_delimiters:
+                if delimiter_stack and delimiter_stack[-1] == closing_delimiters[token.value]:
+                    delimiter_stack.pop()
+                else:
+                    delimiter_stack.append("invalid")
     return tuple(tuple(expression) for expression in expressions)
 
 
@@ -255,18 +252,26 @@ def _direct_input_equality(tokens: tuple[_RegoToken, ...]) -> tuple[str, str] | 
     return None
 
 
-def _with_modifier_target(tokens: tuple[_RegoToken, ...]) -> tuple[_RegoToken, ...] | None:
-    """Return a complete following-line ``with`` target, or fail closed."""
+def _with_modifier_targets(
+    tokens: tuple[_RegoToken, ...],
+) -> tuple[tuple[_RegoToken, ...], ...] | None:
+    """Return every complete chained ``with`` target, or fail closed."""
 
     if not tokens or tokens[0].value != "with":
         return None
-    separator_index = next(
-        (index for index, token in enumerate(tokens[1:], start=1) if token.value == "as"),
-        None,
-    )
-    if separator_index is None or separator_index == 1 or separator_index + 1 >= len(tokens):
-        return None
-    return tokens[1:separator_index]
+    modifier_starts = [index for index, token in enumerate(tokens) if token.value == "with"]
+    targets: list[tuple[_RegoToken, ...]] = []
+    for position, start in enumerate(modifier_starts):
+        end = modifier_starts[position + 1] if position + 1 < len(modifier_starts) else len(tokens)
+        modifier = tokens[start + 1 : end]
+        separator_index = next(
+            (index for index, token in enumerate(modifier) if token.value == "as"),
+            None,
+        )
+        if separator_index is None or separator_index == 0 or separator_index + 1 >= len(modifier):
+            return None
+        targets.append(modifier[:separator_index])
+    return tuple(targets)
 
 
 def _with_target_can_affect_input_field(
@@ -302,52 +307,62 @@ def _direct_input_equality_expression(
 
     if not token_lines:
         return None
-    equality = _direct_input_equality(token_lines[0])
+    expression_tokens: list[_RegoToken] = []
+    modifier_lines: list[tuple[_RegoToken, ...]] = []
+    for tokens in token_lines:
+        if tokens[0].value == "with":
+            modifier_lines.append(tokens)
+        elif modifier_lines:
+            return None
+        else:
+            expression_tokens.extend(tokens)
+
+    while (
+        len(expression_tokens) >= 2
+        and expression_tokens[0].value == "("
+        and expression_tokens[-1].value == ")"
+    ):
+        depth = 0
+        outer_pair = True
+        for index, token in enumerate(expression_tokens):
+            if token.value == "(":
+                depth += 1
+            elif token.value == ")":
+                depth -= 1
+                if depth == 0 and index != len(expression_tokens) - 1:
+                    outer_pair = False
+                    break
+                if depth < 0:
+                    outer_pair = False
+                    break
+        if not outer_pair or depth != 0:
+            break
+        expression_tokens = expression_tokens[1:-1]
+
+    equality = _direct_input_equality(tuple(expression_tokens))
     if equality is None:
         return None
     field, _value = equality
-    for modifier_tokens in token_lines[1:]:
-        target = _with_modifier_target(modifier_tokens)
-        if target is None or _with_target_can_affect_input_field(target, field):
+    for modifier_tokens in modifier_lines:
+        targets = _with_modifier_targets(modifier_tokens)
+        if targets is None or any(
+            _with_target_can_affect_input_field(target, field) for target in targets
+        ):
             return None
     return equality
 
 
 def _ignore_block_can_match_react_router_target(body: str) -> bool:
-    """Conservatively reject blocks only when executable equality proves conflict."""
+    """Reject unless executable equality proves this rule targets another advisory."""
 
     for token_expression in _top_level_body_token_expressions(body):
         equality = _direct_input_equality_expression(token_expression)
         if equality is None:
             continue
         field, value = equality
-        if field in _REACT_ROUTER_RSC_TARGET and value != _REACT_ROUTER_RSC_TARGET[field]:
+        if field == "VulnerabilityID" and value != _RETIRED_REACT_ROUTER_RSC_ADVISORY:
             return False
     return True
-
-
-def _ignore_block_predicates(body: str) -> tuple[str, ...]:
-    return tuple(
-        line.strip()
-        for line in body.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    )
-
-
-def _is_canonical_react_router_body(body: str) -> bool:
-    if _ignore_block_predicates(body) != _REACT_ROUTER_RSC_CANONICAL_PREDICATES:
-        return False
-    token_lines = _top_level_body_token_lines(body)
-    if len(token_lines) != len(_REACT_ROUTER_RSC_TARGET):
-        return False
-    return all(
-        _direct_input_equality(token_line) == expected
-        for token_line, expected in zip(
-            token_lines,
-            _REACT_ROUTER_RSC_TARGET.items(),
-            strict=True,
-        )
-    )
 
 
 def _read_rego_text(policy_file: Path) -> str:
@@ -359,54 +374,62 @@ def _read_rego_text(policy_file: Path) -> str:
         raise ValueError(f"Unable to read Trivy ignore policy {policy_file}: {exc}") from exc
 
 
-def _validate_react_router_rsc_suppression(
+def _read_trivyignore_text(ignore_file: Path) -> str:
+    """Read the active Trivy ignore list or raise a stable validation failure."""
+
+    try:
+        return ignore_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Unable to read Trivy ignore list {ignore_file}: {exc}") from exc
+
+
+def _validate_react_router_rsc_trivyignore_absent(
+    ignore_file: Path,
+    *,
+    text: str,
+) -> list[str]:
+    """Fail closed if the retired advisory is active in ``.trivyignore``."""
+
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        active_entry = raw_line.split("#", 1)[0].strip()
+        if not active_entry:
+            continue
+        vulnerability_id = active_entry.split(maxsplit=1)[0]
+        if vulnerability_id == _RETIRED_REACT_ROUTER_RSC_ADVISORY:
+            return [
+                f"Retired React Router suppression must remain absent from {ignore_file}:"
+                f"{line_number}; found {_RETIRED_REACT_ROUTER_RSC_ADVISORY}"
+            ]
+    return []
+
+
+def _validate_react_router_rsc_suppression_absent(
     policy_file: Path,
     *,
     text: str,
 ) -> list[str]:
-    """Require one and only one exact five-predicate GHSA ignore block."""
+    """Fail closed if any ignore rule can suppress the retired advisory."""
 
     try:
         ignore_blocks, unsupported_lines = _inspect_ignore_policy_source(text)
     except ValueError as exc:
-        return [f"React Router RSC suppression parsing failed in {policy_file}: {exc}"]
+        return [f"Retired React Router suppression parsing failed in {policy_file}: {exc}"]
     if unsupported_lines:
         rendered_lines = ", ".join(str(line) for line in unsupported_lines)
         return [
-            f"React Router RSC suppression in {policy_file} has unsupported top-level "
+            f"Retired React Router suppression guard in {policy_file} has unsupported top-level "
             f"ignore rule syntax at line(s) {rendered_lines}; only 'default ignore := "
             "false' and balanced 'ignore if {' blocks are permitted"
         ]
     target_capable_blocks = tuple(
         block for block in ignore_blocks if _ignore_block_can_match_react_router_target(block.body)
     )
-    if not target_capable_blocks:
-        return []
-    canonical_blocks = tuple(
-        block for block in target_capable_blocks if _is_canonical_react_router_body(block.body)
-    )
-    if len(canonical_blocks) > 1:
+    if target_capable_blocks:
+        rendered_lines = ", ".join(str(block.head_line) for block in target_capable_blocks)
         return [
-            f"React Router RSC suppression in {policy_file} must use exactly one GHSA ignore block"
-        ]
-    if not canonical_blocks:
-        return [
-            f"React Router RSC suppression in {policy_file} must contain exactly "
-            "the canonical five predicates"
-        ]
-    if len(target_capable_blocks) > 1:
-        return [
-            f"React Router RSC suppression in {policy_file} has an additional ignore "
-            "block capable of matching the canonical target tuple"
-        ]
-    adjacent_review_by = _adjacent_review_by_dates(
-        text,
-        head_line=canonical_blocks[0].head_line,
-    )
-    if len(adjacent_review_by) != 1:
-        return [
-            f"React Router RSC suppression in {policy_file} must have exactly one "
-            "adjacent 'Review-by: YYYY-MM-DD' comment"
+            f"Retired React Router suppression must remain absent from {policy_file}; "
+            f"ignore block(s) at line(s) {rendered_lines} can match "
+            f"{_RETIRED_REACT_ROUTER_RSC_ADVISORY}"
         ]
     return []
 
@@ -415,32 +438,6 @@ def _read_rego_line_comments(text: str) -> tuple[tuple[int, str], ...]:
     comments: list[tuple[int, str]] = []
     _tokenize_rego(text, line_comments=comments)
     return tuple(comments)
-
-
-def _adjacent_review_by_dates(
-    text: str,
-    *,
-    head_line: int,
-) -> tuple[tuple[int, str], ...]:
-    """Return Review-by values from the full-line comment block owning one rule."""
-
-    source_lines = text.splitlines()
-    comments_by_line = dict(_read_rego_line_comments(text))
-    matches: list[tuple[int, str]] = []
-    line_number = head_line - 1
-    while line_number >= 1 and not source_lines[line_number - 1].strip():
-        line_number -= 1
-    while line_number >= 1:
-        source_line = source_lines[line_number - 1]
-        comment = comments_by_line.get(line_number)
-        if comment is None or not source_line.lstrip().startswith("#"):
-            break
-        found = _REVIEW_BY_RE.search(comment)
-        if found:
-            matches.append((line_number, found.group(1)))
-        line_number -= 1
-    matches.reverse()
-    return tuple(matches)
 
 
 def _parse_expiry(path: Path, *, text: str) -> date:
@@ -492,7 +489,7 @@ def evaluate_policy_file(
         except ValueError as exc:
             return [str(exc)]
 
-    failures = _validate_react_router_rsc_suppression(policy_file, text=text)
+    failures = _validate_react_router_rsc_suppression_absent(policy_file, text=text)
     try:
         expiry = _parse_expiry(policy_file, text=text)
     except ValueError as exc:
@@ -539,6 +536,7 @@ def _resolve_policy_files(repo_root: Path) -> list[Path]:
 def main() -> int:
     repo_root = REPO_ROOT
     policy_files = _resolve_policy_files(repo_root)
+    trivyignore_file = repo_root / ".trivyignore"
 
     missing_files = [p for p in policy_files if not p.exists()]
     if missing_files:
@@ -556,6 +554,18 @@ def main() -> int:
 
     today = datetime.now(UTC).date()
     failures: list[str] = []
+
+    try:
+        trivyignore_text = _read_trivyignore_text(trivyignore_file)
+    except ValueError as exc:
+        failures.append(str(exc))
+    else:
+        failures.extend(
+            _validate_react_router_rsc_trivyignore_absent(
+                trivyignore_file,
+                text=trivyignore_text,
+            )
+        )
 
     for policy_file in policy_files:
         try:

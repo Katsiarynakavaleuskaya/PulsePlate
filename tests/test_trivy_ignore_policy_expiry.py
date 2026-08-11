@@ -77,6 +77,15 @@ REMOVED_ACL_ATTR_PACKAGES = (
     "libacl1",
     "libattr1",
 )
+_CANONICAL_RSC_RULE_BODY = "\n".join(
+    (
+        '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+        '\tinput.PkgName == "react-router"',
+        '\tinput.InstalledVersion == "7.18.1"',
+        '\tinput.PkgID == "react-router@7.18.1"',
+        '\tinput.FixedVersion == "8.3.0"',
+    )
+)
 
 
 def _policy_text() -> str:
@@ -543,7 +552,11 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
     assert "util_linux_bookworm_version_match" in util_linux_ignore_rule
     assert "cve_2026_3184_pkgid_match" in util_linux_ignore_rule
 
-    for package, version in (
+    helper_start = policy.index("cve_2026_3184_pkgid_match if {")
+    helper_region = policy[helper_start:start]
+    assert "startswith(input.PkgID" not in helper_region
+
+    expected_tuples = (
         ("bsdutils", "1:2.38.1-5+deb12u3"),
         ("libblkid1", "2.38.1-5+deb12u3"),
         ("libmount1", "2.38.1-5+deb12u3"),
@@ -552,9 +565,26 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
         ("mount", "2.38.1-5+deb12u3"),
         ("util-linux", "2.38.1-5+deb12u3"),
         ("util-linux-extra", "2.38.1-5+deb12u3"),
-    ):
-        assert f'input.PkgName == "{package}"' in policy
-        assert f'startswith(input.PkgID, "{package}@{version}")' in policy
+    )
+    assert helper_region.count("cve_2026_3184_pkgid_match if {") == len(expected_tuples)
+
+    for package, version in expected_tuples:
+        exact_rule = (
+            f'cve_2026_3184_pkgid_match if {{\n\tinput.PkgName == "{package}"'
+            f'\n\tinput.PkgID == "{package}@{version}"\n}}'
+        )
+        suffix_rule = exact_rule.replace(
+            f'input.PkgID == "{package}@{version}"',
+            f'input.PkgID == "{package}@{version}-unexpected-suffix"',
+        )
+        prefix_rule = exact_rule.replace(
+            f'input.PkgID == "{package}@{version}"',
+            f'startswith(input.PkgID, "{package}@{version}")',
+        )
+
+        assert exact_rule in helper_region
+        assert suffix_rule not in helper_region
+        assert prefix_rule not in helper_region
 
 
 def _fixed_version_clause_treats_finding_as_unfixed(finding: dict[str, str]) -> bool:
@@ -613,19 +643,51 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     assert 'startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")' not in helper_region
 
 
-def test_react_router_rsc_suppression_requires_exact_trivy_tuple() -> None:
+def test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction() -> None:
     policy = _policy_text()
-    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"')
-    next_ignore = policy.find("\nignore if {", start + 1)
-    rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
+    trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
 
-    assert 'input.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"' in rule
-    assert 'input.PkgName == "react-router"' in rule
-    assert 'input.InstalledVersion == "7.18.1"' in rule
-    assert 'input.PkgID == "react-router@7.18.1"' in rule
-    assert 'input.FixedVersion == "8.3.0"' in rule
-    assert "startswith(" not in rule
-    assert "contains(" not in rule
+    assert "GHSA-qwww-vcr4-c8h2" not in policy
+    assert (
+        expiry_guard._validate_react_router_rsc_trivyignore_absent(
+            TRIVYIGNORE_PATH,
+            text=trivyignore,
+        )
+        == []
+    )
+    assert expiry_guard._RETIRED_REACT_ROUTER_RSC_ADVISORY == "GHSA-qwww-vcr4-c8h2"
+
+
+def test_react_router_rsc_trivyignore_reintroduction_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_expiry_wrapper_policy(tmp_path)
+    (tmp_path / ".trivyignore").write_text(
+        "# unrelated comment\nGHSA-qwww-vcr4-c8h2 exp:2099-01-01\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("TRIVY_IGNORE_POLICY_PATH", raising=False)
+    monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
+
+    assert expiry_guard.main() == 1
+    output = capsys.readouterr().out
+    assert "Retired React Router suppression must remain absent" in output
+    assert "GHSA-qwww-vcr4-c8h2" in output
+
+
+def test_react_router_rsc_trivyignore_comment_is_not_active(tmp_path: Path) -> None:
+    ignore_file = tmp_path / ".trivyignore"
+    text = "# retired: GHSA-qwww-vcr4-c8h2\nCVE-2023-45853\n"
+
+    assert (
+        expiry_guard._validate_react_router_rsc_trivyignore_absent(
+            ignore_file,
+            text=text,
+        )
+        == []
+    )
 
 
 def test_rego_os_read_error_returns_stable_failure(
@@ -712,88 +774,43 @@ def test_trivy_main_reuses_one_rego_snapshot(
     assert read_count == 1
 
 
-def test_react_router_rsc_suppression_rejects_duplicate_or_broader_rule(
+@pytest.mark.parametrize(
+    "body",
+    (
+        _CANONICAL_RSC_RULE_BODY,
+        '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
+        '\tinput.PkgName == "react-router"',
+        "\ttrue",
+    ),
+)
+def test_react_router_rsc_suppression_rejects_any_target_capable_rule(
     tmp_path: Path,
+    body: str,
 ) -> None:
-    policy_path = tmp_path / "ignore-policy.rego"
-    canonical = "\n".join(
-        (
-            "ignore if {",
-            '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
-            '\tinput.PkgName == "react-router"',
-            '\tinput.InstalledVersion == "7.18.1"',
-            '\tinput.PkgID == "react-router@7.18.1"',
-            '\tinput.FixedVersion == "8.3.0"',
-            "}",
-        )
-    )
-    policy_path.write_text(
-        "# Suppression expires: 2099-01-01\n" + canonical + "\n" + canonical + "\n",
-        encoding="utf-8",
-    )
-    assert any(
-        "exactly one GHSA ignore block" in failure
-        for failure in expiry_guard.evaluate_policy_file(
-            policy_path,
-            today=date(2026, 7, 27),
-        )
-    )
+    policy_path = _write_expiry_wrapper_policy_with_body(tmp_path, body)
+    failures = expiry_guard.evaluate_policy_file(policy_path, today=date(2026, 7, 27))
 
-    broader = canonical.replace(
-        '\tinput.FixedVersion == "8.3.0"',
-        '\tinput.FixedVersion == "8.3.0"\n\tstartswith(input.PkgID, "react-router")',
-    )
-    policy_path.write_text(
-        "# Suppression expires: 2099-01-01\n" + broader + "\n",
-        encoding="utf-8",
-    )
-    assert any(
-        "canonical five predicates" in failure
-        for failure in expiry_guard.evaluate_policy_file(
-            policy_path,
-            today=date(2026, 7, 27),
-        )
-    )
-
-    policy_path.write_text(
-        "# Suppression expires: 2099-01-01\n"
-        + canonical
-        + "\nignore if {\n"
-        + '\tinput.PkgName == "react-router"\n'
-        + "}\n",
-        encoding="utf-8",
-    )
-    assert any(
-        "additional ignore block capable of matching" in failure
-        for failure in expiry_guard.evaluate_policy_file(
-            policy_path,
-            today=date(2026, 7, 27),
-        )
-    )
+    assert any("Retired React Router suppression must remain absent" in item for item in failures)
 
 
-def test_react_router_rsc_suppression_policy_doc_and_backlog_are_coupled() -> None:
+def test_react_router_rsc_remediation_policy_doc_and_backlog_are_coupled() -> None:
     policy = _policy_text()
     security_doc = SECURITY_DOC_REACT_ROUTER_RSC_PATH.read_text(encoding="utf-8")
     ledger_entry = _ledger_react_router_entry()
 
-    assert "# Monitor: https://github.com/advisories/GHSA-qwww-vcr4-c8h2" in policy
-    assert "# Documented in: docs/security/GHSA-qwww-vcr4-c8h2-react-router.md" in policy
+    assert "GHSA-qwww-vcr4-c8h2" not in policy
     assert "GHSA-qwww-vcr4-c8h2" in security_doc
-    assert "Installed version: `7.18.1`" in security_doc
-    assert "Trivy fixed version: `8.3.0`" in security_doc
-    assert "Review the GitHub advisory and Dependabot alert #241 weekly" in security_doc
-    assert "point-in-time repository evidence" in security_doc
-    assert "complete source-applicability proof" in security_doc
+    assert "Base installed version: `7.18.1`" in security_doc
+    assert "Selected fixed version: `7.18.2`" in security_doc
+    assert "exact suppression was deleted" in security_doc
     assert "scripts/ci/check_react_router_rsc_premise.py" not in security_doc
     assert "scripts/ci/check_trivy_ignore_policy_expiry.py" in security_doc
     assert "tests/test_trivy_ignore_policy_expiry.py" in security_doc
     assert '<a id="ledger-p1-react-router-rsc-advisory-monitor"></a>' in ledger_entry
-    assert (
-        "Target PR: this combined bootstrap PR (carryover from closed PRs #2184 and\n" "    #2187)"
-    ) in ledger_entry
-    assert "Remove the suppression if affected RSC usage is introduced" in ledger_entry
-    assert "point-in-time repository evidence" in ledger_entry
+    assert "- [ ] P1: Remove React Router unstable RSC advisory suppression" in ledger_entry
+    assert "Target PR: PR #2247" in ledger_entry
+    assert "suppression is deleted" in ledger_entry
+    assert "exact-head Trivy confirmation is pending" in ledger_entry
     assert "scripts/ci/check_react_router_rsc_premise.py" not in ledger_entry
     assert "scripts/ci/check_trivy_ignore_policy_expiry.py" in ledger_entry
     assert "tests/test_trivy_ignore_policy_expiry.py" in ledger_entry
@@ -802,17 +819,15 @@ def test_react_router_rsc_suppression_policy_doc_and_backlog_are_coupled() -> No
 def _write_expiry_wrapper_policy(repo_root: Path) -> None:
     policy_dir = repo_root / "trivy"
     policy_dir.mkdir(parents=True)
+    (repo_root / ".trivyignore").write_text("", encoding="utf-8")
     lines = [
         "package trivy",
         "# Suppression expires: 2026-10-07 (manual removal)",
         "default ignore := false",
         "# Review-by: 2026-08-24 (manual removal)",
         "ignore if {",
-        '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
-        '\tinput.PkgName == "react-router"',
-        '\tinput.InstalledVersion == "7.18.1"',
-        '\tinput.PkgID == "react-router@7.18.1"',
-        '\tinput.FixedVersion == "8.3.0"',
+        '\tinput.VulnerabilityID == "CVE-2026-27171"',
+        '\tinput.PkgName == "zlib1g"',
         "}",
     ]
     (policy_dir / "ignore-policy.rego").write_text(
@@ -846,84 +861,6 @@ def _write_expiry_wrapper_policy_with_body(repo_root: Path, body: str) -> Path:
         repo_root,
         "\n".join(("ignore if {", body, "}")),
     )
-
-
-_CANONICAL_RSC_RULE_BODY = "\n".join(
-    (
-        '\tinput.VulnerabilityID == "GHSA-qwww-vcr4-c8h2"',
-        '\tinput.PkgName == "react-router"',
-        '\tinput.InstalledVersion == "7.18.1"',
-        '\tinput.PkgID == "react-router@7.18.1"',
-        '\tinput.FixedVersion == "8.3.0"',
-    )
-)
-
-
-def test_react_router_rsc_suppression_requires_its_review_by_comment() -> None:
-    policy_text = _policy_text()
-    without_rsc_review = policy_text.replace(
-        "# Review-by: 2026-08-24 (manual removal)\n",
-        "",
-        1,
-    )
-
-    failures = evaluate_policy_file(
-        POLICY_PATH,
-        today=date(2026, 7, 27),
-        text=without_rsc_review,
-    )
-
-    assert failures == [
-        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
-        "adjacent 'Review-by: YYYY-MM-DD' comment"
-    ]
-
-
-def test_react_router_rsc_suppression_rejects_separated_review_by_decoy() -> None:
-    policy_text = _policy_text()
-    without_rsc_review = policy_text.replace(
-        "# Review-by: 2026-08-24 (manual removal)\n",
-        "",
-        1,
-    )
-    with_separated_decoy = without_rsc_review.replace(
-        "# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate",
-        "# Review-by: 2099-01-01 (belongs to another note)\n\n"
-        "# GHSA-qwww-vcr4-c8h2 (react-router) - unstable RSC APIs are not used by PulsePlate",
-        1,
-    )
-    assert with_separated_decoy != without_rsc_review
-
-    failures = evaluate_policy_file(
-        POLICY_PATH,
-        today=date(2026, 7, 27),
-        text=with_separated_decoy,
-    )
-
-    assert failures == [
-        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
-        "adjacent 'Review-by: YYYY-MM-DD' comment"
-    ]
-
-
-def test_react_router_rsc_suppression_rejects_multiple_adjacent_review_dates() -> None:
-    policy_text = _policy_text()
-    duplicate_rsc_review = policy_text.replace(
-        "# Review-by: 2026-08-24 (manual removal)\n",
-        "# Review-by: 2026-08-24 (manual removal)\n" "# Review-by: 2099-01-01 (decoy)\n",
-        1,
-    )
-
-    failures = evaluate_policy_file(
-        POLICY_PATH,
-        today=date(2026, 7, 27),
-        text=duplicate_rsc_review,
-    )
-
-    assert failures == [
-        f"React Router RSC suppression in {POLICY_PATH} must have exactly one "
-        "adjacent 'Review-by: YYYY-MM-DD' comment"
-    ]
 
 
 @pytest.mark.parametrize(
@@ -1013,11 +950,40 @@ def test_react_router_rsc_suppression_rejects_multiple_adjacent_review_dates() -
             "\n".join(
                 (
                     '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    '\twith input.PkgName as "react-router" with input.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="chained-with-second-modifier-overrides-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    '\twith data.PkgName as "react-router" with input["VulnerabilityID"] as "GHSA-qwww-vcr4-c8h2"',
+                )
+            ),
+            id="chained-with-second-bracket-modifier-overrides-input-field",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    '\tinput.VulnerabilityID == "CVE-2026-27171"',
                     "\twith",
                     '\tinput.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
                 )
             ),
             id="split-following-with-fails-closed",
+        ),
+        pytest.param(
+            "\n".join(
+                (
+                    "\tdecoy := (",
+                    '\t\tinput.VulnerabilityID == "CVE-2026-27171"',
+                    "\t)",
+                    "\ttrue",
+                )
+            ),
+            id="wrapped-assignment-is-not-a-conflicting-predicate",
         ),
     ],
 )
@@ -1032,7 +998,7 @@ def test_noncanonical_target_capable_rule_is_rejected(
     monkeypatch.setattr(expiry_guard, "REPO_ROOT", tmp_path)
 
     assert expiry_guard.main() == 1
-    assert "must contain exactly the canonical five predicates" in capsys.readouterr().out
+    assert "Retired React Router suppression must remain absent" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -1040,6 +1006,7 @@ def test_noncanonical_target_capable_rule_is_rejected(
     [
         'input.VulnerabilityID=="CVE-2026-27171"',
         '"CVE-2026-27171" == input.VulnerabilityID',
+        '(\n\tinput.VulnerabilityID == "CVE-2026-27171"\n)',
     ],
 )
 def test_unrelated_rule_with_explicit_conflicting_vulnerability_stays_valid(
@@ -1077,6 +1044,10 @@ def test_unrelated_rule_with_explicit_conflicting_vulnerability_stays_valid(
         pytest.param(
             'with data.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
             id="data-document-near-miss",
+        ),
+        pytest.param(
+            'with input.PkgName as "react-router" with data.VulnerabilityID as "GHSA-qwww-vcr4-c8h2"',
+            id="chained-non-overlapping-modifiers",
         ),
     ],
 )

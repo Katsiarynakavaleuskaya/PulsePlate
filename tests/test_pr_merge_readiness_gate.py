@@ -115,6 +115,69 @@ def test_standalone_actionable_review_summary_still_requires_mapping() -> None:
     assert merge_gate._covered_review_summary_urls([summary], set()) == set()
 
 
+def test_duplicate_reply_coverage_wires_recordless_snapshot_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#discussion_r1"
+    fix_sha = "a" * 40
+    material_head_sha = "b" * 40
+    live_head_sha = "c" * 40
+    artifact = (
+        "## Fixed in Commit Mapping\n"
+        f"- https://github.com/owner/repo/pull/42#discussion_mapped -> {fix_sha}\n"
+        "Disposition: FIXED\n"
+        f"Commit: {fix_sha}\n"
+        "- https://github.com/owner/repo/pull/42#discussion_not_bug\n"
+        "Disposition: NOT-A-BUG\n"
+        "Evidence: canonical contract\n"
+    )
+    captured: dict[str, Any] = {}
+
+    def validate(**kwargs: Any) -> set[str]:
+        captured.update(kwargs)
+        return {url}
+
+    monkeypatch.setattr(merge_gate, "validated_duplicate_reply_urls", validate)
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="d" * 40,
+        head_sha=live_head_sha,
+        commits=(PrCommitEvidence(live_head_sha, None),),
+    )
+    covered = merge_gate._duplicate_reply_coverage(
+        actionable_items=[
+            merge_gate.ActionableItem(
+                author="chatgpt-codex-connector",
+                url=url,
+                created_at="2026-07-15T10:00:00Z",
+                kind="review_comment",
+            )
+        ],
+        mapped_urls={"https://github.com/owner/repo/pull/42#discussion_mapped"},
+        threads=(),
+        artifact_text=artifact,
+        seal={
+            "material": {
+                "digest": "sha256:" + "e" * 64,
+                "material_head_sha": material_head_sha,
+            }
+        },
+        snapshot=snapshot,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert covered == {url}
+    assert captured["fingerprint_records"] == {}
+    assert captured["mapping_entries"] == {
+        "https://github.com/owner/repo/pull/42#discussion_mapped": fix_sha,
+        "https://github.com/owner/repo/pull/42#discussion_not_bug": "",
+    }
+    assert captured["material_head_sha"] == material_head_sha
+
+
 def test_canonical_artifact_link_count_requires_true_markdown_destination() -> None:
     body = """
 Plain text: docs/review/PR_42_FIXED_MAPPING.md

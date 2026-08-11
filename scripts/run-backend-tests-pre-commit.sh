@@ -3,7 +3,7 @@
 # Runs pytest for changed Python files plus explicit cross-surface governance triggers
 #
 # Pre-push backend tests (smart diff runner):
-# The pre-push hook runs backend pytest only when Python files changed.
+# The pre-push hook runs backend pytest for changed Python files plus explicitly mapped cross-surface governance triggers.
 #
 # Change detection order:
 # 1) If upstream exists: diff `upstream..HEAD`
@@ -275,6 +275,12 @@ add_extra_tests_for_changed_files() {
                     */*/*) ;;
                     *) EXTRA_TEST_FILES+=("tests/test_check_dependabot_python_policy.py") ;;
                 esac
+                ;;
+        esac
+        case "${file##*/}" in
+            package.json | package-lock.json | npm-shrinkwrap.json)
+                EXTRA_TEST_FILES+=("tests/test_root_npm_dependency_guards.py")
+                EXTRA_TEST_FILES+=("tests/test_frontend_dependency_guards.py")
                 ;;
         esac
         case "$file" in

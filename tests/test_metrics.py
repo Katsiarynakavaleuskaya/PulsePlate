@@ -7,6 +7,7 @@ EN: Tests for Prometheus metrics endpoint and middleware.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import re
 
 import pytest
@@ -819,7 +820,7 @@ def test_record_legacy_alias_hit_swallows_counter_inc_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """record_legacy_alias_hit must swallow Prometheus label/inc failures."""
-    import app.metrics as app_metrics
+    app_metrics = importlib.import_module("app.metrics")
 
     from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE as route
 

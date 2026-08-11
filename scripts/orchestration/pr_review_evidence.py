@@ -31,13 +31,21 @@ from scripts.orchestration.review_source_status import (
 )
 
 if TYPE_CHECKING:
-    from scripts.orchestration.pr_commit_identity import CommitResolution, PrSnapshot
+    from scripts.orchestration.pr_commit_identity import (
+        CommitResolution,
+        PrSnapshot,
+        ReviewThreadEvidence,
+    )
 
 MATERIAL_SCHEMA_VERSION = "pulseplate.material-diff/v1"
 MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
 REVIEW_FINGERPRINT_DOMAIN = b"pulseplate-review-finding/v1\0"
 UNAVAILABLE_REVIEW_REF_CAUSE = "unavailable_review_ref_ancestry"
+TRIGGER_ONLY_COMMIT_SUBJECT_RE = re.compile(
+    r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
+    re.IGNORECASE,
+)
 CODEX_REVIEW_SOURCE = "codex-github-review"
 SEAL_SCHEMA_VERSION = "pulseplate.pr-review-seal/v1"
 RECEIPT_AUTHORITY = "human_asserted_content_receipt"
@@ -429,6 +437,35 @@ def _canonical_json(value: Any) -> str:
         raise ReviewEvidenceError("value cannot be rendered as canonical JSON") from exc
 
 
+def review_thread_inventory(
+    threads: tuple[ReviewThreadEvidence, ...],
+) -> tuple[tuple[str, bool, tuple[tuple[str, ...], ...]], ...]:
+    """Ignore outer thread order while preserving each comment sequence."""
+
+    return tuple(
+        sorted(
+            (
+                thread.node_id,
+                thread.is_resolved,
+                tuple(
+                    (
+                        comment.url,
+                        comment.created_at,
+                        comment.author_login,
+                        comment.author_association,
+                        comment.original_commit_sha or "",
+                        hashlib.sha256(
+                            comment.body.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+                        ).hexdigest(),
+                    )
+                    for comment in thread.comments
+                ),
+            )
+            for thread in threads
+        )
+    )
+
+
 def _require_exact_keys(value: Mapping[str, Any], expected: set[str], *, label: str) -> None:
     actual = set(value)
     if actual != expected:
@@ -693,7 +730,9 @@ def validated_duplicate_reply_urls(
     candidate_urls: set[str],
     threads: tuple[Any, ...],
     fingerprint_records: Mapping[str, Any],
+    mapping_entries: Mapping[str, str],
     material_digest: str,
+    material_head_sha: str,
     repo_root: Path,
     snapshot: Any,
     repository: str,
@@ -733,9 +772,11 @@ def validated_duplicate_reply_urls(
         return digest
 
     def prepare_finding(
-        record: Any,
+        verified_fix: str,
         thread: Any,
         finding_index: int,
+        *,
+        exact_original_commit: str | None = None,
     ) -> tuple[datetime, tuple[str, ...]]:
         finding = thread.comments[finding_index]
         if (
@@ -743,6 +784,10 @@ def validated_duplicate_reply_urls(
             or finding.author_login.strip().lower() != "chatgpt-codex-connector"
             or not finding.original_commit_sha
             or finding.original_commit_sha not in snapshot.commit_shas
+            or (
+                exact_original_commit is not None
+                and finding.original_commit_sha != exact_original_commit
+            )
         ):
             raise ReviewEvidenceError(
                 "unavailable-ref finding lacks trusted resolved live PR context"
@@ -752,7 +797,7 @@ def validated_duplicate_reply_urls(
                 "unavailable-ref finding originalCommit has a different material digest"
             )
         candidates = review_finding_sha_candidates(finding.body)
-        if not _review_finding_mentions_fix(candidates, record.verified_fix):
+        if not _review_finding_mentions_fix(candidates, verified_fix):
             raise ReviewEvidenceError("unavailable-ref finding does not cite verified FIX")
         return (
             _parse_timestamp(finding.created_at, label="review finding createdAt"),
@@ -760,8 +805,10 @@ def validated_duplicate_reply_urls(
         )
 
     def validate_finding_candidates(
-        record: Any,
+        verified_fix: str,
         candidates: tuple[str, ...],
+        *,
+        accepted_repository_identities: tuple[set[str], ...],
     ) -> None:
         resolutions = [
             _classify_finding_commit_candidate(candidate, snapshot, token=token)
@@ -782,11 +829,7 @@ def validated_duplicate_reply_urls(
             for resolution in resolutions
             if isinstance(resolution, RepositoryCommitRef)
         }
-        accepted_repository_identities = (
-            {record.verified_fix},
-            {record.verified_fix, snapshot.base_sha, snapshot.head_sha},
-        )
-        if record.verified_fix not in repository_shas:
+        if verified_fix not in repository_shas:
             raise ReviewEvidenceError("unavailable-ref finding does not cite verified FIX")
         if len(unavailable) != 1 or repository_shas not in accepted_repository_identities:
             raise ReviewEvidenceError("review finding ancestry cause is ambiguous")
@@ -798,7 +841,7 @@ def validated_duplicate_reply_urls(
         location = comment_locations.get(record.urls[0])
         if location is None or location[1] != 0:
             raise ReviewEvidenceError("canonical fingerprint URL is not a live thread root")
-        canonical_time, candidates = prepare_finding(record, location[0], location[1])
+        canonical_time, candidates = prepare_finding(record.verified_fix, location[0], location[1])
         fix_resolution = classify_commit_ref(record.verified_fix, snapshot, token=token)
         if not isinstance(fix_resolution, RepositoryCommitRef) or fix_resolution.kind not in {
             CommitRefKind.PR_HEAD,
@@ -812,18 +855,27 @@ def validated_duplicate_reply_urls(
             token=token,
         ):
             raise ReviewEvidenceError("canonical verified FIX is not reachable from live head")
-        validate_finding_candidates(record, candidates)
+        validate_finding_candidates(
+            record.verified_fix,
+            candidates,
+            accepted_repository_identities=(
+                {record.verified_fix},
+                {record.verified_fix, snapshot.base_sha, snapshot.head_sha},
+            ),
+        )
         validated_records[fingerprint] = (record, canonical_time)
 
-    covered: set[str] = set()
+    candidate_fingerprints: dict[str, str] = {}
+    candidate_times: dict[str, datetime] = {}
+    candidate_locations: dict[str, tuple[Any, int]] = {}
     for url in sorted(candidate_urls):
         location = comment_locations.get(url)
         if location is None:
             continue
         thread, finding_index = location
         finding = thread.comments[finding_index]
-        valid_fingerprints: list[str] = []
         finding_time = _parse_timestamp(finding.created_at, label="duplicate finding createdAt")
+        valid_fingerprints: list[str] = []
         for reply in thread.comments[finding_index + 1 :]:
             if reply.author_association not in authorized_associations:
                 continue
@@ -836,20 +888,148 @@ def validated_duplicate_reply_urls(
                 valid_fingerprints.append(fingerprint)
         if len(valid_fingerprints) != 1:
             continue
-        validated = validated_records.get(valid_fingerprints[0])
+        candidate_fingerprints[url] = valid_fingerprints[0]
+        candidate_times[url] = finding_time
+        candidate_locations[url] = location
+
+    covered: set[str] = set()
+    for url, fingerprint in candidate_fingerprints.items():
+        validated = validated_records.get(fingerprint)
         if validated is None:
             continue
+        thread, finding_index = candidate_locations[url]
+        finding_time = candidate_times[url]
         record, canonical_time = validated
         if url == record.urls[0] or finding_time <= canonical_time:
             continue
         try:
-            _, candidates = prepare_finding(record, thread, finding_index)
-            validate_finding_candidates(record, candidates)
+            _, candidates = prepare_finding(record.verified_fix, thread, finding_index)
+            validate_finding_candidates(
+                record.verified_fix,
+                candidates,
+                accepted_repository_identities=(
+                    {record.verified_fix},
+                    {record.verified_fix, snapshot.base_sha, snapshot.head_sha},
+                ),
+            )
         except ReviewEvidenceError as exc:
             if "API_UNKNOWN" in str(exc):
                 raise
             continue
         covered.add(url)
+
+    validated_mapping_entries = {
+        url: _require_sha(value, label="mapped FIXED SHA")
+        for url, value in mapping_entries.items()
+        if value
+    }
+    mapped_fixes = frozenset(validated_mapping_entries.values())
+    commit_pushed_at = {commit.sha: commit.pushed_at for commit in snapshot.commits}
+    eligible_recordless_by_fingerprint: dict[str, list[str]] = {}
+    for url, fingerprint in candidate_fingerprints.items():
+        if fingerprint in validated_records:
+            continue
+        thread, finding_index = candidate_locations[url]
+        if finding_index != 0:
+            continue
+        try:
+            validated_material_head = _require_sha(material_head_sha, label="material_head_sha")
+            validate_mapping_only_closeout_successor(
+                repo_root,
+                material_head_sha=validated_material_head,
+                live_head_sha=snapshot.head_sha,
+                pr_number=snapshot.pr_number,
+            )
+            finding = thread.comments[finding_index]
+            candidates = review_finding_sha_candidates(finding.body)
+            cited_fixes = {
+                sha for sha in mapped_fixes if _review_finding_mentions_fix(candidates, sha)
+            }
+            if len(cited_fixes) != 1:
+                continue
+            verified_fix = next(iter(cited_fixes))
+            pushed_at_raw = commit_pushed_at.get(verified_fix)
+            if pushed_at_raw is None:
+                continue
+            pushed_at = _parse_timestamp(pushed_at_raw, label="mapped FIX pushedAt")
+            has_qualified_mapping_root = False
+            for mapped_url, mapped_sha in validated_mapping_entries.items():
+                if mapped_sha != verified_fix:
+                    continue
+                mapped_location = comment_locations.get(mapped_url)
+                if (
+                    mapped_location is None
+                    or mapped_location[1] != 0
+                    or not mapped_location[0].is_resolved
+                ):
+                    continue
+                mapped_root_time = _parse_timestamp(
+                    mapped_location[0].comments[0].created_at,
+                    label="mapped FIX thread root createdAt",
+                )
+                if pushed_at > mapped_root_time:
+                    has_qualified_mapping_root = True
+                    break
+            if not has_qualified_mapping_root:
+                continue
+            changed_files = _run_git(
+                repo_root,
+                ["show", "--name-only", "--pretty=format:", verified_fix],
+            ).splitlines()
+            if not any(path.strip() for path in changed_files):
+                continue
+            subject = (
+                _run_git(
+                    repo_root,
+                    ["show", "-s", "--format=%s", verified_fix],
+                )
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+            if TRIGGER_ONLY_COMMIT_SUBJECT_RE.search(subject):
+                continue
+            expected_fingerprint = unavailable_review_ref_fingerprint(
+                pr_number=snapshot.pr_number,
+                material_digest=material_digest,
+                verified_real_fix_sha=verified_fix,
+            )
+            if fingerprint != expected_fingerprint:
+                continue
+            prepare_finding(
+                verified_fix,
+                thread,
+                finding_index,
+                exact_original_commit=snapshot.head_sha,
+            )
+            fix_resolution = classify_commit_ref(verified_fix, snapshot, token=token)
+            if not isinstance(fix_resolution, RepositoryCommitRef) or fix_resolution.kind not in {
+                CommitRefKind.PR_HEAD,
+                CommitRefKind.PR_COMMIT,
+            }:
+                continue
+            if not is_ancestor(
+                fix_resolution,
+                live_head,
+                repository=repository,
+                token=token,
+            ):
+                continue
+            validate_finding_candidates(
+                verified_fix,
+                candidates,
+                accepted_repository_identities=(
+                    {verified_fix},
+                    {verified_fix, validated_material_head},
+                ),
+            )
+        except ReviewEvidenceError as exc:
+            if "API_UNKNOWN" in str(exc):
+                raise
+            continue
+        eligible_recordless_by_fingerprint.setdefault(fingerprint, []).append(url)
+    for urls in eligible_recordless_by_fingerprint.values():
+        if len(urls) == 1:
+            covered.add(urls[0])
     return covered
 
 

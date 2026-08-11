@@ -46,3 +46,8 @@ repo instructions, fixed mapping, branch protection, semantic cache, graph
 truth, review threads, or product runtime. If a lesson affects the current PR
 scope, the PR must close that issue with code, schema, tests, guards, or policy
 changes; a learning record alone is not closure.
+
+For an optional deterministic view over already explicit invariant-family
+membership, see `contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`;
+that L1 sidecar neither infers learning truth nor grants learning or promotion
+authority.

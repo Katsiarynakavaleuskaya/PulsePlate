@@ -2,12 +2,6 @@
 Test coverage for specific missing lines in app.py to improve coverage to 97%.
 """
 
-import importlib
-import os
-import sys
-import types
-from unittest.mock import patch
-
 import pytest
 
 # Canonical imports for BMI helpers (replacing legacy app.* functions)
@@ -17,70 +11,6 @@ from tests._helpers.bmi_flags import _normalize_flags_for_tests
 
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
-
-    def test_slowapi_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test slowapi import error handling."""
-        import legacy_app
-
-        # Force deterministic ImportError even if slowapi is installed.
-        # "None in sys.modules" halts import with ModuleNotFoundError (ImportError subclass).
-        monkeypatch.setitem(sys.modules, "slowapi", None)
-        importlib.reload(legacy_app)
-
-        # The test passes if no exception is raised during reload
-        # Limiter should be None when slowapi import fails
-        assert legacy_app.Limiter is None
-
-    def test_vip_module_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test VIP module import error handling."""
-        import app
-
-        # Force deterministic ImportError even if VIP module is installed.
-        # "None in sys.modules" halts import with ModuleNotFoundError (ImportError subclass).
-        monkeypatch.setitem(sys.modules, "app.routers.vip_registration", None)
-        if "app.routers.vip" in sys.modules:
-            monkeypatch.delitem(sys.modules, "app.routers.vip", raising=False)
-
-        importlib.reload(app)
-
-    def test_bodyfat_import_error(self) -> None:
-        """Test bodyfat import error handling."""
-        # Mock the import to raise ImportError
-        with patch("importlib.import_module", side_effect=ImportError("Bodyfat module not found")):
-            # Reload app module to trigger import error handling
-            import app
-
-            importlib.reload(app)
-
-    def test_env_loading_logic(self) -> None:
-        """Test environment loading logic."""
-        import app
-
-        # Test with sanitized environment
-        with patch.dict(os.environ, {"PATH": "test"}, clear=True):
-            importlib.reload(app)
-
-        # Test with local environment
-        with patch.dict(os.environ, {"APP_ENV": "local"}):
-            importlib.reload(app)
-
-        # Test with pytest environment
-        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test"}):
-            importlib.reload(app)
-
-    def test_legacy_category_label_edge_cases(self) -> None:
-        """Test edge cases for legacy_category_label function."""
-        from app import legacy_category_label
-
-        # Test with None language
-        result = legacy_category_label("Normal weight", None)
-        # The function should handle None gracefully
-        assert isinstance(result, str)
-
-        # Test with exception in language processing
-        # Note: We can't easily patch the function itself, so we'll test the normal behavior
-        result = legacy_category_label("Normal weight", "en")
-        assert result == "Healthy weight"  # Expected mapping
 
     def test_normalize_flags_edge_cases(self) -> None:
         """Test edge cases for normalize_flags function."""
@@ -122,7 +52,7 @@ class TestAppSpecificMissingLines:
 
     def test_bmi_request_validation_edge_cases(self) -> None:
         """Test edge cases for BMIRequest validation."""
-        from app import BMIRequest
+        from app.schemas.bmi_compat import BMIRequest
 
         # Test with realistic minimum values
         req = BMIRequest(
@@ -148,7 +78,7 @@ class TestAppSpecificMissingLines:
 
     def test_bmi_request_v1_validation_edge_cases(self) -> None:
         """Test edge cases for BMIRequestV1 validation."""
-        from app import BMIRequestV1
+        from app.schemas.bmi_compat import BMIRequestV1
 
         # Test with realistic minimum values
         req = BMIRequestV1(
@@ -156,11 +86,12 @@ class TestAppSpecificMissingLines:
             height_cm=100.0,  # Realistic minimum height
             age=0,  # Minimum valid age
             gender="male",
-            activity="sedentary",
+            group="general",
         )
         assert req.weight_kg == 20.0
         assert req.height_cm == 100.0
         assert req.age == 0
+        assert req.group == "general"
 
         # Test with realistic maximum values
         req = BMIRequestV1(
@@ -168,11 +99,12 @@ class TestAppSpecificMissingLines:
             height_cm=250.0,  # Realistic maximum height
             age=120,  # Maximum valid age
             gender="female",
-            activity="very_active",
+            group="athlete",
         )
         assert req.weight_kg == 300.0
         assert req.height_cm == 250.0
         assert req.age == 120
+        assert req.group == "athlete"
 
 
 if __name__ == "__main__":

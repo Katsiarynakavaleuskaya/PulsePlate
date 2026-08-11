@@ -1,5 +1,14 @@
 # Business Wave Task Packet
 
+> **Superseded point-in-time plan.** This 2026-03-21 branch-scoped packet is
+> retained unchanged below as historical planning evidence. Its PPTX-builder
+> success criterion and `slides` routing have no present execution authority
+> and must not restore the retired local PPTX builder, npm command, dependency,
+> or test. Current collateral execution truth is
+> `docs/audience_pack/BUSINESS_COLLATERAL_AUTOMATION.md`; the canonical
+> `docs/audience_pack/B2B_PITCH_DECK_SPEC.md` content remains retained, and DOCX
+> proposal generation remains supported.
+
 **Date:** 2026-03-21 (`America/New_York`)
 **Mode:** Governance-first, worktree-isolated, documentation-first
 **Worktree:** `worktrees/business_wave_bootstrap`

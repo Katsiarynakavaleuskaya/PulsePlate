@@ -24,6 +24,158 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-rag-pilot-3b-exact-context-compaction"></a>
+- [ ] P1: Pilot 3B default-off exact-carrier RAG context compaction
+  - Owner: backend-engineer
+  - Priority: P1 (bounded LLM context cost / latency experiment)
+  - Branch: `codex/rag-context-compaction-pilot-b3-r2`
+  - Target PR: [PR #2257](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2257)
+    (replacement PR; supersedes
+    [PR #2249](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2249))
+  - Status: In review in PR #2257; exact current-main provenance is bound by
+    the live PR commit graph and final review seal, not duplicated here.
+  - Area: backend / RAG / Insight runtime
+  - Business reason (EN): Avoid sending byte-for-byte duplicate final evidence
+    carriers to the provider when explicitly enabled, while preserving every
+    distinct evidence reference and the existing user response fallback.
+  - Exact invariant (EN): After mandatory Stage 1 and final metadata/content
+    hygiene, collapse only later `RAGChunk` carriers that match an earlier
+    carrier in runtime type and value for all five primitive fields
+    (`chunk_id`, `file`, `content`, `score`, `hop`). Preserve the first
+    occurrence and order. Prompt, sources, confidence, evidence, provenance,
+    bundle, and candidates use that one compacted snapshot. Failure returns an
+    untouched validated snapshot for the response and closes bundle admission
+    and candidates through an existing internal degraded state.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md#34-pilot-3b-exact-carrier-context-compaction`
+    - `core/rag/context_compaction.py`
+    - [Final roadmap PDF (product intent only; not runtime authority)](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
+  - DoD:
+    - optional request-time flag defaults off and is forwarded explicitly from app to core
+    - vector and final merged recursive results cross the same outer seam
+    - exact duplicates collapse without mutable aliasing; every field difference,
+      distinct evidence reference, non-equal score, and original order survive
+    - success reports only the bounded internal `chunks_compacted` count
+    - mutation or exception returns the pristine final snapshot, one stable
+      non-sensitive warning/log record, and closed knowledge admission
+    - both Insight aliases retain DTO/OpenAPI, provider-call count,
+      guard/quota/rate-limit ordering, and non-RAG fallback behavior
+    - focused tests, typecheck, targeted Bandit, branch-diff backend hook,
+      `make validate-changed`, full pre-commit, and current-head CI/governance pass
+  - Rollback (EN): Set `FEATURE_RAG_CONTEXT_COMPACTION=false` (default) or revert
+    the PR. Mandatory Stage 1 and the non-RAG fallback remain unchanged.
+  - Out of scope (EN): Stage 0, content-only/normalized/fuzzy/semantic or
+    boilerplate deduplication, semantic cache, Evidence Graph serving,
+    persistent memory, `TaskNormativeEnvelopeV1`, public routes/DTO/OpenAPI,
+    provider/model, quota/rate-limit, and broad RAG cleanup. Semantic-cache
+    widening remains prohibited until its dedicated gate opens.
+
+<a id="ledger-p1-rag-main-ci-ownership-carryover"></a>
+- [ ] P1: Carry over the RAG main fixture and CI ownership repair into replacement PR #2247
+  - Owner: backend-engineer / qa-engineer-agent
+  - Priority: P1 (current-main recovery / CI trust)
+  - Target PR: [PR #2247](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2247)
+  - Source PR: [PR #2245](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2245), superseded after its two material commits are verified on replacement PR #2247
+  - Status: Integrated into the single operator-authorized remediation lane; exact-head CI and closeout pending
+  - Reason (EN): PR #2245 repairs the Stage-1-invalid positive Jaccard fixture
+    and the finite `insight_ai` owning-suite gap, but its Trivy check is blocked
+    by the dependency identities first assembled in superseded PR #2246 and now
+    carried by replacement PR #2247. PR #2246 was in turn blocked in every
+    canonical Python matrix by that same fixture. Carrying the two
+    already-reviewed commits into the replacement PR breaks the circular dependency
+    without changing RAG runtime behavior or weakening Stage 1.
+  - Links:
+    - `tests/test_rag_vector_feature_flag_guard.py`
+    - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
+    - `tests/test_ci_risk_profile.py`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+  - DoD:
+    - the positive Jaccard mock satisfies the existing Stage-1 minimum while
+      `tests/test_rag_validation.py::test_short_content_removed` remains the
+      negative control
+    - the four finite RAG owner suites occur exactly once in `insight_ai` for
+      both `test-pr` and `test-feature`, and each self-routes through the risk
+      profile
+    - no `core/rag/**`, route, DTO, OpenAPI, provider, quota, or rate-limit
+      behavior changes
+    - exact PR #2247 current-head Python 3.11, 3.12, and 3.13 matrices pass
+      before any main/nightly recovery claim
+
+<a id="ledger-p1-rag-s2-baseline-validation-boundary"></a>
+- [ ] P1: RAG-S2 baseline validation boundary
+  - Owner: backend-engineer
+  - Priority: P1 (AI runtime trust / response continuity)
+  - Target PR: [PR #2232](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2232)
+  - Status: In review on `codex/rag-baseline-validation-boundary`
+  - Area: backend / RAG / Insight runtime / knowledge admission
+  - Business reason (EN): Keep the available non-medical wellness response when
+    advisory enrichment fails while preventing any unvalidated retrieval chunk
+    from reaching prompts, sources, confidence, provenance, verification
+    evidence, or durable knowledge admission.
+  - Exact invariant (EN): Every final request-local vector or merged recursive
+    chunk set crosses mandatory Stage 1. Response fields derive from one fresh,
+    order-preserving Stage-1 survivor snapshot. Knowledge admission additionally
+    requires observed successful completion of configured Stages 2-4, no
+    existing degraded reason, the existing non-recursive policy, usable final
+    formatting/redaction, and an admission-allowing canonical verification
+    bundle. Requested feature state alone grants no authority.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md#33-mandatory-stage-1-validation-boundary`
+    - `core/rag/philosophy_pipeline.py`
+    - `core/rag/orchestration.py`
+    - [Final roadmap PDF (product intent only; not runtime authority)](https://drive.google.com/file/d/1e7Ij5pV897BTUImocsES26fP0gE0IcxK/view?usp=drivesdk)
+  - DoD:
+    - Stage 1 runs for flag-on and flag-off vector and final merged recursive paths
+    - Stage-1 exception or zero survivors returns no RAG context and never restores raw chunks
+    - Optional-stage mutation or exception returns an untouched Stage-1 snapshot,
+      one stable enrichment warning, and closed knowledge admission
+    - Prompt, response evidence, provenance, final bundle, and candidates derive
+      from the same survivor snapshot after usable formatting and redaction
+    - A final post-Stage-1 boundary rejects non-built-in, blank, overlong,
+      control/noncharacter-bearing, or mark-only `chunk_id` and `file` values
+      before every content carrier while preserving visible decomposed Unicode
+      and assigned private-use metadata; this does not add Stage 0
+    - Runtime warnings are fixed codes and internal diagnostics contain bounded
+      aggregate counts only, with no raw query/content/identifier/path/score or
+      exception detail
+    - Both Insight aliases preserve response schema, status/error behavior,
+      provider-call count, guard/quota/rate-limit ordering, and non-RAG fallback
+    - Focused tests, typecheck, targeted Bandit, branch-diff backend hook,
+      `make validate-changed`, full pre-commit, and current-head CI/governance
+      checks pass without OpenAPI or generated-client changes
+  - Rollback (EN): Revert the PR. During an incident, disable all RAG with the
+    existing `FEATURE_RAG=false`; `FEATURE_PHILOSOPHY_VALIDATION=false` disables
+    only post-Stage-1 enrichment and is not a validation-safety rollback.
+  - Out of scope (EN): Semantic cache, GraphRAG, Evidence Graph serving,
+    persistent memory, advisory-wiki promotion, new authority engines, Stage-1
+    keywords or thresholds, provider/model selection, quota/rate-limit changes,
+    telemetry expansion, public routes/DTO/OpenAPI, frontend, and iOS. Semantic
+    cache widening is explicitly prohibited while its dedicated gate remains closed.
+
+<a id="ledger-p2-rag-chunk-copy-helper-consolidation"></a>
+- [ ] P2: Consolidate RAG chunk-copy helpers and profile boundary copies
+  - Owner: backend-engineer
+  - Priority: P2
+  - Priority note (EN): maintainability cleanup; non-blocking.
+  - Target PR: TBD (follow-up cleanup after PR #2232 merges)
+  - Status: Deferred from PR #2232 Sourcery review (2026-08-07)
+  - Area: backend / RAG
+  - Reason (EN): `_copy_rag_chunks` (`core/rag/orchestration.py`)
+    and `_copy_chunks` (`core/rag/philosophy_pipeline.py`) are near-identical
+    primitive-equivalent copy carriers. Consolidating them and profiling the
+    intentional per-boundary copies (pipeline survivors -> snapshot preparation
+    -> formatting -> candidate builder) is valid maintainability work but is
+    outside the PR #2232 Stage-1 safety boundary; per-boundary independent
+    copies are an intentional isolation design, not accidental redundancy.
+  - DoD: one shared chunk-copy helper is used by both modules (or intentional
+    divergence is documented in `docs/contracts/RAG_CONTRACT.md`), a boundary
+    copy profiling note is recorded, and deterministic RAG suites stay green.
+  - Links:
+    - `core/rag/orchestration.py` (`_copy_rag_chunks`)
+    - `core/rag/philosophy_pipeline.py` (`_copy_chunks`)
+    - PR #2232 Sourcery top-level review (2026-08-07)
+
 <a id="ledger-p1-cryptography-50-security-floor"></a>
 - [ ] P1: Raise the canonical `cryptography` security floor to 50.0.0
   - Owner: backend-engineer
@@ -5272,38 +5424,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `main`
 
 <a id="ledger-p1-react-router-rsc-advisory-monitor"></a>
-- [ ] P1: Monitor and remove React Router unstable RSC advisory suppression
+- [ ] P1: Remove React Router unstable RSC advisory suppression
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: this combined bootstrap PR (carryover from closed PRs #2184 and
-    #2187)
-  - Status: In progress since 2026-07-25
+  - Target PR: PR #2247
+  - Status: In progress in replacement PR #2247; fixed dependency material and exact
+    suppression deletion are selected, exact-head Trivy confirmation is pending
   - Area: security / frontend dependency / Trivy policy
-  - Finding Type: application dependency vulnerability applicability
-  - Reason: Trivy reports `GHSA-qwww-vcr4-c8h2` for `react-router@7.18.1` with
-    fixed version `8.3.0`. The advisory affects unstable RSC server APIs, while
-    point-in-time repository evidence shows PulsePlate using the stable
-    declarative SPA surface without intentional affected RSC usage. The exact
-    Trivy tuple is temporarily suppressed and protected by lexical
-    structure/expiry/review controls; this entry does not claim deterministic
-    proof of every present or future source-applicability shape.
+  - Finding Type: application dependency vulnerability remediation
+  - Reason: Docker Build and Push run `31258531222`, security job `93106014446`,
+    Trivy analysis `1589834230`, reported `GHSA-qwww-vcr4-c8h2` for
+    `react-router@7.18.1` with compatible fixed version `7.18.2`. The batch
+    selects that fixed line, and the exact suppression is deleted rather than
+    extended, broadened, or replaced.
   - Links:
-    - https://github.com/advisories/GHSA-qwww-vcr4-c8h2
+    - <https://github.com/advisories/GHSA-qwww-vcr4-c8h2>
     - `docs/security/GHSA-qwww-vcr4-c8h2-react-router.md`
+    - `docs/security/NANOID_REACT_ROUTER_ATOMIC_TRIVY_REMEDIATION_CLASS.md`
     - `trivy/ignore-policy.rego`
     - `scripts/ci/check_trivy_ignore_policy_expiry.py`
     - `tests/test_trivy_ignore_policy_expiry.py`
   - DoD:
-    - Review the advisory and Dependabot alert #241 weekly
-    - Remove the suppression if affected RSC usage is introduced, the
-      dependency or Trivy tuple changes, or a compatible fixed line is
-      approved
-    - Refresh the point-in-time repository evidence during each weekly review
-      and on frontend dependency or execution-model changes
-    - Keep exact Rego tuple, lexical structure, expiry, review-date, and
-      negative controls green
-    - Close the tracker only after the suppression is removed and current-head
-      Trivy evidence passes without it
+    - Resolve `react-router` and `react-router-dom` to `7.18.2`
+    - Delete the exact `GHSA-qwww-vcr4-c8h2` Rego rule and header reference
+    - Reject any target-capable suppression reintroduction while preserving
+      unrelated expiry/review rules
+    - Close this item only after terminal exact-head Trivy evidence; do not infer
+      a full-audit or readiness claim from selected material
 
 - [x] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
   - Owner: @katsiaryna_kavaleuskaya
@@ -5371,10 +5518,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-07-09**
+  - **Rego suppressions last reviewed: 2026-08-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
     - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)
+    - PR #2246: Rechecked current Debian primary evidence for residual zlib/3184/ncurses rules; Review-by dates are 2026-09-08, zlib/ncurses rule bodies and the shared 2026-10-07 expiry remain unchanged, and CVE-2026-3184 PkgID matching is narrowed to exact equality
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 
@@ -5401,9 +5549,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: TBD
+  - Target PR: PR #2247
+  - Status: Implementation complete in replacement PR #2247; merge confirmation pending
   - Area: security / container / Trivy policy
-  - Reason (EN): The CVE-2026-3184 suppression still uses `startswith` for observed util-linux PkgIDs, which can match unintended suffix variants. A dedicated follow-up should adopt the exact-equality set pattern used by CVE-2026-53615 without expanding this CVE-scoped PR.
+  - Reason (EN): The CVE-2026-3184 suppression used `startswith` for observed util-linux PkgIDs, which could match unintended suffix variants. Replacement PR #2247 carries the material Trivy policy surface from superseded PR #2246, so it narrows the same eight tuples to exact equality instead of deferring a current-PR security finding.
   - Links:
     - `trivy/ignore-policy.rego`
     - `docs/security/CVE-2026-3184-util-linux.md`
@@ -11014,6 +11163,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       and deferred-item ledger block
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
+
+<a id="ledger-p1-invariant-family-relations-shadow"></a>
+- [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
+  - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
+  - Priority: P1 (review determinism with closed authority)
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2/L3 require separate reviewed target PRs
+  - Status: L1 implementation in progress; L2/L3 closed and not authorized by L1
+  - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
+  - Links:
+    - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
+    - `docs/orchestration/contracts/review_invariant_family_relations.v1.schema.json`
+    - `scripts/orchestration/review_invariant_family_relations.py`
+    - `tests/test_review_invariant_family_relations.py`
+  - DoD:
+    - L1 accepts only the closed snapshot/relations `oneOf`, normalizes explicit finite memberships, emits every canonical pair partition plus separate unknown findings, and fully validates deterministic replay with domain-separated fingerprints
+    - L1 enforces input, output, diagnostic, finding, family, membership, pair, derived-reference, ID, strict-JSON, and const-false authority bounds through executable focused tests
+    - L1 remains stdin/stdout only and adds no filesystem, environment, network, provider, subprocess, runtime, workflow, public API, mapping, learning, KPP, oracle, routing, review, promotion, or merge admission
+    - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
+    - L3 may be scoped only by a later reviewed packet with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; L1 output alone cannot open that gate
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)

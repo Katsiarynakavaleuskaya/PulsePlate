@@ -446,6 +446,33 @@ def test_rag_runtime_change_hits_insight_and_route_groups() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "tests/test_insight_rag_response_fields.py",
+        "tests/test_philosophy_pipeline.py",
+        "tests/test_rag_validation.py",
+        "tests/test_rag_vector_feature_flag_guard.py",
+    ),
+)
+def test_pr_2232_owner_tests_self_route_to_insight_group(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.backend_shared is True
+    assert profile.insight_ai is True
+    assert profile.run_backend_blocking is True
+    assert profile.contract_risk_groups == ("insight_ai",)
+
+
+def test_workflow_owned_llm_extras_test_self_routes_to_insight_group() -> None:
+    profile = risk_profile.build_risk_profile(["tests/test_llm_extras.py"])
+
+    assert profile.backend_shared is True
+    assert profile.insight_ai is True
+    assert profile.run_backend_blocking is True
+    assert profile.contract_risk_groups == ("insight_ai",)
+
+
 def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     profile = risk_profile.build_risk_profile(
         ["app/dependencies.py"],

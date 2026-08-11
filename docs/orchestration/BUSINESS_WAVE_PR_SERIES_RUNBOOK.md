@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This runbook is the canonical operating contract for the business-line wave launched from an isolated worktree.
+This runbook is the canonical point-in-time record of the business-line wave as launched on 2026-03-21 from an isolated worktree.
 
 It exists to keep:
 - current dirty runtime/payment work untouched,
@@ -14,10 +14,22 @@ It exists to keep:
 - agent orchestration synchronized with audience-pack SoT,
 - collateral generation automated without promoting generated binaries into git.
 
+## Current Status
+
+- Current collateral execution truth is `docs/audience_pack/BUSINESS_COLLATERAL_AUTOMATION.md`.
+- The local PptxGenJS builder, npm command, and PPTX-only test are retired.
+- `docs/audience_pack/B2B_PITCH_DECK_SPEC.md` remains canonical business/content truth.
+- DOCX proposal generation remains supported.
+- The historical Wave Objective, PR-3, and Sync Points sections below record the 2026-03-21 plan; they do not authorize restoring the retired local PPTX execution path.
+
 ## Contract Boundaries
 
 - This runbook owns process, merge cadence, sync points, and hard rules for the wave.
-- `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md` owns branch-scoped success criteria, artifact inventory, and deliverable planning.
+- `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md` is a historical
+  point-in-time, branch-scoped planning record. Its PPTX-builder success
+  criterion and `slides` execution routing are superseded by Current Status. It
+  has no present authority to restore the local PPTX builder, npm command,
+  dependency, or test.
 
 ## Source of Truth
 
@@ -31,6 +43,10 @@ It exists to keep:
 - Freshness/ownership SoT: `docs/audience_pack/LIVING_DOCUMENT_PROTOCOL.md`
 
 ## Wave Objective
+
+> **Historical, non-executable record.** The Wave Objective, PR Series, Routing
+> Card, and Sync Points below describe the 2026-03-21 plan only. They do not
+> override Current Status or authorize restoration of local PPTX execution.
 
 Build a reusable business-development system around existing repo canon:
 - director-level business orchestration,
@@ -88,7 +104,7 @@ Build a reusable business-development system around existing repo canon:
    - smoke tests pass locally
 4. **Merge-ready evidence**
    - `pre-commit run --all-files`
-   - `make verify`
+   - `make validate-changed`
    - merge-readiness wrapper on PR head
 
 ## Hard Rules
@@ -105,8 +121,8 @@ Build a reusable business-development system around existing repo canon:
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `pre-commit run --all-files`
-- `make verify`
-- `pytest -q tests/test_business_collateral_builders.py` (PR-3+ only, after builders are added)
+- `make validate-changed`
+- `pytest -q tests/test_business_collateral_builders.py` (current DOCX proposal/parser coverage)
 
 ## Deferred from This Wave
 

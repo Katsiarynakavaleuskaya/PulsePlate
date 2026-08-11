@@ -310,12 +310,26 @@ Evidence:
 - Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
-The only mapping-less duplicate exception is a trusted Codex/App
-`unavailable_review_ref_ancestry` finding with the same material digest and
-verified real FIX SHA as a canonical fingerprint record. An authorized
-`OWNER|MEMBER|COLLABORATOR` reply must use the exact closed structured fields,
-come after the finding in the same explicitly resolved thread, and the cited
-review ref must resolve as unavailable (not API-unknown). Finding-local commit
+The closed reply-only validator has two mutually exclusive paths. Existing
+canonical fingerprint records retain their current later-duplicate semantics.
+The recordless path covers only the first currently visible trusted Codex/App
+`unavailable_review_ref_ancestry` seed on the exact live direct single
+mapping-only successor. Its resolved thread root must have `originalCommit`
+equal to that live head and the same frozen material digest. One later
+`OWNER|MEMBER|COLLABORATOR` reply must use the exact closed structured fields;
+its fingerprint must bind the unique real reachable FIX already present in the
+canonical FIXED mappings and cited by the finding. That FIX must be mapped from
+a live resolved thread root, have a snapshot `pushed_at` strictly after the root
+comment, and be a non-empty, non-trigger-only repository commit. Issue or
+top-level-only mappings remain valid ordinary dispositions but cannot qualify
+this recordless exception. The recordless path groups by fingerprint only after
+full eligibility and covers a fingerprint only when exactly one eligible seed
+is currently visible; ineligible comments do not affect cardinality, while two
+eligible seeds leave both blocking. This is a current-snapshot cardinality rule,
+not a historical once-ever claim.
+
+For both paths, the cited review ref must resolve as unavailable (not
+API-unknown). Finding-local commit
 candidates are capped at four unique values and admit only a full lowercase
 40-character SHA or a lowercase 7–39-character hexadecimal ref carried by
 exactly `...` or `…`. One finding-local maximal-token lexer examines each
@@ -344,11 +358,13 @@ every snapshot-known prefix match; contradictions remain `API_UNKNOWN`. Every
 shortened-ref `422` remains `API_UNKNOWN`
 because prefix uniqueness is unproven. Ambiguity, malformed or non-prefix
 responses, authorization, rate-limit, server, HTTP protocol, and transport
-failures remain `API_UNKNOWN`. The accepted
-repository identity set remains exactly `{verified FIX}` or
-`{verified FIX, base, head}`, with exactly one unavailable ref; unavailable
-refs never enter ancestry. The exception creates no docs commit and does not
-restart review/security scans.
+failures remain `API_UNKNOWN`. The canonical-record repository identity set
+remains exactly `{verified FIX}` or `{verified FIX, base, live head}`. The
+recordless identity set is exactly `{verified FIX}` or
+`{verified FIX, sealed material head}`. Each path requires exactly one
+unavailable ref; unavailable refs never enter ancestry. Any `API_UNKNOWN` is
+terminal. The exception creates no docs commit and does not restart
+review/security scans.
 
 ### DEFERRED
 

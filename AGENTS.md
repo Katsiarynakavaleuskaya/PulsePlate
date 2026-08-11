@@ -250,9 +250,17 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    exact-material validation cycle.
 10. **One closeout commit:** author dispositions and the content-bound human
     receipt locally with `pr_review_closeout.py`, then publish mapping and seal
-    once. A repeated trusted Codex unavailable-ref ancestry finding on the same
-    digest is handled by an authorized structured reply in the resolved thread;
-    it does not create another docs commit or restart review/security scans.
+    once. A validated canonical-record duplicate remains reply-only. The first
+    recordless trusted Codex unavailable-ref ancestry finding may also be
+    handled reply-only on the exact direct mapping-only successor, when its root is
+    bound to the live head and same digest and its uniquely cited reachable FIX
+    is non-empty, non-trigger-only, and already mapped from a live resolved
+    thread root by a commit pushed strictly after that root comment. A fingerprint
+    is covered only when exactly one fully eligible recordless seed is currently
+    visible; ineligible same-fingerprint comments do not affect cardinality, but
+    if more than one eligible seed is visible, none is covered and all remain
+    blocking. Neither path creates another docs commit or restarts
+    review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before
     the sole mapping commit, run
@@ -2123,132 +2131,122 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 **Security: Dependency CVE bumps (application deps):**
 
-- **Application-dependency remediation PR unit:** one PR owns exactly one invariant
-  class defined by `D`, `S`, `R`, and `P`, evaluated against one finite reconciled
-  candidate advisory inventory `F_cutoff`, whose base-applicable subset `A` must
-  be non-empty:
-  - **`D` — ecosystem-qualified dependency identity:** exactly one dependency
-    identity in exactly one ecosystem.
+- **Application-dependency remediation PR unit:** one identity is the default.
+  For every ecosystem-qualified dependency identity `D`, define and prove the
+  same invariant class `D`/`S`/`R`/`P` against one finite reconciled advisory
+  inventory `F_cutoff` whose base-applicable subset `A` is non-empty:
   - **`S` — governed surface universe:** independently enumerate the complete
-    governed manifest and lock surfaces for `D` at the exact base (`S_base`) and
-    head (`S_head`). Their union `S = S_base ∪ S_head` must be non-empty, and
-    every base/head surface delta must be reconciled.
-  - **`A` — applicable advisory inventory:** reconcile a finite candidate set
-    `F_cutoff` from named authoritative inputs at one recorded snapshot or
-    cutoff. `A` is exactly the non-empty subset whose every member has at least
-    one comparable governed base occurrence of `D` inside its affected range.
-    Every candidate outside `A` requires an independently evidenced
-    non-applicable-at-base disposition and remains inside `P`, which must prove
-    no affected, unresolved, or incomparable governed head occurrence.
-  - **`R` — operator-intent remediation class:** let `I_R` be the non-empty set
-    of intent-bearing dependency transitions explicitly authored or authorized
-    to remediate `D`. Exactly one non-identity equivalence class is admitted
-    over `I_R`: every member has the same authored operation kind and semantic
-    intent. Authored replacement and authored removal are different classes;
-    literal target versions may be parameters of one replacement class. Let
-    `C_R` be the deterministic solver closure produced from the exact base by
-    applying only `I_R` with the recorded canonical resolver version,
-    configuration, and command. `C_R` may contain mixed occurrence shapes from
-    mechanically coupled replacement, addition, hoisting, deduplication, or
-    removal, but carries no independent intent or remediation claim. Every
-    material dependency transition must belong to exactly one of `I_R` or
-    replay-proven `C_R`; manual, unclassified, or unreplayable transitions fail
-    admission. An aggregate goal such as "make safe" is `P`, not `R`.
-  - **`P` — remediation postcondition:** after reconciling `S_base` and `S_head`,
-    for every candidate advisory in `F_cutoff`, the deterministic guard must
-    resolve every governed occurrence of `D` on every `S_head` surface to an
-    advisory-comparable value outside that candidate's affected range, or prove
-    executable absence of `D` for that surface. A candidate outside `A` does not
-    gain a remediation claim, but it still cannot become affected at head. Every
-    base-only surface must be reconciled under `R`; any unparseable or unresolved
-    head occurrence or unreconciled surface delta fails `P`.
+    manifest and lock surfaces for `D` at the exact base (`S_base`) and head
+    (`S_head`). Their union must be non-empty, and every base/head surface delta
+    must be reconciled.
+  - **`A` — applicable advisory inventory:** reconcile `F_cutoff` from named
+    authoritative inputs at one immutable snapshot or cutoff. `A` is exactly
+    the non-empty subset whose members have an affected, comparable governed
+    base occurrence. Every candidate outside `A` requires an independently
+    evidenced non-applicable-at-base disposition and remains inside the
+    universal head postcondition.
+  - **`R` — operator-intent remediation class:** `I_R` is the non-empty authored
+    replacement or removal for `D`; literal targets are parameters, not new
+    action classes. `C_R` is only the deterministic solver closure produced from
+    the exact base with the recorded resolver version, configuration, and
+    command. Every dependency transition must belong exactly once to `I_R` or
+    replay-proven `C_R`; manual, unclassified, or unreplayable transitions fail.
+  - **`P` — remediation postcondition:** every governed head occurrence of `D`
+    must be advisory-comparable and outside every candidate range in `F_cutoff`,
+    or `D` must be executably absent. This includes candidates that were not
+    applicable at base. Unparseable, unresolved, or unreconciled state fails.
+- **Finite scanner-batch exception:** a direct external operator instruction may
+  authorize one exact finite same-ecosystem batch whose complete all-and-only
+  identity set is derived from one immutable terminal full-repository scanner
+  run and analysis. The scanner is technical trigger/evidence, not authority.
+  Each identity retains its own complete `D`/`S`/`F_cutoff`/`A`/`R`/`P` proof;
+  batch cardinality is derived from the snapshot and never chosen manually.
+  Missing or extra identities fail admission, and success is the conjunction of
+  all per-identity postconditions.
+- **Policy-transition boundary:** this v2 policy has prospective repository
+  effect only after merge. A direct operator instruction issued outside the
+  candidate diff may separately authorize the exact transition that changes
+  this policy and its exact bounded dependency material. That instruction does
+  not make candidate text effective early and grants no general or future batch
+  authority. Candidate code, docs, tests, labels, scanners, agents, or PR text
+  cannot create, infer, widen, authenticate, or substitute that instruction.
+  Without direct external instruction, the one-identity default remains.
+- **Disposition-only lane:** if one identity's reconciliation leaves `A` empty,
+  use a separate non-mutating disposition lane. It must not claim remediation,
+  mutate dependency state, or mix with a non-empty-`A` remediation batch.
+- **Suppression deletion boundary:** a batch may delete only the exact obsolete
+  suppression for an identity remediated by that same batch. Adding, broadening,
+  replacing, or deleting any other suppression remains forbidden and cannot be
+  solver closure.
 
 **Machine-readable admission authority:** the uniquely marked JSON block below
 is the single machine-readable application-remediation admission authority.
 Surrounding or adjacent prose cannot redefine its fields.
 
-<!-- dependency-remediation-admission:v1:start -->
+<!-- dependency-remediation-admission:v2:start -->
 ```json
 {
-  "schema": "pulseplate.dependency_remediation_admission.v1",
-  "dependency_identities": 1,
+  "schema": "pulseplate.dependency_remediation_admission.v2",
+  "default_dependency_identities": 1,
   "ecosystems": 1,
-  "remediation_action_classes": 1,
-  "remediation_action_domain": "declared_operator_intent_transitions_not_raw_resolver_occurrence_delta",
-  "remediation_action_relation": "uniform_non_identity_same_authored_operation_kind_and_semantic_intent",
-  "operator_intent_delta": "non_empty",
+  "batch_exception": "external_operator_exact_immutable_scanner_snapshot_only",
+  "policy_effect": "prospective_after_merge",
+  "policy_transition_authority": "external_direct_operator_instruction_outside_candidate_diff_exact_transition_only",
+  "policy_transition_grants_future_authority": false,
+  "candidate_self_authorization": "forbidden",
+  "candidate_authorization_authentication": "forbidden",
+  "batch_identity_set": "exact_finite_complete_snapshot_derived_unresolved_set",
+  "batch_identity_omission_or_addition": "fail",
+  "per_identity_authored_actions": 1,
+  "per_identity_action_kinds": "replacement_or_removal",
+  "operator_intent_delta_per_identity": "non_empty",
   "literal_target_versions": "parameters_not_classes",
-  "material_transition_partition": "exactly_one_of_operator_intent_or_deterministic_solver_closure",
-  "solver_closure": "exact_canonical_replay_from_exact_base_using_only_single_operator_intent",
-  "solver_closure_transition_shapes": "mixed_presence_shapes_allowed",
+  "material_transition_partition": "per_identity_authored_action_or_deterministic_solver_closure",
+  "solver_closure": "exact_canonical_replay_from_exact_base_per_authored_action",
   "solver_closure_independent_intent": "forbidden",
   "manual_unclassified_or_unreplayable_delta": "fail",
   "aggregate_goal_is_postcondition_not_intent": true,
-  "surfaces": "non_empty_complete_mechanically_enumerated_base_and_head",
-  "candidate_advisory_inventory": "finite_reconciled_at_recorded_cutoff",
-  "applicable_advisory_inventory": "non_empty_exactly_all_candidates_with_affected_comparable_base_witness",
-  "advisory_applicability_quantifier": "for_every_advisory_exists_affected_comparable_governed_base_occurrence",
-  "non_applicable_candidates": "base_non_applicable_disposition_with_no_affected_unresolved_or_incomparable_governed_head_occurrence",
-  "disposition_only_lane": "separate_when_inventory_empty_or_no_applicable_affected_base_occurrence_no_mutation_or_remediation_claim",
-  "remediation_postcondition_inventory": "every_candidate_advisory_in_F_cutoff",
-  "occurrences": "for_every_F_cutoff_advisory_all_head_occurrences_resolved_outside_affected_range_or_executable_absence",
+  "surfaces": "non_empty_complete_mechanically_enumerated_base_and_head_per_identity",
+  "scanner_snapshot": "one_immutable_external_run_and_analysis",
+  "candidate_advisory_inventory": "finite_reconciled_per_identity_at_recorded_snapshot",
+  "applicable_advisory_inventory": "non_empty_exactly_all_candidates_with_affected_comparable_base_witness_per_identity",
+  "advisory_applicability_quantifier": "for_every_advisory_exists_affected_comparable_governed_base_occurrence_or_disposition",
+  "non_applicable_candidates": "base_non_applicable_disposition_and_universal_head_safety_check",
+  "disposition_only_lane": "separate_non_mutating_when_per_identity_applicable_inventory_empty",
+  "remediation_postcondition_inventory": "every_candidate_advisory_in_each_per_identity_F_cutoff",
+  "occurrences": "for_every_F_cutoff_advisory_all_head_occurrences_outside_affected_range_or_executable_absence",
   "base_only_surfaces": "reconciled_by_operator_intent_or_solver_closure_or_fail",
-  "unparseable_unresolved_or_unclassified": "fail",
+  "postcondition": "conjunction_all_per_identity_universal_head_postconditions",
+  "partial_success": "fail",
+  "unparseable_unresolved_omitted_or_unclassified": "fail",
   "same_floor_required": false,
-  "evidence_owner": "exactly_one_docs_security_document",
-  "per_advisory_evidence": "required",
-  "suppression_may_mix": false
+  "obsolete_suppression_deletion": "only_exact_target_suppression_for_remediated_batch_identity",
+  "suppression_addition_broadening_replacement_or_other_deletion": "forbidden",
+  "evidence_owner": "exactly_one_docs_security_batch_document",
+  "per_advisory_evidence": "required"
 }
 ```
-<!-- dependency-remediation-admission:v1:end -->
+<!-- dependency-remediation-admission:v2:end -->
 
-- **Inventory reconciliation:** canonical evidence must record the named
-  authoritative input or inputs and snapshot or cutoff used for `F_cutoff`.
-  Every triggering alert and every current scanner/audit finding for `D` at
-  that cutoff must be in `F_cutoff`. A candidate belongs to `A` if and only if
-  at least one comparable governed base occurrence is inside its affected
-  range; every other candidate is independently dispositioned as
-  non-applicable at base with evidence. Every candidate, including those outside
-  `A`, remains subject to the universal head-safety check in `P`. `A` must remain
-  non-empty for remediation admission.
-- **Disposition-only lane:** if reconciliation leaves `A` empty or finds no
-  applicable affected base occurrence for `D`, use a separate disposition-only
-  lane. It must not mutate dependency state, claim remediation or `P`, or mix
-  with a non-empty-`A` remediation lane.
-- The non-empty finite reconciled `A` bounds the remediation claim;
-  `F_cutoff` bounds `P`. Neither makes a claim about genuinely undisclosed or
-  future advisories.
-- Advisory affected ranges and remediation floors may differ. Equality of
-  advisory remediation floors is not a batching prerequisite.
-- **Canonical class evidence:** exactly one owner document under `docs/security/`
-  must own each `D`/`S`/`R`/`P` class. Supporting stable in-repo artifacts may
-  exist only when linked from that owner document. A PR body, issue, or ledger
-  entry alone cannot replace the owner document.
-- **Per-advisory evidence:** each candidate in `F_cutoff` retains one
-  independently auditable record containing its advisory ID, affected range,
-  authoritative source, governed base/head surfaces, base-applicability proof or
-  non-applicable-at-base disposition, universal head-safety proof, and
-  scanner/audit result. Each member of `A` additionally records its remediation
-  floor, selected target, governed affected base occurrence, and deterministic
-  proof of `I_R`, `C_R`, and `P`.
-- **No-batch boundaries:** any difference in `D`, ecosystem, `S`, or authored
-  operation kind/semantic intent in `R` requires a separate PR. Heterogeneous
-  occurrence shapes produced by replay-proven `C_R` stay in that PR. A second
-  authored action, manual lock adjustment, resolver/configuration change,
-  topology redesign, or second dependency objective is not closure.
-- A dependency security guard test must independently enumerate `S_base` and
-  `S_head`, prove their union is non-empty, reconcile every surface delta,
-  derive `A` exactly from `F_cutoff`, prove an affected comparable base witness
-  for every advisory in `A`, prove every governed head occurrence safe against
-  every candidate in `F_cutoff`, enumerate non-empty `I_R`, partition every
-  material transition exactly once into `I_R` or replay-proven `C_R`, reject
-  independent, manual, unclassified, or unreplayable transitions, and enforce
-  `R` and `P` deterministically so that an omitted surface, finding, transition,
-  or unresolved occurrence cannot create a false remediation claim.
-- **Suppression rail (unchanged):** Trivy, `.trivyignore`,
-  `trivy/ignore-policy.rego`, waiver, and unfixed-upstream suppression work
-  remains one dedicated security PR per CVE. Suppression must never mix with
-  application-dependency remediation.
+- **Evidence:** one batch owner document under `docs/security/` records the
+  external instruction boundary, exact snapshot, identities, surfaces,
+  `F_cutoff`, per-advisory base applicability or disposition, universal head
+  checks, actions, resolver commands, complete dependency delta, per-identity
+  results, and conjunctive `P`. It may link subordinate single-identity evidence,
+  but a PR body, test, scanner result, or ledger entry cannot replace or expand
+  that owner.
+- **Transition evidence versus permanent guard:** the immutable owner document
+  and recorded one-time resolver replays own exact base/head surface, complete
+  JSON dependency-delta, `I_R`, and `C_R` evidence. Permanent deterministic
+  tests independently enumerate the current tracked head surfaces, reject
+  aliases and malformed lock entries, and enforce executable absence or the
+  universal `F_cutoff` affected-range postconditions. Do not freeze a historical
+  base/delta in a permanent test that would block future authorized dependency
+  changes. Missing identities, advisories, surfaces, or postcondition members
+  still fail closed; exact transition evidence remains required for each PR.
+- **Unrelated suppression rail:** Trivy, `.trivyignore`, Rego, waiver, and
+  unfixed-upstream suppression work stays in its dedicated CVE lane. The sole
+  exception is deletion of the exact now-obsolete suppression bounded above.
 
 **Security: Yanked packages on PyPI:**
 
