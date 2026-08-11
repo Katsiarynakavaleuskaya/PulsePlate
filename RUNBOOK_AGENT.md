@@ -774,8 +774,8 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    post-push pass owns thread resolution, current-head CI, and the final merge
    verdict.
 8. A later validated canonical-record duplicate, the single eligible first
-   mapped-FIX recordless seed, or the mutually exclusive empty-mapping
-   owner-only class uses only its exact reply contract and an explicit thread
+   mapped-FIX recordless seed, or the per-root owner-only class uses only its
+   exact reply contract and an explicit thread
    resolution, followed by one status-check cycle. The owner-only class requires
    an explicit human confirmation before the exact `OWNER NOT-A-BUG` line is
    posted; validators remain read-only. More than one fully eligible visible

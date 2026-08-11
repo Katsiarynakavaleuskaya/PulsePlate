@@ -885,9 +885,10 @@ Classify the new review item before choosing the recovery path:
    flow.
 8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
    refs, force-push history, or use generic operator approval to bypass the hard
-   disposition gate. The only owner response recognized without a canonical
-   fingerprint or FIXED mapping is the closed empty-mapping class: after an
-   explicit human decision, one exact GraphQL-`OWNER` reply may say
+   disposition gate. The only owner response recognized for a root without its
+   own canonical fingerprint or FIXED mapping is the closed per-root class;
+   unrelated canonical records may coexist. After an explicit human decision,
+   one exact GraphQL-`OWNER` reply may say
    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
    It applies only to one resolved connector root on the canonical mapping file
    whose `originalCommit` is the exact live direct mapping-only successor, whose
