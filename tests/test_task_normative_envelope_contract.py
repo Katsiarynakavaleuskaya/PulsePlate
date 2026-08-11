@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import fields, replace
-from inspect import Parameter, signature
+from dataclasses import fields, is_dataclass, replace
+from inspect import Parameter, isclass, isfunction, signature
 from typing import Literal, get_type_hints
 
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration import task_normative_envelope_contract as contract_module
 from scripts.orchestration.task_normative_envelope_contract import (
     ActionReversibility,
     AssessmentState,
@@ -563,22 +564,85 @@ def test_semantic_field_change_changes_fingerprint() -> None:
 
 
 def test_stable_mapping_is_json_ready_and_excludes_only_fingerprint() -> None:
-    envelope = _build()
+    parent = _build(task_packet_id="packet:mapping_parent")
+    envelope = _build(
+        task_packet_id="packet:mapping_child",
+        purpose_claim_refs=("purpose:mapping",),
+        objective_refs=("objective:mapping",),
+        normative_boundary=_boundary(
+            obligations=("norm:mapping_obligation",),
+            prohibitions=("norm:mapping_prohibition",),
+            constraints=("constraint:mapping_non_tradeable",),
+        ),
+        delegated_authority=_authority(
+            actions=("action:mapping_delegated",),
+            scopes=("scope:mapping_delegated",),
+            basis=("basis:mapping_authority",),
+            delegation_allowed=False,
+        ),
+        capability_claim=_capability(
+            actions=("action:mapping_capability",),
+            scopes=("scope:mapping_capability",),
+            evidence=("evidence:mapping_capability",),
+        ),
+        evaluation_refs=("evaluation:mapping",),
+        approval_requirement_refs=("approval:mapping",),
+        action_reversibility="irreversible_change",
+        human_override_ref="control:mapping_override",
+        recovery_or_compensation_ref="control:mapping_recovery",
+        parent=parent,
+    )
 
     complete = task_normative_envelope_to_stable_mapping(envelope)
     identity = task_normative_envelope_to_stable_mapping(envelope, include_fingerprint=False)
+    expected_complete: dict[str, object] = {
+        "schema_version": "task_normative_envelope.v1",
+        "policy_version": "task-normative-envelope-policy.v1",
+        "task_packet_id": "packet:mapping_child",
+        "purpose_claim_refs": ["purpose:mapping"],
+        "objective_refs": ["objective:mapping"],
+        "normative_boundary": {
+            "obligation_refs": ["norm:mapping_obligation"],
+            "prohibition_refs": ["norm:mapping_prohibition"],
+            "non_tradeable_constraint_refs": ["constraint:mapping_non_tradeable"],
+        },
+        "delegated_authority": {
+            "action_classes": ["action:mapping_delegated"],
+            "resource_scope_refs": ["scope:mapping_delegated"],
+            "authority_basis_refs": ["basis:mapping_authority"],
+            "delegation_allowed": False,
+        },
+        "capability_claim": {
+            "action_classes": ["action:mapping_capability"],
+            "resource_scope_refs": ["scope:mapping_capability"],
+            "evidence_refs": ["evidence:mapping_capability"],
+        },
+        "evaluation_refs": ["evaluation:mapping"],
+        "approval_requirement_refs": ["approval:mapping"],
+        "action_reversibility": "irreversible_change",
+        "human_override_ref": "control:mapping_override",
+        "recovery_or_compensation_ref": "control:mapping_recovery",
+        "parent_envelope_fingerprint": (
+            "sha256:991069ab75532d7498c3f980ef0888a7b43e379d9c089321b28485312e25abac"
+        ),
+        "execution_authority": False,
+        "routing_authority": False,
+        "approval_authority": False,
+        "promotion_authority": False,
+        "merge_authority": False,
+        "envelope_fingerprint": (
+            "sha256:0a7f6dfb77bcbe55820bc7c6f7ad03866bfdbd4ace565ddeb190f4c66280fcfd"
+        ),
+    }
+    expected_identity = dict(expected_complete)
+    expected_fingerprint = expected_identity.pop("envelope_fingerprint")
 
     assert json.loads(json.dumps(complete, sort_keys=True)) == complete
-    assert complete["normative_boundary"]["obligation_refs"] == ["norm:preserve"]
-    assert complete["delegated_authority"]["action_classes"] == ["action:read"]
-    assert complete["capability_claim"]["evidence_refs"] == ["evidence:test"]
-    assert complete["parent_envelope_fingerprint"] is None
-    assert complete["execution_authority"] is False
-    assert complete["envelope_fingerprint"] == envelope.envelope_fingerprint
-    assert set(complete) - set(identity) == {"envelope_fingerprint"}
-    assert identity == {
-        key: value for key, value in complete.items() if key != "envelope_fingerprint"
-    }
+    assert identity == expected_identity
+    assert complete == expected_complete
+    assert parent.envelope_fingerprint == expected_identity["parent_envelope_fingerprint"]
+    assert fingerprint_payload(expected_identity) == expected_fingerprint
+    assert envelope.envelope_fingerprint == expected_fingerprint
 
 
 @pytest.mark.parametrize(
@@ -793,6 +857,51 @@ def test_exact_dataclass_field_inventory_and_literal_false_authority() -> None:
         "blocking_authority",
         "merge_authority",
     )
+
+    expected_dataclasses = {
+        "NormativeBoundaryV1",
+        "DelegatedAuthorityV1",
+        "CapabilityClaimV1",
+        "TaskNormativeEnvelopeV1",
+        "TaskNormativeAssessmentV1",
+    }
+    module_dataclasses = {
+        name: value
+        for name, value in vars(contract_module).items()
+        if isclass(value) and value.__module__ == contract_module.__name__ and is_dataclass(value)
+    }
+    module_public_functions = {
+        name
+        for name, value in vars(contract_module).items()
+        if not name.startswith("_")
+        and isfunction(value)
+        and value.__module__ == contract_module.__name__
+    }
+    assert set(module_dataclasses) == expected_dataclasses
+    assert module_public_functions == {
+        "build_task_normative_envelope",
+        "task_normative_envelope_to_stable_mapping",
+        "validate_task_normative_envelope",
+        "assess_task_normative_envelope",
+    }
+    assert contract_module.__all__ == (
+        "ActionReversibility",
+        "AssessmentState",
+        "NormativeBoundaryV1",
+        "DelegatedAuthorityV1",
+        "CapabilityClaimV1",
+        "TaskNormativeEnvelopeV1",
+        "TaskNormativeAssessmentV1",
+        "build_task_normative_envelope",
+        "task_normative_envelope_to_stable_mapping",
+        "validate_task_normative_envelope",
+        "assess_task_normative_envelope",
+    )
+    for dataclass_type in module_dataclasses.values():
+        assert dataclass_type.__dataclass_params__.frozen is True
+        assert tuple(dataclass_type.__slots__) == tuple(
+            field.name for field in fields(dataclass_type)
+        )
 
     envelope_hints = get_type_hints(TaskNormativeEnvelopeV1)
     assessment_hints = get_type_hints(TaskNormativeAssessmentV1)
