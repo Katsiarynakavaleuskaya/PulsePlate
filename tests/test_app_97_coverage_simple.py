@@ -12,12 +12,10 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)
-def setup_environment():
-    """Setup test environment for all tests"""
-    os.environ["API_KEY"] = "test_key"
-    os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-    yield
-    # Cleanup is automatic with pytest fixtures
+def setup_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set the test environment with function-scoped restoration."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
 class TestImportErrorPaths:
