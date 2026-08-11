@@ -64,6 +64,11 @@ Evidence: Current material has zero file-local client providers; setup-show prov
 Reason: Client ownership is already centralized in tests/conftest.py, while file-specific environment ordering intentionally remains next to the suites that require it.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2255#pullrequestreview-4896388410
 
+Disposition: NOT-A-BUG
+Evidence: The live mapping head 04a6d1090ef3a5bdd131ea4b750aae67eb23bed1 has the sole parent adb0678172e0497786f423dc388550395f9d54ae, and `git merge-base --is-ancestor adb0678172e0497786f423dc388550395f9d54ae 04a6d1090ef3a5bdd131ea4b750aae67eb23bed1` exits 0.
+Reason: The mapping is already the direct mapping-only descendant of the sealed material head; the unavailable 6c69091ad62510627acb391d000aeb99ac8307cf cited by the review is neither the live PR head nor part of the current repository commit graph.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2255#discussion_r3762224202
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
