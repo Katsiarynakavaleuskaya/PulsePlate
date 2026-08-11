@@ -362,13 +362,21 @@ def test_external_interpreter_ignores_pythonhome_code_loading_control(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    base_python_executable = getattr(sys, "_base_executable", sys.executable)
     empty_python_home = tmp_path / "empty-python-home"
     empty_python_home.mkdir()
+    userbase = tmp_path / "controlled-userbase"
+    monkeypatch.setenv("PYTHONUSERBASE", str(userbase))
+    monkeypatch.delenv("PYTHONNOUSERSITE", raising=False)
+    monkeypatch.delenv("PYTHONHOME", raising=False)
+
+    baseline = hook_guard.external_interpreter_site_packages(base_python_executable)
     monkeypatch.setenv("PYTHONHOME", str(empty_python_home))
 
-    discovered = hook_guard.external_interpreter_site_packages(sys.executable)
+    discovered = hook_guard.external_interpreter_site_packages(base_python_executable)
 
-    assert discovered
+    assert discovered == baseline
+    assert any(userbase in path.parents for path in discovered)
 
 
 def test_external_interpreter_normalizes_relative_pythonuserbase_safely(

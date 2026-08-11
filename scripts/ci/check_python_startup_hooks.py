@@ -201,7 +201,7 @@ def _revalidate_python_executable(executable: ResolvedPythonExecutable) -> None:
 
 
 def _startup_probe_environment() -> dict[str, str]:
-    """Preserve user-site semantics while excluding Python code-loading controls."""
+    """Preserve user-site settings while omitting PYTHONHOME and PYTHONPLATLIBDIR."""
     return {
         key: value
         for key, value in os.environ.items()
