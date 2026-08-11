@@ -1089,6 +1089,12 @@ def validated_duplicate_reply_urls(
                 return False
         except UnicodeEncodeError:
             return False
+        lowered = body.lower()
+        if not any(
+            term in lowered
+            for term in ("ancestry", "commit graph", "commit-graph", "not an ancestor")
+        ):
+            return False
 
         def has_exact_token(value: str) -> bool:
             return (
@@ -1099,9 +1105,7 @@ def validated_duplicate_reply_urls(
                 is not None
             )
 
-        if not has_exact_token(material_head_sha):
-            return False
-        return f"not an ancestor of `{selected_ref}`" in body
+        return has_exact_token(material_head_sha) and has_exact_token(selected_ref)
 
     def root_has_canonical_mapping_path(url: str) -> bool:
         match = root_url_re.fullmatch(url)

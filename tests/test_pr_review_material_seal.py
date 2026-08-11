@@ -6052,7 +6052,6 @@ def _owner_only_empty_mapping_coverage(
     root_repository: str = "owner/repo",
     additional_owner_reply_body: str | None = None,
     classified_values: list[str] | None = None,
-    selected_ref_value: str | None = None,
 ) -> tuple[set[str], list[str]]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -6085,13 +6084,12 @@ def _owner_only_empty_mapping_coverage(
         mapping.write_text("closeout\n", encoding="utf-8")
     live_head_sha = _commit(repo, "mapping closeout")
     sealed_head_sha = base_sha if successor_shape == "non-direct" else material_head_sha
-    selected_ref = (
-        material_head_sha if selected_ref_source == "pr-commit" else selected_ref_value or "6" * 40
-    )
+    selected_ref = material_head_sha if selected_ref_source == "pr-commit" else "6" * 40
     exact_reply = _owner_unavailable_reply(selected_ref) if reply_body is None else reply_body
     root_body = (
         "Commit ancestry finding on docs/review/PR_42_FIXED_MAPPING.md: "
-        f"sealed material {sealed_head_sha} is not an ancestor of `{selected_ref}`. "
+        f"sealed material {sealed_head_sha}; reviewer execution ref {selected_ref} "
+        "is unavailable. "
         "Unrelated base-short 909aed84... and live URL "
         f"https://github.com/owner/repo/commit/{live_head_sha}."
     )
@@ -6100,40 +6098,13 @@ def _owner_only_empty_mapping_coverage(
             f"Material `{sealed_head_sha}` is not an ancestor of `{selected_ref}` "
             "(`git merge-base --is-ancestor` exits 1). The latter is the reviewed commit."
         )
-    elif root_body_variant == "unrelated-selected-ref":
+    elif root_body_variant == "owner-selected-unstructured":
         root_body = (
             f"Commit ancestry finding for sealed material {sealed_head_sha}. "
-            f"An unrelated appendix mentions SHA {selected_ref}."
+            f"The OWNER-selected unavailable reviewer ref is {selected_ref}."
         )
-    elif root_body_variant == "url-query-label":
-        root_body = (
-            f"Commit ancestry finding for sealed material {sealed_head_sha}. "
-            f"Appendix: https://example.invalid/?unavailable-ref={selected_ref}."
-        )
-    elif root_body_variant == "wrong-ancestry-sha-appendix-label":
-        root_body = (
-            f"Material {sealed_head_sha} is not an ancestor of {'7' * 40}. "
-            f"Appendix unavailable-ref={selected_ref}."
-        )
-    elif root_body_variant == "uppercase-selected-ref":
-        root_body = f"Material {sealed_head_sha} is not an ancestor of `{selected_ref.upper()}`."
-    elif root_body_variant == "mixed-case-selected-ref":
-        mixed_selected_ref = selected_ref[:20].upper() + selected_ref[20:]
-        root_body = f"Material {sealed_head_sha} is not an ancestor of `{mixed_selected_ref}`."
-    elif root_body_variant == "uppercase-phrase":
-        root_body = f"Material {sealed_head_sha} is NOT AN ANCESTOR OF `{selected_ref}`."
-    elif root_body_variant == "tab-before-selected-ref":
-        root_body = f"Material {sealed_head_sha} is not an ancestor of\t`{selected_ref}`."
-    elif root_body_variant == "newline-before-selected-ref":
-        root_body = f"Material {sealed_head_sha} is not an ancestor of\n`{selected_ref}`."
-    elif root_body_variant == "selected-ref-without-backticks":
-        root_body = f"Material {sealed_head_sha} is not an ancestor of {selected_ref}."
-    elif root_body_variant == "multiple-spaces-before-selected-ref":
-        root_body = f"Material {sealed_head_sha} is not an ancestor of  `{selected_ref}`."
     elif root_body_variant == "missing-cause":
-        root_body = root_body.replace("Commit ancestry finding", "Review finding").replace(
-            "is not an ancestor of", "has an unrelated comparison with"
-        )
+        root_body = root_body.replace("Commit ancestry finding", "Review finding")
     elif root_body_variant == "missing-material":
         root_body = root_body.replace(sealed_head_sha, "material-head-missing", 1)
     elif root_body_variant == "missing-ref":
@@ -6321,68 +6292,17 @@ def test_owner_only_empty_mapping_accepts_real_2265_ancestry_claim(
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
 
 
-def test_owner_only_empty_mapping_rejects_unrelated_selected_ref_mention(
+def test_owner_only_empty_mapping_accepts_owner_selected_ref_without_parsing_bot_prose(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
-        root_body_variant="unrelated-selected-ref",
+        root_body_variant="owner-selected-unstructured",
     )
 
-    assert covered == set()
-
-
-@pytest.mark.parametrize(
-    ("root_body_variant", "selected_ref_value"),
-    [
-        ("url-query-label", None),
-        ("wrong-ancestry-sha-appendix-label", None),
-        ("uppercase-selected-ref", "abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
-        ("mixed-case-selected-ref", "abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
-    ],
-    ids=("url-query-label", "wrong-ancestry-target", "uppercase", "mixed-case"),
-)
-def test_owner_only_empty_mapping_rejects_nonexact_selected_ref_claims(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    root_body_variant: str,
-    selected_ref_value: str | None,
-) -> None:
-    covered, _ = _owner_only_empty_mapping_coverage(
-        tmp_path,
-        monkeypatch,
-        root_body_variant=root_body_variant,
-        selected_ref_value=selected_ref_value,
-    )
-
-    assert covered == set()
-
-
-@pytest.mark.parametrize(
-    "root_body_variant",
-    [
-        "uppercase-phrase",
-        "tab-before-selected-ref",
-        "newline-before-selected-ref",
-        "selected-ref-without-backticks",
-        "multiple-spaces-before-selected-ref",
-    ],
-    ids=("uppercase-phrase", "tab", "newline", "no-backticks", "multiple-spaces"),
-)
-def test_owner_only_empty_mapping_rejects_ancestry_fragment_variations(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    root_body_variant: str,
-) -> None:
-    covered, _ = _owner_only_empty_mapping_coverage(
-        tmp_path,
-        monkeypatch,
-        root_body_variant=root_body_variant,
-    )
-
-    assert covered == set()
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
 
 
 def test_owner_only_empty_mapping_counts_root_hidden_by_url_only_disposition_filter(
@@ -7959,6 +7879,13 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
 
 def test_agents_limits_mapping_exception_to_validator_covered_reply_only_roots() -> None:
     agents = (closeout_module.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    runbook = (closeout_module.REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+    lessons = (closeout_module.REPO_ROOT / "docs/ENGINEERING_LESSONS.md").read_text(
+        encoding="utf-8"
+    )
+    matrix = (
+        closeout_module.REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md"
+    ).read_text(encoding="utf-8")
 
     assert (
         "Validator-covered canonical reply-only roots under rule 10 are the only exception"
@@ -7966,6 +7893,10 @@ def test_agents_limits_mapping_exception_to_validator_covered_reply_only_roots()
     )
     assert "the exact reply and resolved thread are the disposition evidence" in agents
     assert "Every other resolved actionable must appear" in agents
+    for document in (agents, runbook, lessons, matrix):
+        assert "natural-language" in document
+        assert "whole root" in document
+        assert "independent actionable finding" in document
 
 
 def test_closeout_init_is_atomic_and_idempotent(

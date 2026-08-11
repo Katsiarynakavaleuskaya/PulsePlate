@@ -336,11 +336,13 @@ exactly `chatgpt-codex-connector`, target
 live head. That head must be the sole direct mapping-only successor whose direct
 parent is the sealed material head; recomputing both material projections must
 equal the sealed digest. The root body is not sent through the generic SHA
-lexer. It must contain the exact, hex-boundary-delimited sealed material SHA and
-contain the exact literal fragment `not an ancestor of \`<full-40-sha>\`` with
-the lowercase reply-selected ref. Phrase case, the single ASCII space, and both
-backticks are fixed; uppercase, tabs, newlines, missing backticks, extra spaces,
-labels, URLs, and unrelated occurrences are insufficient. After an explicit human decision to post it, exactly
+lexer and its natural-language clause structure is not interpreted. It must name
+an ancestry/commit-graph cause and contain exact, hex-boundary-delimited
+occurrences of the sealed material SHA and the lowercase reply-selected ref.
+Before posting, the human OWNER must inspect the whole root and confirm that no
+independent actionable finding exists beyond the unavailable-ref ancestry claim;
+otherwise this class is forbidden and ordinary disposition remains required.
+After that explicit human decision, exactly
 one later comment with GraphQL `authorAssociation=OWNER` must equal this one
 line byte-for-byte:
 
@@ -357,7 +359,9 @@ blocking. That census examines every live thread root before caller-side URL
 filtering, so a URL-only NOT-A-BUG or DEFERRED disposition cannot hide a second
 eligible root. The authenticated repository argument must parse to the same
 case-insensitive owner/name identity as the live PR snapshot; mixed-repository
-evidence fails closed. The validator is read-only and never posts the reply. This record is
+evidence fails closed. The exact reply is the human selection and disposition of
+that root; automation does not infer it from bot wording. The validator is
+read-only and never posts the reply. This record is
 only a bounded NOT-A-BUG disposition; it is not review, provider output,
 approval, merge authority, or a bypass of actual findings, current-head CI,
 trusted security checks, unresolved threads, ancestry, mapping-only closeout,

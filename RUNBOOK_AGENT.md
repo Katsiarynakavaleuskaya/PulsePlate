@@ -592,13 +592,13 @@ Use this as the canonical operating loop from branch creation to merge window:
      `chatgpt-codex-connector` root on the canonical current-PR mapping file.
      Confirm first that the root `originalCommit` is the live head, the live
      head is the sole direct mapping-only successor of the sealed material, the
-     digest recomputes exactly, and the root names the exact sealed material SHA
-     and contain the exact literal fragment
-     `not an ancestor of \`<full-40-sha>\`` with the selected lowercase reviewer
-     ref. Phrase case, the single ASCII space, and both backticks are fixed;
-     uppercase, tabs, newlines, missing backticks, extra spaces, labels, URLs, and
-     unrelated SHA mentions are not evidence. A human must
-     explicitly confirm the disposition before posting exactly this one line:
+     digest recomputes exactly, and the root names an ancestry/commit-graph cause
+     plus exact, hex-boundary-delimited occurrences of the sealed material SHA
+     and the lowercase reviewer ref selected by the OWNER reply. Do not parse the
+     bot's natural-language clause structure. A human must inspect the whole root
+     and explicitly confirm that it contains no independent actionable finding
+     beyond this unavailable-ref ancestry claim before posting exactly this one
+     line:
      `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
      There must be exactly one later comment whose authenticated GraphQL
      association is exactly `OWNER`, and that sole OWNER comment must equal the
@@ -610,7 +610,8 @@ Use this as the canonical operating loop from branch creation to merge window:
      disposition filtering, and require the authenticated evidence repository
      to match the snapshot repository case-insensitively. The validator only
      reads this evidence; it never posts it and the line grants no approval or
-     merge authority. For a root actually covered by this validator, the exact
+     merge authority. The exact reply is the human selection and disposition of
+     that root; the validator does not infer it from bot prose. For a root actually covered by this validator, the exact
      reply plus resolved thread is the disposition evidence; do not add a second
      mapping entry or docs commit. Every non-covered root follows ordinary mapping.
 7. **Before merge**

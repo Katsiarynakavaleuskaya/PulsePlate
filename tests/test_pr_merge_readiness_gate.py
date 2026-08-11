@@ -2460,6 +2460,8 @@ def _configure_post_wait_revalidation_main(
     monkeypatch: pytest.MonkeyPatch,
     *,
     second_error: ReviewEvidenceError | None = None,
+    actionable_items: list[merge_gate.ActionableItem] | None = None,
+    covered_urls: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     head_sha = "a" * 40
     snapshot = PrSnapshot(
@@ -2480,6 +2482,8 @@ def _configure_post_wait_revalidation_main(
     validation_calls: list[dict[str, Any]] = []
     trace: list[str] = []
     inventory_count = 0
+    current_actionable_items = actionable_items or []
+    current_covered_urls = covered_urls or set()
 
     def validate_seal(**kwargs: Any) -> dict[str, Any]:
         validation_calls.append(kwargs)
@@ -2492,7 +2496,7 @@ def _configure_post_wait_revalidation_main(
         nonlocal inventory_count
         inventory_count += 1
         trace.append(f"inventory-{inventory_count}")
-        return []
+        return current_actionable_items
 
     def quiet_window(**_kwargs: Any) -> tuple[int, int]:
         trace.append("quiet")
@@ -2528,10 +2532,57 @@ def _configure_post_wait_revalidation_main(
         "_canonical_artifact_markdown_link_count",
         lambda *_args: 1,
     )
-    monkeypatch.setattr(merge_gate, "_duplicate_reply_coverage", lambda **_kwargs: set())
+    monkeypatch.setattr(
+        merge_gate,
+        "_duplicate_reply_coverage",
+        lambda **_kwargs: current_covered_urls,
+    )
     monkeypatch.setattr(merge_gate, "_wait_for_review_quiet_window", quiet_window)
     monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
     return validation_calls, trace
+
+
+def test_no_actionable_marker_accepts_fully_covered_owner_reply_only_root(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#discussion_r1"
+    actionable = merge_gate.ActionableItem(
+        author="chatgpt-codex-connector",
+        url=url,
+        created_at="2026-08-11T10:00:00Z",
+        kind="review_comment",
+    )
+    _configure_post_wait_revalidation_main(
+        monkeypatch,
+        actionable_items=[actionable],
+        covered_urls={url},
+    )
+
+    assert merge_gate.main() == 0
+    assert (
+        "Canonical artifact claims `No actionable review comments`" not in capsys.readouterr().out
+    )
+
+
+def test_no_actionable_marker_still_rejects_uncovered_actionable_root(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#discussion_r1"
+    actionable = merge_gate.ActionableItem(
+        author="chatgpt-codex-connector",
+        url=url,
+        created_at="2026-08-11T10:00:00Z",
+        kind="review_comment",
+    )
+    _configure_post_wait_revalidation_main(
+        monkeypatch,
+        actionable_items=[actionable],
+    )
+
+    assert merge_gate.main() == 1
+    assert "Canonical artifact claims `No actionable review comments`" in capsys.readouterr().out
 
 
 def test_merge_readiness_revalidates_seal_once_after_stable_review_wait(

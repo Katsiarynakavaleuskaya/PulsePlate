@@ -265,12 +265,15 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     `chatgpt-codex-connector` with `originalCommit` equal to the exact live head;
     that live head must be the sole direct mapping-only successor of the sealed
     material, and both heads must recompute to the sealed digest. The root must
-    name the exact sealed material SHA and contain the exact literal fragment
-    `not an ancestor of \`<full-40-sha>\`` with the selected lowercase ref.
-    Phrase case, the single ASCII space, and both backticks are fixed; uppercase,
-    tabs, newlines, missing backticks, extra spaces, labels, URLs, and unrelated
-    SHA occurrences are insufficient. After an
-    explicit human decision to post it, exactly one later GraphQL-authenticated
+    name an ancestry/commit-graph cause and contain exact, hex-boundary-delimited
+    occurrences of the sealed material SHA and the lowercase ref selected by the
+    OWNER reply. The validator deliberately does not infer a natural-language
+    relationship between those tokens or interpret the rest of the bot prose.
+    Before posting, the human OWNER must inspect the whole root and confirm that
+    it contains no independent actionable finding beyond the unavailable-ref
+    ancestry claim; otherwise this reply-only class is forbidden and ordinary
+    disposition/mapping remains required. After that explicit human decision,
+    exactly one later GraphQL-authenticated
     `OWNER` reply must be this single line, with no Markdown, whitespace, newline,
     or extra text:
     `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
@@ -281,7 +284,9 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     Global eligibility is counted across every live thread root before caller
     URL filtering, and the case-insensitive owner/repository identity used for
     authenticated evidence must equal the live PR snapshot repository.
-    The validator is read-only and never authors the reply. This narrow
+    The exact OWNER reply selects the unavailable ref and records the human
+    disposition for that one root; automation does not derive that disposition
+    from bot wording. The validator is read-only and never authors the reply. This narrow
     NOT-A-BUG disposition is not review, approval, merge authority, or a bypass
     of findings, CI, security, mapping, thread, ancestry, or wait-window gates.
     None of the reply-only paths creates another docs commit or restarts

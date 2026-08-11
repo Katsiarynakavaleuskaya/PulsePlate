@@ -1591,9 +1591,12 @@ def main() -> int:
         actionable_items,
         mapped_urls | duplicate_covered_urls,
     )
+    disposition_covered_urls = mapped_urls | duplicate_covered_urls | review_summary_covered_urls
 
     if actionable_items:
-        if no_actionable_marker:
+        if no_actionable_marker and any(
+            item.url not in disposition_covered_urls for item in actionable_items
+        ):
             errors.append(
                 "Canonical artifact claims `No actionable review comments` but actionable bot findings were detected."
             )
