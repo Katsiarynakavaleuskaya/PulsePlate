@@ -6043,6 +6043,7 @@ def _owner_only_empty_mapping_coverage(
     successor_shape: str = "direct",
     material_digest_matches: bool = True,
     mapping_entries: dict[str, str] | None = None,
+    fingerprint_root: str | None = None,
     forbid_generic: bool = True,
     comment_path_matches: bool = True,
     selected_ref_source: str = "review",
@@ -6179,6 +6180,42 @@ def _owner_only_empty_mapping_coverage(
             )
         )
 
+    fingerprint_records: dict[str, CanonicalFingerprintRecord] = {}
+    if fingerprint_root is not None:
+        if fingerprint_root not in {"same", "unrelated"}:
+            raise ValueError("fingerprint_root must be same or unrelated")
+        fingerprint_url = root_urls[0]
+        if fingerprint_root == "unrelated":
+            fingerprint_url = "https://github.com/owner/repo/pull/42#discussion_r999"
+            threads.append(
+                ReviewThreadEvidence(
+                    "fingerprint-seed",
+                    True,
+                    (
+                        ReviewCommentEvidence(
+                            url=fingerprint_url,
+                            body=root_body,
+                            created_at="2026-08-11T09:00:00Z",
+                            author_login="chatgpt-codex-connector",
+                            author_association="NONE",
+                            original_commit_sha=live_head_sha,
+                        ),
+                    ),
+                )
+            )
+        fingerprint = unavailable_review_ref_fingerprint(
+            pr_number=42,
+            material_digest=manifest.digest,
+            verified_real_fix_sha=material_head_sha,
+        )
+        fingerprint_records[fingerprint] = CanonicalFingerprintRecord(
+            fingerprint=fingerprint,
+            cause=evidence_module.UNAVAILABLE_REVIEW_REF_CAUSE,
+            material_digest=manifest.digest,
+            verified_fix=material_head_sha,
+            urls=(fingerprint_url,),
+        )
+
     api_calls: list[str] = []
 
     def request_json(url: str, **_kwargs: Any) -> Any:
@@ -6207,12 +6244,29 @@ def _owner_only_empty_mapping_coverage(
             if ref_resolution == "response-not-ready":
                 raise http.client.ResponseNotReady("deterministic transport failure")
             return {"sha": selected_ref}
+        if "/commits/" in url:
+            return {"sha": url.rsplit("/", 1)[-1]}
         raise AssertionError(f"unexpected GitHub API call: {url}")
 
     def forbidden_generic(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("owner-only path called generic finding parsing or ancestry")
 
     monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    if fingerprint_records:
+        canonical_classifier = identity_module.classify_commit_ref
+
+        def local_classifier(
+            value: str, snapshot: PrSnapshot, *, token: str, **_kwargs: Any
+        ) -> Any:
+            return canonical_classifier(
+                value,
+                snapshot,
+                token=token,
+                request_json=request_json,
+            )
+
+        monkeypatch.setattr(identity_module, "classify_commit_ref", local_classifier)
+        monkeypatch.setattr(identity_module, "is_ancestor", lambda *_args, **_kwargs: True)
     if classified_values is not None:
         canonical_classifier = identity_module.classify_commit_ref
 
@@ -6237,7 +6291,7 @@ def _owner_only_empty_mapping_coverage(
             for index in (range(root_count) if candidate_indexes is None else candidate_indexes)
         },
         threads=tuple(threads),
-        fingerprint_records={},
+        fingerprint_records=fingerprint_records,
         mapping_entries=mapping_entries or {},
         material_digest=(manifest.digest if material_digest_matches else DIGEST),
         material_head_sha=sealed_head_sha,
@@ -6303,6 +6357,30 @@ def test_owner_only_rejects_root_with_its_own_fixed_mapping(
     )
 
     assert covered == set()
+
+
+@pytest.mark.parametrize(
+    ("fingerprint_root", "expected"),
+    [
+        ("unrelated", {"https://github.com/owner/repo/pull/42#discussion_r100"}),
+        ("same", set()),
+    ],
+)
+def test_owner_only_applies_fingerprint_exclusion_per_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fingerprint_root: str,
+    expected: set[str],
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        fingerprint_root=fingerprint_root,
+        root_body_variant="real-2265",
+        forbid_generic=False,
+    )
+
+    assert covered == expected
 
 
 def test_owner_only_empty_mapping_accepts_real_2265_ancestry_claim(

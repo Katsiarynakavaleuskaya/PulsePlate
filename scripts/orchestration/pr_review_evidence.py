@@ -888,6 +888,9 @@ def validated_duplicate_reply_urls(
             ),
         )
         validated_records[fingerprint] = (record, canonical_time)
+    validated_fingerprint_urls = {
+        record.urls[0] for record, _canonical_time in validated_records.values()
+    }
 
     candidate_fingerprints: dict[str, str] = {}
     candidate_times: dict[str, datetime] = {}
@@ -1141,6 +1144,7 @@ def validated_duplicate_reply_urls(
         if (
             url in covered
             or url in validated_mapping_entries
+            or url in validated_fingerprint_urls
             or location is None
             or location[0] is not thread
             or location[1] != 0
