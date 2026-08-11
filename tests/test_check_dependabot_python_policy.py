@@ -6,8 +6,10 @@ from collections.abc import Iterator
 from dataclasses import FrozenInstanceError, asdict
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 import yaml
@@ -17,6 +19,10 @@ from scripts.ci import dependabot_requirement_carriers as carriers
 from scripts.ci.check_python_dependency_surfaces import DEPENDENCY_SURFACES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX = (
+    ".insecure-external-code-execution:key is forbidden because external code "
+    "must not receive private registry credentials"
+)
 
 
 def _run_fixture_git(repo: Path, *args: str) -> None:
@@ -201,6 +207,123 @@ def test_non_requirement_text_file_is_not_misclassified_as_carrier(
 )
 def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -> None:
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_frozen_upstream_marker_language_matches_raw_pattern() -> None:
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    marker_lines = (
+        "package; (  and ",
+        "package; (  or ",
+        'package; python_version == "3" and  or ',
+        'package; python_version == "3" or  and ',
+    )
+
+    for marker_line in marker_lines:
+        assert raw_pattern.fullmatch(marker_line) is not None
+        assert carriers._UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(marker_line) is not None
+
+
+def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "is_dependabot_requirement_carrier_text\n"
+        "for suffix in ('!', '@', '='):\n"
+        "    content = f\"package{' ' * 1000}{suffix}\\n\"\n"
+        "    assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
+
+
+def test_frozen_upstream_requirement_grammar_rejects_long_invalid_version_near_match() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS, "
+        "is_dependabot_requirement_carrier_text\n"
+        "digit_count = DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS - len('package==!')\n"
+        "content = f\"package=={'1' * digit_count}!\\n\"\n"
+        "assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
+
+
+def test_requirement_carrier_line_budget_precedes_all_classification() -> None:
+    limit = carriers.DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS
+    assert limit == 4096
+    assert policy.MAX_REQUIREMENT_LINE_CHARS == limit
+    assert carriers.is_dependabot_requirement_carrier_text("extra.txt", "a" * limit)
+
+    overlong_cases = (
+        ("extra.txt", "a" * (limit + 1)),
+        ("requirements.txt", "package" + " " * limit),
+        ("extra.txt", " " * (limit + 1)),
+        ("extra.txt", "#" + " " * limit),
+        ("extra.txt", "--" + " " * limit),
+        ("extra.txt", "not a requirement @\n" + " " * (limit + 1)),
+    )
+    for relative_path, content in overlong_cases:
+        with pytest.raises(carriers.DependabotRequirementDiscoveryError):
+            carriers.is_dependabot_requirement_carrier_text(relative_path, content)
+
+
+def test_marker_near_match_over_line_budget_fails_closed_in_child_process() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS, DependabotRequirementDiscoveryError, "
+        "is_dependabot_requirement_carrier_text\n"
+        "space_count = DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS - len('package;!')\n"
+        "admitted = f\"package;{' ' * space_count}!\\n\"\n"
+        "assert not is_dependabot_requirement_carrier_text('extra.txt', admitted)\n"
+        "content = f\"package;{' ' * 20000}!\\n\"\n"
+        "try:\n"
+        "    is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+        "except DependabotRequirementDiscoveryError:\n"
+        "    pass\n"
+        "else:\n"
+        "    raise AssertionError('overlong carrier input did not fail closed')\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
+
+
+def test_overlong_carrier_discovery_error_is_sanitized(tmp_path: Path) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    sentinel = "carrier-content-must-not-leak"
+    (repo / "extra.txt").write_text(
+        "package;" + " " * 4097 + sentinel,
+        encoding="utf-8",
+    )
+    _stage_fixture_paths(repo, "extra.txt")
+
+    errors = policy.validate_repo(repo)
+
+    assert errors == [
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree"
+    ]
+    assert sentinel not in "\n".join(errors)
 
 
 def test_requirement_carrier_upstream_snapshot_is_immutable_and_documented() -> None:
@@ -768,6 +891,52 @@ def test_registry_credential_literals_are_redacted_from_errors_and_cli_output(
     assert sentinel not in captured.err
 
 
+@pytest.mark.parametrize("credential_key", ["username", "password"])
+def test_registry_credential_mapping_diagnostics_are_redacted(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    credential_key: str,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    registries = config["registries"]
+    assert isinstance(registries, dict)
+    registry = registries[policy.REGISTRY_NAME]
+    assert isinstance(registry, dict)
+    sentinel = f"mapping-{credential_key}-must-not-leak"
+    registry[credential_key] = {
+        policy.EXTERNAL_CODE_EXECUTION_KEY: sentinel,
+    }
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+    forbidden_error = (
+        f".github/dependabot.yml:$.registries.{policy.REGISTRY_NAME}.{credential_key}."
+        f"{policy.EXTERNAL_CODE_EXECUTION_KEY}:key is forbidden because external code "
+        "must not receive private registry credentials"
+    )
+    exact_mapping_error = (
+        f".github/dependabot.yml:registries.{policy.REGISTRY_NAME}.{credential_key}:"
+        "must be configured secret reference; got mapping(len=1)"
+    )
+    rendered_errors = "\n".join(errors)
+
+    assert errors.count(forbidden_error) == 1
+    assert exact_mapping_error in errors
+    assert sentinel not in rendered_errors
+    assert "${{secrets." not in rendered_errors
+
+    exit_code = policy.main(["--repo-root", str(repo)])
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert captured.out.count(forbidden_error) == 1
+    assert sentinel not in captured.out
+    assert sentinel not in captured.err
+    assert "${{secrets." not in captured.out
+    assert "${{secrets." not in captured.err
+
+
 def test_registry_url_userinfo_is_redacted_from_errors_and_cli_output(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -901,12 +1070,12 @@ def test_mode_a_rejects_update_suppression(
     assert any("updates[0].exclude-paths:key is forbidden" in error for error in errors)
 
 
-def test_external_code_execution_is_bound_to_exact_private_pip_updater() -> None:
+def test_external_code_execution_is_absent_from_private_pip_updater() -> None:
     config = _load_config(REPO_ROOT)
     update = _pip_update(config)
     registries = config["registries"]
 
-    assert update[policy.EXTERNAL_CODE_EXECUTION_KEY] == "allow"
+    assert policy.EXTERNAL_CODE_EXECUTION_KEY not in update
     assert update["package-ecosystem"] == "pip"
     assert update["directory"] == "/"
     assert update["registries"] == [policy.REGISTRY_NAME]
@@ -915,54 +1084,31 @@ def test_external_code_execution_is_bound_to_exact_private_pip_updater() -> None
 
 
 @pytest.mark.parametrize(
-    "invalid_value",
-    [None, "", "deny", "ALLOW", True, False, 1, 0, [], {}, ["allow"]],
+    "present_value",
+    ["allow", "deny", False, None, {}],
 )
-def test_external_code_execution_requires_literal_allow(
+def test_external_code_execution_is_forbidden_independent_of_value(
     tmp_path: Path,
-    invalid_value: object,
+    present_value: object,
 ) -> None:
     repo = _copy_policy_repo(tmp_path)
     config = _load_config(repo)
-    _pip_update(config)[policy.EXTERNAL_CODE_EXECUTION_KEY] = invalid_value
+    _pip_update(config)[policy.EXTERNAL_CODE_EXECUTION_KEY] = present_value
     _write_config(repo, config)
 
     errors = policy.validate_repo(repo)
 
-    assert any(
-        "updates[0].insecure-external-code-execution:must be exactly 'allow'" in error
-        for error in errors
+    expected_error = (
+        ".github/dependabot.yml:$.updates[0]" f"{EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX}"
     )
+    assert errors.count(expected_error) == 1
 
 
-def test_external_code_execution_is_mandatory(tmp_path: Path) -> None:
-    repo = _copy_policy_repo(tmp_path)
-    config = _load_config(repo)
-    _pip_update(config).pop(policy.EXTERNAL_CODE_EXECUTION_KEY)
-    _write_config(repo, config)
-
-    errors = policy.validate_repo(repo)
-
-    assert any(
-        error.startswith(".github/dependabot.yml:updates[0]:keys must be exactly")
-        for error in errors
-    )
-    assert any(
-        "updates[0].insecure-external-code-execution:must be exactly 'allow'" in error
-        for error in errors
-    )
-
-
-def test_external_code_execution_is_rejected_at_every_other_mapping_position(
+def test_external_code_execution_is_rejected_at_every_mapping_position(
     tmp_path: Path,
 ) -> None:
     canonical_config = _load_config(REPO_ROOT)
-    authorized_selector: MappingSelector = ("updates", 0)
-    forbidden_selectors = [
-        selector
-        for selector in _iter_mapping_selectors(canonical_config)
-        if selector != authorized_selector
-    ]
+    forbidden_selectors = list(_iter_mapping_selectors(canonical_config))
 
     assert {
         (),
@@ -987,10 +1133,10 @@ def test_external_code_execution_is_rejected_at_every_other_mapping_position(
         errors = policy.validate_repo(repo)
 
         expected_error = (
-            f".github/dependabot.yml:{_selector_path(selector)}."
-            "insecure-external-code-execution:key is allowed only at updates[0]"
+            f".github/dependabot.yml:{_selector_path(selector)}"
+            f"{EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX}"
         )
-        assert expected_error in errors
+        assert errors.count(expected_error) == 1
 
 
 @pytest.mark.parametrize(
@@ -1013,10 +1159,29 @@ def test_external_code_execution_rejects_recursively_nested_unknown_container(
 
     errors = policy.validate_repo(repo)
 
-    assert any(
-        error.endswith(".insecure-external-code-execution:key is allowed only at updates[0]")
-        for error in errors
-    )
+    matching_errors = [
+        error for error in errors if error.endswith(EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX)
+    ]
+    assert len(matching_errors) == 1
+
+
+@pytest.mark.parametrize("invalid_updates", [None, [], ["not-a-mapping"]])
+def test_external_code_execution_is_reported_before_invalid_update_shape_returns(
+    tmp_path: Path,
+    invalid_updates: object,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    config = _load_config(repo)
+    sentinel = "DO_NOT_RENDER_THIS_VALUE"
+    config[policy.EXTERNAL_CODE_EXECUTION_KEY] = sentinel
+    config["updates"] = invalid_updates
+    _write_config(repo, config)
+
+    errors = policy.validate_repo(repo)
+
+    expected_error = ".github/dependabot.yml:$" f"{EXTERNAL_CODE_EXECUTION_FORBIDDEN_ERROR_SUFFIX}"
+    assert errors.count(expected_error) == 1
+    assert sentinel not in "\n".join(errors)
 
 
 @pytest.mark.parametrize(
@@ -1395,7 +1560,9 @@ def test_direct_requirement_source_resource_budgets_fail_closed(tmp_path: Path) 
     errors = policy.validate_repo(repo)
 
     assert errors == [
-        "requirements.in:1:" f"line length exceeds limit {policy.MAX_REQUIREMENT_LINE_CHARS}"
+        "dependabot.requirement-carriers:$:"
+        "candidate discovery could not inspect the repository tree",
+        "requirements.in:1:" f"line length exceeds limit {policy.MAX_REQUIREMENT_LINE_CHARS}",
     ]
 
 
