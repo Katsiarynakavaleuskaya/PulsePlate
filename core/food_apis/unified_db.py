@@ -110,6 +110,9 @@ _COMMON_FOOD_ITEM_FIELDS: Final = frozenset(
 _NUTRITION_INPUT_FIELDS: Final = frozenset(
     {"source", "record_id", "version_ref", "nutrients", "raw_payload"}
 )
+_PRIMARY_MACRONUTRIENT_DEFAULTS: Final[Mapping[str, float]] = MappingProxyType(
+    {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0}
+)
 
 
 def _load_common_foods_json(file_object: IO[str]) -> object:
@@ -200,9 +203,8 @@ class UnifiedFoodItem:
         nutrients = dict(raw_nutrients)
 
         # Set defaults for primary macronutrients if missing
-        nutrients.setdefault("protein_g", 0.0)
-        nutrients.setdefault("fat_g", 0.0)
-        nutrients.setdefault("carbs_g", 0.0)
+        for nutrient, default_value in _PRIMARY_MACRONUTRIENT_DEFAULTS.items():
+            nutrients.setdefault(nutrient, default_value)
 
         return cls(
             name=usda_item.description,
@@ -244,9 +246,8 @@ class UnifiedFoodItem:
         nutrients = dict(off_item.nutrients_per_100g)
 
         # Set defaults for primary macronutrients if missing
-        nutrients.setdefault("protein_g", 0.0)
-        nutrients.setdefault("fat_g", 0.0)
-        nutrients.setdefault("carbs_g", 0.0)
+        for nutrient, default_value in _PRIMARY_MACRONUTRIENT_DEFAULTS.items():
+            nutrients.setdefault(nutrient, default_value)
 
         return cls(
             name=off_item.product_name,
@@ -297,9 +298,8 @@ class UnifiedFoodItem:
             nutrient_keys=nutrient_keys,
         )
         nutrients = dict(resolved.nutrients)
-        nutrients.setdefault("protein_g", 0.0)
-        nutrients.setdefault("fat_g", 0.0)
-        nutrients.setdefault("carbs_g", 0.0)
+        for nutrient, default_value in _PRIMARY_MACRONUTRIENT_DEFAULTS.items():
+            nutrients.setdefault(nutrient, default_value)
         tags = list(dict.fromkeys([*usda_unified.tags, *off_unified.tags]))
         regions = list(
             dict.fromkeys([*usda_unified.availability_regions, *off_unified.availability_regions])
@@ -752,8 +752,11 @@ class UnifiedFoodDatabase:
                 primary_inputs=replayed_inputs,
                 secondary_inputs=[],
             )
+            replayed_nutrients = dict(replayed.nutrients)
+            for nutrient, default_value in _PRIMARY_MACRONUTRIENT_DEFAULTS.items():
+                replayed_nutrients.setdefault(nutrient, default_value)
             if (
-                dict(replayed.nutrients) != nutrients
+                replayed_nutrients != nutrients
                 or dict(replayed.provenance) != provenance
                 or dict(replayed.nutrient_confidence) != nutrient_confidence
                 or replayed.confidence != confidence
@@ -770,6 +773,7 @@ class UnifiedFoodDatabase:
     def _publish_common_foods_envelope(cls, cache_file: Path, envelope: dict[str, object]) -> None:
         """Publish through a unique same-parent temporary file and atomic replace."""
         temporary_path: Path | None = None
+        rollback_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -792,13 +796,40 @@ class UnifiedFoodDatabase:
 
             with open(temporary_path, "r", encoding="utf-8") as temporary_file:
                 cls._validate_common_foods_envelope(_load_common_foods_json(temporary_file))
+            prior_target_exists = cache_file.exists()
+            prior_target_bytes = cache_file.read_bytes() if prior_target_exists else b""
             os.replace(temporary_path, cache_file)
             temporary_path = None
-            parent_descriptor = os.open(cache_file.parent, os.O_RDONLY)
             try:
-                os.fsync(parent_descriptor)
-            finally:
-                os.close(parent_descriptor)
+                parent_descriptor = os.open(cache_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(parent_descriptor)
+                finally:
+                    os.close(parent_descriptor)
+            except OSError:
+                if prior_target_exists:
+                    with tempfile.NamedTemporaryFile(
+                        mode="wb",
+                        dir=cache_file.parent,
+                        prefix=f".{cache_file.name}.rollback.",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as rollback_file:
+                        rollback_path = Path(rollback_file.name)
+                        rollback_file.write(prior_target_bytes)
+                        rollback_file.flush()
+                        os.fsync(rollback_file.fileno())
+                    os.replace(rollback_path, cache_file)
+                    rollback_path = None
+                else:
+                    cache_file.unlink(missing_ok=True)
+
+                rollback_parent_descriptor = os.open(cache_file.parent, os.O_RDONLY)
+                try:
+                    os.fsync(rollback_parent_descriptor)
+                finally:
+                    os.close(rollback_parent_descriptor)
+                raise
         except CommonFoodsCacheAdmissionError:
             raise
         except Exception as exc:
@@ -810,6 +841,14 @@ class UnifiedFoodDatabase:
                 except OSError as exc:
                     logger.error(
                         "Common-food temporary cache cleanup failed; category=%s",
+                        type(exc).__name__,
+                    )
+            if rollback_path is not None:
+                try:
+                    rollback_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.error(
+                        "Common-food rollback cache cleanup failed; category=%s",
                         type(exc).__name__,
                     )
 

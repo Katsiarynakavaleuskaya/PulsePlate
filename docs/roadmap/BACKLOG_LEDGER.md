@@ -1767,6 +1767,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Legacy FoodDB schema-probe caching remains in
       [`ledger-p2-food-store-legacy-schema-cache-follow-through`](#ledger-p2-food-store-legacy-schema-cache-follow-through)
 
+<a id="ledger-p2-scheduler-remaining-edges-unawaited-asyncmock"></a>
+- [ ] P2: Remove the scheduler remaining-edges unawaited-AsyncMock warning
+  - Owner: @katsiaryna_kavaleuskaya (QA / scheduler)
+  - Priority: P2 (test isolation / warning hygiene)
+  - Target PR: PR-TBD-SCHEDULER-ASYNC-MOCK-CLEANUP
+  - Status: Backlogged; explicitly outside the weekly cold-cache prerequisite
+  - Area: tests / scheduler / async mock lifecycle
+  - Finding Type: pre-existing teardown warning observed by validation-only
+    whole-file execution
+  - Origin evidence: The local five-file food-cache cohort and the final
+    network-disabled Apple Experiment Runner oracle for PR #2259 both passed,
+    but the unchanged node
+    `tests/test_food_apis_push95.py::test_scheduler_remaining_edges` emitted
+    `RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never
+    awaited` from `_pytest/stash.py:108` during teardown. The changed food-cache
+    nodes pass with `ResourceWarning` and `PytestUnraisableExceptionWarning`
+    promoted to errors; this scheduler-only warning does not authorize widening
+    the current cache-integrity implementation lane.
+  - DoD:
+    - Reproduce the warning from the exact scheduler node with warnings promoted
+      to errors and identify the specific unawaited mock call or side effect
+    - Correct the mock/await lifecycle without changing scheduler runtime
+      behavior or adding skip, xfail, warning suppression, or allowlist entries
+    - Run the exact node, its scheduler-focused cohort, and the applicable
+      repository policy/pre-commit gates with no unawaited-coroutine warning
+
 <a id="ledger-p1-external-food-source-policy-enforcement"></a>
 - [ ] P1: External food-source operating policy enforcement follow-through
   - Owner: @katsiaryna_kavaleuskaya

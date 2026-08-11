@@ -30,7 +30,12 @@ def _admissible_common_food_fixture(index: int):
     value = float(index + 1)
     return UnifiedFoodItem(
         name=f"Fixture food {index}",
-        nutrients_per_100g={nutrient: value},
+        nutrients_per_100g={
+            nutrient: value,
+            "protein_g": 0.0,
+            "fat_g": 0.0,
+            "carbs_g": 0.0,
+        },
         cost_per_100g=1.0,
         tags=["offline"],
         availability_regions=["TEST"],

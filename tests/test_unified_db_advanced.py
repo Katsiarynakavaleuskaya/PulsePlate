@@ -37,7 +37,12 @@ def _common_food_item(index: int) -> UnifiedFoodItem:
     nutrient_value = float(index + 1)
     return UnifiedFoodItem(
         name=f"Common Food {index}",
-        nutrients_per_100g={nutrient_key: nutrient_value},
+        nutrients_per_100g={
+            nutrient_key: nutrient_value,
+            "protein_g": 0.0,
+            "fat_g": 0.0,
+            "carbs_g": 0.0,
+        },
         cost_per_100g=1.0,
         tags=["offline-test"],
         availability_regions=["TEST"],
@@ -584,6 +589,60 @@ class TestUnifiedFoodDatabaseCommonFoods:
         ):
             UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
 
+    def test_nutrition_replay_preserves_constructor_synthetic_zero_macros(self) -> None:
+        constructed = UnifiedFoodItem.from_usda_item(
+            USDAFoodItem(
+                fdc_id=731,
+                description="Constructor omission fixture",
+                food_category="Fixture",
+                nutrients_per_100g={"protein_g": 21.0},
+                data_type="Foundation",
+                publication_date="2026-08-11",
+            )
+        )
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        items["chicken_breast"] = asdict(constructed)
+
+        admitted = UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
+        chicken = admitted["chicken_breast"]
+        assert chicken.nutrients_per_100g == {
+            "protein_g": 21.0,
+            "fat_g": 0.0,
+            "carbs_g": 0.0,
+        }
+        assert chicken.nutrition_provenance == {"protein_g": "usda"}
+        assert chicken.nutrition_nutrient_confidence == {"protein_g": 0.7}
+
+    @pytest.mark.parametrize(
+        "fabrication",
+        ["nonzero_missing_macro", "unsupported_zero_nutrient"],
+    )
+    def test_nutrition_replay_rejects_fabricated_synthetic_values(
+        self,
+        fabrication: str,
+    ) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        chicken = items["chicken_breast"]
+        assert isinstance(chicken, dict)
+        nutrients = chicken["nutrients_per_100g"]
+        assert isinstance(nutrients, dict)
+
+        if fabrication == "nonzero_missing_macro":
+            nutrients["fat_g"] = 1.0
+        else:
+            nutrients["unsupported_synthetic"] = 0.0
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Common-food nutrition evidence does not replay for chicken_breast",
+        ):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
     @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
     def test_strict_loader_rejects_non_finite_json_constants(self, constant: str) -> None:
         with pytest.raises(CommonFoodsCacheAdmissionError) as exc_info:
@@ -730,12 +789,20 @@ class TestUnifiedFoodDatabaseCommonFoods:
             ("close", parent_descriptor),
         ]
 
-    def test_parent_fsync_failure_still_closes_directory_descriptor(
+    @pytest.mark.parametrize(
+        "prior_target_bytes",
+        [b"exact-prior-target", None],
+        ids=["existing-target", "no-prior-target"],
+    )
+    def test_parent_fsync_failure_restores_prior_publication_state(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
+        prior_target_bytes: bytes | None,
     ) -> None:
         cache_file = tmp_path / "common_foods.json"
+        if prior_target_bytes is not None:
+            cache_file.write_bytes(prior_target_bytes)
         fsync_descriptors: list[int] = []
         closed_descriptors: list[int] = []
         real_fsync = os.fsync
@@ -760,8 +827,14 @@ class TestUnifiedFoodDatabaseCommonFoods:
                 _valid_common_foods_envelope(),
             )
 
-        assert len(fsync_descriptors) == 2
+        expected_fsync_count = 4 if prior_target_bytes is not None else 3
+        assert len(fsync_descriptors) == expected_fsync_count
+        assert fsync_descriptors[1] in closed_descriptors
         assert fsync_descriptors[-1] in closed_descriptors
+        if prior_target_bytes is None:
+            assert not cache_file.exists()
+        else:
+            assert cache_file.read_bytes() == prior_target_bytes
         assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
 
     def test_cleanup_unlink_failure_log_is_category_only(
