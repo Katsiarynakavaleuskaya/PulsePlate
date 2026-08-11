@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
 
 
@@ -47,9 +48,11 @@ class TestFoodAPIsSimple:
     def test_save_versions_error(self, manager):
         """Test save_versions with write error (lines 171-172)."""
         with patch("builtins.open", side_effect=OSError("Write error")):
-            with patch("core.food_apis.update_manager.logger") as mock_logger:
+            with pytest.raises(
+                CommonFoodsCacheAdmissionError,
+                match="Database versions publication failed",
+            ):
                 manager._save_versions()
-                mock_logger.error.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_check_usda_updates_no_version(self, manager):

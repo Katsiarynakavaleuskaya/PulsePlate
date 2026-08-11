@@ -41,7 +41,7 @@ def _common_food_item(index: int) -> UnifiedFoodItem:
         name=f"Common Food {index}",
         nutrients_per_100g={
             nutrient_key: nutrient_value,
-            "protein_g": 0.0,
+            "protein_g": 1.0,
             "fat_g": 0.0,
             "carbs_g": 0.0,
         },
@@ -56,12 +56,12 @@ def _common_food_item(index: int) -> UnifiedFoodItem:
                 "source": "usda",
                 "record_id": f"fixture-{index}",
                 "version_ref": "2026-08-10",
-                "nutrients": {nutrient_key: nutrient_value},
+                "nutrients": {nutrient_key: nutrient_value, "protein_g": 1.0},
                 "raw_payload": {},
             }
         ],
-        nutrition_provenance={nutrient_key: "usda"},
-        nutrition_nutrient_confidence={nutrient_key: 0.7},
+        nutrition_provenance={nutrient_key: "usda", "protein_g": "usda"},
+        nutrition_nutrient_confidence={nutrient_key: 0.7, "protein_g": 0.7},
         nutrition_confidence=0.7,
     )
 
@@ -226,6 +226,141 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert published["schema_version"] == COMMON_FOODS_CACHE_SCHEMA_VERSION
         assert published["manifest_version"] == COMMON_FOODS_MANIFEST_VERSION
         assert not list(tmp_path.glob(".common_foods.json.*.tmp"))
+
+    def test_force_refresh_bypasses_warm_disk_and_memory_for_exact_manifest_sweep(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        old_envelope = _valid_common_foods_envelope()
+        cache_file = tmp_path / "common_foods.json"
+        _write_common_foods_envelope(cache_file, old_envelope)
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        calls: list[tuple[str, bool, bool]] = []
+        queries = tuple(COMMON_FOODS_MANIFEST.values())
+        for query in queries:
+            db._memory_cache[f"search_{query}"] = _common_food_item(500)
+
+        async def refreshed_search(
+            query: str,
+            save_cache: bool = True,
+            use_memory_cache: bool = True,
+        ) -> list[UnifiedFoodItem]:
+            calls.append((query, save_cache, use_memory_cache))
+            return [_common_food_item(100 + queries.index(query))]
+
+        monkeypatch.setattr(db, "search_food", refreshed_search)
+
+        refreshed = asyncio.run(db.get_common_foods_database(force_refresh=True))
+
+        assert calls == [(query, False, False) for query in queries]
+        assert refreshed["chicken_breast"].source_id == "fixture-100"
+        published = json.loads(cache_file.read_text(encoding="utf-8"))
+        assert published["items"]["chicken_breast"]["source_id"] == "fixture-100"
+
+    @pytest.mark.parametrize(
+        ("mutation", "expected_error"),
+        [
+            ("protein_over_100g", "macronutrient bounds"),
+            ("no_protein_or_fat", "macronutrient bounds"),
+            ("blank_record_id", "nutrition evidence"),
+            ("blank_version_ref", "nutrition evidence"),
+        ],
+    )
+    def test_common_food_admission_enforces_top_level_macros_and_nonblank_refs(
+        self, mutation: str, expected_error: str
+    ) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        chicken = items["chicken_breast"]
+        assert isinstance(chicken, dict)
+        evidence = chicken["nutrition_inputs"]
+        assert isinstance(evidence, list)
+        first_evidence = evidence[0]
+        assert isinstance(first_evidence, dict)
+        nutrients = chicken["nutrients_per_100g"]
+        assert isinstance(nutrients, dict)
+
+        if mutation == "protein_over_100g":
+            nutrients["protein_g"] = 101.0
+        elif mutation == "no_protein_or_fat":
+            nutrients["protein_g"] = 0.0
+            nutrients["fat_g"] = 0.0
+        elif mutation == "blank_record_id":
+            first_evidence["record_id"] = "   "
+        else:
+            first_evidence["version_ref"] = "   "
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match=expected_error):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
+    @pytest.mark.parametrize(
+        ("blank_carrier", "expected_error"),
+        [
+            ("top_level_nutrient_key", "nutrient shape"),
+            ("input_nutrient_key", "nutrition evidence"),
+            ("raw_payload_key", "nutrition evidence"),
+            ("provenance_key", "provenance evidence"),
+            ("provenance_value", "provenance evidence"),
+        ],
+    )
+    @pytest.mark.parametrize("blank_text", ["", "   "], ids=["empty", "whitespace"])
+    def test_common_food_admission_rejects_blank_nutrition_mapping_strings(
+        self,
+        blank_carrier: str,
+        expected_error: str,
+        blank_text: str,
+    ) -> None:
+        envelope = _valid_common_foods_envelope()
+        items = envelope["items"]
+        assert isinstance(items, dict)
+        chicken = items["chicken_breast"]
+        assert isinstance(chicken, dict)
+        nutrients = chicken["nutrients_per_100g"]
+        nutrition_inputs = chicken["nutrition_inputs"]
+        provenance = chicken["nutrition_provenance"]
+        assert isinstance(nutrients, dict)
+        assert isinstance(nutrition_inputs, list)
+        assert isinstance(provenance, dict)
+        nutrition_input = nutrition_inputs[0]
+        assert isinstance(nutrition_input, dict)
+        input_nutrients = nutrition_input["nutrients"]
+        raw_payload = nutrition_input["raw_payload"]
+        assert isinstance(input_nutrients, dict)
+        assert isinstance(raw_payload, dict)
+
+        if blank_carrier == "top_level_nutrient_key":
+            nutrients[blank_text] = nutrients.pop("nutrient_0")
+        elif blank_carrier == "input_nutrient_key":
+            input_nutrients[blank_text] = input_nutrients.pop("nutrient_0")
+        elif blank_carrier == "raw_payload_key":
+            raw_payload[blank_text] = "evidence"
+        elif blank_carrier == "provenance_key":
+            provenance[blank_text] = provenance.pop("nutrient_0")
+        else:
+            provenance["nutrient_0"] = blank_text
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match=expected_error):
+            UnifiedFoodDatabase._validate_common_foods_envelope(envelope)
+
+    def test_common_food_path_rejects_symlink_before_warm_or_provider_access(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        outside = tmp_path / "outside.json"
+        outside.write_text(json.dumps(_valid_common_foods_envelope()), encoding="utf-8")
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        cache_file = cache_dir / "common_foods.json"
+        cache_file.symlink_to(outside)
+        db = UnifiedFoodDatabase(cache_dir=str(cache_dir))
+        acquisition = AsyncMock()
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquisition)
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="not a regular file"):
+            asyncio.run(db.get_common_foods_database())
+
+        acquisition.assert_not_awaited()
+        assert cache_file.is_symlink()
+        assert outside.exists()
 
     def test_search_food_memory_cache_bypass_is_explicit_and_default_preserving(
         self,
@@ -489,7 +624,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
         publication.assert_not_called()
         assert not (tmp_path / "common_foods.json").exists()
 
-    def test_synchronous_publication_overrun_times_out_with_valid_cache(
+    def test_synchronous_publication_overrun_compensates_new_cache_before_timeout(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -520,12 +655,48 @@ class TestUnifiedFoodDatabaseCommonFoods:
         with pytest.raises(CommonFoodsCacheAdmissionError, match="total deadline"):
             asyncio.run(db.get_common_foods_database())
 
-        assert cache_file.exists()
-        with open(cache_file, "r", encoding="utf-8") as file_object:
-            admitted = UnifiedFoodDatabase._validate_common_foods_envelope(
-                unified_db_module._load_common_foods_json(file_object)
-            )
-        assert tuple(admitted) == tuple(COMMON_FOODS_MANIFEST)
+        assert not cache_file.exists()
+        assert not list(tmp_path.glob(".common_foods.json.deadline-rollback.*.tmp"))
+
+    def test_force_refresh_deadline_overrun_restores_exact_prior_cache_bytes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        cache_file = tmp_path / "common_foods.json"
+        cache_file.write_text(
+            json.dumps(_valid_common_foods_envelope(), separators=(",", ":")),
+            encoding="utf-8",
+        )
+        prior_bytes = cache_file.read_bytes()
+        refreshed_envelope = _valid_common_foods_envelope()
+        refreshed_items = refreshed_envelope["items"]
+        assert isinstance(refreshed_items, dict)
+        refreshed_chicken = refreshed_items["chicken_breast"]
+        assert isinstance(refreshed_chicken, dict)
+        refreshed_chicken["name"] = "Refreshed Chicken"
+        real_publish = db._publish_common_foods_envelope
+
+        def publish_then_overrun(target: Path, envelope: dict[str, object]) -> None:
+            real_publish(target, envelope)
+            threading.Event().wait(0.03)
+
+        monkeypatch.setattr(
+            db,
+            "_acquire_common_foods_envelope",
+            AsyncMock(return_value=refreshed_envelope),
+        )
+        monkeypatch.setattr(db, "_publish_common_foods_envelope", publish_then_overrun)
+        monkeypatch.setattr(
+            unified_db_module,
+            "COMMON_FOODS_ACQUISITION_TIMEOUT_SECONDS",
+            0.01,
+        )
+
+        with pytest.raises(CommonFoodsCacheAdmissionError, match="total deadline"):
+            asyncio.run(db.get_common_foods_database(force_refresh=True))
+
+        assert cache_file.read_bytes() == prior_bytes
+        assert not list(tmp_path.glob(".common_foods.json.deadline-rollback.*.tmp"))
 
     def test_waiter_lock_wait_and_acquisition_share_one_total_deadline(
         self,

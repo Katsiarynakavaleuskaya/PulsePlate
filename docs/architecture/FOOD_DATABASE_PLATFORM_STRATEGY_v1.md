@@ -124,7 +124,7 @@ Implementation anchors (W1, repo paths on default branch):
   `core/food_sources/source_onboarding.py`, `scripts/food_source_onboarding.py`
 - Snapshot manifest hub + fail-closed revalidation (size/checksum): `core/food_sources/snapshot_manager.py:91` (`SnapshotManager`), `:258` (`verify_recorded_snapshots`)
 - OFF deterministic delta/full source: `core/food_sources/off_delta.py:54` (`OpenFoodFactsDeltaSource`)
-- OFF export selection (cache/snapshot inputs): `core/food_apis/update_manager.py:261` (`_find_off_export_file`); scheduler entry for OFF updates: `:352` (`update_database` → `_update_off_database`)
+- OFF bounded snapshot/update owner: `core/food_apis/update_manager.py` (`update_database` → `_update_off_database`)
 - Food DB build pipeline: `scripts/build_food_db.py:64` (`FoodDatabaseBuilder`), `:454` (`main`)
 - Raw OFF snapshot sync (facade): `core/food_apis/snapshot_sync.py:28` (`sync_openfoodfacts_snapshot`)
 - Build-time OFF raw manifest gate: `core/food_apis/raw_snapshot_gate.py:18` (`validate_off_raw_manifest_gate`)

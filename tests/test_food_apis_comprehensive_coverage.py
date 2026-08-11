@@ -36,7 +36,7 @@ def _admissible_common_food_fixture(index: int) -> "UnifiedFoodItem":
         name=f"Fixture food {index}",
         nutrients_per_100g={
             nutrient: value,
-            "protein_g": 0.0,
+            "protein_g": 1.0,
             "fat_g": 0.0,
             "carbs_g": 0.0,
         },
@@ -51,13 +51,45 @@ def _admissible_common_food_fixture(index: int) -> "UnifiedFoodItem":
                 "source": "usda",
                 "record_id": f"fixture-{index}",
                 "version_ref": "2026-08-10",
-                "nutrients": {nutrient: value},
+                "nutrients": {nutrient: value, "protein_g": 1.0},
                 "raw_payload": {},
             }
         ],
-        nutrition_provenance={nutrient: "usda"},
-        nutrition_nutrient_confidence={nutrient: 0.7},
+        nutrition_provenance={nutrient: "usda", "protein_g": "usda"},
+        nutrition_nutrient_confidence={nutrient: 0.7, "protein_g": 0.7},
         nutrition_confidence=0.7,
+    )
+
+
+def _admissible_off_food_fixture(identity: str):
+    """Build one complete deterministic OFF result without provider access."""
+    from core.food_apis.openfoodfacts_client import OFFFoodItem
+
+    nutrients = {"protein_g": 7.0, "fat_g": 2.0, "carbs_g": 3.0}
+    return OFFFoodItem(
+        code=f"off-{identity}",
+        product_name=f"OFF {identity}",
+        categories=["fixture"],
+        nutrients_per_100g=nutrients,
+        ingredients_text=None,
+        brands=None,
+        labels=[],
+        countries=["TEST"],
+        packaging=[],
+        image_url=None,
+        last_modified_t=1,
+        nutrition_inputs=[
+            {
+                "source": "estimate",
+                "record_id": f"off-{identity}",
+                "version_ref": "1",
+                "nutrients": nutrients,
+                "raw_payload": {},
+            }
+        ],
+        nutrition_provenance={key: "estimate" for key in nutrients},
+        nutrition_nutrient_confidence={key: 0.4 for key in nutrients},
+        nutrition_confidence=0.4,
     )
 
 
@@ -649,7 +681,8 @@ class TestDatabaseUpdateManagerComprehensive:
             assert isinstance(versions, dict)
 
     def test_save_versions_exception(self):
-        """Test _save_versions with exception."""
+        """Version publication failures are explicit and leave no partial target."""
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -660,8 +693,55 @@ class TestDatabaseUpdateManagerComprehensive:
                 "core.food_apis.update_manager.json.dump",
                 side_effect=Exception("Test error"),
             ):
-                # Should not crash
-                manager._save_versions()
+                with pytest.raises(
+                    CommonFoodsCacheAdmissionError,
+                    match="Database versions publication failed",
+                ):
+                    manager._save_versions()
+
+            assert not manager.versions_file.exists()
+            assert not list(Path(temp_dir).glob(".database_versions.json.*.tmp"))
+
+    def test_save_versions_parent_fsync_failure_restores_exact_prior_bytes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.food_apis import update_manager as update_manager_module
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        manager.versions["usda"] = DatabaseVersion(
+            source="usda",
+            version="established-v1",
+            last_updated="2026-08-11T00:00:00+00:00",
+            record_count=20,
+            checksum="established",
+            metadata={},
+        )
+        manager._save_versions()
+        prior_bytes = manager.versions_file.read_bytes()
+        manager.versions["usda"].version = "replacement-v2"
+        real_fsync = os.fsync
+        fsync_count = 0
+
+        def fail_first_parent_fsync(descriptor: int) -> None:
+            nonlocal fsync_count
+            fsync_count += 1
+            if fsync_count == 2:
+                raise OSError("forced version parent fsync failure")
+            real_fsync(descriptor)
+
+        monkeypatch.setattr(update_manager_module.os, "fsync", fail_first_parent_fsync)
+
+        with pytest.raises(
+            CommonFoodsCacheAdmissionError,
+            match="Database versions publication failed",
+        ):
+            manager._save_versions()
+
+        assert manager.versions_file.read_bytes() == prior_bytes
+        assert fsync_count == 4
+        assert not list(tmp_path.glob(".database_versions.json.*.tmp"))
 
     @pytest.mark.asyncio
     async def test_check_for_updates_usda_exception(self):
@@ -948,7 +1028,6 @@ class TestDatabaseUpdateManagerComprehensive:
             backup_load = AsyncMock(return_value={})
             version_save = MagicMock()
             cleanup = AsyncMock()
-            validated_count = AsyncMock(return_value=(0, "replacement-checksum"))
             off_search = AsyncMock(return_value=[])
             off_client = MagicMock()
             off_client.search_products = off_search
@@ -959,11 +1038,6 @@ class TestDatabaseUpdateManagerComprehensive:
             monkeypatch.setattr(manager, "_load_backup", backup_load)
             monkeypatch.setattr(manager, "_save_versions", version_save)
             monkeypatch.setattr(manager, "_cleanup_old_backups", cleanup)
-            monkeypatch.setattr(
-                manager,
-                "_get_validated_record_count_and_checksum",
-                validated_count,
-            )
             monkeypatch.setattr(manager, "off_client", off_client)
             monkeypatch.setattr(
                 "core.food_apis.update_manager.asyncio.sleep",
@@ -988,7 +1062,6 @@ class TestDatabaseUpdateManagerComprehensive:
             backup_load.assert_not_awaited()
             version_save.assert_not_called()
             cleanup.assert_not_awaited()
-            validated_count.assert_not_awaited()
             if source == "openfoodfacts":
                 off_search.assert_not_awaited()
             assert manager.versions == versions_before
@@ -1374,6 +1447,150 @@ class TestDatabaseUpdateManagerComprehensive:
         assert tuple(asyncio.run(manager._load_backup("openfoodfacts", second.new_version))) == (
             "source_snapshot_food",
         )
+
+    def test_off_update_completes_seven_calls_then_versions_exact_persisted_mapping(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        calls: list[tuple[str, int]] = []
+        conversions: list[str] = []
+        searches = ("apple", "banana", "chicken", "bread", "milk", "cheese", "rice")
+
+        async def search(search_term: str, page_size: int):
+            calls.append((search_term, page_size))
+            return [_admissible_off_food_fixture(search_term)]
+
+        off_client = MagicMock()
+        off_client.search_products = search
+        manager.off_client = off_client
+        from core.food_apis.unified_db import UnifiedFoodItem
+
+        convert = UnifiedFoodItem.from_off_item
+
+        def recording_conversion(off_item):
+            conversions.append(off_item.code)
+            return convert(off_item)
+
+        monkeypatch.setattr(UnifiedFoodItem, "from_off_item", recording_conversion)
+        monkeypatch.setattr("core.food_apis.update_manager.asyncio.sleep", AsyncMock())
+        monkeypatch.setattr(
+            "core.food_apis.update_manager.now_utc",
+            lambda: datetime(2026, 8, 11, 12, 0, 0, tzinfo=timezone.utc),
+        )
+        result = asyncio.run(manager._update_off_database(force=True))
+
+        assert result.success is True
+        assert calls == [(search, 5) for search in searches]
+        assert conversions == [f"off-{search}" for search in searches]
+        persisted = asyncio.run(manager._load_backup("openfoodfacts", "20260811_120000"))
+        persisted_mapping = {name: asdict(food) for name, food in persisted.items()}
+        version = manager.versions["openfoodfacts"]
+        assert version.record_count == len(persisted_mapping) == 7
+        assert version.checksum == manager._calculate_checksum(persisted_mapping)
+
+    @pytest.mark.parametrize("failure", ["empty", "conversion"])
+    def test_off_update_refuses_partial_sweep_or_conversion_before_publication(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        failure: str,
+    ) -> None:
+        from core.food_apis.unified_db import UnifiedFoodItem
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        calls: list[str] = []
+        searches = ("apple", "banana", "chicken", "bread", "milk", "cheese", "rice")
+
+        async def search(search_term: str, page_size: int):
+            assert page_size == 5
+            calls.append(search_term)
+            if failure == "empty" and search_term == "bread":
+                return []
+            return [_admissible_off_food_fixture(search_term)]
+
+        off_client = MagicMock()
+        off_client.search_products = search
+        manager.off_client = off_client
+        monkeypatch.setattr("core.food_apis.update_manager.asyncio.sleep", AsyncMock())
+        if failure == "conversion":
+            conversion = UnifiedFoodItem.from_off_item
+
+            def fail_one_conversion(off_item):
+                if off_item.code == "off-chicken":
+                    raise ValueError("forced conversion failure")
+                return conversion(off_item)
+
+            monkeypatch.setattr(UnifiedFoodItem, "from_off_item", fail_one_conversion)
+
+        result = asyncio.run(manager._update_off_database(force=True))
+
+        assert result.success is False
+        assert calls == list(searches[:4] if failure == "empty" else searches)
+        assert "openfoodfacts" not in manager.versions
+        assert not list(tmp_path.glob("openfoodfacts_backup_*.json"))
+
+    def test_off_update_cancellation_propagates_without_publication(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        off_client = MagicMock()
+        off_client.search_products = AsyncMock(side_effect=asyncio.CancelledError)
+        manager.off_client = off_client
+        monkeypatch.setattr("core.food_apis.update_manager.asyncio.sleep", AsyncMock())
+
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(manager._update_off_database(force=True))
+
+        assert "openfoodfacts" not in manager.versions
+        assert not list(tmp_path.glob("openfoodfacts_backup_*.json"))
+
+    def test_off_update_version_failure_compensates_new_snapshot_and_memory_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.food_apis.unified_db import CommonFoodsCacheAdmissionError
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        off_client = MagicMock()
+        off_client.search_products = AsyncMock(
+            side_effect=[
+                [_admissible_off_food_fixture(search)]
+                for search in (
+                    "apple",
+                    "banana",
+                    "chicken",
+                    "bread",
+                    "milk",
+                    "cheese",
+                    "rice",
+                )
+            ]
+        )
+        manager.off_client = off_client
+        monkeypatch.setattr("core.food_apis.update_manager.asyncio.sleep", AsyncMock())
+        monkeypatch.setattr(
+            "core.food_apis.update_manager.now_utc",
+            lambda: datetime(2026, 8, 11, 12, 30, 0, tzinfo=timezone.utc),
+        )
+        monkeypatch.setattr(
+            manager,
+            "_save_versions",
+            MagicMock(
+                side_effect=CommonFoodsCacheAdmissionError("forced version publication failure")
+            ),
+        )
+
+        result = asyncio.run(manager._update_off_database(force=True))
+
+        assert result.success is False
+        assert result.errors == ["common_food_cache_admission_failed"]
+        assert "openfoodfacts" not in manager.versions
+        assert not (tmp_path / "openfoodfacts_backup_20260811_123000.json").exists()
 
     @pytest.mark.parametrize("snapshot_shape", ["empty", "malformed", "mixed"])
     def test_backup_snapshot_rejects_whole_invalid_payload_before_write(
@@ -1780,6 +1997,60 @@ class TestDatabaseUpdateManagerComprehensive:
         assert refresh.new_version == "20260811_100001"
         assert rollback_backup.exists()
 
+    def test_usda_update_version_failure_restores_exact_prior_active_bytes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        old_items = {
+            name: asdict(_admissible_common_food_fixture(index))
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        old_envelope: dict[str, object] = {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": old_items,
+        }
+        active_cache = tmp_path / "common_foods.json"
+        active_cache.write_text(json.dumps(old_envelope, separators=(",", ":")), encoding="utf-8")
+        prior_bytes = active_cache.read_bytes()
+        new_envelope = json.loads(json.dumps(old_envelope))
+        new_items = new_envelope["items"]
+        assert isinstance(new_items, dict)
+        first_item = new_items[next(iter(COMMON_FOODS_MANIFEST))]
+        assert isinstance(first_item, dict)
+        first_item["name"] = "New authoritative candidate"
+        new_foods = manager.unified_db._validate_common_foods_envelope(new_envelope)
+
+        async def publish_candidate(*, force_refresh: bool):
+            assert force_refresh is True
+            manager.unified_db._publish_common_foods_envelope(active_cache, new_envelope)
+            return new_foods
+
+        monkeypatch.setattr(manager.unified_db, "get_common_foods_database", publish_candidate)
+        monkeypatch.setattr(
+            manager,
+            "_save_versions",
+            MagicMock(
+                side_effect=CommonFoodsCacheAdmissionError("forced version publication failure")
+            ),
+        )
+
+        result = asyncio.run(manager._update_usda_database(force=True))
+
+        assert result.success is False
+        assert result.errors == ["common_food_cache_admission_failed"]
+        assert active_cache.read_bytes() == prior_bytes
+        assert "usda" not in manager.versions
+        assert not list(tmp_path.glob(".common_foods.json.update-rollback.*.tmp"))
+
     def test_usda_rollback_restores_active_cache_snapshot_and_supports_next_update(
         self,
         tmp_path: Path,
@@ -1847,7 +2118,7 @@ class TestDatabaseUpdateManagerComprehensive:
             ]
         )
         monkeypatch.setattr("core.food_apis.update_manager.now_utc", lambda: next(update_times))
-        provider_acquisition = AsyncMock()
+        provider_acquisition = AsyncMock(return_value=target_envelope)
         monkeypatch.setattr(
             manager.unified_db,
             "_acquire_common_foods_envelope",
@@ -1870,7 +2141,7 @@ class TestDatabaseUpdateManagerComprehensive:
         assert update_result.success is True
         assert update_result.old_version == rollback_version
         assert update_result.new_version == "20260811_100001"
-        provider_acquisition.assert_not_awaited()
+        provider_acquisition.assert_awaited_once_with()
 
     def test_usda_rollback_publication_failure_preserves_active_bytes_and_metadata(
         self,
@@ -1919,6 +2190,68 @@ class TestDatabaseUpdateManagerComprehensive:
         assert rolled_back is False
         assert active_cache.read_bytes() == active_bytes
         assert manager.versions["usda"] is established
+
+    def test_usda_rollback_version_failure_compensates_active_and_new_backup(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+            CommonFoodsCacheAdmissionError,
+        )
+        from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
+
+        manager = DatabaseUpdateManager(cache_dir=tmp_path)
+        target_items = {
+            name: asdict(_admissible_common_food_fixture(index))
+            for index, name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        target_envelope: dict[str, object] = {
+            "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+            "items": target_items,
+        }
+        established_envelope = json.loads(json.dumps(target_envelope))
+        established_items = established_envelope["items"]
+        assert isinstance(established_items, dict)
+        established_first = established_items[next(iter(COMMON_FOODS_MANIFEST))]
+        assert isinstance(established_first, dict)
+        established_first["name"] = "Established active bytes"
+        active_cache = tmp_path / "common_foods.json"
+        active_cache.write_text(
+            json.dumps(established_envelope, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        active_bytes = active_cache.read_bytes()
+        manager._write_backup_snapshot("usda", "target-v1", target_items)
+        established = DatabaseVersion(
+            source="usda",
+            version="current-v2",
+            last_updated="2026-08-11T09:00:00+00:00",
+            record_count=len(target_items),
+            checksum="current-checksum",
+            metadata={},
+        )
+        manager.versions["usda"] = established
+        monkeypatch.setattr(
+            "core.food_apis.update_manager.now_utc",
+            lambda: datetime(2026, 8, 11, 13, 0, 0, tzinfo=timezone.utc),
+        )
+        monkeypatch.setattr(
+            manager,
+            "_save_versions",
+            MagicMock(
+                side_effect=CommonFoodsCacheAdmissionError("forced version publication failure")
+            ),
+        )
+
+        rolled_back = asyncio.run(manager.rollback_database("usda", "target-v1"))
+
+        assert rolled_back is False
+        assert manager.versions["usda"] is established
+        assert active_cache.read_bytes() == active_bytes
+        assert not (tmp_path / "usda_backup_target-v1_rollback_130000.json").exists()
 
     @pytest.mark.asyncio
     async def test_load_backup(self):

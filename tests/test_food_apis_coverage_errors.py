@@ -6,12 +6,21 @@ Targets ~40 lines in update_manager.py (15% coverage) and unified_db.py (19% cov
 
 import json
 import tempfile
+from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from core.food_apis.update_manager import DatabaseUpdateManager, UpdateResult
-from core.food_apis.unified_db import UnifiedFoodDatabase
+from core.food_apis.unified_db import (
+    COMMON_FOODS_CACHE_SCHEMA_VERSION,
+    COMMON_FOODS_MANIFEST,
+    COMMON_FOODS_MANIFEST_VERSION,
+    CommonFoodsCacheAdmissionError,
+    UnifiedFoodDatabase,
+    UnifiedFoodItem,
+)
 
 
 class TestFoodAPIsUpdatePipelineBasic:
@@ -55,12 +64,12 @@ class TestFoodAPIsUpdatePipelineBasic:
 
     def test_update_manager_save_versions_error_mock_path(self, update_manager):
         """Test save_versions with write error using mock (lines 171-172)."""
-        # Mock open to raise error during write
         with patch("builtins.open", side_effect=OSError("Write error")):
-            with patch("core.food_apis.update_manager.logger") as mock_logger:
+            with pytest.raises(
+                CommonFoodsCacheAdmissionError,
+                match="Database versions publication failed",
+            ):
                 update_manager._save_versions()
-                mock_logger.error.assert_called_once()
-                assert "Error saving versions" in str(mock_logger.error.call_args)
 
     @pytest.mark.asyncio
     async def test_check_for_updates_usda_error(self, update_manager):
@@ -312,7 +321,6 @@ class TestFoodAPIsUpdatePipeline:
         """Test _update_usda_database with old data load error (lines 396-399)."""
         # Set up a current version so _load_backup gets called
         from core.food_apis.update_manager import DatabaseVersion
-        from core.food_apis.unified_db import UnifiedFoodItem
 
         current_version = DatabaseVersion(
             source="usda",
@@ -338,6 +346,70 @@ class TestFoodAPIsUpdatePipeline:
             availability_regions=["US"],
             source="usda",
             source_id="12345",
+            category="Fixture",
+            nutrition_inputs=[
+                {
+                    "source": "usda",
+                    "record_id": "12345",
+                    "version_ref": "2026-08-11",
+                    "nutrients": {
+                        "protein_g": 10.0,
+                        "carbs_g": 20.0,
+                        "fat_g": 5.0,
+                        "calories": 100.0,
+                    },
+                    "raw_payload": {},
+                }
+            ],
+            nutrition_provenance={
+                "protein_g": "usda",
+                "carbs_g": "usda",
+                "fat_g": "usda",
+                "calories": "usda",
+            },
+            nutrition_nutrient_confidence={
+                "protein_g": 0.7,
+                "carbs_g": 0.7,
+                "fat_g": 0.7,
+                "calories": 0.7,
+            },
+            nutrition_confidence=0.7,
+        )
+        established_foods = {
+            standard_name: UnifiedFoodItem(
+                name=standard_name,
+                source="USDA FoodData Central",
+                nutrients_per_100g={"protein_g": 1.0, "fat_g": 0.0, "carbs_g": 0.0},
+                source_id=f"fixture-{index}",
+                cost_per_100g=1.0,
+                tags=["fixture"],
+                availability_regions=["US"],
+                category="Fixture",
+                nutrition_inputs=[
+                    {
+                        "source": "usda",
+                        "record_id": f"fixture-{index}",
+                        "version_ref": "2026-08-11",
+                        "nutrients": {"protein_g": 1.0},
+                        "raw_payload": {},
+                    }
+                ],
+                nutrition_provenance={"protein_g": "usda"},
+                nutrition_nutrient_confidence={"protein_g": 0.7},
+                nutrition_confidence=0.7,
+            )
+            for index, standard_name in enumerate(COMMON_FOODS_MANIFEST)
+        }
+        cache_file = update_manager.unified_db.cache_dir / "common_foods.json"
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                    "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                    "items": {name: asdict(food) for name, food in established_foods.items()},
+                }
+            ),
+            encoding="utf-8",
         )
 
         # Mock get_common_foods_database to return minimal data with proper type
@@ -457,9 +529,10 @@ class TestUnifiedFoodDatabase:
 
                 # Should handle error gracefully and return empty results
                 assert result == []
-                # Error should be logged with traceback
-                mock_logger.exception.assert_called()
-                assert "Error searching USDA" in str(mock_logger.exception.call_args)
+                mock_logger.error.assert_called_once_with(
+                    "Unified DB USDA search failed; category=%s",
+                    "Exception",
+                )
 
     @pytest.mark.asyncio
     async def test_get_food_by_id_cache_load_error(self, unified_db: UnifiedFoodDatabase) -> None:

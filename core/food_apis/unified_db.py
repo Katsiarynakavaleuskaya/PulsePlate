@@ -534,7 +534,9 @@ class UnifiedFoodDatabase:
 
         return None
 
-    async def get_common_foods_database(self) -> Dict[str, UnifiedFoodItem]:
+    async def get_common_foods_database(
+        self, *, force_refresh: bool = False
+    ) -> Dict[str, UnifiedFoodItem]:
         """
         RU: Получает базу часто используемых продуктов.
         EN: Gets database of commonly used foods.
@@ -543,8 +545,10 @@ class UnifiedFoodDatabase:
         provenance-preserving snapshot cannot be atomically admitted.
         """
         cache_file = self.cache_dir / "common_foods.json"
+        if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
+            raise CommonFoodsCacheAdmissionError("Common-food cache path is not a regular file")
 
-        if cache_file.exists():
+        if cache_file.exists() and not force_refresh:
             try:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cache_envelope = _load_common_foods_json(f)
@@ -566,7 +570,12 @@ class UnifiedFoodDatabase:
                     await asyncio.sleep(COMMON_FOODS_ADMISSION_LOCK_POLL_SECONDS)
                 lock_acquired = True
 
-                if cache_file.exists():
+                if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
+                    raise CommonFoodsCacheAdmissionError(
+                        "Common-food cache path is not a regular file"
+                    )
+
+                if cache_file.exists() and not force_refresh:
                     try:
                         with open(cache_file, "r", encoding="utf-8") as f:
                             cache_envelope = _load_common_foods_json(f)
@@ -591,8 +600,51 @@ class UnifiedFoodDatabase:
                 if event_loop.time() >= admission_deadline:
                     raise TimeoutError
 
+                if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
+                    raise CommonFoodsCacheAdmissionError(
+                        "Common-food cache path is not a regular file"
+                    )
+                prior_target_exists = cache_file.exists()
+                prior_target_bytes = cache_file.read_bytes() if prior_target_exists else b""
                 self._publish_common_foods_envelope(cache_file, envelope)
                 if event_loop.time() >= admission_deadline:
+                    rollback_path: Path | None = None
+                    try:
+                        if prior_target_exists:
+                            with tempfile.NamedTemporaryFile(
+                                mode="wb",
+                                dir=cache_file.parent,
+                                prefix=f".{cache_file.name}.deadline-rollback.",
+                                suffix=".tmp",
+                                delete=False,
+                            ) as rollback_file:
+                                rollback_path = Path(rollback_file.name)
+                                rollback_file.write(prior_target_bytes)
+                                rollback_file.flush()
+                                os.fsync(rollback_file.fileno())
+                            os.replace(rollback_path, cache_file)
+                            rollback_path = None
+                        else:
+                            cache_file.unlink(missing_ok=True)
+
+                        parent_descriptor = os.open(cache_file.parent, os.O_RDONLY)
+                        try:
+                            os.fsync(parent_descriptor)
+                        finally:
+                            os.close(parent_descriptor)
+                    except Exception as exc:
+                        raise CommonFoodsCacheAdmissionError(
+                            "Common-food deadline compensation failed"
+                        ) from exc
+                    finally:
+                        if rollback_path is not None:
+                            try:
+                                rollback_path.unlink(missing_ok=True)
+                            except OSError as exc:
+                                logger.error(
+                                    "Common-food deadline rollback cleanup failed; category=%s",
+                                    type(exc).__name__,
+                                )
                     raise TimeoutError
                 logger.info("Published %d common foods atomically", len(foods_db))
 
@@ -697,12 +749,21 @@ class UnifiedFoodDatabase:
                 type(nutrients) is not dict
                 or not nutrients
                 or any(
-                    type(key) is not str or not _has_finite_numeric_shape(value) or value < 0.0
+                    type(key) is not str
+                    or not key.strip()
+                    or not _has_finite_numeric_shape(value)
+                    or value < 0.0
                     for key, value in nutrients.items()
                 )
             ):
                 raise CommonFoodsCacheAdmissionError(
                     f"Invalid common-food nutrient shape for {standard_name}"
+                )
+            if any(key.endswith("_g") and value > 100.0 for key, value in nutrients.items()) or (
+                nutrients.get("protein_g", 0.0) <= 0.0 and nutrients.get("fat_g", 0.0) <= 0.0
+            ):
+                raise CommonFoodsCacheAdmissionError(
+                    f"Invalid common-food macronutrient bounds for {standard_name}"
                 )
 
             cost = item["cost_per_100g"]
@@ -736,21 +797,31 @@ class UnifiedFoodDatabase:
                     or not nutrition_input["source"]
                     or (
                         nutrition_input["record_id"] is not None
-                        and type(nutrition_input["record_id"]) is not str
+                        and (
+                            type(nutrition_input["record_id"]) is not str
+                            or not nutrition_input["record_id"].strip()
+                        )
                     )
                     or (
                         nutrition_input["version_ref"] is not None
-                        and type(nutrition_input["version_ref"]) is not str
+                        and (
+                            type(nutrition_input["version_ref"]) is not str
+                            or not nutrition_input["version_ref"].strip()
+                        )
                     )
                     or type(input_nutrients) is not dict
                     or not input_nutrients
                     or any(
-                        type(key) is not str or not _has_finite_numeric_shape(value) or value < 0.0
+                        type(key) is not str
+                        or not key.strip()
+                        or not _has_finite_numeric_shape(value)
+                        or value < 0.0
                         for key, value in input_nutrients.items()
                     )
                     or type(raw_payload) is not dict
                     or any(
                         type(key) is not str
+                        or not key.strip()
                         or not (
                             value is None
                             or type(value) is str
@@ -769,7 +840,10 @@ class UnifiedFoodDatabase:
                 type(provenance) is not dict
                 or not provenance
                 or any(
-                    type(key) is not str or type(value) is not str
+                    type(key) is not str
+                    or not key.strip()
+                    or type(value) is not str
+                    or not value.strip()
                     for key, value in provenance.items()
                 )
                 or type(nutrient_confidence) is not dict
@@ -817,6 +891,8 @@ class UnifiedFoodDatabase:
         temporary_path: Path | None = None
         rollback_path: Path | None = None
         try:
+            if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
+                raise CommonFoodsCacheAdmissionError("Common-food cache path is not a regular file")
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
@@ -838,6 +914,8 @@ class UnifiedFoodDatabase:
 
             with open(temporary_path, "r", encoding="utf-8") as temporary_file:
                 cls._validate_common_foods_envelope(_load_common_foods_json(temporary_file))
+            if cache_file.is_symlink() or (cache_file.exists() and not cache_file.is_file()):
+                raise CommonFoodsCacheAdmissionError("Common-food cache path is not a regular file")
             prior_target_exists = cache_file.exists()
             prior_target_bytes = cache_file.read_bytes() if prior_target_exists else b""
             os.replace(temporary_path, cache_file)

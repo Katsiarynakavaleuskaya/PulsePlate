@@ -33,5 +33,7 @@ def test_patch_unified_db_common_foods_fast_returns_unified_items(
     patch_unified_db_common_foods_fast(monkeypatch)
     db = UnifiedFoodDatabase.__new__(UnifiedFoodDatabase)
     foods = asyncio.run(db.get_common_foods_database())
+    forced_foods = asyncio.run(db.get_common_foods_database(force_refresh=True))
     assert set(foods.keys()) == {"oats", "rice"}
     assert all(isinstance(item, UnifiedFoodItem) for item in foods.values())
+    assert forced_foods == foods

@@ -140,6 +140,7 @@ class TestOFFClient:
         assert "protein_g" in item.nutrients_per_100g
         assert item.nutrients_per_100g["protein_g"] == 10.0
         assert item.nutrition_inputs[0]["source"] == "estimate"
+        assert item.nutrition_inputs[0]["version_ref"] is None
         assert item.nutrition_provenance["protein_g"] == "estimate"
         assert item.nutrition_nutrient_confidence["protein_g"] == pytest.approx(0.4)
         assert 0.0 <= item.nutrition_confidence <= 1.0

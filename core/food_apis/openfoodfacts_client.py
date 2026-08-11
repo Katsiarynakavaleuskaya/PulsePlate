@@ -301,11 +301,12 @@ class OFFClient:
                     if math.isfinite(normalized_value):
                         mapped_nutrients[standard_name] = normalized_value
 
+            last_modified_t = product_data.get("last_modified_t")
             nutrition_input = NutritionInput(
                 source="estimate",
                 nutrients=mapped_nutrients,
                 record_id=code,
-                version_ref=str(product_data.get("last_modified_t") or ""),
+                version_ref=str(last_modified_t) if last_modified_t else None,
                 raw_payload={
                     key: value
                     for key, value in nutrients_raw.items()

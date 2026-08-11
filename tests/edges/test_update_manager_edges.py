@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -70,34 +69,3 @@ def test_load_versions_error_path(tmp_path: Path):
 
     mgr = DatabaseUpdateManager(cache_dir=str(cache), update_interval_hours=24)
     assert mgr.versions == {}
-
-
-def test_save_versions_error_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    import builtins
-
-    from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
-
-    cache = tmp_path / "cache"
-    cache.mkdir(parents=True, exist_ok=True)
-    mgr = DatabaseUpdateManager(cache_dir=str(cache), update_interval_hours=24)
-    mgr.versions = {
-        "usda": DatabaseVersion(
-            source="usda",
-            version="v1",
-            last_updated="2024-01-01T00:00:00Z",
-            record_count=0,
-            checksum="x",
-            metadata={},
-        )
-    }
-
-    real_open = builtins.open
-
-    def fake_open(path: Any, *args: Any, **kwargs: Any):  # noqa: D401
-        if str(path) == str(mgr.versions_file):
-            raise RuntimeError("save fail")
-        return real_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "open", fake_open)
-    # Should not raise
-    mgr._save_versions()
