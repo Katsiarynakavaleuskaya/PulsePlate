@@ -33,6 +33,7 @@ from app.telemetry.genai import (
     add_completion_event,
     add_prompt_event,
     bind_request_id,
+    chain_span,
     current_request_id,
     request_span,
     reset_request_id,
@@ -446,6 +447,31 @@ def test_insight_tracing_emits_chain_and_llm_spans(
     for event in llm_span.events:
         assert "hello tracing world" not in str(event.attributes)
         assert "trace-safe insight" not in str(event.attributes)
+
+
+@pytest.mark.parametrize("context_compaction_enabled", [False, True])
+def test_chain_span_emits_context_compaction_feature_flag(
+    tracing_exporter: InMemorySpanExporter,
+    context_compaction_enabled: bool,
+) -> None:
+    """The existing chain feature-flag channel must retain the pilot cohort."""
+
+    with chain_span(
+        "context compaction chain",
+        user_tier="VIP",
+        route="/api/v1/insight",
+        feature_flags={"rag_context_compaction": context_compaction_enabled},
+    ):
+        pass
+
+    chain = _span_by_kind(
+        tracing_exporter.get_finished_spans(),
+        OPENINFERENCE_KIND_CHAIN,
+    )
+    assert (
+        chain.attributes["pulseplate.feature_flags.rag_context_compaction"]
+        is context_compaction_enabled
+    )
 
 
 def test_insight_tracing_emits_retrieval_span_when_rag_enabled(

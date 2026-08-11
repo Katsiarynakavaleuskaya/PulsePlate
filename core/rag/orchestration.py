@@ -77,6 +77,15 @@ class RAGOrchestrationResult:
     verification_calls: int = 0
     """Recursive verification call count observed during retrieval."""
 
+    chunks_compacted: int = 0
+    """Exact duplicate carriers removed after final validation hygiene."""
+
+    context_compaction_completed: bool = False
+    """True only after enabled exact compaction passes its full postcondition."""
+
+    context_compaction_attempted: bool = False
+    """True only when enabled compaction reached the final safe-snapshot seam."""
+
 
 def _empty_result(
     prompt_input: str,
@@ -178,6 +187,9 @@ def _non_rag_result(
     degraded_reason: RAGDegradedReason,
     verification_bundle: "VerificationBundle | None" = None,
     verification_calls: int = 0,
+    chunks_compacted: int = 0,
+    context_compaction_completed: bool = False,
+    context_compaction_attempted: bool = False,
 ) -> RAGOrchestrationResult:
     """Return a non-RAG result when no usable context survives to output."""
 
@@ -195,6 +207,9 @@ def _non_rag_result(
         degraded_reason=degraded_reason,
         verification_bundle=verification_bundle,
         verification_calls=verification_calls,
+        chunks_compacted=chunks_compacted,
+        context_compaction_completed=context_compaction_completed,
+        context_compaction_attempted=context_compaction_attempted,
     )
 
 
@@ -208,6 +223,7 @@ async def retrieve_and_validate_rag(
     recursive_optimization_hints: "RecursiveOptimizationHints | None" = None,
     subject_id: int | None = None,
     knowledge_policy: "KnowledgePolicy | None" = None,
+    context_compaction_enabled: bool = False,
 ) -> RAGOrchestrationResult:
     """Orchestrate RAG retrieval + philosophy validation.
 
@@ -237,6 +253,8 @@ async def retrieve_and_validate_rag(
         Passing `None` is fail-closed: vector retrieval must not read
         tenant-scoped data and the pipeline falls back to non-personal
         retrieval only.
+    context_compaction_enabled:
+        Whether to remove only exact duplicate final RAG carriers. Defaults off.
 
     Returns
     -------
@@ -261,6 +279,7 @@ async def retrieve_and_validate_rag(
         recursive_optimization_hints,
         subject_id,
         knowledge_policy,
+        context_compaction_enabled,
     )
 
 
@@ -273,6 +292,7 @@ async def _run_orchestration(
     recursive_optimization_hints: "RecursiveOptimizationHints | None",
     subject_id: int | None,
     knowledge_policy: "KnowledgePolicy | None",
+    context_compaction_enabled: bool,
 ) -> RAGOrchestrationResult:
     """Execute RAG retrieval + validation pipeline."""
     recursive_executed = False
@@ -281,6 +301,9 @@ async def _run_orchestration(
     chunks_filtered = 0
     verification_calls = 0
     enrichment_completed = False
+    chunks_compacted = 0
+    context_compaction_completed = False
+    context_compaction_attempted = False
     try:
         # Lazy imports to preserve fail-safe behavior (missing modules don't crash)
         from core.rag.formatting import (
@@ -363,6 +386,7 @@ async def _run_orchestration(
                     verification_hops=rag_ctx.hops,
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
             )
 
         chunks_to_use, had_sanitized_survivor = _prepare_final_rag_chunk_snapshot(
@@ -405,6 +429,7 @@ async def _run_orchestration(
                     RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
             )
         if not chunks_to_use:
             return _non_rag_result(
@@ -420,7 +445,43 @@ async def _run_orchestration(
                     RAGDegradedReason.REDACTED_CONTEXT_EMPTY
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
             )
+
+        effective_degraded_reason = getattr(rag_ctx, "degraded_reason", None)
+        pristine_final_chunks = _copy_rag_chunks(chunks_to_use)
+        if context_compaction_enabled:
+            context_compaction_attempted = True
+            try:
+                from core.rag.context_compaction import (
+                    _is_exact_compaction_result,
+                    compact_exact_duplicate_chunks,
+                )
+
+                compacted_chunks, removed_count = compact_exact_duplicate_chunks(
+                    _copy_rag_chunks(pristine_final_chunks)
+                )
+                if not _is_exact_compaction_result(
+                    pristine_final_chunks,
+                    compacted_chunks,
+                    removed_count,
+                ):
+                    raise ValueError("invalid context compaction result")
+                chunks_to_use = _copy_rag_chunks(compacted_chunks)
+                chunks_compacted = removed_count
+                context_compaction_completed = True
+            except Exception:
+                logger.warning("RAG context compaction failed; preserving validated RAG response")
+                warning = "rag_context_compaction_error: internal failure"
+                if warning not in warnings:
+                    warnings.append(warning)
+                chunks_to_use = pristine_final_chunks
+                chunks_compacted = 0
+                context_compaction_completed = False
+                if effective_degraded_reason is None:
+                    effective_degraded_reason = (
+                        RAGDegradedReason.POST_RETRIEVAL_ORCHESTRATION_EXCEPTION
+                    )
 
         confidence = _resolve_confidence(
             chunks_to_use=chunks_to_use,
@@ -444,6 +505,9 @@ async def _run_orchestration(
                     RAGDegradedReason.FORMATTED_CONTEXT_MALFORMED
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         if not raw_context.strip():
             return _non_rag_result(
@@ -459,6 +523,9 @@ async def _run_orchestration(
                     RAGDegradedReason.FORMATTED_CONTEXT_EMPTY
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         redacted_context = redact_rag_context_for_insight(raw_context)
         if not isinstance(redacted_context, str):
@@ -475,6 +542,9 @@ async def _run_orchestration(
                     RAGDegradedReason.REDACTED_CONTEXT_MALFORMED
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         if not redacted_context.strip():
             return _non_rag_result(
@@ -490,12 +560,15 @@ async def _run_orchestration(
                     RAGDegradedReason.REDACTED_CONTEXT_EMPTY
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         formatted_prompt = _build_prompt_with_context(prompt_input, redacted_context)
         verification_bundle = _build_orchestration_verification_bundle(
             knowledge_policy=knowledge_policy,
             confidence=confidence,
-            degraded_reason=getattr(rag_ctx, "degraded_reason", None),
+            degraded_reason=effective_degraded_reason,
             rag_actually_used=True,
             enrichment_completed=enrichment_completed,
             recursive_executed=recursive_executed,
@@ -508,7 +581,7 @@ async def _run_orchestration(
         knowledge_candidates_canonical = (
             bool(chunks_to_use)
             and enrichment_completed
-            and getattr(rag_ctx, "degraded_reason", None) is None
+            and effective_degraded_reason is None
             and not recursive_executed
             and verification_bundle.admission_allowed
         )
@@ -541,11 +614,14 @@ async def _run_orchestration(
             chunks_retrieved=len(rag_ctx.chunks),
             chunks_filtered=chunks_filtered,
             recursive_executed=recursive_executed,
-            degraded_reason=getattr(rag_ctx, "degraded_reason", None),
+            degraded_reason=effective_degraded_reason,
             knowledge_candidates=knowledge_candidates,
             knowledge_candidates_canonical=knowledge_candidates_canonical,
             verification_bundle=verification_bundle,
             verification_calls=verification_calls,
+            chunks_compacted=chunks_compacted,
+            context_compaction_completed=context_compaction_completed,
+            context_compaction_attempted=context_compaction_attempted,
         )
     except Exception:
         logger.warning("RAG orchestration failed; returning empty result")
@@ -572,6 +648,9 @@ async def _run_orchestration(
                     verification_hops=rag_ctx.hops,
                 ),
                 verification_calls=verification_calls,
+                chunks_compacted=chunks_compacted,
+                context_compaction_completed=context_compaction_completed,
+                context_compaction_attempted=context_compaction_attempted,
             )
         return _empty_result(
             prompt_input,
