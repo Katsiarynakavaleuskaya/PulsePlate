@@ -1697,9 +1697,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Weekly-plan cold-cache external food boundary and cache completeness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (paid-path latency / provider reliability / data provenance)
-  - Target PR: `PR-TBD-WEEKLY-PLAN-COLD-CACHE-EXTERNAL-FOOD-BOUNDARY`
-  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary`
-  - Status: Active prerequisite lane, separate from tests-only PR #2255
+  - Target PR: #2261
+  - Branch: `codex/weekly-plan-cold-cache-external-food-boundary-r2`
+  - Status: Active replacement carrier for #2259, separate from tests-only PR #2255
   - Area: backend / weekly planning / USDA / Open Food Facts / cache integrity
   - Finding Type: cold-cache provider boundary and incomplete-cache acceptance
   - Scope boundary: This lane owns only the versioned 20-key common-food
