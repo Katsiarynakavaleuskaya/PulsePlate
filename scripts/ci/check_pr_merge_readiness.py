@@ -771,27 +771,6 @@ def _wait_for_review_quiet_window(
             quiet_started = _review_quiet_monotonic()
 
 
-def _covered_review_summary_urls(
-    actionable_items: list[ActionableItem],
-    evidence_covered_urls: set[str],
-) -> set[str]:
-    """Cover a review summary only when every actionable child comment is covered."""
-
-    child_urls_by_review: dict[int, set[str]] = {}
-    for item in actionable_items:
-        if item.kind == "review_comment" and item.review_id is not None:
-            child_urls_by_review.setdefault(item.review_id, set()).add(item.url)
-
-    covered: set[str] = set()
-    for item in actionable_items:
-        if item.kind != "review" or item.review_id is None:
-            continue
-        child_urls = child_urls_by_review.get(item.review_id, set())
-        if child_urls and child_urls.issubset(evidence_covered_urls):
-            covered.add(item.url)
-    return covered
-
-
 def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str, str]:
     """Read GitHub event JSON; return PR identity, body, and exact head ref."""
     payload = json.loads(event_path.read_text(encoding="utf-8"))
@@ -1587,11 +1566,7 @@ def main() -> int:
         except (CommitIdentityError, ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Duplicate reply validation failed: {exc}")
 
-    review_summary_covered_urls = _covered_review_summary_urls(
-        actionable_items,
-        mapped_urls | duplicate_covered_urls,
-    )
-    disposition_covered_urls = mapped_urls | duplicate_covered_urls | review_summary_covered_urls
+    disposition_covered_urls = mapped_urls | duplicate_covered_urls
 
     if actionable_items:
         if no_actionable_marker and any(
@@ -1603,9 +1578,7 @@ def main() -> int:
         unmapped = [
             item
             for item in actionable_items
-            if item.url not in mapped_urls
-            and item.url not in duplicate_covered_urls
-            and (args.pre_closeout or item.url not in review_summary_covered_urls)
+            if item.url not in mapped_urls and item.url not in duplicate_covered_urls
         ]
         if unmapped:
             errors.append(
