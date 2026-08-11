@@ -59,15 +59,24 @@ def test_traced_provider_updates_span_provider_name_after_fallback(
     assert observed_attrs["gen_ai.provider.name"] == "stub"
 
 
-def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
+@pytest.mark.parametrize("context_compaction_enabled", [False, True])
+def test_generate_traced_insight_forwards_one_context_compaction_snapshot(
     monkeypatch: pytest.MonkeyPatch,
+    context_compaction_enabled: bool,
 ) -> None:
-    """Tracing adapter must pass prepared recursive hints without recomputing them."""
+    """Retrieval and chain tracing must share one request-local flag read."""
 
     observed: dict[str, Any] = {}
+    flag_reads = 0
+
+    def _read_context_compaction_flag() -> bool:
+        nonlocal flag_reads
+        flag_reads += 1
+        return context_compaction_enabled
 
     @contextmanager
-    def _fake_chain_span(*_args: object, **_kwargs: object) -> Any:
+    def _fake_chain_span(*_args: object, **kwargs: object) -> Any:
+        observed["feature_flags"] = kwargs["feature_flags"]
         yield SimpleNamespace()
 
     @contextmanager
@@ -83,6 +92,7 @@ def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
         async def generate_insight(self, **kwargs: object) -> object:
             observed["runtime_kwargs"] = kwargs
             rag_retriever = kwargs["rag_retriever"]
+            assert callable(rag_retriever)
             await rag_retriever(
                 "hello",
                 max_chunks=3,
@@ -112,6 +122,11 @@ def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
             )
 
     monkeypatch.setattr("app.services.insight_runtime.chain_span", _fake_chain_span, raising=True)
+    monkeypatch.setattr(
+        "app.services.insight_runtime.is_rag_context_compaction_enabled",
+        _read_context_compaction_flag,
+        raising=True,
+    )
     monkeypatch.setattr(
         "app.services.insight_runtime.retrieval_span",
         _fake_retrieval_span,
@@ -156,6 +171,11 @@ def test_generate_traced_insight_forwards_prepared_recursive_optimization_hints(
     assert observed["retrieve_kwargs"][
         "recursive_optimization_hints"
     ] == RecursiveOptimizationHints(target_depth_cap=2)
+    assert flag_reads == 1
+    assert observed["retrieve_kwargs"]["context_compaction_enabled"] is context_compaction_enabled
+    feature_flags = observed["feature_flags"]
+    assert isinstance(feature_flags, dict)
+    assert feature_flags["rag_context_compaction"] is context_compaction_enabled
 
 
 def test_request_time_context_compaction_flag_is_forwarded(
