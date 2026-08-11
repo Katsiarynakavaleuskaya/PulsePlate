@@ -37,8 +37,10 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.orchestration.review_mapping_artifact import (
     extract_fixed_mapping_section as _artifact_extract_fixed_mapping,
     parse_canonical_fingerprint_records,
+    parse_fixed_mapping_entries,
     read_mapping_artifact,
     review_seal_version,
+    validate_fixed_mapping_section,
 )
 from scripts.orchestration.pr_commit_identity import (
     CommitIdentityError,
@@ -54,8 +56,10 @@ from scripts.orchestration.pr_commit_identity import (
     is_ancestor,
 )
 from scripts.orchestration.pr_review_evidence import (
+    TRIGGER_ONLY_COMMIT_SUBJECT_RE,
     ReviewEvidenceError,
     parse_embedded_review_seal,
+    review_thread_inventory,
     validated_duplicate_reply_urls,
 )
 
@@ -131,12 +135,6 @@ def _parse_iso_datetime(value: str) -> datetime:
 
 # Allow only git rev format (7–40 hex chars) so argv is safe (Sourcery / injection)
 _GIT_SHA_RE = re.compile(r"^[a-f0-9]{7,40}$", re.IGNORECASE)
-
-# Trigger-only commit subject patterns (P1: ban mapping to rerun/trigger commits)
-_TRIGGER_SUBJECT_RE = re.compile(
-    r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
-    re.IGNORECASE,
-)
 
 
 def _git_commit_time_iso(commit_sha: str) -> str:
@@ -232,7 +230,7 @@ def _check_trigger_only_mapping(
             )
             continue
         subject = _git_commit_subject(sha)
-        if _TRIGGER_SUBJECT_RE.search(subject):
+        if TRIGGER_ONLY_COMMIT_SUBJECT_RE.search(subject):
             violations.append(
                 f"{t.url}: mapped to {sha} but commit subject looks like CI rerun/trigger "
                 f"('{subject}'). Trigger-only commits are not valid FIXED proof."
@@ -935,6 +933,21 @@ def _resolved_threads_from_evidence(
     return resolved
 
 
+def _assert_v1_review_snapshot_unchanged(
+    initial_threads: tuple[ReviewThreadEvidence, ...],
+    *,
+    snapshot: PrSnapshot,
+    repository: str,
+    token: str,
+) -> None:
+    final_threads = fetch_review_threads(repository, snapshot.pr_number, token=token)
+    if review_thread_inventory(final_threads) != review_thread_inventory(initial_threads):
+        raise CommitIdentityError(
+            "SNAPSHOT_CHANGED: review-thread inventory changed during validation"
+        )
+    assert_snapshot_unchanged(snapshot, token=token)
+
+
 def _check_real_commit_proofs(
     resolved_threads: list[ResolvedThreadRef],
     section: str,
@@ -1175,6 +1188,14 @@ def main() -> None:
             print(f"ERROR: {error}")
         sys.exit(1)
     is_v1 = review_seal_version(artifact_text) == "v1"
+    v1_mapping_entries: dict[str, str] = {}
+    if is_v1:
+        semantic_mapping_errors = validate_fixed_mapping_section(section, require_full_shas=True)
+        if semantic_mapping_errors:
+            for error in semantic_mapping_errors:
+                print(f"ERROR: {error}")
+            sys.exit(1)
+        v1_mapping_entries = parse_fixed_mapping_entries(section)
     snapshot: PrSnapshot | None = None
     thread_evidence: tuple[ReviewThreadEvidence, ...] = ()
     repository = ""
@@ -1199,7 +1220,12 @@ def main() -> None:
                 print("ERROR: internal v1 context is missing GitHub API auth")
                 sys.exit(1)
             try:
-                assert_snapshot_unchanged(snapshot, token=api_token)
+                _assert_v1_review_snapshot_unchanged(
+                    thread_evidence,
+                    snapshot=snapshot,
+                    repository=repository,
+                    token=api_token,
+                )
             except (CommitIdentityError, OSError) as exc:
                 print(f"ERROR: {exc}")
                 sys.exit(1)
@@ -1218,7 +1244,9 @@ def main() -> None:
                 candidate_urls={thread.url for thread in resolved_threads},
                 threads=thread_evidence,
                 fingerprint_records=records,
+                mapping_entries=v1_mapping_entries,
                 material_digest=seal["material"]["digest"],
+                material_head_sha=seal["material"]["material_head_sha"],
                 repo_root=REPO_ROOT,
                 snapshot=snapshot,
                 repository=repository,
@@ -1329,7 +1357,12 @@ def main() -> None:
             print("ERROR: internal v1 context is missing GitHub API auth")
             sys.exit(1)
         try:
-            assert_snapshot_unchanged(snapshot, token=api_token)
+            _assert_v1_review_snapshot_unchanged(
+                thread_evidence,
+                snapshot=snapshot,
+                repository=repository,
+                token=api_token,
+            )
         except (CommitIdentityError, OSError) as exc:
             print(f"ERROR: {exc}")
             sys.exit(1)

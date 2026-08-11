@@ -53,7 +53,6 @@ ALLOWED_TEST_FILES_FOR_SYS_PATH_INSERT = {
 ALLOWED_SYS_MODULES_CHECK_FILES = {
     "tests/test_repo_policy_guards.py",  # this file
     "tests/conftest.py",  # sys.modules binding for app
-    "tests/test_app_init_rebinding_spec.py",  # tests sys.modules["app"] behavior
 }
 
 ALLOWED_NUTRIMENTS_ACCESS_FILES = {
