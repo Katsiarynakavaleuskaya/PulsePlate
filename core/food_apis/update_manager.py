@@ -41,7 +41,12 @@ if TYPE_CHECKING:
     from core.food_sources.off_delta import OFFTransport
 
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
-from .unified_db import CommonFoodsCacheAdmissionError, UnifiedFoodDatabase, UnifiedFoodItem
+from .unified_db import (
+    CommonFoodsCacheAdmissionError,
+    UnifiedFoodDatabase,
+    UnifiedFoodItem,
+    _load_common_foods_json,
+)
 from .usda_client import USDAClient
 from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
@@ -876,28 +881,37 @@ class DatabaseUpdateManager:
 
         return errors
 
-    async def _create_backup(self, source: str, version: str):
+    async def _create_backup(self, source: str, version: str) -> None:
         """Create backup of current database version."""
+        cache_file = self.cache_dir / "common_foods.json"
+        backup_file = self.cache_dir / f"{source}_backup_{version}.json"
         try:
-            current_data = await self.unified_db.get_common_foods_database()
-            backup_file = self.cache_dir / f"{source}_backup_{version}.json"
+            with open(cache_file, "r", encoding="utf-8") as file_object:
+                loaded = _load_common_foods_json(file_object)
+            if type(loaded) is not dict:
+                raise ValueError("common-food cache must be a mapping")
+            if set(loaded) == {"schema_version", "manifest_version", "items"}:
+                current_data = loaded["items"]
+            else:
+                current_data = loaded
+            if (
+                type(current_data) is not dict
+                or not current_data
+                or any(
+                    type(name) is not str or type(food) is not dict
+                    for name, food in current_data.items()
+                )
+            ):
+                raise ValueError("common-food cache items must be a non-empty mapping")
 
             with open(backup_file, "w", encoding="utf-8") as f:
-                json.dump(
-                    {name: self._food_to_dict(food) for name, food in current_data.items()},
-                    f,
-                    indent=2,
-                )
+                json.dump(current_data, f, indent=2)
 
             logger.info("Created backup for %s version %s", source, version)
-        except CommonFoodsCacheAdmissionError:
-            raise
-        except (OSError, TypeError, ValueError) as exc:
-            logger.error("Error creating backup for %s: %s", source, str(exc), exc_info=True)
         except Exception as exc:
-            logger.error(
-                "Unexpected error creating backup for %s: %s", source, str(exc), exc_info=True
-            )
+            raise CommonFoodsCacheAdmissionError(
+                "Established common-food cache cannot be backed up"
+            ) from exc
 
     async def _load_backup(self, source: str, version: str) -> Dict[str, UnifiedFoodItem]:
         """Load backup database version."""

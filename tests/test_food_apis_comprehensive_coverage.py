@@ -832,6 +832,10 @@ class TestDatabaseUpdateManagerComprehensive:
                 metadata={},
             )
             manager.versions["usda"] = version
+            (Path(temp_dir) / "common_foods.json").write_text(
+                json.dumps({name: asdict(food) for name, food in test_data.items()}),
+                encoding="utf-8",
+            )
 
             # Mock unified_db.get_common_foods_database to return same data
             with patch.object(
@@ -909,25 +913,20 @@ class TestDatabaseUpdateManagerComprehensive:
             ("openfoodfacts", "_update_off_database"),
         ],
     )
-    def test_established_version_admission_failure_stops_after_one_acquisition(
+    @pytest.mark.parametrize("cache_failure", ["missing", "unreadable"])
+    def test_established_version_backup_failure_stops_before_acquisition(
         self,
         source: str,
         update_method_name: str,
+        cache_failure: str,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A failed backup admission cannot reacquire or continue either update."""
-        from core.food_apis.unified_db import (
-            COMMON_FOODS_MANIFEST,
-            CommonFoodsCacheAdmissionError,
-        )
+        """An established version without readable disk truth fails before providers."""
+        from core.food_apis.unified_db import COMMON_FOODS_MANIFEST
         from core.food_apis.update_manager import DatabaseUpdateManager, DatabaseVersion
 
-        sensitive_marker = f"{source}-admission-sensitive-marker-cc51"
-        valid_complete_mapping = {
-            name: _admissible_common_food_fixture(index)
-            for index, name in enumerate(COMMON_FOODS_MANIFEST)
-        }
+        sensitive_marker = f"{source}-backup-sensitive-marker-cc51"
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
@@ -935,19 +934,19 @@ class TestDatabaseUpdateManagerComprehensive:
                 source=source,
                 version="established-v1",
                 last_updated="2026-08-10T00:00:00+00:00",
-                record_count=len(valid_complete_mapping),
+                record_count=len(COMMON_FOODS_MANIFEST),
                 checksum="established-checksum",
                 metadata={"state": "established"},
             )
             manager.versions[source] = established_version
             versions_before = dict(manager.versions)
+            if cache_failure == "unreadable":
+                (Path(temp_dir) / "common_foods.json").write_text(
+                    f'{{"{sensitive_marker}":',
+                    encoding="utf-8",
+                )
 
-            acquisition = AsyncMock(
-                side_effect=[
-                    CommonFoodsCacheAdmissionError(sensitive_marker),
-                    valid_complete_mapping,
-                ]
-            )
+            acquisition = AsyncMock()
             validation = AsyncMock(return_value=[])
             checksum = MagicMock(return_value="replacement-checksum")
             backup_load = AsyncMock(return_value={})
@@ -987,7 +986,7 @@ class TestDatabaseUpdateManagerComprehensive:
             assert result.records_updated == 0
             assert result.records_removed == 0
             assert result.errors == ["common_food_cache_admission_failed"]
-            assert acquisition.await_count == 1
+            acquisition.assert_not_awaited()
             validation.assert_not_awaited()
             checksum.assert_not_called()
             backup_load.assert_not_awaited()
@@ -1176,22 +1175,62 @@ class TestDatabaseUpdateManagerComprehensive:
             # Both should pass validation (no errors)
             assert len(errors) == 0, f"Unexpected validation errors: {errors}"
 
-    @pytest.mark.asyncio
-    async def test_create_backup_exception(self):
-        """Test _create_backup with exception."""
+    @pytest.mark.parametrize("cache_shape", ["legacy", "versioned"])
+    def test_create_backup_uses_disk_truth_before_explicit_reacquisition(
+        self,
+        cache_shape: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Backup preserves established disk truth without repairing the live cache."""
+        from core.food_apis.unified_db import (
+            COMMON_FOODS_CACHE_SCHEMA_VERSION,
+            COMMON_FOODS_MANIFEST,
+            COMMON_FOODS_MANIFEST_VERSION,
+        )
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
-
-            # Mock unified_db.get_common_foods_database to raise an exception
-            with patch.object(
+            marker = f"established-{cache_shape}-marker"
+            established_item = _admissible_common_food_fixture(91)
+            established_item.name = marker
+            established_items = {"legacy_slot": asdict(established_item)}
+            cache_payload: object = established_items
+            if cache_shape == "versioned":
+                cache_payload = {
+                    "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                    "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                    "items": established_items,
+                }
+            cache_file = Path(temp_dir) / "common_foods.json"
+            cache_file.write_text(json.dumps(cache_payload), encoding="utf-8")
+            established_bytes = cache_file.read_bytes()
+            replacement_envelope = {
+                "schema_version": COMMON_FOODS_CACHE_SCHEMA_VERSION,
+                "manifest_version": COMMON_FOODS_MANIFEST_VERSION,
+                "items": {
+                    name: asdict(_admissible_common_food_fixture(index))
+                    for index, name in enumerate(COMMON_FOODS_MANIFEST)
+                },
+            }
+            acquisition = AsyncMock(return_value=replacement_envelope)
+            monkeypatch.setattr(
                 manager.unified_db,
-                "get_common_foods_database",
-                side_effect=Exception("Test error"),
-            ):
-                # Should handle the exception
-                await manager._create_backup("usda", "1.0")
+                "_acquire_common_foods_envelope",
+                acquisition,
+            )
+
+            asyncio.run(manager._create_backup("usda", "1.0"))
+
+            acquisition.assert_not_awaited()
+            assert cache_file.read_bytes() == established_bytes
+            backup_file = Path(temp_dir) / "usda_backup_1.0.json"
+            assert json.loads(backup_file.read_text(encoding="utf-8")) == established_items
+            assert marker in backup_file.read_text(encoding="utf-8")
+
+            asyncio.run(manager.unified_db.get_common_foods_database())
+
+            acquisition.assert_awaited_once_with()
 
     @pytest.mark.asyncio
     async def test_load_backup(self):

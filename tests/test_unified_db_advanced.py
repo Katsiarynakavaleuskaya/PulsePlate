@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.food_apis import unified_db as unified_db_module
+from core.food_apis.openfoodfacts_client import OFFFoodItem
 from core.food_apis.unified_db import (
     COMMON_FOODS_CACHE_SCHEMA_VERSION,
     COMMON_FOODS_MANIFEST,
@@ -616,6 +617,63 @@ class TestUnifiedFoodDatabaseCommonFoods:
         assert chicken.nutrition_provenance == {"protein_g": "usda"}
         assert chicken.nutrition_nutrient_confidence == {"protein_g": 0.7}
 
+    @pytest.mark.parametrize("secondary_nutrients", [{}, {"fiber_g": 3.0}])
+    def test_merge_filters_only_empty_secondary_evidence(
+        self,
+        secondary_nutrients: dict[str, float],
+    ) -> None:
+        usda = UnifiedFoodItem.from_usda_item(
+            USDAFoodItem(
+                fdc_id=732,
+                description="Primary fixture",
+                food_category="Fixture",
+                nutrients_per_100g={"protein_g": 21.0},
+                data_type="Foundation",
+                publication_date="2026-08-11",
+            )
+        )
+        off = UnifiedFoodItem.from_off_item(
+            OFFFoodItem(
+                code="off-secondary-732",
+                product_name="Secondary fixture",
+                categories=["Fixture"],
+                nutrients_per_100g=secondary_nutrients,
+                ingredients_text=None,
+                brands=None,
+                labels=[],
+                countries=["TEST"],
+                packaging=[],
+                image_url=None,
+                last_modified_t=0,
+                nutrition_inputs=[
+                    {
+                        "source": "estimate",
+                        "record_id": "off-secondary-732",
+                        "version_ref": None,
+                        "nutrients": secondary_nutrients,
+                        "raw_payload": {},
+                    }
+                ],
+                nutrition_provenance={nutrient: "estimate" for nutrient in secondary_nutrients},
+                nutrition_nutrient_confidence={nutrient: 0.4 for nutrient in secondary_nutrients},
+                nutrition_confidence=0.4 if secondary_nutrients else 0.0,
+            )
+        )
+
+        merged = UnifiedFoodItem.from_usda_and_off_merge(usda, off)
+
+        assert all(entry["nutrients"] for entry in merged.nutrition_inputs)
+        assert merged.nutrition_provenance["protein_g"] == "usda"
+        if secondary_nutrients:
+            assert merged.nutrients_per_100g["fiber_g"] == 3.0
+            assert merged.nutrition_provenance["fiber_g"] == "estimate"
+            assert merged.nutrition_nutrient_confidence["fiber_g"] == 0.4
+            assert merged.nutrition_confidence == 0.55
+        else:
+            assert merged.nutrition_provenance == {"protein_g": "usda"}
+            assert merged.nutrition_nutrient_confidence == {"protein_g": 0.7}
+            assert merged.nutrition_confidence == 0.7
+
     @pytest.mark.parametrize(
         "fabrication",
         ["nonzero_missing_macro", "unsupported_zero_nutrient"],
@@ -669,6 +727,123 @@ class TestUnifiedFoodDatabaseCommonFoods:
             asyncio.run(db.get_common_foods_database())
 
         assert not (tmp_path / "common_foods.json").exists()
+
+    def test_concurrent_cold_callers_share_one_acquisition_and_publication(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        acquisition_started = asyncio.Event()
+        release_acquisition = asyncio.Event()
+        acquisition_count = 0
+        publication_count = 0
+        real_publish = db._publish_common_foods_envelope
+
+        async def acquire_once() -> dict[str, object]:
+            nonlocal acquisition_count
+            acquisition_count += 1
+            acquisition_started.set()
+            await release_acquisition.wait()
+            return _valid_common_foods_envelope()
+
+        def record_publication(cache_file: Path, envelope: dict[str, object]) -> None:
+            nonlocal publication_count
+            publication_count += 1
+            real_publish(cache_file, envelope)
+
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquire_once)
+        monkeypatch.setattr(db, "_publish_common_foods_envelope", record_publication)
+
+        async def run_callers() -> tuple[dict[str, UnifiedFoodItem], dict[str, UnifiedFoodItem]]:
+            owner = asyncio.create_task(db.get_common_foods_database())
+            await acquisition_started.wait()
+            waiter = asyncio.create_task(db.get_common_foods_database())
+            await asyncio.sleep(0)
+            release_acquisition.set()
+            first, second = await asyncio.gather(owner, waiter)
+            return first, second
+
+        first, second = asyncio.run(run_callers())
+
+        assert acquisition_count == 1
+        assert publication_count == 1
+        assert tuple(first) == tuple(second) == tuple(COMMON_FOODS_MANIFEST)
+
+    def test_cancelled_cold_waiter_does_not_cancel_lock_owner(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        acquisition_started = asyncio.Event()
+        release_acquisition = asyncio.Event()
+        acquisition_count = 0
+
+        async def acquire_once() -> dict[str, object]:
+            nonlocal acquisition_count
+            acquisition_count += 1
+            acquisition_started.set()
+            await release_acquisition.wait()
+            return _valid_common_foods_envelope()
+
+        monkeypatch.setattr(db, "_acquire_common_foods_envelope", acquire_once)
+
+        async def run_callers() -> dict[str, UnifiedFoodItem]:
+            owner = asyncio.create_task(db.get_common_foods_database())
+            await acquisition_started.wait()
+            waiter = asyncio.create_task(db.get_common_foods_database())
+            await asyncio.sleep(0)
+            waiter.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            release_acquisition.set()
+            return await owner
+
+        foods = asyncio.run(run_callers())
+
+        assert acquisition_count == 1
+        assert tuple(foods) == tuple(COMMON_FOODS_MANIFEST)
+        assert (tmp_path / "common_foods.json").exists()
+
+    def test_cancelled_cold_owner_releases_lock_for_surviving_waiter(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+        owner_started = asyncio.Event()
+        acquisition_count = 0
+
+        async def acquire_with_cancelled_owner() -> dict[str, object]:
+            nonlocal acquisition_count
+            acquisition_count += 1
+            if acquisition_count == 1:
+                owner_started.set()
+                await asyncio.Event().wait()
+            return _valid_common_foods_envelope()
+
+        monkeypatch.setattr(
+            db,
+            "_acquire_common_foods_envelope",
+            acquire_with_cancelled_owner,
+        )
+
+        async def run_callers() -> dict[str, UnifiedFoodItem]:
+            owner = asyncio.create_task(db.get_common_foods_database())
+            await owner_started.wait()
+            waiter = asyncio.create_task(db.get_common_foods_database())
+            await asyncio.sleep(0)
+            owner.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await owner
+            return await waiter
+
+        foods = asyncio.run(run_callers())
+
+        assert acquisition_count == 2
+        assert tuple(foods) == tuple(COMMON_FOODS_MANIFEST)
+        assert (tmp_path / "common_foods.json").exists()
 
     @pytest.mark.parametrize("failure", ["serialize", "duplicate_serialized", "replace"])
     def test_publication_failure_preserves_old_target_and_cleans_temp(
