@@ -25,6 +25,7 @@ import subprocess  # nosec B404: read-only Git index query has no safe in-proces
 DEPENDABOT_REQUIREMENT_SUFFIXES = frozenset({".in", ".txt"})
 DEPENDABOT_REQUIREMENT_MAX_DEPTH = 1
 DEPENDABOT_REQUIREMENT_MAX_BYTES = 500_000
+DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS = 4096
 DEPENDABOT_REQUIREMENTS_NAME_FRAGMENT = "requirements"
 DEPENDABOT_REQUIREMENT_DIRECTIVE_PREFIXES = ("-r ", "-c ", "-e ", "--")
 GIT_BINARY = shutil.which("git")
@@ -158,19 +159,24 @@ def is_dependabot_requirement_carrier_text(
 ) -> bool:
     """Recognize the exact content class accepted by the pinned snapshot.
 
-    The pinned shared-file-fetcher snapshot accepts any valid-encoding candidate
-    with ``requirements`` in its name.  For other candidates, every line must
-    be blank, a comment, a supported pip directive, or match the pinned
+    Before classification, every newline-delimited record must fit the shared
+    line budget; over-bound input is unclassifiable and fails closed. The pinned
+    shared-file-fetcher snapshot accepts any remaining valid-encoding candidate
+    with ``requirements`` in its name. For other candidates, every line must be
+    blank, a comment, a supported pip directive, or match the pinned
     requirement-parser snapshot.
     """
 
     normalized = normalize_repo_relative_path(path)
-    if DEPENDABOT_REQUIREMENTS_NAME_FRAGMENT in normalized.as_posix():
-        return True
     # Ruby String#lines uses the newline record separator. Python splitlines()
     # also splits on vertical-tab and Unicode separators, which would widen the
     # accepted class by turning one invalid upstream line into multiple lines.
-    for raw_line in text.split("\n"):
+    raw_lines = text.split("\n")
+    if any(len(raw_line) > DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS for raw_line in raw_lines):
+        raise DependabotRequirementDiscoveryError(normalized)
+    if DEPENDABOT_REQUIREMENTS_NAME_FRAGMENT in normalized.as_posix():
+        return True
+    for raw_line in raw_lines:
         stripped = raw_line.strip(" \t\r\n\v\f\0")
         if not stripped or stripped.startswith("#"):
             continue
