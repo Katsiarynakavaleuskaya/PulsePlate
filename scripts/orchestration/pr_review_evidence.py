@@ -1089,9 +1089,6 @@ def validated_duplicate_reply_urls(
                 return False
         except UnicodeEncodeError:
             return False
-        lowered = body.lower()
-        if not any(term in lowered for term in ("ancestry", "commit graph", "commit-graph")):
-            return False
 
         def has_exact_token(value: str) -> bool:
             return (
@@ -1102,7 +1099,27 @@ def validated_duplicate_reply_urls(
                 is not None
             )
 
-        return has_exact_token(material_head_sha) and has_exact_token(selected_ref)
+        if not has_exact_token(material_head_sha):
+            return False
+        selected_token = rf"(?<![0-9A-Fa-f])`?{re.escape(selected_ref)}`?(?![0-9A-Fa-f])"
+        direct_ancestry_claim = re.search(
+            rf"\bnot an ancestor of[ \t]+{selected_token}",
+            body,
+            re.IGNORECASE,
+        )
+        labeled_ref_claim = re.search(
+            rf"\b(?:reviewer(?:[ -]execution)?|unavailable)[ -]ref(?:erence)?\b"
+            rf"[ \t]*(?::|=|is)?[ \t]*{selected_token}",
+            body,
+            re.IGNORECASE,
+        )
+        if direct_ancestry_claim is not None:
+            return True
+        lowered = body.lower()
+        has_commit_graph_cause = any(
+            term in lowered for term in ("ancestry", "commit graph", "commit-graph")
+        )
+        return has_commit_graph_cause and labeled_ref_claim is not None
 
     def root_has_canonical_mapping_path(url: str) -> bool:
         match = root_url_re.fullmatch(url)

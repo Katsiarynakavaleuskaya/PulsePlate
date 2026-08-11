@@ -194,8 +194,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 1. **Checkboxes and mapping do not substitute fixes.**
    Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
 2. **Review threads cannot be resolved without disposition evidence.**
-3. **Resolved threads must be listed under Fixed in Commit Mapping** in canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with Disposition + proof (Commit/Evidence/Backlog).
-4. Every resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence with the thread listed as `- <url>` (no commit required); **DEFERRED** → Backlog link with the thread listed as `- <url>` (no commit required).
+3. **Resolved threads must be listed under Fixed in Commit Mapping** in canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with Disposition + proof (Commit/Evidence/Backlog). Validator-covered canonical reply-only roots under rule 10 are the only exception: the exact reply and resolved thread are the disposition evidence, and they must not create a second artifact entry or docs commit.
+4. Every other resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence with the thread listed as `- <url>` (no commit required); **DEFERRED** → Backlog link with the thread listed as `- <url>` (no commit required). A reply-only root not covered by the rule 10 validator remains subject to this ordinary mapping requirement.
 5. If no disposition can be determined, **the thread remains open**.
 6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
 7. **FIXED proof quality (trigger-only ban):** A commit SHA used as FIXED proof (`- <thread_url> -> <commit_sha>`) MUST NOT be a trigger-only commit. **Trigger-only** means: (a) **empty commit** (no changed files), or (b) commit subject containing `trigger ci`, `rerun ci`, or `rerun checks` (case-insensitive). Such SHAs are invalid FIXED proof and fail the merge readiness gate. Exceptions only via allowlist with TTL (empty by default; P2 if needed).
@@ -265,8 +265,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     `chatgpt-codex-connector` with `originalCommit` equal to the exact live head;
     that live head must be the sole direct mapping-only successor of the sealed
     material, and both heads must recompute to the sealed digest. The root must
-    name the ancestry/commit-graph cause, the exact sealed material SHA, and one
-    full lowercase reviewer ref with hexadecimal token boundaries. After an
+    name the exact sealed material SHA and bind the selected full lowercase ref,
+    with hexadecimal token boundaries, either directly as the object of its
+    `not an ancestor of` assertion or under an explicit reviewer-ref or
+    unavailable-ref label. An unrelated SHA occurrence is insufficient. After an
     explicit human decision to post it, exactly one later GraphQL-authenticated
     `OWNER` reply must be this single line, with no Markdown, whitespace, newline,
     or extra text:

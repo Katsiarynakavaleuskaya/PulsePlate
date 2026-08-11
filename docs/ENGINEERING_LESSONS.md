@@ -891,12 +891,17 @@ Classify the new review item before choosing the recovery path:
    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
    It applies only to one resolved connector root on the canonical mapping file
    whose `originalCommit` is the exact live direct mapping-only successor, whose
-   sealed digest recomputes, and whose body binds the cause, sealed material SHA,
-   and selected ref. The selected ref must be definitively unavailable; unknown
+   sealed digest recomputes, and whose body names the sealed material SHA while
+   binding the selected ref either to `not an ancestor of` or an explicit
+   reviewer-ref/unavailable-ref label. An unrelated SHA mention is insufficient.
+   The selected ref must be definitively unavailable; unknown
    or real refs and multiple eligible roots remain blocking. Count every live
    thread root before URL-only disposition filtering, and bind authenticated
    evidence to the case-insensitively equal snapshot repository. The validator
-   never posts the reply or sends the unavailable ref to ancestry.
+   never posts the reply or sends the unavailable ref to ancestry. When it covers
+   the root, the exact reply plus resolved thread is the disposition evidence;
+   do not add another mapping entry or docs commit. Non-covered roots remain
+   subject to ordinary mapping.
 
 The mapping artifact remains excluded from the material digest. Every real
 correction must be based on and advance material, invalidate the prior seal,

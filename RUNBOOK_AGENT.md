@@ -592,8 +592,10 @@ Use this as the canonical operating loop from branch creation to merge window:
      `chatgpt-codex-connector` root on the canonical current-PR mapping file.
      Confirm first that the root `originalCommit` is the live head, the live
      head is the sole direct mapping-only successor of the sealed material, the
-     digest recomputes exactly, and the root binds the ancestry/commit-graph
-     cause plus the exact sealed material SHA and reviewer ref. A human must
+     digest recomputes exactly, and the root names the exact sealed material SHA
+     while binding the selected reviewer ref either to its `not an ancestor of`
+     assertion or to an explicit reviewer-ref/unavailable-ref label. An unrelated
+     SHA mention is not evidence. A human must
      explicitly confirm the disposition before posting exactly this one line:
      `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
      There must be exactly one later comment whose authenticated GraphQL
@@ -606,7 +608,9 @@ Use this as the canonical operating loop from branch creation to merge window:
      disposition filtering, and require the authenticated evidence repository
      to match the snapshot repository case-insensitively. The validator only
      reads this evidence; it never posts it and the line grants no approval or
-     merge authority.
+     merge authority. For a root actually covered by this validator, the exact
+     reply plus resolved thread is the disposition evidence; do not add a second
+     mapping entry or docs commit. Every non-covered root follows ordinary mapping.
 7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain

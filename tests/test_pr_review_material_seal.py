@@ -6092,7 +6092,17 @@ def _owner_only_empty_mapping_coverage(
         "is unavailable. Unrelated base-short 909aed84... and live URL "
         f"https://github.com/owner/repo/commit/{live_head_sha}."
     )
-    if root_body_variant == "missing-cause":
+    if root_body_variant == "real-2265":
+        root_body = (
+            f"Material `{sealed_head_sha}` is not an ancestor of `{selected_ref}` "
+            "(`git merge-base --is-ancestor` exits 1). The latter is the reviewed commit."
+        )
+    elif root_body_variant == "unrelated-selected-ref":
+        root_body = (
+            f"Commit ancestry finding for sealed material {sealed_head_sha}. "
+            f"An unrelated appendix mentions SHA {selected_ref}."
+        )
+    elif root_body_variant == "missing-cause":
         root_body = root_body.replace("Commit ancestry finding", "Review finding")
     elif root_body_variant == "missing-material":
         root_body = root_body.replace(sealed_head_sha, "material-head-missing", 1)
@@ -6266,6 +6276,32 @@ def test_owner_only_empty_mapping_accepts_exact_unavailable_422(
     )
 
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_only_empty_mapping_accepts_real_2265_ancestry_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_body_variant="real-2265",
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_only_empty_mapping_rejects_unrelated_selected_ref_mention(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_body_variant="unrelated-selected-ref",
+    )
+
+    assert covered == set()
 
 
 def test_owner_only_empty_mapping_counts_root_hidden_by_url_only_disposition_filter(
@@ -7838,6 +7874,17 @@ def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
         assert "## Discussion Thread Pass" in document
         assert "### Fixed in Commit Mapping" in document
         assert "checked checklist" in document
+
+
+def test_agents_limits_mapping_exception_to_validator_covered_reply_only_roots() -> None:
+    agents = (closeout_module.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert (
+        "Validator-covered canonical reply-only roots under rule 10 are the only exception"
+        in agents
+    )
+    assert "the exact reply and resolved thread are the disposition evidence" in agents
+    assert "Every other resolved actionable must appear" in agents
 
 
 def test_closeout_init_is_atomic_and_idempotent(

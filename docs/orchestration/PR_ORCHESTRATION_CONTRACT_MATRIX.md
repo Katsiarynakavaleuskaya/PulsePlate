@@ -336,9 +336,10 @@ exactly `chatgpt-codex-connector`, target
 live head. That head must be the sole direct mapping-only successor whose direct
 parent is the sealed material head; recomputing both material projections must
 equal the sealed digest. The root body is not sent through the generic SHA
-lexer. It is checked only for an ancestry/commit-graph cause and exact,
-hex-boundary-delimited occurrences of the sealed material SHA and the reviewer
-ref selected by the reply. After an explicit human decision to post it, exactly
+lexer. It must contain the exact, hex-boundary-delimited sealed material SHA and
+bind the reply-selected ref to the actual claim: either as the object of a
+`not an ancestor of` assertion or under an explicit reviewer-ref/unavailable-ref
+label. An unrelated occurrence of that SHA is insufficient. After an explicit human decision to post it, exactly
 one later comment with GraphQL `authorAssociation=OWNER` must equal this one
 line byte-for-byte:
 
@@ -360,7 +361,11 @@ only a bounded NOT-A-BUG disposition; it is not review, provider output,
 approval, merge authority, or a bypass of actual findings, current-head CI,
 trusted security checks, unresolved threads, ancestry, mapping-only closeout,
 or the wait window. A canonical fingerprint record or any FIXED mapping keeps
-this owner-only branch inactive and preserves the existing paths unchanged.
+this owner-only branch inactive and preserves the existing paths unchanged. A
+root actually covered by a canonical reply-only validator is the narrow
+exception to ordinary artifact mapping: its exact reply plus resolved thread is
+the disposition evidence, and no second mapping entry or docs commit is created.
+Every non-covered resolved actionable retains the ordinary mapping requirement.
 
 For the canonical-fingerprint and mapped-FIX recordless paths, the cited review
 ref must resolve as unavailable (not
