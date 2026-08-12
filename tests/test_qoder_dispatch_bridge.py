@@ -312,6 +312,21 @@ def test_qoder_rejects_v2_noncanonical_candidate_path(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_v2_without_repeated_family_contract_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    packet["required_context"] = [
+        path
+        for path in required_context
+        if path != task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT
+    ]
+
+    with pytest.raises(ValueError, match="required_context"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_qoder_rejects_not_required_v2_with_injected_secondary_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

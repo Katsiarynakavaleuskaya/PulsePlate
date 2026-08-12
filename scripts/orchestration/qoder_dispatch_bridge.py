@@ -66,6 +66,7 @@ from scripts.orchestration.context_pack import repo_relative_paths
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
+    INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT,
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
     INVARIANT_REVIEW_V2_COVERAGE_CLAIM,
     INVARIANT_REVIEW_V2_SCHEMA_VERSION,
@@ -668,12 +669,15 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     candidate_paths = payload.get("candidate_paths")
     requested_agents = payload.get("requested_agents")
+    required_context = payload.get("required_context")
     design_lane_contract = payload.get("design_lane_contract")
     if (
         not isinstance(candidate_paths, list)
         or any(not isinstance(value, str) for value in candidate_paths)
         or not isinstance(requested_agents, list)
         or any(not isinstance(value, str) for value in requested_agents)
+        or not isinstance(required_context, list)
+        or any(not isinstance(value, str) for value in required_context)
         or not isinstance(design_lane_contract, dict)
         or not isinstance(creative_learning_hints, dict)
         or not isinstance(creative_learning_hints.get("source_hints_fingerprint"), str)
@@ -683,6 +687,10 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     if repo_relative_paths(candidate_paths) != candidate_paths:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical")
+    if INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT not in required_context:
+        raise ValueError(
+            "invariant_review.v2 required_context must include the repeated-family contract"
+        )
     try:
         expected_packet_id = compute_invariant_family_review_packet_id(
             goal=cast(str, required_strings["goal"]),
