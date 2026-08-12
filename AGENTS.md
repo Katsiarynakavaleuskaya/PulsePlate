@@ -1100,9 +1100,19 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 ### Public surface contract
 
-- `app/__init__.py` uses PEP 562 forwarding to `legacy_app`
-- Required symbols: `resolve_attr`, `make_weekly_menu`, `build_nutrition_targets`, `get_update_scheduler`
-- Verify: `python -c "import app; needed=['resolve_attr','make_weekly_menu','build_nutrition_targets','get_update_scheduler']; print('missing:', [n for n in needed if not hasattr(app, n)])"`
+- `app/__init__.py` is a finite PEP 562 facade. Its facade-owned compatibility
+  exports are exactly `app`, `resolve_attr`,
+  `make_weekly_menu`, `build_nutrition_targets`, `metrics`, `lifespan`,
+  `get_update_scheduler`, `api_key_header`, `get_api_key`,
+  `_get_api_key_dynamic`, `FEATURE_BMI_PRO_ENABLED`, `bmi_router`,
+  `bmi_pro_router`, `bmi_pro_legacy_alias_router`, `get_bodyfat_router`,
+  `MATPLOTLIB_AVAILABLE`, `generate_bmi_visualization`, `BMIRequest`,
+  `_is_truthy`, and `_macros_to_kcal`.
+- Ordinary package globals and Python-created submodule bindings are not
+  compatibility exports and are outside that finite set. Names that are
+  neither existing package attributes nor explicit compatibility exports fail
+  with a facade-owned `AttributeError`.
+- Unknown-name lookup and `dir(app)` must not import or enumerate `legacy_app`.
 
 ### See RUNBOOK_AGENT.md for detailed grep commands
 
@@ -1807,8 +1817,9 @@ Violation of this rule blocks merge.
 
 ## Known pitfalls
 
-- Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
-  Import hygiene guards prevent regression.
+- Dual Base issue: Fixed in PR #403. `app/__init__.py` now exposes one finite
+  PEP 562 compatibility surface while preserving the single FastAPI instance.
+  Import hygiene and facade guards prevent regression.
 
 ## Frontend form handling rules (hard)
 
@@ -1878,7 +1889,7 @@ import { NumberInput } from "@/components/ui/number-input";
 
 - There must be exactly ONE FastAPI app instance used by runtime and tests.
   - Entrypoint: `app.main:app`
-  - `app/__init__.py` is a shim only (no dynamic loading).
+  - `app/__init__.py` is a finite compatibility facade (no dynamic loading).
 
 - Forbidden patterns (cause namespace duplication / Dual Base):
   - `importlib.util.spec_from_file_location`
@@ -2064,9 +2075,11 @@ git grep -n "sys\.path\.insert" -- tests \
 git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests || true
 ```
 
-### 4) Verify app shim contract (PEP 562 shim)
+### 4) Verify finite app facade contract (PEP 562)
 
-`import app` must be a stable facade for legacy surface.
+`import app` must resolve only the reviewed facade-owned compatibility surface.
+Names that are neither existing package attributes nor explicit compatibility
+exports must fail closed without importing `legacy_app`.
 
 ```bash
 git grep -nE "import legacy_app|app\s*=\s*_legacy\.app|def __getattr__|def __dir__" -- app/__init__.py

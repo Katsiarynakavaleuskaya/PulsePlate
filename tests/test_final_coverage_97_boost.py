@@ -4,10 +4,12 @@ Final boost to reach 97% coverage by targeting specific uncovered lines.
 
 import asyncio
 import os
+import subprocess
+import sys
+import textwrap
 from unittest.mock import MagicMock, patch
 
 import pytest
-import app as app_mod
 from fastapi.testclient import TestClient
 from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_admin_get_update_scheduler
 
@@ -20,22 +22,185 @@ os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
 class TestAppInitCoverage:
     """Tests for app/__init__.py uncovered lines."""
 
-    def test_app_init_getattr_fallback(self):
-        """Test __getattr__ fallback in app/__init__.py."""
+    def test_unknown_access_forms_and_dir_do_not_load_legacy(self) -> None:
+        """Unknown access forms and ``dir`` remain fail-closed and side-effect free."""
+        scenario = textwrap.dedent("""
+            import importlib
+            import sys
+
+            package = importlib.import_module("app")
+            assert "legacy_app" not in sys.modules
+            assert "app_module" not in sys.modules
+
+            def assert_no_legacy_imports():
+                assert "legacy_app" not in sys.modules
+                assert "app_module" not in sys.modules
+
+            try:
+                getattr(package, "HTTPException")
+            except AttributeError as exc:
+                assert str(exc) == "module 'app' has no attribute 'HTTPException'"
+            else:
+                raise AssertionError("unexpected facade export: HTTPException")
+            assert_no_legacy_imports()
+
+            assert not hasattr(package, "admin_status")
+            assert_no_legacy_imports()
+
+            try:
+                exec("from app import _install_openapi_builder", {})
+            except ImportError:
+                pass
+            else:
+                raise AssertionError("unexpected facade import: _install_openapi_builder")
+            assert_no_legacy_imports()
+
+            advertised = dir(package)
+            assert_no_legacy_imports()
+            assert not {"HTTPException", "admin_status", "_install_openapi_builder"} & set(
+                advertised
+            )
+            """)
+
+        result = subprocess.run(
+            [sys.executable, "-c", scenario],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_finite_facade_exports_exact_canonical_objects(self) -> None:
+        """The complete 20-name facade surface resolves to canonical owners."""
+        import bmi_visualization
         import app
+        import app.main as app_main
+        import legacy_app
+        from app.bootstrap.lifespan import application_lifespan
+        from app.bootstrap.metrics import metrics_endpoint
+        from app.routers.api_key import api_key_header, get_api_key, _get_api_key_dynamic
+        from app.routers.bodyfat import get_router
+        from app.schemas.bmi_compat import BMIRequest
+        from app.services.pro_nutrition_plate import _macros_to_kcal
+        from app.services.scheduler_access import get_update_scheduler
+        from app.utils.feature_flags import _is_truthy
+        from core.menu_engine import make_weekly_menu
+        from core.recommendations import build_nutrition_targets
+        from core.utils import resolve_attr
 
-        # Access a non-existent attribute to trigger __getattr__
-        with pytest.raises(AttributeError):
-            _ = app.nonexistent_attribute_for_testing
+        expected = {
+            "app": legacy_app.app,
+            "resolve_attr": resolve_attr,
+            "make_weekly_menu": make_weekly_menu,
+            "build_nutrition_targets": build_nutrition_targets,
+            "metrics": metrics_endpoint,
+            "lifespan": application_lifespan,
+            "get_update_scheduler": get_update_scheduler,
+            "api_key_header": api_key_header,
+            "get_api_key": get_api_key,
+            "_get_api_key_dynamic": _get_api_key_dynamic,
+            "FEATURE_BMI_PRO_ENABLED": app_main.FEATURE_BMI_PRO_ENABLED,
+            "bmi_router": app_main.bmi_router,
+            "bmi_pro_router": app_main.bmi_pro_router,
+            "bmi_pro_legacy_alias_router": app_main.bmi_pro_legacy_alias_router,
+            "get_bodyfat_router": get_router,
+            "MATPLOTLIB_AVAILABLE": bmi_visualization.MATPLOTLIB_AVAILABLE,
+            "generate_bmi_visualization": bmi_visualization.generate_bmi_visualization,
+            "BMIRequest": BMIRequest,
+            "_is_truthy": _is_truthy,
+            "_macros_to_kcal": _macros_to_kcal,
+        }
 
-    def test_app_init_all_exports(self):
-        """Test all exports from app/__init__.py."""
-        import app
+        facade_names = set(app._LOCAL_EXPORTS) | {
+            "app",
+            "MATPLOTLIB_AVAILABLE",
+            "generate_bmi_visualization",
+        }
+        assert set(expected) == facade_names
+        assert len(facade_names) == 20
+        for name, canonical_object in expected.items():
+            assert getattr(app, name) is canonical_object
+        assert app.app is app_main.app is legacy_app.app
+        assert app.__all__ == [
+            "app",
+            "get_update_scheduler",
+            "lifespan",
+            "get_api_key",
+            "resolve_attr",
+            "make_weekly_menu",
+            "build_nutrition_targets",
+            "FEATURE_BMI_PRO_ENABLED",
+            "bmi_router",
+            "bmi_pro_router",
+            "bmi_pro_legacy_alias_router",
+            "get_bodyfat_router",
+            "MATPLOTLIB_AVAILABLE",
+            "generate_bmi_visualization",
+        ]
 
-        # Verify all expected attributes exist
-        assert hasattr(app, "app")
-        assert hasattr(app, "get_api_key")
-        assert hasattr(app, "HTTPException")
+    @pytest.mark.parametrize(
+        "imports",
+        (
+            "import app; import app.main as app_main; import legacy_app",
+            "import app.main as app_main; import app; import legacy_app",
+            "import legacy_app; import app; import app.main as app_main",
+        ),
+    )
+    def test_supported_import_orders_share_one_fastapi_instance(self, imports: str) -> None:
+        """Normal import orders preserve one FastAPI instance without reload churn."""
+        scenario = textwrap.dedent(f"""
+            {imports}
+            from app.bootstrap.metrics import metrics_endpoint
+
+            assert app.app is app_main.app is legacy_app.app
+            assert app.metrics is metrics_endpoint
+            """)
+        result = subprocess.run(
+            [sys.executable, "-c", scenario],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    @pytest.mark.parametrize("preserve_sentinel", (False, True))
+    def test_metrics_parent_binding_cleanup_is_identity_bound(
+        self, preserve_sentinel: bool
+    ) -> None:
+        """Bootstrap removes only the exact metrics module package binding."""
+        scenario = textwrap.dedent(f"""
+            import importlib
+            import sys
+
+            package = importlib.import_module("app")
+            metrics_module = importlib.import_module("app.metrics")
+            assert vars(package).get("metrics") is metrics_module
+
+            sentinel = object()
+            preserve_sentinel = {preserve_sentinel!r}
+            if preserve_sentinel:
+                package.metrics = sentinel
+
+            importlib.import_module("app.main")
+            assert sys.modules["app.metrics"] is metrics_module
+
+            if preserve_sentinel:
+                assert vars(package).get("metrics") is sentinel
+            else:
+                assert "metrics" not in vars(package)
+                from app.bootstrap.metrics import metrics_endpoint
+                assert package.metrics is metrics_endpoint
+            """)
+        result = subprocess.run(
+            [sys.executable, "-c", scenario],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 class TestConfTestCoverage:
