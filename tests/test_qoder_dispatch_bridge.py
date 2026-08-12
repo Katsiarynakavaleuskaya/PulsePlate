@@ -179,6 +179,44 @@ def test_qoder_rejects_open_or_semantically_widened_v2(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_v2_idempotency_digest_mismatched_to_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    family_repeat = packet["invariant_review"]["family_repeat"]
+    family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("0" * 64)
+
+    with pytest.raises(ValueError, match="must match artifact_fingerprint"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("target", "invalid_id"),
+    [
+        ("family", ""),
+        ("family", "client_secret"),
+        ("family", "f" * 65),
+        ("finding", ""),
+        ("finding", "api_key"),
+        ("finding", "f" * 65),
+    ],
+)
+def test_qoder_rejects_noncanonical_l1_identifiers_in_v2_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+    invalid_id: str,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    repeated = packet["invariant_review"]["family_repeat"]["repeated_families"][0]
+    if target == "family":
+        repeated["family_id"] = invalid_id
+    else:
+        repeated["finding_ids"] = sorted([invalid_id, "finding_b"])
+
+    with pytest.raises(ValueError, match="canonical L1 identifier"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -213,6 +214,7 @@ def test_active_review_rejects_extra_requested_roles() -> None:
         "artifacts/orchestration/review_invariant_family_relations/nested/input.json",
         "artifacts/orchestration/review_invariant_family_relations/input.txt",
         "artifacts/orchestration/review_invariant_family_relations/../input.json",
+        "artifacts/orchestration/other/input.json",
     ],
 )
 def test_input_path_must_be_exact_repo_relative_direct_child_json(raw_path: str) -> None:
@@ -220,7 +222,8 @@ def test_input_path_must_be_exact_repo_relative_direct_child_json(raw_path: str)
         _build(raw_path)
 
 
-def test_input_is_limited_to_post_open_review() -> None:
+@pytest.mark.parametrize("pr_phase", ["none", "pre_open", "merge_ready"])
+def test_input_is_limited_to_post_open_review(pr_phase: str) -> None:
     with pytest.raises(ValueError, match="requires --pr-phase post_open_review"):
         task_bootstrap.build_task_packet(
             goal="Review repeated families",
@@ -229,7 +232,7 @@ def test_input_is_limited_to_post_open_review() -> None:
             review_invariant_family_relations_input=(
                 "artifacts/orchestration/review_invariant_family_relations/input.json"
             ),
-            pr_phase="pre_open",
+            pr_phase=pr_phase,
         )
 
 
@@ -263,6 +266,70 @@ def test_directory_input_fails_closed_as_non_regular() -> None:
             _build(directory.relative_to(REPO_ROOT).as_posix())
     finally:
         directory.rmdir()
+
+
+@pytest.mark.parametrize("nonregular_kind", ["fifo", "socket"])
+def test_fifo_and_socket_inputs_fail_closed_with_nonblocking_open(
+    monkeypatch: pytest.MonkeyPatch,
+    nonregular_kind: str,
+) -> None:
+    INPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    path = INPUT_ROOT / f"n-{uuid.uuid4().hex[:8]}.json"
+    unix_socket: socket.socket | None = None
+    if nonregular_kind == "fifo":
+        os.mkfifo(path, 0o600)
+    else:
+        unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        monkeypatch.chdir(REPO_ROOT)
+        unix_socket.bind(path.relative_to(REPO_ROOT).as_posix())
+
+    real_open = os.open
+    final_open_seen = False
+
+    def assert_nonblocking_open(
+        opened_path: str | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal final_open_seen
+        if opened_path == path.name:
+            final_open_seen = True
+            assert flags & os.O_NONBLOCK
+        return real_open(opened_path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(task_bootstrap.os, "open", assert_nonblocking_open)
+    try:
+        with pytest.raises(ValueError, match="regular file|could not be read safely"):
+            task_bootstrap._read_invariant_family_relations_input(
+                path.relative_to(REPO_ROOT).as_posix()
+            )
+        assert final_open_seen
+    finally:
+        if unix_socket is not None:
+            unix_socket.close()
+        path.unlink(missing_ok=True)
+
+
+def test_symlinked_fixed_root_component_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    orchestration_root = tmp_path / "artifacts/orchestration"
+    real_input_root = tmp_path / "real-input-root"
+    orchestration_root.mkdir(parents=True)
+    real_input_root.mkdir()
+    (real_input_root / "input.json").write_text("{}", encoding="ascii")
+    (orchestration_root / "review_invariant_family_relations").symlink_to(
+        real_input_root, target_is_directory=True
+    )
+    monkeypatch.setattr(task_bootstrap, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(ValueError, match="could not be read safely"):
+        task_bootstrap._read_invariant_family_relations_input(
+            "artifacts/orchestration/review_invariant_family_relations/input.json"
+        )
 
 
 def test_limit_plus_one_input_fails_closed_before_l1() -> None:

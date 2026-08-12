@@ -104,6 +104,23 @@ INVARIANT_FAMILY_RELATION_VALUES = frozenset(
         "disjoint",
     }
 )
+INVARIANT_FAMILY_MAX_ID_ASCII_BYTES = 64
+_INVARIANT_FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,62}[A-Za-z0-9])?$", re.ASCII)
+_INVARIANT_FAMILY_FORBIDDEN_ID_RE = re.compile(
+    r"(?:[Aa][Cc][Cc][Ee][Ss][Ss][_-]?[Kk][Ee][Yy]|"
+    r"[Aa][Ii][Zz][Aa]|[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|"
+    r"[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|"
+    r"[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|"
+    r"[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|"
+    r"[Gg][Ll][Pp][Aa][Tt]-|"
+    r"[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Nn][Pp][Mm]_|"
+    r"[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
+    r"[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|"
+    r"[Ss][Kk]-[A-Za-z0-9_-]{12,}|"
+    r"[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|"
+    r"[Tt][Oo][Kk][Ee][Nn]|[Xx][Aa][Pp][Pp]-|[Xx][Oo][Xx][AaBbCcPpRrSs]-)",
+    re.ASCII,
+)
 _SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
 _L1_IDEMPOTENCY_RE = re.compile(r"^review-invariant-family-relations\.v1:[a-f0-9]{64}$", re.ASCII)
 CURRENT_TASK_PACKET_SCHEMA_VERSION = "3.1"
@@ -487,6 +504,24 @@ def _validate_string_list(value: Any, *, field: str) -> List[str]:
     return cast(List[str], value)
 
 
+def _validate_invariant_family_id(value: Any, *, field: str) -> str:
+    """Mirror the bounded L1 identifier contract for a closed projection."""
+
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a canonical L1 identifier")
+    try:
+        encoded = value.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{field} must be a canonical L1 identifier") from exc
+    if (
+        len(encoded) > INVARIANT_FAMILY_MAX_ID_ASCII_BYTES
+        or _INVARIANT_FAMILY_ID_RE.fullmatch(value) is None
+        or _INVARIANT_FAMILY_FORBIDDEN_ID_RE.search(value) is not None
+    ):
+        raise ValueError(f"{field} must be a canonical L1 identifier")
+    return value
+
+
 def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
     """Validate the closed L2 projection without recomputing any L1 relation."""
 
@@ -523,12 +558,18 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
         value = family_repeat.get(field)
         if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
             raise ValueError(f"family_repeat {field} must be a canonical SHA-256 fingerprint")
+    artifact_fingerprint = cast(str, family_repeat["artifact_fingerprint"])
     idempotency_key = family_repeat.get("idempotency_key")
     if (
         not isinstance(idempotency_key, str)
         or _L1_IDEMPOTENCY_RE.fullmatch(idempotency_key) is None
     ):
         raise ValueError("family_repeat idempotency_key must be canonical")
+    expected_idempotency_key = (
+        "review-invariant-family-relations.v1:" + artifact_fingerprint.removeprefix("sha256:")
+    )
+    if idempotency_key != expected_idempotency_key:
+        raise ValueError("family_repeat idempotency_key must match artifact_fingerprint")
     if family_repeat.get("trigger_rule") != INVARIANT_FAMILY_REPEAT_TRIGGER_RULE:
         raise ValueError("family_repeat trigger_rule is unsupported")
     if family_repeat.get("membership_source") != INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE:
@@ -543,12 +584,16 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
     for row in repeated_families:
         if not isinstance(row, dict) or set(row) != INVARIANT_FAMILY_ROW_FIELDS:
             raise ValueError("family_repeat repeated family rows must use the closed shape")
-        family_id = row.get("family_id")
+        family_id = _validate_invariant_family_id(
+            row.get("family_id"), field="family_repeat family_id"
+        )
         finding_ids = _validate_string_list(
             row.get("finding_ids"), field="family_repeat repeated finding_ids"
         )
-        if not isinstance(family_id, str) or len(finding_ids) < 2:
+        if len(finding_ids) < 2:
             raise ValueError("family_repeat requires explicit family cardinality at least two")
+        for finding_id in finding_ids:
+            _validate_invariant_family_id(finding_id, field="family_repeat repeated finding_id")
         if finding_ids != sorted(set(finding_ids)):
             raise ValueError("family_repeat finding_ids must be unique and canonical")
         repeated_ids.append(family_id)
@@ -563,9 +608,13 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
     for row in relations:
         if not isinstance(row, dict) or set(row) != INVARIANT_FAMILY_RELATION_FIELDS:
             raise ValueError("family_repeat relation rows must use the unchanged L1 shape")
-        left = row.get("left_family_id")
-        right = row.get("right_family_id")
-        if not isinstance(left, str) or not isinstance(right, str) or not left < right:
+        left = _validate_invariant_family_id(
+            row.get("left_family_id"), field="family_repeat left_family_id"
+        )
+        right = _validate_invariant_family_id(
+            row.get("right_family_id"), field="family_repeat right_family_id"
+        )
+        if not left < right:
             raise ValueError("family_repeat relation endpoints must be canonical")
         if left not in repeated_id_set and right not in repeated_id_set:
             raise ValueError("family_repeat relation must touch a repeated family")
@@ -577,6 +626,8 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
             "right_only_finding_ids",
         ):
             values = _validate_string_list(row.get(field), field=f"family_repeat {field}")
+            for finding_id in values:
+                _validate_invariant_family_id(finding_id, field=f"family_repeat {field} finding_id")
             if values != sorted(set(values)):
                 raise ValueError(f"family_repeat {field} must be unique and canonical")
         relation_pairs.append((left, right))
