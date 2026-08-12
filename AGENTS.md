@@ -194,8 +194,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 1. **Checkboxes and mapping do not substitute fixes.**
    Phase 2 / merge-readiness checklists may be marked only **after** a disposition is recorded.
 2. **Review threads cannot be resolved without disposition evidence.**
-3. **Resolved threads must be listed under Fixed in Commit Mapping** in canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with Disposition + proof (Commit/Evidence/Backlog).
-4. Every resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence with the thread listed as `- <url>` (no commit required); **DEFERRED** → Backlog link with the thread listed as `- <url>` (no commit required).
+3. **Resolved threads must be listed under Fixed in Commit Mapping** in canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` with Disposition + proof (Commit/Evidence/Backlog). Validator-covered canonical reply-only roots under rule 10 are the only exception: the exact reply and resolved thread are the disposition evidence, and they must not create a second artifact entry or docs commit.
+4. Every other resolved actionable must appear in **Fixed in Commit Mapping** (artifact) with disposition-specific proof: **FIXED** → Commit SHA (and mapping line `- <url> -> <sha>`); **NOT-A-BUG** → Evidence with the thread listed as `- <url>` (no commit required); **DEFERRED** → Backlog link with the thread listed as `- <url>` (no commit required). A reply-only root not covered by the rule 10 validator remains subject to this ordinary mapping requirement.
 5. If no disposition can be determined, **the thread remains open**.
 6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
 7. **FIXED proof quality (trigger-only ban):** A commit SHA used as FIXED proof (`- <thread_url> -> <commit_sha>`) MUST NOT be a trigger-only commit. **Trigger-only** means: (a) **empty commit** (no changed files), or (b) commit subject containing `trigger ci`, `rerun ci`, or `rerun checks` (case-insensitive). Such SHAs are invalid FIXED proof and fail the merge readiness gate. Exceptions only via allowlist with TTL (empty by default; P2 if needed).
@@ -259,7 +259,38 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     is covered only when exactly one fully eligible recordless seed is currently
     visible; ineligible same-fingerprint comments do not affect cardinality, but
     if more than one eligible seed is visible, none is covered and all remain
-    blocking. Neither path creates another docs commit or restarts
+    blocking. A separate owner-only recordless path is available only when that
+    same thread root has no canonical fingerprint record or FIXED mapping. It may
+    coexist with unrelated canonical records and requires one resolved root on
+    the canonical current-PR mapping artifact, authored by
+    `chatgpt-codex-connector` with `originalCommit` equal to the exact live head;
+    that live head must be the sole direct mapping-only successor of the sealed
+    material, and both heads must recompute to the sealed digest. The root must
+    name an ancestry/commit-graph cause and contain exact, hex-boundary-delimited
+    occurrences of the sealed material SHA and the lowercase ref selected by the
+    OWNER reply. The validator deliberately does not infer a natural-language
+    relationship between those tokens or interpret the rest of the bot prose.
+    Before posting, the human OWNER must inspect the whole root and confirm that
+    it contains no independent actionable finding beyond the unavailable-ref
+    ancestry claim; otherwise this reply-only class is forbidden and ordinary
+    disposition/mapping remains required. After that explicit human decision,
+    exactly one later GraphQL-authenticated
+    `OWNER` reply must be this single line, with no Markdown, whitespace, newline,
+    or extra text:
+    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
+    The selected ref comes only from that reply and must resolve specifically as
+    `REVIEW_REF_UNAVAILABLE`; `API_UNKNOWN` is terminal, and any real repository
+    or PR commit is ineligible. Unavailable refs never enter ancestry. Exactly one
+    globally eligible owner-only root may be covered; two leave both blocking.
+    Global eligibility is counted across every live thread root before caller
+    URL filtering, and the case-insensitive owner/repository identity used for
+    authenticated evidence must equal the live PR snapshot repository.
+    The exact OWNER reply selects the unavailable ref and records the human
+    disposition for that one root; automation does not derive that disposition
+    from bot wording. The validator is read-only and never authors the reply. This narrow
+    NOT-A-BUG disposition is not review, approval, merge authority, or a bypass
+    of findings, CI, security, mapping, thread, ancestry, or wait-window gates.
+    None of the reply-only paths creates another docs commit or restarts
     review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical
     mapping and after the live PR body contains its canonical link, but before

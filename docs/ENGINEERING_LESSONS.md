@@ -884,8 +884,30 @@ Classify the new review item before choosing the recovery path:
    otherwise keep the finding unresolved and use the same clean replacement
    flow.
 8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
-   refs, force-push history, or use operator approval to bypass the hard
-   disposition gate.
+   refs, force-push history, or use generic operator approval to bypass the hard
+   disposition gate. The only owner response recognized for a root without its
+   own canonical fingerprint or FIXED mapping is the closed per-root class;
+   unrelated canonical records may coexist. After an explicit human decision,
+   one exact GraphQL-`OWNER` reply may say
+   `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
+   It applies only to one resolved connector root on the canonical mapping file
+   whose `originalCommit` is the exact live direct mapping-only successor, whose
+   sealed digest recomputes, and whose body names an ancestry/commit-graph cause
+   plus exact, hex-boundary-delimited occurrences of the sealed material SHA and
+   lowercase selected ref. The validator intentionally does not interpret the
+   root's natural-language clauses. Before posting, the human OWNER must inspect
+   the whole root and confirm it has no independent actionable finding beyond
+   the unavailable-ref ancestry claim; otherwise ordinary disposition applies.
+   The selected ref must be definitively unavailable; unknown
+   or real refs and multiple eligible roots remain blocking. Count every live
+   thread root before URL-only disposition filtering, and bind authenticated
+   evidence to the case-insensitively equal snapshot repository. The validator
+   never posts the reply or sends the unavailable ref to ancestry. The exact
+   reply is the human selection and disposition of that root, not a conclusion
+   derived from bot prose. When it covers the root, the exact reply plus resolved
+   thread is the disposition evidence;
+   do not add another mapping entry or docs commit. Non-covered roots remain
+   subject to ordinary mapping.
 
 The mapping artifact remains excluded from the material digest. Every real
 correction must be based on and advance material, invalidate the prior seal,
@@ -902,6 +924,10 @@ into another parser variant.
   technical CI.
 - Reuse a structured reply only when the validator can bind it to an existing
   same-digest fingerprint record.
+- For the per-root owner-only class, obtain explicit human confirmation and use
+  only the exact one-line response; unrelated canonical records may coexist, but
+  do not translate the covered root into another mapping, fingerprint, generic
+  approval, or parser variant.
 - Treat a strict-wrapper disposition failure as evidence to restart the
   governed recovery, not as grounds for a carrier commit or operator merge
   exception.
