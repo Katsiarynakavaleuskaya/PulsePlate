@@ -1863,6 +1863,8 @@ def build_task_packet(
             design_lane_mode=design_lane_mode,
             design_lane_contract=design_lane_contract,
             creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints_packet),
+            recommended_skills=recommended_skills,
+            skill_routing=skill_routing,
             artifact_fingerprint=str(family_repeat["artifact_fingerprint"]),
             invariant_review_projection=invariant_review_packet,
             required_context=context_pack,

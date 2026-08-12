@@ -190,6 +190,8 @@ def compute_invariant_family_review_packet_id(
     design_lane_mode: str,
     design_lane_contract: dict[str, Any],
     creative_learning_hints_fingerprint: str,
+    recommended_skills: list[str] | tuple[str, ...],
+    skill_routing: dict[str, Any],
     artifact_fingerprint: str,
     invariant_review_projection: dict[str, Any],
     required_context: list[str] | tuple[str, ...],
@@ -249,6 +251,10 @@ def compute_invariant_family_review_packet_id(
                 "required_context_projection_fingerprint": fingerprint_payload(
                     list(required_context)
                 ),
+                "recommended_skills_projection_fingerprint": fingerprint_payload(
+                    list(recommended_skills)
+                ),
+                "skill_routing_projection_fingerprint": fingerprint_payload(skill_routing),
                 "role_assignment_projection_fingerprint": fingerprint_payload(
                     {
                         "primary_agent": primary_agent,

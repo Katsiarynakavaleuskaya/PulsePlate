@@ -281,6 +281,8 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
         creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
             first["creative_learning_hints"]
         ),
+        recommended_skills=first["recommended_skills"],
+        skill_routing=first["skill_routing"],
         artifact_fingerprint=family_repeat["artifact_fingerprint"],
         invariant_review_projection=first["invariant_review"],
         required_context=first["required_context"],
@@ -301,6 +303,12 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
                 ),
                 "required_context_projection_fingerprint": (
                     task_bootstrap.fingerprint_payload(first["required_context"])
+                ),
+                "recommended_skills_projection_fingerprint": (
+                    task_bootstrap.fingerprint_payload(first["recommended_skills"])
+                ),
+                "skill_routing_projection_fingerprint": task_bootstrap.fingerprint_payload(
+                    first["skill_routing"]
                 ),
                 "role_assignment_projection_fingerprint": task_bootstrap.fingerprint_payload(
                     {
@@ -379,6 +387,8 @@ def test_v2_identity_rejects_delimiter_collision_in_creative_fingerprint() -> No
             design_lane_mode=packet["design_lane_mode"],
             design_lane_contract=packet["design_lane_contract"],
             creative_learning_hints_fingerprint="delta\nepsilon",
+            recommended_skills=packet["recommended_skills"],
+            skill_routing=packet["skill_routing"],
             artifact_fingerprint=family_repeat["artifact_fingerprint"],
             invariant_review_projection=packet["invariant_review"],
             required_context=packet["required_context"],

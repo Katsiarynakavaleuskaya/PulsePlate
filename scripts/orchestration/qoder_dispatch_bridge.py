@@ -62,7 +62,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict as load_creative_pilot_json_strict,
     validate_task_pilot_context,
 )
-from scripts.orchestration.context_pack import repo_relative_paths
+from scripts.orchestration.context_pack import collect_context_pack, repo_relative_paths
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
@@ -70,6 +70,10 @@ from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
     INVARIANT_REVIEW_V2_COVERAGE_CLAIM,
     INVARIANT_REVIEW_V2_SCHEMA_VERSION,
+    JUDGMENT_REQUIRED_CONTEXT_FILES,
+    REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
+    REQUESTED_AGENT_STATUS_HONORED_REVIEWER,
+    REQUESTED_AGENT_STATUS_HONORED_SECONDARY,
     build_role_agent_dispatch_contract,
     partition_native_secondaries,
 )
@@ -654,9 +658,9 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
     """Bind the closed L2 projection to the existing deterministic packet identity."""
 
     invariant_review = payload.get("invariant_review")
-    family_repeat = (
-        invariant_review.get("family_repeat") if isinstance(invariant_review, dict) else None
-    )
+    if not isinstance(invariant_review, dict):
+        raise ValueError("invariant_review.v2 identity source fields must be canonical")
+    family_repeat = invariant_review.get("family_repeat")
     creative_learning_hints = payload.get("creative_learning_hints")
     required_strings = {
         "goal": payload.get("goal"),
@@ -669,24 +673,70 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     candidate_paths = payload.get("candidate_paths")
     requested_agents = payload.get("requested_agents")
+    requested_agent_disposition = payload.get("requested_agent_disposition")
     required_context = payload.get("required_context")
     design_lane_contract = payload.get("design_lane_contract")
+    recommended_skills = payload.get("recommended_skills")
+    skill_routing = payload.get("skill_routing")
     if (
         not isinstance(candidate_paths, list)
         or any(not isinstance(value, str) for value in candidate_paths)
         or not isinstance(requested_agents, list)
         or any(not isinstance(value, str) for value in requested_agents)
+        or not isinstance(requested_agent_disposition, list)
         or not isinstance(required_context, list)
         or any(not isinstance(value, str) for value in required_context)
         or not isinstance(design_lane_contract, dict)
         or not isinstance(creative_learning_hints, dict)
         or not isinstance(creative_learning_hints.get("source_hints_fingerprint"), str)
+        or not isinstance(recommended_skills, list)
+        or any(not isinstance(value, str) for value in recommended_skills)
+        or not isinstance(skill_routing, dict)
         or not isinstance(family_repeat, dict)
         or not isinstance(family_repeat.get("artifact_fingerprint"), str)
     ):
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     if repo_relative_paths(candidate_paths) != candidate_paths:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical")
+    if requested_agents != list(dict.fromkeys(requested_agents)) or any(
+        value != value.strip() or not _ROLE_SLUG_RE.fullmatch(value) for value in requested_agents
+    ):
+        raise ValueError("invariant_review.v2 requested_agents must be canonical")
+    disposition_agents = [
+        row["agent"]
+        for row in requested_agent_disposition
+        if isinstance(row, dict) and isinstance(row.get("agent"), str)
+    ]
+    if disposition_agents != requested_agents:
+        raise ValueError(
+            "invariant_review.v2 requested_agents must exactly match " "requested_agent_disposition"
+        )
+    if invariant_review.get("state") == "required_pending" and any(
+        agent not in INVARIANT_FAMILY_REVIEW_ROLE_ORDER for agent in requested_agents
+    ):
+        raise ValueError(
+            "required_pending invariant_review.v2 requested_agents must stay inside "
+            "the repeated-family role order"
+        )
+    if invariant_review.get("state") == "required_pending":
+        for row in requested_agent_disposition:
+            if not isinstance(row, dict) or not isinstance(row.get("agent"), str):
+                continue
+            agent = cast(str, row["agent"])
+            expected_status = (
+                REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+                if agent == "agent-coordinator"
+                else (
+                    REQUESTED_AGENT_STATUS_HONORED_REVIEWER
+                    if agent == "security-auditor"
+                    else REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+                )
+            )
+            if row.get("status") != expected_status:
+                raise ValueError(
+                    "required_pending invariant_review.v2 requested-agent status "
+                    "must match the fixed role assignment"
+                )
     if (
         repo_relative_paths(required_context) != required_context
         or any(Path(path).is_absolute() or ".." in Path(path).parts for path in required_context)
@@ -695,6 +745,30 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError(
             "invariant_review.v2 required_context must be canonical and include the "
             "repeated-family contract"
+        )
+    producer_owned_context = set(
+        collect_context_pack(
+            cast(List[str], candidate_paths),
+            include_orchestration=True,
+        )
+    )
+    producer_owned_context.update(JUDGMENT_REQUIRED_CONTEXT_FILES)
+    producer_owned_context.add(INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT)
+    if any(path not in producer_owned_context for path in required_context):
+        raise ValueError(
+            "invariant_review.v2 required_context must use producer-owned context paths"
+        )
+    required_context_baseline = set(
+        collect_context_pack(
+            cast(List[str], candidate_paths),
+            include_orchestration=False,
+        )
+    )
+    required_context_baseline.add(INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT)
+    if not required_context_baseline.issubset(required_context):
+        raise ValueError(
+            "invariant_review.v2 required_context must preserve the required "
+            "producer context baseline"
         )
     try:
         expected_packet_id = compute_invariant_family_review_packet_id(
@@ -707,6 +781,8 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
             design_lane_mode=cast(str, required_strings["design_lane_mode"]),
             design_lane_contract=cast(Dict[str, Any], design_lane_contract),
             creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints),
+            recommended_skills=cast(List[str], recommended_skills),
+            skill_routing=cast(Dict[str, Any], skill_routing),
             artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
             invariant_review_projection=cast(Dict[str, Any], invariant_review),
             required_context=cast(List[str], required_context),
@@ -1457,6 +1533,27 @@ def _parse_loaded_packet_roles(
     return ordered
 
 
+def _packet_required_context_for_manifest(
+    payload: Optional[Dict[str, Any]],
+) -> Optional[List[str]]:
+    """Project already-validated v2 packet context into the dispatch manifest."""
+
+    if not isinstance(payload, dict):
+        return None
+    invariant_review = payload.get("invariant_review")
+    if (
+        not isinstance(invariant_review, dict)
+        or invariant_review.get("schema_version") != INVARIANT_REVIEW_V2_SCHEMA_VERSION
+    ):
+        return None
+    return list(
+        _validate_string_list(
+            payload.get("required_context"),
+            field="invariant_review.v2 required_context",
+        )
+    )
+
+
 def _parse_packet_roles(packet_path: Path) -> List[str]:
     """Extract ordered role slugs from a governance packet.
 
@@ -1709,6 +1806,7 @@ def build_dispatch_manifest(
     enforce_mandatory_post_open_tail: bool = True,
     implementation_owners: Optional[Iterable[str]] = None,
     creative_pilot_context: Optional[Dict[str, Any]] = None,
+    packet_required_context: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     if creative_pilot_context is not None:
@@ -1717,6 +1815,14 @@ def build_dispatch_manifest(
         except CreativePilotContractError as exc:
             raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
     context_map = _parse_context_map()
+    normalized_packet_required_context = (
+        []
+        if packet_required_context is None
+        else _validate_string_list(
+            packet_required_context,
+            field="packet_required_context",
+        )
+    )
     routing = _ensure_routing_graph()
     primary_slugs = _primary_slugs_from_routing(routing)
     reviewer_slugs = _reviewer_slugs_from_routing(routing)
@@ -1754,6 +1860,10 @@ def build_dispatch_manifest(
             implementation_owners=explicit_implementation_owners,
         )
         context_paths = context_map.get(slug, [])
+        if packet_required_context is not None:
+            context_paths = list(
+                dict.fromkeys([*context_paths, *normalized_packet_required_context])
+            )
         skills = _recommend_skills(slug)
 
         implementation_owner_override = (
@@ -1963,6 +2073,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     packet_bracket_groups: Optional[List[List[str]]] = None
     packet_chained_successors: Optional[set[str]] = None
     packet_json_payload: Optional[Dict[str, Any]] = None
+    packet_required_context: Optional[List[str]] = None
     enforce_mandatory_post_open_tail = True
     if args.packet:
         packet_input_path = Path(args.packet)
@@ -1976,6 +2087,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 json_designated=json_designated,
             )
             role_slugs = _parse_loaded_packet_roles(packet_path, packet_json_payload)
+            packet_required_context = _packet_required_context_for_manifest(packet_json_payload)
         except ValueError as exc:
             print(f"FAIL: {exc}", file=sys.stderr)
             return 1
@@ -2080,6 +2192,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
         implementation_owners=implementation_owner_slugs,
         creative_pilot_context=creative_pilot_context,
+        packet_required_context=packet_required_context,
     )
     if manifest.get("missing_agents"):
         print(

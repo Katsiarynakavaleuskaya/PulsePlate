@@ -107,7 +107,12 @@ v1 packet behavior, identity, and manifest remain unchanged.
 
 Qoder accepts closed v1 and v2 branches. For v2 it validates the exact packet,
 family-repeat, role, authority, phase, and dispatch shapes without recomputing
-L1 relations or inferring any omitted fact.
+L1 relations or inferring any omitted fact. Every v2 dispatch entry receives
+the already-validated packet `required_context`. It must preserve core and
+scoped-agent context plus this L2 contract, and it is restricted to
+producer-owned core/orchestration context, scoped `AGENTS.md`, judgment
+context, and this contract; the L1 input path and other local artifact paths
+are never added.
 
 ## Identity and review outcomes
 
@@ -115,11 +120,12 @@ Input-free identity is the existing v1 identity. With input, identity is framed
 from the existing base packet ID, canonical L1 `artifact_fingerprint`, the
 fixed trigger rule, and a deterministic fingerprint of the exact closed
 `invariant_review.v2` projection plus the exact canonical `required_context`
-and primary/secondary/reviewer and requested-agent disposition projections.
+and `recommended_skills`, `skill_routing`, primary/secondary/reviewer, and
+requested-agent disposition projections.
 Equivalent canonical L1 input replays therefore retain the same identity;
 changing the canonical artifact, state, family-repeat rows, closed v2
-projection, role context, or role assignment changes it. This is an internal
-packet-identity check and does not recompute or validate L1 relations.
+projection, role/skill context, or role assignment changes it. This is an
+internal packet-identity check and does not recompute or validate L1 relations.
 Control characters in the L2 base-identity text fields fail closed before the
 legacy delimiter-framed base ID is used; the input-free v1 identity is
 unchanged.
