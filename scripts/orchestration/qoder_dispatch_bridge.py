@@ -66,9 +66,12 @@ from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
     INVARIANT_REVIEW_V2_COVERAGE_CLAIM,
     INVARIANT_REVIEW_V2_SCHEMA_VERSION,
+    _bind_invariant_family_review_packet_id,
+    _design_fingerprint,
     build_role_agent_dispatch_contract,
     partition_native_secondaries,
 )
+from scripts.orchestration.context_pack import compute_task_packet_id
 
 PR_PHASE_NONE = "none"
 PR_PHASE_PRE_OPEN = "pre_open"
@@ -652,6 +655,9 @@ def _validated_v2_dispatch_role_order(
 ) -> Optional[List[str]]:
     if payload.get("pr_phase") != PR_PHASE_POST_OPEN_REVIEW:
         raise ValueError("invariant_review.v2 is limited to post_open_review")
+    if payload.get("creative_pilot_context") is not None:
+        raise ValueError("invariant review dispatch cannot be combined with creative pilot context")
+    _validate_v2_task_packet_id(payload)
     role_dispatch_contract = payload.get("role_agent_dispatch_contract")
     declared_order = (
         role_dispatch_contract.get("dispatch_role_order")
@@ -662,6 +668,17 @@ def _validated_v2_dispatch_role_order(
         if declared_order is not None:
             raise ValueError(
                 "not_required invariant_review.v2 must not declare dispatch_role_order"
+            )
+        expected_tail = list(MANDATORY_POST_OPEN_ORDER)
+        assigned_secondaries = payload.get("secondary_agents")
+        if (
+            payload.get("primary_agent") != expected_tail[0]
+            or not isinstance(assigned_secondaries, list)
+            or assigned_secondaries[:2] != expected_tail[1:]
+            or spawnable_roles[:3] != expected_tail
+        ):
+            raise ValueError(
+                "not_required invariant_review.v2 requires the exact ordinary post-open role tail"
             )
         return None
     if not isinstance(declared_order, list) or declared_order != list(
@@ -674,9 +691,67 @@ def _validated_v2_dispatch_role_order(
         raise ValueError(
             "required_pending invariant_review.v2 requires the exact spawnable role order"
         )
-    if payload.get("creative_pilot_context") is not None:
-        raise ValueError("invariant review dispatch cannot be combined with creative pilot context")
     return cast(List[str], declared_order)
+
+
+def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
+    """Bind the closed L2 projection to the existing deterministic packet identity."""
+
+    invariant_review = payload.get("invariant_review")
+    family_repeat = (
+        invariant_review.get("family_repeat") if isinstance(invariant_review, dict) else None
+    )
+    creative_learning_hints = payload.get("creative_learning_hints")
+    required_strings = {
+        "goal": payload.get("goal"),
+        "task_class": payload.get("task_class"),
+        "domain": payload.get("domain"),
+        "pr_phase": payload.get("pr_phase"),
+        "design_lane_mode": payload.get("design_lane_mode"),
+    }
+    if any(not isinstance(value, str) for value in required_strings.values()):
+        raise ValueError("invariant_review.v2 identity source fields must be canonical")
+    candidate_paths = payload.get("candidate_paths")
+    requested_agents = payload.get("requested_agents")
+    design_lane_contract = payload.get("design_lane_contract")
+    if (
+        not isinstance(candidate_paths, list)
+        or any(not isinstance(value, str) for value in candidate_paths)
+        or not isinstance(requested_agents, list)
+        or any(not isinstance(value, str) for value in requested_agents)
+        or not isinstance(design_lane_contract, dict)
+        or not isinstance(creative_learning_hints, dict)
+        or not isinstance(creative_learning_hints.get("source_hints_fingerprint"), str)
+        or not isinstance(family_repeat, dict)
+        or not isinstance(family_repeat.get("artifact_fingerprint"), str)
+    ):
+        raise ValueError("invariant_review.v2 identity source fields must be canonical")
+    try:
+        base_packet_id = compute_task_packet_id(
+            goal=cast(str, required_strings["goal"]),
+            task_class=cast(str, required_strings["task_class"]),
+            domain=cast(str, required_strings["domain"]),
+            candidate_paths=cast(List[str], candidate_paths),
+            requested_agents=cast(List[str], requested_agents),
+            pr_phase=cast(str, required_strings["pr_phase"]),
+            design_fingerprint=_design_fingerprint(
+                design_lane_mode=cast(str, required_strings["design_lane_mode"]),
+                design_lane_contract=cast(Dict[str, Any], design_lane_contract),
+            ),
+            creative_learning_hints_fingerprint=cast(
+                str, creative_learning_hints["source_hints_fingerprint"]
+            ),
+        )
+        expected_packet_id = _bind_invariant_family_review_packet_id(
+            base_packet_id,
+            artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invariant_review.v2 identity source fields must be canonical") from exc
+    if payload.get("task_packet_id") != expected_packet_id:
+        raise ValueError(
+            "invariant_review.v2 task_packet_id must bind the canonical artifact fingerprint"
+        )
 
 
 def _validated_dispatch_role_order(

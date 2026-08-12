@@ -832,13 +832,13 @@ def _read_invariant_family_relations_input(raw_path: str) -> dict[str, Any]:
         os.O_RDONLY
         | _required_open_flag("O_DIRECTORY")
         | _required_open_flag("O_NOFOLLOW")
-        | getattr(os, "O_CLOEXEC", 0)
+        | _required_open_flag("O_CLOEXEC")
     )
     file_flags = (
         os.O_RDONLY
         | _required_open_flag("O_NOFOLLOW")
-        | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_NONBLOCK", 0)
+        | _required_open_flag("O_CLOEXEC")
+        | _required_open_flag("O_NONBLOCK")
     )
     directory_fds: list[int] = []
     file_fd = -1

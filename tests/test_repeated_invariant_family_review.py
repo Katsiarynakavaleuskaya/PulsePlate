@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.qoder_dispatch_bridge as qoder_dispatch_bridge
 import scripts.orchestration.review_invariant_family_relations as relations
 import scripts.orchestration.task_bootstrap as task_bootstrap
 
@@ -152,11 +153,85 @@ def test_cardinality_below_two_retains_ordinary_post_open_tail() -> None:
 
 
 def test_no_input_preserves_exact_existing_v1_packet_and_identity() -> None:
-    implicit = _build()
-    explicit_none = _build(None)
+    packet = _build()
 
-    assert implicit == explicit_none
-    assert implicit["invariant_review"]["schema_version"] == "invariant_review.v1"
+    assert packet["task_packet_id"] == "54bddc0ef1ba"
+    assert packet["invariant_review"] == {
+        "schema_version": "invariant_review.v1",
+        "state": "not_required",
+        "change_classes": ["authority"],
+        "trigger_evidence": [
+            {
+                "change_class": "authority",
+                "source": "bounded_path_hint",
+                "path": "scripts/orchestration/task_bootstrap.py",
+            }
+        ],
+        "coverage_claim": "explicit_plus_bounded_positive_triggers_only",
+        "required_roles": [],
+        "boundary_classes": [
+            "finite_closed_world",
+            "bounded_surface",
+            "delegated_recognizer",
+            "open_world_stop",
+        ],
+        "required_output_fields": [
+            "invariant_statement",
+            "boundary_class",
+            "canonical_sot",
+            "completeness_claim",
+            "counterexample_families",
+            "fail_closed_behavior",
+            "stop_condition",
+            "residual_risk",
+        ],
+        "stop_condition": (
+            "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
+        ),
+        "implementation_authority": False,
+        "merge_authority": False,
+    }
+    assert packet["primary_agent"] == "qa-engineer-agent"
+    assert packet["secondary_agents"] == [
+        "bug-hunter",
+        "security-auditor",
+        "agent-coordinator",
+        "cursor-specialist-agent",
+    ]
+    assert packet["reviewer"] == "architecture-specialist"
+    assert packet["requested_agents"] == ["agent-coordinator"]
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "agent-coordinator",
+            "status": "honored_secondary",
+            "reason": "Requested agent stayed honored in secondary after PR lifecycle synthesis.",
+        }
+    ]
+    bridge = packet["native_subagent_bridge"]
+    assert bridge["primary"]["repo_agent_slug"] == "qa-engineer-agent"
+    assert [row["repo_agent_slug"] for row in bridge["secondary"]] == [
+        "bug-hunter",
+        "security-auditor",
+        "agent-coordinator",
+        "cursor-specialist-agent",
+    ]
+    assert bridge["advisory"] == []
+    assert bridge["reviewer"]["repo_agent_slug"] == "architecture-specialist"
+    dispatch = packet["role_agent_dispatch_contract"]
+    assert "dispatch_role_order" not in dispatch
+    assert dispatch["dispatch_manifest_command"] == (
+        "python3 scripts/orchestration/role_dispatch_bridge.py --packet <packet> --pretty"
+    )
+    assert dispatch["runtime_implementation_owner_flags_required"] is False
+    assert dispatch["runtime_implementation_owners"] == []
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+        "cursor-specialist-agent",
+        "architecture-specialist",
+    ]
 
 
 def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> None:
@@ -310,6 +385,24 @@ def test_fifo_and_socket_inputs_fail_closed_with_nonblocking_open(
         if unix_socket is not None:
             unix_socket.close()
         path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize("missing_flag", ["O_NONBLOCK", "O_CLOEXEC"])
+def test_missing_required_open_capability_fails_before_open(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_flag: str,
+) -> None:
+    monkeypatch.delattr(task_bootstrap.os, missing_flag)
+
+    def unexpected_open(*_args: object, **_kwargs: object) -> int:
+        pytest.fail("os.open must not run without every required descriptor flag")
+
+    monkeypatch.setattr(task_bootstrap.os, "open", unexpected_open)
+
+    with pytest.raises(ValueError, match=rf"requires {missing_flag} support"):
+        task_bootstrap._read_invariant_family_relations_input(
+            "artifacts/orchestration/review_invariant_family_relations/input.json"
+        )
 
 
 def test_symlinked_fixed_root_component_fails_closed(

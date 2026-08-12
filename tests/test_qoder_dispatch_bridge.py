@@ -235,6 +235,49 @@ def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
     assert review["state"] == "not_required"
 
 
+def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    packet["primary_agent"] = "agent-coordinator"
+    packet["secondary_agents"] = []
+    packet["reviewer"] = "security-auditor"
+    packet["requested_agent_disposition"] = [
+        {
+            "agent": "agent-coordinator",
+            "status": "honored_primary",
+            "reason": "Forged canonical assignment without the ordinary post-open tail.",
+        }
+    ]
+    packet["native_subagent_bridge"] = build_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=[],
+        advisory_agents=[],
+        reviewer="security-auditor",
+    )
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=packet["native_subagent_bridge"],
+        pr_phase="post_open_review",
+    )
+
+    with pytest.raises(ValueError, match="exact ordinary post-open role tail"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_artifact_pair_tampering_with_stale_task_packet_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    original_packet_id = packet["task_packet_id"]
+    family_repeat = packet["invariant_review"]["family_repeat"]
+    family_repeat["artifact_fingerprint"] = "sha256:" + ("3" * 64)
+    family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("3" * 64)
+    assert packet["task_packet_id"] == original_packet_id
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def require_feature(feature_key: str) -> None:
     """Skip with the repo-standard optional-feature reason prefix."""
 
