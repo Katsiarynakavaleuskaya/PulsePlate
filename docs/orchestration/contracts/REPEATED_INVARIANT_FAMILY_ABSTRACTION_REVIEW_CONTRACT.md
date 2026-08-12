@@ -120,6 +120,9 @@ Equivalent canonical L1 input replays therefore retain the same identity;
 changing the canonical artifact, state, family-repeat rows, closed v2
 projection, role context, or role assignment changes it. This is an internal
 packet-identity check and does not recompute or validate L1 relations.
+Control characters in the L2 base-identity text fields fail closed before the
+legacy delimiter-framed base ID is used; the input-free v1 identity is
+unchanged.
 
 The closed recommendation vocabulary for role-agent output metadata is:
 

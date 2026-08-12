@@ -343,6 +343,52 @@ def test_v2_identity_binds_final_judgment_context(
     )
 
 
+@pytest.mark.parametrize(
+    ("goal", "task_class"),
+    [("alpha\nbeta", "gamma"), ("alpha", "beta\ngamma")],
+)
+def test_v2_identity_rejects_control_character_delimiter_collisions(
+    goal: str,
+    task_class: str,
+) -> None:
+    with _relations_input() as input_path:
+        with pytest.raises(ValueError, match="control characters"):
+            task_bootstrap.build_task_packet(
+                goal=goal,
+                task_class=task_class,
+                candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+                requested_agents=["agent-coordinator"],
+                review_invariant_family_relations_input=input_path,
+                pr_phase="post_open_review",
+            )
+
+
+def test_v2_identity_rejects_delimiter_collision_in_creative_fingerprint() -> None:
+    with _relations_input() as input_path:
+        packet = _build(input_path)
+
+    family_repeat = packet["invariant_review"]["family_repeat"]
+    with pytest.raises(ValueError, match="control characters"):
+        bootstrap_sync_policy.compute_invariant_family_review_packet_id(
+            goal="alpha",
+            task_class="beta",
+            domain=packet["domain"],
+            candidate_paths=["gamma"],
+            requested_agents=packet["requested_agents"],
+            pr_phase=packet["pr_phase"],
+            design_lane_mode=packet["design_lane_mode"],
+            design_lane_contract=packet["design_lane_contract"],
+            creative_learning_hints_fingerprint="delta\nepsilon",
+            artifact_fingerprint=family_repeat["artifact_fingerprint"],
+            invariant_review_projection=packet["invariant_review"],
+            required_context=packet["required_context"],
+            primary_agent=packet["primary_agent"],
+            secondary_agents=packet["secondary_agents"],
+            reviewer=packet["reviewer"],
+            requested_agent_disposition=packet["requested_agent_disposition"],
+        )
+
+
 def test_active_review_rejects_extra_requested_roles() -> None:
     with _relations_input() as input_path:
         with pytest.raises(ValueError, match="rejects extra requested agents"):

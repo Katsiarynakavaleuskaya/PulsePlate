@@ -200,6 +200,20 @@ def compute_invariant_family_review_packet_id(
 ) -> str:
     """Bind the closed v2 review and role projections into the packet-id frame."""
 
+    base_identity_strings = (
+        goal,
+        task_class,
+        domain,
+        pr_phase,
+        creative_learning_hints_fingerprint,
+        *candidate_paths,
+        *requested_agents,
+    )
+    if any(
+        any(ord(character) < 32 or ord(character) == 127 for character in value)
+        for value in base_identity_strings
+    ):
+        raise ValueError("invariant_review.v2 base identity strings reject control characters")
     canonical_design_contract = dict(design_lane_contract)
     canonical_design_contract["blockers"] = canonicalize_design_blockers(
         list(design_lane_contract.get("blockers", ()))
