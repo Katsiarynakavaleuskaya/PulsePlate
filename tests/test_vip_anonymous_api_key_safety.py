@@ -39,6 +39,8 @@ class TestVIPAnonymousAPIKeySafety:
             with monkeypatch.context() as request_env:
                 request_env.setenv("APP_ENV", "production")
                 request_env.setenv("DEBUG", "false")
+                request_env.setenv("API_KEY", "secret-key")
+                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
                 # Test request without API key to VIP endpoint
                 response = client.post(
@@ -345,6 +347,7 @@ class TestVIPAnonymousAPIKeySafety:
                 request_env.setenv("APP_ENV", "production")
                 request_env.setenv("DEBUG", "false")
                 request_env.setenv("API_KEY", "secret-key")
+                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
                 # Test request with invalid API key
                 response = client.post(
@@ -374,7 +377,7 @@ class TestVIPAnonymousAPIKeySafety:
                 request_env.delenv("DEBUG", raising=False)
                 request_env.setenv("ALLOW_DEV_API_KEY", "false")
 
-                # Test request without API key - should allow in default local mode
+                # Missing API keys fail closed under the default environment values.
                 response = client.post(
                     "/api/v1/vip/weekly-plan",
                     json={

@@ -41,6 +41,7 @@ class TestVIPProductionMode:
             with monkeypatch.context() as request_env:
                 request_env.setenv("APP_ENV", "production")
                 request_env.setenv("API_KEY", "secret-key")
+                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
                 # Test request without API key to VIP endpoint
                 response = client.post("/api/v1/vip/weekly-plan", json={"test": "data"})
@@ -57,6 +58,7 @@ class TestVIPProductionMode:
             with monkeypatch.context() as request_env:
                 request_env.setenv("APP_ENV", "production")
                 request_env.setenv("API_KEY", "secret-key")
+                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
                 # Test request with wrong API key
                 response = client.post(
@@ -132,6 +134,7 @@ class TestVIPProductionMode:
             with monkeypatch.context() as request_env:
                 request_env.setenv("APP_ENV", "production")
                 request_env.setenv("API_KEY", "secret-key")
+                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
                 # Test recipes endpoint without API key
                 response = client.post("/api/v1/vip/recipes/synthesize", json={"ingredients": []})
@@ -148,6 +151,7 @@ class TestVIPProductionMode:
             with monkeypatch.context() as request_env:
                 request_env.setenv("APP_ENV", "production")
                 request_env.setenv("API_KEY", "secret-key")
+                request_env.setenv("VIP_API_KEYS", "secret-key")  # pragma: allowlist secret
 
                 # Test regions endpoint without API key
                 response = client.get("/api/v1/vip/regions")
