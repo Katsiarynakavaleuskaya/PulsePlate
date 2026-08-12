@@ -529,7 +529,7 @@ def _json_values_equal_exact(observed: Any, expected: Any) -> bool:
             _json_values_equal_exact(observed_item, expected_item)
             for observed_item, expected_item in zip(observed, expected, strict=True)
         )
-    return observed == expected
+    return bool(observed == expected)
 
 
 def _validate_existing_evidence(
