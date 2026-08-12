@@ -1,27 +1,43 @@
+import subprocess
 import sys
+import textwrap
+from pathlib import Path
 
 from module_purge import purge_modules
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def test_purge_modules_respects_exclusions_and_removes_only_targets() -> None:
-    # Import real modules to avoid mutating sys.modules directly in this test.
-    import legacy_app  # noqa: F401
-    import app.main  # noqa: F401
-    import app.models  # noqa: F401
-    import core.db  # noqa: F401
+    scenario = textwrap.dedent("""\
+        import sys
 
-    purge_modules(prefixes=("legacy_app", "app.main"))
+        from module_purge import purge_modules
 
-    assert "legacy_app" not in sys.modules
-    assert "app.main" not in sys.modules
+        import legacy_app
+        import app.main
+        import app.models
+        import core.db
 
-    # protected by default excludes inside module_purge
-    assert "app.models" in sys.modules
-    assert "core.db" in sys.modules
+        purge_modules(prefixes=("legacy_app", "app.main"))
 
-    # Restore baseline for subsequent tests.
-    import legacy_app as _legacy_app  # noqa: F401
-    import app.main as _app_main  # noqa: F401
+        assert "legacy_app" not in sys.modules
+        assert "app.main" not in sys.modules
+        assert "app.models" in sys.modules
+        assert "core.db" in sys.modules
+
+        import legacy_app
+        import app.main
+        """)
+    result = subprocess.run(
+        [sys.executable, "-c", scenario],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_purge_modules_noop_on_empty_prefixes() -> None:
