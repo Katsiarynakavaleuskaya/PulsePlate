@@ -192,8 +192,12 @@ def compute_invariant_family_review_packet_id(
     creative_learning_hints_fingerprint: str,
     artifact_fingerprint: str,
     invariant_review_projection: dict[str, Any],
+    primary_agent: str,
+    secondary_agents: list[str] | tuple[str, ...],
+    reviewer: str,
+    requested_agent_disposition: list[dict[str, str]] | tuple[dict[str, str], ...],
 ) -> str:
-    """Bind the exact closed v2 projection into the existing packet-id frame."""
+    """Bind the closed v2 review and role projections into the packet-id frame."""
 
     canonical_design_contract = dict(design_lane_contract)
     canonical_design_contract["blockers"] = canonicalize_design_blockers(
@@ -226,6 +230,14 @@ def compute_invariant_family_review_packet_id(
                 "trigger_rule": INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
                 "invariant_review_projection_fingerprint": fingerprint_payload(
                     invariant_review_projection
+                ),
+                "role_assignment_projection_fingerprint": fingerprint_payload(
+                    {
+                        "primary_agent": primary_agent,
+                        "secondary_agents": list(secondary_agents),
+                        "reviewer": reviewer,
+                        "requested_agent_disposition": list(requested_agent_disposition),
+                    }
                 ),
             }
         )

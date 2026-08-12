@@ -694,6 +694,12 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
             ),
             artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
             invariant_review_projection=cast(Dict[str, Any], invariant_review),
+            primary_agent=cast(str, payload.get("primary_agent")),
+            secondary_agents=cast(List[str], payload.get("secondary_agents")),
+            reviewer=cast(str, payload.get("reviewer")),
+            requested_agent_disposition=cast(
+                List[Dict[str, str]], payload.get("requested_agent_disposition")
+            ),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("invariant_review.v2 identity source fields must be canonical") from exc

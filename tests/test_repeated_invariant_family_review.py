@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -59,7 +60,11 @@ def _relations_input(*, repeated: bool = True) -> Iterator[str]:
         path.unlink(missing_ok=True)
 
 
-def _build(input_path: str | None = None, *, requested_agents: list[str] | None = None):
+def _build(
+    input_path: str | None = None,
+    *,
+    requested_agents: list[str] | None = None,
+) -> dict[str, Any]:
     return task_bootstrap.build_task_packet(
         goal="Review repeated explicit invariant families",
         task_class="Orchestration",
@@ -272,6 +277,10 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
         creative_learning_hints_fingerprint="",
         artifact_fingerprint=family_repeat["artifact_fingerprint"],
         invariant_review_projection=first["invariant_review"],
+        primary_agent=first["primary_agent"],
+        secondary_agents=first["secondary_agents"],
+        reviewer=first["reviewer"],
+        requested_agent_disposition=first["requested_agent_disposition"],
     )
     independently_framed_id = str(
         task_bootstrap.fingerprint_payload(
@@ -282,6 +291,14 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
                 "trigger_rule": bootstrap_sync_policy.INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
                 "invariant_review_projection_fingerprint": (
                     task_bootstrap.fingerprint_payload(first["invariant_review"])
+                ),
+                "role_assignment_projection_fingerprint": task_bootstrap.fingerprint_payload(
+                    {
+                        "primary_agent": first["primary_agent"],
+                        "secondary_agents": first["secondary_agents"],
+                        "reviewer": first["reviewer"],
+                        "requested_agent_disposition": first["requested_agent_disposition"],
+                    }
                 ),
             }
         )

@@ -6,10 +6,15 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, cast, Dict, List
 
 import pytest
-from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge, task_bootstrap
+from scripts.orchestration import (
+    qoder_dispatch_bridge,
+    review_invariant_family_relations as relations,
+    role_dispatch_bridge,
+    task_bootstrap,
+)
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
@@ -152,7 +157,7 @@ def test_qoder_accepts_closed_v2_without_recomputing_l1(
 ) -> None:
     packet = _v2_packet(monkeypatch)
     monkeypatch.setattr(
-        task_bootstrap,
+        relations,
         "process_input_bytes",
         lambda _raw: pytest.fail("Qoder must not recompute L1"),
     )
@@ -183,7 +188,10 @@ def test_qoder_rejects_v2_idempotency_digest_mismatched_to_artifact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     packet = _v2_packet(monkeypatch)
-    family_repeat = packet["invariant_review"]["family_repeat"]
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    family_repeat = review["family_repeat"]
+    assert isinstance(family_repeat, dict)
     family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("0" * 64)
 
     with pytest.raises(ValueError, match="must match artifact_fingerprint"):
@@ -232,8 +240,58 @@ def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
         native_subagent_bridge=packet["native_subagent_bridge"],
         pr_phase="post_open_review",
     )
+    review = cast(Dict[str, Any], packet["invariant_review"])
+    family_repeat = cast(Dict[str, Any], review["family_repeat"])
+    creative_learning_hints = cast(Dict[str, Any], packet["creative_learning_hints"])
+    packet["task_packet_id"] = task_bootstrap.compute_invariant_family_review_packet_id(
+        goal=cast(str, packet["goal"]),
+        task_class=cast(str, packet["task_class"]),
+        domain=cast(str, packet["domain"]),
+        candidate_paths=cast(List[str], packet["candidate_paths"]),
+        requested_agents=cast(List[str], packet["requested_agents"]),
+        pr_phase=cast(str, packet["pr_phase"]),
+        design_lane_mode=cast(str, packet["design_lane_mode"]),
+        design_lane_contract=cast(Dict[str, Any], packet["design_lane_contract"]),
+        creative_learning_hints_fingerprint=cast(
+            str, creative_learning_hints["source_hints_fingerprint"]
+        ),
+        artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
+        invariant_review_projection=review,
+        primary_agent=cast(str, packet["primary_agent"]),
+        secondary_agents=cast(List[str], packet["secondary_agents"]),
+        reviewer=cast(str, packet["reviewer"]),
+        requested_agent_disposition=cast(
+            List[Dict[str, str]], packet["requested_agent_disposition"]
+        ),
+    )
 
     with pytest.raises(ValueError, match="exact ordinary post-open role tail"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_not_required_v2_with_injected_secondary_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    secondary_agents = packet["secondary_agents"]
+    assert isinstance(secondary_agents, list)
+    secondary_agents.append("philosophy-agent")
+    primary_agent = packet["primary_agent"]
+    reviewer = packet["reviewer"]
+    assert isinstance(primary_agent, str)
+    assert isinstance(reviewer, str)
+    packet["native_subagent_bridge"] = build_native_subagent_bridge(
+        primary_agent=primary_agent,
+        secondary_agents=secondary_agents,
+        advisory_agents=[],
+        reviewer=reviewer,
+    )
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=packet["native_subagent_bridge"],
+        pr_phase="post_open_review",
+    )
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
@@ -242,7 +300,10 @@ def test_qoder_rejects_v2_artifact_pair_tampering_with_stale_task_packet_id(
 ) -> None:
     packet = _v2_packet(monkeypatch)
     original_packet_id = packet["task_packet_id"]
-    family_repeat = packet["invariant_review"]["family_repeat"]
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    family_repeat = review["family_repeat"]
+    assert isinstance(family_repeat, dict)
     family_repeat["artifact_fingerprint"] = "sha256:" + ("3" * 64)
     family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("3" * 64)
     assert packet["task_packet_id"] == original_packet_id
@@ -255,9 +316,15 @@ def test_qoder_rejects_active_projection_substituted_with_not_required_projectio
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     active_packet = _v2_packet(monkeypatch)
-    active_repeat = active_packet["invariant_review"]["family_repeat"]
+    active_review = active_packet["invariant_review"]
+    assert isinstance(active_review, dict)
+    active_repeat = active_review["family_repeat"]
+    assert isinstance(active_repeat, dict)
     not_required_packet = _v2_packet(monkeypatch, repeated=False)
-    not_required_repeat = not_required_packet["invariant_review"]["family_repeat"]
+    not_required_review = not_required_packet["invariant_review"]
+    assert isinstance(not_required_review, dict)
+    not_required_repeat = not_required_review["family_repeat"]
+    assert isinstance(not_required_repeat, dict)
     not_required_repeat["artifact_fingerprint"] = active_repeat["artifact_fingerprint"]
     not_required_repeat["idempotency_key"] = active_repeat["idempotency_key"]
     not_required_packet["task_packet_id"] = active_packet["task_packet_id"]
@@ -270,7 +337,13 @@ def test_qoder_rejects_altered_repeated_families_with_stale_task_packet_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     packet = _v2_packet(monkeypatch)
-    repeated = packet["invariant_review"]["family_repeat"]["repeated_families"]
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    family_repeat = review["family_repeat"]
+    assert isinstance(family_repeat, dict)
+    repeated = family_repeat["repeated_families"]
+    assert isinstance(repeated, list)
+    assert isinstance(repeated[0], dict)
     repeated[0]["finding_ids"] = ["finding_a", "finding_c"]
 
     with pytest.raises(ValueError, match="task_packet_id must bind"):

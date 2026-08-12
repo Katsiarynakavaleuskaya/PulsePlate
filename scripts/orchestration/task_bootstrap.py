@@ -1660,21 +1660,8 @@ def build_task_packet(
         ),
         creative_learning_hints_fingerprint=creative_identity_fingerprint,
     )
-    if family_repeat is not None:
-        packet_id = compute_invariant_family_review_packet_id(
-            goal=goal,
-            task_class=task_class,
-            domain=decision.domain,
-            candidate_paths=normalized_paths,
-            requested_agents=normalized_requested_agents,
-            pr_phase=normalized_pr_phase,
-            design_lane_mode=design_lane_mode,
-            design_lane_contract=design_lane_contract,
-            creative_learning_hints_fingerprint=creative_identity_fingerprint,
-            artifact_fingerprint=str(family_repeat["artifact_fingerprint"]),
-            invariant_review_projection=invariant_review_packet,
-        )
-    else:
+    packet_id: str | None = None
+    if family_repeat is None:
         packet_id = _bind_invariant_review_packet_id(
             base_packet_id,
             invariant_review_fingerprint=invariant_review_decision.fingerprint,
@@ -1842,6 +1829,26 @@ def build_task_packet(
         advisory_agents=advisory_agents,
         transport=native_bridge_transport,
     )
+    if family_repeat is not None:
+        packet_id = compute_invariant_family_review_packet_id(
+            goal=goal,
+            task_class=task_class,
+            domain=decision.domain,
+            candidate_paths=normalized_paths,
+            requested_agents=normalized_requested_agents,
+            pr_phase=normalized_pr_phase,
+            design_lane_mode=design_lane_mode,
+            design_lane_contract=design_lane_contract,
+            creative_learning_hints_fingerprint=creative_identity_fingerprint,
+            artifact_fingerprint=str(family_repeat["artifact_fingerprint"]),
+            invariant_review_projection=invariant_review_packet,
+            primary_agent=requested_agent_resolution["primary_agent"],
+            secondary_agents=requested_agent_resolution["secondary_agents"],
+            reviewer=requested_agent_resolution["reviewer"],
+            requested_agent_disposition=requested_agent_resolution["requested_agent_disposition"],
+        )
+    if packet_id is None:
+        raise RuntimeError("task packet identity was not constructed")
     invariant_dispatch_role_order = None
     if invariant_review_required_now:
         invariant_dispatch_role_order = _build_invariant_dispatch_role_order(native_subagent_bridge)
