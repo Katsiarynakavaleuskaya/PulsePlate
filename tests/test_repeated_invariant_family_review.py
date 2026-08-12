@@ -328,6 +328,20 @@ def test_input_is_limited_to_post_open_review(pr_phase: str) -> None:
         )
 
 
+def test_input_is_incompatible_with_explicit_v1_change_classes() -> None:
+    with pytest.raises(ValueError, match="incompatible with --invariant-change-class"):
+        task_bootstrap.build_task_packet(
+            goal="Review repeated families",
+            task_class="Orchestration",
+            candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+            invariant_change_classes=["guard"],
+            review_invariant_family_relations_input=(
+                "artifacts/orchestration/review_invariant_family_relations/input.json"
+            ),
+            pr_phase="post_open_review",
+        )
+
+
 def test_symlink_input_fails_closed() -> None:
     INPUT_ROOT.mkdir(parents=True, exist_ok=True)
     target = INPUT_ROOT / f"pytest-target-{uuid.uuid4().hex}.json"

@@ -1543,6 +1543,11 @@ def build_task_packet(
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
     family_repeat: dict[str, Any] | None = None
     if review_invariant_family_relations_input is not None:
+        if invariant_change_classes:
+            raise ValueError(
+                "--review-invariant-family-relations-input is incompatible with "
+                "--invariant-change-class"
+            )
         if normalized_pr_phase != PR_PHASE_POST_OPEN_REVIEW:
             raise ValueError(
                 "--review-invariant-family-relations-input requires --pr-phase post_open_review"

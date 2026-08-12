@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import operator
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Mapping
@@ -999,7 +1000,6 @@ def test_runtime_script_has_only_bounded_stdlib_imports_and_no_authority_calls()
 def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
     module_name = "scripts.orchestration.review_invariant_family_relations"
     owner_path = "scripts/orchestration/review_invariant_family_relations.py"
-    production_roots = ("alembic", "app", "core", "evals", "providers", "scripts")
     import_records: list[tuple[str, str, str | None]] = []
     call_records: list[tuple[str, str]] = []
 
@@ -1011,12 +1011,22 @@ def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
             return f"{prefix}.{node.attr}" if prefix else node.attr
         return None
 
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    tracked_python = (
+        subprocess.run(
+            [git_binary, "ls-files", "-z", "--", "*.py"],
+            cwd=REPO_ROOT,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode("utf-8")
+        .split("\0")
+    )
     candidates = sorted(
-        {
-            candidate
-            for root_name in production_roots
-            for candidate in (REPO_ROOT / root_name).rglob("*.py")
-        }
+        REPO_ROOT / relative_path
+        for relative_path in tracked_python
+        if relative_path and not relative_path.startswith("tests/")
     )
     for candidate in candidates:
         relative_path = candidate.relative_to(REPO_ROOT).as_posix()

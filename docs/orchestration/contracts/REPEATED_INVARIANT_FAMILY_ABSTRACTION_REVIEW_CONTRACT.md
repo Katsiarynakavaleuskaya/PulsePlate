@@ -25,6 +25,8 @@ closed packet projection and never calls or reimplements L1.
 The argument is valid only with `--pr-phase post_open_review`. The path must be
 repo-relative and exactly one direct-child `.json` file under the fixed,
 gitignored `artifacts/orchestration/review_invariant_family_relations/` root.
+It is incompatible with `--invariant-change-class`; v1 classification and the
+closed v2 projection cannot silently replace one another.
 Absolute paths, traversal, alternate separators, nested descendants, symlinks,
 non-regular files, missing platform no-follow support, changed-during-read
 files, and inputs above L1's 1 MiB bound fail closed.
