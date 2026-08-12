@@ -217,7 +217,7 @@ class TestAdditionalPremiumBlocks:
                 "activity": "moderate",
             },
         )
-        assert response.status_code in [200, 403, 422]
+        assert response.status_code == 403
 
         # Тест с неправильным API ключом
         monkeypatch.setenv("API_KEY", "correct_key")
@@ -232,7 +232,7 @@ class TestAdditionalPremiumBlocks:
                 "activity": "moderate",
             },
         )
-        assert response.status_code in [200, 403, 422]
+        assert response.status_code == 403
 
 
 class TestWeeklyPlanningAdditionalCoverage:

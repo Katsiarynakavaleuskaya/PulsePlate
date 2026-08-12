@@ -240,7 +240,7 @@ class TestPremiumEndpointErrorHandling:
                 "activity": "moderate",
             },
         )
-        assert response.status_code in [200, 403, 422]
+        assert response.status_code == 403
 
         # Тест с очень длинным API ключом
         long_key = "x" * 1000
@@ -255,4 +255,4 @@ class TestPremiumEndpointErrorHandling:
                 "activity": "moderate",
             },
         )
-        assert response.status_code in [200, 403, 422]
+        assert response.status_code == 403
