@@ -1035,11 +1035,29 @@ def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
         .split("\0")
     )
     candidates = _tracked_non_test_python_paths(REPO_ROOT, tracked_python)
+    candidate_sources = [
+        (
+            "scripts/unrelated_codec.py",
+            "def decode(raw):\n    return codec.process_input_bytes(raw)\n",
+        )
+    ]
     for candidate in candidates:
         relative_path = candidate.relative_to(REPO_ROOT).as_posix()
         if relative_path == owner_path:
             continue
-        tree = ast.parse(candidate.read_text(encoding="utf-8"), filename=relative_path)
+        candidate_sources.append((relative_path, candidate.read_text(encoding="utf-8")))
+    for relative_path, source in candidate_sources:
+        tree = ast.parse(source, filename=relative_path)
+        has_matching_process_input_import = any(
+            isinstance(import_node, ast.ImportFrom)
+            and import_node.level == 0
+            and import_node.module == module_name
+            and any(
+                alias.name == "process_input_bytes" and alias.asname is None
+                for alias in import_node.names
+            )
+            for import_node in ast.walk(tree)
+        )
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -1066,8 +1084,10 @@ def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
                         import_records.append((relative_path, rendered_symbol, alias.asname))
             elif isinstance(node, ast.Call):
                 call_name = dotted_name(node.func)
-                if call_name == "process_input_bytes" or (
-                    call_name is not None and call_name.endswith(".process_input_bytes")
+                if (
+                    has_matching_process_input_import
+                    and isinstance(node.func, ast.Name)
+                    and call_name == "process_input_bytes"
                 ):
                     call_records.append((relative_path, call_name))
                 if (
