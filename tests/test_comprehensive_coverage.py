@@ -14,7 +14,6 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-import app as app_mod
 from app import app
 from app.services import admin_operations, pro_nutrition_plate
 from tests.helpers.fast_update_stubs import (
@@ -276,7 +275,7 @@ class TestComprehensiveCoverage:
         # Since we fixed rollback_database to raise HTTPException,
         # this test now needs to expect HTTPException rather than generic Exception
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(app_mod.rollback_database("usda", "1.0"))
+            asyncio.run(admin_operations.rollback_database("usda", "1.0"))
         # The function should raise because update_manager is None
         assert "update manager" in str(exc_info.value.detail).lower()
 
@@ -293,7 +292,7 @@ class TestComprehensiveCoverage:
         # Since we fixed rollback_database to raise HTTPException,
         # this test now needs to expect HTTPException rather than generic Exception
         with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(app_mod.rollback_database("usda", "1.0"))
+            asyncio.run(admin_operations.rollback_database("usda", "1.0"))
         # The function should raise because rollback_database method is missing
         assert "not supported" in str(exc_info.value.detail).lower()
 

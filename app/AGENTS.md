@@ -473,8 +473,13 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
-- `import app` is a PEP 562 shim: `app.app` MUST point to `legacy_app.app`, and
-  missing symbols are forwarded via `__getattr__`.
+- `import app` is a finite PEP 562 facade: `app.app` MUST point to
+  `legacy_app.app`; only the explicit compatibility exports below may resolve
+  via `__getattr__`. Ordinary package globals and Python-created submodule
+  bindings are not compatibility exports. Names that are neither existing
+  package attributes nor explicit compatibility exports must raise a
+  facade-owned `AttributeError`; unknown-name lookup and `dir(app)` must not
+  import or enumerate `legacy_app`.
 - Feature flags (e.g. exports) may be evaluated at import time; tests must set
   `TESTING=true` before importing `app`/`legacy_app` (handled in `tests/conftest.py`).
 - AgentGuard runtime/test bypasses must not key off `TESTING=true` alone:
@@ -484,7 +489,7 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 ## app package public surface contract
 
-`app/__init__.py` must remain an import shim/forwarder.
+`app/__init__.py` must remain a finite explicit compatibility facade.
 It MUST NOT use dynamic module execution (spec/module_from_spec/exec_module).
 
 If tests import symbols from `app`, update:
@@ -492,15 +497,31 @@ If tests import symbols from `app`, update:
 - `tests/test_app_public_surface.py`
 - `tests/test_repo_policy_guards.py` (required exports set)
 
-### Required symbols (forwarded via PEP 562 __getattr__)
+### Complete compatibility surface
 
-Tests expect these symbols to exist in `app` namespace:
+The facade-owned compatibility surface is exactly this 20-name set. Ordinary
+package globals and Python-created submodule bindings are outside this contract:
 
 - `app.app` (FastAPI instance)
 - `resolve_attr`
 - `make_weekly_menu`
 - `build_nutrition_targets`
+- `metrics`
+- `lifespan`
 - `get_update_scheduler`
+- `api_key_header`
+- `get_api_key`
+- `_get_api_key_dynamic`
+- `FEATURE_BMI_PRO_ENABLED`
+- `bmi_router`
+- `bmi_pro_router`
+- `bmi_pro_legacy_alias_router`
+- `get_bodyfat_router`
+- `MATPLOTLIB_AVAILABLE`
+- `generate_bmi_visualization`
+- `BMIRequest`
+- `_is_truthy`
+- `_macros_to_kcal`
 
 ### Quick verification
 
@@ -512,7 +533,14 @@ rg -n "app\.(build_nutrition_targets|get_update_scheduler|resolve_attr|make_week
 # Smoke test
 python - <<'PY'
 import app
-need = ["resolve_attr","make_weekly_menu","build_nutrition_targets","get_update_scheduler"]
+need = [
+    "app", "resolve_attr", "make_weekly_menu", "build_nutrition_targets",
+    "metrics", "lifespan", "get_update_scheduler", "api_key_header",
+    "get_api_key", "_get_api_key_dynamic", "FEATURE_BMI_PRO_ENABLED",
+    "bmi_router", "bmi_pro_router", "bmi_pro_legacy_alias_router",
+    "get_bodyfat_router", "MATPLOTLIB_AVAILABLE", "generate_bmi_visualization",
+    "BMIRequest", "_is_truthy", "_macros_to_kcal",
+]
 print("missing:", [n for n in need if not hasattr(app, n)])
 PY
 ```
@@ -544,7 +572,7 @@ Run from repo root.
 git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- app || true
 ```
 
-### app shim contract must hold
+### app facade contract must hold
 
 ```bash
 python - <<'PY'
