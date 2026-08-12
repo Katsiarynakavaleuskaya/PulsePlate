@@ -110,9 +110,13 @@ L1 relations or inferring any omitted fact.
 ## Identity and review outcomes
 
 Input-free identity is the existing v1 identity. With input, identity is framed
-from the existing base packet ID, canonical L1 `artifact_fingerprint`, and the
-fixed trigger rule. Equivalent canonical L1 input replays therefore retain the
-same identity; a changed canonical artifact changes it.
+from the existing base packet ID, canonical L1 `artifact_fingerprint`, the
+fixed trigger rule, and a deterministic fingerprint of the exact closed
+`invariant_review.v2` projection. Equivalent canonical L1 input replays
+therefore retain the same identity; changing the canonical artifact, state,
+family-repeat rows, or any other closed v2 projection field changes it. This is
+an internal packet-identity check and does not recompute or validate L1
+relations.
 
 The closed recommendation vocabulary for role-agent output metadata is:
 
@@ -146,8 +150,8 @@ and requires a separately reviewed rescope instead of widening L2.
 - Exact family-repeat and v2 packet projections:
   `scripts.orchestration.task_bootstrap._build_family_repeat_projection` and
   `scripts.orchestration.task_bootstrap._build_invariant_review_v2_packet`
-- Artifact/trigger-bound packet identity:
-  `scripts.orchestration.task_bootstrap._bind_invariant_family_review_packet_id`
+- Artifact/trigger/projection-bound packet identity:
+  `scripts.orchestration.bootstrap_sync_policy.compute_invariant_family_review_packet_id`
 - Active-role admission and exact dispatch selection:
   `scripts.orchestration.task_bootstrap.INVARIANT_FAMILY_REVIEW_ROLE_ORDER`
 - Closed Qoder v2 validation without L1 recomputation:

@@ -190,33 +190,6 @@ def test_qoder_rejects_v2_idempotency_digest_mismatched_to_artifact(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
-@pytest.mark.parametrize(
-    ("target", "invalid_id"),
-    [
-        ("family", ""),
-        ("family", "client_secret"),
-        ("family", "f" * 65),
-        ("finding", ""),
-        ("finding", "api_key"),
-        ("finding", "f" * 65),
-    ],
-)
-def test_qoder_rejects_noncanonical_l1_identifiers_in_v2_projection(
-    monkeypatch: pytest.MonkeyPatch,
-    target: str,
-    invalid_id: str,
-) -> None:
-    packet = _v2_packet(monkeypatch)
-    repeated = packet["invariant_review"]["family_repeat"]["repeated_families"][0]
-    if target == "family":
-        repeated["family_id"] = invalid_id
-    else:
-        repeated["finding_ids"] = sorted([invalid_id, "finding_b"])
-
-    with pytest.raises(ValueError, match="canonical L1 identifier"):
-        qoder_dispatch_bridge._parse_json_packet_roles(packet)
-
-
 def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -273,6 +246,32 @@ def test_qoder_rejects_v2_artifact_pair_tampering_with_stale_task_packet_id(
     family_repeat["artifact_fingerprint"] = "sha256:" + ("3" * 64)
     family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("3" * 64)
     assert packet["task_packet_id"] == original_packet_id
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_active_projection_substituted_with_not_required_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active_packet = _v2_packet(monkeypatch)
+    active_repeat = active_packet["invariant_review"]["family_repeat"]
+    not_required_packet = _v2_packet(monkeypatch, repeated=False)
+    not_required_repeat = not_required_packet["invariant_review"]["family_repeat"]
+    not_required_repeat["artifact_fingerprint"] = active_repeat["artifact_fingerprint"]
+    not_required_repeat["idempotency_key"] = active_repeat["idempotency_key"]
+    not_required_packet["task_packet_id"] = active_packet["task_packet_id"]
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(not_required_packet)
+
+
+def test_qoder_rejects_altered_repeated_families_with_stale_task_packet_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    repeated = packet["invariant_review"]["family_repeat"]["repeated_families"]
+    repeated[0]["finding_ids"] = ["finding_a", "finding_c"]
 
     with pytest.raises(ValueError, match="task_packet_id must bind"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)

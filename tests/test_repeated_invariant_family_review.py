@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import traceback
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.bootstrap_sync_policy as bootstrap_sync_policy
 import scripts.orchestration.qoder_dispatch_bridge as qoder_dispatch_bridge
 import scripts.orchestration.review_invariant_family_relations as relations
 import scripts.orchestration.task_bootstrap as task_bootstrap
@@ -258,21 +260,36 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
         ),
     )
     family_repeat = first["invariant_review"]["family_repeat"]
-    expected_l2_id = task_bootstrap._bind_invariant_family_review_packet_id(
-        base_packet_id,
+    expected_l2_id = bootstrap_sync_policy.compute_invariant_family_review_packet_id(
+        goal="Review repeated explicit invariant families",
+        task_class="Orchestration",
+        domain=str(first["domain"]),
+        candidate_paths=candidate_paths,
+        requested_agents=["agent-coordinator"],
+        pr_phase="post_open_review",
+        design_lane_mode=str(first["design_lane_mode"]),
+        design_lane_contract=first["design_lane_contract"],
+        creative_learning_hints_fingerprint="",
         artifact_fingerprint=family_repeat["artifact_fingerprint"],
+        invariant_review_projection=first["invariant_review"],
     )
-    incorrectly_double_bound_id = task_bootstrap._bind_invariant_family_review_packet_id(
-        task_bootstrap._bind_invariant_review_packet_id(
-            base_packet_id,
-            invariant_review_fingerprint=v1_decision.fingerprint,
-        ),
-        artifact_fingerprint=family_repeat["artifact_fingerprint"],
-    )
+    independently_framed_id = str(
+        task_bootstrap.fingerprint_payload(
+            {
+                "base_task_packet_id": base_packet_id,
+                "identity_schema": (bootstrap_sync_policy.INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA),
+                "artifact_fingerprint": family_repeat["artifact_fingerprint"],
+                "trigger_rule": bootstrap_sync_policy.INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
+                "invariant_review_projection_fingerprint": (
+                    task_bootstrap.fingerprint_payload(first["invariant_review"])
+                ),
+            }
+        )
+    ).removeprefix("sha256:")[:12]
 
     assert first["task_packet_id"] == replay["task_packet_id"]
     assert first["task_packet_id"] == expected_l2_id
-    assert first["task_packet_id"] != incorrectly_double_bound_id
+    assert first["task_packet_id"] == independently_framed_id
     assert len(first["task_packet_id"]) == 12
 
 
@@ -328,8 +345,16 @@ def test_symlink_input_fails_closed() -> None:
 def test_missing_input_fails_closed() -> None:
     missing = INPUT_ROOT / f"pytest-missing-{uuid.uuid4().hex}.json"
 
-    with pytest.raises(ValueError, match="could not be read safely"):
+    with pytest.raises(ValueError, match="could not be read safely") as exc_info:
         _build(missing.relative_to(REPO_ROOT).as_posix())
+    rendered = "".join(
+        traceback.format_exception(
+            type(exc_info.value), exc_info.value, exc_info.value.__traceback__
+        )
+    )
+    assert exc_info.value.__cause__ is None
+    assert missing.name not in rendered
+    assert "Errno" not in rendered
 
 
 def test_directory_input_fails_closed_as_non_regular() -> None:
@@ -403,6 +428,62 @@ def test_missing_required_open_capability_fails_before_open(
         task_bootstrap._read_invariant_family_relations_input(
             "artifacts/orchestration/review_invariant_family_relations/input.json"
         )
+
+
+def test_equal_size_rewrite_with_restored_mtime_fails_closed_on_ctime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _relations_input() as input_path:
+        path = REPO_ROOT / input_path
+        original_stat = path.stat()
+        real_read = os.read
+        rewritten = False
+
+        def rewrite_after_read(file_descriptor: int, size: int) -> bytes:
+            nonlocal rewritten
+            chunk = real_read(file_descriptor, size)
+            if not rewritten:
+                rewritten = True
+                original = path.read_bytes()
+                replacement = original.replace(b"finding_a", b"finding_z", 1)
+                assert len(replacement) == len(original)
+                path.write_bytes(replacement)
+                os.utime(
+                    path,
+                    ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns),
+                )
+            return chunk
+
+        monkeypatch.setattr(task_bootstrap.os, "read", rewrite_after_read)
+
+        with pytest.raises(ValueError, match="changed or exceeded"):
+            _build(input_path)
+        assert rewritten
+
+
+def test_descriptor_cleanup_error_suppresses_untrusted_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret_filename = "/private/operator/review-input.json"
+    with _relations_input() as input_path:
+        real_close = os.close
+
+        def close_then_fail(file_descriptor: int) -> None:
+            real_close(file_descriptor)
+            raise OSError(5, "operator filesystem detail", secret_filename)
+
+        monkeypatch.setattr(task_bootstrap.os, "close", close_then_fail)
+        with pytest.raises(ValueError, match="descriptor cleanup failed") as exc_info:
+            _build(input_path)
+
+    rendered = "".join(
+        traceback.format_exception(
+            type(exc_info.value), exc_info.value, exc_info.value.__traceback__
+        )
+    )
+    assert exc_info.value.__cause__ is None
+    assert secret_filename not in rendered
+    assert "Errno" not in rendered
 
 
 def test_symlinked_fixed_root_component_fails_closed(

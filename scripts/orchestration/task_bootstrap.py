@@ -67,6 +67,7 @@ from scripts.orchestration.agent_consistency_loader import (
 from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
     INVARIANT_CHANGE_CLASSES,
+    INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
     INVARIANT_REVIEW_BOUNDARY_CLASSES,
     INVARIANT_REVIEW_COVERAGE_CLAIM,
     INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
@@ -77,6 +78,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS,
     InvariantReviewDecision,
     classify_invariant_review,
+    compute_invariant_family_review_packet_id,
     needs_agents_sync as bootstrap_needs_agents_sync,
     needs_backlog_update as bootstrap_needs_backlog_update,
     needs_docs_sync as bootstrap_needs_docs_sync,
@@ -144,7 +146,6 @@ CREATIVE_PILOT_PHASES: tuple[str, ...] = ("independent", "rebuttal", "synthesis"
 INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
 INVARIANT_REVIEW_V2_SCHEMA_VERSION = "invariant_review.v2"
 INVARIANT_REVIEW_V2_COVERAGE_CLAIM = "explicit_normalized_snapshot_membership_only"
-INVARIANT_FAMILY_REPEAT_TRIGGER_RULE = "explicit_family_cardinality_gte_2"
 INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE = "explicit_input_only"
 INVARIANT_FAMILY_RELATIONS_INPUT_ROOT = PurePosixPath(
     "artifacts/orchestration/review_invariant_family_relations"
@@ -862,8 +863,20 @@ def _read_invariant_family_relations_input(raw_path: str) -> dict[str, Any]:
             remaining -= len(chunk)
         raw = b"".join(chunks)
         after = os.fstat(file_fd)
-        before_identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-        after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+        before_identity = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        after_identity = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
         if (
             len(raw) > MAX_STDIN_BYTES
             or len(raw) != before.st_size
@@ -874,24 +887,23 @@ def _read_invariant_family_relations_input(raw_path: str) -> dict[str, Any]:
             )
     except ValueError:
         raise
-    except (OSError, NotImplementedError) as exc:
+    except (OSError, NotImplementedError):
         raise ValueError(
             "--review-invariant-family-relations-input could not be read safely"
-        ) from exc
+        ) from None
     finally:
         active_error = sys.exc_info()[1]
-        close_error: OSError | None = None
+        close_failed = False
         for descriptor in (file_fd, *reversed(directory_fds)):
             if descriptor >= 0:
                 try:
                     os.close(descriptor)
-                except OSError as exc:
-                    if close_error is None:
-                        close_error = exc
-        if active_error is None and close_error is not None:
+                except OSError:
+                    close_failed = True
+        if active_error is None and close_failed:
             raise ValueError(
                 "--review-invariant-family-relations-input descriptor cleanup failed"
-            ) from close_error
+            ) from None
 
     try:
         canonical_output = process_input_bytes(raw)
@@ -971,26 +983,6 @@ def _bind_invariant_review_packet_id(
                 "base_task_packet_id": base_packet_id,
                 "identity_schema": "task_packet_id.invariant_review.v1",
                 "invariant_review_fingerprint": normalized_fingerprint,
-            }
-        )
-    )
-    return framed_fingerprint.removeprefix("sha256:")[:12]
-
-
-def _bind_invariant_family_review_packet_id(
-    base_packet_id: str,
-    *,
-    artifact_fingerprint: str,
-) -> str:
-    """Bind the optional L2 packet to the canonical L1 artifact and trigger."""
-
-    framed_fingerprint = str(
-        fingerprint_payload(
-            {
-                "base_task_packet_id": base_packet_id,
-                "identity_schema": "task_packet_id.invariant_review.v2",
-                "artifact_fingerprint": artifact_fingerprint,
-                "trigger_rule": INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
             }
         )
     )
@@ -1632,6 +1624,24 @@ def build_task_packet(
         telemetry=_read_json(telemetry_path),
         routing=routing,
     )
+    creative_identity_fingerprint = (
+        creative_learning_hints_fingerprint
+        if not creative_pilot_fingerprint
+        else fingerprint_payload(
+            {
+                "creative_learning_hints": creative_learning_hints_fingerprint,
+                "creative_pilot": creative_pilot_fingerprint,
+            }
+        )
+    )
+    invariant_review_packet = (
+        _build_invariant_review_v2_packet(family_repeat)
+        if family_repeat is not None
+        else _build_invariant_review_packet(
+            invariant_review_decision,
+            required_now=invariant_review_required_now,
+        )
+    )
     base_packet_id = compute_task_packet_id(
         goal=goal,
         task_class=task_class,
@@ -1643,21 +1653,21 @@ def build_task_packet(
             design_lane_mode=design_lane_mode,
             design_lane_contract=design_lane_contract,
         ),
-        creative_learning_hints_fingerprint=(
-            creative_learning_hints_fingerprint
-            if not creative_pilot_fingerprint
-            else fingerprint_payload(
-                {
-                    "creative_learning_hints": creative_learning_hints_fingerprint,
-                    "creative_pilot": creative_pilot_fingerprint,
-                }
-            )
-        ),
+        creative_learning_hints_fingerprint=creative_identity_fingerprint,
     )
     if family_repeat is not None:
-        packet_id = _bind_invariant_family_review_packet_id(
-            base_packet_id,
+        packet_id = compute_invariant_family_review_packet_id(
+            goal=goal,
+            task_class=task_class,
+            domain=decision.domain,
+            candidate_paths=normalized_paths,
+            requested_agents=normalized_requested_agents,
+            pr_phase=normalized_pr_phase,
+            design_lane_mode=design_lane_mode,
+            design_lane_contract=design_lane_contract,
+            creative_learning_hints_fingerprint=creative_identity_fingerprint,
             artifact_fingerprint=str(family_repeat["artifact_fingerprint"]),
+            invariant_review_projection=invariant_review_packet,
         )
     else:
         packet_id = _bind_invariant_review_packet_id(
@@ -1957,14 +1967,7 @@ def build_task_packet(
         "reviewer": requested_agent_resolution["reviewer"],
         "requested_agents": normalized_requested_agents,
         "requested_agent_disposition": requested_agent_resolution["requested_agent_disposition"],
-        "invariant_review": (
-            _build_invariant_review_v2_packet(family_repeat)
-            if family_repeat is not None
-            else _build_invariant_review_packet(
-                invariant_review_decision,
-                required_now=invariant_review_required_now,
-            )
-        ),
+        "invariant_review": invariant_review_packet,
         "required_context": context_pack,
         "context_pack_compression": dict(
             context_compression_to_stable_mapping(context_pack_compression)

@@ -43,6 +43,7 @@ from scripts.orchestration.requested_agents import (
 )
 from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_CHANGE_CLASSES,
+    INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
     INVARIANT_REVIEW_BOUNDARY_CLASSES,
     INVARIANT_REVIEW_COVERAGE_CLAIM,
     INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
@@ -53,6 +54,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_REVIEW_V2_FIELDS,
     INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS,
     classify_invariant_review,
+    compute_invariant_family_review_packet_id,
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
@@ -62,16 +64,12 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
-    INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
     INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
     INVARIANT_REVIEW_V2_COVERAGE_CLAIM,
     INVARIANT_REVIEW_V2_SCHEMA_VERSION,
-    _bind_invariant_family_review_packet_id,
-    _design_fingerprint,
     build_role_agent_dispatch_contract,
     partition_native_secondaries,
 )
-from scripts.orchestration.context_pack import compute_task_packet_id
 
 PR_PHASE_NONE = "none"
 PR_PHASE_PRE_OPEN = "pre_open"
@@ -106,23 +104,6 @@ INVARIANT_FAMILY_RELATION_VALUES = frozenset(
         "partial_overlap",
         "disjoint",
     }
-)
-INVARIANT_FAMILY_MAX_ID_ASCII_BYTES = 64
-_INVARIANT_FAMILY_ID_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,62}[A-Za-z0-9])?$", re.ASCII)
-_INVARIANT_FAMILY_FORBIDDEN_ID_RE = re.compile(
-    r"(?:[Aa][Cc][Cc][Ee][Ss][Ss][_-]?[Kk][Ee][Yy]|"
-    r"[Aa][Ii][Zz][Aa]|[Aa][KkSs][Ii][Aa]|[Aa][Pp][Ii][_-]?[Kk][Ee][Yy]|"
-    r"[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|"
-    r"[Bb][Ee][Aa][Rr][Ee][Rr]|[Cc][Ll][Ii][Ee][Nn][Tt][_-]?[Ss][Ee][Cc][Rr][Ee][Tt]|"
-    r"[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Gg][Hh][PpOoUuSsRr]_|"
-    r"[Gg][Ll][Pp][Aa][Tt]-|"
-    r"[Gg][Ii][Tt][Hh][Uu][Bb][_-]?[Pp][Aa][Tt]|[Nn][Pp][Mm]_|"
-    r"[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|"
-    r"[Pp][Rr][Ii][Vv][Aa][Tt][Ee][_-]?[Kk][Ee][Yy]|[Ss][Ee][Cc][Rr][Ee][Tt]|"
-    r"[Ss][Kk]-[A-Za-z0-9_-]{12,}|"
-    r"[Ss][Kk][_-]?(?:[Ll][Ii][Vv][Ee]|[Tt][Ee][Ss][Tt]|[Pp][Rr][Oo][Jj])|"
-    r"[Tt][Oo][Kk][Ee][Nn]|[Xx][Aa][Pp][Pp]-|[Xx][Oo][Xx][AaBbCcPpRrSs]-)",
-    re.ASCII,
 )
 _SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
 _L1_IDEMPOTENCY_RE = re.compile(r"^review-invariant-family-relations\.v1:[a-f0-9]{64}$", re.ASCII)
@@ -507,24 +488,6 @@ def _validate_string_list(value: Any, *, field: str) -> List[str]:
     return cast(List[str], value)
 
 
-def _validate_invariant_family_id(value: Any, *, field: str) -> str:
-    """Mirror the bounded L1 identifier contract for a closed projection."""
-
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a canonical L1 identifier")
-    try:
-        encoded = value.encode("ascii")
-    except UnicodeEncodeError as exc:
-        raise ValueError(f"{field} must be a canonical L1 identifier") from exc
-    if (
-        len(encoded) > INVARIANT_FAMILY_MAX_ID_ASCII_BYTES
-        or _INVARIANT_FAMILY_ID_RE.fullmatch(value) is None
-        or _INVARIANT_FAMILY_FORBIDDEN_ID_RE.search(value) is not None
-    ):
-        raise ValueError(f"{field} must be a canonical L1 identifier")
-    return value
-
-
 def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
     """Validate the closed L2 projection without recomputing any L1 relation."""
 
@@ -587,16 +550,12 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
     for row in repeated_families:
         if not isinstance(row, dict) or set(row) != INVARIANT_FAMILY_ROW_FIELDS:
             raise ValueError("family_repeat repeated family rows must use the closed shape")
-        family_id = _validate_invariant_family_id(
-            row.get("family_id"), field="family_repeat family_id"
-        )
+        family_id = row.get("family_id")
         finding_ids = _validate_string_list(
             row.get("finding_ids"), field="family_repeat repeated finding_ids"
         )
-        if len(finding_ids) < 2:
+        if not isinstance(family_id, str) or len(finding_ids) < 2:
             raise ValueError("family_repeat requires explicit family cardinality at least two")
-        for finding_id in finding_ids:
-            _validate_invariant_family_id(finding_id, field="family_repeat repeated finding_id")
         if finding_ids != sorted(set(finding_ids)):
             raise ValueError("family_repeat finding_ids must be unique and canonical")
         repeated_ids.append(family_id)
@@ -611,13 +570,9 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
     for row in relations:
         if not isinstance(row, dict) or set(row) != INVARIANT_FAMILY_RELATION_FIELDS:
             raise ValueError("family_repeat relation rows must use the unchanged L1 shape")
-        left = _validate_invariant_family_id(
-            row.get("left_family_id"), field="family_repeat left_family_id"
-        )
-        right = _validate_invariant_family_id(
-            row.get("right_family_id"), field="family_repeat right_family_id"
-        )
-        if not left < right:
+        left = row.get("left_family_id")
+        right = row.get("right_family_id")
+        if not isinstance(left, str) or not isinstance(right, str) or not left < right:
             raise ValueError("family_repeat relation endpoints must be canonical")
         if left not in repeated_id_set and right not in repeated_id_set:
             raise ValueError("family_repeat relation must touch a repeated family")
@@ -629,8 +584,6 @@ def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
             "right_only_finding_ids",
         ):
             values = _validate_string_list(row.get(field), field=f"family_repeat {field}")
-            for finding_id in values:
-                _validate_invariant_family_id(finding_id, field=f"family_repeat {field} finding_id")
             if values != sorted(set(values)):
                 raise ValueError(f"family_repeat {field} must be unique and canonical")
         relation_pairs.append((left, right))
@@ -727,24 +680,20 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
     ):
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     try:
-        base_packet_id = compute_task_packet_id(
+        expected_packet_id = compute_invariant_family_review_packet_id(
             goal=cast(str, required_strings["goal"]),
             task_class=cast(str, required_strings["task_class"]),
             domain=cast(str, required_strings["domain"]),
             candidate_paths=cast(List[str], candidate_paths),
             requested_agents=cast(List[str], requested_agents),
             pr_phase=cast(str, required_strings["pr_phase"]),
-            design_fingerprint=_design_fingerprint(
-                design_lane_mode=cast(str, required_strings["design_lane_mode"]),
-                design_lane_contract=cast(Dict[str, Any], design_lane_contract),
-            ),
+            design_lane_mode=cast(str, required_strings["design_lane_mode"]),
+            design_lane_contract=cast(Dict[str, Any], design_lane_contract),
             creative_learning_hints_fingerprint=cast(
                 str, creative_learning_hints["source_hints_fingerprint"]
             ),
-        )
-        expected_packet_id = _bind_invariant_family_review_packet_id(
-            base_packet_id,
             artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
+            invariant_review_projection=cast(Dict[str, Any], invariant_review),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("invariant_review.v2 identity source fields must be canonical") from exc

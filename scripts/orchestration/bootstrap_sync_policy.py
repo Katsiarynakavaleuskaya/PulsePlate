@@ -8,9 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import json
 from pathlib import Path, PurePosixPath
 import re
-from typing import Literal, cast
+from typing import Any, Literal, cast
+
+from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration.context_pack import compute_task_packet_id
+from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -63,6 +68,8 @@ INVARIANT_REVIEW_RECOMMENDED_RESOLUTIONS: tuple[str, ...] = (
 INVARIANT_REVIEW_STOP_CONDITION = (
     "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
 )
+INVARIANT_FAMILY_REPEAT_TRIGGER_RULE = "explicit_family_cardinality_gte_2"
+INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA = "task_packet_id.invariant_review.v2"
 INVARIANT_REVIEW_V1_FIELDS = frozenset(
     {
         "schema_version",
@@ -170,6 +177,60 @@ class InvariantReviewDecision:
         """Return the stable identity input for the normalized class set."""
 
         return ",".join(self.change_classes)
+
+
+def compute_invariant_family_review_packet_id(
+    *,
+    goal: str,
+    task_class: str,
+    domain: str,
+    candidate_paths: list[str] | tuple[str, ...],
+    requested_agents: list[str] | tuple[str, ...],
+    pr_phase: str,
+    design_lane_mode: str,
+    design_lane_contract: dict[str, Any],
+    creative_learning_hints_fingerprint: str,
+    artifact_fingerprint: str,
+    invariant_review_projection: dict[str, Any],
+) -> str:
+    """Bind the exact closed v2 projection into the existing packet-id frame."""
+
+    canonical_design_contract = dict(design_lane_contract)
+    canonical_design_contract["blockers"] = canonicalize_design_blockers(
+        list(design_lane_contract.get("blockers", ()))
+    )
+    design_fingerprint = json.dumps(
+        {
+            "design_lane_mode": design_lane_mode,
+            "design_lane_contract": canonical_design_contract,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    base_packet_id = compute_task_packet_id(
+        goal=goal,
+        task_class=task_class,
+        domain=domain,
+        candidate_paths=candidate_paths,
+        requested_agents=requested_agents,
+        pr_phase=pr_phase,
+        design_fingerprint=design_fingerprint,
+        creative_learning_hints_fingerprint=creative_learning_hints_fingerprint,
+    )
+    framed_fingerprint = str(
+        fingerprint_payload(
+            {
+                "base_task_packet_id": base_packet_id,
+                "identity_schema": INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA,
+                "artifact_fingerprint": artifact_fingerprint,
+                "trigger_rule": INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
+                "invariant_review_projection_fingerprint": fingerprint_payload(
+                    invariant_review_projection
+                ),
+            }
+        )
+    )
+    return framed_fingerprint.removeprefix("sha256:")[:12]
 
 
 def _normalize_invariant_review_path(raw_path: str) -> str:
