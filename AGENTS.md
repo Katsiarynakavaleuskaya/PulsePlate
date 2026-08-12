@@ -1100,14 +1100,10 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 ### Public surface contract
 
-- `app/__init__.py` is a finite PEP 562 facade. Its facade-owned compatibility
-  exports are exactly `app`, `resolve_attr`,
-  `make_weekly_menu`, `build_nutrition_targets`, `metrics`, `lifespan`,
-  `get_update_scheduler`, `api_key_header`, `get_api_key`,
-  `_get_api_key_dynamic`, `FEATURE_BMI_PRO_ENABLED`, `bmi_router`,
-  `bmi_pro_router`, `bmi_pro_legacy_alias_router`, `get_bodyfat_router`,
-  `MATPLOTLIB_AVAILABLE`, `generate_bmi_visualization`, `BMIRequest`,
-  `_is_truthy`, and `_macros_to_kcal`.
+- `app/__init__.py` is a finite, fail-closed PEP 562 facade. The authoritative
+  compatibility-export list lives in
+  [`app/AGENTS.md`](app/AGENTS.md#complete-compatibility-surface).
+- `app.app` preserves the single canonical FastAPI instance identity.
 - Ordinary package globals and Python-created submodule bindings are not
   compatibility exports and are outside that finite set. Names that are
   neither existing package attributes nor explicit compatibility exports fail
@@ -1817,7 +1813,7 @@ Violation of this rule blocks merge.
 
 ## Known pitfalls
 
-- Dual Base issue: Fixed in PR #403. `app/__init__.py` now exposes one finite
+- Dual Base issue: `app/__init__.py` now exposes one finite
   PEP 562 compatibility surface while preserving the single FastAPI instance.
   Import hygiene and facade guards prevent regression.
 
@@ -2083,6 +2079,10 @@ exports must fail closed without importing `legacy_app`.
 
 ```bash
 git grep -nE "import legacy_app|app\s*=\s*_legacy\.app|def __getattr__|def __dir__" -- app/__init__.py
+
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
+"$VENV_PYTHON" -m pytest -q \
+  tests/test_final_coverage_97_boost.py::TestAppInitCoverage::test_unknown_access_forms_and_dir_do_not_load_legacy
 ```
 
 ### 5) Verify TESTING env set before imports in conftest

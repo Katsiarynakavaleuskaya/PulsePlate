@@ -25,14 +25,13 @@ class TestAppInitCoverage:
     def test_unknown_access_forms_and_dir_do_not_load_legacy(self) -> None:
         """Unknown access forms and ``dir`` remain fail-closed and side-effect free."""
         scenario = textwrap.dedent("""
-            import importlib
             import sys
+            import app as package
 
-            package = importlib.import_module("app")
             assert "legacy_app" not in sys.modules
             assert "app_module" not in sys.modules
 
-            def assert_no_legacy_imports():
+            def assert_no_legacy_imports() -> None:
                 assert "legacy_app" not in sys.modules
                 assert "app_module" not in sys.modules
 
@@ -48,7 +47,7 @@ class TestAppInitCoverage:
             assert_no_legacy_imports()
 
             try:
-                exec("from app import _install_openapi_builder", {})
+                from app import _install_openapi_builder
             except ImportError:
                 pass
             else:

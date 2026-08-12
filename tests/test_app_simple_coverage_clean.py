@@ -16,7 +16,7 @@ from app.routers.api_key import get_api_key
 class TestAPIKeyModes:
     """Тесты различных режимов API ключей"""
 
-    def test_api_key_strict_mode_valid_key(self):
+    def test_api_key_strict_mode_valid_key(self) -> None:
         """Строгий режим - правильный ключ"""
         # Keep this secret-shaped fixture on its audited baseline line.
         # The generated baseline is shared with other active PRs.

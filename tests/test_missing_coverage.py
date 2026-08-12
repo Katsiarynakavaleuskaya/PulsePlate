@@ -3,10 +3,9 @@
 Тесты для покрытия недостающих строк
 """
 
-import os
-
-from fastapi.testclient import TestClient
 import legacy_app
+import pytest
+from fastapi.testclient import TestClient
 
 # Import the FastAPI app from app.py file
 from app import app
@@ -15,12 +14,14 @@ from app import app
 class TestMissingCoverage:
     """Тесты для покрытия недостающих строк"""
 
-    def setup_method(self) -> None:
+    @pytest.fixture(autouse=True)
+    def _test_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Setup test environment"""
         # Keep this secret-shaped fixture on its audited baseline line.
         # The generated baseline is shared with other active PRs.
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+        environment = {"API_KEY": "test_key", "FEATURE_PREMIUM_NUTRITION": "true"}
+        for name, value in environment.items():
+            monkeypatch.setenv(name, value)
 
     def test_app_imports(self) -> None:
         """Тест импортов main.py"""
