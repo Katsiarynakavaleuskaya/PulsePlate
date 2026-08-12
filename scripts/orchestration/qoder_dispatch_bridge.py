@@ -62,6 +62,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict as load_creative_pilot_json_strict,
     validate_task_pilot_context,
 )
+from scripts.orchestration.context_pack import repo_relative_paths
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
@@ -680,6 +681,8 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         or not isinstance(family_repeat.get("artifact_fingerprint"), str)
     ):
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
+    if repo_relative_paths(candidate_paths) != candidate_paths:
+        raise ValueError("invariant_review.v2 candidate_paths must be canonical")
     try:
         expected_packet_id = compute_invariant_family_review_packet_id(
             goal=cast(str, required_strings["goal"]),

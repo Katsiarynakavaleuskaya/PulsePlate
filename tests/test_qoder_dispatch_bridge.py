@@ -301,6 +301,17 @@ def test_qoder_rejects_v2_creative_hints_projection_tampering(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_v2_noncanonical_candidate_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    candidate_paths = cast(List[str], packet["candidate_paths"])
+    packet["candidate_paths"] = [str(REPO_ROOT / candidate_paths[0])]
+
+    with pytest.raises(ValueError, match="candidate_paths"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_qoder_rejects_not_required_v2_with_injected_secondary_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
