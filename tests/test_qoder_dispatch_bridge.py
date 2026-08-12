@@ -393,12 +393,48 @@ def test_qoder_rejects_active_v2_requested_agent_status_mismatch(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_not_required_v2_requested_agent_status_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    secondary_agents = cast(List[str], packet["secondary_agents"])
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    assert "agent-coordinator" in secondary_agents
+    assert packet["reviewer"] != "agent-coordinator"
+    assert dispositions[0]["status"] == "honored_secondary"
+    dispositions[0]["status"] = "honored_reviewer"
+    dispositions[0]["reason"] = "Forged status contradicts the ordinary role assignment."
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="status must match the role assignment"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_qoder_rejects_v2_noncanonical_candidate_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     packet = _v2_packet(monkeypatch)
     candidate_paths = cast(List[str], packet["candidate_paths"])
     packet["candidate_paths"] = [str(REPO_ROOT / candidate_paths[0])]
+
+    with pytest.raises(ValueError, match="candidate_paths"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_parent_traversal_with_recomputed_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["candidate_paths"] = ["../outside.py"]
+    packet["required_context"] = sorted(
+        set(
+            qoder_dispatch_bridge.collect_context_pack(
+                ["../outside.py"],
+                include_orchestration=True,
+            )
+        ).union({task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT})
+    )
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
 
     with pytest.raises(ValueError, match="candidate_paths"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)

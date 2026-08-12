@@ -43,6 +43,7 @@ from scripts.orchestration.requested_agents import (
     normalize_implementation_owner_slugs,
 )
 from scripts.orchestration.bootstrap_sync_policy import (
+    _normalize_invariant_review_path,
     INVARIANT_CHANGE_CLASSES,
     INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
     INVARIANT_REVIEW_BOUNDARY_CLASSES,
@@ -696,7 +697,17 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         or not isinstance(family_repeat.get("artifact_fingerprint"), str)
     ):
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
-    if repo_relative_paths(candidate_paths) != candidate_paths:
+    try:
+        canonical_candidate_paths = sorted(
+            {
+                normalized_path
+                for raw_path in candidate_paths
+                if (normalized_path := _normalize_invariant_review_path(raw_path))
+            }
+        )
+    except ValueError:
+        raise ValueError("invariant_review.v2 candidate_paths must be canonical") from None
+    if canonical_candidate_paths != candidate_paths:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical")
     if requested_agents != list(dict.fromkeys(requested_agents)) or any(
         value != value.strip() or not _ROLE_SLUG_RE.fullmatch(value) for value in requested_agents
@@ -736,6 +747,47 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
                 raise ValueError(
                     "required_pending invariant_review.v2 requested-agent status "
                     "must match the fixed role assignment"
+                )
+    if invariant_review.get("state") == "not_required":
+        primary_agent = payload.get("primary_agent")
+        secondary_agents = payload.get("secondary_agents")
+        reviewer = payload.get("reviewer")
+        if (
+            not isinstance(primary_agent, str)
+            or not isinstance(secondary_agents, list)
+            or any(not isinstance(agent, str) for agent in secondary_agents)
+            or not isinstance(reviewer, str)
+        ):
+            raise ValueError("invariant_review.v2 identity source fields must be canonical")
+        honored_statuses = {
+            REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
+            REQUESTED_AGENT_STATUS_HONORED_REVIEWER,
+            REQUESTED_AGENT_STATUS_HONORED_SECONDARY,
+        }
+        for row in requested_agent_disposition:
+            if not isinstance(row, dict) or not isinstance(row.get("agent"), str):
+                continue
+            agent = cast(str, row["agent"])
+            status = row.get("status")
+            if status not in honored_statuses:
+                continue
+            expected_status = (
+                REQUESTED_AGENT_STATUS_HONORED_PRIMARY
+                if agent == primary_agent
+                else (
+                    REQUESTED_AGENT_STATUS_HONORED_REVIEWER
+                    if agent == reviewer
+                    else (
+                        REQUESTED_AGENT_STATUS_HONORED_SECONDARY
+                        if agent in secondary_agents
+                        else None
+                    )
+                )
+            )
+            if status != expected_status:
+                raise ValueError(
+                    "not_required invariant_review.v2 requested-agent status "
+                    "must match the role assignment"
                 )
     if (
         repo_relative_paths(required_context) != required_context
