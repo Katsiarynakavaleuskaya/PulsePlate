@@ -2370,6 +2370,50 @@ def apply_synthesis_transition(
     return _next_revision(updated, phase=phase_by_decision[str(syn["decision"])])
 
 
+def _reviewed_synthesis_ready_workspace(
+    workspace: Mapping[str, Any], synthesis: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Return the canonical workspace revision reviewed by one synthesis."""
+
+    ws = validate_workspace(workspace)
+    syn = validate_synthesis(synthesis)
+    phase = ws["state"]["phase"]
+    if phase == "synthesis_ready":
+        reviewed = ws
+    else:
+        expected_phase = {
+            "approve": "synthesized",
+            "revise": "revise",
+            "hold": "blocked",
+        }.get(str(syn["decision"]))
+        if phase not in {"synthesized", "revise", "blocked"} or phase != expected_phase:
+            raise CreativePilotContractError(
+                "synthesis decision does not match the post-synthesis workspace phase"
+            )
+        expected_ref = {
+            "synthesis_id": syn["synthesis_id"],
+            "synthesis_fingerprint": fingerprint_payload(syn),
+            "reviewed_revision_fingerprint": syn["workspace_revision_fingerprint"],
+        }
+        if ws["synthesis_ref"] != expected_ref:
+            raise CreativePilotContractError(
+                "synthesis is not the canonical post-synthesis workspace truth"
+            )
+        reviewed_revision = int(ws["revision"]) - 1
+        if reviewed_revision < 1:
+            raise CreativePilotContractError("workspace synthesis revision lineage is invalid")
+        reconstructed = dict(ws)
+        reconstructed["state"] = {"phase": "synthesis_ready", "terminal": False}
+        reconstructed["revision"] = reviewed_revision
+        reconstructed["synthesis_ref"] = None
+        reconstructed["handoff_ref"] = None
+        reconstructed["revision_fingerprint"] = syn["workspace_revision_fingerprint"]
+        reviewed = validate_workspace(reconstructed)
+    if build_synthesis(reviewed) != syn:
+        raise CreativePilotContractError("synthesis is not deterministic workspace truth")
+    return reviewed
+
+
 def terminate_workspace(
     workspace: Mapping[str, Any], *, phase: str, reason_code: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -2743,29 +2787,7 @@ def build_evidence_events(
     ):
         if syn[key] != observed:
             raise CreativePilotContractError(f"evidence synthesis {key} binding mismatch")
-    if ws["state"]["phase"] == "synthesized":
-        expected_ref = {
-            "synthesis_id": syn["synthesis_id"],
-            "synthesis_fingerprint": fingerprint_payload(syn),
-            "reviewed_revision_fingerprint": syn["workspace_revision_fingerprint"],
-        }
-        if ws["synthesis_ref"] != expected_ref:
-            raise CreativePilotContractError("evidence synthesis is not canonical workspace truth")
-        reviewed_workspace = dict(ws)
-        reviewed_workspace["state"] = {"phase": "synthesis_ready", "terminal": False}
-        reviewed_workspace["revision"] = int(ws["revision"]) - 1
-        reviewed_workspace["synthesis_ref"] = None
-        reviewed_workspace["handoff_ref"] = None
-        reviewed_workspace["revision_fingerprint"] = syn["workspace_revision_fingerprint"]
-        expected_synthesis = build_synthesis(validate_workspace(reviewed_workspace))
-    elif ws["state"]["phase"] == "synthesis_ready":
-        expected_synthesis = build_synthesis(ws)
-    else:
-        raise CreativePilotContractError(
-            "evidence events require synthesis-ready or synthesized workspace"
-        )
-    if syn != expected_synthesis:
-        raise CreativePilotContractError("evidence synthesis is not deterministic workspace truth")
+    _reviewed_synthesis_ready_workspace(ws, syn)
     source = ws["target_manifest"]["files"][0]["path"]
     producer = "creative_pilot_workspace"
     common = {

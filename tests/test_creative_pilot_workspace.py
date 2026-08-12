@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 from collections.abc import Callable
 from copy import deepcopy
+from datetime import datetime
 import importlib
 import json
 import os
@@ -109,10 +110,25 @@ def _chain() -> tuple[dict, dict, dict]:
     return context, packet, workspace
 
 
-def _complete(workspace: dict, *, security_stance: str = "pass") -> dict:
+_CHAIN_CACHE: tuple[dict, dict, dict] | None = None
+
+
+def _cached_chain() -> tuple[dict, dict, dict]:
+    global _CHAIN_CACHE
+    if _CHAIN_CACHE is None:
+        _CHAIN_CACHE = _chain()
+    return deepcopy(_CHAIN_CACHE)
+
+
+def _complete(
+    workspace: dict,
+    *,
+    security_stance: str = "pass",
+    default_stance: str = "pass",
+) -> dict:
     current = workspace
     for assignment in list(workspace["assignments"]):
-        stance = security_stance if assignment["role"] == "security-auditor" else "pass"
+        stance = security_stance if assignment["role"] == "security-auditor" else default_stance
         result = build_role_result(
             workspace=current,
             assignment_id=assignment["assignment_id"],
@@ -124,6 +140,55 @@ def _complete(workspace: dict, *, security_stance: str = "pass") -> dict:
         )
         current = ingest_role_result(current, result)
     return detect_conflicts(current)
+
+
+_SYNTHESIS_CASE_CACHE: dict[str, tuple[dict, dict, dict]] = {}
+
+
+def _synthesis_case(decision: str) -> tuple[dict, dict, dict]:
+    if decision not in _SYNTHESIS_CASE_CACHE:
+        _context, _packet, workspace = _cached_chain()
+        if decision == "approve":
+            completed = _complete(workspace)
+        elif decision == "revise":
+            completed = _complete(
+                workspace,
+                security_stance="revise",
+                default_stance="revise",
+            )
+        elif decision == "hold":
+            completed = _complete(
+                workspace,
+                security_stance="reject",
+                default_stance="reject",
+            )
+        else:
+            raise AssertionError(f"unsupported test decision: {decision}")
+        synthesis = build_synthesis(completed)
+        assert synthesis["decision"] == decision
+        transitioned = apply_synthesis_transition(completed, synthesis)
+        _SYNTHESIS_CASE_CACHE[decision] = (completed, synthesis, transitioned)
+    return deepcopy(_SYNTHESIS_CASE_CACHE[decision])
+
+
+def _write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _prepare_synthesis_run(
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+) -> tuple[Path, dict, dict, dict]:
+    pilot_root = tmp_path / "adaptive_pilots"
+    monkeypatch.setattr(pilot_cli, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
+    completed, synthesis, transitioned = _synthesis_case(decision)
+    run_dir = pilot_root / f"pilot-{decision}"
+    _write_json(run_dir / "workspace.json", completed)
+    return run_dir, completed, synthesis, transitioned
 
 
 def _resign_workspace(workspace: dict) -> dict:
@@ -630,6 +695,378 @@ def test_evidence_events_reject_cross_workspace_synthesis() -> None:
             synthesis=forged,
             produced_at="2026-07-10T00:00:00+00:00",
         )
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected_phase", "expected_status", "expected_evidence"),
+    (
+        ("approve", "synthesized", "valid", "complete"),
+        ("revise", "revise", "deferred", "partial"),
+        ("hold", "blocked", "deferred", "insufficient"),
+    ),
+)
+def test_synthesize_emits_reachable_decision_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    decision: str,
+    expected_phase: str,
+    expected_status: str,
+    expected_evidence: str,
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision=decision,
+    )
+
+    assert pilot_cli.main(["synthesize", "--pilot-id", f"pilot-{decision}"]) == 0
+
+    observed_workspace = json.loads((run_dir / "workspace.json").read_text(encoding="utf-8"))
+    observed_synthesis = json.loads((run_dir / "synthesis.json").read_text(encoding="utf-8"))
+    events = json.loads((run_dir / "evidence_events.json").read_text(encoding="utf-8"))
+    assert observed_workspace == transitioned
+    assert observed_workspace["state"] == {
+        "phase": expected_phase,
+        "terminal": expected_phase in {"revise", "blocked"},
+    }
+    assert observed_synthesis == synthesis
+    assert [event["event_type"] for event in events] == [
+        "item_metadata",
+        "gate_metric",
+        "gate_decision",
+    ]
+    assert {event["validation_status"] for event in events} == {expected_status}
+    assert len({event["produced_at"] for event in events}) == 1
+    produced_at = datetime.fromisoformat(events[0]["produced_at"])
+    assert produced_at.tzinfo is not None
+    assert events[-1]["metadata"] == {
+        "decision": decision,
+        "disagreement_class": synthesis["disagreement_class"],
+        "evidence_sufficiency": expected_evidence,
+    }
+    assert capsys.readouterr().out == (
+        f"PASS decision={decision} evidence={expected_evidence} "
+        f"next={synthesis['next_allowed_action']}\n"
+    )
+
+
+def test_security_reject_remains_hold_and_schema_reject_stays_unreachable() -> None:
+    _completed, synthesis, transitioned = _synthesis_case("hold")
+
+    assert "reject" in pilot_contract.DECISIONS
+    assert synthesis["decision"] == "hold"
+    assert transitioned["state"] == {"phase": "blocked", "terminal": True}
+    assert synthesis["decision"] != "reject"
+
+
+@pytest.mark.parametrize("decision", ("approve", "revise", "hold"))
+def test_post_synthesis_evidence_requires_exact_phase_and_synthesis_ref(
+    decision: str,
+) -> None:
+    _completed, synthesis, transitioned = _synthesis_case(decision)
+    mismatched = deepcopy(transitioned)
+    if decision == "approve":
+        mismatched["state"] = {"phase": "blocked", "terminal": True}
+    else:
+        mismatched["synthesis_ref"] = None
+    mismatched = _resign_workspace(mismatched)
+
+    with pytest.raises(
+        CreativePilotContractError,
+        match="decision does not match|canonical post-synthesis",
+    ):
+        build_evidence_events(
+            workspace=mismatched,
+            synthesis=synthesis,
+            produced_at="2026-07-10T00:00:00+00:00",
+        )
+
+
+@pytest.mark.parametrize("validator", ("synthesis", "evidence"))
+def test_synthesize_validation_failure_precedes_every_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: str,
+) -> None:
+    run_dir, completed, _synthesis, _transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="approve",
+    )
+    original_workspace = (run_dir / "workspace.json").read_bytes()
+
+    def fail_validation(*_args: object, **_kwargs: object) -> object:
+        raise CreativePilotContractError(f"simulated {validator} validation failure")
+
+    if validator == "synthesis":
+        monkeypatch.setattr(pilot_cli, "validate_synthesis", fail_validation)
+    else:
+        monkeypatch.setattr(pilot_cli, "build_evidence_events", fail_validation)
+
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-approve"]) == 1
+    assert (run_dir / "workspace.json").read_bytes() == original_workspace
+    assert json.loads(original_workspace) == completed
+    assert not (run_dir / "synthesis.json").exists()
+    assert not (run_dir / "evidence_events.json").exists()
+
+
+@pytest.mark.parametrize("artifact", ("synthesis", "evidence"))
+def test_divergent_existing_artifact_blocks_subsequent_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    artifact: str,
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="approve",
+    )
+    original_workspace = (run_dir / "workspace.json").read_bytes()
+    if artifact == "synthesis":
+        _write_json(run_dir / "synthesis.json", {})
+    else:
+        _write_json(run_dir / "synthesis.json", synthesis)
+        events = [
+            event.to_dict()
+            for event in build_evidence_events(
+                workspace=transitioned,
+                synthesis=synthesis,
+                produced_at="2026-07-10T00:00:00+00:00",
+            )
+        ]
+        events[1]["metadata"]["conflict_count"] += 1
+        _write_json(run_dir / "evidence_events.json", events)
+
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-approve"]) == 1
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+    assert (run_dir / "workspace.json").read_bytes() == original_workspace
+
+
+def test_synthesize_publishes_synthesis_then_evidence_then_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, _completed, _synthesis, _transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="approve",
+    )
+    real_write = pilot_cli._atomic_write
+    writes: list[str] = []
+
+    def record_write(path: Path, payload: object) -> None:
+        writes.append(path.name)
+        real_write(path, payload)
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", record_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-approve"]) == 0
+    assert writes == ["synthesis.json", "evidence_events.json", "workspace.json"]
+    assert (run_dir / "workspace.json").exists()
+
+
+@pytest.mark.parametrize("fail_at", ("evidence_events.json", "workspace.json"))
+def test_synthesize_crash_recovery_publishes_only_missing_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fail_at: str,
+) -> None:
+    run_dir, completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="approve",
+    )
+    original_workspace = (run_dir / "workspace.json").read_bytes()
+    real_write = pilot_cli._atomic_write
+
+    def fail_write(path: Path, payload: object) -> None:
+        if path.name == fail_at:
+            raise CreativePilotContractError(f"simulated failure at {fail_at}")
+        real_write(path, payload)
+
+    with monkeypatch.context() as context:
+        context.setattr(pilot_cli, "_atomic_write", fail_write)
+        assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-approve"]) == 1
+
+    assert (run_dir / "workspace.json").read_bytes() == original_workspace
+    assert json.loads(original_workspace) == completed
+    assert json.loads((run_dir / "synthesis.json").read_text(encoding="utf-8")) == synthesis
+    assert (run_dir / "evidence_events.json").exists() is (fail_at == "workspace.json")
+
+    writes: list[str] = []
+
+    def record_write(path: Path, payload: object) -> None:
+        writes.append(path.name)
+        real_write(path, payload)
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", record_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-approve"]) == 0
+    expected_writes = ["workspace.json"]
+    if fail_at == "evidence_events.json":
+        expected_writes.insert(0, "evidence_events.json")
+    assert writes == expected_writes
+    assert json.loads((run_dir / "workspace.json").read_text(encoding="utf-8")) == transitioned
+
+
+def test_synthesize_detects_workspace_change_before_pointer_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, completed, _synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="approve",
+    )
+    concurrent = deepcopy(completed)
+    concurrent["revision"] += 1
+    concurrent = _resign_workspace(concurrent)
+    real_write = pilot_cli._atomic_write
+
+    def change_workspace_after_evidence(path: Path, payload: object) -> None:
+        real_write(path, payload)
+        if path.name == "evidence_events.json":
+            real_write(run_dir / "workspace.json", concurrent)
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", change_workspace_after_evidence)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-approve"]) == 1
+    observed = json.loads((run_dir / "workspace.json").read_text(encoding="utf-8"))
+    assert observed == concurrent
+    assert observed != transitioned
+
+
+@pytest.mark.parametrize("decision", ("approve", "revise", "hold"))
+def test_post_synthesis_recovery_writes_only_missing_evidence_and_replays_no_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision=decision,
+    )
+    _write_json(run_dir / "workspace.json", transitioned)
+    _write_json(run_dir / "synthesis.json", synthesis)
+    workspace_before = (run_dir / "workspace.json").read_bytes()
+    synthesis_before = (run_dir / "synthesis.json").read_bytes()
+    real_write = pilot_cli._atomic_write
+    writes: list[str] = []
+
+    def record_write(path: Path, payload: object) -> None:
+        writes.append(path.name)
+        real_write(path, payload)
+
+    with monkeypatch.context() as context:
+        context.setattr(pilot_cli, "_atomic_write", record_write)
+        assert pilot_cli.main(["synthesize", "--pilot-id", f"pilot-{decision}"]) == 0
+    assert writes == ["evidence_events.json"]
+    assert (run_dir / "workspace.json").read_bytes() == workspace_before
+    assert (run_dir / "synthesis.json").read_bytes() == synthesis_before
+    evidence_before = (run_dir / "evidence_events.json").read_bytes()
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("canonical replay must not write")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", f"pilot-{decision}"]) == 0
+    assert (run_dir / "workspace.json").read_bytes() == workspace_before
+    assert (run_dir / "synthesis.json").read_bytes() == synthesis_before
+    assert (run_dir / "evidence_events.json").read_bytes() == evidence_before
+
+
+@pytest.mark.parametrize(
+    "drift", ("event_count", "ordering", "timestamp", "metadata", "bool_vs_int")
+)
+def test_existing_evidence_drift_fails_closed_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    drift: str,
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="hold",
+    )
+    _write_json(run_dir / "workspace.json", transitioned)
+    _write_json(run_dir / "synthesis.json", synthesis)
+    events = [
+        event.to_dict()
+        for event in build_evidence_events(
+            workspace=transitioned,
+            synthesis=synthesis,
+            produced_at="2026-07-10T00:00:00+00:00",
+        )
+    ]
+    if drift == "event_count":
+        events.pop()
+    elif drift == "ordering":
+        events[0], events[1] = events[1], events[0]
+    elif drift == "timestamp":
+        events[1]["produced_at"] = "2026-07-10T00:00:01+00:00"
+    elif drift == "metadata":
+        events[2]["metadata"]["decision"] = "approve"
+    else:
+        assert events[0]["metadata"]["target_file_count"] == 1
+        events[0]["metadata"]["target_file_count"] = True
+    _write_json(run_dir / "evidence_events.json", events)
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("divergent replay must not write")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-hold"]) == 1
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+
+
+def test_evidence_payload_is_sanitized_control_plane_only() -> None:
+    _completed, synthesis, blocked = _synthesis_case("hold")
+    events = [
+        event.to_dict()
+        for event in build_evidence_events(
+            workspace=blocked,
+            synthesis=synthesis,
+            produced_at="2026-07-10T00:00:00+00:00",
+        )
+    ]
+    expected_keys = {
+        "asset_refs",
+        "event_id",
+        "event_type",
+        "fingerprint",
+        "idempotency_key",
+        "metadata",
+        "policy_version",
+        "produced_at",
+        "producer",
+        "rail",
+        "source_artifact",
+        "upstream_ids",
+        "validation_status",
+    }
+    forbidden_fragments = {
+        "absolute",
+        "authority",
+        "chunk",
+        "patch",
+        "private",
+        "provider",
+        "query",
+        "raw",
+        "repository",
+    }
+    for event in events:
+        assert set(event) == expected_keys
+        assert event["rail"] == "control_plane"
+        assert event["validation_status"] == "deferred"
+        source = event["source_artifact"]
+        assert source == "core/rag/orchestration.py"
+        assert not Path(source).is_absolute()
+        serialized_keys = " ".join(
+            [*event.keys(), *event["metadata"].keys(), *event["producer"].keys()]
+        ).lower()
+        assert not any(fragment in serialized_keys for fragment in forbidden_fragments)
 
 
 def test_duplicate_json_keys_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
