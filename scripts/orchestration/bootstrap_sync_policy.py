@@ -43,6 +43,23 @@ INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
     "stop_condition",
     "residual_risk",
 )
+INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
+    *INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
+    "family_membership_assessment",
+    "set_relation_interpretation",
+    "abstraction_level",
+    "root_cause_hypothesis",
+    "recommended_resolution",
+    "evidence_refs",
+)
+INVARIANT_REVIEW_RECOMMENDED_RESOLUTIONS: tuple[str, ...] = (
+    "bounded_object_fix",
+    "family_fix",
+    "mechanism_fix",
+    "authority_rescope",
+    "no_change_required",
+    "unknown_requires_human",
+)
 INVARIANT_REVIEW_STOP_CONDITION = (
     "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
 )
@@ -59,6 +76,34 @@ INVARIANT_REVIEW_V1_FIELDS = frozenset(
         "stop_condition",
         "implementation_authority",
         "merge_authority",
+    }
+)
+INVARIANT_REVIEW_V2_FIELDS = frozenset(
+    {
+        "schema_version",
+        "state",
+        "coverage_claim",
+        "required_roles",
+        "boundary_classes",
+        "required_output_fields",
+        "stop_condition",
+        "family_repeat",
+        "implementation_authority",
+        "merge_authority",
+    }
+)
+INVARIANT_REVIEW_FAMILY_REPEAT_FIELDS = frozenset(
+    {
+        "source_schema_version",
+        "source_policy_version",
+        "snapshot_fingerprint",
+        "artifact_fingerprint",
+        "idempotency_key",
+        "trigger_rule",
+        "membership_source",
+        "repeated_families",
+        "relations_touching_repeated_families",
+        "unknown_findings_present",
     }
 )
 INVARIANT_REVIEW_AUTHORITY_PATHS: tuple[str, ...] = (
@@ -152,7 +197,7 @@ def _normalize_invariant_review_path(raw_path: str) -> str:
     normalized = PurePosixPath(candidate_text)
     if ".." in normalized.parts:
         raise ValueError(
-            "invariant review paths: path must stay inside repo; " "parent traversal is forbidden"
+            "invariant review paths: path must stay inside repo; parent traversal is forbidden"
         )
     normalized_text = normalized.as_posix()
     while normalized_text.startswith("./"):
@@ -211,8 +256,7 @@ def classify_invariant_review(
         ):
             supported = ", ".join(INVARIANT_CHANGE_CLASSES)
             raise ValueError(
-                "Unsupported invariant change class: "
-                f"{raw_change_class!r}. Supported: {supported}"
+                f"Unsupported invariant change class: {raw_change_class!r}. Supported: {supported}"
             )
         explicit_set.add(cast(InvariantChangeClass, raw_change_class))
 

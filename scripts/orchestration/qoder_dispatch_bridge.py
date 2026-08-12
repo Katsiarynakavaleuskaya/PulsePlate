@@ -49,6 +49,9 @@ from scripts.orchestration.bootstrap_sync_policy import (
     INVARIANT_REVIEW_REQUIRED_ROLES,
     INVARIANT_REVIEW_STOP_CONDITION,
     INVARIANT_REVIEW_V1_FIELDS,
+    INVARIANT_REVIEW_FAMILY_REPEAT_FIELDS,
+    INVARIANT_REVIEW_V2_FIELDS,
+    INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS,
     classify_invariant_review,
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
@@ -58,6 +61,11 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
 )
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import (
+    INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
+    INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
+    INVARIANT_FAMILY_REVIEW_ROLE_ORDER,
+    INVARIANT_REVIEW_V2_COVERAGE_CLAIM,
+    INVARIANT_REVIEW_V2_SCHEMA_VERSION,
     build_role_agent_dispatch_contract,
     partition_native_secondaries,
 )
@@ -74,6 +82,30 @@ PR_PHASES = (
 )
 INVARIANT_REVIEW_SCHEMA_VERSION = "invariant_review.v1"
 INVARIANT_REVIEW_STATES = frozenset({"not_required", "required_pending"})
+INVARIANT_FAMILY_SOURCE_SCHEMA_VERSION = "review_invariant_family_relations.v1"
+INVARIANT_FAMILY_SOURCE_POLICY_VERSION = "review_invariant_family_relations.policy.v1"
+INVARIANT_FAMILY_ROW_FIELDS = frozenset({"family_id", "finding_ids"})
+INVARIANT_FAMILY_RELATION_FIELDS = frozenset(
+    {
+        "left_family_id",
+        "right_family_id",
+        "relation",
+        "intersection_finding_ids",
+        "left_only_finding_ids",
+        "right_only_finding_ids",
+    }
+)
+INVARIANT_FAMILY_RELATION_VALUES = frozenset(
+    {
+        "equal",
+        "left_proper_subset",
+        "right_proper_subset",
+        "partial_overlap",
+        "disjoint",
+    }
+)
+_SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$", re.ASCII)
+_L1_IDEMPOTENCY_RE = re.compile(r"^review-invariant-family-relations\.v1:[a-f0-9]{64}$", re.ASCII)
 CURRENT_TASK_PACKET_SCHEMA_VERSION = "3.1"
 MANIFEST_SCHEMA_VERSION = "2.0"
 MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
@@ -449,6 +481,153 @@ def _known_role_slugs_from_text(text: str, known: set[str]) -> List[str]:
     return slugs
 
 
+def _validate_string_list(value: Any, *, field: str) -> List[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"{field} must be a JSON string list")
+    return cast(List[str], value)
+
+
+def _validate_invariant_review_v2(invariant_review: Dict[str, Any]) -> str:
+    """Validate the closed L2 projection without recomputing any L1 relation."""
+
+    if set(invariant_review) != INVARIANT_REVIEW_V2_FIELDS:
+        raise ValueError("invariant_review must exactly match the invariant_review.v2 fields")
+    state = invariant_review.get("state")
+    if state not in INVARIANT_REVIEW_STATES:
+        raise ValueError("invariant_review state must be not_required or required_pending")
+    if invariant_review.get("coverage_claim") != INVARIANT_REVIEW_V2_COVERAGE_CLAIM:
+        raise ValueError("invariant_review.v2 requires the explicit snapshot coverage claim")
+    if invariant_review.get("boundary_classes") != list(INVARIANT_REVIEW_BOUNDARY_CLASSES):
+        raise ValueError("invariant_review.v2 requires the canonical boundary classes")
+    if invariant_review.get("required_output_fields") != list(
+        INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS
+    ):
+        raise ValueError("invariant_review.v2 requires the canonical output fields")
+    if invariant_review.get("stop_condition") != INVARIANT_REVIEW_STOP_CONDITION:
+        raise ValueError("invariant_review.v2 requires the canonical stop condition")
+    if invariant_review.get("implementation_authority") is not False:
+        raise ValueError("invariant review must not grant implementation authority")
+    if invariant_review.get("merge_authority") is not False:
+        raise ValueError("invariant review must not grant merge authority")
+
+    family_repeat = invariant_review.get("family_repeat")
+    if not isinstance(family_repeat, dict):
+        raise ValueError("invariant_review.v2 family_repeat must be a JSON object")
+    if set(family_repeat) != INVARIANT_REVIEW_FAMILY_REPEAT_FIELDS:
+        raise ValueError("family_repeat must exactly match the closed v2 fields")
+    if family_repeat.get("source_schema_version") != INVARIANT_FAMILY_SOURCE_SCHEMA_VERSION:
+        raise ValueError("family_repeat source_schema_version is unsupported")
+    if family_repeat.get("source_policy_version") != INVARIANT_FAMILY_SOURCE_POLICY_VERSION:
+        raise ValueError("family_repeat source_policy_version is unsupported")
+    for field in ("snapshot_fingerprint", "artifact_fingerprint"):
+        value = family_repeat.get(field)
+        if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
+            raise ValueError(f"family_repeat {field} must be a canonical SHA-256 fingerprint")
+    idempotency_key = family_repeat.get("idempotency_key")
+    if (
+        not isinstance(idempotency_key, str)
+        or _L1_IDEMPOTENCY_RE.fullmatch(idempotency_key) is None
+    ):
+        raise ValueError("family_repeat idempotency_key must be canonical")
+    if family_repeat.get("trigger_rule") != INVARIANT_FAMILY_REPEAT_TRIGGER_RULE:
+        raise ValueError("family_repeat trigger_rule is unsupported")
+    if family_repeat.get("membership_source") != INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE:
+        raise ValueError("family_repeat membership_source must be explicit_input_only")
+    if not isinstance(family_repeat.get("unknown_findings_present"), bool):
+        raise ValueError("family_repeat unknown_findings_present must be boolean")
+
+    repeated_families = family_repeat.get("repeated_families")
+    if not isinstance(repeated_families, list):
+        raise ValueError("family_repeat repeated_families must be a JSON list")
+    repeated_ids: List[str] = []
+    for row in repeated_families:
+        if not isinstance(row, dict) or set(row) != INVARIANT_FAMILY_ROW_FIELDS:
+            raise ValueError("family_repeat repeated family rows must use the closed shape")
+        family_id = row.get("family_id")
+        finding_ids = _validate_string_list(
+            row.get("finding_ids"), field="family_repeat repeated finding_ids"
+        )
+        if not isinstance(family_id, str) or len(finding_ids) < 2:
+            raise ValueError("family_repeat requires explicit family cardinality at least two")
+        if finding_ids != sorted(set(finding_ids)):
+            raise ValueError("family_repeat finding_ids must be unique and canonical")
+        repeated_ids.append(family_id)
+    if repeated_ids != sorted(set(repeated_ids)):
+        raise ValueError("family_repeat family ids must be unique and canonical")
+
+    relations = family_repeat.get("relations_touching_repeated_families")
+    if not isinstance(relations, list):
+        raise ValueError("family_repeat relations must be a JSON list")
+    repeated_id_set = set(repeated_ids)
+    relation_pairs: List[Tuple[str, str]] = []
+    for row in relations:
+        if not isinstance(row, dict) or set(row) != INVARIANT_FAMILY_RELATION_FIELDS:
+            raise ValueError("family_repeat relation rows must use the unchanged L1 shape")
+        left = row.get("left_family_id")
+        right = row.get("right_family_id")
+        if not isinstance(left, str) or not isinstance(right, str) or not left < right:
+            raise ValueError("family_repeat relation endpoints must be canonical")
+        if left not in repeated_id_set and right not in repeated_id_set:
+            raise ValueError("family_repeat relation must touch a repeated family")
+        if row.get("relation") not in INVARIANT_FAMILY_RELATION_VALUES:
+            raise ValueError("family_repeat relation value is unsupported")
+        for field in (
+            "intersection_finding_ids",
+            "left_only_finding_ids",
+            "right_only_finding_ids",
+        ):
+            values = _validate_string_list(row.get(field), field=f"family_repeat {field}")
+            if values != sorted(set(values)):
+                raise ValueError(f"family_repeat {field} must be unique and canonical")
+        relation_pairs.append((left, right))
+    if relation_pairs != sorted(set(relation_pairs)):
+        raise ValueError("family_repeat relations must be unique and canonical")
+
+    required = bool(repeated_families)
+    expected_state = "required_pending" if required else "not_required"
+    if state != expected_state:
+        raise ValueError("invariant_review.v2 state must match the repeated-family trigger")
+    expected_roles = list(INVARIANT_REVIEW_REQUIRED_ROLES) if required else []
+    if invariant_review.get("required_roles") != expected_roles:
+        raise ValueError(f"{state} invariant review requires the canonical required roles")
+    return cast(str, state)
+
+
+def _validated_v2_dispatch_role_order(
+    payload: Dict[str, Any],
+    *,
+    invariant_review_state: str,
+    spawnable_roles: List[str],
+) -> Optional[List[str]]:
+    if payload.get("pr_phase") != PR_PHASE_POST_OPEN_REVIEW:
+        raise ValueError("invariant_review.v2 is limited to post_open_review")
+    role_dispatch_contract = payload.get("role_agent_dispatch_contract")
+    declared_order = (
+        role_dispatch_contract.get("dispatch_role_order")
+        if isinstance(role_dispatch_contract, dict)
+        else None
+    )
+    if invariant_review_state == "not_required":
+        if declared_order is not None:
+            raise ValueError(
+                "not_required invariant_review.v2 must not declare dispatch_role_order"
+            )
+        return None
+    if not isinstance(declared_order, list) or declared_order != list(
+        INVARIANT_FAMILY_REVIEW_ROLE_ORDER
+    ):
+        raise ValueError(
+            "required_pending invariant_review.v2 requires the exact repeated-family role order"
+        )
+    if spawnable_roles != list(INVARIANT_FAMILY_REVIEW_ROLE_ORDER):
+        raise ValueError(
+            "required_pending invariant_review.v2 requires the exact spawnable role order"
+        )
+    if payload.get("creative_pilot_context") is not None:
+        raise ValueError("invariant review dispatch cannot be combined with creative pilot context")
+    return cast(List[str], declared_order)
+
+
 def _validated_dispatch_role_order(
     payload: Dict[str, Any],
     *,
@@ -488,8 +667,15 @@ def _validated_dispatch_role_order(
     if invariant_review_present:
         if not isinstance(invariant_review, dict):
             raise ValueError("invariant_review must be a JSON object when present")
+        if invariant_review.get("schema_version") == INVARIANT_REVIEW_V2_SCHEMA_VERSION:
+            invariant_review_state = _validate_invariant_review_v2(invariant_review)
+            return _validated_v2_dispatch_role_order(
+                payload,
+                invariant_review_state=invariant_review_state,
+                spawnable_roles=spawnable_roles,
+            )
         if invariant_review.get("schema_version") != INVARIANT_REVIEW_SCHEMA_VERSION:
-            raise ValueError("invariant_review metadata requires invariant_review.v1")
+            raise ValueError("invariant_review metadata requires invariant_review.v1 or v2")
         raw_state = invariant_review.get("state")
         if not isinstance(raw_state, str) or raw_state not in INVARIANT_REVIEW_STATES:
             raise ValueError("invariant_review state must be not_required or required_pending")
@@ -1608,8 +1794,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="role_dispatch_bridge",
         description=(
-            "Generate a JSON role dispatch manifest from a governance packet "
-            "or explicit role list."
+            "Generate a JSON role dispatch manifest from a governance packet or explicit role list."
         ),
     )
 

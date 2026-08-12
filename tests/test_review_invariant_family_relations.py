@@ -996,38 +996,78 @@ def test_runtime_script_has_only_bounded_stdlib_imports_and_no_authority_calls()
     assert actual_call_attributes == allowed_call_attributes
 
 
-def test_sidecar_has_no_runtime_workflow_or_authority_integration_references() -> None:
-    forbidden_roots = (
-        REPO_ROOT / "app",
-        REPO_ROOT / "core",
-        REPO_ROOT / ".github" / "workflows",
+def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
+    module_name = "scripts.orchestration.review_invariant_family_relations"
+    owner_path = "scripts/orchestration/review_invariant_family_relations.py"
+    production_roots = ("alembic", "app", "core", "evals", "providers", "scripts")
+    import_records: list[tuple[str, str, str | None]] = []
+    call_records: list[tuple[str, str]] = []
+
+    def dotted_name(node: ast.expr) -> str | None:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            prefix = dotted_name(node.value)
+            return f"{prefix}.{node.attr}" if prefix else node.attr
+        return None
+
+    candidates = sorted(
+        {
+            candidate
+            for root_name in production_roots
+            for candidate in (REPO_ROOT / root_name).rglob("*.py")
+        }
     )
-    needle = "review_invariant_family_relations"
-    matches: list[str] = []
-    for root in forbidden_roots:
-        for candidate in root.rglob("*"):
-            if candidate.suffix not in {".py", ".yml", ".yaml", ".json", ".md"}:
-                continue
-            try:
-                text = candidate.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            if needle in text:
-                matches.append(candidate.relative_to(REPO_ROOT).as_posix())
-    integration_files = (
-        REPO_ROOT / "scripts" / "orchestration" / "task_bootstrap.py",
-        REPO_ROOT / "scripts" / "orchestration" / "role_dispatch_bridge.py",
-        REPO_ROOT / "scripts" / "orchestration" / "review_pattern_oracles.py",
-        REPO_ROOT / "scripts" / "orchestration" / "agent_learning_loop.py",
-        REPO_ROOT / "scripts" / "orchestration" / "pr_review_evidence.py",
-        REPO_ROOT / "scripts" / "orchestration" / "review_mapping_artifact.py",
-    )
-    for candidate in integration_files:
-        if not candidate.exists():
+    for candidate in candidates:
+        relative_path = candidate.relative_to(REPO_ROOT).as_posix()
+        if relative_path == owner_path:
             continue
-        if needle in candidate.read_text(encoding="utf-8"):
-            matches.append(candidate.relative_to(REPO_ROOT).as_posix())
-    assert matches == []
+        tree = ast.parse(candidate.read_text(encoding="utf-8"), filename=relative_path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == module_name or alias.name.startswith(f"{module_name}."):
+                        import_records.append((relative_path, alias.name, alias.asname))
+            elif isinstance(node, ast.ImportFrom):
+                if node.level:
+                    package_parts = relative_path.removesuffix(".py").split("/")[:-1]
+                    retained_parts = package_parts[: len(package_parts) - node.level + 1]
+                    imported_from = ".".join(
+                        [*retained_parts, *((node.module or "").split("."))]
+                    ).rstrip(".")
+                else:
+                    imported_from = node.module or ""
+                for alias in node.names:
+                    imported_target = f"{imported_from}.{alias.name}".strip(".")
+                    if (
+                        imported_from == module_name
+                        or imported_from.startswith(f"{module_name}.")
+                        or imported_target == module_name
+                        or imported_target.startswith(f"{module_name}.")
+                    ):
+                        rendered_symbol = f"{imported_from}:{alias.name}"
+                        import_records.append((relative_path, rendered_symbol, alias.asname))
+            elif isinstance(node, ast.Call):
+                call_name = dotted_name(node.func)
+                if call_name == "process_input_bytes" or (
+                    call_name is not None and call_name.endswith(".process_input_bytes")
+                ):
+                    call_records.append((relative_path, call_name))
+                if (
+                    call_name in {"__import__", "import_module", "importlib.import_module"}
+                    and node.args
+                    and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value == module_name
+                ):
+                    call_records.append((relative_path, f"dynamic:{call_name}"))
+
+    expected_imports = [
+        ("scripts/orchestration/task_bootstrap.py", f"{module_name}:ContractError", None),
+        ("scripts/orchestration/task_bootstrap.py", f"{module_name}:MAX_STDIN_BYTES", None),
+        ("scripts/orchestration/task_bootstrap.py", f"{module_name}:process_input_bytes", None),
+    ]
+    assert sorted(import_records) == expected_imports
+    assert call_records == [("scripts/orchestration/task_bootstrap.py", "process_input_bytes")]
 
 
 def test_fixture_is_sanitized_and_contains_only_the_frozen_finite_case() -> None:

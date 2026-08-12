@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge
+from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge, task_bootstrap
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
@@ -89,6 +89,112 @@ def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixtu
     assert "usage: role_dispatch_bridge" in captured.out
     assert "Generate a JSON role dispatch manifest" in captured.out
     assert "Generate a JSON dispatch manifest for Qoder" not in captured.out
+
+
+def _v2_source_artifact(*, repeated: bool = True) -> dict[str, object]:
+    relation = {
+        "left_family_id": "family_alpha",
+        "right_family_id": "family_beta",
+        "relation": "partial_overlap",
+        "intersection_finding_ids": ["finding_b"],
+        "left_only_finding_ids": ["finding_a"],
+        "right_only_finding_ids": ["finding_c"],
+    }
+    return {
+        "schema_version": "review_invariant_family_relations.v1",
+        "policy_version": "review_invariant_family_relations.policy.v1",
+        "snapshot": {
+            "families": [
+                {"family_id": "family_alpha", "finding_ids": ["finding_a", "finding_b"]},
+                {
+                    "family_id": "family_beta",
+                    "finding_ids": ["finding_b", "finding_c"] if repeated else ["finding_c"],
+                },
+            ]
+        },
+        "snapshot_fingerprint": "sha256:" + ("1" * 64),
+        "artifact_fingerprint": "sha256:" + ("2" * 64),
+        "idempotency_key": "review-invariant-family-relations.v1:" + ("2" * 64),
+        "relations": [relation],
+        "unknown_finding_ids": [],
+    }
+
+
+def _v2_packet(monkeypatch: pytest.MonkeyPatch, *, repeated: bool = True) -> dict[str, object]:
+    artifact = _v2_source_artifact(repeated=repeated)
+    if not repeated:
+        snapshot = artifact["snapshot"]
+        assert isinstance(snapshot, dict)
+        families = snapshot["families"]
+        assert isinstance(families, list)
+        first_family = families[0]
+        assert isinstance(first_family, dict)
+        first_family["finding_ids"] = ["finding_a"]
+    monkeypatch.setattr(
+        task_bootstrap,
+        "_read_invariant_family_relations_input",
+        lambda _path: artifact,
+    )
+    return task_bootstrap.build_task_packet(
+        goal="Review repeated explicit invariant families",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+        review_invariant_family_relations_input=(
+            "artifacts/orchestration/review_invariant_family_relations/input.json"
+        ),
+        pr_phase="post_open_review",
+    )
+
+
+def test_qoder_accepts_closed_v2_without_recomputing_l1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    monkeypatch.setattr(
+        task_bootstrap,
+        "process_input_bytes",
+        lambda _raw: pytest.fail("Qoder must not recompute L1"),
+    )
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+
+
+def test_qoder_rejects_open_or_semantically_widened_v2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    review["change_classes"] = ["guard"]
+
+    with pytest.raises(ValueError, match="exactly match the invariant_review.v2 fields"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+    qa_index = roles.index("qa-engineer-agent")
+    assert roles[qa_index : qa_index + 3] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    assert review["state"] == "not_required"
 
 
 def require_feature(feature_key: str) -> None:
@@ -1443,7 +1549,7 @@ def test_relative_json_symlink_cannot_downgrade_to_markdown(
 ) -> None:
     target = tmp_path / "packet.md"
     target.write_text(
-        "## Coordinator Role Order\n" "1. agent-coordinator\n" "2. backend-engineer\n",
+        "## Coordinator Role Order\n1. agent-coordinator\n2. backend-engineer\n",
         encoding="utf-8",
     )
     (tmp_path / "packet.json").symlink_to(target)
@@ -3309,7 +3415,7 @@ def test_bracket_group_detection(tmp_path: Path) -> None:
         pytest.skip("Need at least two agent definitions for bracket group test")
 
     slug_a, slug_b = known[0], known[1]
-    packet_content = "# Test\n\n" "## Coordinator Role Order\n\n" f"1. [{slug_a}, {slug_b}]\n"
+    packet_content = f"# Test\n\n## Coordinator Role Order\n\n1. [{slug_a}, {slug_b}]\n"
     fake_packet = tmp_path / "bracket_test.md"
     fake_packet.write_text(packet_content, encoding="utf-8")
 
@@ -3328,7 +3434,7 @@ def test_bracket_group_detection_strips_inline_code_ticks(tmp_path: Path) -> Non
         pytest.skip("Need at least two agent definitions for bracket group test")
 
     slug_a, slug_b = known[0], known[1]
-    packet_content = "# Test\n\n" "## Coordinator Role Order\n\n" f"1. [`{slug_a}`, `{slug_b}`]\n"
+    packet_content = f"# Test\n\n## Coordinator Role Order\n\n1. [`{slug_a}`, `{slug_b}`]\n"
     fake_packet = tmp_path / "bracket_backticks_test.md"
     fake_packet.write_text(packet_content, encoding="utf-8")
 
