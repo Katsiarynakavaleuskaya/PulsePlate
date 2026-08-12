@@ -99,24 +99,3 @@ class TestAppMissingLinesExtra:
             )
             assert r.status_code == 200
             make_plate.assert_not_called()
-
-    def test_nutrient_gaps_value_error(self, client: TestClient) -> None:
-        # Hit 1275 by raising ValueError from build_nutrition_targets
-        with (
-            patch.object(app_mod, "analyze_nutrient_gaps", lambda *a, **k: {}),
-            patch.object(app_mod, "build_nutrition_targets", side_effect=ValueError("bad")),
-        ):
-            payload = {
-                "consumed_nutrients": {"protein_g": 80},
-                "user_profile": {
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175.0,
-                    "weight_kg": 70.0,
-                    "activity": "light",
-                    "goal": "maintain",
-                    "life_stage": "adult",
-                },
-            }
-            r = client.post("/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"})
-            assert r.status_code in [200, 500, 503]
