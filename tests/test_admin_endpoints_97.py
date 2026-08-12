@@ -13,21 +13,12 @@
 import os
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from app.services import admin_operations as admin_operations_service
-from starlette.types import ASGIApp
 from tests.helpers.fast_update_stubs import add_persisted_version_store_stub
-
-
-@pytest.fixture
-def client(app: FastAPI):
-    """Test client fixture"""
-    return TestClient(cast(ASGIApp, app))
 
 
 class TestAdminEndpoints:

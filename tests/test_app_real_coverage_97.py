@@ -4,25 +4,18 @@ Real functional tests for main.py endpoints without mocks
 Targets major uncovered blocks: /bmi, /plan endpoints with real data
 """
 
-import os
-
 import pytest
-from fastapi.testclient import TestClient
 
 
-@pytest.fixture
-def client(app):
-    """Test client fixture using app from conftest"""
-    return TestClient(app)
+@pytest.fixture(autouse=True)
+def _setup_client_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install the class environment before the shared client starts."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
 class TestAppReal97Coverage:
     """Real functional tests targeting 97% coverage for main.py"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     def test_bmi_endpoint_pregnant_with_chart_visualization(self, client):
         """Test /bmi endpoint for pregnant user with visualization request (lines 653-680)"""

@@ -14,34 +14,64 @@
 Нужно покрыть: 262+ дополнительных линии
 """
 
-import os
+from collections.abc import Generator
+
 import sys
 
 import pytest
-from fastapi.testclient import TestClient
-from app import app
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Test client fixture"""
-    return TestClient(app)
 
 
 class TestPremiumEndpointBlocks:
     """Тесты для блоков 820-836, 854-870, 885-897 premium endpoints"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _setup_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Keep the managed client inside the function-scoped environment."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        request.getfixturevalue("client")
+        yield
 
     def test_premium_bmr_error_conditions(self, client) -> None:
         """Тест error conditions в premium BMR (820-836)"""
         # Установить API key для доступа
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Тест с отсутствующими обязательными полями
+        # Тест с отсутствующими обязательными полями
+        response = client.post(
+            "/api/v1/premium/bmr",
+            headers={"X-API-Key": "test_key"},
+            json={
+                "weight_kg": 70,
+                "height_cm": 170,
+                "age": 30,
+                # Отсутствует sex и activity
+            },
+        )
+        # Должно вернуть ошибку валидации
+        assert response.status_code == 422
+
+        # Тест с невалидными значениями
+        response = client.post(
+            "/api/v1/premium/bmr",
+            headers={"X-API-Key": "test_key"},
+            json={
+                "weight_kg": -10,  # Негативный вес
+                "height_cm": 170,
+                "age": 30,
+                "sex": "male",
+                "activity": "moderate",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_premium_bmr_business_logic(self, client) -> None:
+        """Тест business logic в BMR (854-870)"""
+        # Тест с различными activity levels
+        activities = ["sedentary", "light", "moderate", "active", "very_active"]
+        for activity in activities:
             response = client.post(
                 "/api/v1/premium/bmr",
                 headers={"X-API-Key": "test_key"},
@@ -49,184 +79,135 @@ class TestPremiumEndpointBlocks:
                     "weight_kg": 70,
                     "height_cm": 170,
                     "age": 30,
-                    # Отсутствует sex и activity
-                },
-            )
-            # Должно вернуть ошибку валидации
-            assert response.status_code == 422
-
-            # Тест с невалидными значениями
-            response = client.post(
-                "/api/v1/premium/bmr",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "weight_kg": -10,  # Негативный вес
-                    "height_cm": 170,
-                    "age": 30,
                     "sex": "male",
-                    "activity": "moderate",
+                    "activity": activity,
                 },
             )
-            assert response.status_code == 422
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-
-    def test_premium_bmr_business_logic(self, client) -> None:
-        """Тест business logic в BMR (854-870)"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        try:
-            # Тест с различными activity levels
-            activities = ["sedentary", "light", "moderate", "active", "very_active"]
-            for activity in activities:
-                response = client.post(
-                    "/api/v1/premium/bmr",
-                    headers={"X-API-Key": "test_key"},
-                    json={
-                        "weight_kg": 70,
-                        "height_cm": 170,
-                        "age": 30,
-                        "sex": "male",
-                        "activity": activity,
-                    },
-                )
-                assert response.status_code == 200
-                data = response.json()
-                assert "bmr" in data
-                assert "tdee" in data
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-                del os.environ["FEATURE_PREMIUM_NUTRITION"]
+            assert response.status_code == 200
+            assert response.headers.get("content-type", "").startswith("application/json")
+            data = response.json()
+            assert "bmr" in data
+            assert "tdee" in data
 
     def test_premium_plate_business_logic(self, client) -> None:
         """Тест business logic в Plate (884-895)"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        try:
-            # Разные цели и ограничения
-            goals = ["weight_loss", "muscle_gain", "maintenance"]
-            restrictions = [["vegetarian"], ["gluten_free"], []]
+        # Разные цели и ограничения
+        goals = ["weight_loss", "muscle_gain", "maintenance"]
+        restrictions = [["vegetarian"], ["gluten_free"], []]
 
-            for goal in goals:
-                for restriction in restrictions:
-                    response = client.post(
-                        "/api/v1/premium/plate",
-                        json={"goal": goal, "dietary_restrictions": restriction},
-                        headers={"X-API-Key": "test_key"},
-                    )
-                    assert response.status_code in [200, 422]
-                    if response.status_code == 200:
-                        data = response.json()
-                        assert "plate" in data
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
-            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-                del os.environ["FEATURE_PREMIUM_NUTRITION"]
+        for goal in goals:
+            for restriction in restrictions:
+                response = client.post(
+                    "/api/v1/premium/plate",
+                    json={"goal": goal, "dietary_restrictions": restriction},
+                    headers={"X-API-Key": "test_key"},
+                )
+                assert response.status_code in [200, 422]
+                if response.status_code == 200:
+                    assert response.headers.get("content-type", "").startswith("application/json")
+                    data = response.json()
+                    assert "plate" in data
 
 
 class TestWeeklyPlanningBlocks:
     """Тесты для больших блоков weekly planning (1265-1339, 1435-1501)"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _setup_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Keep the managed client inside the function-scoped environment."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        request.getfixturevalue("client")
+        yield
 
     def test_weekly_plan_creation_logic(self, client) -> None:
         """Тест logic создания weekly plans (1265-1339)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Тестируем разные комбинации параметров
-            params_sets = [
-                {"goal": "weight_loss", "height": 170, "weight": 70},
-                {"goal": "muscle_gain", "height": 180, "weight": 80},
-                {"goal": "maintenance", "height": 165, "weight": 65},
-            ]
+        # Тестируем разные комбинации параметров
+        params_sets = [
+            {"goal": "weight_loss", "height": 170, "weight": 70},
+            {"goal": "muscle_gain", "height": 180, "weight": 80},
+            {"goal": "maintenance", "height": 165, "weight": 65},
+        ]
 
-            for params in params_sets:
-                response = client.post(
-                    "/api/v1/premium/plan/week", json=params, headers={"X-API-Key": "test_key"}
-                )
-                assert response.status_code in [200, 404, 422, 501]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert "plan" in data
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        for params in params_sets:
+            response = client.post(
+                "/api/v1/premium/plan/week", json=params, headers={"X-API-Key": "test_key"}
+            )
+            assert response.status_code in [200, 404, 422, 501]
+            if response.status_code == 200:
+                assert response.headers.get("content-type", "").startswith("application/json")
+                data = response.json()
+                assert "plan" in data
 
     def test_weekly_plan_advanced_logic(self, client) -> None:
         """Тест advanced logic weekly planning (1435-1501)"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Тест с различными конфигурациями
-            test_cases = [
-                {
-                    "sex": "female",
-                    "age": 25,
-                    "height_cm": 165,
-                    "weight_kg": 55,
-                    "activity": "light",
-                    "goal": "lose",
-                    "preferences": ["vegan"],
-                    "restrictions": ["dairy-free"],
-                },
-                {
-                    "sex": "male",
-                    "age": 45,
-                    "height_cm": 180,
-                    "weight_kg": 90,
-                    "activity": "very_active",
-                    "goal": "gain",
-                    "preferences": ["high-protein"],
-                    "restrictions": [],
-                },
-            ]
+        # Тест с различными конфигурациями
+        test_cases = [
+            {
+                "sex": "female",
+                "age": 25,
+                "height_cm": 165,
+                "weight_kg": 55,
+                "activity": "light",
+                "goal": "lose",
+                "preferences": ["vegan"],
+                "restrictions": ["dairy-free"],
+            },
+            {
+                "sex": "male",
+                "age": 45,
+                "height_cm": 180,
+                "weight_kg": 90,
+                "activity": "very_active",
+                "goal": "gain",
+                "preferences": ["high-protein"],
+                "restrictions": [],
+            },
+        ]
 
-            for case in test_cases:
-                response = client.post(
-                    "/api/v1/premium/plan/week", json=case, headers={"X-API-Key": "test_key"}
-                )
-                assert response.status_code in [200, 404, 422, 501]
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        for case in test_cases:
+            response = client.post(
+                "/api/v1/premium/plan/week", json=case, headers={"X-API-Key": "test_key"}
+            )
+            assert response.status_code in [200, 404, 422, 501]
 
     def test_weekly_plan_mock_llm_response(self, client) -> None:
         """Тест weekly planning с имитацией LLM ответа"""
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Простой тест без мокинга, т.к. функция может не существовать
-            response = client.post(
-                "/api/v1/premium/plan/week",
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 170,
-                    "weight_kg": 70,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Endpoint может быть не реализован
-            assert response.status_code in [200, 404, 422, 501]
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+        # Простой тест без мокинга, т.к. функция может не существовать
+        response = client.post(
+            "/api/v1/premium/plan/week",
+            json={
+                "sex": "male",
+                "age": 30,
+                "height_cm": 170,
+                "weight_kg": 70,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_key"},
+        )
+        # Endpoint может быть не реализован
+        assert response.status_code in [200, 404, 422, 501]
 
 
 class TestPremiumEndpointErrorHandling:
     """Тесты error handling в premium endpoints"""
 
-    def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def _setup_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> Generator[None, None, None]:
+        """Keep the managed client inside the function-scoped environment."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        request.getfixturevalue("client")
+        yield
 
     def test_premium_endpoints_without_implementation(self, client) -> None:
         """Тест endpoints которые могут быть не реализованы"""
@@ -247,36 +228,31 @@ class TestPremiumEndpointErrorHandling:
 
     def test_api_key_validation_edge_cases(self, client) -> None:
         """Тест edge cases для API key validation"""
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        try:
-            # Тест с пустым API ключом
-            response = client.post(
-                "/api/v1/premium/bmr",
-                headers={"X-API-Key": ""},
-                json={
-                    "weight_kg": 70,
-                    "height_cm": 170,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                },
-            )
-            assert response.status_code in [200, 403, 422]
+        # Тест с пустым API ключом
+        response = client.post(
+            "/api/v1/premium/bmr",
+            headers={"X-API-Key": ""},
+            json={
+                "weight_kg": 70,
+                "height_cm": 170,
+                "age": 30,
+                "sex": "male",
+                "activity": "moderate",
+            },
+        )
+        assert response.status_code == 403
 
-            # Тест с очень длинным API ключом
-            long_key = "x" * 1000
-            response = client.post(
-                "/api/v1/premium/bmr",
-                headers={"X-API-Key": long_key},
-                json={
-                    "weight_kg": 70,
-                    "height_cm": 170,
-                    "age": 30,
-                    "sex": "male",
-                    "activity": "moderate",
-                },
-            )
-            assert response.status_code in [200, 403, 422]
-        finally:
-            if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-                del os.environ["FEATURE_PREMIUM_NUTRITION"]
+        # Тест с очень длинным API ключом
+        long_key = "x" * 1000
+        response = client.post(
+            "/api/v1/premium/bmr",
+            headers={"X-API-Key": long_key},
+            json={
+                "weight_kg": 70,
+                "height_cm": 170,
+                "age": 30,
+                "sex": "male",
+                "activity": "moderate",
+            },
+        )
+        assert response.status_code == 403

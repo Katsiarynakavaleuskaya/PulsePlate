@@ -3,18 +3,7 @@
 Покрывает строки: 2271-2272, 2372, 2400-2426
 """
 
-from typing import Any, cast
-
-import pytest
-from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
-
-
-@pytest.fixture()
-def client(test_environment):
-    import app
-
-    return TestClient(cast(ASGIApp, app.app))
+from typing import Any
 
 
 def _assert_json_content_type(response: Any) -> None:

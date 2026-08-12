@@ -3,17 +3,11 @@ import sys
 from unittest.mock import Mock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 try:
-    from app import app
+    from app import app as _app
 except (ImportError, FileNotFoundError, AttributeError) as exc:  # pragma: no cover
     pytest.skip(f"Skipping smoke tests: cannot import app.py ({exc})", allow_module_level=True)
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
 
 
 def test_health_ok(client) -> None:

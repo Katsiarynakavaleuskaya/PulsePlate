@@ -9,22 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
 from fastapi.testclient import TestClient
 
-from app import app
 from core.i18n import Language, TRANSLATIONS, normalize_lang, t
 
 # Constants to avoid duplication
 SUPPORTED_LANGS: tuple[Language, ...] = ("ru", "en", "es")
 BMI_VIZ_KEYS = ("bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity")
 EXPECTED_VIZ_KEYS = set(BMI_VIZ_KEYS)
-
-
-@pytest.fixture()
-def client() -> TestClient:
-    """TestClient fixture for BMI API tests."""
-    return TestClient(app)
 
 
 def _post_bmi(client: TestClient, payload: dict[str, Any]) -> dict[str, Any]:
