@@ -28,7 +28,7 @@ class TestMissingCoverage:
         # Проверяем, что все импорты работают
         app_main = resolve_module("app.main")
         legacy_app = resolve_legacy_app()
-        assert app is app_main.app
+        assert app is app_main.app is legacy_app.app
         assert isinstance(legacy_app.VIP_MODULE_ENABLED, bool)
 
     def test_middleware_paths(self, client: TestClient) -> None:
