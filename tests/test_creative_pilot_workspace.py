@@ -697,6 +697,25 @@ def test_evidence_events_reject_cross_workspace_synthesis() -> None:
         )
 
 
+def test_evidence_payloads_preserve_contract_error_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject_evidence(**_kwargs: object) -> list[object]:
+        raise CreativePilotContractError("evidence synthesis decision binding mismatch")
+
+    monkeypatch.setattr(pilot_cli, "build_evidence_events", reject_evidence)
+
+    with pytest.raises(
+        CreativePilotContractError,
+        match="evidence synthesis decision binding mismatch",
+    ):
+        pilot_cli._evidence_payloads(
+            workspace={},
+            synthesis={},
+            produced_at="2026-07-10T00:00:00+00:00",
+        )
+
+
 @pytest.mark.parametrize(
     ("decision", "expected_phase", "expected_status", "expected_evidence"),
     (

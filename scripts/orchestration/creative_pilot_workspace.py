@@ -513,6 +513,8 @@ def _evidence_payloads(
                 produced_at=produced_at,
             )
         ]
+    except CreativePilotContractError:
+        raise
     except ValueError as exc:
         raise CreativePilotContractError("creative-pilot evidence is invalid") from exc
 
