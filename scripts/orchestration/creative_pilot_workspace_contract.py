@@ -2399,6 +2399,10 @@ def _reviewed_synthesis_ready_workspace(
             raise CreativePilotContractError(
                 "synthesis is not the canonical post-synthesis workspace truth"
             )
+        if ws["handoff_ref"] is not None:
+            raise CreativePilotContractError(
+                "post-synthesis workspace must not carry a handoff reference"
+            )
         reviewed_revision = int(ws["revision"]) - 1
         if reviewed_revision < 1:
             raise CreativePilotContractError("workspace synthesis revision lineage is invalid")

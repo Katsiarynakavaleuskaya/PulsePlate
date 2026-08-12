@@ -1039,6 +1039,68 @@ def test_existing_evidence_drift_fails_closed_without_writes(
     assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
 
 
+def test_existing_evidence_oversized_integer_fails_as_contract_error_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="hold",
+    )
+    _write_json(run_dir / "workspace.json", transitioned)
+    _write_json(run_dir / "synthesis.json", synthesis)
+    (run_dir / "evidence_events.json").write_text(
+        "[" + ("9" * 5000) + "]\n",
+        encoding="utf-8",
+    )
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("invalid evidence must fail before publication")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-hold"]) == 1
+    output = capsys.readouterr().out
+    assert output.startswith("FAIL: unable to read safe pilot JSON value")
+    assert "Traceback" not in output
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+
+
+@pytest.mark.parametrize("decision", ("approve", "revise", "hold"))
+def test_post_synthesis_recovery_rejects_forged_handoff_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision=decision,
+    )
+    forged = deepcopy(transitioned)
+    forged["handoff_ref"] = {
+        "approval_id": "forged-approval",
+        "approval_fingerprint": fingerprint_payload({"artifact": "approval"}),
+        "bridge_id": "forged-bridge",
+        "bridge_fingerprint": fingerprint_payload({"artifact": "bridge"}),
+        "candidate_id": "forged-candidate",
+        "candidate_fingerprint": fingerprint_payload({"artifact": "candidate"}),
+    }
+    forged = _resign_workspace(forged)
+    _write_json(run_dir / "workspace.json", forged)
+    _write_json(run_dir / "synthesis.json", synthesis)
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("non-canonical workspace must fail before publication")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", f"pilot-{decision}"]) == 1
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+
+
 def test_evidence_payload_is_sanitized_control_plane_only() -> None:
     _completed, synthesis, blocked = _synthesis_case("hold")
     events = [

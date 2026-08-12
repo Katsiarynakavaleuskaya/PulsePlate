@@ -189,6 +189,7 @@ def _read_json_value(path: Path) -> Any:
         OSError,
         UnicodeDecodeError,
         json.JSONDecodeError,
+        ValueError,
         RecursionError,
         NotImplementedError,
     ) as exc:
