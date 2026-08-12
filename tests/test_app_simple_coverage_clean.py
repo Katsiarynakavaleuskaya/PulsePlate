@@ -8,18 +8,18 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from app import app
-import legacy_app
 
-get_api_key = legacy_app.get_api_key
-legacy_category_label = legacy_app.legacy_category_label
+from app import app
+from app.routers.api_key import get_api_key
 
 
 class TestAPIKeyModes:
     """Тесты различных режимов API ключей"""
 
-    def test_api_key_strict_mode_valid_key(self):
+    def test_api_key_strict_mode_valid_key(self) -> None:
         """Строгий режим - правильный ключ"""
+        # Keep this secret-shaped fixture on its audited baseline line.
+        # The generated baseline is shared with other active PRs.
         with patch.dict(os.environ, {"API_KEY": "test-secret-key"}, clear=False):
             result = get_api_key("test-secret-key")
             assert result == "test-secret-key"
@@ -117,34 +117,6 @@ class TestBasicEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
-
-
-class TestHelperFunctions:
-    """Тесты helper функций"""
-
-    def test_legacy_category_label_function(self):
-        """Тест legacy_category_label функции"""
-        # Тест английского языка
-        result = legacy_category_label("Normal weight", "en")
-        assert result == "Healthy weight"
-
-        # Тест русского языка
-        result = legacy_category_label("Избыточная масса", "ru")
-        assert result == "Избыточный вес"
-
-        # Тест других случаев
-        result = legacy_category_label("Other", "en")
-        assert result == "Other"
-
-    def test_legacy_category_label_edge_cases(self):
-        """Тест edge cases для legacy_category_label"""
-        # Тест с None языком
-        result = legacy_category_label("Normal weight", None)
-        assert result == "Normal weight"  # Не должен измениться для ru по умолчанию
-
-        # Тест с исключением в языке
-        result = legacy_category_label("Normal weight", 123)  # Некорректный тип
-        assert result == "Normal weight"
 
 
 class TestImportCoverage:

@@ -1,10 +1,11 @@
-"""App package - shim facade for legacy_app backward compatibility.
+"""App package facade with a finite backward-compatibility surface.
 
-This module is intentionally a thin PEP 562 forwarder:
+This module intentionally resolves only explicitly declared lazy exports:
 - RU: Не импортируем `legacy_app` eagerly (избегаем циклических импортов).
 - EN: Do not eagerly import `legacy_app` (avoid circular imports).
 
-All unknown attributes are resolved from `legacy_app` lazily at access time.
+Names that are neither ordinary package attributes nor declared compatibility
+exports fail closed without importing `legacy_app`.
 """
 
 from __future__ import annotations
@@ -52,6 +53,9 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "bmi_pro_router": ("app.main", "bmi_pro_router"),
     "bmi_pro_legacy_alias_router": ("app.main", "bmi_pro_legacy_alias_router"),
     "get_bodyfat_router": ("app.routers.bodyfat", "get_router"),
+    "BMIRequest": ("app.schemas.bmi_compat", "BMIRequest"),
+    "_is_truthy": ("app.utils.feature_flags", "_is_truthy"),
+    "_macros_to_kcal": ("app.services.pro_nutrition_plate", "_macros_to_kcal"),
 }
 
 
@@ -94,7 +98,7 @@ def _ensure_canonical_bootstrap() -> None:
 
 @lru_cache(maxsize=1)
 def _legacy() -> Any:
-    """Import legacy_app lazily and cache it.
+    """Load the retained legacy FastAPI instance and ``app_module`` alias.
 
     RU: Ленивая загрузка, чтобы не ломать порядок импортов (особенно в тестах).
     EN: Lazy import to keep import order stable and prevent cycles.
@@ -108,13 +112,9 @@ def _legacy() -> Any:
 
 
 def __getattr__(name: str) -> Any:
-    """Resolve attribute lazily from local exports or legacy_app.
+    """Resolve an explicitly supported compatibility export lazily.
 
-    RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
-    EN: First check local re-exports (core.*), then fall back to legacy_app.
-
-    PEP 562 forwarder: pure delegation, no side effects.
-    Observability bootstrap (register_metrics) is applied ONLY in app/main.py.
+    Unknown names fail closed and do not load ``legacy_app``.
     """
     if name == "app":
         _ensure_canonical_bootstrap()
@@ -123,15 +123,15 @@ def __getattr__(name: str) -> Any:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)
         return getattr(mod, attr)
-    return getattr(_legacy(), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def __dir__() -> list[str]:
-    return sorted(set(globals().keys()) | set(dir(_legacy())))
+    return sorted(set(globals()) | set(_LOCAL_EXPORTS) | {"app"})
 
 
 __all__ = [
-    # Forwarded from legacy_app via __getattr__
+    # Explicit compatibility exports resolved via __getattr__
     "app",
     "get_update_scheduler",
     "lifespan",

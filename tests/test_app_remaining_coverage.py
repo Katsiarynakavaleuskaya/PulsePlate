@@ -57,7 +57,8 @@ class TestAppRemainingCoverage:
 
     def test_add_visualization_if_requested_function(self, test_client):
         """Test the add_visualization_if_requested function."""
-        from app import BMIRequest, add_visualization_if_requested
+        from app.schemas.bmi_compat import BMIRequest
+        from app.services.bmi_compat import add_visualization_if_requested
 
         # Test when include_chart is False
         result = {"bmi": 22.5}

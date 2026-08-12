@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Any, Callable, cast
 
 import legacy_app as _legacy_module
@@ -132,18 +133,14 @@ from app.utils.feature_flags import is_business_module_enabled, is_vip_module_en
 logger = logging.getLogger(__name__)
 
 app: FastAPI = _legacy_app
-VIP_MODULE_ENABLED: bool = bool(getattr(_legacy_module, "VIP_MODULE_ENABLED", False))
-vip_router: APIRouter | None = getattr(_legacy_module, "vip_router", None)
-pro_router: APIRouter | None = getattr(_legacy_module, "pro_router", None)
-premium_week_router: APIRouter | None = getattr(_legacy_module, "premium_week_router", None)
-FEATURE_BMI_PRO_ENABLED: bool = bool(getattr(_legacy_module, "FEATURE_BMI_PRO_ENABLED", False))
-bmi_router: APIRouter | None = getattr(_legacy_module, "bmi_router", None)
-bmi_pro_router: APIRouter | None = getattr(_legacy_module, "bmi_pro_router", None)
-bmi_pro_legacy_alias_router: APIRouter | None = getattr(
-    _legacy_module,
-    "bmi_pro_legacy_alias_router",
-    None,
-)
+VIP_MODULE_ENABLED: bool = False
+vip_router: APIRouter | None = None
+pro_router: APIRouter | None = None
+premium_week_router: APIRouter | None = None
+FEATURE_BMI_PRO_ENABLED: bool = False
+bmi_router: APIRouter | None = None
+bmi_pro_router: APIRouter | None = None
+bmi_pro_legacy_alias_router: APIRouter | None = None
 
 _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
@@ -1241,6 +1238,18 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     apply_public_openapi_input_policy(app)
     install_canonical_openapi_builder(app)
+    # Importing canonical routers loads the ``app.metrics`` submodule, which
+    # Python records on the package and which would shadow the reviewed facade
+    # export. Remove only that package binding after bootstrap so the existing
+    # finite lazy export map remains authoritative for ``app.metrics``.
+    app_package = sys.modules.get("app")
+    metrics_module = sys.modules.get("app.metrics")
+    if (
+        app_package is not None
+        and metrics_module is not None
+        and vars(app_package).get("metrics") is metrics_module
+    ):
+        delattr(app_package, "metrics")
     return app
 
 
