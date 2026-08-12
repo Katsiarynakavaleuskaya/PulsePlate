@@ -48,6 +48,17 @@ POLICY_BEGIN = "<!-- BEGIN REVIEW_INVARIANT_FAMILY_RELATIONS_POLICY_V1 -->"
 POLICY_END = "<!-- END REVIEW_INVARIANT_FAMILY_RELATIONS_POLICY_V1 -->"
 
 
+def _tracked_non_test_python_paths(repo_root: Path, tracked_python: list[str]) -> list[Path]:
+    candidates: list[Path] = []
+    for relative_path in tracked_python:
+        if not relative_path or relative_path.startswith("tests/"):
+            continue
+        candidate = repo_root / relative_path
+        if candidate.exists():
+            candidates.append(candidate)
+    return sorted(candidates)
+
+
 def _false_authority() -> dict[str, bool]:
     return {field: False for field in relations.AUTHORITY_FIELDS}
 
@@ -1023,11 +1034,7 @@ def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
         .stdout.decode("utf-8")
         .split("\0")
     )
-    candidates = sorted(
-        REPO_ROOT / relative_path
-        for relative_path in tracked_python
-        if relative_path and not relative_path.startswith("tests/")
-    )
+    candidates = _tracked_non_test_python_paths(REPO_ROOT, tracked_python)
     for candidate in candidates:
         relative_path = candidate.relative_to(REPO_ROOT).as_posix()
         if relative_path == owner_path:
@@ -1078,6 +1085,16 @@ def test_sidecar_has_only_the_bounded_task_bootstrap_consumer() -> None:
     ]
     assert sorted(import_records) == expected_imports
     assert call_records == [("scripts/orchestration/task_bootstrap.py", "process_input_bytes")]
+
+
+def test_consumer_scan_filters_missing_tracked_python_paths(tmp_path: Path) -> None:
+    present = tmp_path / "present.py"
+    present.touch()
+
+    assert _tracked_non_test_python_paths(
+        tmp_path,
+        ["present.py", "missing.py", "tests/ignored.py", ""],
+    ) == [present]
 
 
 def test_fixture_is_sanitized_and_contains_only_the_frozen_finite_case() -> None:
