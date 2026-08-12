@@ -994,6 +994,120 @@ def test_post_synthesis_recovery_writes_only_missing_evidence_and_replays_no_wri
     assert (run_dir / "evidence_events.json").read_bytes() == evidence_before
 
 
+@pytest.mark.parametrize("decision", ("approve", "revise", "hold"))
+def test_post_synthesis_recovery_requires_synthesis_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+) -> None:
+    run_dir, _completed, _synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision=decision,
+    )
+    _write_json(run_dir / "workspace.json", transitioned)
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("missing synthesis must fail before publication")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", f"pilot-{decision}"]) == 1
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+
+
+def test_synthesize_rejects_completed_handoff_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context, packet, workspace = _cached_chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    synthesized = apply_synthesis_transition(completed, synthesis)
+    approval = build_approval_v2(
+        workspace=synthesized,
+        synthesis=synthesis,
+        approved_by="test-operator",
+    )
+    bundle = build_creative_pilot_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        workspace=synthesized,
+        synthesis=synthesis,
+        approval=approval,
+        variant_count=3,
+    )
+    terminal = complete_handoff(
+        workspace=synthesized,
+        approval=approval,
+        bridge=bundle["bridge"],
+        candidate=bundle["candidate"],
+    )
+    assert terminal["state"] == {"phase": "approved_for_pr1_spec", "terminal": True}
+
+    pilot_root = tmp_path / "adaptive_pilots"
+    run_dir = pilot_root / "pilot-handoff"
+    monkeypatch.setattr(pilot_cli, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
+    payloads = {
+        "workspace.json": terminal,
+        "synthesis.json": synthesis,
+        "approval.v2.json": approval,
+        "spec_bridge.v2.json": bundle["bridge"],
+        "creative_code_candidate.v1.json": bundle["candidate"],
+        "evidence_events.json": [
+            event.to_dict()
+            for event in build_evidence_events(
+                workspace=synthesized,
+                synthesis=synthesis,
+                produced_at="2026-07-10T00:00:00+00:00",
+            )
+        ],
+    }
+    for filename, payload in payloads.items():
+        _write_json(run_dir / filename, payload)
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("completed handoff must not be rewritten by synthesize")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-handoff"]) == 1
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+
+
+def test_existing_evidence_replays_non_utc_aware_timestamp_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir, _completed, synthesis, transitioned = _prepare_synthesis_run(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        decision="hold",
+    )
+    _write_json(run_dir / "workspace.json", transitioned)
+    _write_json(run_dir / "synthesis.json", synthesis)
+    _write_json(
+        run_dir / "evidence_events.json",
+        [
+            event.to_dict()
+            for event in build_evidence_events(
+                workspace=transitioned,
+                synthesis=synthesis,
+                produced_at="2026-07-10T05:00:00+05:00",
+            )
+        ],
+    )
+    before = {path.name: path.read_bytes() for path in run_dir.iterdir()}
+
+    def unexpected_write(_path: Path, _payload: object) -> None:
+        raise AssertionError("canonical replay must not write")
+
+    monkeypatch.setattr(pilot_cli, "_atomic_write", unexpected_write)
+    assert pilot_cli.main(["synthesize", "--pilot-id", "pilot-hold"]) == 0
+    assert {path.name: path.read_bytes() for path in run_dir.iterdir()} == before
+
+
 @pytest.mark.parametrize(
     "drift", ("event_count", "ordering", "timestamp", "metadata", "bool_vs_int")
 )
