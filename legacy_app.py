@@ -467,36 +467,6 @@ with suppress(Exception):
 # @app.on_event("shutdown")
 
 
-# ---------- Helpers ----------
-
-
-def legacy_category_label(cat: str, lang: str) -> str:
-    """Map core category labels to legacy wording for the v0 endpoints only.
-
-    - EN: "Normal weight" → "Healthy weight"
-    - RU: "Избыточная масса" → "Избыточный вес"
-    """
-    try:
-        lang_code = (lang or "ru").lower()
-    except Exception:
-        lang_code = "ru"
-    if lang_code.startswith("en") and cat == "Normal weight":
-        return "Healthy weight"
-    if lang_code.startswith("ru") and cat == "Избыточная масса":
-        return "Избыточный вес"
-    return cat
-
-
-# Legacy/compat helper expected by coverage tests.
-def _is_rate_limiting_available() -> bool:
-    try:
-        from app.security.rate_limit import limiter
-
-        return limiter is not None
-    except Exception:  # pragma: no cover - defensive
-        return False  # pragma: no cover
-
-
 # Rate limiting setup (PR-628)
 # Wiring is centralized in app.security.rate_limit; import after app creation
 # to avoid import-order issues with FastAPI instance

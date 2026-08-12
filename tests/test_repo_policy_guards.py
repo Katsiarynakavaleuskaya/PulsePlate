@@ -182,6 +182,42 @@ def test_app_init_is_import_shim_not_dynamic_loader() -> None:
     assert not banned, f"app/__init__.py contains forbidden tokens: {banned}"
 
 
+def test_app_facade_does_not_restore_arbitrary_legacy_fallthrough() -> None:
+    """The package facade must remain finite and fail closed for unknown names."""
+    content = _read(REPO_ROOT / "app" / "__init__.py")
+    assert content is not None, "app/__init__.py unexpectedly missing during read"
+
+    forbidden = ("getattr(_legacy(), name)", "dir(_legacy())")
+    offenders = [token for token in forbidden if token in content]
+    assert not offenders, f"Arbitrary legacy facade fallthrough restored: {offenders}"
+
+
+def test_canonical_bootstrap_has_eight_neutral_states_and_mirror_assignment_sites() -> None:
+    """Each registration state has one neutral declaration and one mirror assignment site."""
+    content = _read(REPO_ROOT / "app" / "main.py")
+    assert content is not None, "app/main.py unexpectedly missing during read"
+
+    neutral_declarations = {
+        "VIP_MODULE_ENABLED": "VIP_MODULE_ENABLED: bool = False",
+        "vip_router": "vip_router: APIRouter | None = None",
+        "pro_router": "pro_router: APIRouter | None = None",
+        "premium_week_router": "premium_week_router: APIRouter | None = None",
+        "FEATURE_BMI_PRO_ENABLED": "FEATURE_BMI_PRO_ENABLED: bool = False",
+        "bmi_router": "bmi_router: APIRouter | None = None",
+        "bmi_pro_router": "bmi_pro_router: APIRouter | None = None",
+        "bmi_pro_legacy_alias_router": "bmi_pro_legacy_alias_router: APIRouter | None = None",
+    }
+    lines = content.splitlines()
+
+    for name, declaration in neutral_declarations.items():
+        assert lines.count(declaration) == 1, f"Missing unique neutral state for {name}"
+        assert f'getattr(_legacy_module, "{name}"' not in content
+        mirror_write = f"_legacy_module.{name} ="
+        assert (
+            content.count(mirror_write) == 1
+        ), f"Expected one post-registration mirror assignment site for {name}"
+
+
 def test_app_surface_has_required_legacy_symbols() -> None:
     """If tests depend on `from app import X`, enforce that it exists."""
     import app
