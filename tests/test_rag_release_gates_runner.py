@@ -2905,11 +2905,24 @@ def _load_tracked_notebook_compaction_callables() -> tuple[Any, Any]:
         "PULSEPLATE_IMPORTS": {},
         "RAG_DEGRADED_REASON_TYPE": RAGDegradedReason,
     }
-    exec(compile(module, "tracked-notebook-compaction", "exec"), namespace)
+    exec(compile(module, str(Path(__file__).resolve()), "exec"), namespace)
     return (
         namespace["pulseplate_retrieve"],
         namespace["_classify_context_compaction_trace"],
     )
+
+
+def test_tracked_notebook_compaction_callables_use_coverage_parseable_source() -> None:
+    """Compiled notebook callables must point coverage at this Python harness."""
+
+    callables = _load_tracked_notebook_compaction_callables()
+    expected_source = Path(__file__).resolve()
+
+    assert expected_source.is_file()
+    ast.parse(expected_source.read_text(encoding="utf-8"))
+    assert {Path(callable_.__code__.co_filename).resolve() for callable_ in callables} == {
+        expected_source
+    }
 
 
 def test_tracked_notebook_executes_raw_compaction_evidence_with_runner_parity() -> None:
