@@ -26,9 +26,10 @@ class TestMissingCoverage:
     def test_app_imports(self, app: FastAPI) -> None:
         """Тест импортов main.py"""
         # Проверяем, что все импорты работают
+        app_package = resolve_module("app")
         app_main = resolve_module("app.main")
         legacy_app = resolve_legacy_app()
-        assert app is app_main.app is legacy_app.app
+        assert app is app_package.app is app_main.app is legacy_app.app
         assert isinstance(legacy_app.VIP_MODULE_ENABLED, bool)
 
     def test_middleware_paths(self, client: TestClient) -> None:
