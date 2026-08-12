@@ -12,9 +12,12 @@
 from collections.abc import Generator
 
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from app.routers import legacy_premium_weekly_plan as weekly_plan_router
+from app.routers import vip as vip_router
 
 
 @pytest.fixture(autouse=True)
@@ -31,9 +34,18 @@ def _managed_client_environment(
 class TestWeeklyPlanningCriticalBlocks:
     """Тесты для критически важных блоков weekly planning"""
 
-    def test_weekly_planning_unavailable_path(self, client) -> None:
+    def test_weekly_planning_unavailable_path(
+        self,
+        client,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Тест пути когда make_weekly_menu недоступна (блок 1265-1339)"""
-        # Устанавливаем API ключ
+        getter = MagicMock(return_value=None)
+        executor = AsyncMock()
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
+        monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+
         # Полный набор данных для weekly planning
         response = client.post(
             "/api/v1/premium/plan/week",
@@ -48,22 +60,16 @@ class TestWeeklyPlanningCriticalBlocks:
                 "deficit_pct": 15.0,
                 "surplus_pct": 10.0,
                 "bodyfat": 15.0,
-                "diet_flags": ["vegetarian"],
+                "diet_flags": ["VEG"],
                 "life_stage": "adult",
             },
         )
 
-        # Если make_weekly_menu недоступна - должно быть 503
-        # Если доступна - должно быть 200
-        # Если схема неправильная - 422
-        assert response.status_code in [200, 503, 422]
-
-        if response.status_code == 503:
-            # Проверяем что возвращается правильное сообщение об ошибке
-            assert response.headers.get("content-type", "").startswith("application/json")
-            data = response.json()
-            assert "detail" in data
-            assert "not available" in data["detail"].lower()
+        assert response.status_code == 503, response.text
+        assert response.headers.get("content-type", "").startswith("application/json")
+        assert response.json()["detail"] == "Weekly menu generation feature not available"
+        getter.assert_called_once_with()
+        executor.assert_not_awaited()
 
     def test_weekly_planning_parameter_variations(self, client) -> None:
         """Тест различных комбинаций параметров для weekly planning"""
