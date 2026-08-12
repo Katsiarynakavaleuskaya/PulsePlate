@@ -283,6 +283,7 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
         ),
         artifact_fingerprint=family_repeat["artifact_fingerprint"],
         invariant_review_projection=first["invariant_review"],
+        required_context=first["required_context"],
         primary_agent=first["primary_agent"],
         secondary_agents=first["secondary_agents"],
         reviewer=first["reviewer"],
@@ -297,6 +298,9 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
                 "trigger_rule": bootstrap_sync_policy.INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
                 "invariant_review_projection_fingerprint": (
                     task_bootstrap.fingerprint_payload(first["invariant_review"])
+                ),
+                "required_context_projection_fingerprint": (
+                    task_bootstrap.fingerprint_payload(first["required_context"])
                 ),
                 "role_assignment_projection_fingerprint": task_bootstrap.fingerprint_payload(
                     {
@@ -314,6 +318,29 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
     assert first["task_packet_id"] == expected_l2_id
     assert first["task_packet_id"] == independently_framed_id
     assert len(first["task_packet_id"]) == 12
+
+
+def test_v2_identity_binds_final_judgment_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    activation = task_bootstrap.BootstrapLaneActivation(
+        lane=task_bootstrap.REQUIRED_BOOTSTRAP_LANE,
+        signal_terms=("repeated explicit invariant",),
+        decision_mode=task_bootstrap.SUPPORTED_JUDGMENT_DECISION_MODE,
+    )
+    monkeypatch.setattr(
+        task_bootstrap,
+        "load_bootstrap_lane_activations",
+        lambda: {task_bootstrap.REQUIRED_BOOTSTRAP_LANE: activation},
+    )
+
+    with _relations_input() as input_path:
+        packet = _build(input_path)
+
+    assert set(task_bootstrap.JUDGMENT_REQUIRED_CONTEXT_FILES).issubset(packet["required_context"])
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == list(
+        task_bootstrap.INVARIANT_FAMILY_REVIEW_ROLE_ORDER
+    )
 
 
 def test_active_review_rejects_extra_requested_roles() -> None:

@@ -114,12 +114,12 @@ L1 relations or inferring any omitted fact.
 Input-free identity is the existing v1 identity. With input, identity is framed
 from the existing base packet ID, canonical L1 `artifact_fingerprint`, the
 fixed trigger rule, and a deterministic fingerprint of the exact closed
-`invariant_review.v2` projection plus the exact primary/secondary/reviewer and
-requested-agent disposition projection. Equivalent canonical L1 input replays
-therefore retain the same identity; changing the canonical artifact, state,
-family-repeat rows, closed v2 projection, or role assignment changes it. This
-is an internal packet-identity check and does not recompute or validate L1
-relations.
+`invariant_review.v2` projection plus the exact canonical `required_context`
+and primary/secondary/reviewer and requested-agent disposition projections.
+Equivalent canonical L1 input replays therefore retain the same identity;
+changing the canonical artifact, state, family-repeat rows, closed v2
+projection, role context, or role assignment changes it. This is an internal
+packet-identity check and does not recompute or validate L1 relations.
 
 The closed recommendation vocabulary for role-agent output metadata is:
 

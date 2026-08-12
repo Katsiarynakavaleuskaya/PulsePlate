@@ -687,9 +687,14 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     if repo_relative_paths(candidate_paths) != candidate_paths:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical")
-    if INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT not in required_context:
+    if (
+        repo_relative_paths(required_context) != required_context
+        or any(Path(path).is_absolute() or ".." in Path(path).parts for path in required_context)
+        or INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT not in required_context
+    ):
         raise ValueError(
-            "invariant_review.v2 required_context must include the repeated-family contract"
+            "invariant_review.v2 required_context must be canonical and include the "
+            "repeated-family contract"
         )
     try:
         expected_packet_id = compute_invariant_family_review_packet_id(
@@ -704,6 +709,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
             creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints),
             artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
             invariant_review_projection=cast(Dict[str, Any], invariant_review),
+            required_context=cast(List[str], required_context),
             primary_agent=cast(str, payload.get("primary_agent")),
             secondary_agents=cast(List[str], payload.get("secondary_agents")),
             reviewer=cast(str, payload.get("reviewer")),

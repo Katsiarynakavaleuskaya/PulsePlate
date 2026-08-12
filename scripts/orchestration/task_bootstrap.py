@@ -1679,6 +1679,20 @@ def build_task_packet(
     )
     if family_repeat is not None:
         context_pack = sorted(set(context_pack).union({INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT}))
+    judgment_activation = _validated_judgment_activation(
+        require_bootstrap_lane_activation(
+            bootstrap_lane_activations,
+            REQUIRED_BOOTSTRAP_LANE,
+        )
+    )
+    judgment_enabled = _judgment_lane_enabled(
+        goal=goal,
+        task_class=task_class,
+        candidate_paths=normalized_paths,
+        activation=judgment_activation,
+    )
+    if judgment_enabled:
+        context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
     requested_agent_resolution = _apply_requested_agent_overrides(
         domain=decision.domain,
         primary_agent=decision.primary,
@@ -1851,6 +1865,7 @@ def build_task_packet(
             creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints_packet),
             artifact_fingerprint=str(family_repeat["artifact_fingerprint"]),
             invariant_review_projection=invariant_review_packet,
+            required_context=context_pack,
             primary_agent=requested_agent_resolution["primary_agent"],
             secondary_agents=requested_agent_resolution["secondary_agents"],
             reviewer=requested_agent_resolution["reviewer"],
@@ -1863,18 +1878,6 @@ def build_task_packet(
         invariant_dispatch_role_order = _build_invariant_dispatch_role_order(native_subagent_bridge)
     elif invariant_family_review_required:
         invariant_dispatch_role_order = list(INVARIANT_FAMILY_REVIEW_ROLE_ORDER)
-    judgment_activation = _validated_judgment_activation(
-        require_bootstrap_lane_activation(
-            bootstrap_lane_activations,
-            REQUIRED_BOOTSTRAP_LANE,
-        )
-    )
-    judgment_enabled = _judgment_lane_enabled(
-        goal=goal,
-        task_class=task_class,
-        candidate_paths=normalized_paths,
-        activation=judgment_activation,
-    )
     needs_backlog_update = bootstrap_needs_backlog_update(
         goal=goal,
         task_class=task_class,
@@ -1895,7 +1898,6 @@ def build_task_packet(
     }
     pr_lifecycle_contract = _build_pr_lifecycle_contract(normalized_pr_phase)
     if judgment_enabled:
-        context_pack = sorted(set(context_pack).union(JUDGMENT_REQUIRED_CONTEXT_FILES))
         decision_contract = {
             "mode": judgment_activation.decision_mode,
             "judgment_enabled": True,

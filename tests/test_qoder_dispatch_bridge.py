@@ -267,6 +267,7 @@ def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
         ),
         artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
         invariant_review_projection=review,
+        required_context=cast(List[str], packet["required_context"]),
         primary_agent=cast(str, packet["primary_agent"]),
         secondary_agents=cast(List[str], packet["secondary_agents"]),
         reviewer=cast(str, packet["reviewer"]),
@@ -324,6 +325,22 @@ def test_qoder_rejects_v2_without_repeated_family_contract_context(
     ]
 
     with pytest.raises(ValueError, match="required_context"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    "extra_context",
+    ["/etc/passwd", "docs/roadmap/BACKLOG_LEDGER.md"],
+)
+def test_qoder_rejects_v2_required_context_addition_with_stale_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    extra_context: str,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    packet["required_context"] = sorted([*required_context, extra_context])
+
+    with pytest.raises(ValueError, match="required_context|task_packet_id"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 

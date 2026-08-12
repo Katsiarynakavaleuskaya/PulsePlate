@@ -192,6 +192,7 @@ def compute_invariant_family_review_packet_id(
     creative_learning_hints_fingerprint: str,
     artifact_fingerprint: str,
     invariant_review_projection: dict[str, Any],
+    required_context: list[str] | tuple[str, ...],
     primary_agent: str,
     secondary_agents: list[str] | tuple[str, ...],
     reviewer: str,
@@ -230,6 +231,9 @@ def compute_invariant_family_review_packet_id(
                 "trigger_rule": INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
                 "invariant_review_projection_fingerprint": fingerprint_payload(
                     invariant_review_projection
+                ),
+                "required_context_projection_fingerprint": fingerprint_payload(
+                    list(required_context)
                 ),
                 "role_assignment_projection_fingerprint": fingerprint_payload(
                     {
