@@ -36,6 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.requested_agents import (
     IMPLEMENTATION_OWNER_SLUGS,
     MANDATORY_POST_OPEN_ORDER,
@@ -689,9 +690,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
             pr_phase=cast(str, required_strings["pr_phase"]),
             design_lane_mode=cast(str, required_strings["design_lane_mode"]),
             design_lane_contract=cast(Dict[str, Any], design_lane_contract),
-            creative_learning_hints_fingerprint=cast(
-                str, creative_learning_hints["source_hints_fingerprint"]
-            ),
+            creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints),
             artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
             invariant_review_projection=cast(Dict[str, Any], invariant_review),
             primary_agent=cast(str, payload.get("primary_agent")),

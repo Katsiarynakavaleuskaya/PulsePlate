@@ -262,8 +262,8 @@ def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
         pr_phase=cast(str, packet["pr_phase"]),
         design_lane_mode=cast(str, packet["design_lane_mode"]),
         design_lane_contract=cast(Dict[str, Any], packet["design_lane_contract"]),
-        creative_learning_hints_fingerprint=cast(
-            str, creative_learning_hints["source_hints_fingerprint"]
+        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
+            creative_learning_hints
         ),
         artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
         invariant_review_projection=review,
@@ -276,6 +276,28 @@ def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
     )
 
     with pytest.raises(ValueError, match="exact ordinary post-open role tail"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("field", "forged_value"),
+    [
+        ("source_hints_id", "hints-forged"),
+        ("recommended_role_focus", [{"role": "logic-agent"}]),
+        ("reuse_lesson_ids", ["lesson-forged"]),
+        ("avoid_lesson_ids", ["lesson-forged"]),
+    ],
+)
+def test_qoder_rejects_v2_creative_hints_projection_tampering(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    forged_value: object,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    creative_learning_hints = cast(Dict[str, Any], packet["creative_learning_hints"])
+    creative_learning_hints[field] = forged_value
+
+    with pytest.raises(ValueError, match="task_packet_id"):
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 

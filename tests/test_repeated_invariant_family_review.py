@@ -93,6 +93,7 @@ def test_repeated_family_input_projects_exact_v2_and_exact_role_order(
     assert calls == 1
     review = packet["invariant_review"]
     assert set(review) == task_bootstrap.INVARIANT_REVIEW_V2_FIELDS
+    assert CONTRACT.relative_to(REPO_ROOT).as_posix() in packet["required_context"]
     assert review["schema_version"] == "invariant_review.v2"
     assert review["state"] == "required_pending"
     assert review["coverage_claim"] == "explicit_normalized_snapshot_membership_only"
@@ -263,6 +264,9 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
             design_lane_mode=str(first["design_lane_mode"]),
             design_lane_contract=first["design_lane_contract"],
         ),
+        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
+            first["creative_learning_hints"]
+        ),
     )
     family_repeat = first["invariant_review"]["family_repeat"]
     expected_l2_id = bootstrap_sync_policy.compute_invariant_family_review_packet_id(
@@ -274,7 +278,9 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
         pr_phase="post_open_review",
         design_lane_mode=str(first["design_lane_mode"]),
         design_lane_contract=first["design_lane_contract"],
-        creative_learning_hints_fingerprint="",
+        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
+            first["creative_learning_hints"]
+        ),
         artifact_fingerprint=family_repeat["artifact_fingerprint"],
         invariant_review_projection=first["invariant_review"],
         primary_agent=first["primary_agent"],

@@ -150,6 +150,9 @@ INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE = "explicit_input_only"
 INVARIANT_FAMILY_RELATIONS_INPUT_ROOT = PurePosixPath(
     "artifacts/orchestration/review_invariant_family_relations"
 )
+INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT = (
+    "docs/orchestration/contracts/" "REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md"
+)
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
@@ -1601,6 +1604,10 @@ def build_task_packet(
     creative_learning_hints_fingerprint = (
         fingerprint_payload(creative_learning_hints) if creative_learning_hints is not None else ""
     )
+    creative_learning_hints_packet = _build_creative_learning_hints_packet(
+        creative_learning_hints,
+        hints_fingerprint=creative_learning_hints_fingerprint,
+    )
     creative_pilot_fingerprint = (
         fingerprint_payload(creative_pilot_context) if creative_pilot_context is not None else ""
     )
@@ -1670,6 +1677,8 @@ def build_task_packet(
         normalized_paths,
         include_orchestration=decision.cluster == "ops" or len(normalized_paths) != 1,
     )
+    if family_repeat is not None:
+        context_pack = sorted(set(context_pack).union({INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT}))
     requested_agent_resolution = _apply_requested_agent_overrides(
         domain=decision.domain,
         primary_agent=decision.primary,
@@ -1839,7 +1848,7 @@ def build_task_packet(
             pr_phase=normalized_pr_phase,
             design_lane_mode=design_lane_mode,
             design_lane_contract=design_lane_contract,
-            creative_learning_hints_fingerprint=creative_identity_fingerprint,
+            creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints_packet),
             artifact_fingerprint=str(family_repeat["artifact_fingerprint"]),
             invariant_review_projection=invariant_review_packet,
             primary_agent=requested_agent_resolution["primary_agent"],
@@ -2054,10 +2063,7 @@ def build_task_packet(
             "runtime_authority": False,
             "canonical_until_promoted_by_repo_diff": False,
         },
-        "creative_learning_hints": _build_creative_learning_hints_packet(
-            creative_learning_hints,
-            hints_fingerprint=creative_learning_hints_fingerprint,
-        ),
+        "creative_learning_hints": creative_learning_hints_packet,
         "message_envelope": message_envelope,
         "recommended_skills": recommended_skills,
         "skill_routing": skill_routing,
