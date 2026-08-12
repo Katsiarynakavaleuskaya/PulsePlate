@@ -749,6 +749,8 @@ def _validated_dispatch_role_order(
         if not isinstance(invariant_review, dict):
             raise ValueError("invariant_review must be a JSON object when present")
         if invariant_review.get("schema_version") == INVARIANT_REVIEW_V2_SCHEMA_VERSION:
+            if task_packet_schema != CURRENT_TASK_PACKET_SCHEMA_VERSION:
+                raise ValueError("invariant_review.v2 requires task packet schema 3.1")
             invariant_review_state = _validate_invariant_review_v2(invariant_review)
             return _validated_v2_dispatch_role_order(
                 payload,

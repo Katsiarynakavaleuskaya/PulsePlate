@@ -184,6 +184,16 @@ def test_qoder_rejects_open_or_semantically_widened_v2(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_v2_under_legacy_task_packet_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["schema_version"] = "3.0"
+
+    with pytest.raises(ValueError, match="requires task packet schema 3.1"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_qoder_rejects_v2_idempotency_digest_mismatched_to_artifact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
