@@ -63,6 +63,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict as load_creative_pilot_json_strict,
     validate_task_pilot_context,
 )
+from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE
 from scripts.orchestration.context_pack import (
     collect_context_pack,
     repo_relative_paths,
@@ -727,6 +728,8 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         value != value.strip() for value in requested_agents
     ):
         raise ValueError("invariant_review.v2 requested_agents must be canonical")
+    if any(SECRET_SHAPED_RE.search(value) for value in requested_agents):
+        raise ValueError("invariant_review.v2 rejects credential-shaped requested agents")
     disposition_agents = [
         row["agent"]
         for row in requested_agent_disposition

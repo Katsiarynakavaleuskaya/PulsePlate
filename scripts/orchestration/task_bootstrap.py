@@ -56,6 +56,7 @@ from scripts.orchestration.embedding_retrieval_admission_telemetry import (
     build_embedding_retrieval_admission_telemetry,
     embedding_retrieval_admission_to_stable_mapping,
 )
+from scripts.orchestration.experiment_slack_bridge_constants import SECRET_SHAPED_RE
 from scripts.orchestration.provider_model_tier_policy import (
     build_provider_model_routing_telemetry,
     to_stable_mapping as provider_model_routing_to_stable_mapping,
@@ -1593,6 +1594,10 @@ def build_task_packet(
     normalized_requested_agents = normalize_requested_agents(
         pilot_roles if creative_pilot_context is not None else requested_agents
     )
+    if family_repeat is not None and any(
+        SECRET_SHAPED_RE.search(agent) for agent in normalized_requested_agents
+    ):
+        raise ValueError("repeated-family review rejects credential-shaped requested agents")
     if creative_pilot_context is not None and normalized_pr_phase in {
         PR_PHASE_POST_OPEN_REVIEW,
         PR_PHASE_MERGE_READY,

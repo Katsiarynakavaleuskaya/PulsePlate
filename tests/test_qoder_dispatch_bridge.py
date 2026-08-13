@@ -125,7 +125,12 @@ def _v2_source_artifact(*, repeated: bool = True) -> dict[str, object]:
     }
 
 
-def _v2_packet(monkeypatch: pytest.MonkeyPatch, *, repeated: bool = True) -> dict[str, object]:
+def _v2_packet(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    repeated: bool = True,
+    requested_agents: List[str] | None = None,
+) -> dict[str, object]:
     artifact = _v2_source_artifact(repeated=repeated)
     if not repeated:
         snapshot = artifact["snapshot"]
@@ -144,7 +149,7 @@ def _v2_packet(monkeypatch: pytest.MonkeyPatch, *, repeated: bool = True) -> dic
         goal="Review repeated explicit invariant families",
         task_class="Orchestration",
         candidate_paths=["scripts/orchestration/task_bootstrap.py"],
-        requested_agents=["agent-coordinator"],
+        requested_agents=(["agent-coordinator"] if requested_agents is None else requested_agents),
         review_invariant_family_relations_input=(
             "artifacts/orchestration/review_invariant_family_relations/input.json"
         ),
@@ -259,24 +264,10 @@ def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
 def test_qoder_accepts_producer_rejected_unknown_requested_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    artifact = _v2_source_artifact(repeated=False)
-    snapshot = cast(Dict[str, Any], artifact["snapshot"])
-    families = cast(List[Dict[str, Any]], snapshot["families"])
-    families[0]["finding_ids"] = ["finding_a"]
-    monkeypatch.setattr(
-        task_bootstrap,
-        "_read_invariant_family_relations_input",
-        lambda _path: artifact,
-    )
-    packet = task_bootstrap.build_task_packet(
-        goal="Review explicit invariant families",
-        task_class="Orchestration",
-        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+    packet = _v2_packet(
+        monkeypatch,
+        repeated=False,
         requested_agents=["invalid_slug"],
-        review_invariant_family_relations_input=(
-            "artifacts/orchestration/review_invariant_family_relations/input.json"
-        ),
-        pr_phase="post_open_review",
     )
 
     assert packet["requested_agent_disposition"] == [
@@ -293,6 +284,35 @@ def test_qoder_accepts_producer_rejected_unknown_requested_agent(
         "bug-hunter",
         "security-auditor",
     ]
+
+
+def test_repeated_family_producer_rejects_credential_shaped_requested_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="credential-shaped requested agents"):
+        _v2_packet(
+            monkeypatch,
+            repeated=False,
+            requested_agents=["gh" + "p_" + ("a" * 20)],
+        )
+
+
+def test_qoder_rejects_credential_shaped_unknown_requested_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(
+        monkeypatch,
+        repeated=False,
+        requested_agents=["invalid_slug"],
+    )
+    credential_shaped_agent = "gh" + "p_" + ("a" * 20)
+    packet["requested_agents"] = [credential_shaped_agent]
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    dispositions[0]["agent"] = credential_shaped_agent
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="credential-shaped requested agents"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
 def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
