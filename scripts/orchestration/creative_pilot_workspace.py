@@ -189,6 +189,7 @@ def _read_json_value(path: Path) -> Any:
         OSError,
         UnicodeDecodeError,
         json.JSONDecodeError,
+        ValueError,
         RecursionError,
         NotImplementedError,
     ) as exc:
@@ -501,22 +502,136 @@ def _cmd_emit_rebuttal(args: argparse.Namespace) -> None:
     )
 
 
+def _evidence_payloads(
+    *, workspace: dict[str, Any], synthesis: dict[str, Any], produced_at: str
+) -> list[dict[str, Any]]:
+    try:
+        return [
+            event.to_dict()
+            for event in build_evidence_events(
+                workspace=workspace,
+                synthesis=synthesis,
+                produced_at=produced_at,
+            )
+        ]
+    except CreativePilotContractError:
+        raise
+    except ValueError as exc:
+        raise CreativePilotContractError("creative-pilot evidence is invalid") from exc
+
+
+def _json_values_equal_exact(observed: Any, expected: Any) -> bool:
+    if type(observed) is not type(expected):
+        return False
+    if isinstance(observed, dict):
+        return observed.keys() == expected.keys() and all(
+            _json_values_equal_exact(observed[key], expected[key]) for key in observed
+        )
+    if isinstance(observed, list):
+        return len(observed) == len(expected) and all(
+            _json_values_equal_exact(observed_item, expected_item)
+            for observed_item, expected_item in zip(observed, expected, strict=True)
+        )
+    return bool(observed == expected)
+
+
+def _validate_existing_evidence(
+    *, path: Path, workspace: dict[str, Any], synthesis: dict[str, Any]
+) -> list[dict[str, Any]]:
+    observed = _read_json_value(path)
+    expected_types = ["item_metadata", "gate_metric", "gate_decision"]
+    if (
+        not isinstance(observed, list)
+        or len(observed) != len(expected_types)
+        or not all(isinstance(row, dict) for row in observed)
+        or [row.get("event_type") for row in observed] != expected_types
+    ):
+        raise CreativePilotContractError(
+            "existing evidence must contain three canonical ordered events"
+        )
+    produced_at_values = [row.get("produced_at") for row in observed]
+    if (
+        not all(isinstance(value, str) for value in produced_at_values)
+        or len(set(produced_at_values)) != 1
+    ):
+        raise CreativePilotContractError(
+            "existing evidence events must share one produced_at timestamp"
+        )
+    expected = _evidence_payloads(
+        workspace=workspace,
+        synthesis=synthesis,
+        produced_at=produced_at_values[0],
+    )
+    if not _json_values_equal_exact(observed, expected):
+        raise CreativePilotContractError("divergent evidence replay is forbidden")
+    return observed
+
+
 def _cmd_synthesize(args: argparse.Namespace) -> None:
     run_dir = _run_dir(args.pilot_id)
-    workspace = validate_workspace(_read(run_dir / FIXED_FILENAMES["workspace"]))
-    synthesis = build_synthesis(workspace)
-    transitioned = apply_synthesis_transition(workspace, synthesis)
-    _atomic_write(run_dir / FIXED_FILENAMES["workspace"], transitioned)
-    _atomic_write(run_dir / FIXED_FILENAMES["synthesis"], synthesis)
-    events = [
-        event.to_dict()
-        for event in build_evidence_events(
-            workspace=transitioned,
-            synthesis=synthesis,
-            produced_at=datetime.now(timezone.utc).isoformat(),
+    workspace_path = run_dir / FIXED_FILENAMES["workspace"]
+    synthesis_path = run_dir / FIXED_FILENAMES["synthesis"]
+    evidence_path = run_dir / FIXED_FILENAMES["evidence"]
+    workspace = validate_workspace(_read(workspace_path))
+    phase = workspace["state"]["phase"]
+
+    if phase == "synthesis_ready":
+        synthesis = validate_synthesis(build_synthesis(workspace))
+        transitioned = validate_workspace(apply_synthesis_transition(workspace, synthesis))
+        evidence_missing = not evidence_path.exists()
+        if evidence_missing:
+            events = _evidence_payloads(
+                workspace=transitioned,
+                synthesis=synthesis,
+                produced_at=datetime.now(timezone.utc).isoformat(),
+            )
+        else:
+            events = _validate_existing_evidence(
+                path=evidence_path,
+                workspace=transitioned,
+                synthesis=synthesis,
+            )
+
+        synthesis_missing = not synthesis_path.exists()
+        if not synthesis_missing:
+            observed_synthesis = validate_synthesis(_read(synthesis_path))
+            if observed_synthesis != synthesis:
+                raise CreativePilotContractError("divergent synthesis replay is forbidden")
+
+        if synthesis_missing:
+            _atomic_write(synthesis_path, synthesis)
+        if evidence_missing:
+            _atomic_write(evidence_path, events)
+        current_workspace = validate_workspace(_read(workspace_path))
+        if current_workspace != workspace:
+            raise CreativePilotContractError(
+                "workspace changed before synthesis transition publication"
+            )
+        _atomic_write(workspace_path, transitioned)
+    elif phase in {"synthesized", "revise", "blocked"}:
+        if not synthesis_path.exists():
+            raise CreativePilotContractError(
+                "post-synthesis evidence recovery requires synthesis.json"
+            )
+        synthesis = validate_synthesis(_read(synthesis_path))
+        evidence_missing = not evidence_path.exists()
+        if evidence_missing:
+            events = _evidence_payloads(
+                workspace=workspace,
+                synthesis=synthesis,
+                produced_at=datetime.now(timezone.utc).isoformat(),
+            )
+            _atomic_write(evidence_path, events)
+        else:
+            _validate_existing_evidence(
+                path=evidence_path,
+                workspace=workspace,
+                synthesis=synthesis,
+            )
+    else:
+        raise CreativePilotContractError(
+            "synthesize requires a synthesis-ready or canonical post-synthesis workspace"
         )
-    ]
-    _atomic_write(run_dir / FIXED_FILENAMES["evidence"], events)
     print(
         f"PASS decision={synthesis['decision']} evidence={synthesis['evidence_sufficiency']} next={synthesis['next_allowed_action']}"
     )

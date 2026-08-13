@@ -3,12 +3,12 @@
 Тесты для покрытия недостающих строк
 """
 
-import legacy_app
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app from app.py file
-from app import app
+# Resolve the current legacy module after purge-sensitive tests.
+from tests.helpers.module_resolve import resolve_legacy_app, resolve_module
 
 
 class TestMissingCoverage:
@@ -23,16 +23,17 @@ class TestMissingCoverage:
         for name, value in environment.items():
             monkeypatch.setenv(name, value)
 
-    def test_app_imports(self) -> None:
+    def test_app_imports(self, app: FastAPI) -> None:
         """Тест импортов main.py"""
         # Проверяем, что все импорты работают
-        assert app is legacy_app.app
+        app_package = resolve_module("app")
+        app_main = resolve_module("app.main")
+        legacy_app = resolve_legacy_app()
+        assert app is app_package.app is app_main.app is legacy_app.app
         assert isinstance(legacy_app.VIP_MODULE_ENABLED, bool)
 
-    def test_middleware_paths(self) -> None:
+    def test_middleware_paths(self, client: TestClient) -> None:
         """Тест путей middleware"""
-        client = TestClient(app)
-
         # Тест различных эндпоинтов
         response = client.get("/")
         assert response.status_code == 200
@@ -43,10 +44,8 @@ class TestMissingCoverage:
         response = client.get("/favicon.ico")
         assert response.status_code in (200, 204)
 
-    def test_error_handling(self) -> None:
+    def test_error_handling(self, client: TestClient) -> None:
         """Тест обработки ошибок"""
-        client = TestClient(app)
-
         # Тест с некорректными данными
         response = client.post("/api/v1/bmi", json={})
         assert response.status_code in (422, 403)
