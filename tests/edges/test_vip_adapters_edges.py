@@ -4,6 +4,7 @@ Adapter coverage for app.routers.vip: _adapter_make_weekly_menu and _adapter_syn
 """
 
 import importlib
+from collections import UserDict
 from unittest.mock import Mock, patch
 
 import pytest
@@ -62,14 +63,15 @@ def test_adapter_make_weekly_menu_direct_args_passthrough():
     except Exception:
         pytest.skip("Skipping due to import environment constraints for app.routers.vip")
 
-    def fake_make_weekly_menu(profile):
-        return {"ok": True, "got": profile}
-
     direct_profile = object()
-    with patch("core.menu_engine.make_weekly_menu", fake_make_weekly_menu):
-        out = vip._adapter_make_weekly_menu(direct_profile)
-        assert isinstance(out, dict) and out.get("ok") is True
-        assert out.get("got") is direct_profile
+    food_db = {"food": "db"}
+    recipe_db = {"recipe": "db"}
+    core_builder = Mock(return_value={"ok": True})
+    with patch("core.menu_engine.make_weekly_menu", core_builder):
+        out = vip._adapter_make_weekly_menu(direct_profile, food_db, recipe_db=recipe_db)
+
+    assert out == {"ok": True}
+    core_builder.assert_called_once_with(direct_profile, food_db, recipe_db=recipe_db)
 
 
 def test_adapter_make_weekly_menu_rejects_incomplete_dict_before_core_builder() -> None:
@@ -90,6 +92,72 @@ def test_adapter_make_weekly_menu_rejects_incomplete_dict_before_core_builder() 
 
     assert exc_info.value.missing_fields == ("goal",)
     core_builder.assert_not_called()
+
+
+def test_adapter_make_weekly_menu_rejects_incomplete_dict_with_trailing_args() -> None:
+    vip = _vip()
+    core_builder = Mock()
+
+    with patch("core.menu_engine.make_weekly_menu", core_builder):
+        with pytest.raises(vip.fitchef_runtime.WeeklyProfileInputError) as exc_info:
+            vip._adapter_make_weekly_menu({"sex": "female"}, {"food": "db"})
+
+    assert exc_info.value.missing_fields == (
+        "age",
+        "height_cm",
+        "weight_kg",
+        "activity",
+        "goal",
+    )
+    core_builder.assert_not_called()
+
+
+def test_adapter_make_weekly_menu_rejects_incomplete_non_dict_mapping() -> None:
+    vip = _vip()
+    core_builder = Mock()
+
+    with patch("core.menu_engine.make_weekly_menu", core_builder):
+        with pytest.raises(vip.fitchef_runtime.WeeklyProfileInputError) as exc_info:
+            vip._adapter_make_weekly_menu(UserDict({"sex": "female"}))
+
+    assert exc_info.value.missing_fields == (
+        "age",
+        "height_cm",
+        "weight_kg",
+        "activity",
+        "goal",
+    )
+    core_builder.assert_not_called()
+
+
+def test_adapter_make_weekly_menu_forwards_validated_mapping_and_builder_arguments() -> None:
+    vip = _vip()
+    raw_profile = UserDict(
+        {
+            "sex": "female",
+            "age": 25,
+            "height_cm": 160.0,
+            "weight_kg": 55.0,
+            "activity": "light",
+            "goal": "maintain",
+        }
+    )
+    food_db = {"food": "db"}
+    recipe_db = {"recipe": "db"}
+    expected_result = {"menu": "weekly"}
+    core_builder = Mock(return_value=expected_result)
+
+    with patch("core.menu_engine.make_weekly_menu", core_builder):
+        result = vip._adapter_make_weekly_menu(raw_profile, food_db, recipe_db=recipe_db)
+
+    assert result is expected_result
+    core_builder.assert_called_once()
+    profile, forwarded_food_db = core_builder.call_args.args
+    assert profile is not raw_profile
+    assert getattr(profile, "sex") == "female"
+    assert getattr(profile, "age") == 25
+    assert forwarded_food_db is food_db
+    assert core_builder.call_args.kwargs == {"recipe_db": recipe_db}
 
 
 def test_adapter_make_weekly_menu_preserves_no_profile_none_behavior() -> None:

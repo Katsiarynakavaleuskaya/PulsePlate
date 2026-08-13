@@ -493,11 +493,13 @@ def test_legacy_weekly_alias_incomplete_profile_never_enters_route_body(
 
 
 @pytest.mark.parametrize("field", ("age", "height_cm", "weight_kg"))
+@pytest.mark.parametrize("value", (True, False))
 def test_legacy_weekly_alias_rejects_boolean_numeric_profile_fields_before_route_body(
     client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
     field: str,
+    value: bool,
 ) -> None:
     """Raw booleans cannot be coerced into legacy profile numbers."""
 
@@ -505,7 +507,7 @@ def test_legacy_weekly_alias_rejects_boolean_numeric_profile_fields_before_route
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
     payload = _valid_payload()
-    payload[field] = True
+    payload[field] = value
 
     response = client.post(
         "/api/v1/premium/plan/week",

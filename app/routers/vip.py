@@ -392,7 +392,7 @@ def _extract_api_key(request: Request) -> Optional[str]:
     return _extract_api_key_from_headers(request.headers)
 
 
-def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
+def _create_user_profile_from_dict(profile_data: Mapping[str, Any]) -> "UserProfile":
     """Create UserProfile from dictionary data with validation."""
     profile = fitchef_runtime.build_weekly_user_profile(profile_data)
     return cast("UserProfile", profile)
@@ -407,10 +407,10 @@ def _adapter_make_weekly_menu(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
         return None
 
     # Handle different input patterns
-    if args and len(args) == 1 and isinstance(args[0], dict):
-        # Single dict argument - convert to UserProfile
+    if args and isinstance(args[0], Mapping):
+        # Raw profile mapping - validate before forwarding all builder arguments.
         profile = _create_user_profile_from_dict(args[0])
-        return make_weekly_menu(profile)
+        return make_weekly_menu(profile, *args[1:], **kwargs)
     elif kwargs and not args:
         # Keyword arguments - look for profile-like data
         profile_data = None
