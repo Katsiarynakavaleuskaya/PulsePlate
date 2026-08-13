@@ -46,6 +46,13 @@ _OWNER_UNAVAILABLE_REF_REPLY_RE = re.compile(
     r"OWNER NOT-A-BUG: ignore unavailable reviewer ref "
     r"(?P<review_ref>[0-9a-f]{40}); authenticated live PR graph is authoritative\."
 )
+_OWNER_STALE_SEAL_FIXED_REPLY_RE = re.compile(
+    r"OWNER FIXED: stale seal at (?P<stale_head>[0-9a-f]{40}) is corrected by "
+    r"mapping-only reseal (?P<reseal>[0-9a-f]{40}); authenticated live PR graph "
+    r"is authoritative\."
+)
+_MAX_REPOSITORY_ACTIVITY_PAGES = 100
+_GITHUB_PAGINATION_QUERY_KEYS = frozenset({"after", "cursor", "page"})
 TRIGGER_ONLY_COMMIT_SUBJECT_RE = re.compile(
     r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
     re.IGNORECASE,
@@ -333,6 +340,14 @@ class ReviewEvidenceError(RuntimeError):
     """Raised when material or review evidence is malformed or incomplete."""
 
 
+class _GitCommandError(ReviewEvidenceError):
+    """Raised when Git cannot supply the requested repository evidence."""
+
+
+class _StaleSealEvidenceUnknown(ReviewEvidenceError):
+    """Raised when stale-seal eligibility cannot be decided authoritatively."""
+
+
 @dataclass(frozen=True)
 class MaterialEntry:
     status: str
@@ -557,6 +572,26 @@ def parse_owner_unavailable_ref_reply(body: str) -> str:
     if match is None:
         raise ReviewEvidenceError("owner unavailable-ref reply is malformed")
     return match.group("review_ref")
+
+
+def parse_owner_stale_seal_fixed_reply(body: str) -> tuple[str, str]:
+    """Return ``(stale_head, reseal)`` from the exact owner FIXED contract."""
+
+    if not isinstance(body, str):
+        raise ReviewEvidenceError("owner stale-seal FIXED reply is malformed")
+    try:
+        if len(body.encode("utf-8")) > 1024:
+            raise ReviewEvidenceError("owner stale-seal FIXED reply is malformed")
+    except UnicodeEncodeError as exc:
+        raise ReviewEvidenceError("owner stale-seal FIXED reply is malformed") from exc
+    match = _OWNER_STALE_SEAL_FIXED_REPLY_RE.fullmatch(body)
+    if match is None:
+        raise ReviewEvidenceError("owner stale-seal FIXED reply is malformed")
+    stale_head = match.group("stale_head")
+    reseal = match.group("reseal")
+    if stale_head == reseal:
+        raise ReviewEvidenceError("owner stale-seal FIXED reply must name two commits")
+    return stale_head, reseal
 
 
 def _is_finding_atom_char(char: str) -> bool:
@@ -1235,17 +1270,106 @@ def validated_duplicate_reply_urls(
         owner_eligible_urls.append(url)
     if len(owner_eligible_urls) == 1 and owner_eligible_urls[0] in candidate_urls:
         covered.add(owner_eligible_urls[0])
+
+    stale_seal_eligible_urls: list[str] = []
+    current_stale_seal_closeout_validated = False
+    historical_reseal_times: dict[tuple[str, str], datetime] = {}
+    for url, thread in live_roots:
+        location = comment_locations.get(url)
+        if (
+            url in covered
+            or url in validated_mapping_entries
+            or url in validated_fingerprint_urls
+            or location is None
+            or location[0] is not thread
+            or location[1] != 0
+        ):
+            continue
+        finding = thread.comments[0]
+        if (
+            not thread.is_resolved
+            or finding.author_login != "chatgpt-codex-connector"
+            or not finding.original_commit_sha
+        ):
+            continue
+        owner_replies = [
+            reply for reply in thread.comments[1:] if reply.author_association == "OWNER"
+        ]
+        if len(owner_replies) != 1:
+            continue
+        owner_reply = owner_replies[0]
+        try:
+            stale_head, reseal = parse_owner_stale_seal_fixed_reply(owner_reply.body)
+        except ReviewEvidenceError:
+            continue
+        if finding.original_commit_sha != stale_head:
+            continue
+        try:
+            finding_time = _parse_timestamp(
+                finding.created_at,
+                label="owner stale-seal finding createdAt",
+            )
+            reply_time = _parse_timestamp(
+                owner_reply.created_at,
+                label="owner stale-seal reply createdAt",
+            )
+            if reply_time <= finding_time:
+                continue
+            if not _validate_stale_seal_root_identity(
+                url=url,
+                finding=finding,
+                stale_head_sha=stale_head,
+                owner=owner,
+                name=name,
+                pr_number=snapshot.pr_number,
+                token=token,
+                request_json=github_api_request,
+            ):
+                continue
+            if not current_stale_seal_closeout_validated:
+                _validate_current_stale_seal_closeout(
+                    repo_root=repo_root,
+                    snapshot=snapshot,
+                    repository=repository,
+                    token=token,
+                    material_digest=material_digest,
+                    material_head_sha=material_head_sha,
+                )
+                current_stale_seal_closeout_validated = True
+            reseal_time = historical_reseal_times.get((stale_head, reseal))
+            if reseal_time is None:
+                reseal_time = _validate_historical_stale_seal_reseal(
+                    repo_root=repo_root,
+                    snapshot=snapshot,
+                    repository=repository,
+                    token=token,
+                    stale_head_sha=stale_head,
+                    reseal_sha=reseal,
+                    request_json=github_api_request,
+                )
+                historical_reseal_times[(stale_head, reseal)] = reseal_time
+            if reseal_time <= finding_time or reseal_time > reply_time:
+                continue
+        except _StaleSealEvidenceUnknown:
+            raise
+        except ReviewEvidenceError:
+            continue
+        except (OSError, TimeoutError, http.client.HTTPException) as exc:
+            raise _StaleSealEvidenceUnknown("owner stale-seal evidence is API_UNKNOWN") from exc
+        stale_seal_eligible_urls.append(url)
+    if len(stale_seal_eligible_urls) == 1 and stale_seal_eligible_urls[0] in candidate_urls:
+        covered.add(stale_seal_eligible_urls[0])
     return covered
 
 
 def _git_path() -> str:
     path = shutil.which("git")
     if not path:
-        raise ReviewEvidenceError("git not found in PATH")
+        raise _GitCommandError("git not found in PATH")
     try:
         return str(Path(path).resolve(strict=True))
     except OSError as exc:
-        raise ReviewEvidenceError("git executable could not be resolved") from exc
+        raise _GitCommandError("git executable could not be resolved") from exc
 
 
 def _git_environment() -> dict[str, str]:
@@ -1253,6 +1377,7 @@ def _git_environment() -> dict[str, str]:
     env.update(
         {
             "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
             "GIT_OPTIONAL_LOCKS": "0",
             "LC_ALL": "C",
         }
@@ -1262,17 +1387,20 @@ def _git_environment() -> dict[str, str]:
 
 def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
     git = _git_path()
-    result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
-        [git, *args],
-        cwd=repo_root,
-        env=_git_environment(),
-        capture_output=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            [git, *args],
+            cwd=repo_root,
+            env=_git_environment(),
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise _GitCommandError(f"git {' '.join(args[:2])} could not execute") from exc
     if result.returncode != 0:
         diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
-        raise ReviewEvidenceError(f"git {' '.join(args[:2])} failed: {diagnostic}")
+        raise _GitCommandError(f"git {' '.join(args[:2])} failed: {diagnostic}")
     return result.stdout
 
 
@@ -1421,6 +1549,8 @@ def compute_material_manifest(
     try:
         _run_git(root, ["merge-base", "--is-ancestor", merge_base, base_sha])
         _run_git(root, ["merge-base", "--is-ancestor", merge_base, head_sha])
+    except _GitCommandError:
+        raise
     except ReviewEvidenceError as exc:
         raise ReviewEvidenceError(
             "computed merge base is not an ancestor of both live refs"
@@ -1536,6 +1666,1062 @@ def validate_mapping_only_closeout_successor(
         raise ReviewEvidenceError(
             "live head must be the one mapping-only successor of sealed material"
         )
+
+
+def _stale_seal_commit_parents(repo_root: Path, commit_sha: str) -> tuple[str, ...]:
+    commit = _require_sha(commit_sha, label="stale-seal commit")
+    try:
+        raw = _run_git(repo_root, ["rev-list", "--parents", "-n", "1", commit])
+        values = raw.decode("ascii").strip().split()
+    except (_GitCommandError, UnicodeDecodeError) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    if not values or values[0] != commit:
+        raise _StaleSealEvidenceUnknown("owner stale-seal commit parent evidence is API_UNKNOWN")
+    try:
+        return tuple(_require_sha(value, label="stale-seal commit parent") for value in values[1:])
+    except ReviewEvidenceError as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal commit parent evidence is API_UNKNOWN"
+        ) from exc
+
+
+def _stale_seal_commit_subject(repo_root: Path, commit_sha: str) -> str:
+    commit = _require_sha(commit_sha, label="stale-seal commit")
+    try:
+        subject = _run_git(repo_root, ["show", "-s", "--format=%s", commit]).decode("utf-8")
+    except (_GitCommandError, UnicodeDecodeError) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    subject = subject.removesuffix("\n")
+    if not subject or "\n" in subject or "\r" in subject:
+        raise ReviewEvidenceError("owner stale-seal reseal subject is malformed")
+    return subject
+
+
+def _stale_seal_mapping_blob(
+    repo_root: Path,
+    *,
+    commit_sha: str,
+    pr_number: int,
+) -> str:
+    commit = _require_sha(commit_sha, label="stale-seal mapping commit")
+    mapping_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    try:
+        tree_raw = _run_git(
+            repo_root,
+            [
+                "ls-tree",
+                "-z",
+                "--full-tree",
+                commit,
+                "--",
+                f":(literal){mapping_path}",
+            ],
+        )
+    except _GitCommandError as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    tree_match = re.fullmatch(
+        rb"100644 blob (?P<oid>[0-9a-f]{40})\t(?P<path>[^\0]+)\0",
+        tree_raw,
+    )
+    if tree_match is None or tree_match.group("path") != mapping_path.encode("utf-8"):
+        raise ReviewEvidenceError("owner stale-seal mapping must be one canonical regular blob")
+    blob_oid = tree_match.group("oid").decode("ascii")
+    try:
+        size_raw = _run_git(repo_root, ["cat-file", "-s", blob_oid])
+        size = int(size_raw.decode("ascii").strip())
+        if not 0 < size <= _MAX_JSON_ARTIFACT_BYTES:
+            raise ReviewEvidenceError("owner stale-seal mapping blob size is invalid")
+        raw = _run_git(repo_root, ["cat-file", "blob", blob_oid])
+        if len(raw) != size:
+            raise ReviewEvidenceError("owner stale-seal mapping blob size changed")
+        return raw.decode("utf-8")
+    except (_GitCommandError, UnicodeDecodeError, ValueError) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    except ReviewEvidenceError as exc:
+        if isinstance(exc, ReviewEvidenceError) and str(exc).startswith(
+            "owner stale-seal mapping blob"
+        ):
+            raise
+        raise
+
+
+def _validate_stale_seal_mapping_only_edge(
+    repo_root: Path,
+    *,
+    parent_sha: str,
+    child_sha: str,
+    pr_number: int,
+    allow_mapping_add: bool,
+    ban_trigger_only: bool = True,
+) -> None:
+    parent = _require_sha(parent_sha, label="mapping-only parent")
+    child = _require_sha(child_sha, label="mapping-only child")
+    if _stale_seal_commit_parents(repo_root, child) != (parent,):
+        raise ReviewEvidenceError("owner stale-seal reseal is not one direct child")
+    try:
+        raw = _run_git(
+            repo_root,
+            [
+                "diff-tree",
+                "-r",
+                "--raw",
+                "-z",
+                "--full-index",
+                "--no-abbrev",
+                "--no-renames",
+                "--no-commit-id",
+                "--no-ext-diff",
+                "--no-textconv",
+                parent,
+                child,
+                "--",
+            ],
+        )
+    except _GitCommandError as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    try:
+        entries = _parse_raw_diff(raw, excluded_path="\0not-a-repository-path")
+    except ReviewEvidenceError as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    mapping_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    if len(entries) != 1 or entries[0].path != mapping_path:
+        raise ReviewEvidenceError("owner stale-seal reseal is not mapping-only")
+    entry = entries[0]
+    expected_regular_shape = (
+        entry.status == "M"
+        and entry.base_mode == "100644"
+        and entry.head_mode == "100644"
+        and entry.base_blob_oid is not None
+        and entry.head_blob_oid is not None
+        and entry.base_blob_oid != entry.head_blob_oid
+    )
+    expected_add_shape = (
+        allow_mapping_add
+        and entry.status == "A"
+        and entry.base_mode == "000000"
+        and entry.head_mode == "100644"
+        and entry.base_blob_oid is None
+        and entry.head_blob_oid is not None
+    )
+    if not (expected_regular_shape or expected_add_shape):
+        raise ReviewEvidenceError(
+            "owner stale-seal reseal must change one regular canonical mapping blob"
+        )
+    if ban_trigger_only:
+        subject = _stale_seal_commit_subject(repo_root, child)
+        if TRIGGER_ONLY_COMMIT_SUBJECT_RE.search(subject):
+            raise ReviewEvidenceError("owner stale-seal reseal must not be trigger-only")
+    _stale_seal_mapping_blob(repo_root, commit_sha=child, pr_number=pr_number)
+
+
+def _validate_stale_seal_projection(
+    mapping_text: str,
+    *,
+    manifest: MaterialManifest,
+    repository: str,
+    pr_number: int,
+    require_provider_no_claim: bool,
+) -> dict[str, Any]:
+    seal = parse_embedded_review_seal(mapping_text)
+    if seal["repository"].casefold() != repository.casefold() or seal["pr_number"] != pr_number:
+        raise ReviewEvidenceError("owner stale-seal repository/PR identity is stale")
+    expected_material = {
+        "base_ref_oid": manifest.base_ref_oid,
+        "digest": manifest.digest,
+        "material_head_sha": manifest.head_ref_oid,
+        "merge_base_sha": manifest.merge_base_sha,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    if seal["material"] != expected_material:
+        raise ReviewEvidenceError("owner stale-seal material projection does not recompute")
+    if require_provider_no_claim:
+        expected_review, expected_security = build_provider_no_claim_pair(
+            base_revision=manifest.merge_base_sha,
+            head_revision=manifest.head_ref_oid,
+            material_digest=manifest.digest,
+        )
+        if seal["code_review"] != expected_review or seal["codex_security"] != expected_security:
+            raise ReviewEvidenceError("owner stale-seal must use the exact provider-neutral pair")
+    validate_review_seal(
+        seal,
+        material_paths=(entry.path for entry in manifest.entries),
+        material_diff_summary=manifest.diff_summary,
+    )
+    return seal
+
+
+def _stale_seal_manifests_match(
+    material_manifest: MaterialManifest,
+    closeout_manifest: MaterialManifest,
+) -> bool:
+    return (
+        material_manifest.merge_base_sha == closeout_manifest.merge_base_sha
+        and material_manifest.entries == closeout_manifest.entries
+        and material_manifest.digest == closeout_manifest.digest
+        and material_manifest.diff_summary == closeout_manifest.diff_summary
+    )
+
+
+def _stale_seal_material_manifest(
+    repo_root: Path,
+    *,
+    base_ref_oid: str,
+    head_ref_oid: str,
+    pr_number: int,
+) -> MaterialManifest:
+    """Compute stale-seal material evidence, terminal on Git/object uncertainty."""
+
+    try:
+        return compute_material_manifest(
+            repo_root,
+            base_ref_oid=base_ref_oid,
+            head_ref_oid=head_ref_oid,
+            pr_number=pr_number,
+        )
+    except _GitCommandError as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal material Git evidence is API_UNKNOWN"
+        ) from exc
+    except ReviewEvidenceError as exc:
+        if str(exc) == "repo_root is not a Git checkout":
+            raise _StaleSealEvidenceUnknown(
+                "owner stale-seal material checkout evidence is API_UNKNOWN"
+            ) from exc
+        if str(exc).startswith(
+            (
+                "Git diff contains",
+                "git diff-tree raw stream",
+                "git diff numstat",
+            )
+        ):
+            raise _StaleSealEvidenceUnknown(
+                "owner stale-seal material object evidence is API_UNKNOWN"
+            ) from exc
+        raise
+
+
+def _validated_github_bearer_token(token: Any) -> str:
+    """Return an opaque printable token without exposing its contents in errors."""
+
+    if (
+        not isinstance(token, str)
+        or not token.strip()
+        or any(unicodedata.category(character).startswith("C") for character in token)
+    ):
+        raise _StaleSealEvidenceUnknown("owner stale-seal repository activity is API_UNKNOWN")
+    return token
+
+
+def _github_page_identity(
+    url: str,
+    *,
+    expected_path: str | None = None,
+    immutable_query: tuple[tuple[str, str], ...] | None = None,
+) -> tuple[urllib.parse.ParseResult, tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]:
+    """Validate one same-endpoint GitHub pagination URL and return its identity."""
+
+    try:
+        parsed = urllib.parse.urlparse(url)
+        query_pairs = urllib.parse.parse_qsl(
+            parsed.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+            max_num_fields=32,
+        )
+    except (TypeError, ValueError, UnicodeError) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN") from exc
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "api.github.com"
+        or not parsed.path.startswith("/repos/")
+        or parsed.params
+        or parsed.fragment
+        or expected_path is not None
+        and parsed.path != expected_path
+        or len(query_pairs) != len({key for key, _value in query_pairs})
+        or any(
+            not key
+            or not value
+            or any(unicodedata.category(character).startswith("C") for character in f"{key}{value}")
+            for key, value in query_pairs
+        )
+    ):
+        raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+    stable_query = tuple(
+        sorted(
+            (key, value) for key, value in query_pairs if key not in _GITHUB_PAGINATION_QUERY_KEYS
+        )
+    )
+    if immutable_query is not None and stable_query != immutable_query:
+        raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+    return parsed, stable_query, tuple(sorted(query_pairs))
+
+
+def _github_api_paginated_pages(url: str, *, token: str) -> tuple[list[Any], ...]:
+    """Fetch one bounded immutable GitHub REST feed through strict Link pages."""
+
+    bearer_token = _validated_github_bearer_token(token)
+    initial, immutable_query, _initial_query = _github_page_identity(url)
+    expected_path = initial.path
+    pages: list[list[Any]] = []
+    next_url: str | None = url
+    seen_page_identities: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
+    for _page in range(_MAX_REPOSITORY_ACTIVITY_PAGES):
+        if next_url is None:
+            return tuple(pages)
+        parsed, _stable_query, page_query = _github_page_identity(
+            next_url,
+            expected_path=expected_path,
+            immutable_query=immutable_query,
+        )
+        page_identity = (parsed.path, page_query)
+        if page_identity in seen_page_identities:
+            raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+        seen_page_identities.add(page_identity)
+        connection = http.client.HTTPSConnection("api.github.com", timeout=30)
+        try:
+            connection.request(
+                "GET",
+                parsed.path + (f"?{parsed.query}" if parsed.query else ""),
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {bearer_token}",
+                    "User-Agent": "pulseplate-pr-review-evidence",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response = connection.getresponse()
+            raw = response.read(4 * 1024 * 1024 + 1)
+            if response.status != 200 or len(raw) > 4 * 1024 * 1024:
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal repository activity is API_UNKNOWN"
+                )
+            content_type = (response.getheader("Content-Type") or "").lower()
+            if "json" not in content_type:
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal repository activity is API_UNKNOWN"
+                )
+            try:
+                payload = _load_json_bytes(raw, label="GitHub repository activity page")
+            except ReviewEvidenceError as exc:
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal repository activity is API_UNKNOWN"
+                ) from exc
+            if not isinstance(payload, list) or len(payload) > 100:
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal repository activity is API_UNKNOWN"
+                )
+            pages.append(payload)
+            link_header = response.getheader("Link")
+        except _StaleSealEvidenceUnknown:
+            raise
+        except (
+            OSError,
+            TimeoutError,
+            ValueError,
+            UnicodeEncodeError,
+            http.client.HTTPException,
+        ) as exc:
+            raise _StaleSealEvidenceUnknown(
+                "owner stale-seal repository activity is API_UNKNOWN"
+            ) from exc
+        finally:
+            connection.close()
+        next_candidates: list[str] = []
+        link_targets: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
+        if link_header:
+            for raw_link in link_header.split(","):
+                segments = [segment.strip() for segment in raw_link.split(";")]
+                if len(segments) < 2 or not (
+                    segments[0].startswith("<") and segments[0].endswith(">")
+                ):
+                    raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+                target = segments[0][1:-1]
+                target_parsed, _target_stable, target_query = _github_page_identity(
+                    target,
+                    expected_path=expected_path,
+                    immutable_query=immutable_query,
+                )
+                target_identity = (target_parsed.path, target_query)
+                if target_identity in link_targets:
+                    raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+                link_targets.add(target_identity)
+                rel_parameters = [
+                    segment.removeprefix("rel=")
+                    for segment in segments[1:]
+                    if segment.startswith("rel=")
+                ]
+                if len(rel_parameters) != 1:
+                    raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+                rel_value = rel_parameters[0]
+                if len(rel_value) < 2 or not (
+                    rel_value.startswith('"') and rel_value.endswith('"')
+                ):
+                    raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+                relations = rel_value[1:-1].split()
+                if not relations or len(relations) != len(set(relations)):
+                    raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+                if "next" in relations:
+                    next_candidates.append(target)
+        if len(next_candidates) > 1:
+            raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+        next_url = next_candidates[0] if next_candidates else None
+    if next_url is not None:
+        raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
+    return tuple(pages)
+
+
+def _stale_seal_push_timestamp(activity: Mapping[str, Any]) -> datetime:
+    timestamp = activity.get("timestamp")
+    pushed_at = activity.get("pushed_at")
+    if timestamp is not None and pushed_at is not None:
+        parsed_timestamp = _parse_timestamp(
+            timestamp,
+            label="owner stale-seal repository activity timestamp",
+        )
+        parsed_pushed_at = _parse_timestamp(
+            pushed_at,
+            label="owner stale-seal repository activity pushed_at",
+        )
+        if parsed_timestamp != parsed_pushed_at:
+            raise ReviewEvidenceError("owner stale-seal repository activity timestamps conflict")
+        return parsed_timestamp
+    return _parse_timestamp(
+        pushed_at if pushed_at is not None else timestamp,
+        label="owner stale-seal repository activity timestamp",
+    )
+
+
+def _fetch_stale_seal_reseal_pushed_at(
+    *,
+    snapshot: Any,
+    repository: str,
+    stale_head_sha: str,
+    reseal_sha: str,
+    token: str,
+    request_json: Any,
+) -> datetime:
+    for commit in snapshot.commits:
+        if commit.sha == reseal_sha and commit.pushed_at is not None:
+            try:
+                return _parse_timestamp(
+                    commit.pushed_at,
+                    label="owner stale-seal reseal pushedDate",
+                )
+            except ReviewEvidenceError as exc:
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal reseal pushedDate is API_UNKNOWN"
+                ) from exc
+    owner, name = repository.split("/", 1)
+    try:
+        pull = request_json(
+            f"https://api.github.com/repos/{owner}/{name}/pulls/{snapshot.pr_number}",
+            token=token,
+        )
+    except Exception as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal PR head evidence is API_UNKNOWN") from exc
+    head = pull.get("head") if isinstance(pull, dict) else None
+    base = pull.get("base") if isinstance(pull, dict) else None
+    head_repo = head.get("repo") if isinstance(head, dict) else None
+    head_repository = head_repo.get("full_name") if isinstance(head_repo, dict) else None
+    head_ref = head.get("ref") if isinstance(head, dict) else None
+    head_sha = head.get("sha") if isinstance(head, dict) else None
+    base_sha = base.get("sha") if isinstance(base, dict) else None
+    if (
+        not isinstance(head_repository, str)
+        or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", head_repository)
+        or not isinstance(head_ref, str)
+        or not head_ref
+        or any(unicodedata.category(character).startswith("C") for character in head_ref)
+        or len(head_ref.encode("utf-8")) > 1024
+        or head_repository.casefold() != snapshot.repository.casefold()
+        or head_sha != snapshot.head_sha
+        or base_sha != snapshot.base_sha
+    ):
+        raise _StaleSealEvidenceUnknown("owner stale-seal PR head evidence is API_UNKNOWN")
+    expected_ref = f"refs/heads/{head_ref}"
+    activity_query = urllib.parse.urlencode(
+        {"ref": head_ref, "activity_type": "push", "per_page": 100}
+    )
+    activity_url = f"https://api.github.com/repos/{head_repository}/activity?{activity_query}"
+    try:
+        activity_pages = _github_api_paginated_pages(activity_url, token=token)
+    except ReviewEvidenceError as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal repository activity is API_UNKNOWN"
+        ) from exc
+    exact_times: list[datetime] = []
+    for page in activity_pages:
+        for activity in page:
+            if not isinstance(activity, dict):
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal repository activity is API_UNKNOWN"
+                )
+            if (
+                activity.get("activity_type") == "push"
+                and activity.get("ref") == expected_ref
+                and activity.get("before") == stale_head_sha
+                and activity.get("after") == reseal_sha
+            ):
+                try:
+                    exact_times.append(_stale_seal_push_timestamp(activity))
+                except ReviewEvidenceError as exc:
+                    raise _StaleSealEvidenceUnknown(
+                        "owner stale-seal repository activity is API_UNKNOWN"
+                    ) from exc
+    if exact_times:
+        return min(exact_times)
+    events_url = f"https://api.github.com/repos/{head_repository}/events?per_page=100"
+    try:
+        event_pages = _github_api_paginated_pages(events_url, token=token)
+    except ReviewEvidenceError as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal repository events are API_UNKNOWN"
+        ) from exc
+    for page in event_pages:
+        for event in page:
+            if not isinstance(event, dict):
+                raise _StaleSealEvidenceUnknown(
+                    "owner stale-seal repository events are API_UNKNOWN"
+                )
+            payload = event.get("payload")
+            if (
+                event.get("type") == "PushEvent"
+                and isinstance(payload, dict)
+                and payload.get("ref") == expected_ref
+                and payload.get("before") == stale_head_sha
+                and payload.get("head") == reseal_sha
+            ):
+                try:
+                    exact_times.append(
+                        _parse_timestamp(
+                            event.get("created_at"),
+                            label="owner stale-seal PushEvent created_at",
+                        )
+                    )
+                except ReviewEvidenceError as exc:
+                    raise _StaleSealEvidenceUnknown(
+                        "owner stale-seal repository events are API_UNKNOWN"
+                    ) from exc
+    if not exact_times:
+        raise ReviewEvidenceError("owner stale-seal reseal lacks immutable server push evidence")
+    return min(exact_times)
+
+
+def _stale_seal_repository_commit(
+    sha: str,
+    *,
+    snapshot: Any,
+    token: str,
+    require_pr_commit: bool,
+) -> Any:
+    from scripts.orchestration.pr_commit_identity import (
+        CommitIdentityError,
+        CommitRefKind,
+        RepositoryCommitRef,
+        classify_commit_ref,
+    )
+
+    try:
+        resolution = classify_commit_ref(sha, snapshot, token=token)
+    except (CommitIdentityError, OSError, TimeoutError, http.client.HTTPException) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal commit identity is API_UNKNOWN") from exc
+    if getattr(resolution, "kind", None) is CommitRefKind.API_UNKNOWN:
+        raise _StaleSealEvidenceUnknown("owner stale-seal commit identity is API_UNKNOWN")
+    if (sha in snapshot.commit_shas or sha == snapshot.base_sha) and getattr(
+        resolution, "kind", None
+    ) is CommitRefKind.REVIEW_REF_UNAVAILABLE:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal snapshot commit identity conflicts with GitHub"
+        )
+    allowed_kinds = {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}
+    if not isinstance(resolution, RepositoryCommitRef) or (
+        require_pr_commit and resolution.kind not in allowed_kinds
+    ):
+        raise ReviewEvidenceError("owner stale-seal commit is not a real live PR commit")
+    return resolution
+
+
+def _stale_seal_remote_ancestor(
+    ancestor: Any,
+    descendant: Any,
+    *,
+    repository: str,
+    token: str,
+) -> None:
+    from scripts.orchestration.pr_commit_identity import CommitIdentityError, is_ancestor
+
+    try:
+        reachable = is_ancestor(
+            ancestor,
+            descendant,
+            repository=repository,
+            token=token,
+        )
+    except (CommitIdentityError, OSError, TimeoutError, http.client.HTTPException) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal ancestry is API_UNKNOWN") from exc
+    if not reachable:
+        raise ReviewEvidenceError("owner stale-seal commit is not remotely reachable")
+
+
+def _stale_seal_remote_non_ancestor(
+    ancestor: Any,
+    descendant: Any,
+    *,
+    repository: str,
+    token: str,
+) -> None:
+    """Require GitHub Compare to prove that one commit did not precede another."""
+
+    from scripts.orchestration.pr_commit_identity import CommitIdentityError, is_ancestor
+
+    try:
+        reachable = is_ancestor(
+            ancestor,
+            descendant,
+            repository=repository,
+            token=token,
+        )
+    except (CommitIdentityError, OSError, TimeoutError, http.client.HTTPException) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal ancestry is API_UNKNOWN") from exc
+    if reachable:
+        raise ReviewEvidenceError(
+            "owner stale-seal synchronized base already preceded prior closeout"
+        )
+
+
+def _stale_seal_local_ancestor(
+    repo_root: Path,
+    *,
+    ancestor_sha: str,
+    descendant_sha: str,
+) -> None:
+    try:
+        git = _git_path()
+        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
+            cwd=repo_root,
+            env=_git_environment(),
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (_GitCommandError, OSError, subprocess.TimeoutExpired) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    if result.returncode == 0:
+        return
+    if result.returncode == 1:
+        raise ReviewEvidenceError("owner stale-seal commit is not locally reachable")
+    raise _StaleSealEvidenceUnknown("owner stale-seal Git ancestry is API_UNKNOWN")
+
+
+def _stale_seal_local_non_ancestor(
+    repo_root: Path,
+    *,
+    ancestor_sha: str,
+    descendant_sha: str,
+) -> None:
+    """Require local Git to prove that one commit did not precede another."""
+
+    try:
+        git = _git_path()
+        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
+            cwd=repo_root,
+            env=_git_environment(),
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (_GitCommandError, OSError, subprocess.TimeoutExpired) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    if result.returncode == 1:
+        return
+    if result.returncode == 0:
+        raise ReviewEvidenceError(
+            "owner stale-seal synchronized base already preceded prior closeout"
+        )
+    raise _StaleSealEvidenceUnknown("owner stale-seal Git ancestry is API_UNKNOWN")
+
+
+def _stale_seal_snapshot_children(
+    repo_root: Path,
+    *,
+    snapshot: Any,
+    parent_sha: str,
+) -> tuple[str, ...]:
+    children: list[str] = []
+    for commit_sha in snapshot.commit_shas:
+        if parent_sha in _stale_seal_commit_parents(repo_root, commit_sha):
+            children.append(commit_sha)
+    return tuple(sorted(children))
+
+
+def _validate_historical_stale_seal_reseal(
+    *,
+    repo_root: Path,
+    snapshot: Any,
+    repository: str,
+    token: str,
+    stale_head_sha: str,
+    reseal_sha: str,
+    request_json: Any,
+) -> datetime:
+    from scripts.orchestration.pr_commit_identity import CommitRefKind, RepositoryCommitRef
+
+    stale_head = _require_sha(stale_head_sha, label="owner stale-seal stale head")
+    reseal = _require_sha(reseal_sha, label="owner stale-seal reseal")
+    if stale_head == reseal or not {stale_head, reseal} <= snapshot.commit_shas:
+        raise ReviewEvidenceError("owner stale-seal reply does not select two live PR commits")
+    stale_ref = _stale_seal_repository_commit(
+        stale_head,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=True,
+    )
+    reseal_ref = _stale_seal_repository_commit(
+        reseal,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=True,
+    )
+    live_ref = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
+    _stale_seal_remote_ancestor(
+        stale_ref,
+        reseal_ref,
+        repository=repository,
+        token=token,
+    )
+    _stale_seal_remote_ancestor(
+        reseal_ref,
+        live_ref,
+        repository=repository,
+        token=token,
+    )
+
+    stale_parents = _stale_seal_commit_parents(repo_root, stale_head)
+    if len(stale_parents) != 2:
+        raise ReviewEvidenceError("owner stale-seal stale head is not a two-parent base sync")
+    prior_closeout, synchronized_base = stale_parents
+    _validate_stale_seal_mapping_only_edge(
+        repo_root,
+        parent_sha=stale_head,
+        child_sha=reseal,
+        pr_number=snapshot.pr_number,
+        allow_mapping_add=False,
+    )
+    if _stale_seal_snapshot_children(
+        repo_root,
+        snapshot=snapshot,
+        parent_sha=stale_head,
+    ) != (reseal,):
+        raise ReviewEvidenceError("owner stale-seal reseal is not the sole direct PR child")
+
+    synchronized_base_ref = _stale_seal_repository_commit(
+        synchronized_base,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=False,
+    )
+    current_base_ref = _stale_seal_repository_commit(
+        snapshot.base_sha,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=False,
+    )
+    _stale_seal_local_ancestor(
+        repo_root,
+        ancestor_sha=synchronized_base,
+        descendant_sha=snapshot.base_sha,
+    )
+    _stale_seal_remote_ancestor(
+        synchronized_base_ref,
+        current_base_ref,
+        repository=repository,
+        token=token,
+    )
+
+    prior_mapping = _stale_seal_mapping_blob(
+        repo_root,
+        commit_sha=prior_closeout,
+        pr_number=snapshot.pr_number,
+    )
+    inherited_mapping = _stale_seal_mapping_blob(
+        repo_root,
+        commit_sha=stale_head,
+        pr_number=snapshot.pr_number,
+    )
+    resealed_mapping = _stale_seal_mapping_blob(
+        repo_root,
+        commit_sha=reseal,
+        pr_number=snapshot.pr_number,
+    )
+    if prior_mapping != inherited_mapping or inherited_mapping == resealed_mapping:
+        raise ReviewEvidenceError("owner stale-seal mapping inheritance/reseal is invalid")
+
+    old_seal = parse_embedded_review_seal(prior_mapping)
+    old_material_head = _require_sha(
+        old_seal["material"]["material_head_sha"],
+        label="owner stale-seal prior material head",
+    )
+    old_base = _require_sha(
+        old_seal["material"]["base_ref_oid"],
+        label="owner stale-seal prior base",
+    )
+    if old_base == synchronized_base:
+        raise ReviewEvidenceError("owner stale-seal base sync did not advance the base")
+    _validate_stale_seal_mapping_only_edge(
+        repo_root,
+        parent_sha=old_material_head,
+        child_sha=prior_closeout,
+        pr_number=snapshot.pr_number,
+        allow_mapping_add=True,
+        ban_trigger_only=False,
+    )
+    if _stale_seal_snapshot_children(
+        repo_root,
+        snapshot=snapshot,
+        parent_sha=old_material_head,
+    ) != (prior_closeout,):
+        raise ReviewEvidenceError("owner stale-seal prior closeout is not the sole direct PR child")
+    _stale_seal_repository_commit(
+        old_material_head,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=False,
+    )
+    old_base_ref = _stale_seal_repository_commit(
+        old_base,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=False,
+    )
+    _stale_seal_local_ancestor(
+        repo_root,
+        ancestor_sha=old_base,
+        descendant_sha=synchronized_base,
+    )
+    _stale_seal_remote_ancestor(
+        old_base_ref,
+        synchronized_base_ref,
+        repository=repository,
+        token=token,
+    )
+    _stale_seal_local_non_ancestor(
+        repo_root,
+        ancestor_sha=synchronized_base,
+        descendant_sha=prior_closeout,
+    )
+    _stale_seal_remote_non_ancestor(
+        synchronized_base_ref,
+        _stale_seal_repository_commit(
+            prior_closeout,
+            snapshot=snapshot,
+            token=token,
+            require_pr_commit=True,
+        ),
+        repository=repository,
+        token=token,
+    )
+    prior_manifest = _stale_seal_material_manifest(
+        repo_root,
+        base_ref_oid=old_base,
+        head_ref_oid=old_material_head,
+        pr_number=snapshot.pr_number,
+    )
+    _validate_stale_seal_projection(
+        prior_mapping,
+        manifest=prior_manifest,
+        repository=repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=False,
+    )
+
+    stale_manifest = _stale_seal_material_manifest(
+        repo_root,
+        base_ref_oid=synchronized_base,
+        head_ref_oid=stale_head,
+        pr_number=snapshot.pr_number,
+    )
+    reseal_manifest = _stale_seal_material_manifest(
+        repo_root,
+        base_ref_oid=synchronized_base,
+        head_ref_oid=reseal,
+        pr_number=snapshot.pr_number,
+    )
+    if not _stale_seal_manifests_match(stale_manifest, reseal_manifest):
+        raise ReviewEvidenceError("owner stale-seal reseal changes material identity")
+    _validate_stale_seal_projection(
+        resealed_mapping,
+        manifest=stale_manifest,
+        repository=repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=True,
+    )
+    prior_material = old_seal["material"]
+    if (
+        prior_material["base_ref_oid"] == stale_manifest.base_ref_oid
+        and prior_material["merge_base_sha"] == stale_manifest.merge_base_sha
+        and prior_material["material_head_sha"] == stale_manifest.head_ref_oid
+        and prior_material["digest"] == stale_manifest.digest
+    ):
+        raise ReviewEvidenceError("owner stale-seal prior seal was not stale at the sync")
+    return _fetch_stale_seal_reseal_pushed_at(
+        snapshot=snapshot,
+        repository=repository,
+        stale_head_sha=stale_head,
+        reseal_sha=reseal,
+        token=token,
+        request_json=request_json,
+    )
+
+
+def _validate_current_stale_seal_closeout(
+    *,
+    repo_root: Path,
+    snapshot: Any,
+    repository: str,
+    token: str,
+    material_digest: str,
+    material_head_sha: str,
+) -> None:
+    from scripts.orchestration.pr_commit_identity import CommitRefKind, RepositoryCommitRef
+
+    expected_digest = _require_digest(material_digest, label="material_digest")
+    expected_material_head = _require_sha(material_head_sha, label="material_head_sha")
+    live_mapping = _stale_seal_mapping_blob(
+        repo_root,
+        commit_sha=snapshot.head_sha,
+        pr_number=snapshot.pr_number,
+    )
+    live_seal = parse_embedded_review_seal(live_mapping)
+    sealed_head = _require_sha(
+        live_seal["material"]["material_head_sha"],
+        label="owner stale-seal current material head",
+    )
+    if sealed_head != expected_material_head or live_seal["material"]["digest"] != expected_digest:
+        raise ReviewEvidenceError("owner stale-seal current live seal is not caller-bound")
+    sealed_ref = _stale_seal_repository_commit(
+        sealed_head,
+        snapshot=snapshot,
+        token=token,
+        require_pr_commit=True,
+    )
+    live_ref = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
+    _stale_seal_remote_ancestor(
+        sealed_ref,
+        live_ref,
+        repository=repository,
+        token=token,
+    )
+    _validate_stale_seal_mapping_only_edge(
+        repo_root,
+        parent_sha=sealed_head,
+        child_sha=snapshot.head_sha,
+        pr_number=snapshot.pr_number,
+        allow_mapping_add=False,
+    )
+    if _stale_seal_snapshot_children(
+        repo_root,
+        snapshot=snapshot,
+        parent_sha=sealed_head,
+    ) != (snapshot.head_sha,):
+        raise ReviewEvidenceError("owner stale-seal current reseal is not the sole direct child")
+    material_manifest = _stale_seal_material_manifest(
+        repo_root,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=sealed_head,
+        pr_number=snapshot.pr_number,
+    )
+    live_manifest = _stale_seal_material_manifest(
+        repo_root,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=snapshot.head_sha,
+        pr_number=snapshot.pr_number,
+    )
+    if not _stale_seal_manifests_match(material_manifest, live_manifest):
+        raise ReviewEvidenceError("owner stale-seal current reseal changes material identity")
+    _validate_stale_seal_projection(
+        live_mapping,
+        manifest=material_manifest,
+        repository=repository,
+        pr_number=snapshot.pr_number,
+        require_provider_no_claim=True,
+    )
+
+
+def _validate_stale_seal_root_identity(
+    *,
+    url: str,
+    finding: Any,
+    stale_head_sha: str,
+    owner: str,
+    name: str,
+    pr_number: int,
+    token: str,
+    request_json: Any,
+) -> bool:
+    match = re.fullmatch(
+        rf"https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#discussion_r(?P<comment_id>[1-9][0-9]*)",
+        url,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return False
+    try:
+        response = request_json(
+            f"https://api.github.com/repos/{owner}/{name}/pulls/comments/"
+            f"{match.group('comment_id')}",
+            token=token,
+        )
+    except Exception as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal review-comment identity is API_UNKNOWN"
+        ) from exc
+    if not isinstance(response, dict):
+        raise _StaleSealEvidenceUnknown("owner stale-seal review-comment identity is API_UNKNOWN")
+    required_fields = {
+        "body",
+        "created_at",
+        "html_url",
+        "id",
+        "original_commit_id",
+        "path",
+        "pull_request_url",
+        "updated_at",
+        "user",
+    }
+    if not required_fields <= response.keys():
+        raise _StaleSealEvidenceUnknown("owner stale-seal review-comment identity is API_UNKNOWN")
+    user = response.get("user")
+    if (
+        not isinstance(response.get("id"), int)
+        or isinstance(response.get("id"), bool)
+        or not all(isinstance(response.get(key), str) for key in required_fields - {"id", "user"})
+        or not isinstance(user, dict)
+        or not {"id", "login", "type"} <= user.keys()
+        or not isinstance(user.get("id"), int)
+        or isinstance(user.get("id"), bool)
+        or not isinstance(user.get("login"), str)
+        or not isinstance(user.get("type"), str)
+    ):
+        raise _StaleSealEvidenceUnknown("owner stale-seal review-comment identity is API_UNKNOWN")
+    expected_pr_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+    expected_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    return (
+        response.get("id") == int(match.group("comment_id"))
+        and response.get("html_url") == url
+        and response.get("pull_request_url") == expected_pr_url
+        and response.get("path") == expected_path
+        and response.get("original_commit_id") == stale_head_sha
+        and response.get("body") == finding.body
+        and response.get("created_at") == finding.created_at
+        and response.get("updated_at") == finding.created_at
+        and user.get("id") == 199_175_422
+        and user.get("login") == "chatgpt-codex-connector[bot]"
+        and user.get("type") == "Bot"
+    )
 
 
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
