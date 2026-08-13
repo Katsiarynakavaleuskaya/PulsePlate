@@ -203,6 +203,7 @@ def test_legacy_week_endpoint_rejects_invalid_targets_values(
         "height_cm": 175,
         "weight_kg": 70,
         "activity": "moderate",
+        "goal": "maintain",
         "targets": targets,
     }
     r = client.post("/api/v1/premium/plan/week", json=payload, headers=vip_headers)

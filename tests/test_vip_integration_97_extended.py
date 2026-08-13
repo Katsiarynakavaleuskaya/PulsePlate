@@ -501,6 +501,7 @@ class TestVIPIntegration97Extended:
                 headers=vip_headers,
             )
             assert response.status_code == 422
+            assert response.headers.get("Content-Type", "").startswith("application/json")
             assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 2: Пустые данные
@@ -510,6 +511,7 @@ class TestVIPIntegration97Extended:
             headers=vip_headers,
         )
         assert response.status_code == 422
+        assert response.headers.get("Content-Type", "").startswith("application/json")
         assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 3: Отсутствующие обязательные поля
@@ -519,6 +521,7 @@ class TestVIPIntegration97Extended:
             headers=vip_headers,
         )
         assert response.status_code == 422
+        assert response.headers.get("Content-Type", "").startswith("application/json")
         assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
     def test_vip_api_key_validation_integration_extended_scenarios(

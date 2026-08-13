@@ -304,8 +304,10 @@ def test_vip_weekly_plan_keeps_protein_and_protein_g_supplemental(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["echo"]["protein"] == 120.0
-    assert response.json()["echo"]["protein_g"] == 121.0
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    response_data = response.json()
+    assert response_data["echo"]["protein"] == 120.0
+    assert response_data["echo"]["protein_g"] == 121.0
     assert captured["builder_calls"] == 1
     profile = captured["profile"]
     assert getattr(profile, "sex") == payload["sex"]
@@ -331,8 +333,10 @@ def test_vip_weekly_plan_maps_runtime_profile_error_to_static_422(
     )
 
     assert response.status_code == 422, response.text
-    assert response.json() == _INVALID_WEEKLY_PAYLOAD
-    assert response.json().get("status") is None
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    response_data = response.json()
+    assert response_data == _INVALID_WEEKLY_PAYLOAD
+    assert response_data.get("status") is None
 
 
 def test_deprecated_weekly_plan_parses_malformed_json_before_auth(client: TestClient) -> None:
@@ -389,6 +393,7 @@ def test_deprecated_weekly_plan_rejects_omitted_goal_before_builder(
     response = client.post("/api/v1/vip/weekly-plan", json=payload, headers=vip_headers)
 
     assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
     assert response.json() == _INVALID_WEEKLY_PAYLOAD
     assert builder_calls == 0
 
@@ -420,6 +425,7 @@ def test_deprecated_weekly_plan_preserves_builder_http_exception(
     )
 
     assert response.status_code == 409, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
     assert response.json() == {"detail": "weekly plan conflict"}
 
 

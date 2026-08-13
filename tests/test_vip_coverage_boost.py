@@ -55,6 +55,7 @@ class TestVIPCoverageBoost:
                 headers=vip_headers,
             )
             assert response.status_code == 200
+            assert response.headers.get("Content-Type", "").startswith("application/json")
             data = response.json()
             assert data["status"] == "success"
 

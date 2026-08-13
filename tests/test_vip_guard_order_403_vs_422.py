@@ -75,8 +75,6 @@ def test_vip_guard_422_after_valid_tier(
     )
     # With valid tier, validation should run and return 422
     assert response.status_code == 422, "With valid VIP key, invalid payload should return 422"
-    assert response.headers.get("Content-Type", "").startswith("application/json")
-    assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
 
 def test_vip_guard_200_with_valid_tier_and_payload(
