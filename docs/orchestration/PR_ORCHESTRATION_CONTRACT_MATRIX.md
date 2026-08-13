@@ -495,14 +495,15 @@ review/security scans.
 Evidence:
 - `scripts/orchestration/pr_review_evidence.py:577` — exact `OWNER FIXED` parser
 - `scripts/orchestration/pr_review_evidence.py:783` — shared reply-only producer
-- `scripts/orchestration/pr_review_evidence.py:1869` — raw-Git linear-material edge invariant
-- `scripts/orchestration/pr_review_evidence.py:2482` — closed historical topology classifier
+- `scripts/orchestration/pr_review_evidence.py:1909` — raw-Git linear-material edge invariant
+- `scripts/orchestration/pr_review_evidence.py:2572` — closed historical topology classifier
 - `tests/test_pr_review_material_seal.py:6661` — real-Git base-sync acceptance with later sync/current reseal
 - `tests/test_pr_review_material_seal.py:6672` — real-Git linear-material acceptance
 - `tests/test_pr_review_material_seal.py:6700` — exact parser rejection matrix
 - `tests/test_pr_review_material_seal.py:6929` — linear topology negative matrix
 - `tests/test_pr_review_material_seal.py:6944` — linear historical base-binding negatives
 - `tests/test_pr_review_material_seal.py:6959` — invalid base-sync no-fallthrough proof
+- `tests/test_pr_review_material_seal.py:7195` — batched complete parent enumeration
 - `tests/test_pr_merge_readiness_gate.py:48` — strict merge-readiness consumer uses the shared producer
 - `tests/test_pr_merge_readiness_gate.py:81` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer

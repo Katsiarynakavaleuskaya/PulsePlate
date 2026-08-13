@@ -7192,6 +7192,68 @@ def test_owner_stale_seal_git_evidence_rejects_shallow_repository(tmp_path: Path
         evidence_module._stale_seal_commit_parents(repo, head)
 
 
+def test_owner_stale_seal_snapshot_children_batches_parent_enumeration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("first\n", encoding="utf-8")
+    first = _commit(repo, "first")
+    _git(repo, "reset", "--hard", base)
+    (repo / "README.md").write_text("second\n", encoding="utf-8")
+    second = _commit(repo, "second")
+
+    original_run_git = evidence_module._run_git
+    batch_calls = 0
+
+    def counted_run_git(
+        repo_root: Path,
+        args: list[str],
+        *,
+        input_bytes: bytes | None = None,
+        timeout: int = 30,
+    ) -> bytes:
+        nonlocal batch_calls
+        if args == ["rev-list", "--parents", "--no-walk", "--stdin"]:
+            batch_calls += 1
+        return original_run_git(
+            repo_root,
+            args,
+            input_bytes=input_bytes,
+            timeout=timeout,
+        )
+
+    monkeypatch.setattr(evidence_module, "_run_git", counted_run_git)
+    snapshot = SimpleNamespace(commit_shas=frozenset({base, first, second}))
+    parent_cache: dict[str, tuple[str, ...]] = {}
+
+    expected = tuple(sorted((first, second)))
+    assert (
+        evidence_module._stale_seal_snapshot_children(
+            repo,
+            snapshot=snapshot,
+            parent_sha=base,
+            parent_cache=parent_cache,
+        )
+        == expected
+    )
+    assert (
+        evidence_module._stale_seal_snapshot_children(
+            repo,
+            snapshot=snapshot,
+            parent_sha=base,
+            parent_cache=parent_cache,
+        )
+        == expected
+    )
+    assert batch_calls == 1
+    assert set(parent_cache) == {base, first, second}
+
+
 @pytest.mark.parametrize(
     "token",
     ["opaque\rsecret", "opaque\nsecret", "opaque\x00secret", "opaque\x7fsecret"],

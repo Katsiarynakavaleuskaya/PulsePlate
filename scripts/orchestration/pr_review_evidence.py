@@ -20,7 +20,7 @@ import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Collection, Iterable, Mapping
 
 from scripts.ci.dependabot_requirement_carriers import (
     is_protected_python_dependency_text_path,
@@ -1388,7 +1388,13 @@ def _git_environment() -> dict[str, str]:
     return env
 
 
-def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
+def _run_git(
+    repo_root: Path,
+    args: list[str],
+    *,
+    input_bytes: bytes | None = None,
+    timeout: int = 30,
+) -> bytes:
     git = _git_path()
     _reject_incomplete_git_topology(repo_root, git=git)
     try:
@@ -1396,6 +1402,7 @@ def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
             [git, *args],
             cwd=repo_root,
             env=_git_environment(),
+            input=input_bytes,
             capture_output=True,
             timeout=timeout,
             check=False,
@@ -2494,6 +2501,49 @@ def _stale_seal_cached_commit_parents(
     return cached
 
 
+def _stale_seal_cache_snapshot_parents(
+    repo_root: Path,
+    *,
+    commit_shas: Collection[str],
+    parent_cache: dict[str, tuple[str, ...]],
+) -> None:
+    """Populate one validation-pass cache with one complete parent enumeration."""
+
+    missing = tuple(sorted(set(commit_shas) - parent_cache.keys()))
+    if not missing:
+        return
+    try:
+        requested = tuple(_require_sha(sha, label="stale-seal snapshot commit") for sha in missing)
+        raw = _run_git(
+            repo_root,
+            ["rev-list", "--parents", "--no-walk", "--stdin"],
+            input_bytes=("\n".join(requested) + "\n").encode("ascii"),
+        )
+        rows = raw.decode("ascii").splitlines()
+    except (_GitCommandError, ReviewEvidenceError, UnicodeDecodeError) as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+
+    parsed: dict[str, tuple[str, ...]] = {}
+    try:
+        for row in rows:
+            values = row.split()
+            if not values:
+                raise ReviewEvidenceError("empty stale-seal parent row")
+            commit = _require_sha(values[0], label="stale-seal snapshot commit")
+            if commit not in requested or commit in parsed:
+                raise ReviewEvidenceError("unexpected stale-seal parent row")
+            parsed[commit] = tuple(
+                _require_sha(value, label="stale-seal snapshot parent") for value in values[1:]
+            )
+    except ReviewEvidenceError as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal commit parent evidence is API_UNKNOWN"
+        ) from exc
+    if set(parsed) != set(requested):
+        raise _StaleSealEvidenceUnknown("owner stale-seal commit parent evidence is API_UNKNOWN")
+    parent_cache.update(parsed)
+
+
 def _stale_seal_snapshot_children(
     repo_root: Path,
     *,
@@ -2501,6 +2551,11 @@ def _stale_seal_snapshot_children(
     parent_sha: str,
     parent_cache: dict[str, tuple[str, ...]],
 ) -> tuple[str, ...]:
+    _stale_seal_cache_snapshot_parents(
+        repo_root,
+        commit_shas=snapshot.commit_shas,
+        parent_cache=parent_cache,
+    )
     children: list[str] = []
     for commit_sha in snapshot.commit_shas:
         if parent_sha in _stale_seal_cached_commit_parents(
