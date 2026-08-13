@@ -410,6 +410,22 @@ def test_qoder_rejects_not_required_v2_requested_agent_status_mismatch(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_not_required_v2_assigned_agent_as_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    secondary_agents = cast(List[str], packet["secondary_agents"])
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    assert "agent-coordinator" in secondary_agents
+    assert dispositions[0]["status"] == "honored_secondary"
+    dispositions[0]["status"] = "rejected_unknown_agent"
+    dispositions[0]["reason"] = "Forged unknown status contradicts the assigned role."
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="status must match the role assignment"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_qoder_rejects_v2_noncanonical_candidate_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

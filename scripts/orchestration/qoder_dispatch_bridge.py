@@ -75,6 +75,7 @@ from scripts.orchestration.task_bootstrap import (
     REQUESTED_AGENT_STATUS_HONORED_PRIMARY,
     REQUESTED_AGENT_STATUS_HONORED_REVIEWER,
     REQUESTED_AGENT_STATUS_HONORED_SECONDARY,
+    REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN,
     build_role_agent_dispatch_contract,
     partition_native_secondaries,
 )
@@ -769,6 +770,13 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
                 continue
             agent = cast(str, row["agent"])
             status = row.get("status")
+            if status == REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN and (
+                agent == primary_agent or agent == reviewer or agent in secondary_agents
+            ):
+                raise ValueError(
+                    "not_required invariant_review.v2 requested-agent status "
+                    "must match the role assignment"
+                )
             if status not in honored_statuses:
                 continue
             expected_status = (
