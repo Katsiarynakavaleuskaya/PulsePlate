@@ -1814,6 +1814,51 @@ def _validate_stale_seal_mapping_only_edge(
     _stale_seal_mapping_blob(repo_root, commit_sha=child, pr_number=pr_number)
 
 
+def _validate_stale_seal_linear_material_edge(
+    repo_root: Path,
+    *,
+    parent_sha: str,
+    child_sha: str,
+    pr_number: int,
+) -> None:
+    """Require one direct, non-empty material-only edge with inherited mapping."""
+
+    parent = _require_sha(parent_sha, label="linear-material parent")
+    child = _require_sha(child_sha, label="linear-material child")
+    if _stale_seal_commit_parents(repo_root, child) != (parent,):
+        raise ReviewEvidenceError("owner stale-seal linear material head is not one direct child")
+    try:
+        raw = _run_git(
+            repo_root,
+            [
+                "diff-tree",
+                "-r",
+                "--raw",
+                "-z",
+                "--full-index",
+                "--no-abbrev",
+                "--no-renames",
+                "--no-commit-id",
+                "--no-ext-diff",
+                "--no-textconv",
+                parent,
+                child,
+                "--",
+            ],
+        )
+    except _GitCommandError as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    try:
+        entries = _parse_raw_diff(raw, excluded_path="\0not-a-repository-path")
+    except ReviewEvidenceError as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
+    mapping_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+    if not entries or any(entry.path == mapping_path for entry in entries):
+        raise ReviewEvidenceError(
+            "owner stale-seal linear edge must be non-empty material with inherited mapping"
+        )
+
+
 def _validate_stale_seal_projection(
     mapping_text: str,
     *,
@@ -2400,9 +2445,17 @@ def _validate_historical_stale_seal_reseal(
     )
 
     stale_parents = _stale_seal_commit_parents(repo_root, stale_head)
-    if len(stale_parents) != 2:
-        raise ReviewEvidenceError("owner stale-seal stale head is not a two-parent base sync")
-    prior_closeout, synchronized_base = stale_parents
+    if len(stale_parents) == 1:
+        topology = "LINEAR_MATERIAL"
+        prior_closeout = stale_parents[0]
+        synchronized_base = None
+    elif len(stale_parents) == 2:
+        topology = "BASE_SYNC"
+        prior_closeout, synchronized_base = stale_parents
+    else:
+        raise ReviewEvidenceError(
+            "owner stale-seal stale head is neither linear material nor a two-parent base sync"
+        )
     _validate_stale_seal_mapping_only_edge(
         repo_root,
         parent_sha=stale_head,
@@ -2417,30 +2470,12 @@ def _validate_historical_stale_seal_reseal(
     ) != (reseal,):
         raise ReviewEvidenceError("owner stale-seal reseal is not the sole direct PR child")
 
-    synchronized_base_ref = _stale_seal_repository_commit(
-        synchronized_base,
-        snapshot=snapshot,
-        token=token,
-        require_pr_commit=False,
-    )
     current_base_ref = _stale_seal_repository_commit(
         snapshot.base_sha,
         snapshot=snapshot,
         token=token,
         require_pr_commit=False,
     )
-    _stale_seal_local_ancestor(
-        repo_root,
-        ancestor_sha=synchronized_base,
-        descendant_sha=snapshot.base_sha,
-    )
-    _stale_seal_remote_ancestor(
-        synchronized_base_ref,
-        current_base_ref,
-        repository=repository,
-        token=token,
-    )
-
     prior_mapping = _stale_seal_mapping_blob(
         repo_root,
         commit_sha=prior_closeout,
@@ -2468,8 +2503,6 @@ def _validate_historical_stale_seal_reseal(
         old_seal["material"]["base_ref_oid"],
         label="owner stale-seal prior base",
     )
-    if old_base == synchronized_base:
-        raise ReviewEvidenceError("owner stale-seal base sync did not advance the base")
     _validate_stale_seal_mapping_only_edge(
         repo_root,
         parent_sha=old_material_head,
@@ -2496,33 +2529,83 @@ def _validate_historical_stale_seal_reseal(
         token=token,
         require_pr_commit=False,
     )
-    _stale_seal_local_ancestor(
-        repo_root,
-        ancestor_sha=old_base,
-        descendant_sha=synchronized_base,
-    )
-    _stale_seal_remote_ancestor(
-        old_base_ref,
-        synchronized_base_ref,
-        repository=repository,
-        token=token,
-    )
-    _stale_seal_local_non_ancestor(
-        repo_root,
-        ancestor_sha=synchronized_base,
-        descendant_sha=prior_closeout,
-    )
-    _stale_seal_remote_non_ancestor(
-        synchronized_base_ref,
+    if topology == "LINEAR_MATERIAL":
         _stale_seal_repository_commit(
             prior_closeout,
             snapshot=snapshot,
             token=token,
             require_pr_commit=True,
-        ),
-        repository=repository,
-        token=token,
-    )
+        )
+        _validate_stale_seal_linear_material_edge(
+            repo_root,
+            parent_sha=prior_closeout,
+            child_sha=stale_head,
+            pr_number=snapshot.pr_number,
+        )
+        material_base = old_base
+        _stale_seal_local_ancestor(
+            repo_root,
+            ancestor_sha=old_base,
+            descendant_sha=snapshot.base_sha,
+        )
+        _stale_seal_remote_ancestor(
+            old_base_ref,
+            current_base_ref,
+            repository=repository,
+            token=token,
+        )
+    else:
+        if synchronized_base is None:
+            raise ReviewEvidenceError(
+                "owner stale-seal base-sync topology is missing its synchronized base"
+            )
+        synchronized_base_ref = _stale_seal_repository_commit(
+            synchronized_base,
+            snapshot=snapshot,
+            token=token,
+            require_pr_commit=False,
+        )
+        _stale_seal_local_ancestor(
+            repo_root,
+            ancestor_sha=synchronized_base,
+            descendant_sha=snapshot.base_sha,
+        )
+        _stale_seal_remote_ancestor(
+            synchronized_base_ref,
+            current_base_ref,
+            repository=repository,
+            token=token,
+        )
+        if old_base == synchronized_base:
+            raise ReviewEvidenceError("owner stale-seal base sync did not advance the base")
+        _stale_seal_local_ancestor(
+            repo_root,
+            ancestor_sha=old_base,
+            descendant_sha=synchronized_base,
+        )
+        _stale_seal_remote_ancestor(
+            old_base_ref,
+            synchronized_base_ref,
+            repository=repository,
+            token=token,
+        )
+        _stale_seal_local_non_ancestor(
+            repo_root,
+            ancestor_sha=synchronized_base,
+            descendant_sha=prior_closeout,
+        )
+        _stale_seal_remote_non_ancestor(
+            synchronized_base_ref,
+            _stale_seal_repository_commit(
+                prior_closeout,
+                snapshot=snapshot,
+                token=token,
+                require_pr_commit=True,
+            ),
+            repository=repository,
+            token=token,
+        )
+        material_base = synchronized_base
     prior_manifest = _stale_seal_material_manifest(
         repo_root,
         base_ref_oid=old_base,
@@ -2539,13 +2622,13 @@ def _validate_historical_stale_seal_reseal(
 
     stale_manifest = _stale_seal_material_manifest(
         repo_root,
-        base_ref_oid=synchronized_base,
+        base_ref_oid=material_base,
         head_ref_oid=stale_head,
         pr_number=snapshot.pr_number,
     )
     reseal_manifest = _stale_seal_material_manifest(
         repo_root,
-        base_ref_oid=synchronized_base,
+        base_ref_oid=material_base,
         head_ref_oid=reseal,
         pr_number=snapshot.pr_number,
     )

@@ -6144,6 +6144,7 @@ def _stale_seal_reply_coverage(
     reseal_subject: str = "docs(review): reseal after base sync",
     reseal_changes_material: bool = False,
     reseal_shape: str = "direct",
+    stale_shape: str = "base-sync",
     historical_seal_shape: str = "provider-neutral",
     current_seal_shape: str = "provider-neutral",
     include_old_material_in_snapshot: bool = True,
@@ -6215,7 +6216,50 @@ def _stale_seal_reply_coverage(
         (repo / "sibling.txt").write_text("not closeout\n", encoding="utf-8")
         extra_commits.append(_commit(repo, "second child of prior material"))
     _git(repo, "checkout", "-q", "feature")
-    if reseal_shape == "redundant-base-sync":
+    if stale_shape in {
+        "linear-material",
+        "linear-empty",
+        "linear-mapping-only",
+        "linear-mapping-mutation",
+    }:
+        if stale_shape in {"linear-material", "linear-mapping-mutation"}:
+            source.write_text("ENFORCED = True\nMODE = 'strict'\n", encoding="utf-8")
+        if stale_shape in {"linear-mapping-only", "linear-mapping-mutation"}:
+            mapping.write_text(old_mapping + "\nmutated at stale head\n", encoding="utf-8")
+        stale_head = _commit(
+            repo,
+            "material after prior closeout",
+            allow_empty=stale_shape == "linear-empty",
+        )
+        selected_synchronized_base = old_base
+    elif stale_shape == "three-parent":
+        tree = _git(repo, "rev-parse", f"{prior_closeout}^{{tree}}")
+        env = os.environ.copy()
+        env.update(
+            {
+                "GIT_AUTHOR_NAME": "PulsePlate Test",
+                "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                "GIT_COMMITTER_NAME": "PulsePlate Test",
+                "GIT_COMMITTER_EMAIL": "test@example.invalid",
+            }
+        )
+        stale_head = _git(
+            repo,
+            "commit-tree",
+            tree,
+            "-p",
+            prior_closeout,
+            "-p",
+            synchronized_base,
+            "-p",
+            old_base,
+            "-m",
+            "synthetic three-parent stale head",
+            env=env,
+        )
+        _git(repo, "reset", "--hard", stale_head)
+        selected_synchronized_base = synchronized_base
+    elif reseal_shape == "redundant-base-sync":
         tree = _git(repo, "rev-parse", f"{prior_closeout}^{{tree}}")
         env = os.environ.copy()
         env.update(
@@ -6241,6 +6285,8 @@ def _stale_seal_reply_coverage(
         _git(repo, "reset", "--hard", stale_head)
         selected_synchronized_base = old_base
     else:
+        if stale_shape != "base-sync":
+            raise ValueError("unsupported stale_shape")
         stale_head = _merge(repo, "main", "merge main into feature")
         selected_synchronized_base = synchronized_base
     reseal_manifest = compute_material_manifest(
@@ -6565,6 +6611,22 @@ def test_owner_stale_seal_fixed_accepts_real_git_later_sync_and_current_reseal(
     assert graph["current_material"] not in {graph["stale_head"], graph["reseal"]}
 
 
+def test_owner_stale_seal_fixed_accepts_real_git_linear_material_then_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        stale_shape="linear-material",
+    )
+
+    assert covered == {graph["url"]}
+    assert evidence_module._stale_seal_commit_parents(Path(graph["repo"]), graph["stale_head"]) == (
+        graph["prior_closeout"],
+    )
+
+
 @pytest.mark.parametrize(
     "body",
     [
@@ -6740,6 +6802,63 @@ def test_owner_stale_seal_fixed_rejects_invalid_historical_reseal_topology(
         reseal_shape=reseal_shape,
     )
 
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "stale_shape",
+    [
+        "linear-empty",
+        "linear-mapping-only",
+        "linear-mapping-mutation",
+        "three-parent",
+    ],
+    ids=("empty", "mapping-only", "mapping-plus-material", "three-parent"),
+)
+def test_owner_stale_seal_fixed_rejects_invalid_linear_material_topology(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stale_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        stale_shape=stale_shape,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize("historical_seal_shape", ["wrong-base", "wrong-merge-base"])
+def test_owner_stale_seal_fixed_rejects_wrong_linear_historical_base_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    historical_seal_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        stale_shape="linear-material",
+        historical_seal_shape=historical_seal_shape,
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_does_not_fall_through_invalid_base_sync_to_linear(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        reseal_shape="redundant-base-sync",
+    )
+
+    assert (
+        len(evidence_module._stale_seal_commit_parents(Path(graph["repo"]), graph["stale_head"]))
+        == 2
+    )
     assert covered == set()
 
 
