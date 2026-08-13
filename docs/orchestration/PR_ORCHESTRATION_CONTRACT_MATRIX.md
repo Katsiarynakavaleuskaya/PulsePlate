@@ -310,7 +310,15 @@ Evidence:
 - Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
 
-The closed reply-only validator has three mutually exclusive paths. Existing
+### DEFERRED
+
+- Requires ledger reference
+- Thread URL must still be listed in Fixed in Commit Mapping
+- No commit proof required
+
+### Reply-only disposition exceptions
+
+The closed reply-only validator has four mutually exclusive paths. Existing
 canonical fingerprint records retain their current later-duplicate semantics.
 The recordless path covers only the first currently visible trusted Codex/App
 `unavailable_review_ref_ancestry` seed on the exact live direct single
@@ -368,7 +376,65 @@ approval, merge authority, or a bypass of actual findings, current-head CI,
 trusted security checks, unresolved threads, ancestry, mapping-only closeout,
 or the wait window. A canonical fingerprint record or FIXED mapping for the
 same root keeps this owner-only branch inactive and preserves the existing paths
-unchanged. A root actually covered by a canonical reply-only validator is the narrow
+unchanged.
+
+The fourth path is an owner-only historical stale-seal `FIXED` class. It is
+available only when the candidate thread is resolved; its root is the first
+comment, has authenticated login exactly `chatgpt-codex-connector`, targets the
+canonical current-PR mapping artifact, has `originalCommit=S`, and has neither a
+same-root canonical fingerprint nor a FIXED mapping. Unrelated records may
+coexist. The thread must contain exactly one later comment whose GraphQL
+`authorAssociation` is `OWNER`; that sole OWNER comment must fullmatch this
+single line byte-for-byte:
+
+`OWNER FIXED: stale seal at <full-stale-head-sha> is corrected by mapping-only reseal <full-reseal-sha>; authenticated live PR graph is authoritative.`
+
+Both placeholders are distinct lowercase 40-character SHAs selected only by
+the OWNER reply. GraphQL and REST evidence must cross-bind the same repository,
+PR, comment URL and numeric ID, canonical path, byte-identical unedited root
+body and timestamps, trusted connector identity, and `originalCommit=S`.
+Authenticated GitHub and local Git evidence must prove that `S` and `R` are
+real current-PR commits reachable from the live head, `S` is an
+exact two-parent base-sync merge, and `R` is the sole direct one-parent child of
+`S` in the complete live PR commit graph, pushed after the root and no later
+than the OWNER reply, non-empty, non-trigger-only, and changing exactly the
+regular canonical mapping blob. The
+second parent `B` must be repository-addressable, an ancestor of the
+authenticated current base, an advancement of the prior sealed base, and not
+already an ancestor of the first parent `P`. The mapping inherited at `S` must
+equal the `P` mapping and contain a seal that recomputes for its prior
+material/base identity. That historical seal may use any valid parseable v1
+provider shape; its repository-addressable material head must reach `P` through
+the unique ordinary direct mapping-only closeout invariant, yet the inherited
+seal must not be valid for `S`. The seal at `R` must use the exact
+provider-neutral no-claim plus self-review shape, bind material head `S`, use
+`B` as both base and merge-base,
+and match the exact recomputed material digest; the `S` and `R` material
+projections must be identical after excluding the mapping. If later
+base syncs exist, `R` may be an ancestor of the live head, but the current live
+seal must separately use that exact provider-neutral plus self-review shape and
+pass the ordinary exact current-base, material-head, digest, and sole
+mapping-only successor checks.
+
+Eligibility is counted across all live roots before caller filtering and is
+granted only for one globally eligible stale-seal root; two cover neither. The
+human OWNER must inspect the entire root and confirm that no independent
+actionable finding exists beyond the historical stale-seal defect that `R`
+corrected. The validator deliberately does not interpret bot
+prose, never authors the reply, and fails closed on any repository, REST,
+GraphQL, repository-bound pagination, commit-object identity,
+replacement-object, commit-graph, regular-path, seal, digest, timestamp, or
+cardinality uncertainty.
+Every pagination link must remain on `api.github.com` at the same repository
+endpoint and path with immutable non-pagination query fields; a repeated,
+cross-repository, or cross-endpoint page is terminal uncertainty. Local Git
+evidence is evaluated with replacement objects disabled. This path
+records `FIXED`, not `NOT-A-BUG`: the defect was real at
+`S` and `R` corrected it. It grants no review, provider output, approval, scan,
+PASS, merge authority, or bypass of current CI, security, other findings,
+unresolved threads, bot actionables, ancestry, or the wait window.
+
+A root actually covered by a canonical reply-only validator is the narrow
 exception to ordinary artifact mapping: its exact reply plus resolved thread is
 the disposition evidence, and no second mapping entry or docs commit is created.
 Every non-covered resolved actionable retains the ordinary mapping requirement.
@@ -412,13 +478,15 @@ unavailable ref; unavailable refs never enter ancestry. Any `API_UNKNOWN` is
 terminal. The exception creates no docs commit and does not restart
 review/security scans.
 
-### DEFERRED
-
-- Requires ledger reference
-- Thread URL must still be listed in Fixed in Commit Mapping
-- No commit proof required
-
 Evidence:
+- `scripts/orchestration/pr_review_evidence.py:577` — exact `OWNER FIXED` parser
+- `scripts/orchestration/pr_review_evidence.py:783` — shared reply-only producer
+- `tests/test_pr_review_material_seal.py:6557` — real-Git producer acceptance with later sync/current reseal
+- `tests/test_pr_review_material_seal.py:6568` — exact parser rejection matrix
+- `tests/test_pr_merge_readiness_gate.py:48` — strict merge-readiness consumer uses the shared producer
+- `tests/test_pr_merge_readiness_gate.py:82` — strict merge-readiness input wiring
+- `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer
+- `tests/test_review_threads_disposition_strict.py:1528` — disposition input wiring and snapshot stability
 - `scripts/orchestration/check_review_threads_disposition.py:38`
 - `scripts/orchestration/check_review_threads_disposition.py:298`
 - `scripts/orchestration/check_review_threads_disposition.py:467`

@@ -615,6 +615,31 @@ Use this as the canonical operating loop from branch creation to merge window:
      that root; the validator does not infer it from bot prose. For a root actually covered by this validator, the exact
      reply plus resolved thread is the disposition evidence; do not add a second
      mapping entry or docs commit. Every non-covered root follows ordinary mapping.
+   - For one historical stale-seal root already corrected by the sole
+     mapping-only reseal, first inspect the complete root and confirm that it has
+     no independent actionable finding beyond the historical stale-seal defect
+     that `R` corrected. Then verify that the trusted resolved
+     canonical-mapping root has `originalCommit=S`, that `S` is the exact
+     two-parent base-sync merge, and that `R` is its unique direct non-empty,
+     non-trigger-only mapping-only child pushed after the root and no later than
+     the OWNER reply. Verify that the synchronized-main second parent advances
+     the prior sealed base and was not already an ancestor of the first parent.
+     Recompute the inherited seal at `S` against its prior first-parent identity
+     (valid legacy v1 provider shapes remain acceptable there), the reseal at
+     `R` against material head `S` and `S`'s synchronized-main second parent, and
+     the current live seal independently against the current base/head. Require
+     identical `S`/`R` material projections after excluding the mapping. Only
+     after all evidence passes, confirm that no other OWNER reply exists and
+     post the sole later OWNER reply:
+     `OWNER FIXED: stale seal at <full-stale-head-sha> is corrected by mapping-only reseal <full-reseal-sha>; authenticated live PR graph is authoritative.`
+     Resolve the thread only after the exact reply is visible. Do not add the
+     root to the mapping, create another docs commit, interpret the bot's prose,
+     or treat the reply as review or merge authority. An existing same-root
+     mapping/fingerprint, a second eligible stale-seal root, a stale current
+     seal, a pagination link that leaves the same repository endpoint/path or
+     changes non-pagination query fields, a Git replacement object, or any
+     API/Git/seal ambiguity leaves the root blocking. Validators disable Git
+     replacement objects; operators must not use them as closeout evidence.
 7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain
@@ -774,11 +799,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    post-push pass owns thread resolution, current-head CI, and the final merge
    verdict.
 8. A later validated canonical-record duplicate, the single eligible first
-   mapped-FIX recordless seed, or the per-root owner-only class uses only its
+   mapped-FIX recordless seed, or either per-root owner-only class uses only its
    exact reply contract and an explicit thread
    resolution, followed by one status-check cycle. The owner-only class requires
-   an explicit human confirmation before the exact `OWNER NOT-A-BUG` line is
-   posted; validators remain read-only. More than one fully eligible visible
+   an explicit human confirmation before its exact `OWNER NOT-A-BUG` or
+   `OWNER FIXED` line is posted; validators remain read-only. More than one fully eligible visible
    seed in the applicable class leaves all blocking. None may cause another
    synthetic closeout commit.
 
