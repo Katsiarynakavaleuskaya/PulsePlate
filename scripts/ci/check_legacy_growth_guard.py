@@ -10825,7 +10825,9 @@ def _module_binding_events(tree: ast.Module, name: str) -> list[tuple[int, str]]
             if node.name == name:
                 events.append((node.lineno, "definition"))
 
-        visit_AsyncFunctionDef = visit_FunctionDef
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            if node.name == name:
+                events.append((node.lineno, "definition"))
 
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
             if node.name == name:
@@ -10859,7 +10861,10 @@ def _literal_element(node: ast.AST) -> ast.AST | None:
         and isinstance(node.slice.op, ast.USub)
         and isinstance(node.slice.operand, ast.Constant)
     ):
-        index = -node.slice.operand.value
+        operand = node.slice.operand.value
+        if not isinstance(operand, int) or isinstance(operand, bool):
+            return None
+        index = -operand
     if not isinstance(index, int) or isinstance(index, bool):
         return None
     try:
@@ -10943,7 +10948,7 @@ def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
             if node.name in names | modules:
                 conflicts.add(node.name)
 
-    records: list[tuple[ast.AST, ast.AST, bool]] = []
+    records: list[tuple[ast.Assign | ast.AnnAssign | ast.NamedExpr, ast.AST, bool]] = []
     aliases: set[str] = set()
     unsupported_lines: set[int] = set()
     for node in ast.walk(tree):
