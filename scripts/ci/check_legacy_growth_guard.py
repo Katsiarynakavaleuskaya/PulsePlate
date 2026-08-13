@@ -10981,7 +10981,8 @@ def _scope_exact_fastapi_imports(body: Sequence[ast.stmt]) -> set[str]:
             exact.update(
                 alias.asname or alias.name
                 for alias in node.names
-                if _import_reference(node, alias) in FASTAPI_CONSTRUCTOR_REFERENCES
+                if _import_reference(node, alias)
+                in {"fastapi.applications", *FASTAPI_CONSTRUCTOR_REFERENCES}
             )
 
     visitor = Visitor()
@@ -11106,7 +11107,10 @@ def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
         elif isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 bound = alias.asname or alias.name
-                if _import_reference(node, alias) in FASTAPI_CONSTRUCTOR_REFERENCES:
+                reference = _import_reference(node, alias)
+                if reference == "fastapi.applications":
+                    modules.add(bound)
+                elif reference in FASTAPI_CONSTRUCTOR_REFERENCES:
                     names.add(bound)
                 elif bound in names | modules:
                     conflicts.add(bound)
@@ -11234,6 +11238,12 @@ def _module_names(tree: ast.Module, module: str) -> set[str]:
                 alias.asname or alias.name.split(".", 1)[0]
                 for alias in node.names
                 if alias.name == module
+            )
+        elif isinstance(node, ast.ImportFrom):
+            names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if _import_reference(node, alias) == module
             )
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             simple = _simple_assignment(node)
@@ -11405,6 +11415,72 @@ def _has_exact_import(
     )
 
 
+def _has_single_exact_import_binding(
+    tree: ast.Module,
+    *,
+    module: str,
+    imported: str,
+    bound: str,
+) -> bool:
+    events = _module_binding_events(tree, bound)
+    return (
+        _has_exact_import(
+            tree,
+            module=module,
+            imported=imported,
+            bound=bound,
+        )
+        and len(events) == 1
+        and events[0][1] == f"{module}.{imported}"
+    )
+
+
+def _has_exact_compatibility_reexport(
+    tree: ast.Module,
+    *,
+    module: str,
+    imported: str,
+    bound: str,
+) -> bool:
+    """Accept one exact import or one private import plus explicit public alias."""
+
+    if _has_single_exact_import_binding(
+        tree,
+        module=module,
+        imported=imported,
+        bound=bound,
+    ):
+        return True
+    reference = f"{module}.{imported}"
+    for statement in tree.body:
+        if not isinstance(statement, ast.ImportFrom) or statement.module != module:
+            continue
+        for alias in statement.names:
+            private_bound = alias.asname
+            if alias.name != imported or private_bound is None or not private_bound.startswith("_"):
+                continue
+            private_events = _module_binding_events(tree, private_bound)
+            assignments = [
+                node
+                for node in tree.body
+                if isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == bound
+                and isinstance(node.value, ast.Name)
+                and node.value.id == private_bound
+            ]
+            public_events = _module_binding_events(tree, bound)
+            if (
+                len(private_events) == 1
+                and private_events[0][1] == reference
+                and len(assignments) == 1
+                and public_events == [(assignments[0].lineno, "assignment")]
+            ):
+                return True
+    return False
+
+
 def validate_application_instance_ownership(
     legacy_source: str,
     app_sources: Mapping[str, str],
@@ -11502,7 +11578,7 @@ def validate_application_instance_ownership(
             len(lifespan) == 1
             and isinstance(lifespan[0].value, ast.Name)
             and lifespan[0].value.id == "application_lifespan"
-            and _has_exact_import(
+            and _has_single_exact_import_binding(
                 canonical_tree,
                 module="app.bootstrap.lifespan",
                 imported="application_lifespan",
@@ -11523,6 +11599,63 @@ def validate_application_instance_ownership(
                 f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor must be owned by "
                 "_create_fastapi_application"
             )
+
+    runtime_env_assignment = any(
+        isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "RUNTIME_ENV"
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "get_runtime_env_name"
+        and not node.value.args
+        and not node.value.keywords
+        for node in canonical_tree.body
+    )
+    if not (
+        _has_single_exact_import_binding(
+            canonical_tree,
+            module="settings",
+            imported="get_runtime_env_name",
+            bound="get_runtime_env_name",
+        )
+        and len(_module_binding_events(canonical_tree, "RUNTIME_ENV")) == 1
+        and _module_binding_events(canonical_tree, "RUNTIME_ENV")[0][1] == "assignment"
+        and runtime_env_assignment
+    ):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: RUNTIME_ENV must be created by get_runtime_env_name()"
+        )
+
+    metadata_assignment = any(
+        isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "APPLICATION_METADATA"
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "build_application_metadata"
+        and not node.value.args
+        and len(node.value.keywords) == 1
+        and node.value.keywords[0].arg == "runtime_env"
+        and isinstance(node.value.keywords[0].value, ast.Name)
+        and node.value.keywords[0].value.id == "RUNTIME_ENV"
+        for node in canonical_tree.body
+    )
+    if not (
+        _has_single_exact_import_binding(
+            canonical_tree,
+            module="app.application_metadata",
+            imported="build_application_metadata",
+            bound="build_application_metadata",
+        )
+        and len(_module_binding_events(canonical_tree, "APPLICATION_METADATA")) == 1
+        and _module_binding_events(canonical_tree, "APPLICATION_METADATA")[0][1] == "assignment"
+        and metadata_assignment
+    ):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: APPLICATION_METADATA must be built from RUNTIME_ENV"
+        )
 
     canonical_events = _module_binding_events(canonical_tree, "app")
     canonical_assignment = any(
@@ -11547,10 +11680,16 @@ def validate_application_instance_ownership(
             "_create_fastapi_application"
         )
 
-    for filename in (CANONICAL_MAIN, LEGACY_APP):
-        events = _module_binding_events(trees[filename], "app")
-        if len(events) != 1 or events[0][1] != "app.bootstrap.application.app":
-            errors.append(f"{filename}: app must be an exact canonical compatibility import")
+    main_events = _module_binding_events(trees[CANONICAL_MAIN], "app")
+    if len(main_events) != 1 or main_events[0][1] != "app.bootstrap.application.app":
+        errors.append(f"{CANONICAL_MAIN}: app must be an exact canonical compatibility import")
+    if not _has_exact_compatibility_reexport(
+        trees[LEGACY_APP],
+        module="app.bootstrap.application",
+        imported="app",
+        bound="app",
+    ):
+        errors.append(f"{LEGACY_APP}: app must be an exact canonical compatibility import")
 
     for filename, tree in trees.items():
         if filename not in {CANONICAL_APPLICATION, CANONICAL_MAIN, LEGACY_APP}:
@@ -11576,7 +11715,12 @@ def validate_application_instance_ownership(
         ("app.bootstrap.application", "RUNTIME_ENV", "RUNTIME_ENV"),
         ("app.application_metadata", "build_application_metadata", "build_application_metadata"),
     ):
-        if not _has_exact_import(legacy_tree, module=module, imported=imported, bound=bound):
+        if not _has_exact_compatibility_reexport(
+            legacy_tree,
+            module=module,
+            imported=imported,
+            bound=bound,
+        ):
             errors.append(f"{LEGACY_APP}: exact compatibility re-export is required: {bound}")
         if len(_module_binding_events(legacy_tree, bound)) != 1:
             errors.append(f"{LEGACY_APP}: compatibility re-export must not be rebound: {bound}")
@@ -11621,7 +11765,6 @@ def validate_application_metadata_openapi_ownership(
 
     exact_aliases: set[str] = set()
     foreign_import_rebindings: set[str] = set()
-    metadata_factory_imported = False
     for statement in legacy_tree.body:
         if isinstance(statement, ast.ImportFrom) and statement.module == CANONICAL_OPENAPI.replace(
             "/", "."
@@ -11642,16 +11785,6 @@ def validate_application_metadata_openapi_ownership(
                 bound_name = alias.asname or alias.name.split(".", 1)[0]
                 if bound_name in CANONICAL_OPENAPI_SYMBOLS:
                     foreign_import_rebindings.add(bound_name)
-        if (
-            isinstance(statement, ast.ImportFrom)
-            and statement.module == "app.application_metadata"
-            and any(
-                alias.name == "build_application_metadata"
-                and alias.asname in {None, "build_application_metadata"}
-                for alias in statement.names
-            )
-        ):
-            metadata_factory_imported = True
     for name in sorted(CANONICAL_OPENAPI_SYMBOLS - exact_aliases):
         errors.append(
             f"{LEGACY_APP}: canonical OpenAPI compatibility re-export must preserve identity: {name}"
@@ -11676,7 +11809,12 @@ def validate_application_metadata_openapi_ownership(
         rebound.update(CANONICAL_OPENAPI_SYMBOLS)
     for name in sorted(rebound):
         errors.append(f"{LEGACY_APP}: canonical OpenAPI re-export must not be rebound: {name}")
-    if not metadata_factory_imported:
+    if not _has_exact_compatibility_reexport(
+        legacy_tree,
+        module="app.application_metadata",
+        imported="build_application_metadata",
+        bound="build_application_metadata",
+    ):
         errors.append(f"{LEGACY_APP}: canonical application metadata factory import is required")
     if _mutates_openapi_callable_or_cache(legacy_tree):
         errors.append(f"{LEGACY_APP}: OpenAPI callable/cache mutation is forbidden")

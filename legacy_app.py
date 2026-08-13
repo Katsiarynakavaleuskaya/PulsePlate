@@ -24,8 +24,8 @@ from pydantic import (
     BaseModel,
     ValidationError,
 )
-from app.application_metadata import build_application_metadata as build_application_metadata
-from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app
+from app.application_metadata import build_application_metadata as _build_application_metadata
+from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
 from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
     _OPENAPI_ALLOWED_EXACT,
     _OPENAPI_ALLOWED_PREFIXES,
@@ -130,6 +130,9 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
+
+build_application_metadata = _build_application_metadata
+app = _canonical_app
 
 _BMI_COMPAT_REEXPORTS = (
     MATPLOTLIB_AVAILABLE,

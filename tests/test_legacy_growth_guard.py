@@ -46,17 +46,28 @@ def test_current_api_key_dependency_ownership_passes_growth_guard() -> None:
 def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
     legacy_source = textwrap.dedent("""
         from app.application_metadata import (
-            build_application_metadata as build_application_metadata,
+            build_application_metadata as _build_application_metadata,
         )
-        from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app
+        from app.bootstrap.application import (
+            APPLICATION_METADATA,
+            RUNTIME_ENV,
+            app as _canonical_app,
+        )
         from app.bootstrap.lifespan import application_lifespan as lifespan
+
+        build_application_metadata = _build_application_metadata
+        app = _canonical_app
         """)
     app_sources = {
         "app/bootstrap/application.py": textwrap.dedent("""
             from fastapi import FastAPI
+            from settings import get_runtime_env_name
+
+            from app.application_metadata import build_application_metadata
             from app.bootstrap.lifespan import application_lifespan
 
-            APPLICATION_METADATA = object()
+            RUNTIME_ENV = get_runtime_env_name()
+            APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)
 
             def _create_fastapi_application(metadata):
                 return FastAPI(metadata=metadata, lifespan=application_lifespan)
@@ -74,8 +85,10 @@ def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
                 return importlib.import_module("legacy_app")
 
             def _ensure_canonical_bootstrap():
-                application_module = importlib.import_module("app.bootstrap.application")
-                canonical_app = getattr(application_module, "app")
+                from app.bootstrap.application import app as canonical_app
+                from app.main import ensure_canonical_app_bootstrap
+
+                ensure_canonical_app_bootstrap(canonical_app)
                 _legacy()
                 return canonical_app
             """),
@@ -122,6 +135,20 @@ def test_application_instance_ownership_rejects_misplaced_constructor(
     assert "FastAPI production constructor count must be exactly 1; found 2" in errors
 
 
+def test_application_instance_ownership_rejects_fastapi_submodule_alias_constructor() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = (
+        "from fastapi import applications as api_apps\nrogue = api_apps.FastAPI()\n"
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "app/other.py" in error and "constructor is forbidden outside" in error for error in errors
+    )
+    assert "FastAPI production constructor count must be exactly 1; found 2" in errors
+
+
 def test_application_instance_ownership_rejects_second_canonical_constructor() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources[
@@ -142,6 +169,50 @@ def test_application_instance_ownership_rejects_wrong_lifespan() -> None:
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
     assert any("constructor lifespan must be exactly" in error for error in errors)
+
+
+def test_application_instance_ownership_rejects_rebound_canonical_lifespan() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "RUNTIME_ENV = get_runtime_env_name()",
+        "application_lifespan = object()\n\nRUNTIME_ENV = get_runtime_env_name()",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("constructor lifespan must be exactly" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        (
+            "RUNTIME_ENV = get_runtime_env_name()",
+            'RUNTIME_ENV = "local"',
+            "RUNTIME_ENV must be created by get_runtime_env_name()",
+        ),
+        (
+            "APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)",
+            "APPLICATION_METADATA = object()",
+            "APPLICATION_METADATA must be built from RUNTIME_ENV",
+        ),
+    ],
+)
+def test_application_instance_ownership_rejects_noncanonical_environment_metadata(
+    old: str,
+    new: str,
+    expected: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(old, new)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(expected in error for error in errors)
 
 
 def test_application_instance_ownership_rejects_reverse_main_authority() -> None:
@@ -252,6 +323,14 @@ def test_application_instance_ownership_rejects_one_hop_constructor_module_alias
 @pytest.mark.parametrize(
     "mutation_source",
     [
+        textwrap.dedent("""
+            from app.bootstrap import application as owner
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            from app import main as owner
+            owner.app = object()
+            """),
         textwrap.dedent("""
             import app.bootstrap.application as owner
             alias = owner
@@ -417,7 +496,7 @@ def test_application_instance_ownership_rejects_metadata_factory_rebinding() -> 
 def test_application_instance_ownership_requires_exact_metadata_factory_reexport() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     legacy_source = legacy_source.replace(
-        "build_application_metadata as build_application_metadata",
+        "build_application_metadata as _build_application_metadata",
         "build_application_metadata as _metadata_factory",
     )
 

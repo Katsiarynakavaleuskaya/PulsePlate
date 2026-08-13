@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
 
@@ -69,7 +70,7 @@ def _request_from_fresh_app(
 
 
 @pytest.fixture
-def mock_env_staging(monkeypatch: pytest.MonkeyPatch):
+def mock_env_staging(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Mock environment to staging for test router inclusion.
 
     Note: Staging requires ENABLE_TEST_ROUTES=1 to include test endpoints
@@ -82,7 +83,7 @@ def mock_env_staging(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def mock_env_production(monkeypatch: pytest.MonkeyPatch):
+def mock_env_production(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Mock environment to production to exclude test router."""
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "production")
@@ -90,7 +91,7 @@ def mock_env_production(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def mock_env_staging_disabled(monkeypatch: pytest.MonkeyPatch):
+def mock_env_staging_disabled(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Mock environment to staging without explicit enable flag.
 
     RU: В staging тестовые ручки должны быть выключены по умолчанию.
@@ -102,7 +103,7 @@ def mock_env_staging_disabled(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
-def test_rate_limit_endpoint(mock_env_staging):
+def test_rate_limit_endpoint(mock_env_staging: None) -> None:
     """Test the rate limit endpoint returns expected response."""
     response = _request_from_fresh_app("POST", "/api/v1/test/rate-limit")
 
@@ -123,7 +124,7 @@ def test_rate_limit_endpoint(mock_env_staging):
     assert response["headers"]["x-test-endpoint"] == "rate-limit"
 
 
-def test_health_endpoint(mock_env_staging):
+def test_health_endpoint(mock_env_staging: None) -> None:
     """Test the health check endpoint."""
     response = _request_from_fresh_app("GET", "/api/v1/test/health")
 
@@ -138,7 +139,7 @@ def test_health_endpoint(mock_env_staging):
     assert "x-test-timestamp" in response["headers"]
 
 
-def test_echo_endpoint(mock_env_staging):
+def test_echo_endpoint(mock_env_staging: None) -> None:
     """Test the echo endpoint returns sent data."""
     test_data = {"test_key": "test_value", "nested": {"key": "value"}, "array": [1, 2, 3]}
 
@@ -159,7 +160,7 @@ def test_echo_endpoint(mock_env_staging):
 
 
 @pytest.mark.xdist_group(name="rate_limit")
-def test_rate_limit_with_cf_ray_header(mock_env_staging):
+def test_rate_limit_with_cf_ray_header(mock_env_staging: None) -> None:
     """Test rate limit endpoint captures Cloudflare ray ID."""
     cf_ray_id = "test-cf-ray-123"
     response = _request_from_fresh_app(
@@ -171,7 +172,7 @@ def test_rate_limit_with_cf_ray_header(mock_env_staging):
     assert data["request_id"] == cf_ray_id
 
 
-def test_rate_limit_with_request_id_header(mock_env_staging):
+def test_rate_limit_with_request_id_header(mock_env_staging: None) -> None:
     """Test rate limit endpoint captures generic request ID."""
     request_id = "test-request-456"
     response = _request_from_fresh_app(
@@ -183,7 +184,7 @@ def test_rate_limit_with_request_id_header(mock_env_staging):
     assert data["request_id"] == request_id
 
 
-def test_test_router_not_available_in_production(mock_env_production):
+def test_test_router_not_available_in_production(mock_env_production: None) -> None:
     """Test that test endpoints are not available in production."""
     # Test endpoints should return 404 in production
     response = _request_from_fresh_app("POST", "/api/v1/test/rate-limit")
@@ -196,7 +197,9 @@ def test_test_router_not_available_in_production(mock_env_production):
     assert response["status_code"] == 404
 
 
-def test_test_router_not_available_in_staging_by_default(mock_env_staging_disabled):
+def test_test_router_not_available_in_staging_by_default(
+    mock_env_staging_disabled: None,
+) -> None:
     """Test that test endpoints are not available in staging unless explicitly enabled."""
     response = _request_from_fresh_app("GET", "/api/v1/test/health")
     assert response["status_code"] == 404

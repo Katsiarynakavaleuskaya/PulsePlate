@@ -142,10 +142,16 @@ class TestAppInitCoverage:
     @pytest.mark.parametrize(
         "imports",
         (
-            "from app.bootstrap import application as canonical; import app.main as app_main; import legacy_app; import app",
-            "import app.main as app_main; from app.bootstrap import application as canonical; import legacy_app; import app",
-            "import legacy_app; from app.bootstrap import application as canonical; import app.main as app_main; import app",
-            "import app; package_app = app.app; from app.bootstrap import application as canonical; import app.main as app_main; import legacy_app",
+            "from app.bootstrap import application as canonical; "
+            "import app.main as app_main; import legacy_app; import app",
+            "import app.main as app_main; "
+            "from app.bootstrap import application as canonical; "
+            "import legacy_app; import app",
+            "import legacy_app; from app.bootstrap import application as canonical; "
+            "import app.main as app_main; import app",
+            "import app; package_app = app.app; "
+            "from app.bootstrap import application as canonical; "
+            "import app.main as app_main; import legacy_app",
         ),
     )
     def test_supported_import_orders_share_one_fastapi_instance(self, imports: str) -> None:

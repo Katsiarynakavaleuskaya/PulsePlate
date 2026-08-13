@@ -62,15 +62,10 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
 def _ensure_canonical_bootstrap() -> Any:
     """Compose and return the canonical singleton without adopting legacy state."""
 
-    main_module = sys.modules.get("app.main")
-    if main_module is None:
-        main_module = importlib.import_module("app.main")
+    from app.bootstrap.application import app as canonical_app
+    from app.main import ensure_canonical_app_bootstrap
 
-    application_module = importlib.import_module("app.bootstrap.application")
-    canonical_app = getattr(application_module, "app")
-    ensure_bootstrap = getattr(main_module, "ensure_canonical_app_bootstrap", None)
-    if callable(ensure_bootstrap):
-        ensure_bootstrap(canonical_app)
+    ensure_canonical_app_bootstrap(canonical_app)
     _legacy()  # Preserve the finite ``app_module`` compatibility seam.
     return canonical_app
 

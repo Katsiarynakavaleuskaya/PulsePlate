@@ -219,17 +219,12 @@ def test_canonical_bootstrap_has_eight_neutral_states_and_mirror_assignment_site
 
 
 def test_canonical_application_is_the_bounded_fastapi_constructor_authority() -> None:
-    """Constructor, singleton, and compatibility aliases must have one owner."""
-    application = _read(REPO_ROOT / "app" / "bootstrap" / "application.py")
+    """Main and legacy aliases must point to the canonical constructor authority."""
     main = _read(REPO_ROOT / "app" / "main.py")
     legacy = _read(REPO_ROOT / "legacy_app.py")
-    assert application is not None
     assert main is not None
     assert legacy is not None
 
-    assert application.count("FastAPI(") == 1
-    assert main.count("FastAPI(") == 0
-    assert legacy.count("FastAPI(") == 0
     assert "from app.bootstrap.application import app" in main
     assert "from legacy_app import app" not in main
     assert "global app" not in main

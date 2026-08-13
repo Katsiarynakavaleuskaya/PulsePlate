@@ -13,6 +13,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 import pytest
 
+import scripts.ci.check_legacy_growth_guard as legacy_guard
+
 EXPECTED_OPENAPI_DIGEST = (
     "478873f1cc82292211c1191013f6d96250dc3d46a617bac8151fee65fdff3f1a"  # pragma: allowlist secret
 )
@@ -21,11 +23,11 @@ EXPECTED_ROUTE_PROJECTION_DIGEST = (
     "e22e521ffec1e455c15a4cff4759b258b704b0b6af77c4a2f52e3558124ce493"  # pragma: allowlist secret
 )
 EXPECTED_MIDDLEWARE_ORDER = [
-    "BaseHTTPMiddleware",
-    "BaseHTTPMiddleware",
-    "BaseHTTPMiddleware",
-    "CSPNonceMiddleware",
-    "SlowAPIMiddleware",
+    "tracing",
+    "request_telemetry",
+    "metrics",
+    "csp",
+    "rate_limit",
 ]
 
 SUPPORTED_IMPORT_MATRIX = (
@@ -66,6 +68,7 @@ def _run_import_scenario(imports: str) -> dict[str, Any]:
             route_methods,
             route_path,
         )
+        from app.bootstrap.http_stack import _owned_middleware_projection
 
         {imports}
         package_app = package.app
@@ -113,7 +116,7 @@ def _run_import_scenario(imports: str) -> dict[str, Any]:
         openapi_payload = json.dumps(
             canonical.app.openapi(), sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
-        middleware = [item.cls.__name__ for item in canonical.app.user_middleware]
+        middleware = list(_owned_middleware_projection(canonical.app))
 
         replacement = FastAPI()
         legacy_app.app = replacement
@@ -160,21 +163,15 @@ def _run_import_scenario(imports: str) -> dict[str, Any]:
 
 
 def test_fastapi_constructor_has_one_bounded_production_owner() -> None:
-    sources = {
-        path: Path(path).read_text(encoding="utf-8")
-        for path in (
-            "app/bootstrap/application.py",
-            "app/main.py",
-            "legacy_app.py",
-        )
+    legacy_source = Path("legacy_app.py").read_text(encoding="utf-8")
+    app_sources = {
+        path.as_posix(): path.read_text(encoding="utf-8") for path in Path("app").rglob("*.py")
     }
 
-    assert sources["app/bootstrap/application.py"].count("FastAPI(") == 1
-    assert sources["app/main.py"].count("FastAPI(") == 0
-    assert sources["legacy_app.py"].count("FastAPI(") == 0
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
 
 
-def test_private_constructor_returns_independent_apps_and_mutable_metadata() -> None:
+def test_private_constructor_returns_independent_apps_and_isolated_metadata() -> None:
     from app.bootstrap.application import APPLICATION_METADATA, _create_fastapi_application
 
     first_kwargs = APPLICATION_METADATA.to_fastapi_kwargs()
@@ -259,12 +256,14 @@ def test_supported_fresh_process_import_matrix_preserves_runtime_truth() -> None
     ]
     canonical_result = results["canonical-first"]
     assert len(canonical_result["projection"]) == EXPECTED_ROUTE_PROJECTION_COUNT
+    for result in results.values():
+        assert len(result["projection"]) == EXPECTED_ROUTE_PROJECTION_COUNT
+        assert result["projection"] == canonical_result["projection"]
+
     assert canonical_result["projection_digest"] == EXPECTED_ROUTE_PROJECTION_DIGEST
     assert canonical_result["openapi_digest"] == EXPECTED_OPENAPI_DIGEST
     assert canonical_result["middleware"] == EXPECTED_MIDDLEWARE_ORDER
     for result in results.values():
-        assert len(result["projection"]) == EXPECTED_ROUTE_PROJECTION_COUNT
-        assert result["projection"] == canonical_result["projection"]
         assert result["projection_digest"] == EXPECTED_ROUTE_PROJECTION_DIGEST
         assert result["openapi_digest"] == EXPECTED_OPENAPI_DIGEST
         assert result["middleware"] == EXPECTED_MIDDLEWARE_ORDER
