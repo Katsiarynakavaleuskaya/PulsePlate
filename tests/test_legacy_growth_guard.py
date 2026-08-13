@@ -43,6 +43,255 @@ def test_current_api_key_dependency_ownership_passes_growth_guard() -> None:
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, app_sources) == []
 
 
+def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
+    legacy_source = textwrap.dedent("""
+        from app.application_metadata import (
+            build_application_metadata as build_application_metadata,
+        )
+        from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app
+        from app.bootstrap.lifespan import application_lifespan as lifespan
+        """)
+    app_sources = {
+        "app/bootstrap/application.py": textwrap.dedent("""
+            from fastapi import FastAPI
+            from app.bootstrap.lifespan import application_lifespan
+
+            APPLICATION_METADATA = object()
+
+            def _create_fastapi_application(metadata):
+                return FastAPI(metadata=metadata, lifespan=application_lifespan)
+
+            app = _create_fastapi_application(APPLICATION_METADATA)
+            """),
+        "app/main.py": textwrap.dedent("""
+            import legacy_app as _legacy_module
+            from app.bootstrap.application import app
+            """),
+        "app/__init__.py": textwrap.dedent("""
+            import importlib
+
+            def _legacy():
+                return importlib.import_module("legacy_app")
+
+            def _ensure_canonical_bootstrap():
+                application_module = importlib.import_module("app.bootstrap.application")
+                canonical_app = getattr(application_module, "app")
+                _legacy()
+                return canonical_app
+            """),
+        "app/other.py": "pass\n",
+    }
+    return legacy_source, app_sources
+
+
+def test_current_application_instance_ownership_passes_growth_guard() -> None:
+    legacy_source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    app_sources = {
+        path.relative_to(REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
+        for path in (REPO_ROOT / "app").rglob("*.py")
+    }
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+def test_application_instance_ownership_accepts_bounded_fixture() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
+    "constructor_source",
+    [
+        "from fastapi import FastAPI\nrogue_app = FastAPI()\n",
+        "import fastapi\nrogue_app = fastapi.FastAPI()\n",
+        "import fastapi.applications\nrogue_app = fastapi.applications.FastAPI()\n",
+    ],
+)
+def test_application_instance_ownership_rejects_misplaced_constructor(
+    constructor_source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = constructor_source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "app/other.py" in error and "constructor is forbidden outside" in error for error in errors
+    )
+    assert "FastAPI production constructor count must be exactly 1; found 2" in errors
+
+
+def test_application_instance_ownership_rejects_second_canonical_constructor() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources[
+        "app/bootstrap/application.py"
+    ] += "\nsecond_app = FastAPI(lifespan=application_lifespan)\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "FastAPI production constructor count must be exactly 1; found 2" in errors
+
+
+def test_application_instance_ownership_rejects_wrong_lifespan() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace("lifespan=application_lifespan", "lifespan=object()")
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("constructor lifespan must be exactly" in error for error in errors)
+
+
+def test_application_instance_ownership_rejects_reverse_main_authority() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] = "from legacy_app import app\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: selecting app through legacy_app is forbidden" in errors
+    assert "app/main.py: app must be an exact canonical compatibility import" in errors
+
+
+def test_application_instance_ownership_rejects_facade_legacy_authority() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/__init__.py"] += "\ndef select_app():\n    return _legacy().app\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/__init__.py: selecting app through legacy_app is forbidden" in errors
+
+
+def test_application_instance_ownership_rejects_global_app_rebinding() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += textwrap.dedent("""
+
+        def replace_app(temp_app):
+            global app
+            app = temp_app
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: global app rebinding is forbidden" in errors
+
+
+def test_application_instance_ownership_rejects_module_app_mutation() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += textwrap.dedent("""
+        import app.bootstrap.application as application_owner
+        application_owner.app = object()
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize("container", ["(FastAPI,)", "[FastAPI]"])
+def test_application_instance_ownership_rejects_literal_container_constructor_alias(
+    container: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = (
+        "from fastapi import FastAPI\n" f"factory = {container}[0]\n" "rogue = factory()\n"
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "app/other.py" in error
+        and "aliased FastAPI constructor is outside bounded grammar" in error
+        for error in errors
+    )
+
+
+def test_application_instance_ownership_rejects_vars_namespace_app_mutation() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += textwrap.dedent("""
+        import app.bootstrap.application as owner
+        namespace = vars(owner)
+        namespace["app"] = object()
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+def test_application_instance_ownership_rejects_ambiguous_constructor_binding() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] += textwrap.dedent("""
+        Constructor = FastAPI
+        Constructor = object
+        ambiguous_app = Constructor()
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("ambiguous FastAPI constructor binding is forbidden" in error for error in errors)
+
+
+def test_application_instance_ownership_rejects_shadowed_direct_constructor() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "def _create_fastapi_application(metadata):",
+        "FastAPI = object\n\ndef _create_fastapi_application(metadata):",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("ambiguous FastAPI constructor binding is forbidden" in error for error in errors)
+
+
+def test_application_instance_ownership_rejects_globals_app_mutation() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += '\nglobals()["app"] = object()\n'
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+def test_application_instance_ownership_rejects_metadata_factory_rebinding() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    legacy_source += "\nbuild_application_metadata = object\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "legacy_app.py: compatibility re-export must not be rebound: build_application_metadata"
+    ) in errors
+
+
+def test_application_instance_ownership_requires_exact_metadata_factory_reexport() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    legacy_source = legacy_source.replace(
+        "build_application_metadata as build_application_metadata",
+        "build_application_metadata as _metadata_factory",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "legacy_app.py: exact compatibility re-export is required: build_application_metadata"
+    ) in errors
+
+
+def test_application_instance_ownership_fails_closed_on_missing_or_invalid_source() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    del app_sources["app/main.py"]
+    app_sources["app/other.py"] = "if True print('invalid')\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: required FastAPI ownership source is missing" in errors
+    assert any("app/other.py:1: syntax error" in error for error in errors)
+
+
 def _openapi_ownership_sources() -> tuple[str, str, str, str, str]:
     return (
         textwrap.dedent("""
@@ -3209,6 +3458,21 @@ def test_legacy_seam_doc_passes_contract() -> None:
     )
 
     assert legacy_guard.validate_legacy_seam_doc(text) == []
+
+
+def test_legacy_seam_doc_rejects_old_runtime_behavior_marker() -> None:
+    text = (REPO_ROOT / "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md").read_text(
+        encoding="utf-8"
+    )
+    text = text.replace(
+        "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED: true",
+        "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED: false",
+    )
+
+    assert legacy_guard.validate_legacy_seam_doc(text) == [
+        "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md: marker "
+        "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED must be true, got false"
+    ]
 
 
 def test_legacy_growth_guard_allows_shrinkage() -> None:

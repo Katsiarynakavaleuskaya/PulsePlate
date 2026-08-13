@@ -22,9 +22,25 @@ FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
 CANONICAL_API_KEY = "app/routers/api_key.py"  # pragma: allowlist secret
 CANONICAL_APPLICATION_METADATA = "app/application_metadata.py"
+CANONICAL_APPLICATION = "app/bootstrap/application.py"
 CANONICAL_OPENAPI = "app/bootstrap/openapi.py"
 CANONICAL_MAIN = "app/main.py"
 APP_FACADE = "app/__init__.py"
+APPLICATION_OWNERSHIP_FILES = frozenset(
+    {
+        CANONICAL_APPLICATION,
+        CANONICAL_MAIN,
+        APP_FACADE,
+        LEGACY_APP,
+    }
+)
+FASTAPI_CONSTRUCTOR_REFERENCES = frozenset(
+    {
+        "fastapi.FastAPI",
+        "fastapi.applications.FastAPI",
+    }
+)
+CANONICAL_LIFESPAN_REFERENCE = "app.bootstrap.lifespan.application_lifespan"
 CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
 CANONICAL_OPENAPI_SYMBOLS = frozenset(
     {
@@ -152,7 +168,7 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
 
 REQUIRED_DOC_MARKERS: Mapping[str, str] = {
     "LEGACY_SEAM_STATUS": "accepted_guardrail",
-    "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED": "false",
+    "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED": "true",
     "LEGACY_SEAM_OPENAPI_CHANGED": "false",
     "LEGACY_SEAM_SEMANTIC_CACHE_SERVING": "false",
     "LEGACY_SEAM_FOODDB_CUTOVER": "false",
@@ -160,6 +176,7 @@ REQUIRED_DOC_MARKERS: Mapping[str, str] = {
 }
 REQUIRED_DOC_TOKENS = (
     "legacy_app.py",
+    "app/bootstrap/application.py",
     "app/main.py",
     "app/routers/",
     "app/bootstrap/",
@@ -167,6 +184,7 @@ REQUIRED_DOC_TOKENS = (
     "new OpenAPI-visible public surface",
     "semantic-cache serving",
     "FoodDB cutover",
+    "sole production FastAPI constructor",
 )
 MARKER_RE = re.compile(r"<!--\s*([A-Z0-9_]+):\s*(.*?)\s*-->")
 
@@ -6707,6 +6725,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             local_name = alias.asname or alias.name
             reference = f"{node.module}.{alias.name}" if node.module is not None else None
+            if reference == "app.bootstrap.application.app":
+                reference = "pulseplate.app"
             if reference == "builtins.object":
                 reference = (
                     _CAPTURED_SAFE_BUILTINS_OBJECT_REFERENCE
@@ -10756,6 +10776,553 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
     return False
 
 
+# Closed FastAPI ownership grammar G:
+#   C := FastAPI | fastapi.FastAPI | fastapi.applications.FastAPI
+#        | an exact import alias of one of those constructors
+#   A := name = C | name = (C, ...)[literal-int] | name = [C, ...][literal-int]
+#   M := exact protected-module import | importlib.import_module("exact.module")
+#   N := globals() | vars() | vars(M) | one-hop "name = vars(M)"
+#
+# OPEN_WORLD_STOP: reject constructor-bearing computed containers, alias chains,
+# dynamic lookups, and namespace flow outside G. Never add a fixed-point solver,
+# scope interpreter, registry, plugin, or open-world exception to this guard.
+FASTAPI_OWNERSHIP_GRAMMAR_G = ("C", "A", "M", "N")
+OPEN_WORLD_STOP = "reject FastAPI or app-authority flow outside grammar G"
+_PROTECTED_APP_MODULES = frozenset({"app", "app.main", "app.bootstrap.application", "legacy_app"})
+
+
+@dataclass
+class _ConstructorLexicon:
+    names: set[str]
+    modules: set[str]
+    aliases: set[str]
+    conflicts: set[str]
+    unsupported_lines: set[int]
+
+
+def _exact_dotted_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = _exact_dotted_name(node.value)
+        return f"{parent}.{node.attr}" if parent is not None else None
+    return None
+
+
+def _import_reference(node: ast.Import | ast.ImportFrom, alias: ast.alias) -> str:
+    if isinstance(node, ast.ImportFrom):
+        return f"{node.module}.{alias.name}" if node.module else alias.name
+    return alias.name
+
+
+def _module_binding_events(tree: ast.Module, name: str) -> list[tuple[int, str]]:
+    """Collect one name's module-scope bindings without executing branches."""
+
+    events: list[tuple[int, str]] = []
+
+    class Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            if node.name == name:
+                events.append((node.lineno, "definition"))
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            if node.name == name:
+                events.append((node.lineno, "definition"))
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                if (alias.asname or alias.name.split(".", 1)[0]) == name:
+                    events.append((node.lineno, _import_reference(node, alias)))
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            for alias in node.names:
+                if (alias.asname or alias.name) == name:
+                    events.append((node.lineno, _import_reference(node, alias)))
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, (ast.Store, ast.Del)) and node.id == name:
+                action = "deletion" if isinstance(node.ctx, ast.Del) else "assignment"
+                events.append((node.lineno, action))
+
+    Visitor().visit(tree)
+    return sorted(set(events))
+
+
+def _literal_element(node: ast.AST) -> ast.AST | None:
+    if not isinstance(node, ast.Subscript) or not isinstance(node.value, (ast.List, ast.Tuple)):
+        return None
+    index = node.slice.value if isinstance(node.slice, ast.Constant) else None
+    if (
+        isinstance(node.slice, ast.UnaryOp)
+        and isinstance(node.slice.op, ast.USub)
+        and isinstance(node.slice.operand, ast.Constant)
+    ):
+        index = -node.slice.operand.value
+    if not isinstance(index, int) or isinstance(index, bool):
+        return None
+    try:
+        selected = node.value.elts[index]
+    except IndexError:
+        return None
+    return None if isinstance(selected, ast.Starred) else selected
+
+
+def _constructor_atom(
+    node: ast.AST,
+    *,
+    names: AbstractSet[str],
+    modules: AbstractSet[str],
+) -> str | None:
+    if isinstance(node, ast.Name) and node.id in names:
+        return node.id
+    if not isinstance(node, ast.Attribute) or node.attr != "FastAPI":
+        return None
+    dotted = _exact_dotted_name(node)
+    if dotted in FASTAPI_CONSTRUCTOR_REFERENCES:
+        return dotted.split(".", 1)[0] if dotted is not None else None
+    if isinstance(node.value, ast.Name) and node.value.id in modules:
+        return node.value.id
+    if (
+        isinstance(node.value, ast.Attribute)
+        and node.value.attr == "applications"
+        and isinstance(node.value.value, ast.Name)
+        and node.value.value.id in modules
+    ):
+        return node.value.value.id
+    return None
+
+
+def _contains_constructor(
+    node: ast.AST,
+    *,
+    names: AbstractSet[str],
+    modules: AbstractSet[str],
+) -> bool:
+    return any(
+        _constructor_atom(child, names=names, modules=modules) is not None
+        for child in ast.walk(node)
+    )
+
+
+def _simple_assignment(
+    node: ast.Assign | ast.AnnAssign | ast.NamedExpr,
+) -> tuple[str, ast.AST] | None:
+    if isinstance(node, ast.Assign):
+        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            return node.targets[0].id, node.value
+        return None
+    if node.value is not None and isinstance(node.target, ast.Name):
+        return node.target.id, node.value
+    return None
+
+
+def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
+    """Recognize G in three fixed lexical passes; never iterate facts."""
+
+    names = {"FastAPI"}
+    modules = {"fastapi"}
+    conflicts: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                bound = alias.asname or alias.name.split(".", 1)[0]
+                if alias.name in {"fastapi", "fastapi.applications"}:
+                    modules.add(bound)
+                elif bound in names | modules:
+                    conflicts.add(bound)
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                if _import_reference(node, alias) in FASTAPI_CONSTRUCTOR_REFERENCES:
+                    names.add(bound)
+                elif bound in names | modules:
+                    conflicts.add(bound)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name in names | modules:
+                conflicts.add(node.name)
+
+    records: list[tuple[ast.AST, ast.AST, bool]] = []
+    aliases: set[str] = set()
+    unsupported_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            continue
+        simple = _simple_assignment(node)
+        value = simple[1] if simple is not None else node.value
+        if value is None:
+            continue
+        candidate = _literal_element(value) or value
+        exact = (
+            simple is not None
+            and _constructor_atom(candidate, names=names, modules=modules) is not None
+        )
+        records.append((node, value, exact))
+        targets = node.targets if isinstance(node, ast.Assign) else (node.target,)
+        target_names = {
+            target_name for target in targets for target_name in _assignment_target_names(target)
+        }
+        if exact and simple is not None:
+            aliases.add(simple[0])
+        else:
+            conflicts.update(target_names)
+            if _contains_constructor(value, names=names, modules=modules):
+                unsupported_lines.add(node.lineno)
+
+    for node, value, exact in records:
+        if not exact and any(
+            isinstance(child, ast.Name) and child.id in aliases for child in ast.walk(value)
+        ):
+            unsupported_lines.add(node.lineno)
+    return _ConstructorLexicon(names, modules, aliases, conflicts, unsupported_lines)
+
+
+def _constructor_call_kind(target: ast.AST, lexicon: _ConstructorLexicon) -> str | None:
+    candidate = _literal_element(target) or target
+    atom = _constructor_atom(candidate, names=lexicon.names, modules=lexicon.modules)
+    alias = (
+        candidate.id
+        if isinstance(candidate, ast.Name) and candidate.id in lexicon.aliases
+        else None
+    )
+    bound = atom or alias
+    if bound is not None:
+        return "ambiguous" if bound in lexicon.conflicts else "constructor"
+    dynamic_getattr = (
+        isinstance(target, ast.Call)
+        and isinstance(target.func, ast.Name)
+        and target.func.id == "getattr"
+        and len(target.args) >= 2
+        and _static_string(target.args[1]) == "FastAPI"
+        and (
+            _exact_dotted_name(target.args[0]) in {"fastapi", "fastapi.applications"}
+            or (isinstance(target.args[0], ast.Name) and target.args[0].id in lexicon.modules)
+        )
+    )
+    if dynamic_getattr or _contains_constructor(
+        target,
+        names=lexicon.names | lexicon.aliases,
+        modules=lexicon.modules,
+    ):
+        return "unsupported"
+    return None
+
+
+def _imported_module_name(node: ast.AST) -> str | None:
+    if not isinstance(node, ast.Call) or len(node.args) != 1 or node.keywords:
+        return None
+    if _exact_dotted_name(node.func) != "importlib.import_module":
+        return None
+    return _static_string(node.args[0])
+
+
+def _module_names(tree: ast.Module, module: str) -> set[str]:
+    """Return exact import names plus one-hop import_module assignment names."""
+
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(
+                alias.asname or alias.name.split(".", 1)[0]
+                for alias in node.names
+                if alias.name == module
+            )
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            simple = _simple_assignment(node)
+            if simple is not None and _imported_module_name(simple[1]) == module:
+                names.add(simple[0])
+    return names
+
+
+def _is_module(node: ast.AST, module: str, names: AbstractSet[str]) -> bool:
+    return (
+        _exact_dotted_name(node) == module
+        or (isinstance(node, ast.Name) and node.id in names)
+        or _imported_module_name(node) == module
+    )
+
+
+def _module_app_mutation(tree: ast.Module) -> bool:
+    module_names = {module: _module_names(tree, module) for module in _PROTECTED_APP_MODULES}
+
+    def protected(node: ast.AST) -> bool:
+        return any(_is_module(node, module, names) for module, names in module_names.items())
+
+    namespaces: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        simple = _simple_assignment(node)
+        if simple is None:
+            continue
+        name, value = simple
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id == "vars"
+            and len(value.args) == 1
+            and not value.keywords
+            and protected(value.args[0])
+        ):
+            namespaces.add(name)
+
+    def namespace(node: ast.AST) -> bool:
+        if isinstance(node, ast.Name) and node.id in namespaces:
+            return True
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            return False
+        return (node.func.id == "globals" and not node.args) or (
+            node.func.id == "vars"
+            and (not node.args or (len(node.args) == 1 and protected(node.args[0])))
+        )
+
+    for node in ast.walk(tree):
+        targets: Sequence[ast.expr] = ()
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = (node.target,)
+        for target in targets:
+            if isinstance(target, ast.Attribute) and target.attr == "app":
+                if protected(target.value) or namespace(target.value):
+                    return True
+            if isinstance(target, ast.Subscript) and _static_string(target.slice) == "app":
+                if protected(target.value) or namespace(target.value):
+                    return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "setattr"
+            and len(node.args) >= 2
+            and _static_string(node.args[1]) == "app"
+            and (protected(node.args[0]) or namespace(node.args[0]))
+        ):
+            return True
+    return False
+
+
+def _selects_module_app(tree: ast.Module, module: str, *, legacy_loader: bool = False) -> bool:
+    names = _module_names(tree, module)
+
+    def owner(node: ast.AST) -> bool:
+        return (
+            legacy_loader
+            and isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_legacy"
+        ) or _is_module(node, module, names)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == module:
+            if any(alias.name == "app" for alias in node.names):
+                return True
+        if isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+            if node.attr == "app" and owner(node.value):
+                return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and _static_string(node.args[1]) == "app"
+            and owner(node.args[0])
+        ):
+            return True
+    return False
+
+
+def _has_exact_import(
+    tree: ast.Module,
+    *,
+    module: str,
+    imported: str,
+    bound: str,
+) -> bool:
+    return any(
+        isinstance(statement, ast.ImportFrom)
+        and statement.module == module
+        and any(
+            alias.name == imported and (alias.asname or alias.name) == bound
+            for alias in statement.names
+        )
+        for statement in tree.body
+    )
+
+
+def validate_application_instance_ownership(
+    legacy_source: str,
+    app_sources: Mapping[str, str],
+) -> list[str]:
+    """Enforce G over exactly legacy_app.py plus app/**/*.py."""
+
+    errors: list[str] = []
+    errors.extend(
+        f"{path}: outside finite FastAPI ownership surface"
+        for path in app_sources
+        if not (path.startswith("app/") and path.endswith(".py"))
+    )
+    sources = {LEGACY_APP: legacy_source, **app_sources}
+    for required in (CANONICAL_APPLICATION, CANONICAL_MAIN, APP_FACADE):
+        if required not in app_sources:
+            errors.append(f"{required}: required FastAPI ownership source is missing")
+
+    trees: dict[str, ast.Module] = {}
+    for filename, source in sources.items():
+        tree, parse_errors = _parse_source(source, filename=filename)
+        errors.extend(parse_errors)
+        if tree is not None:
+            trees[filename] = tree
+    if errors:
+        return sorted(set(errors))
+
+    constructors: list[tuple[str, ast.Call]] = []
+    for filename, tree in trees.items():
+        lexicon = _constructor_lexicon(tree)
+        errors.extend(
+            f"{filename}:{line}: FastAPI binding outside grammar G is forbidden"
+            for line in lexicon.unsupported_lines
+        )
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            kind = _constructor_call_kind(node.func, lexicon)
+            direct = _exact_dotted_name(node.func) in {
+                "FastAPI",
+                *FASTAPI_CONSTRUCTOR_REFERENCES,
+            }
+            if kind == "constructor":
+                constructors.append((filename, node))
+                if not direct and filename not in APPLICATION_OWNERSHIP_FILES:
+                    errors.append(
+                        f"{filename}:{node.lineno}: aliased FastAPI constructor is outside "
+                        "bounded grammar"
+                    )
+            elif kind == "ambiguous":
+                errors.append(
+                    f"{filename}:{node.lineno}: ambiguous FastAPI constructor binding is forbidden"
+                )
+                if direct:
+                    constructors.append((filename, node))
+            elif kind == "unsupported":
+                errors.append(
+                    f"{filename}:{node.lineno}: unsupported FastAPI constructor form is forbidden"
+                )
+
+    if len(constructors) != 1:
+        errors.append(
+            f"FastAPI production constructor count must be exactly 1; found {len(constructors)}"
+        )
+    for filename, constructor in constructors:
+        if filename != CANONICAL_APPLICATION:
+            errors.append(
+                f"{filename}:{constructor.lineno}: FastAPI constructor is forbidden outside "
+                f"{CANONICAL_APPLICATION}"
+            )
+
+    canonical_tree = trees[CANONICAL_APPLICATION]
+    canonical_constructors = [
+        call for filename, call in constructors if filename == CANONICAL_APPLICATION
+    ]
+    factories = [
+        node
+        for node in canonical_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_create_fastapi_application"
+    ]
+    if len(factories) != 1:
+        errors.append(
+            f"{CANONICAL_APPLICATION}: exactly one _create_fastapi_application definition "
+            "is required"
+        )
+    if len(canonical_constructors) == 1:
+        constructor = canonical_constructors[0]
+        lifespan = [keyword for keyword in constructor.keywords if keyword.arg == "lifespan"]
+        exact_lifespan = (
+            len(lifespan) == 1
+            and isinstance(lifespan[0].value, ast.Name)
+            and lifespan[0].value.id == "application_lifespan"
+            and _has_exact_import(
+                canonical_tree,
+                module="app.bootstrap.lifespan",
+                imported="application_lifespan",
+                bound="application_lifespan",
+            )
+        )
+        if not exact_lifespan:
+            errors.append(
+                f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor lifespan must be "
+                f"exactly {CANONICAL_LIFESPAN_REFERENCE}"
+            )
+        factory_owns = len(factories) == 1 and any(
+            isinstance(statement, ast.Return) and statement.value is constructor
+            for statement in factories[0].body
+        )
+        if not factory_owns:
+            errors.append(
+                f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor must be owned by "
+                "_create_fastapi_application"
+            )
+
+    canonical_events = _module_binding_events(canonical_tree, "app")
+    canonical_assignment = any(
+        isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "app"
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "_create_fastapi_application"
+        and len(node.value.args) == 1
+        and isinstance(node.value.args[0], ast.Name)
+        and node.value.args[0].id == "APPLICATION_METADATA"
+        and not node.value.keywords
+        for node in canonical_tree.body
+    )
+    if len(canonical_events) != 1 or canonical_events[0][1] != "assignment":
+        errors.append(f"{CANONICAL_APPLICATION}: canonical app must have one module assignment")
+    if not canonical_assignment:
+        errors.append(
+            f"{CANONICAL_APPLICATION}: app must be created from APPLICATION_METADATA by "
+            "_create_fastapi_application"
+        )
+
+    for filename in (CANONICAL_MAIN, LEGACY_APP):
+        events = _module_binding_events(trees[filename], "app")
+        if len(events) != 1 or events[0][1] != "app.bootstrap.application.app":
+            errors.append(f"{filename}: app must be an exact canonical compatibility import")
+
+    for filename, tree in trees.items():
+        if filename not in {CANONICAL_APPLICATION, CANONICAL_MAIN, LEGACY_APP}:
+            for line, _kind in _module_binding_events(tree, "app"):
+                errors.append(f"{filename}:{line}: module app binding is forbidden")
+        if any(isinstance(node, ast.Global) and "app" in node.names for node in ast.walk(tree)):
+            errors.append(f"{filename}: global app rebinding is forbidden")
+        if _module_app_mutation(tree):
+            errors.append(f"{filename}: module app authority mutation is forbidden")
+
+    main_tree = trees[CANONICAL_MAIN]
+    facade_tree = trees[APP_FACADE]
+    if _selects_module_app(main_tree, "legacy_app", legacy_loader=True):
+        errors.append(f"{CANONICAL_MAIN}: selecting app through legacy_app is forbidden")
+    if _selects_module_app(facade_tree, "legacy_app", legacy_loader=True):
+        errors.append(f"{APP_FACADE}: selecting app through legacy_app is forbidden")
+    if not _selects_module_app(facade_tree, "app.bootstrap.application"):
+        errors.append(f"{APP_FACADE}: canonical application selection is required")
+
+    legacy_tree = trees[LEGACY_APP]
+    for module, imported, bound in (
+        ("app.bootstrap.application", "APPLICATION_METADATA", "APPLICATION_METADATA"),
+        ("app.bootstrap.application", "RUNTIME_ENV", "RUNTIME_ENV"),
+        ("app.application_metadata", "build_application_metadata", "build_application_metadata"),
+    ):
+        if not _has_exact_import(legacy_tree, module=module, imported=imported, bound=bound):
+            errors.append(f"{LEGACY_APP}: exact compatibility re-export is required: {bound}")
+        if len(_module_binding_events(legacy_tree, bound)) != 1:
+            errors.append(f"{LEGACY_APP}: compatibility re-export must not be rebound: {bound}")
+    return sorted(set(errors))
+
+
 def validate_application_metadata_openapi_ownership(
     legacy_source: str,
     metadata_source: str,
@@ -11079,6 +11646,7 @@ def validate_repo(repo_root: Path) -> list[str]:
         )
     if legacy_source is not None:
         extend_analysis(lambda: validate_api_key_dependency_ownership(legacy_source, app_sources))
+        extend_analysis(lambda: validate_application_instance_ownership(legacy_source, app_sources))
     if all(
         source is not None
         for source in (

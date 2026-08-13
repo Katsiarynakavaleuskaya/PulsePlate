@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import HTMLResponse
 from settings import get_runtime_env_name
 
-from legacy_app import app as _legacy_app  # re-export existing FastAPI instance
+from app.bootstrap.application import app
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
@@ -132,7 +132,6 @@ from app.utils.feature_flags import is_business_module_enabled, is_vip_module_en
 
 logger = logging.getLogger(__name__)
 
-app: FastAPI = _legacy_app
 VIP_MODULE_ENABLED: bool = False
 vip_router: APIRouter | None = None
 pro_router: APIRouter | None = None
@@ -1142,16 +1141,11 @@ def _register_bmi_routes(target_app: FastAPI) -> None:
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """Apply canonical additive bootstrap to the provided FastAPI instance.
 
-    RU: Используется и при первичном импорте `app.main`, и когда `app.app`
-    должен перевести facade на новый `legacy_app.app` без потери additive routes.
-    EN: Used both on initial `app.main` import and when `app.app` must rehydrate
-    a replaced `legacy_app.app` without losing additive routes.
+    The supplied object is composed in place. This function never rebinds the
+    module-level canonical singleton.
     """
-    global app
-
     validate_openapi_builder_state(target_app)
     register_http_middleware_stack(target_app)
-    app = target_app
 
     if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
         target_app.add_api_route(
@@ -1178,66 +1172,66 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             methods=["GET"],
             include_in_schema=False,
         )
-    _register_paid_tier_routes(app)
-    register_pro_contract_routes(app)
-    _include_recipe_nutrition_reference_routers_if_needed(app)
-    _include_nutrition_state_routers_if_needed(app)
+    _register_paid_tier_routes(target_app)
+    register_pro_contract_routes(target_app)
+    _include_recipe_nutrition_reference_routers_if_needed(target_app)
+    _include_nutrition_state_routers_if_needed(target_app)
 
-    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
+    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(target_app, path)}
     if not ws_paths_present:
-        app.include_router(realtime_ws.router)
+        target_app.include_router(realtime_ws.router)
     elif ws_paths_present != set(_WS_ROUTE_PATHS):
-        _assert_no_duplicate_ws_route(app)
+        _assert_no_duplicate_ws_route(target_app)
 
-    if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
-        app.include_router(feedback_router)
+    if not _has_route(target_app, _FEEDBACK_ROUTE_PATH, "POST"):
+        target_app.include_router(feedback_router)
 
-    _include_health_router_if_needed(app)
-    _include_legal_router_if_needed(app)
-    _include_favicon_router_if_needed(app)
-    _include_admin_operations_router_if_needed(app)
-    _register_bmi_routes(app)
-    _include_bmi_compat_router_if_needed(app)
-    _include_bodyfat_router_if_needed(app)
-    _include_business_router_if_enabled(app)
-    _include_food_catalog_routers_if_needed(app)
-    _include_users_router_if_needed(app)
-    _include_test_router_if_enabled(app)
-    _include_plan_export_routers_if_needed(app)
-    _include_shoplist_export_router_if_needed(app)
-    _include_legacy_premium_nutrition_router_if_needed(app)
-    _include_legacy_premium_weekly_plan_router_if_needed(app)
-    _include_legacy_insight_router_if_needed(app)
-    _include_shopping_list_routers_if_needed(app)
-    _include_restaurants_router_if_needed(app)
-    _include_restaurant_moderation_router_if_needed(app)
+    _include_health_router_if_needed(target_app)
+    _include_legal_router_if_needed(target_app)
+    _include_favicon_router_if_needed(target_app)
+    _include_admin_operations_router_if_needed(target_app)
+    _register_bmi_routes(target_app)
+    _include_bmi_compat_router_if_needed(target_app)
+    _include_bodyfat_router_if_needed(target_app)
+    _include_business_router_if_enabled(target_app)
+    _include_food_catalog_routers_if_needed(target_app)
+    _include_users_router_if_needed(target_app)
+    _include_test_router_if_enabled(target_app)
+    _include_plan_export_routers_if_needed(target_app)
+    _include_shoplist_export_router_if_needed(target_app)
+    _include_legacy_premium_nutrition_router_if_needed(target_app)
+    _include_legacy_premium_weekly_plan_router_if_needed(target_app)
+    _include_legacy_insight_router_if_needed(target_app)
+    _include_shopping_list_routers_if_needed(target_app)
+    _include_restaurants_router_if_needed(target_app)
+    _include_restaurant_moderation_router_if_needed(target_app)
 
-    register_billing_routes(app)
+    register_billing_routes(target_app)
 
-    if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
-        app.include_router(cbt_insight_router)
+    if not _has_route(target_app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
+        target_app.include_router(cbt_insight_router)
 
-    if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
-        app.include_router(fitchef_structured_router)
+    if not _has_route(target_app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
+        target_app.include_router(fitchef_structured_router)
 
-    if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
-        app.include_router(creative_research_internal_router)
+    if not _has_route(target_app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
+        target_app.include_router(creative_research_internal_router)
 
     if not _route_has_endpoint(
-        app,
+        target_app,
         _PAYWALL_EVENTS_ROUTE_PATH,
         "POST",
         ingest_paywall_event,
     ):
-        if _has_route(app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
+        if _has_route(target_app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
             raise RuntimeError(
                 "Duplicate /api/v1/internal/paywall/events route detected with a different "
                 "handler."
             )
-        app.include_router(paywall_analytics_router)
+        target_app.include_router(paywall_analytics_router)
 
-    apply_public_openapi_input_policy(app)
-    install_canonical_openapi_builder(app)
+    apply_public_openapi_input_policy(target_app)
+    install_canonical_openapi_builder(target_app)
     # Importing canonical routers loads the ``app.metrics`` submodule, which
     # Python records on the package and which would shadow the reviewed facade
     # export. Remove only that package binding after bootstrap so the existing
@@ -1250,7 +1244,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         and vars(app_package).get("metrics") is metrics_module
     ):
         delattr(app_package, "metrics")
-    return app
+    return target_app
 
 
 ensure_canonical_app_bootstrap(app)
