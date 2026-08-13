@@ -5708,6 +5708,31 @@ def test_material_digest_tracks_rename_mode_binary_and_symlink(tmp_path: Path) -
     }
 
 
+def test_material_manifest_classifies_definite_non_ancestor_without_api_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "tracked.txt").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    monkeypatch.setattr(evidence_module, "_git_is_ancestor", lambda *_args, **_kwargs: False)
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="computed merge base is not an ancestor of both live refs",
+    ):
+        compute_material_manifest(
+            repo,
+            base_ref_oid=base,
+            head_ref_oid=head,
+            pr_number=42,
+        )
+
+
 def test_material_manifest_records_copy_only_as_exact_no_rename_addition(
     tmp_path: Path,
 ) -> None:
@@ -6138,7 +6163,12 @@ def _stale_seal_reply_coverage(
     reply_count: int = 1,
     reply_created_at: str = "2026-08-12T12:00:00Z",
     activity_time: str | None = "2026-08-12T11:00:00Z",
+    activity_times: tuple[str, ...] | None = None,
+    activity_pushed_at: str | None = None,
+    activity_source: str = "activity",
     activity_edge_matches: bool = True,
+    activity_after_mode: str = "reseal",
+    reseal_pushed_at: str | None = None,
     rest_mutation: tuple[str, Any] | None = None,
     rest_user_mutation: tuple[str, Any] | None = None,
     reseal_subject: str = "docs(review): reseal after base sync",
@@ -6362,7 +6392,9 @@ def _stale_seal_reply_coverage(
         pr_number=42,
         base_sha=current_base,
         head_sha=live_head,
-        commits=tuple(PrCommitEvidence(sha, None) for sha in commits),
+        commits=tuple(
+            PrCommitEvidence(sha, reseal_pushed_at if sha == reseal else None) for sha in commits
+        ),
     )
     root_urls = tuple(
         f"https://github.com/owner/repo/pull/42#discussion_r{700 + index}"
@@ -6519,21 +6551,47 @@ def _stale_seal_reply_coverage(
                 "owner stale-seal repository activity is API_UNKNOWN"
             )
         if "/activity?" in url:
+            if activity_source == "events":
+                return ([],)
+            if activity_source != "activity":
+                raise ValueError("unsupported activity_source")
             before = stale_head if activity_edge_matches else old_material
             activities: list[Any] = []
-            if activity_time is not None:
-                activities.append(
-                    {
-                        "activity_type": "push",
-                        "after": reseal,
-                        "before": before,
-                        "ref": "refs/heads/feature",
-                        "timestamp": activity_time,
-                    }
-                )
+            selected_activity_times = (
+                activity_times
+                if activity_times is not None
+                else (() if activity_time is None else (activity_time,))
+            )
+            for selected_activity_time in selected_activity_times:
+                pushed_head = reseal if activity_after_mode == "reseal" else live_head
+                activity: dict[str, Any] = {
+                    "activity_type": "push",
+                    "after": pushed_head,
+                    "before": before,
+                    "ref": "refs/heads/feature",
+                    "timestamp": selected_activity_time,
+                }
+                if activity_pushed_at is not None:
+                    activity["pushed_at"] = activity_pushed_at
+                activities.append(activity)
             return (activities,)
         if "/events?" in url:
-            return ([],)
+            if activity_source != "events" or activity_time is None:
+                return ([],)
+            before = stale_head if activity_edge_matches else old_material
+            return (
+                [
+                    {
+                        "type": "PushEvent",
+                        "created_at": activity_time,
+                        "payload": {
+                            "ref": "refs/heads/feature",
+                            "before": before,
+                            "head": reseal if activity_after_mode == "reseal" else live_head,
+                        },
+                    }
+                ],
+            )
         raise AssertionError(f"unexpected paginated GitHub API call: {url}")
 
     monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
@@ -6696,6 +6754,59 @@ def test_owner_stale_seal_fixed_keeps_activity_api_unknown_terminal(
             monkeypatch,
             activity_api_unknown=True,
         )
+
+
+def test_owner_stale_seal_fixed_rejects_conflicting_activity_timestamps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _stale_seal_reply_coverage(
+            tmp_path,
+            monkeypatch,
+            activity_time="2026-08-12T11:00:00Z",
+            activity_pushed_at="2026-08-12T11:00:01Z",
+        )
+
+
+def test_owner_stale_seal_fixed_accepts_push_event_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_source="events",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_requires_pr_ref_activity_despite_snapshot_pushed_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_time=None,
+        reseal_pushed_at="2026-08-12T11:00:00Z",
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_accepts_pr_ref_activity_with_snapshot_pushed_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        reseal_pushed_at="2026-08-12T10:30:00Z",
+    )
+
+    assert covered == {graph["url"]}
 
 
 def test_owner_stale_seal_fixed_rejects_same_root_fixed_mapping(
@@ -6890,6 +7001,32 @@ def test_owner_stale_seal_fixed_requires_reseal_push_before_owner_reply(
     assert covered == set()
 
 
+def test_owner_stale_seal_fixed_accepts_any_push_inside_disposition_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_times=("2026-08-12T09:00:00Z", "2026-08-12T11:00:00Z"),
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_accepts_reseal_inside_multi_commit_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_after_mode="live",
+    )
+
+    assert covered == {graph["url"]}
+
+
 def test_owner_stale_seal_fixed_requires_prior_closeout_as_sole_material_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7018,6 +7155,25 @@ def test_owner_stale_seal_git_evidence_ignores_replace_refs(tmp_path: Path) -> N
     assert evidence_module._stale_seal_commit_parents(repo, head) == (base,)
 
 
+def test_owner_stale_seal_git_evidence_rejects_legacy_grafts(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    graft_path = git_dir / "info" / "grafts"
+    graft_path.parent.mkdir(parents=True, exist_ok=True)
+    graft_path.write_text(f"{head} {base}\n", encoding="utf-8")
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._stale_seal_commit_parents(repo, head)
+
+
 @pytest.mark.parametrize(
     "token",
     ["opaque\rsecret", "opaque\nsecret", "opaque\x00secret", "opaque\x7fsecret"],
@@ -7096,6 +7252,57 @@ def test_owner_stale_seal_pagination_rejects_foreign_or_repeated_next_link(
         )
 
 
+def test_owner_stale_seal_pagination_allows_prev_and_first_to_share_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page_one = (
+        "https://api.github.com/repos/owner/repo/activity?"
+        "activity_type=push&per_page=100&ref=feature"
+    )
+    page_two = page_one + "&page=2"
+    responses = iter(
+        (
+            (b"[]", f'<{page_two}>; rel="next"'),
+            (b"[]", f'<{page_one}>; rel="prev", <{page_one}>; rel="first"'),
+        )
+    )
+
+    class Response:
+        status = 200
+
+        def __init__(self, raw: bytes, link: str) -> None:
+            self._raw = raw
+            self._link = link
+
+        def read(self, _limit: int) -> bytes:
+            return self._raw
+
+        def getheader(self, name: str) -> str | None:
+            return {
+                "Content-Type": "application/json",
+                "Link": self._link,
+            }.get(name)
+
+    class Connection:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        def request(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        @staticmethod
+        def getresponse() -> Response:
+            raw, link = next(responses)
+            return Response(raw, link)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", Connection)
+
+    assert evidence_module._github_api_paginated_pages(page_one, token="opaque") == ([], [])
+
+
 def test_owner_stale_seal_snapshot_known_unavailable_commit_is_terminal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7119,6 +7326,55 @@ def test_owner_stale_seal_snapshot_known_unavailable_commit_is_terminal(
         )
 
 
+def _stub_stale_seal_git_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+) -> None:
+    def run(args: list[str], *_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        if args[1:4] == ["rev-parse", "--git-path", "info/grafts"]:
+            return SimpleNamespace(returncode=0, stdout=b".git/info/grafts\n", stderr=b"")
+        return SimpleNamespace(
+            returncode=returncode,
+            stdout=b"",
+            stderr=b"diagnostic",
+        )
+
+    monkeypatch.setattr(evidence_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+
+def test_owner_stale_seal_pr_head_lookup_preserves_programming_errors() -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise TypeError("bad injected request wiring")
+
+    with pytest.raises(TypeError, match="bad injected request wiring"):
+        evidence_module._fetch_stale_seal_reseal_push_times(
+            repo_root=Path.cwd(),
+            snapshot=SimpleNamespace(pr_number=42),
+            repository="owner/repo",
+            stale_head_sha=BASE_SHA,
+            reseal_sha=HEAD_SHA,
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+def test_owner_stale_seal_pr_head_lookup_converts_transport_errors() -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise OSError("transport unavailable")
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._fetch_stale_seal_reseal_push_times(
+            repo_root=Path.cwd(),
+            snapshot=SimpleNamespace(pr_number=42),
+            repository="owner/repo",
+            stale_head_sha=BASE_SHA,
+            reseal_sha=HEAD_SHA,
+            token="opaque",
+            request_json=request_json,
+        )
+
+
 @pytest.mark.parametrize(
     ("returncode", "error"),
     [(1, "not locally reachable"), (2, "API_UNKNOWN")],
@@ -7129,19 +7385,30 @@ def test_owner_stale_seal_local_ancestor_distinguishes_uncovered_from_unknown(
     returncode: int,
     error: str,
 ) -> None:
-    monkeypatch.setattr(shutil, "which", lambda _binary: "/usr/bin/git")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            returncode=returncode,
-            stdout=b"",
-            stderr=b"diagnostic",
-        ),
-    )
+    _stub_stale_seal_git_exit_code(monkeypatch, returncode)
 
     with pytest.raises(ReviewEvidenceError, match=error):
         evidence_module._stale_seal_local_ancestor(
+            tmp_path,
+            ancestor_sha=BASE_SHA,
+            descendant_sha=HEAD_SHA,
+        )
+
+
+@pytest.mark.parametrize(
+    ("returncode", "error"),
+    [(0, "already preceded prior closeout"), (2, "API_UNKNOWN")],
+)
+def test_owner_stale_seal_local_non_ancestor_distinguishes_conflict_from_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    error: str,
+) -> None:
+    _stub_stale_seal_git_exit_code(monkeypatch, returncode)
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        evidence_module._stale_seal_local_non_ancestor(
             tmp_path,
             ancestor_sha=BASE_SHA,
             descendant_sha=HEAD_SHA,

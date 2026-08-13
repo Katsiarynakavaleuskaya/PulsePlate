@@ -1273,7 +1273,8 @@ def validated_duplicate_reply_urls(
 
     stale_seal_eligible_urls: list[str] = []
     current_stale_seal_closeout_validated = False
-    historical_reseal_times: dict[tuple[str, str], datetime] = {}
+    historical_reseal_times: dict[tuple[str, str], tuple[datetime, ...]] = {}
+    stale_seal_parent_cache: dict[str, tuple[str, ...]] = {}
     for url, thread in live_roots:
         location = comment_locations.get(url)
         if (
@@ -1334,11 +1335,12 @@ def validated_duplicate_reply_urls(
                     token=token,
                     material_digest=material_digest,
                     material_head_sha=material_head_sha,
+                    parent_cache=stale_seal_parent_cache,
                 )
                 current_stale_seal_closeout_validated = True
-            reseal_time = historical_reseal_times.get((stale_head, reseal))
-            if reseal_time is None:
-                reseal_time = _validate_historical_stale_seal_reseal(
+            reseal_times = historical_reseal_times.get((stale_head, reseal))
+            if reseal_times is None:
+                reseal_times = _validate_historical_stale_seal_reseal(
                     repo_root=repo_root,
                     snapshot=snapshot,
                     repository=repository,
@@ -1346,9 +1348,10 @@ def validated_duplicate_reply_urls(
                     stale_head_sha=stale_head,
                     reseal_sha=reseal,
                     request_json=github_api_request,
+                    parent_cache=stale_seal_parent_cache,
                 )
-                historical_reseal_times[(stale_head, reseal)] = reseal_time
-            if reseal_time <= finding_time or reseal_time > reply_time:
+                historical_reseal_times[(stale_head, reseal)] = reseal_times
+            if not any(finding_time < push_time <= reply_time for push_time in reseal_times):
                 continue
         except _StaleSealEvidenceUnknown:
             raise
@@ -1387,6 +1390,7 @@ def _git_environment() -> dict[str, str]:
 
 def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
     git = _git_path()
+    _reject_active_git_grafts(repo_root, git=git)
     try:
         result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
             [git, *args],
@@ -1402,6 +1406,62 @@ def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
         diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
         raise _GitCommandError(f"git {' '.join(args[:2])} failed: {diagnostic}")
     return result.stdout
+
+
+def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str) -> bool:
+    """Return Git's definite ancestry result and preserve execution uncertainty."""
+
+    git = _git_path()
+    _reject_active_git_grafts(repo_root, git=git)
+    try:
+        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
+            cwd=repo_root,
+            env=_git_environment(),
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise _GitCommandError("git merge-base --is-ancestor could not execute") from exc
+    if result.returncode in {0, 1}:
+        return result.returncode == 0
+    diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
+    raise _GitCommandError(f"git merge-base --is-ancestor failed: {diagnostic}")
+
+
+def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
+    """Reject legacy graft files before trusting any local Git topology."""
+
+    try:
+        result = subprocess.run(  # nosec B603: absolute git plus fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            [git, "rev-parse", "--git-path", "info/grafts"],
+            cwd=repo_root,
+            env=_git_environment(),
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise _GitCommandError("git graft-path lookup could not execute") from exc
+    if result.returncode != 0:
+        raise _GitCommandError("git graft-path lookup failed")
+    try:
+        rendered_path = result.stdout.decode("utf-8").strip()
+    except UnicodeDecodeError as exc:
+        raise _GitCommandError("git graft path is malformed") from exc
+    if (
+        not rendered_path
+        or "\n" in rendered_path
+        or "\r" in rendered_path
+        or any(unicodedata.category(character).startswith("C") for character in rendered_path)
+    ):
+        raise _GitCommandError("git graft path is malformed")
+    graft_path = Path(rendered_path)
+    if not graft_path.is_absolute():
+        graft_path = repo_root / graft_path
+    if graft_path.exists() or graft_path.is_symlink():
+        raise _GitCommandError("legacy Git grafts are forbidden for stale-seal evidence")
 
 
 def _validate_material_path(path_bytes: bytes) -> str:
@@ -1546,15 +1606,13 @@ def compute_material_manifest(
     if len(merge_bases) != 1:
         raise ReviewEvidenceError("base/head must have exactly one merge base")
     merge_base = _require_sha(merge_bases[0], label="merge base")
-    try:
-        _run_git(root, ["merge-base", "--is-ancestor", merge_base, base_sha])
-        _run_git(root, ["merge-base", "--is-ancestor", merge_base, head_sha])
-    except _GitCommandError:
-        raise
-    except ReviewEvidenceError as exc:
-        raise ReviewEvidenceError(
-            "computed merge base is not an ancestor of both live refs"
-        ) from exc
+    for live_ref in (base_sha, head_sha):
+        if not _git_is_ancestor(
+            root,
+            ancestor_sha=merge_base,
+            descendant_sha=live_ref,
+        ):
+            raise ReviewEvidenceError("computed merge base is not an ancestor of both live refs")
     raw = _run_git(
         root,
         [
@@ -1737,12 +1795,6 @@ def _stale_seal_mapping_blob(
         return raw.decode("utf-8")
     except (_GitCommandError, UnicodeDecodeError, ValueError) as exc:
         raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
-    except ReviewEvidenceError as exc:
-        if isinstance(exc, ReviewEvidenceError) and str(exc).startswith(
-            "owner stale-seal mapping blob"
-        ):
-            raise
-        raise
 
 
 def _validate_stale_seal_mapping_only_edge(
@@ -1981,8 +2033,7 @@ def _github_page_identity(
         or not parsed.path.startswith("/repos/")
         or parsed.params
         or parsed.fragment
-        or expected_path is not None
-        and parsed.path != expected_path
+        or (expected_path is not None and parsed.path != expected_path)
         or len(query_pairs) != len({key for key, _value in query_pairs})
         or any(
             not key
@@ -2073,7 +2124,6 @@ def _github_api_paginated_pages(url: str, *, token: str) -> tuple[list[Any], ...
         finally:
             connection.close()
         next_candidates: list[str] = []
-        link_targets: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         if link_header:
             for raw_link in link_header.split(","):
                 segments = [segment.strip() for segment in raw_link.split(";")]
@@ -2082,15 +2132,14 @@ def _github_api_paginated_pages(url: str, *, token: str) -> tuple[list[Any], ...
                 ):
                     raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
                 target = segments[0][1:-1]
-                target_parsed, _target_stable, target_query = _github_page_identity(
+                _github_page_identity(
                     target,
                     expected_path=expected_path,
                     immutable_query=immutable_query,
                 )
-                target_identity = (target_parsed.path, target_query)
-                if target_identity in link_targets:
-                    raise _StaleSealEvidenceUnknown("owner stale-seal pagination is API_UNKNOWN")
-                link_targets.add(target_identity)
+                # All relation targets still pass the same endpoint and immutable-query
+                # checks above.  Only ``next`` controls traversal; GitHub may legally
+                # publish ``prev`` and ``first`` aliases with the same target.
                 rel_parameters = [
                     segment.removeprefix("rel=")
                     for segment in segments[1:]
@@ -2137,33 +2186,25 @@ def _stale_seal_push_timestamp(activity: Mapping[str, Any]) -> datetime:
     )
 
 
-def _fetch_stale_seal_reseal_pushed_at(
+def _fetch_stale_seal_reseal_push_times(
     *,
+    repo_root: Path,
     snapshot: Any,
     repository: str,
     stale_head_sha: str,
     reseal_sha: str,
     token: str,
     request_json: Any,
-) -> datetime:
-    for commit in snapshot.commits:
-        if commit.sha == reseal_sha and commit.pushed_at is not None:
-            try:
-                return _parse_timestamp(
-                    commit.pushed_at,
-                    label="owner stale-seal reseal pushedDate",
-                )
-            except ReviewEvidenceError as exc:
-                raise _StaleSealEvidenceUnknown(
-                    "owner stale-seal reseal pushedDate is API_UNKNOWN"
-                ) from exc
+) -> tuple[datetime, ...]:
+    from scripts.orchestration.pr_commit_identity import CommitIdentityError
+
     owner, name = repository.split("/", 1)
     try:
         pull = request_json(
             f"https://api.github.com/repos/{owner}/{name}/pulls/{snapshot.pr_number}",
             token=token,
         )
-    except Exception as exc:
+    except (CommitIdentityError, OSError, TimeoutError, http.client.HTTPException) as exc:
         raise _StaleSealEvidenceUnknown("owner stale-seal PR head evidence is API_UNKNOWN") from exc
     head = pull.get("head") if isinstance(pull, dict) else None
     base = pull.get("base") if isinstance(pull, dict) else None
@@ -2202,11 +2243,17 @@ def _fetch_stale_seal_reseal_pushed_at(
                 raise _StaleSealEvidenceUnknown(
                     "owner stale-seal repository activity is API_UNKNOWN"
                 )
+            pushed_head = activity.get("after")
             if (
                 activity.get("activity_type") == "push"
                 and activity.get("ref") == expected_ref
                 and activity.get("before") == stale_head_sha
-                and activity.get("after") == reseal_sha
+                and _stale_seal_push_contains_reseal(
+                    repo_root,
+                    snapshot=snapshot,
+                    reseal_sha=reseal_sha,
+                    pushed_head=pushed_head,
+                )
             ):
                 try:
                     exact_times.append(_stale_seal_push_timestamp(activity))
@@ -2215,7 +2262,7 @@ def _fetch_stale_seal_reseal_pushed_at(
                         "owner stale-seal repository activity is API_UNKNOWN"
                     ) from exc
     if exact_times:
-        return min(exact_times)
+        return tuple(sorted(set(exact_times)))
     events_url = f"https://api.github.com/repos/{head_repository}/events?per_page=100"
     try:
         event_pages = _github_api_paginated_pages(events_url, token=token)
@@ -2230,12 +2277,18 @@ def _fetch_stale_seal_reseal_pushed_at(
                     "owner stale-seal repository events are API_UNKNOWN"
                 )
             payload = event.get("payload")
+            pushed_head = payload.get("head") if isinstance(payload, dict) else None
             if (
                 event.get("type") == "PushEvent"
                 and isinstance(payload, dict)
                 and payload.get("ref") == expected_ref
                 and payload.get("before") == stale_head_sha
-                and payload.get("head") == reseal_sha
+                and _stale_seal_push_contains_reseal(
+                    repo_root,
+                    snapshot=snapshot,
+                    reseal_sha=reseal_sha,
+                    pushed_head=pushed_head,
+                )
             ):
                 try:
                     exact_times.append(
@@ -2250,7 +2303,28 @@ def _fetch_stale_seal_reseal_pushed_at(
                     ) from exc
     if not exact_times:
         raise ReviewEvidenceError("owner stale-seal reseal lacks immutable server push evidence")
-    return min(exact_times)
+    return tuple(sorted(set(exact_times)))
+
+
+def _stale_seal_push_contains_reseal(
+    repo_root: Path,
+    *,
+    snapshot: Any,
+    reseal_sha: str,
+    pushed_head: Any,
+) -> bool:
+    if not isinstance(pushed_head, str) or not _SHA_RE.fullmatch(pushed_head):
+        raise _StaleSealEvidenceUnknown("owner stale-seal push range is API_UNKNOWN")
+    if pushed_head not in snapshot.commit_shas:
+        raise _StaleSealEvidenceUnknown("owner stale-seal push range is API_UNKNOWN")
+    try:
+        return _git_is_ancestor(
+            repo_root,
+            ancestor_sha=reseal_sha,
+            descendant_sha=pushed_head,
+        )
+    except _GitCommandError as exc:
+        raise _StaleSealEvidenceUnknown("owner stale-seal push range is API_UNKNOWN") from exc
 
 
 def _stale_seal_repository_commit(
@@ -2342,22 +2416,16 @@ def _stale_seal_local_ancestor(
     descendant_sha: str,
 ) -> None:
     try:
-        git = _git_path()
-        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
-            [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
-            cwd=repo_root,
-            env=_git_environment(),
-            capture_output=True,
-            timeout=30,
-            check=False,
+        reachable = _git_is_ancestor(
+            repo_root,
+            ancestor_sha=ancestor_sha,
+            descendant_sha=descendant_sha,
         )
-    except (_GitCommandError, OSError, subprocess.TimeoutExpired) as exc:
+    except _GitCommandError as exc:
         raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
-    if result.returncode == 0:
+    if reachable:
         return
-    if result.returncode == 1:
-        raise ReviewEvidenceError("owner stale-seal commit is not locally reachable")
-    raise _StaleSealEvidenceUnknown("owner stale-seal Git ancestry is API_UNKNOWN")
+    raise ReviewEvidenceError("owner stale-seal commit is not locally reachable")
 
 
 def _stale_seal_local_non_ancestor(
@@ -2369,24 +2437,28 @@ def _stale_seal_local_non_ancestor(
     """Require local Git to prove that one commit did not precede another."""
 
     try:
-        git = _git_path()
-        result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
-            [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
-            cwd=repo_root,
-            env=_git_environment(),
-            capture_output=True,
-            timeout=30,
-            check=False,
+        reachable = _git_is_ancestor(
+            repo_root,
+            ancestor_sha=ancestor_sha,
+            descendant_sha=descendant_sha,
         )
-    except (_GitCommandError, OSError, subprocess.TimeoutExpired) as exc:
+    except _GitCommandError as exc:
         raise _StaleSealEvidenceUnknown("owner stale-seal Git evidence is API_UNKNOWN") from exc
-    if result.returncode == 1:
+    if not reachable:
         return
-    if result.returncode == 0:
-        raise ReviewEvidenceError(
-            "owner stale-seal synchronized base already preceded prior closeout"
-        )
-    raise _StaleSealEvidenceUnknown("owner stale-seal Git ancestry is API_UNKNOWN")
+    raise ReviewEvidenceError("owner stale-seal synchronized base already preceded prior closeout")
+
+
+def _stale_seal_cached_commit_parents(
+    repo_root: Path,
+    commit_sha: str,
+    parent_cache: dict[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    cached = parent_cache.get(commit_sha)
+    if cached is None:
+        cached = _stale_seal_commit_parents(repo_root, commit_sha)
+        parent_cache[commit_sha] = cached
+    return cached
 
 
 def _stale_seal_snapshot_children(
@@ -2394,10 +2466,15 @@ def _stale_seal_snapshot_children(
     *,
     snapshot: Any,
     parent_sha: str,
+    parent_cache: dict[str, tuple[str, ...]],
 ) -> tuple[str, ...]:
     children: list[str] = []
     for commit_sha in snapshot.commit_shas:
-        if parent_sha in _stale_seal_commit_parents(repo_root, commit_sha):
+        if parent_sha in _stale_seal_cached_commit_parents(
+            repo_root,
+            commit_sha,
+            parent_cache,
+        ):
             children.append(commit_sha)
     return tuple(sorted(children))
 
@@ -2411,7 +2488,8 @@ def _validate_historical_stale_seal_reseal(
     stale_head_sha: str,
     reseal_sha: str,
     request_json: Any,
-) -> datetime:
+    parent_cache: dict[str, tuple[str, ...]],
+) -> tuple[datetime, ...]:
     from scripts.orchestration.pr_commit_identity import CommitRefKind, RepositoryCommitRef
 
     stale_head = _require_sha(stale_head_sha, label="owner stale-seal stale head")
@@ -2444,7 +2522,11 @@ def _validate_historical_stale_seal_reseal(
         token=token,
     )
 
-    stale_parents = _stale_seal_commit_parents(repo_root, stale_head)
+    stale_parents = _stale_seal_cached_commit_parents(
+        repo_root,
+        stale_head,
+        parent_cache,
+    )
     if len(stale_parents) == 1:
         topology = "LINEAR_MATERIAL"
         prior_closeout = stale_parents[0]
@@ -2467,6 +2549,7 @@ def _validate_historical_stale_seal_reseal(
         repo_root,
         snapshot=snapshot,
         parent_sha=stale_head,
+        parent_cache=parent_cache,
     ) != (reseal,):
         raise ReviewEvidenceError("owner stale-seal reseal is not the sole direct PR child")
 
@@ -2515,6 +2598,7 @@ def _validate_historical_stale_seal_reseal(
         repo_root,
         snapshot=snapshot,
         parent_sha=old_material_head,
+        parent_cache=parent_cache,
     ) != (prior_closeout,):
         raise ReviewEvidenceError("owner stale-seal prior closeout is not the sole direct PR child")
     _stale_seal_repository_commit(
@@ -2649,7 +2733,8 @@ def _validate_historical_stale_seal_reseal(
         and prior_material["digest"] == stale_manifest.digest
     ):
         raise ReviewEvidenceError("owner stale-seal prior seal was not stale at the sync")
-    return _fetch_stale_seal_reseal_pushed_at(
+    return _fetch_stale_seal_reseal_push_times(
+        repo_root=repo_root,
         snapshot=snapshot,
         repository=repository,
         stale_head_sha=stale_head,
@@ -2667,6 +2752,7 @@ def _validate_current_stale_seal_closeout(
     token: str,
     material_digest: str,
     material_head_sha: str,
+    parent_cache: dict[str, tuple[str, ...]],
 ) -> None:
     from scripts.orchestration.pr_commit_identity import CommitRefKind, RepositoryCommitRef
 
@@ -2708,6 +2794,7 @@ def _validate_current_stale_seal_closeout(
         repo_root,
         snapshot=snapshot,
         parent_sha=sealed_head,
+        parent_cache=parent_cache,
     ) != (snapshot.head_sha,):
         raise ReviewEvidenceError("owner stale-seal current reseal is not the sole direct child")
     material_manifest = _stale_seal_material_manifest(

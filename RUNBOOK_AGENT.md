@@ -627,7 +627,7 @@ Use this as the canonical operating loop from branch creation to merge window:
      exact unchanged historical base/merge-base, live-PR reachability of `P`,
      current-base ancestry, and that the inherited seal is stale at `S`. This is
      retrospective evidence only and never permission to manufacture material
-     after closeout. For `BASE_SYNC`, verify that the synchronized-main second
+     after closeout. For `BASE_SYNC`, verify that the synchronized-base second
      parent advances the prior sealed base and was not already an ancestor of
      the first parent. Do not reinterpret a failed two-parent form as linear;
      reject all other parent counts.

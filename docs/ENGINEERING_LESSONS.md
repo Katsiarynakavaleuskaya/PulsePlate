@@ -901,7 +901,8 @@ Classify the new review item before choosing the recovery path:
    refs, force-push history, or use generic operator approval to bypass the hard
    disposition gate. The only owner responses recognized for a root without its
    own canonical fingerprint or FIXED mapping are the two closed per-root
-   classes in steps 8 and 9; unrelated canonical records may coexist. For the
+   classes defined in this step and in step 9; unrelated canonical records may
+   coexist. For the
    unavailable-ref NOT-A-BUG class, after an explicit human decision,
    one exact GraphQL-`OWNER` reply may say
    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
