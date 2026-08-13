@@ -7174,6 +7174,24 @@ def test_owner_stale_seal_git_evidence_rejects_legacy_grafts(tmp_path: Path) -> 
         evidence_module._stale_seal_commit_parents(repo, head)
 
 
+def test_owner_stale_seal_git_evidence_rejects_shallow_repository(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    (git_dir / "shallow").write_text(f"{head}\n", encoding="ascii")
+
+    assert _git(repo, "rev-parse", "--is-shallow-repository") == "true"
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._stale_seal_commit_parents(repo, head)
+
+
 @pytest.mark.parametrize(
     "token",
     ["opaque\rsecret", "opaque\nsecret", "opaque\x00secret", "opaque\x7fsecret"],
@@ -7333,6 +7351,8 @@ def _stub_stale_seal_git_exit_code(
     def run(args: list[str], *_args: Any, **_kwargs: Any) -> SimpleNamespace:
         if args[1:4] == ["rev-parse", "--git-path", "info/grafts"]:
             return SimpleNamespace(returncode=0, stdout=b".git/info/grafts\n", stderr=b"")
+        if args[1:3] == ["rev-parse", "--is-shallow-repository"]:
+            return SimpleNamespace(returncode=0, stdout=b"false\n", stderr=b"")
         return SimpleNamespace(
             returncode=returncode,
             stdout=b"",

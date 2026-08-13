@@ -647,9 +647,10 @@ Use this as the canonical operating loop from branch creation to merge window:
      merge authority; it bypasses none of the ordinary gates. An existing same-root
      mapping/fingerprint, a second eligible stale-seal root, a stale current
      seal, a pagination link that leaves the same repository endpoint/path or
-     changes non-pagination query fields, a Git replacement object, or any
-     API/Git/seal ambiguity leaves the root blocking. Validators disable Git
-     replacement objects; operators must not use them as closeout evidence.
+     changes non-pagination query fields, a shallow Git repository, a Git replacement object, or any
+     API/Git/seal ambiguity leaves the root blocking. Validators reject shallow
+     repositories and disable Git replacement objects; operators must not use
+     either as closeout evidence.
 7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain

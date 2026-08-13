@@ -1390,7 +1390,7 @@ def _git_environment() -> dict[str, str]:
 
 def _run_git(repo_root: Path, args: list[str], *, timeout: int = 30) -> bytes:
     git = _git_path()
-    _reject_active_git_grafts(repo_root, git=git)
+    _reject_incomplete_git_topology(repo_root, git=git)
     try:
         result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
             [git, *args],
@@ -1412,7 +1412,7 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
     """Return Git's definite ancestry result and preserve execution uncertainty."""
 
     git = _git_path()
-    _reject_active_git_grafts(repo_root, git=git)
+    _reject_incomplete_git_topology(repo_root, git=git)
     try:
         result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
             [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
@@ -1428,6 +1428,13 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
         return result.returncode == 0
     diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
     raise _GitCommandError(f"git merge-base --is-ancestor failed: {diagnostic}")
+
+
+def _reject_incomplete_git_topology(repo_root: Path, *, git: str) -> None:
+    """Reject local Git state that can conceal the authenticated commit graph."""
+
+    _reject_active_git_grafts(repo_root, git=git)
+    _reject_shallow_repository(repo_root, git=git)
 
 
 def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
@@ -1462,6 +1469,32 @@ def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
         graft_path = repo_root / graft_path
     if graft_path.exists() or graft_path.is_symlink():
         raise _GitCommandError("legacy Git grafts are forbidden for stale-seal evidence")
+
+
+def _reject_shallow_repository(repo_root: Path, *, git: str) -> None:
+    """Reject shallow repositories before deriving parent or child topology."""
+
+    try:
+        result = subprocess.run(  # nosec B603: absolute git plus fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+            [git, "rev-parse", "--is-shallow-repository"],
+            cwd=repo_root,
+            env=_git_environment(),
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise _GitCommandError("git shallow-repository lookup could not execute") from exc
+    if result.returncode != 0:
+        raise _GitCommandError("git shallow-repository lookup failed")
+    try:
+        shallow_state = result.stdout.decode("ascii").strip()
+    except UnicodeDecodeError as exc:
+        raise _GitCommandError("git shallow-repository state is malformed") from exc
+    if shallow_state == "true":
+        raise _GitCommandError("shallow Git repositories are forbidden for stale-seal evidence")
+    if shallow_state != "false":
+        raise _GitCommandError("git shallow-repository state is malformed")
 
 
 def _validate_material_path(path_bytes: bytes) -> str:

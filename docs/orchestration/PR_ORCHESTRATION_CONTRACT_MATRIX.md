@@ -433,7 +433,7 @@ actionable finding exists beyond the historical stale-seal defect that `R`
 corrected. The validator deliberately does not interpret bot
 prose, never authors the reply, and fails closed on any repository, REST,
 GraphQL, repository-bound pagination, commit-object identity,
-replacement-object, commit-graph, regular-path, seal, digest, timestamp, or
+shallow-boundary, replacement-object, commit-graph, regular-path, seal, digest, timestamp, or
 cardinality uncertainty.
 This class is not review, provider output, approval, scan, PASS, merge
 authority, or a bypass of actual findings, current-head CI, trusted security,
@@ -441,7 +441,8 @@ mapping, unresolved threads, ancestry, closeout, or wait-window requirements.
 Every pagination link must remain on `api.github.com` at the same repository
 endpoint and path with immutable non-pagination query fields; a repeated,
 cross-repository, or cross-endpoint page is terminal uncertainty. Local Git
-evidence is evaluated with replacement objects disabled. This path
+evidence is evaluated only in a complete non-shallow repository with replacement
+objects disabled. This path
 records `FIXED`, not `NOT-A-BUG`: the defect was real at
 `S` and `R` corrected it. It grants no review, provider output, approval, scan,
 PASS, merge authority, or bypass of current CI, security, other findings,

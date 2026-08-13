@@ -333,9 +333,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     REST pagination link must remain on `api.github.com` at the same repository
     endpoint and path with immutable non-pagination query fields; repeated,
     cross-repository, or cross-endpoint pages fail closed. Local Git evidence is
-    evaluated with replacement objects disabled. Any repository, REST/GraphQL,
+    evaluated only in a complete non-shallow repository with replacement objects
+    disabled. Any repository, REST/GraphQL,
     Git graph, regular-path, seal, digest, timestamp, pagination,
-    replacement-object, or cardinality uncertainty fails closed. The validator
+    shallow-boundary, replacement-object, or cardinality uncertainty fails closed. The validator
     never interprets bot prose or authors the reply. This historical class is
     `FIXED`, because `R`
     corrected a real defect at `S`; it is not review, provider output,
