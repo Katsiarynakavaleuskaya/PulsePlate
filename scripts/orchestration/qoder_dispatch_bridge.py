@@ -63,8 +63,13 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict as load_creative_pilot_json_strict,
     validate_task_pilot_context,
 )
-from scripts.orchestration.context_pack import collect_context_pack, repo_relative_paths
+from scripts.orchestration.context_pack import (
+    collect_context_pack,
+    repo_relative_paths,
+    resolve_domain,
+)
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
+from scripts.orchestration.routing_graph_loader import load_routing_graph
 from scripts.orchestration.task_bootstrap import (
     INVARIANT_FAMILY_REPEAT_MEMBERSHIP_SOURCE,
     INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT,
@@ -710,6 +715,14 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical") from None
     if canonical_candidate_paths != candidate_paths:
         raise ValueError("invariant_review.v2 candidate_paths must be canonical")
+    canonical_domain = resolve_domain(
+        task_class=cast(str, required_strings["task_class"]),
+        candidate_paths=canonical_candidate_paths,
+        goal=cast(str, required_strings["goal"]),
+    )
+    domain_route = load_routing_graph().get(canonical_domain)
+    if required_strings["domain"] != canonical_domain or domain_route is None:
+        raise ValueError("invariant_review.v2 identity source fields must be canonical")
     if requested_agents != list(dict.fromkeys(requested_agents)) or any(
         value != value.strip() or not _ROLE_SLUG_RE.fullmatch(value) for value in requested_agents
     ):
@@ -821,7 +834,9 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
     required_context_baseline = set(
         collect_context_pack(
             cast(List[str], candidate_paths),
-            include_orchestration=False,
+            include_orchestration=(
+                domain_route.cluster == "ops" or len(canonical_candidate_paths) != 1
+            ),
         )
     )
     required_context_baseline.add(INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT)

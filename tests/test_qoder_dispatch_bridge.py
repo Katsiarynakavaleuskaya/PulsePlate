@@ -519,6 +519,22 @@ def test_qoder_rejects_recomputed_v2_context_missing_required_baseline(
         qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
+def test_qoder_rejects_recomputed_v2_context_missing_ops_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    orchestration_context = set(task_bootstrap.ORCHESTRATION_CONTEXT_FILES)
+    assert orchestration_context.issubset(required_context)
+    packet["required_context"] = [
+        path for path in required_context if path not in orchestration_context
+    ]
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="required producer context baseline"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
 def test_v2_manifest_propagates_validated_packet_context(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
