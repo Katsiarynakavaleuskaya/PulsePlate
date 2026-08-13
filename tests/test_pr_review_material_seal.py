@@ -6177,6 +6177,7 @@ def _stale_seal_reply_coverage(
     stale_shape: str = "base-sync",
     historical_seal_shape: str = "provider-neutral",
     current_seal_shape: str = "provider-neutral",
+    current_reseal_subject: str = "docs(review): current reseal",
     include_old_material_in_snapshot: bool = True,
     prior_material_second_child: bool = False,
     fingerprint_mode: str | None = None,
@@ -6376,7 +6377,7 @@ def _stale_seal_reply_coverage(
         else:
             current_mapping = _mapping_artifact_with_seal(current_seal)
         mapping.write_text(current_mapping, encoding="utf-8")
-        live_head = _commit(repo, "docs(review): current reseal")
+        live_head = _commit(repo, current_reseal_subject)
         later_commits = (current_material, live_head)
 
     commits = (
@@ -6804,6 +6805,35 @@ def test_owner_stale_seal_fixed_accepts_pr_ref_activity_with_snapshot_pushed_dat
         tmp_path,
         monkeypatch,
         reseal_pushed_at="2026-08-12T10:30:00Z",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_accepts_case_variant_rest_repository_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        rest_mutation=(
+            "pull_request_url",
+            "https://api.github.com/repos/OWNER/REPO/pulls/42",
+        ),
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_allows_trigger_subject_on_later_current_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        current_reseal_subject="docs(review): rerun checks after later base sync",
     )
 
     assert covered == {graph["url"]}
@@ -7383,6 +7413,49 @@ def test_owner_stale_seal_pagination_allows_prev_and_first_to_share_target(
                 "Content-Type": "application/json",
                 "Link": self._link,
             }.get(name)
+
+    class Connection:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        def request(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        @staticmethod
+        def getresponse() -> Response:
+            raw, link = next(responses)
+            return Response(raw, link)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", Connection)
+
+    assert evidence_module._github_api_paginated_pages(page_one, token="opaque") == ([], [])
+
+
+def test_owner_stale_seal_pagination_accepts_activity_before_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page_one = (
+        "https://api.github.com/repos/owner/repo/activity?"
+        "activity_type=push&per_page=100&ref=feature"
+    )
+    page_two = page_one + "&before=2026-08-12T11%3A00%3A00Z"
+    responses = iter(((b"[]", f'<{page_two}>; rel="next"'), (b"[]", "")))
+
+    class Response:
+        status = 200
+
+        def __init__(self, raw: bytes, link: str) -> None:
+            self._raw = raw
+            self._link = link
+
+        def read(self, _limit: int) -> bytes:
+            return self._raw
+
+        def getheader(self, name: str) -> str | None:
+            return {"Content-Type": "application/json", "Link": self._link}.get(name)
 
     class Connection:
         def __init__(self, *_args: Any, **_kwargs: Any) -> None:

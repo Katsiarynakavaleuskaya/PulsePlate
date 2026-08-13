@@ -52,7 +52,7 @@ _OWNER_STALE_SEAL_FIXED_REPLY_RE = re.compile(
     r"is authoritative\."
 )
 _MAX_REPOSITORY_ACTIVITY_PAGES = 100
-_GITHUB_PAGINATION_QUERY_KEYS = frozenset({"after", "cursor", "page"})
+_GITHUB_PAGINATION_QUERY_KEYS = frozenset({"after", "before", "cursor", "page"})
 TRIGGER_ONLY_COMMIT_SUBJECT_RE = re.compile(
     r"(?:^|\b)(trigger\s+ci|re-?run\s+ci|re-?run\s+checks)(?:\b|$)",
     re.IGNORECASE,
@@ -2939,6 +2939,7 @@ def _validate_current_stale_seal_closeout(
         child_sha=snapshot.head_sha,
         pr_number=snapshot.pr_number,
         allow_mapping_add=False,
+        ban_trigger_only=False,
     )
     if _stale_seal_snapshot_children(
         repo_root,
@@ -3027,12 +3028,30 @@ def _validate_stale_seal_root_identity(
         or not isinstance(user.get("type"), str)
     ):
         raise _StaleSealEvidenceUnknown("owner stale-seal review-comment identity is API_UNKNOWN")
-    expected_pr_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+    try:
+        pull_request_url = urllib.parse.urlparse(response["pull_request_url"])
+    except (TypeError, ValueError, UnicodeError) as exc:
+        raise _StaleSealEvidenceUnknown(
+            "owner stale-seal review-comment identity is API_UNKNOWN"
+        ) from exc
+    expected_pr_path = ("repos", owner.casefold(), name.casefold(), "pulls", str(pr_number))
+    actual_pr_path = tuple(
+        part.casefold() if index in {1, 2} else part
+        for index, part in enumerate(part for part in pull_request_url.path.split("/") if part)
+    )
+    pull_request_url_matches = (
+        pull_request_url.scheme == "https"
+        and pull_request_url.netloc == "api.github.com"
+        and not pull_request_url.params
+        and not pull_request_url.query
+        and not pull_request_url.fragment
+        and actual_pr_path == expected_pr_path
+    )
     expected_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     return (
         response.get("id") == int(match.group("comment_id"))
         and response.get("html_url") == url
-        and response.get("pull_request_url") == expected_pr_url
+        and pull_request_url_matches
         and response.get("path") == expected_path
         and response.get("original_commit_id") == stale_head_sha
         and response.get("body") == finding.body
