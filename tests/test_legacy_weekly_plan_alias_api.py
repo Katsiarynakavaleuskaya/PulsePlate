@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from types import SimpleNamespace
@@ -88,6 +89,55 @@ def _valid_payload() -> dict[str, Any]:
         "diet_flags": [],
         "lang": "en",
     }
+
+
+def _valid_targets() -> dict[str, Any]:
+    return {
+        "kcal": 2000,
+        "macros": {"protein_g": 120},
+        "micro": {"iron_mg": 18},
+        "water_ml": 2200,
+    }
+
+
+def _patch_invalid_request_work_spies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> SimpleNamespace:
+    """Install request-work spies that must stay untouched on manual validation failure."""
+
+    feature_getter = Mock(return_value=True)
+    menu_builder = Mock()
+    builder_getter = Mock(return_value=menu_builder)
+    executor = AsyncMock()
+    profile_builder = Mock()
+    threadpool = Mock()
+    monkeypatch.setattr(weekly_plan_router, "is_vip_module_enabled", feature_getter)
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", builder_getter)
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    monkeypatch.setattr(vip_router.fitchef_runtime, "build_weekly_user_profile", profile_builder)
+    monkeypatch.setattr(vip_router.fitchef_runtime, "run_in_threadpool", threadpool)
+    return SimpleNamespace(
+        feature_getter=feature_getter,
+        builder_getter=builder_getter,
+        executor=executor,
+        profile_builder=profile_builder,
+        threadpool=threadpool,
+        menu_builder=menu_builder,
+    )
+
+
+def _assert_invalid_request_work_not_started(spies: SimpleNamespace) -> None:
+    spies.feature_getter.assert_not_called()
+    spies.builder_getter.assert_not_called()
+    spies.executor.assert_not_awaited()
+    spies.profile_builder.assert_not_called()
+    spies.threadpool.assert_not_called()
+    spies.menu_builder.assert_not_called()
+
+
+def _assert_static_invalid_weekly_payload(response: Response) -> None:
+    assert response.status_code == 422, response.text
+    assert _assert_json_response(response) == {"detail": _INVALID_WEEKLY_PAYLOAD_DETAIL}
 
 
 def test_legacy_weekly_alias_matches_canonical_vip_menu(
@@ -230,6 +280,83 @@ def test_legacy_weekly_alias_rejects_targets_only_payload_with_guidance(
     assert "/api/v1/premium/plan/week-flexible" in detail
 
 
+@pytest.mark.parametrize(
+    "missing_field", ("sex", "age", "height_cm", "weight_kg", "activity", "goal")
+)
+def test_legacy_weekly_alias_rejects_targets_with_incomplete_profile_before_route_body(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    missing_field: str,
+) -> None:
+    """Targets plus any incomplete six-field profile cannot enter route work."""
+
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    payload = {**_valid_payload(), "targets": _valid_targets()}
+    del payload[missing_field]
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    _assert_static_invalid_weekly_payload(response)
+    _assert_invalid_request_work_not_started(spies)
+
+
+def test_legacy_weekly_alias_targets_with_complete_profile_delegates(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Targets plus all six core fields remain profile-mode input."""
+
+    getter = Mock(return_value=_fake_weekly_menu_builder)
+    executor = AsyncMock(return_value=_fake_weekly_menu_builder(object()))
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    payload = {**_valid_payload(), "targets": _valid_targets()}
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    getter.assert_called_once_with()
+    executor.assert_awaited_once()
+    delegated_payload = executor.await_args.args[0]
+    assert all(
+        delegated_payload[field] is not None
+        for field in vip_router.fitchef_runtime.CORE_WEEKLY_PROFILE_FIELDS
+    )
+    assert delegated_payload["targets"]["macros"]["protein_g"] == 120.0
+
+
+def test_legacy_alias_executor_treats_targets_plus_goal_as_partial_profile() -> None:
+    """A non-null goal prevents direct executor input from being classified targets-only."""
+
+    builder = Mock(side_effect=AssertionError("builder must not run"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            vip_router.execute_legacy_premium_week_alias_payload(
+                {"targets": _valid_targets(), "goal": "maintain"},
+                menu_builder=builder,
+            )
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == _INVALID_WEEKLY_PAYLOAD_DETAIL
+    builder.assert_not_called()
+
+
 def test_legacy_weekly_alias_returns_503_when_vip_module_disabled(
     client: TestClient,
     vip_headers: dict[str, str],
@@ -302,12 +429,9 @@ def test_legacy_weekly_alias_auth_short_circuits_invalid_body(
 ) -> None:
     """Authentication remains authoritative before body validation and builder access."""
 
-    getter = Mock(return_value=_fake_weekly_menu_builder)
-    executor = AsyncMock()
+    spies = _patch_invalid_request_work_spies(monkeypatch)
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
-    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
 
     response = client.post(
         "/api/v1/premium/plan/week",
@@ -317,8 +441,7 @@ def test_legacy_weekly_alias_auth_short_circuits_invalid_body(
 
     assert response.status_code == 403, response.text
     assert _assert_json_response(response) == {"detail": "Invalid API Key"}
-    getter.assert_not_called()
-    executor.assert_not_awaited()
+    _assert_invalid_request_work_not_started(spies)
 
 
 def test_legacy_weekly_alias_valid_key_invalid_body_skips_builder(
@@ -328,10 +451,9 @@ def test_legacy_weekly_alias_valid_key_invalid_body_skips_builder(
 ) -> None:
     """Request validation remains a 422 and does not enter the route body."""
 
-    getter = Mock(return_value=_fake_weekly_menu_builder)
+    spies = _patch_invalid_request_work_spies(monkeypatch)
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
 
     response = client.post(
         "/api/v1/premium/plan/week",
@@ -339,9 +461,262 @@ def test_legacy_weekly_alias_valid_key_invalid_body_skips_builder(
         headers=vip_headers,
     )
 
-    assert response.status_code == 422, response.text
-    _assert_json_response(response)
-    getter.assert_not_called()
+    _assert_static_invalid_weekly_payload(response)
+    _assert_invalid_request_work_not_started(spies)
+
+
+@pytest.mark.parametrize(
+    "missing_field", ("sex", "age", "height_cm", "weight_kg", "activity", "goal")
+)
+def test_legacy_weekly_alias_incomplete_profile_never_enters_route_body(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    missing_field: str,
+) -> None:
+    """Every omitted core profile field is rejected before feature or builder work."""
+
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    payload = _valid_payload()
+    del payload[missing_field]
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    _assert_static_invalid_weekly_payload(response)
+    _assert_invalid_request_work_not_started(spies)
+
+
+@pytest.mark.parametrize("field", ("age", "height_cm", "weight_kg"))
+def test_legacy_weekly_alias_rejects_boolean_numeric_profile_fields_before_route_body(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    """Raw booleans cannot be coerced into legacy profile numbers."""
+
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    payload = _valid_payload()
+    payload[field] = True
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    _assert_static_invalid_weekly_payload(response)
+    _assert_invalid_request_work_not_started(spies)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("sex", None),
+        ("age", None),
+        ("height_cm", None),
+        ("weight_kg", None),
+        ("activity", None),
+        ("goal", None),
+        ("sex", "unknown-sex"),
+        ("activity", "unknown-activity"),
+        ("goal", "unknown-goal"),
+        ("age", -1),
+        ("age", 0),
+        ("age", 121),
+        ("height_cm", -1),
+        ("height_cm", 0),
+        ("weight_kg", -1),
+        ("weight_kg", 0),
+    ),
+)
+def test_legacy_weekly_alias_maps_invalid_profile_values_to_static_422_before_work(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: object,
+) -> None:
+    """Handler-delivered null, literal, and range failures never enter request work."""
+
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    payload = _valid_payload()
+    payload[field] = value
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    _assert_static_invalid_weekly_payload(response)
+    _assert_invalid_request_work_not_started(spies)
+
+
+@pytest.mark.parametrize(
+    "raw_body",
+    ("parsed-scalar-profile-marker", ["parsed-list-profile-marker"]),
+    ids=("scalar", "list"),
+)
+def test_legacy_weekly_alias_manual_recognizer_rejects_parsed_scalar_and_list(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    raw_body: object,
+) -> None:
+    """Parsed non-object JSON reaches the manual recognizer and receives the static boundary."""
+
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=raw_body,
+        headers=vip_headers,
+    )
+
+    _assert_static_invalid_weekly_payload(response)
+    _assert_invalid_request_work_not_started(spies)
+
+
+def test_legacy_weekly_alias_invalid_profile_never_reflects_raw_marker(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Rejected profile values never cross response, header, or logging boundaries."""
+
+    marker = "sec-e1-01-07-private-profile-marker-7d2f"
+    spies = _patch_invalid_request_work_spies(monkeypatch)
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    caplog.set_level(logging.DEBUG, logger=weekly_plan_router.__name__)
+    payload = {**_valid_payload(), "goal": marker}
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    _assert_static_invalid_weekly_payload(response)
+    assert marker not in response.text
+    assert marker not in repr(dict(response.headers))
+    assert marker not in caplog.text
+    _assert_invalid_request_work_not_started(spies)
+
+
+def test_legacy_weekly_alias_framework_body_prefix_controls(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed JSON, a missing body, and top-level null remain framework-prefix failures."""
+
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    request_headers = {**vip_headers, "Content-Type": "application/json"}
+    responses = (
+        client.post(
+            "/api/v1/premium/plan/week",
+            content=b'{"goal":',
+            headers=request_headers,
+        ),
+        client.post(
+            "/api/v1/premium/plan/week",
+            headers=vip_headers,
+        ),
+        client.post(
+            "/api/v1/premium/plan/week",
+            content=b"null",
+            headers=request_headers,
+        ),
+    )
+
+    for response in responses:
+        assert response.status_code == 422, response.text
+        payload = _assert_json_response(response)
+        assert "detail" in payload
+
+
+def test_api_weekly_menu_direct_model_instance_validates_once_and_delegates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct compatibility calls may still supply an already-validated request model."""
+
+    request_model = LegacyWeekPlanRequest.model_validate(_valid_payload())
+    original_model_validate = LegacyWeekPlanRequest.model_validate
+    validation_spy = Mock(wraps=original_model_validate)
+    menu_builder = Mock()
+    executor = AsyncMock(return_value=_fake_weekly_menu_builder(object()))
+    monkeypatch.setattr(LegacyWeekPlanRequest, "model_validate", validation_spy)
+    monkeypatch.setattr(weekly_plan_router, "is_vip_module_enabled", Mock(return_value=True))
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        Mock(return_value=menu_builder),
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+
+    result = asyncio.run(weekly_plan_router.api_weekly_menu(request_model))
+
+    assert isinstance(result, WeeklyMenuResponse)
+    validation_spy.assert_called_once_with(request_model)
+    executor.assert_awaited_once()
+    assert executor.await_args.kwargs["menu_builder"] is menu_builder
+    assert executor.await_args.args[0]["goal"] == "maintain"
+
+
+@pytest.mark.parametrize(
+    ("legacy_goal", "canonical_goal"),
+    (
+        ("lose", "loss"),
+        ("loss", "loss"),
+        ("weight_loss", "loss"),
+        ("maintain", "maintain"),
+        ("maintenance", "maintain"),
+        ("gain", "gain"),
+        ("weight_gain", "gain"),
+    ),
+)
+def test_legacy_weekly_alias_accepts_explicit_legacy_goal_aliases(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    legacy_goal: str,
+    canonical_goal: str,
+) -> None:
+    """Explicit legacy goal aliases stay compatible without an omitted-goal default."""
+
+    executor = AsyncMock(return_value=_fake_weekly_menu_builder(object()))
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    payload = {**_valid_payload(), "goal": legacy_goal}
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    executor.assert_awaited_once()
+    delegated_payload = executor.await_args.args[0]
+    assert delegated_payload["goal"] == canonical_goal
 
 
 @pytest.mark.parametrize(
@@ -630,7 +1005,22 @@ def test_legacy_weekly_alias_does_not_classify_response_shaping_value_error_as_i
     )
 
 
-def test_legacy_week_plan_request_normalizes_legacy_goal_aliases() -> None:
+@pytest.mark.parametrize(
+    ("legacy_goal", "canonical_goal"),
+    (
+        ("lose", "loss"),
+        ("loss", "loss"),
+        ("weight_loss", "loss"),
+        ("maintain", "maintain"),
+        ("maintenance", "maintain"),
+        ("gain", "gain"),
+        ("weight_gain", "gain"),
+    ),
+)
+def test_legacy_week_plan_request_normalizes_legacy_goal_aliases(
+    legacy_goal: str,
+    canonical_goal: str,
+) -> None:
     """Legacy goal aliases must keep the pre-extraction request contract."""
 
     base_payload = {
@@ -642,13 +1032,83 @@ def test_legacy_week_plan_request_normalizes_legacy_goal_aliases() -> None:
     }
 
     assert (
-        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_loss"}).goal == "loss"
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": legacy_goal}).goal
+        == canonical_goal
     )
-    assert (
-        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_gain"}).goal == "gain"
-    )
+
+
+def test_legacy_week_plan_request_rejects_unknown_goal() -> None:
+    """Unknown explicit legacy goals remain invalid."""
+
+    base_payload = {
+        "sex": "female",
+        "age": 30,
+        "height_cm": 168.0,
+        "weight_kg": 62.0,
+        "activity": "moderate",
+    }
+
     with pytest.raises(ValidationError):
         LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "unsupported"})
+
+
+def test_legacy_week_plan_request_keeps_omitted_and_null_goal_absent_for_targets_mode() -> None:
+    """Targets-only schema admission does not synthesize a maintain goal."""
+
+    targets = {
+        "kcal": 2000,
+        "macros": {"protein_g": 120},
+        "micro": {"iron_mg": 18},
+        "water_ml": 2200,
+    }
+
+    omitted = LegacyWeekPlanRequest.model_validate({"targets": targets})
+    explicit_null = LegacyWeekPlanRequest.model_validate({"targets": targets, "goal": None})
+
+    assert omitted.goal is None
+    assert explicit_null.goal is None
+    assert "goal" not in omitted.model_dump(exclude_none=True)
+    assert "goal" not in explicit_null.model_dump(exclude_none=True)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("sex", "female"),
+        ("age", 30),
+        ("height_cm", 168.0),
+        ("weight_kg", 62.0),
+        ("activity", "moderate"),
+        ("goal", "maintain"),
+    ),
+)
+def test_legacy_week_plan_request_rejects_targets_with_partial_profile(
+    field: str,
+    value: object,
+) -> None:
+    """Any non-null profile field selects profile mode and requires all six."""
+
+    with pytest.raises(ValidationError, match="without profile fields"):
+        LegacyWeekPlanRequest.model_validate({"targets": _valid_targets(), field: value})
+
+
+def test_legacy_week_plan_request_preserves_http_numeric_string_normalization() -> None:
+    """Compatible JSON numeric strings remain normalized by the legacy schema."""
+
+    request = LegacyWeekPlanRequest.model_validate(
+        {
+            "sex": "female",
+            "age": "30",
+            "height_cm": "168.5",
+            "weight_kg": "62",
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+    )
+
+    assert request.age == 30
+    assert request.height_cm == 168.5
+    assert request.weight_kg == 62.0
 
 
 def test_legacy_week_plan_request_validates_structured_targets() -> None:

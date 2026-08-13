@@ -500,10 +500,8 @@ class TestVIPIntegration97Extended:
                 json=payload,
                 headers=vip_headers,
             )
-            assert response.status_code in [200, 422]  # Возвращает echo mode или validation error
-            if response.status_code == 200:
-                data = response.json()
-                assert data.get("status") in ["success", "error"]
+            assert response.status_code == 422
+            assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 2: Пустые данные
         response = client.post(
@@ -511,9 +509,8 @@ class TestVIPIntegration97Extended:
             json={"calories": 2000},
             headers=vip_headers,
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("status") in ["success", "error"]
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 3: Отсутствующие обязательные поля
         response = client.post(
@@ -521,9 +518,8 @@ class TestVIPIntegration97Extended:
             json={"sex": "male", "calories": 2000},
             headers=vip_headers,
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("status") in ["success", "error"]
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
     def test_vip_api_key_validation_integration_extended_scenarios(
         self, production_environment, vip_headers

@@ -578,10 +578,16 @@ async def _execute_weekly_menu_plan_payload(
         mode="auto-safe",
         input=FitChefWeeklyPlanInput(request_data=request_obj.model_dump()),
     )
-    result = await fitchef_runtime.run_weekly_plan_task(
-        task,
-        menu_builder=resolved_menu_builder,
-    )
+    try:
+        result = await fitchef_runtime.run_weekly_plan_task(
+            task,
+            menu_builder=resolved_menu_builder,
+        )
+    except fitchef_runtime.WeeklyProfileInputError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid weekly plan request payload",
+        ) from exc
     echo_payload = original_data if resolved_menu_builder is None else request_obj.model_dump()
     return request_obj, echo_payload, result.menu
 
@@ -597,7 +603,8 @@ async def execute_legacy_premium_week_alias_payload(
     EN: Execute the canonical VIP weekly-plan path for the legacy premium alias.
     """
     has_targets_only_payload = payload.get("targets") is not None and not any(
-        payload.get(key) is not None for key in ("sex", "age", "height_cm", "weight_kg", "activity")
+        payload.get(key) is not None
+        for key in ("sex", "age", "height_cm", "weight_kg", "activity", "goal")
     )
     if has_targets_only_payload:
         raise HTTPException(
@@ -754,36 +761,7 @@ async def weekly_menu_plan_alias(
         return ErrorResponse(message="Weekly menu generation not available")
 
     try:
-        # Create UserProfile from request
-        from core.targets import UserProfile
-
-        # Type-safe conversion from WeeklyPlanRequest to UserProfile
-        # The WeeklyPlanRequest and UserProfile use identical Literal types,
-        # Validate required fields are present
-        if not all(
-            [
-                request_obj.sex,
-                request_obj.age,
-                request_obj.height_cm,
-                request_obj.weight_kg,
-                request_obj.activity,
-                request_obj.goal,
-            ]
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Missing required fields: sex, age, height_cm, weight_kg, activity, goal",
-            )
-
-        # so we can safely convert the values directly
-        profile = UserProfile(
-            sex=request_obj.sex or "male",
-            age=request_obj.age or 30,
-            height_cm=request_obj.height_cm or 175.0,
-            weight_kg=request_obj.weight_kg or 70.0,
-            activity=request_obj.activity or "moderate",
-            goal=request_obj.goal or "maintain",
-        )
+        profile = fitchef_runtime.build_weekly_user_profile(request_obj.model_dump())
 
         plan = make_weekly_menu(profile=profile)
 
@@ -831,6 +809,13 @@ async def weekly_menu_plan_alias(
         return WeeklyPlanResponse(
             status="success", data=plan_dict, message="Weekly plan generated successfully"
         )
+    except fitchef_runtime.WeeklyProfileInputError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid weekly plan request payload",
+        ) from exc
+    except HTTPException:
+        raise
     except Exception as e:
         logging.exception("weekly-plan generation failed")
         return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")

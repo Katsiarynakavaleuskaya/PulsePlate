@@ -8,9 +8,10 @@ legacy route while route registration ownership moves out of ``legacy_app.py``.
 from __future__ import annotations
 
 import logging
-from typing import NoReturn
+from typing import Any, NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from pydantic import ValidationError
 
 from app.routers.api_key import _get_api_key_dynamic
 from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest, WeeklyMenuResponse
@@ -58,7 +59,7 @@ def _raise_weekly_menu_failure() -> NoReturn:
     deprecated=True,
 )
 async def api_weekly_menu(
-    req: LegacyWeekPlanRequest,
+    raw_body: Any = Body(...),
 ) -> WeeklyMenuResponse:
     """
     RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
@@ -66,6 +67,14 @@ async def api_weekly_menu(
 
     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
     """
+    try:
+        req = LegacyWeekPlanRequest.model_validate(raw_body)
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid weekly plan request payload",
+        ) from None
+
     # Guard VIP feature flag at request time to support tests that toggle env without reload.
     try:
         vip_module_enabled = is_vip_module_enabled()
