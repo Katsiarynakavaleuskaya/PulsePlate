@@ -7192,6 +7192,27 @@ def test_owner_stale_seal_git_evidence_rejects_shallow_repository(tmp_path: Path
         evidence_module._stale_seal_commit_parents(repo, head)
 
 
+def test_owner_stale_seal_git_evidence_allows_unrelated_shallow_boundary(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    tree = _git(repo, "write-tree")
+    unrelated = _git(repo, "commit-tree", tree, "-m", "unrelated boundary")
+    git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    (git_dir / "shallow").write_text(f"{unrelated}\n", encoding="ascii")
+
+    assert _git(repo, "rev-parse", "--is-shallow-repository") == "true"
+    assert evidence_module._stale_seal_commit_parents(repo, head) == (base,)
+
+
 def test_owner_stale_seal_snapshot_children_batches_parent_enumeration(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7413,8 +7434,8 @@ def _stub_stale_seal_git_exit_code(
     def run(args: list[str], *_args: Any, **_kwargs: Any) -> SimpleNamespace:
         if args[1:4] == ["rev-parse", "--git-path", "info/grafts"]:
             return SimpleNamespace(returncode=0, stdout=b".git/info/grafts\n", stderr=b"")
-        if args[1:3] == ["rev-parse", "--is-shallow-repository"]:
-            return SimpleNamespace(returncode=0, stdout=b"false\n", stderr=b"")
+        if args[1:4] == ["rev-parse", "--git-path", "shallow"]:
+            return SimpleNamespace(returncode=0, stdout=b"/controlled/no-shallow\n", stderr=b"")
         return SimpleNamespace(
             returncode=returncode,
             stdout=b"",

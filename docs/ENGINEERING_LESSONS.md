@@ -930,8 +930,9 @@ Classify the new review item before choosing the recovery path:
    The validator-proven historical and current seal structure records that
    already-completed correction without a second mapping/docs commit; the OWNER
    still inspects the whole root, and two eligible roots or any evidence
-   uncertainty remain blocking. Local topology evidence must come from a
-   complete non-shallow repository with replacement objects disabled. This
+   uncertainty remain blocking. Local topology evidence disables replacement
+   objects and rejects any shallow boundary that hides selected parents or
+   ancestry; an unrelated legacy shallow boundary grants no evidence. This
    class supplies no review, provider output,
    approval, scan, PASS, merge authority, or bypass of any ordinary gate.
 

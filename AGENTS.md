@@ -333,8 +333,10 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     REST pagination link must remain on `api.github.com` at the same repository
     endpoint and path with immutable non-pagination query fields; repeated,
     cross-repository, or cross-endpoint pages fail closed. Local Git evidence is
-    evaluated only in a complete non-shallow repository with replacement objects
-    disabled. Any repository, REST/GraphQL,
+    evaluated with replacement objects disabled. A shallow boundary that hides
+    any selected commit parent or lies in selected ancestry is terminal; an
+    unrelated legacy shallow boundary is not evidence for or against that graph.
+    Any repository, REST/GraphQL,
     Git graph, regular-path, seal, digest, timestamp, pagination,
     shallow-boundary, replacement-object, or cardinality uncertainty fails closed. The validator
     never interprets bot prose or authors the reply. This historical class is

@@ -1396,7 +1396,7 @@ def _run_git(
     timeout: int = 30,
 ) -> bytes:
     git = _git_path()
-    _reject_incomplete_git_topology(repo_root, git=git)
+    _reject_active_git_grafts(repo_root, git=git)
     try:
         result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
             [git, *args],
@@ -1419,7 +1419,8 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
     """Return Git's definite ancestry result and preserve execution uncertainty."""
 
     git = _git_path()
-    _reject_incomplete_git_topology(repo_root, git=git)
+    _reject_active_git_grafts(repo_root, git=git)
+    _reject_shallow_ancestry(repo_root, descendant_sha=descendant_sha, git=git)
     try:
         result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
             [git, "merge-base", "--is-ancestor", ancestor_sha, descendant_sha],
@@ -1435,13 +1436,6 @@ def _git_is_ancestor(repo_root: Path, *, ancestor_sha: str, descendant_sha: str)
         return result.returncode == 0
     diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
     raise _GitCommandError(f"git merge-base --is-ancestor failed: {diagnostic}")
-
-
-def _reject_incomplete_git_topology(repo_root: Path, *, git: str) -> None:
-    """Reject local Git state that can conceal the authenticated commit graph."""
-
-    _reject_active_git_grafts(repo_root, git=git)
-    _reject_shallow_repository(repo_root, git=git)
 
 
 def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
@@ -1478,12 +1472,12 @@ def _reject_active_git_grafts(repo_root: Path, *, git: str) -> None:
         raise _GitCommandError("legacy Git grafts are forbidden for stale-seal evidence")
 
 
-def _reject_shallow_repository(repo_root: Path, *, git: str) -> None:
-    """Reject shallow repositories before deriving parent or child topology."""
+def _shallow_boundary_shas(repo_root: Path, *, git: str) -> frozenset[str]:
+    """Return validated local shallow boundaries without trusting their topology."""
 
     try:
         result = subprocess.run(  # nosec B603: absolute git plus fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
-            [git, "rev-parse", "--is-shallow-repository"],
+            [git, "rev-parse", "--git-path", "shallow"],
             cwd=repo_root,
             env=_git_environment(),
             capture_output=True,
@@ -1491,17 +1485,78 @@ def _reject_shallow_repository(repo_root: Path, *, git: str) -> None:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise _GitCommandError("git shallow-repository lookup could not execute") from exc
+        raise _GitCommandError("git shallow-path lookup could not execute") from exc
     if result.returncode != 0:
-        raise _GitCommandError("git shallow-repository lookup failed")
+        raise _GitCommandError("git shallow-path lookup failed")
     try:
-        shallow_state = result.stdout.decode("ascii").strip()
+        rendered_path = result.stdout.decode("utf-8").strip()
     except UnicodeDecodeError as exc:
-        raise _GitCommandError("git shallow-repository state is malformed") from exc
-    if shallow_state == "true":
-        raise _GitCommandError("shallow Git repositories are forbidden for stale-seal evidence")
-    if shallow_state != "false":
-        raise _GitCommandError("git shallow-repository state is malformed")
+        raise _GitCommandError("git shallow path is malformed") from exc
+    if (
+        not rendered_path
+        or "\n" in rendered_path
+        or "\r" in rendered_path
+        or any(unicodedata.category(character).startswith("C") for character in rendered_path)
+    ):
+        raise _GitCommandError("git shallow path is malformed")
+    shallow_path = Path(rendered_path)
+    if not shallow_path.is_absolute():
+        shallow_path = repo_root / shallow_path
+    if not shallow_path.exists() and not shallow_path.is_symlink():
+        return frozenset()
+    if shallow_path.is_symlink() or not shallow_path.is_file():
+        raise _GitCommandError("git shallow boundary file is unsafe")
+    try:
+        raw = shallow_path.read_bytes()
+    except OSError as exc:
+        raise _GitCommandError("git shallow boundary file could not be read") from exc
+    if len(raw) > 4 * 1024 * 1024:
+        raise _GitCommandError("git shallow boundary file is too large")
+    try:
+        lines = raw.decode("ascii").splitlines()
+        boundaries = frozenset(
+            _require_sha(line, label="git shallow boundary") for line in lines if line
+        )
+    except (UnicodeDecodeError, ReviewEvidenceError) as exc:
+        raise _GitCommandError("git shallow boundary file is malformed") from exc
+    if len(boundaries) != len(lines):
+        raise _GitCommandError("git shallow boundary file is malformed")
+    return boundaries
+
+
+def _reject_shallow_evidence_commits(
+    repo_root: Path,
+    *,
+    commit_shas: Collection[str],
+    git: str,
+) -> None:
+    """Reject parent evidence for a commit whose parents Git intentionally hides."""
+
+    boundaries = _shallow_boundary_shas(repo_root, git=git)
+    if boundaries.intersection(commit_shas):
+        raise _GitCommandError("selected stale-seal commit is a shallow boundary")
+
+
+def _reject_shallow_ancestry(repo_root: Path, *, descendant_sha: str, git: str) -> None:
+    """Reject ancestry proof when a local shallow boundary precedes the descendant."""
+
+    descendant = _require_sha(descendant_sha, label="stale-seal ancestry descendant")
+    for boundary in _shallow_boundary_shas(repo_root, git=git):
+        try:
+            result = subprocess.run(  # nosec B603: absolute git plus validated fixed argv (remove-by: 2026-09-30, ref: PR-governance-seal)
+                [git, "merge-base", "--is-ancestor", boundary, descendant],
+                cwd=repo_root,
+                env=_git_environment(),
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise _GitCommandError("git shallow ancestry lookup could not execute") from exc
+        if result.returncode == 0:
+            raise _GitCommandError("selected stale-seal ancestry crosses a shallow boundary")
+        if result.returncode != 1:
+            raise _GitCommandError("git shallow ancestry lookup failed")
 
 
 def _validate_material_path(path_bytes: bytes) -> str:
@@ -1769,6 +1824,8 @@ def validate_mapping_only_closeout_successor(
 def _stale_seal_commit_parents(repo_root: Path, commit_sha: str) -> tuple[str, ...]:
     commit = _require_sha(commit_sha, label="stale-seal commit")
     try:
+        git = _git_path()
+        _reject_shallow_evidence_commits(repo_root, commit_shas=(commit,), git=git)
         raw = _run_git(repo_root, ["rev-list", "--parents", "-n", "1", commit])
         values = raw.decode("ascii").strip().split()
     except (_GitCommandError, UnicodeDecodeError) as exc:
@@ -2009,6 +2066,9 @@ def _stale_seal_material_manifest(
     """Compute stale-seal material evidence, terminal on Git/object uncertainty."""
 
     try:
+        git = _git_path()
+        _reject_shallow_ancestry(repo_root, descendant_sha=base_ref_oid, git=git)
+        _reject_shallow_ancestry(repo_root, descendant_sha=head_ref_oid, git=git)
         return compute_material_manifest(
             repo_root,
             base_ref_oid=base_ref_oid,
@@ -2514,6 +2574,8 @@ def _stale_seal_cache_snapshot_parents(
         return
     try:
         requested = tuple(_require_sha(sha, label="stale-seal snapshot commit") for sha in missing)
+        git = _git_path()
+        _reject_shallow_evidence_commits(repo_root, commit_shas=requested, git=git)
         raw = _run_git(
             repo_root,
             ["rev-list", "--parents", "--no-walk", "--stdin"],

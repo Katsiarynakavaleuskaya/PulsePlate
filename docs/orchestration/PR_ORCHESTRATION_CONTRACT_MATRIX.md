@@ -441,8 +441,9 @@ mapping, unresolved threads, ancestry, closeout, or wait-window requirements.
 Every pagination link must remain on `api.github.com` at the same repository
 endpoint and path with immutable non-pagination query fields; a repeated,
 cross-repository, or cross-endpoint page is terminal uncertainty. Local Git
-evidence is evaluated only in a complete non-shallow repository with replacement
-objects disabled. This path
+evidence is evaluated with replacement objects disabled; a shallow boundary that
+hides a selected parent or lies in selected ancestry is terminal, while an
+unrelated legacy shallow boundary supplies no evidence. This path
 records `FIXED`, not `NOT-A-BUG`: the defect was real at
 `S` and `R` corrected it. It grants no review, provider output, approval, scan,
 PASS, merge authority, or bypass of current CI, security, other findings,
@@ -495,15 +496,15 @@ review/security scans.
 Evidence:
 - `scripts/orchestration/pr_review_evidence.py:577` — exact `OWNER FIXED` parser
 - `scripts/orchestration/pr_review_evidence.py:783` — shared reply-only producer
-- `scripts/orchestration/pr_review_evidence.py:1909` — raw-Git linear-material edge invariant
-- `scripts/orchestration/pr_review_evidence.py:2572` — closed historical topology classifier
+- `scripts/orchestration/pr_review_evidence.py:1966` — raw-Git linear-material edge invariant
+- `scripts/orchestration/pr_review_evidence.py:2632` — closed historical topology classifier
 - `tests/test_pr_review_material_seal.py:6661` — real-Git base-sync acceptance with later sync/current reseal
 - `tests/test_pr_review_material_seal.py:6672` — real-Git linear-material acceptance
 - `tests/test_pr_review_material_seal.py:6700` — exact parser rejection matrix
 - `tests/test_pr_review_material_seal.py:6929` — linear topology negative matrix
 - `tests/test_pr_review_material_seal.py:6944` — linear historical base-binding negatives
 - `tests/test_pr_review_material_seal.py:6959` — invalid base-sync no-fallthrough proof
-- `tests/test_pr_review_material_seal.py:7195` — batched complete parent enumeration
+- `tests/test_pr_review_material_seal.py:7216` — batched complete parent enumeration
 - `tests/test_pr_merge_readiness_gate.py:48` — strict merge-readiness consumer uses the shared producer
 - `tests/test_pr_merge_readiness_gate.py:81` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer
