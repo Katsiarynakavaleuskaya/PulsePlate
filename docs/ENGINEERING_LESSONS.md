@@ -876,12 +876,19 @@ Classify the new review item before choosing the recovery path:
    successor.
 6. If a mapping-only successor already exists, no real material correction may
    be appended on top of it. A historical stale-seal finding is the narrow
-   exception when it was true on a genuine base-advancing two-parent sync head
-   `S` and the sole direct mapping-only reseal `R` was pushed after the finding
-   but no later than the OWNER reply and already corrected it. Preserve that ancestry,
-   validate the inherited prior seal, the reseal at `R`, and the current live
-   seal, and use the exact owner-only `FIXED` reply instead of manufacturing
-   material or replacing the PR.
+   exception only when `S` matches one form in the closed disjoint union
+   `LINEAR_MATERIAL ∪ BASE_SYNC` and the sole direct mapping-only reseal `R` was
+   pushed after the finding but no later than the OWNER reply and already
+   corrected it. `LINEAR_MATERIAL` requires one parent `P`, unchanged inherited
+   mapping, a non-empty real material-only `P→S` diff, the exact unchanged
+   historical base/merge-base, live-PR reachability of `P`, current-base
+   ancestry, and a seal proven stale at `S`; it is retrospective only and is
+   never permission to manufacture post-closeout material. `BASE_SYNC` retains
+   the genuine base-advance and second-parent non-ancestry requirements. A
+   failed two-parent form never falls through to linear, and all other parent
+   counts fail closed. Preserve that ancestry, validate the inherited prior
+   seal, the reseal at `R`, and the current live seal, and use the exact
+   owner-only `FIXED` reply instead of manufacturing material or replacing the PR.
    Otherwise keep the finding unresolved and supersede the PR from a clean
    current base through the normal coordinator-owned replacement flow, where a
    real correction advances material before that PR's sole mapping-only
@@ -922,7 +929,8 @@ Classify the new review item before choosing the recovery path:
    The validator-proven historical and current seal structure records that
    already-completed correction without a second mapping/docs commit; the OWNER
    still inspects the whole root, and two eligible roots or any evidence
-   uncertainty remain blocking.
+   uncertainty remain blocking. This class supplies no review, provider output,
+   approval, scan, PASS, merge authority, or bypass of any ordinary gate.
 
 The mapping artifact remains excluded from the material digest. Every real
 correction must be based on and advance material, invalidate the prior seal,

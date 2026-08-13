@@ -394,21 +394,31 @@ the OWNER reply. GraphQL and REST evidence must cross-bind the same repository,
 PR, comment URL and numeric ID, canonical path, byte-identical unedited root
 body and timestamps, trusted connector identity, and `originalCommit=S`.
 Authenticated GitHub and local Git evidence must prove that `S` and `R` are
-real current-PR commits reachable from the live head, `S` is an
-exact two-parent base-sync merge, and `R` is the sole direct one-parent child of
+real current-PR commits reachable from the live head, `S` matches exactly one
+member of the closed disjoint union `LINEAR_MATERIAL ∪ BASE_SYNC`, and `R` is
+the sole direct one-parent child of
 `S` in the complete live PR commit graph, pushed after the root and no later
 than the OWNER reply, non-empty, non-trigger-only, and changing exactly the
-regular canonical mapping blob. The
-second parent `B` must be repository-addressable, an ancestor of the
-authenticated current base, an advancement of the prior sealed base, and not
-already an ancestor of the first parent `P`. The mapping inherited at `S` must
-equal the `P` mapping and contain a seal that recomputes for its prior
+regular canonical mapping blob. In `LINEAR_MATERIAL`, `S` has exactly one
+parent `P`; its mapping equals `P` byte-for-byte; `P→S` is a non-empty real
+material diff that neither changes nor exclusively changes the canonical
+mapping; the valid seal at `P` binds its exact historical base and merge-base;
+that base is unchanged for `S` and `R` and is an ancestor of the authenticated
+current base; `P` is a reachable live PR commit; and the inherited seal is
+demonstrably stale at `S`. This form is retrospective only and does not permit
+manufacturing material after closeout. In `BASE_SYNC`, the second parent `B`
+must be repository-addressable, an ancestor of the authenticated current base,
+an advancement of the prior sealed base, and not already an ancestor of the
+first parent `P`. A two-parent candidate is classified only as `BASE_SYNC` and
+never falls through to linear after a failed invariant; zero, three, or more
+parents are rejected. In both forms, the mapping inherited at `S` must equal
+the `P` mapping and contain a seal that recomputes for its prior
 material/base identity. That historical seal may use any valid parseable v1
 provider shape; its repository-addressable material head must reach `P` through
 the unique ordinary direct mapping-only closeout invariant, yet the inherited
 seal must not be valid for `S`. The seal at `R` must use the exact
 provider-neutral no-claim plus self-review shape, bind material head `S`, use
-`B` as both base and merge-base,
+the form-selected unchanged or synchronized base and exact merge-base,
 and match the exact recomputed material digest; the `S` and `R` material
 projections must be identical after excluding the mapping. If later
 base syncs exist, `R` may be an ancestor of the live head, but the current live
@@ -425,6 +435,9 @@ prose, never authors the reply, and fails closed on any repository, REST,
 GraphQL, repository-bound pagination, commit-object identity,
 replacement-object, commit-graph, regular-path, seal, digest, timestamp, or
 cardinality uncertainty.
+This class is not review, provider output, approval, scan, PASS, merge
+authority, or a bypass of actual findings, current-head CI, trusted security,
+mapping, unresolved threads, ancestry, closeout, or wait-window requirements.
 Every pagination link must remain on `api.github.com` at the same repository
 endpoint and path with immutable non-pagination query fields; a repeated,
 cross-repository, or cross-endpoint page is terminal uncertainty. Local Git
@@ -481,8 +494,14 @@ review/security scans.
 Evidence:
 - `scripts/orchestration/pr_review_evidence.py:577` — exact `OWNER FIXED` parser
 - `scripts/orchestration/pr_review_evidence.py:783` — shared reply-only producer
-- `tests/test_pr_review_material_seal.py:6557` — real-Git producer acceptance with later sync/current reseal
-- `tests/test_pr_review_material_seal.py:6568` — exact parser rejection matrix
+- `scripts/orchestration/pr_review_evidence.py:1817` — raw-Git linear-material edge invariant
+- `scripts/orchestration/pr_review_evidence.py:2405` — closed historical topology classifier
+- `tests/test_pr_review_material_seal.py:6603` — real-Git base-sync acceptance with later sync/current reseal
+- `tests/test_pr_review_material_seal.py:6614` — real-Git linear-material acceptance
+- `tests/test_pr_review_material_seal.py:6642` — exact parser rejection matrix
+- `tests/test_pr_review_material_seal.py:6818` — linear topology negative matrix
+- `tests/test_pr_review_material_seal.py:6833` — linear historical base-binding negatives
+- `tests/test_pr_review_material_seal.py:6848` — invalid base-sync no-fallthrough proof
 - `tests/test_pr_merge_readiness_gate.py:48` — strict merge-readiness consumer uses the shared producer
 - `tests/test_pr_merge_readiness_gate.py:82` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer

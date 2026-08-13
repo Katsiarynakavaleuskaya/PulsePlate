@@ -619,22 +619,32 @@ Use this as the canonical operating loop from branch creation to merge window:
      mapping-only reseal, first inspect the complete root and confirm that it has
      no independent actionable finding beyond the historical stale-seal defect
      that `R` corrected. Then verify that the trusted resolved
-     canonical-mapping root has `originalCommit=S`, that `S` is the exact
-     two-parent base-sync merge, and that `R` is its unique direct non-empty,
+     canonical-mapping root has `originalCommit=S`, that `S` matches exactly one
+     form in `LINEAR_MATERIAL ∪ BASE_SYNC`, and that `R` is its unique direct non-empty,
      non-trigger-only mapping-only child pushed after the root and no later than
-     the OWNER reply. Verify that the synchronized-main second parent advances
-     the prior sealed base and was not already an ancestor of the first parent.
+     the OWNER reply. For `LINEAR_MATERIAL`, verify sole parent `P`, byte-identical
+     inherited mapping, a non-empty material-only `P→S` diff, the prior seal's
+     exact unchanged historical base/merge-base, live-PR reachability of `P`,
+     current-base ancestry, and that the inherited seal is stale at `S`. This is
+     retrospective evidence only and never permission to manufacture material
+     after closeout. For `BASE_SYNC`, verify that the synchronized-main second
+     parent advances the prior sealed base and was not already an ancestor of
+     the first parent. Do not reinterpret a failed two-parent form as linear;
+     reject all other parent counts.
      Recompute the inherited seal at `S` against its prior first-parent identity
      (valid legacy v1 provider shapes remain acceptable there), the reseal at
-     `R` against material head `S` and `S`'s synchronized-main second parent, and
-     the current live seal independently against the current base/head. Require
+     `R` against material head `S`, the form-selected unchanged historical base
+     for `LINEAR_MATERIAL` or synchronized second-parent base for `BASE_SYNC`,
+     and the exact computed merge-base. Recompute the current live seal
+     independently against the current base/head. Require
      identical `S`/`R` material projections after excluding the mapping. Only
      after all evidence passes, confirm that no other OWNER reply exists and
      post the sole later OWNER reply:
      `OWNER FIXED: stale seal at <full-stale-head-sha> is corrected by mapping-only reseal <full-reseal-sha>; authenticated live PR graph is authoritative.`
      Resolve the thread only after the exact reply is visible. Do not add the
      root to the mapping, create another docs commit, interpret the bot's prose,
-     or treat the reply as review or merge authority. An existing same-root
+     or treat the reply as review, provider output, approval, scan, PASS, or
+     merge authority; it bypasses none of the ordinary gates. An existing same-root
      mapping/fingerprint, a second eligible stale-seal root, a stale current
      seal, a pagination link that leaves the same repository endpoint/path or
      changes non-pagination query fields, a Git replacement object, or any
