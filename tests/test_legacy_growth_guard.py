@@ -220,6 +220,153 @@ def test_application_instance_ownership_rejects_vars_namespace_app_mutation() ->
     assert "app/main.py: module app authority mutation is forbidden" in errors
 
 
+@pytest.mark.parametrize(
+    "constructor_source",
+    [
+        "import fastapi as f\nm = f\nrogue = m.FastAPI()\n",
+        "import fastapi.applications as fa\nm = fa\nrogue = m.FastAPI()\n",
+        textwrap.dedent("""
+            import fastapi as f
+
+            def build():
+                m = f
+                return m.FastAPI()
+            """),
+    ],
+)
+def test_application_instance_ownership_rejects_one_hop_constructor_module_alias(
+    constructor_source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = constructor_source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("one-hop FastAPI module alias" in error for error in errors)
+    assert any(
+        "app/other.py" in error and "constructor is forbidden outside" in error for error in errors
+    )
+    assert "FastAPI production constructor count must be exactly 1; found 2" in errors
+
+
+@pytest.mark.parametrize(
+    "mutation_source",
+    [
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+            alias = owner
+            alias.app = object()
+            """),
+        textwrap.dedent("""
+            import importlib
+            owner = importlib.import_module("app.bootstrap.application")
+            alias = owner
+            alias.app = object()
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+            namespace = vars(owner)
+            alias = namespace
+            alias["app"] = object()
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+            vars(owner).update({"app": object()})
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+            field = "app"
+            setattr(owner, field, object())
+            """),
+    ],
+)
+def test_application_instance_ownership_rejects_one_hop_authority_mutation(
+    mutation_source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += mutation_source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def helper(FastAPI):\n    return FastAPI()\n",
+        textwrap.dedent("""
+            from fastapi import FastAPI
+
+            def helper(FastAPI):
+                return FastAPI()
+            """),
+        textwrap.dedent("""
+            from fastapi import FastAPI
+
+            def helper():
+                FastAPI = object
+                return FastAPI()
+            """),
+        textwrap.dedent("""
+            def helper():
+                from fastapi import FastAPI
+                FastAPI = object
+                return FastAPI()
+            """),
+        textwrap.dedent("""
+            def helper():
+                import fastapi as framework
+                framework = object()
+                return framework.FastAPI()
+            """),
+        textwrap.dedent("""
+            from fastapi import FastAPI
+
+            class Helper:
+                FastAPI = staticmethod(lambda: object())
+                value = FastAPI()
+            """),
+    ],
+)
+def test_application_instance_ownership_ignores_ordinary_shadowed_constructor_name(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            def build():
+                from fastapi import FastAPI
+                return FastAPI()
+            """),
+        textwrap.dedent("""
+            def build():
+                import fastapi as framework
+                return framework.FastAPI()
+            """),
+    ],
+)
+def test_application_instance_ownership_rejects_exact_local_constructor_import(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "app/other.py" in error and "constructor is forbidden outside" in error for error in errors
+    )
+    assert "FastAPI production constructor count must be exactly 1; found 2" in errors
+
+
 def test_application_instance_ownership_rejects_ambiguous_constructor_binding() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/bootstrap/application.py"] += textwrap.dedent("""

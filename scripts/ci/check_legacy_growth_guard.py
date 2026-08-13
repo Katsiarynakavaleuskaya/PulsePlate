@@ -10782,11 +10782,14 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   A := name = C | name = (C, ...)[literal-int] | name = [C, ...][literal-int]
 #   M := exact protected-module import | importlib.import_module("exact.module")
 #   N := globals() | vars() | vars(M) | one-hop "name = vars(M)"
+#   S := one lexical scope frame that separates exact imports from ordinary
+#        parameter/local/class shadowing
 #
-# OPEN_WORLD_STOP: reject constructor-bearing computed containers, alias chains,
-# dynamic lookups, and namespace flow outside G. Never add a fixed-point solver,
-# scope interpreter, registry, plugin, or open-world exception to this guard.
-FASTAPI_OWNERSHIP_GRAMMAR_G = ("C", "A", "M", "N")
+# OPEN_WORLD_STOP: reject one-hop constructor-module aliases, constructor-bearing
+# computed containers, longer alias chains, dynamic lookups, and namespace flow
+# outside G. Never add a fixed-point solver, general data-flow interpreter,
+# registry, plugin, or open-world exception to this guard.
+FASTAPI_OWNERSHIP_GRAMMAR_G = ("C", "A", "M", "N", "S")
 OPEN_WORLD_STOP = "reject FastAPI or app-authority flow outside grammar G"
 _PROTECTED_APP_MODULES = frozenset({"app", "app.main", "app.bootstrap.application", "legacy_app"})
 
@@ -10798,6 +10801,8 @@ class _ConstructorLexicon:
     aliases: set[str]
     conflicts: set[str]
     unsupported_lines: set[int]
+    unsupported_module_aliases: set[str]
+    shadowed_calls: set[int]
 
 
 def _exact_dotted_name(node: ast.AST) -> str | None:
@@ -10923,11 +10928,172 @@ def _simple_assignment(
     return None
 
 
+def _module_scope_node_ids(tree: ast.Module) -> set[int]:
+    """Collect module-scope nodes without entering a nested lexical scope."""
+
+    node_ids: set[int] = set()
+
+    class Visitor(ast.NodeVisitor):
+        def generic_visit(self, node: ast.AST) -> None:
+            node_ids.add(id(node))
+            super().generic_visit(node)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            node_ids.add(id(node))
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            node_ids.add(id(node))
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            node_ids.add(id(node))
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            node_ids.add(id(node))
+
+    Visitor().visit(tree)
+    return node_ids
+
+
+def _scope_exact_fastapi_imports(body: Sequence[ast.stmt]) -> set[str]:
+    exact: set[str] = set()
+
+    class Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            return
+
+        def visit_Import(self, node: ast.Import) -> None:
+            exact.update(
+                alias.asname or alias.name.split(".", 1)[0]
+                for alias in node.names
+                if alias.name in {"fastapi", "fastapi.applications"}
+            )
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            exact.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if _import_reference(node, alias) in FASTAPI_CONSTRUCTOR_REFERENCES
+            )
+
+    visitor = Visitor()
+    for statement in body:
+        visitor.visit(statement)
+    scope_tree = ast.Module(body=list(body), type_ignores=[])
+    exact_events = {"fastapi", "fastapi.applications", *FASTAPI_CONSTRUCTOR_REFERENCES}
+    return {
+        name
+        for name in exact
+        if (events := _module_binding_events(scope_tree, name))
+        and len(events) == 1
+        and events[0][1] in exact_events
+    }
+
+
+def _shadowed_constructor_calls(tree: ast.Module) -> set[int]:
+    """Identify calls hidden by one ordinary lexical binding frame."""
+
+    parents = {id(child): node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    frames: dict[int, tuple[set[str], set[str]]] = {}
+
+    def frame(
+        scope: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda,
+    ) -> tuple[set[str], set[str]]:
+        body = () if isinstance(scope, ast.Lambda) else scope.body
+        arguments = (
+            scope.args
+            if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
+            else None
+        )
+        exact = _scope_exact_fastapi_imports(body)
+        bound = _assigned_names(ast.Module(body=list(body), type_ignores=[]))
+        if arguments is not None:
+            bound.update(
+                argument.arg
+                for argument in (
+                    *arguments.posonlyargs,
+                    *arguments.args,
+                    *arguments.kwonlyargs,
+                )
+            )
+            if arguments.vararg is not None:
+                bound.add(arguments.vararg.arg)
+            if arguments.kwarg is not None:
+                bound.add(arguments.kwarg.arg)
+        result = (bound - exact, exact)
+        frames[id(scope)] = result
+        return result
+
+    shadowed: set[int] = set()
+    for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+        attribute = call.func.attr if isinstance(call.func, ast.Attribute) else None
+        owner = call.func.value if isinstance(call.func, ast.Attribute) else None
+        root = call.func.id if isinstance(call.func, ast.Name) else None
+        if isinstance(owner, ast.Name) and attribute == "FastAPI":
+            root = owner.id
+        elif (
+            isinstance(owner, ast.Attribute)
+            and owner.attr == "applications"
+            and isinstance(owner.value, ast.Name)
+            and attribute == "FastAPI"
+        ):
+            root = owner.value.id
+        if root is None:
+            continue
+        child: ast.AST = call
+        skip_classes = False
+        while (parent := parents.get(id(child))) is not None:
+            if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                in_body = (
+                    child is parent.body if isinstance(parent, ast.Lambda) else child in parent.body
+                )
+                if in_body:
+                    ordinary, exact = frames.get(id(parent)) or frame(parent)
+                    if root in exact:
+                        break
+                    if root in ordinary:
+                        shadowed.add(id(call))
+                        break
+                    skip_classes = True
+            elif isinstance(parent, ast.ClassDef) and child in parent.body and not skip_classes:
+                ordinary, exact = frames.get(id(parent)) or frame(parent)
+                if root in exact:
+                    break
+                if root in ordinary:
+                    shadowed.add(id(call))
+                    break
+            child = parent
+    return shadowed
+
+
+def _constructor_module_reference(node: ast.AST, modules: AbstractSet[str]) -> bool:
+    dotted = _exact_dotted_name(node)
+    return (
+        dotted in {"fastapi", "fastapi.applications"}
+        or (isinstance(node, ast.Name) and node.id in modules)
+        or (
+            isinstance(node, ast.Attribute)
+            and node.attr == "applications"
+            and isinstance(node.value, ast.Name)
+            and node.value.id in modules
+        )
+    )
+
+
 def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
     """Recognize G in three fixed lexical passes; never iterate facts."""
 
-    names = {"FastAPI"}
-    modules = {"fastapi"}
+    module_scope_ids = _module_scope_node_ids(tree)
+    names: set[str] = set()
+    modules: set[str] = set()
     conflicts: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -10944,13 +11110,17 @@ def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
                     names.add(bound)
                 elif bound in names | modules:
                     conflicts.add(bound)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        elif (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and id(node) in module_scope_ids
+        ):
             if node.name in names | modules:
                 conflicts.add(node.name)
 
     records: list[tuple[ast.Assign | ast.AnnAssign | ast.NamedExpr, ast.AST, bool]] = []
     aliases: set[str] = set()
     unsupported_lines: set[int] = set()
+    unsupported_module_aliases: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
             continue
@@ -10963,14 +11133,21 @@ def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
             simple is not None
             and _constructor_atom(candidate, names=names, modules=modules) is not None
         )
-        records.append((node, value, exact))
+        module_scope = id(node) in module_scope_ids
+        if module_scope:
+            records.append((node, value, exact))
         targets = node.targets if isinstance(node, ast.Assign) else (node.target,)
         target_names = {
             target_name for target in targets for target_name in _assignment_target_names(target)
         }
-        if exact and simple is not None:
+        if exact and simple is not None and module_scope:
             aliases.add(simple[0])
-        else:
+        elif exact:
+            unsupported_lines.add(node.lineno)
+        elif simple is not None and _constructor_module_reference(candidate, modules):
+            unsupported_module_aliases.add(simple[0])
+            unsupported_lines.add(node.lineno)
+        elif module_scope:
             conflicts.update(target_names)
             if _contains_constructor(value, names=names, modules=modules):
                 unsupported_lines.add(node.lineno)
@@ -10980,11 +11157,36 @@ def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
             isinstance(child, ast.Name) and child.id in aliases for child in ast.walk(value)
         ):
             unsupported_lines.add(node.lineno)
-    return _ConstructorLexicon(names, modules, aliases, conflicts, unsupported_lines)
+    return _ConstructorLexicon(
+        names,
+        modules,
+        aliases,
+        conflicts,
+        unsupported_lines,
+        unsupported_module_aliases,
+        _shadowed_constructor_calls(tree),
+    )
 
 
-def _constructor_call_kind(target: ast.AST, lexicon: _ConstructorLexicon) -> str | None:
+def _constructor_call_kind(call: ast.Call, lexicon: _ConstructorLexicon) -> str | None:
+    target = call.func
     candidate = _literal_element(target) or target
+    unsupported_module = (
+        isinstance(candidate, ast.Attribute)
+        and candidate.attr == "FastAPI"
+        and (
+            isinstance(candidate.value, ast.Name)
+            and candidate.value.id in lexicon.unsupported_module_aliases
+            or isinstance(candidate.value, ast.Attribute)
+            and candidate.value.attr == "applications"
+            and isinstance(candidate.value.value, ast.Name)
+            and candidate.value.value.id in lexicon.unsupported_module_aliases
+        )
+    )
+    if unsupported_module:
+        return "unsupported_constructor"
+    if id(call) in lexicon.shadowed_calls:
+        return None
     atom = _constructor_atom(candidate, names=lexicon.names, modules=lexicon.modules)
     alias = (
         candidate.id
@@ -11040,6 +11242,17 @@ def _module_names(tree: ast.Module, module: str) -> set[str]:
     return names
 
 
+def _one_hop_name_aliases(tree: ast.Module, source_names: AbstractSet[str]) -> set[str]:
+    return {
+        simple[0]
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        and (simple := _simple_assignment(node)) is not None
+        and isinstance(simple[1], ast.Name)
+        and simple[1].id in source_names
+    }
+
+
 def _is_module(node: ast.AST, module: str, names: AbstractSet[str]) -> bool:
     return (
         _exact_dotted_name(node) == module
@@ -11049,12 +11262,16 @@ def _is_module(node: ast.AST, module: str, names: AbstractSet[str]) -> bool:
 
 
 def _module_app_mutation(tree: ast.Module) -> bool:
-    module_names = {module: _module_names(tree, module) for module in _PROTECTED_APP_MODULES}
+    exact_module_names = {module: _module_names(tree, module) for module in _PROTECTED_APP_MODULES}
+    module_names = {
+        module: names | _one_hop_name_aliases(tree, names)
+        for module, names in exact_module_names.items()
+    }
 
     def protected(node: ast.AST) -> bool:
         return any(_is_module(node, module, names) for module, names in module_names.items())
 
-    namespaces: set[str] = set()
+    exact_namespaces: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
             continue
@@ -11070,10 +11287,21 @@ def _module_app_mutation(tree: ast.Module) -> bool:
             and not value.keywords
             and protected(value.args[0])
         ):
-            namespaces.add(name)
+            exact_namespaces.add(name)
+    namespaces = exact_namespaces | _one_hop_name_aliases(tree, exact_namespaces)
+
+    def protected_namespace(node: ast.AST) -> bool:
+        return (isinstance(node, ast.Name) and node.id in namespaces) or (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "vars"
+            and len(node.args) == 1
+            and not node.keywords
+            and protected(node.args[0])
+        )
 
     def namespace(node: ast.AST) -> bool:
-        if isinstance(node, ast.Name) and node.id in namespaces:
+        if protected_namespace(node):
             return True
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
             return False
@@ -11092,23 +11320,45 @@ def _module_app_mutation(tree: ast.Module) -> bool:
             if isinstance(target, ast.Attribute) and target.attr == "app":
                 if protected(target.value) or namespace(target.value):
                     return True
-            if isinstance(target, ast.Subscript) and _static_string(target.slice) == "app":
-                if protected(target.value) or namespace(target.value):
+            if isinstance(target, ast.Subscript) and (
+                protected(target.value) or namespace(target.value)
+            ):
+                key = _static_string(target.slice)
+                if key == "app" or (
+                    key is None and (protected(target.value) or protected_namespace(target.value))
+                ):
                     return True
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "setattr"
             and len(node.args) >= 2
-            and _static_string(node.args[1]) == "app"
             and (protected(node.args[0]) or namespace(node.args[0]))
         ):
-            return True
+            attribute = _static_string(node.args[1])
+            if attribute == "app" or (
+                attribute is None and (protected(node.args[0]) or protected_namespace(node.args[0]))
+            ):
+                return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "update"
+            and protected_namespace(node.func.value)
+        ):
+            for argument in node.args:
+                if not isinstance(argument, ast.Dict) or any(
+                    key is None or _static_string(key) in {None, "app"} for key in argument.keys
+                ):
+                    return True
+            if any(keyword.arg is None or keyword.arg == "app" for keyword in node.keywords):
+                return True
     return False
 
 
 def _selects_module_app(tree: ast.Module, module: str, *, legacy_loader: bool = False) -> bool:
-    names = _module_names(tree, module)
+    exact_names = _module_names(tree, module)
+    names = exact_names | _one_hop_name_aliases(tree, exact_names)
 
     def owner(node: ast.AST) -> bool:
         return (
@@ -11191,7 +11441,7 @@ def validate_application_instance_ownership(
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            kind = _constructor_call_kind(node.func, lexicon)
+            kind = _constructor_call_kind(node, lexicon)
             direct = _exact_dotted_name(node.func) in {
                 "FastAPI",
                 *FASTAPI_CONSTRUCTOR_REFERENCES,
@@ -11212,6 +11462,11 @@ def validate_application_instance_ownership(
             elif kind == "unsupported":
                 errors.append(
                     f"{filename}:{node.lineno}: unsupported FastAPI constructor form is forbidden"
+                )
+            elif kind == "unsupported_constructor":
+                constructors.append((filename, node))
+                errors.append(
+                    f"{filename}:{node.lineno}: one-hop FastAPI module alias is outside grammar G"
                 )
 
     if len(constructors) != 1:
