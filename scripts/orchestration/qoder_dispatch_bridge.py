@@ -724,7 +724,7 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
     if required_strings["domain"] != canonical_domain or domain_route is None:
         raise ValueError("invariant_review.v2 identity source fields must be canonical")
     if requested_agents != list(dict.fromkeys(requested_agents)) or any(
-        value != value.strip() or not _ROLE_SLUG_RE.fullmatch(value) for value in requested_agents
+        value != value.strip() for value in requested_agents
     ):
         raise ValueError("invariant_review.v2 requested_agents must be canonical")
     disposition_agents = [
@@ -736,6 +736,15 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
         raise ValueError(
             "invariant_review.v2 requested_agents must exactly match " "requested_agent_disposition"
         )
+    for agent, row in zip(requested_agents, requested_agent_disposition, strict=True):
+        if _ROLE_SLUG_RE.fullmatch(agent):
+            continue
+        if (
+            invariant_review.get("state") != "not_required"
+            or not isinstance(row, dict)
+            or row.get("status") != REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN
+        ):
+            raise ValueError("invariant_review.v2 requested_agents must be canonical")
     if invariant_review.get("state") == "required_pending" and any(
         agent not in INVARIANT_FAMILY_REVIEW_ROLE_ORDER for agent in requested_agents
     ):

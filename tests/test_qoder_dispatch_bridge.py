@@ -256,6 +256,45 @@ def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
     assert review["state"] == "not_required"
 
 
+def test_qoder_accepts_producer_rejected_unknown_requested_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = _v2_source_artifact(repeated=False)
+    snapshot = cast(Dict[str, Any], artifact["snapshot"])
+    families = cast(List[Dict[str, Any]], snapshot["families"])
+    families[0]["finding_ids"] = ["finding_a"]
+    monkeypatch.setattr(
+        task_bootstrap,
+        "_read_invariant_family_relations_input",
+        lambda _path: artifact,
+    )
+    packet = task_bootstrap.build_task_packet(
+        goal="Review explicit invariant families",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["invalid_slug"],
+        review_invariant_family_relations_input=(
+            "artifacts/orchestration/review_invariant_family_relations/input.json"
+        ),
+        pr_phase="post_open_review",
+    )
+
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "invalid_slug",
+            "status": "rejected_unknown_agent",
+            "reason": "Agent is not registered in the canonical inventory.",
+        }
+    ]
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    qa_index = roles.index("qa-engineer-agent")
+    assert roles[qa_index : qa_index + 3] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+
+
 def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
