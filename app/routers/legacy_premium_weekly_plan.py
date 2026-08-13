@@ -121,6 +121,7 @@ async def api_weekly_menu(
         _raise_weekly_menu_failure()
 
     try:
-        return build_legacy_weekly_menu_response(menu_payload)
+        response: WeeklyMenuResponse = build_legacy_weekly_menu_response(menu_payload)
+        return response
     except Exception:
         _raise_weekly_menu_failure()
