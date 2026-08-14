@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.orchestration.task_bootstrap as task_bootstrap
 from scripts.orchestration.render_codex_start_prompt import (
     main,
     render_packet_prompt,
@@ -213,6 +214,70 @@ def test_packet_prompt_normalizes_requested_order_when_security_precedes_bug_hun
         "Role order: agent-coordinator, qa-engineer-agent, bug-hunter, security-auditor" in prompt
     )
     assert "Role order: agent-coordinator, qa-engineer-agent, security-auditor" not in prompt
+
+
+def test_packet_prompt_renders_producer_generated_repeated_family_review_v2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The unchanged renderer consumes a real producer-generated v2 packet."""
+
+    artifact = {
+        "schema_version": "review_invariant_family_relations.v1",
+        "policy_version": "review_invariant_family_relations.policy.v1",
+        "snapshot": {
+            "families": [
+                {"family_id": "family_alpha", "finding_ids": ["finding_a", "finding_b"]},
+                {"family_id": "family_beta", "finding_ids": ["finding_b"]},
+            ]
+        },
+        "snapshot_fingerprint": "sha256:" + ("1" * 64),
+        "artifact_fingerprint": "sha256:" + ("2" * 64),
+        "idempotency_key": "review-invariant-family-relations.v1:" + ("2" * 64),
+        "relations": [
+            {
+                "left_family_id": "family_alpha",
+                "right_family_id": "family_beta",
+                "relation": "right_proper_subset",
+                "intersection_finding_ids": ["finding_b"],
+                "left_only_finding_ids": ["finding_a"],
+                "right_only_finding_ids": [],
+            }
+        ],
+        "unknown_finding_ids": [],
+    }
+    l1_input_path = "artifacts/orchestration/review_invariant_family_relations/renderer-input.json"
+    packet_path = "artifacts/orchestration/task_packets/renderer-v2.json"
+    monkeypatch.setattr(
+        task_bootstrap,
+        "_read_invariant_family_relations_input",
+        lambda _path: artifact,
+    )
+    packet = task_bootstrap.build_task_packet(
+        goal="Review repeated explicit invariant families",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+        review_invariant_family_relations_input=l1_input_path,
+        pr_phase="post_open_review",
+    )
+
+    prompt = render_packet_prompt(packet, packet_path=packet_path)
+
+    assert (
+        "Role order: agent-coordinator, logic-agent, philosophy-agent, "
+        "qa-engineer-agent, bug-hunter, security-auditor" in prompt
+    )
+    assert packet["role_agent_dispatch_contract"]["dispatch_role_order"] == [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    assert f"Task packet: {packet_path}" in prompt
+    assert l1_input_path not in prompt
+    assert "--implementation-owner" not in prompt
 
 
 def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -> None:

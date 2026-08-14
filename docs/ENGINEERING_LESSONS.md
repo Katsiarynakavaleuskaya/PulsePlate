@@ -874,10 +874,24 @@ Classify the new review item before choosing the recovery path:
    digest, run exact-material self-review, collect the stable live review
    inventory, author dispositions, and publish exactly one direct mapping-only
    successor.
-6. If a mapping-only successor already exists, no real correction may be
-   appended on top of it. Keep the finding unresolved and supersede the PR from
-   a clean current base through the normal coordinator-owned replacement flow,
-   where the correction advances material before that PR's sole mapping-only
+6. If a mapping-only successor already exists, no real material correction may
+   be appended on top of it. A historical stale-seal finding is the narrow
+   exception only when `S` matches one form in the closed disjoint union
+   `LINEAR_MATERIAL ∪ BASE_SYNC` and the sole direct mapping-only reseal `R` was
+   pushed after the finding but no later than the OWNER reply and already
+   corrected it. `LINEAR_MATERIAL` requires one parent `P`, unchanged inherited
+   mapping, a non-empty real material-only `P→S` diff, the exact unchanged
+   historical base/merge-base, live-PR reachability of `P`, current-base
+   ancestry, and a seal proven stale at `S`; it is retrospective only and is
+   never permission to manufacture post-closeout material. `BASE_SYNC` retains
+   the genuine base-advance and second-parent non-ancestry requirements. A
+   failed two-parent form never falls through to linear, and all other parent
+   counts fail closed. Preserve that ancestry, validate the inherited prior
+   seal, the reseal at `R`, and the current live seal, and use the exact
+   owner-only `FIXED` reply instead of manufacturing material or replacing the PR.
+   Otherwise keep the finding unresolved and supersede the PR from a clean
+   current base through the normal coordinator-owned replacement flow, where a
+   real correction advances material before that PR's sole mapping-only
    successor.
 7. If there is no honest material defect to correct, do not manufacture one.
    Use the validated reply-only path when its fingerprint contract applies;
@@ -885,9 +899,11 @@ Classify the new review item before choosing the recovery path:
    flow.
 8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
    refs, force-push history, or use generic operator approval to bypass the hard
-   disposition gate. The only owner response recognized for a root without its
-   own canonical fingerprint or FIXED mapping is the closed per-root class;
-   unrelated canonical records may coexist. After an explicit human decision,
+   disposition gate. The only owner responses recognized for a root without its
+   own canonical fingerprint or FIXED mapping are the two closed per-root
+   classes defined in this step and in step 9; unrelated canonical records may
+   coexist. For the
+   unavailable-ref NOT-A-BUG class, after an explicit human decision,
    one exact GraphQL-`OWNER` reply may say
    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
    It applies only to one resolved connector root on the canonical mapping file
@@ -908,6 +924,17 @@ Classify the new review item before choosing the recovery path:
    thread is the disposition evidence;
    do not add another mapping entry or docs commit. Non-covered roots remain
    subject to ordinary mapping.
+9. For the historical stale-seal exception, the human OWNER selects the exact
+   `S` and `R` only with
+   `OWNER FIXED: stale seal at <full-stale-head-sha> is corrected by mapping-only reseal <full-reseal-sha>; authenticated live PR graph is authoritative.`
+   The validator-proven historical and current seal structure records that
+   already-completed correction without a second mapping/docs commit; the OWNER
+   still inspects the whole root, and two eligible roots or any evidence
+   uncertainty remain blocking. Local topology evidence disables replacement
+   objects and rejects any shallow boundary that hides selected parents or
+   ancestry; an unrelated legacy shallow boundary grants no evidence. This
+   class supplies no review, provider output,
+   approval, scan, PASS, merge authority, or bypass of any ordinary gate.
 
 The mapping artifact remains excluded from the material digest. Every real
 correction must be based on and advance material, invalidate the prior seal,

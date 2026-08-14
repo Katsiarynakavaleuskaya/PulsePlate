@@ -24,6 +24,34 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-weekly-profile-client-confirmation"></a>
+- [ ] P1: Require explicit web and iOS confirmation for profile-driven weekly plans
+  - Owner: Human Product Owner to assign a separate web/iOS client lane
+  - Priority: P1 (client truth / weekly-plan trust)
+  - Target PR: Unassigned; set only when the Human Product Owner opens the client lane
+  - Status: Deferred client follow-up; non-blocking for the narrow E1-01 backend truth boundary
+  - Area: web / iOS / weekly planning / backend-contract parity
+  - Reason (EN): Web and iOS must distinguish unset or unconfirmed profile
+    selections from explicit `moderate` activity and `maintain` goal choices,
+    then require user confirmation before a profile-driven weekly-plan
+    submission. The backend remains the source of admission truth; clients must
+    not infer or synthesize the six core profile values.
+  - Links:
+    - `app/schemas/vip.py`
+    - `app/services/fitchef_runtime.py`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+  - DoD:
+    - web and iOS represent unset and unconfirmed values separately from
+      explicit `moderate` and `maintain` selections
+    - both clients require confirmation before profile-driven weekly submission
+      without moving profile admission or normalization truth out of the backend
+    - deterministic web/iOS parity tests cover unset, unconfirmed, explicit,
+      confirmed, and backend-rejected submissions
+    - the Human Product Owner assigns the separate client lane and target PR
+      only when that lane opens
+    - this item remains non-blocking for narrow E1-01, but blocks any broader
+      claim that a weekly profile is human-confirmed across clients
+
 <a id="ledger-p1-task-normative-envelope-v1-shadow"></a>
 - [ ] P1: Task normative envelope v1 shadow contract umbrella
   - Owner: orchestration / security-auditor
@@ -11229,11 +11257,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2/L3 require separate reviewed target PRs
-  - Status: L1 implementation in progress; L2/L3 closed and not authorized by L1
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 target branch `codex/repeated-invariant-family-abstraction-review-v1`; L3 requires a separate reviewed target PR
+  - Status: L1 merged; bounded L2 consumer implementation in progress; L3 remains closed and is not authorized by L1 or L2
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
+    - `docs/orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md`
     - `docs/orchestration/contracts/review_invariant_family_relations.v1.schema.json`
     - `scripts/orchestration/review_invariant_family_relations.py`
     - `tests/test_review_invariant_family_relations.py`
@@ -11242,6 +11271,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - L1 enforces input, output, diagnostic, finding, family, membership, pair, derived-reference, ID, strict-JSON, and const-false authority bounds through executable focused tests
     - L1 remains stdin/stdout only and adds no filesystem, environment, network, provider, subprocess, runtime, workflow, public API, mapping, learning, KPP, oracle, routing, review, promotion, or merge admission
     - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
+    - L2 consumes canonical L1 output only through the explicit post-open `task_bootstrap.py` input, triggers only on explicit family cardinality at least two, and emits no parser, semantic/causal inference, implementation-owner, review-disposition, mapping, or merge authority
     - L3 may be scoped only by a later reviewed packet with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; L1 output alone cannot open that gate
 
 <a id="ledger-p1-agent-experimentation-lane"></a>

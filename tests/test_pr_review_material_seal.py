@@ -14,6 +14,7 @@ import urllib.parse
 from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -5707,6 +5708,31 @@ def test_material_digest_tracks_rename_mode_binary_and_symlink(tmp_path: Path) -
     }
 
 
+def test_material_manifest_classifies_definite_non_ancestor_without_api_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "tracked.txt").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    monkeypatch.setattr(evidence_module, "_git_is_ancestor", lambda *_args, **_kwargs: False)
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="computed merge base is not an ancestor of both live refs",
+    ):
+        compute_material_manifest(
+            repo,
+            base_ref_oid=base,
+            head_ref_oid=head,
+            pr_number=42,
+        )
+
+
 def test_material_manifest_records_copy_only_as_exact_no_rename_addition(
     tmp_path: Path,
 ) -> None:
@@ -6015,6 +6041,1593 @@ def test_recordless_post_mapping_seed_stays_fail_closed(
 
     covered, _ = _recordless_seed_coverage(tmp_path, monkeypatch, **kwargs)
     assert covered == set()
+
+
+def _owner_stale_seal_reply(stale_head: str, reseal: str) -> str:
+    return (
+        f"OWNER FIXED: stale seal at {stale_head} is corrected by mapping-only reseal "
+        f"{reseal}; authenticated live PR graph is authoritative."
+    )
+
+
+def _provider_no_claim_seal_for_manifest(manifest: MaterialManifest) -> dict[str, Any]:
+    changed_files = tuple(entry.path for entry in manifest.entries)
+    report = _self_review_report_payload(
+        changed_files=changed_files,
+        base_ref_oid=manifest.base_ref_oid,
+        merge_base_sha=manifest.merge_base_sha,
+        material_head_sha=manifest.head_ref_oid,
+        material_digest=manifest.digest,
+    )
+    assert manifest.diff_summary is not None
+    report["scope_reviewed"]["diff_summary"] = manifest.diff_summary.as_dict()
+    code_review, codex_security = build_provider_no_claim_pair(
+        base_revision=manifest.merge_base_sha,
+        head_revision=manifest.head_ref_oid,
+        material_digest=manifest.digest,
+    )
+    return {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": codex_security,
+        "material": {
+            "base_ref_oid": manifest.base_ref_oid,
+            "digest": manifest.digest,
+            "material_head_sha": manifest.head_ref_oid,
+            "merge_base_sha": manifest.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+        "self_review": _self_review_receipt(report),
+    }
+
+
+def _legacy_provider_seal_for_manifest(manifest: MaterialManifest) -> dict[str, Any]:
+    """Return a valid historical v1 seal that predates provider-neutral authoring."""
+
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=manifest.merge_base_sha,
+            head_revision=manifest.head_ref_oid,
+            material_digest=manifest.digest,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"].update(
+        {
+            "review_commit_ref": manifest.head_ref_oid,
+            "reviewed_material_digest": manifest.digest,
+        }
+    )
+    seal["material"] = {
+        "base_ref_oid": manifest.base_ref_oid,
+        "digest": manifest.digest,
+        "material_head_sha": manifest.head_ref_oid,
+        "merge_base_sha": manifest.merge_base_sha,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    return seal
+
+
+def _mapping_artifact_with_unchecked_seal(seal: dict[str, Any]) -> str:
+    """Embed a deliberately invalid seal without calling the authoring validator."""
+
+    valid = _provider_no_claim_seal()
+    artifact = _mapping_artifact_with_seal(valid)
+    rendered = render_embedded_review_seal(valid)
+    unchecked = "\n".join(
+        [
+            SEAL_BEGIN,
+            json.dumps(
+                seal,
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+            SEAL_END,
+        ]
+    )
+    return artifact.replace(rendered, unchecked)
+
+
+def _merge(repo: Path, branch: str, message: str) -> str:
+    env = os.environ.copy()
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "PulsePlate Test",
+            "GIT_AUTHOR_EMAIL": "test@example.invalid",
+            "GIT_COMMITTER_NAME": "PulsePlate Test",
+            "GIT_COMMITTER_EMAIL": "test@example.invalid",
+        }
+    )
+    _git(repo, "merge", "--no-ff", branch, "-m", message, env=env)
+    return _git(repo, "rev-parse", "HEAD", env=env)
+
+
+def _stale_seal_reply_coverage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    root_count: int = 1,
+    root_resolved: bool = True,
+    root_author: str = "chatgpt-codex-connector",
+    root_original_commit: str = "stale",
+    reply_association: str = "OWNER",
+    reply_count: int = 1,
+    reply_created_at: str = "2026-08-12T12:00:00Z",
+    activity_time: str | None = "2026-08-12T11:00:00Z",
+    activity_times: tuple[str, ...] | None = None,
+    activity_pushed_at: str | None = None,
+    activity_source: str = "activity",
+    activity_edge_matches: bool = True,
+    activity_after_mode: str = "reseal",
+    reseal_pushed_at: str | None = None,
+    rest_mutation: tuple[str, Any] | None = None,
+    rest_user_mutation: tuple[str, Any] | None = None,
+    reseal_subject: str = "docs(review): reseal after base sync",
+    reseal_changes_material: bool = False,
+    reseal_shape: str = "direct",
+    stale_shape: str = "base-sync",
+    historical_seal_shape: str = "provider-neutral",
+    current_seal_shape: str = "provider-neutral",
+    current_reseal_subject: str = "docs(review): current reseal",
+    include_old_material_in_snapshot: bool = True,
+    prior_material_second_child: bool = False,
+    fingerprint_mode: str | None = None,
+    include_fingerprint_record: bool = True,
+    independent_invalid_root: bool = False,
+    current_digest_matches: bool = True,
+    mapping_entries: dict[str, str] | None = None,
+    activity_api_unknown: bool = False,
+    remote_reseal_ancestry: str = "reachable",
+) -> tuple[set[str], dict[str, str]]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "branch", "-m", "main")
+    (repo / "AGENTS.md").write_text("# Test instructions\n", encoding="utf-8")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    old_base = _commit(repo, "base")
+
+    (repo / "base-one.txt").write_text("one\n", encoding="utf-8")
+    synchronized_base = _commit(repo, "base one")
+    _git(repo, "checkout", "-q", "-b", "feature", old_base)
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    old_material = _commit(repo, "material")
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
+    old_manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=old_base,
+        head_ref_oid=old_material,
+        pr_number=42,
+    )
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    old_seal = (
+        _legacy_provider_seal_for_manifest(old_manifest)
+        if historical_seal_shape == "legacy"
+        else _provider_no_claim_seal_for_manifest(old_manifest)
+    )
+    if historical_seal_shape in {
+        "wrong-base",
+        "wrong-merge-base",
+        "wrong-material-head",
+        "wrong-digest",
+    }:
+        old_seal = json.loads(json.dumps(old_seal))
+        old_field, wrong_value = {
+            "wrong-base": ("base_ref_oid", "a" * 40),
+            "wrong-merge-base": ("merge_base_sha", "b" * 40),
+            "wrong-material-head": ("material_head_sha", "c" * 40),
+            "wrong-digest": ("digest", "sha256:" + "d" * 64),
+        }[historical_seal_shape]
+        old_seal["material"][old_field] = wrong_value
+        old_mapping = _mapping_artifact_with_unchecked_seal(old_seal)
+    elif historical_seal_shape == "absent":
+        old_mapping = "# PR 42 — Review Governance\n\n## Review Material Seal\n- absent\n"
+    elif historical_seal_shape == "malformed":
+        old_mapping = "\n".join([SEAL_BEGIN, "{", SEAL_END, ""])
+    else:
+        old_mapping = _mapping_artifact_with_seal(old_seal)
+    mapping.write_text(old_mapping, encoding="utf-8")
+    prior_closeout = _commit(repo, "docs(review): prior seal")
+
+    extra_commits: list[str] = []
+    if prior_material_second_child:
+        _git(repo, "checkout", "-q", "-b", "prior-sibling", old_material)
+        (repo / "sibling.txt").write_text("not closeout\n", encoding="utf-8")
+        extra_commits.append(_commit(repo, "second child of prior material"))
+    _git(repo, "checkout", "-q", "feature")
+    if stale_shape in {
+        "linear-material",
+        "linear-empty",
+        "linear-mapping-only",
+        "linear-mapping-mutation",
+    }:
+        if stale_shape in {"linear-material", "linear-mapping-mutation"}:
+            source.write_text("ENFORCED = True\nMODE = 'strict'\n", encoding="utf-8")
+        if stale_shape in {"linear-mapping-only", "linear-mapping-mutation"}:
+            mapping.write_text(old_mapping + "\nmutated at stale head\n", encoding="utf-8")
+        stale_head = _commit(
+            repo,
+            "material after prior closeout",
+            allow_empty=stale_shape == "linear-empty",
+        )
+        selected_synchronized_base = old_base
+    elif stale_shape == "three-parent":
+        tree = _git(repo, "rev-parse", f"{prior_closeout}^{{tree}}")
+        env = os.environ.copy()
+        env.update(
+            {
+                "GIT_AUTHOR_NAME": "PulsePlate Test",
+                "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                "GIT_COMMITTER_NAME": "PulsePlate Test",
+                "GIT_COMMITTER_EMAIL": "test@example.invalid",
+            }
+        )
+        stale_head = _git(
+            repo,
+            "commit-tree",
+            tree,
+            "-p",
+            prior_closeout,
+            "-p",
+            synchronized_base,
+            "-p",
+            old_base,
+            "-m",
+            "synthetic three-parent stale head",
+            env=env,
+        )
+        _git(repo, "reset", "--hard", stale_head)
+        selected_synchronized_base = synchronized_base
+    elif reseal_shape == "redundant-base-sync":
+        tree = _git(repo, "rev-parse", f"{prior_closeout}^{{tree}}")
+        env = os.environ.copy()
+        env.update(
+            {
+                "GIT_AUTHOR_NAME": "PulsePlate Test",
+                "GIT_AUTHOR_EMAIL": "test@example.invalid",
+                "GIT_COMMITTER_NAME": "PulsePlate Test",
+                "GIT_COMMITTER_EMAIL": "test@example.invalid",
+            }
+        )
+        stale_head = _git(
+            repo,
+            "commit-tree",
+            tree,
+            "-p",
+            prior_closeout,
+            "-p",
+            old_base,
+            "-m",
+            "synthetic redundant base sync",
+            env=env,
+        )
+        _git(repo, "reset", "--hard", stale_head)
+        selected_synchronized_base = old_base
+    else:
+        if stale_shape != "base-sync":
+            raise ValueError("unsupported stale_shape")
+        stale_head = _merge(repo, "main", "merge main into feature")
+        selected_synchronized_base = synchronized_base
+    reseal_manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=selected_synchronized_base,
+        head_ref_oid=stale_head,
+        pr_number=42,
+    )
+    reseal_seal = _provider_no_claim_seal_for_manifest(reseal_manifest)
+    if reseal_shape == "wrong-seal":
+        reseal_seal = json.loads(json.dumps(reseal_seal))
+        reseal_seal["material"]["digest"] = "sha256:" + "e" * 64
+        reseal_mapping = _mapping_artifact_with_unchecked_seal(reseal_seal)
+    elif reseal_shape == "absent-seal":
+        reseal_mapping = "# PR 42 — Review Governance\n\n## Review Material Seal\n- absent\n"
+    elif reseal_shape == "malformed-seal":
+        reseal_mapping = "\n".join([SEAL_BEGIN, "{", SEAL_END, ""])
+    else:
+        reseal_mapping = _mapping_artifact_with_seal(reseal_seal)
+    if reseal_shape == "non-direct":
+        extra_commits.append(_commit(repo, "intermediate non-reseal", allow_empty=True))
+    if reseal_shape != "empty":
+        mapping.write_text(reseal_mapping, encoding="utf-8")
+    if reseal_changes_material:
+        source.write_text("ENFORCED = False\n", encoding="utf-8")
+    reseal = _commit(repo, reseal_subject, allow_empty=reseal_shape == "empty")
+    if reseal_shape == "multiple-child":
+        _git(repo, "checkout", "-q", "-b", "reseal-sibling", stale_head)
+        extra_commits.append(_commit(repo, "second child of stale head", allow_empty=True))
+        _git(repo, "checkout", "-q", "feature")
+
+    if fingerprint_mode == "same":
+        current_base = selected_synchronized_base
+        current_material = stale_head
+        current_manifest = reseal_manifest
+        live_head = reseal
+        later_commits: tuple[str, ...] = ()
+    else:
+        _git(repo, "checkout", "-q", "main")
+        (repo / "base-two.txt").write_text("two\n", encoding="utf-8")
+        current_base = _commit(repo, "base two")
+        _git(repo, "checkout", "-q", "feature")
+        current_material = _merge(repo, "main", "merge later main into feature")
+        current_manifest = compute_material_manifest(
+            repo,
+            base_ref_oid=current_base,
+            head_ref_oid=current_material,
+            pr_number=42,
+        )
+        current_seal = _provider_no_claim_seal_for_manifest(current_manifest)
+        if current_seal_shape == "wrong-digest":
+            current_seal = json.loads(json.dumps(current_seal))
+            current_seal["material"]["digest"] = "sha256:" + "f" * 64
+            current_mapping = _mapping_artifact_with_unchecked_seal(current_seal)
+        elif current_seal_shape == "malformed":
+            current_mapping = "\n".join([SEAL_BEGIN, "{", SEAL_END, ""])
+        else:
+            current_mapping = _mapping_artifact_with_seal(current_seal)
+        mapping.write_text(current_mapping, encoding="utf-8")
+        live_head = _commit(repo, current_reseal_subject)
+        later_commits = (current_material, live_head)
+
+    commits = (
+        *((old_material,) if include_old_material_in_snapshot else ()),
+        prior_closeout,
+        stale_head,
+        reseal,
+        *later_commits,
+        *extra_commits,
+    )
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=current_base,
+        head_sha=live_head,
+        commits=tuple(
+            PrCommitEvidence(sha, reseal_pushed_at if sha == reseal else None) for sha in commits
+        ),
+    )
+    root_urls = tuple(
+        f"https://github.com/owner/repo/pull/42#discussion_r{700 + index}"
+        for index in range(root_count)
+    )
+    root_body = "Historical seal finding; human owner inspects the complete prose."
+    fingerprint_body = (
+        f"Commit graph finding cites verified fix {reseal} and unavailable reviewer "
+        f"ref {UNAVAILABLE_SHA}."
+    )
+    if fingerprint_mode == "same":
+        root_body = fingerprint_body
+    threads = [
+        ReviewThreadEvidence(
+            f"stale-seal-{index}",
+            root_resolved,
+            (
+                ReviewCommentEvidence(
+                    url=url,
+                    body=root_body,
+                    created_at="2026-08-12T10:00:00Z",
+                    author_login=root_author,
+                    author_association="NONE",
+                    original_commit_sha=(
+                        current_material
+                        if fingerprint_mode == "same"
+                        else stale_head if root_original_commit == "stale" else prior_closeout
+                    ),
+                ),
+                *tuple(
+                    ReviewCommentEvidence(
+                        url=f"{url}-reply-{reply_index}",
+                        body=_owner_stale_seal_reply(stale_head, reseal),
+                        created_at=reply_created_at,
+                        author_login="owner",
+                        author_association=reply_association,
+                        original_commit_sha=live_head,
+                    )
+                    for reply_index in range(reply_count)
+                ),
+            ),
+        )
+        for index, url in enumerate(root_urls)
+    ]
+    invalid_url = "https://github.com/owner/repo/pull/42#discussion_r799"
+    if independent_invalid_root:
+        threads.append(
+            ReviewThreadEvidence(
+                "independent-mapping-root",
+                True,
+                (
+                    ReviewCommentEvidence(
+                        url=invalid_url,
+                        body="Independent mapping-file finding without a proven S to R edge.",
+                        created_at="2026-08-12T10:30:00Z",
+                        author_login="chatgpt-codex-connector",
+                        author_association="NONE",
+                        original_commit_sha=stale_head,
+                    ),
+                ),
+            )
+        )
+
+    def classify(
+        value: str, current_snapshot: PrSnapshot, *, token: str, **_kwargs: Any
+    ) -> RepositoryCommitRef | ReviewExecutionRef:
+        del token
+        if value == UNAVAILABLE_SHA:
+            return ReviewExecutionRef(
+                value=value,
+                kind=CommitRefKind.REVIEW_REF_UNAVAILABLE,
+                reason="fixture unavailable review ref",
+            )
+        if value == current_snapshot.head_sha:
+            kind = CommitRefKind.PR_HEAD
+        elif value in current_snapshot.commit_shas:
+            kind = CommitRefKind.PR_COMMIT
+        else:
+            kind = CommitRefKind.REPO_COMMIT_OUTSIDE_PR
+        return RepositoryCommitRef(value, kind)
+
+    def ancestor(
+        left: RepositoryCommitRef,
+        right: RepositoryCommitRef,
+        **_kwargs: Any,
+    ) -> bool:
+        if left.sha == reseal and right.sha == live_head:
+            if remote_reseal_ancestry == "unreachable":
+                return False
+            if remote_reseal_ancestry == "api-unknown":
+                raise CommitIdentityError("Compare API response is unknown")
+        if remote_reseal_ancestry != "reachable":
+            if remote_reseal_ancestry not in {"unreachable", "api-unknown"}:
+                raise ValueError("unsupported remote_reseal_ancestry mode")
+        git = shutil.which("git")
+        assert git is not None
+        git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        try:
+            result = subprocess.run(
+                [git, "merge-base", "--is-ancestor", left.sha, right.sha],
+                cwd=repo,
+                env=git_env,
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CommitIdentityError("fixture Git ancestry is API_UNKNOWN") from exc
+        if result.returncode == 0:
+            return True
+        if result.returncode == 1:
+            return False
+        raise CommitIdentityError(f"fixture Git ancestry is API_UNKNOWN (exit {result.returncode})")
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/pulls/42"):
+            return {
+                "base": {"sha": current_base},
+                "head": {
+                    "ref": "feature",
+                    "sha": live_head,
+                    "repo": {"full_name": "owner/repo"},
+                },
+            }
+        if "/pulls/comments/" in url:
+            comment_id = int(url.rsplit("/", 1)[-1])
+            index = comment_id - 700
+            response = {
+                "body": root_body,
+                "created_at": "2026-08-12T10:00:00Z",
+                "html_url": root_urls[index],
+                "id": comment_id,
+                "original_commit_id": stale_head,
+                "path": "docs/review/PR_42_FIXED_MAPPING.md",
+                "pull_request_url": "https://api.github.com/repos/owner/repo/pulls/42",
+                "updated_at": "2026-08-12T10:00:00Z",
+                "user": {
+                    "id": 199_175_422,
+                    "login": "chatgpt-codex-connector[bot]",
+                    "type": "Bot",
+                },
+            }
+            if rest_mutation is not None:
+                response[rest_mutation[0]] = rest_mutation[1]
+            if rest_user_mutation is not None:
+                response["user"][rest_user_mutation[0]] = rest_user_mutation[1]
+            return response
+        raise AssertionError(f"unexpected GitHub API call: {url}")
+
+    def pages(url: str, *, token: str) -> tuple[list[Any], ...]:
+        assert token == "opaque"
+        if activity_api_unknown:
+            raise evidence_module._StaleSealEvidenceUnknown(
+                "owner stale-seal repository activity is API_UNKNOWN"
+            )
+        if "/activity?" in url:
+            if activity_source == "events":
+                return ([],)
+            if activity_source != "activity":
+                raise ValueError("unsupported activity_source")
+            before = stale_head if activity_edge_matches else old_material
+            activities: list[Any] = []
+            selected_activity_times = (
+                activity_times
+                if activity_times is not None
+                else (() if activity_time is None else (activity_time,))
+            )
+            for selected_activity_time in selected_activity_times:
+                pushed_head = reseal if activity_after_mode == "reseal" else live_head
+                activity: dict[str, Any] = {
+                    "activity_type": "push",
+                    "after": pushed_head,
+                    "before": before,
+                    "ref": "refs/heads/feature",
+                    "timestamp": selected_activity_time,
+                }
+                if activity_pushed_at is not None:
+                    activity["pushed_at"] = activity_pushed_at
+                activities.append(activity)
+            return (activities,)
+        if "/events?" in url:
+            if activity_source != "events" or activity_time is None:
+                return ([],)
+            before = stale_head if activity_edge_matches else old_material
+            return (
+                [
+                    {
+                        "type": "PushEvent",
+                        "created_at": activity_time,
+                        "payload": {
+                            "ref": "refs/heads/feature",
+                            "before": before,
+                            "head": reseal if activity_after_mode == "reseal" else live_head,
+                        },
+                    }
+                ],
+            )
+        raise AssertionError(f"unexpected paginated GitHub API call: {url}")
+
+    monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
+    monkeypatch.setattr(identity_module, "is_ancestor", ancestor)
+    monkeypatch.setattr(identity_module, "github_api_request", request_json)
+    monkeypatch.setattr(evidence_module, "_github_api_paginated_pages", pages)
+    fingerprint_records: dict[str, CanonicalFingerprintRecord] = {}
+    if fingerprint_mode is not None and include_fingerprint_record:
+        if fingerprint_mode not in {"same", "unrelated"}:
+            raise ValueError("fingerprint_mode must be same or unrelated")
+        fingerprint_url = root_urls[0]
+        if fingerprint_mode == "unrelated":
+            fingerprint_url = "https://github.com/owner/repo/pull/42#discussion_r798"
+            threads.append(
+                ReviewThreadEvidence(
+                    "unrelated-fingerprint-root",
+                    True,
+                    (
+                        ReviewCommentEvidence(
+                            url=fingerprint_url,
+                            body=fingerprint_body,
+                            created_at="2026-08-12T09:00:00Z",
+                            author_login="chatgpt-codex-connector",
+                            author_association="NONE",
+                            original_commit_sha=current_material,
+                        ),
+                    ),
+                )
+            )
+        fingerprint = unavailable_review_ref_fingerprint(
+            pr_number=42,
+            material_digest=current_manifest.digest,
+            verified_real_fix_sha=reseal,
+        )
+        fingerprint_records[fingerprint] = CanonicalFingerprintRecord(
+            fingerprint=fingerprint,
+            cause=evidence_module.UNAVAILABLE_REVIEW_REF_CAUSE,
+            material_digest=current_manifest.digest,
+            verified_fix=reseal,
+            urls=(fingerprint_url,),
+        )
+    covered = validated_duplicate_reply_urls(
+        candidate_urls={*root_urls, *((invalid_url,) if independent_invalid_root else ())},
+        threads=tuple(threads),
+        fingerprint_records=fingerprint_records,
+        mapping_entries=mapping_entries or {},
+        material_digest=(current_manifest.digest if current_digest_matches else DIGEST),
+        material_head_sha=current_material,
+        repo_root=repo,
+        snapshot=snapshot,
+        repository="owner/repo",
+        token="opaque",
+    )
+    return covered, {
+        "current_material": current_material,
+        "live_head": live_head,
+        "reseal": reseal,
+        "stale_head": stale_head,
+        "url": root_urls[0],
+        "invalid_url": invalid_url,
+        "old_material": old_material,
+        "prior_closeout": prior_closeout,
+        "repo": str(repo),
+    }
+
+
+def test_owner_stale_seal_fixed_accepts_real_git_later_sync_and_current_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(tmp_path, monkeypatch)
+
+    assert covered == {graph["url"]}
+    assert graph["live_head"] != graph["reseal"]
+    assert graph["current_material"] not in {graph["stale_head"], graph["reseal"]}
+
+
+def test_owner_stale_seal_fixed_accepts_real_git_linear_material_then_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        stale_shape="linear-material",
+    )
+
+    assert covered == {graph["url"]}
+    assert evidence_module._stale_seal_commit_parents(Path(graph["repo"]), graph["stale_head"]) == (
+        graph["prior_closeout"],
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _owner_stale_seal_reply("a" * 39, "b" * 40),
+        _owner_stale_seal_reply("A" * 40, "b" * 40),
+        _owner_stale_seal_reply("a" * 40, "a" * 40),
+        " " + _owner_stale_seal_reply("a" * 40, "b" * 40),
+        _owner_stale_seal_reply("a" * 40, "b" * 40) + "\n",
+        _owner_stale_seal_reply("a" * 40, "b" * 40) + " extra",
+    ],
+    ids=("short", "uppercase", "same-commit", "leading-space", "newline", "extra"),
+)
+def test_owner_stale_seal_fixed_reply_parser_is_exact(body: str) -> None:
+    with pytest.raises(ReviewEvidenceError, match="owner stale-seal FIXED reply"):
+        evidence_module.parse_owner_stale_seal_fixed_reply(body)
+
+
+def test_owner_stale_seal_fixed_reply_parser_returns_both_commits() -> None:
+    stale_head = "a" * 40
+    reseal = "b" * 40
+
+    assert evidence_module.parse_owner_stale_seal_fixed_reply(
+        _owner_stale_seal_reply(stale_head, reseal)
+    ) == (stale_head, reseal)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"activity_time": None},
+        {"activity_time": "2026-08-12T09:00:00Z"},
+        {"activity_edge_matches": False},
+        {"rest_mutation": ("updated_at", "2026-08-12T10:00:01Z")},
+        {"reseal_subject": "trigger ci"},
+        {"reseal_changes_material": True},
+        {"current_digest_matches": False},
+        {"root_count": 2},
+    ],
+    ids=(
+        "missing-activity",
+        "reseal-before-root",
+        "mismatched-activity-edge",
+        "edited-rest-root",
+        "trigger-reseal",
+        "material-changing-reseal",
+        "stale-current-caller-binding",
+        "global-two-root-census",
+    ),
+)
+def test_owner_stale_seal_fixed_rejects_ineligible_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(tmp_path, monkeypatch, **kwargs)
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_keeps_activity_api_unknown_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _stale_seal_reply_coverage(
+            tmp_path,
+            monkeypatch,
+            activity_api_unknown=True,
+        )
+
+
+def test_owner_stale_seal_fixed_rejects_conflicting_activity_timestamps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _stale_seal_reply_coverage(
+            tmp_path,
+            monkeypatch,
+            activity_time="2026-08-12T11:00:00Z",
+            activity_pushed_at="2026-08-12T11:00:01Z",
+        )
+
+
+def test_owner_stale_seal_fixed_accepts_push_event_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_source="events",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_requires_pr_ref_activity_despite_snapshot_pushed_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_time=None,
+        reseal_pushed_at="2026-08-12T11:00:00Z",
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_accepts_pr_ref_activity_with_snapshot_pushed_date(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        reseal_pushed_at="2026-08-12T10:30:00Z",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_accepts_case_variant_rest_repository_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        rest_mutation=(
+            "pull_request_url",
+            "https://api.github.com/repos/OWNER/REPO/pulls/42",
+        ),
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_allows_trigger_subject_on_later_current_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        current_reseal_subject="docs(review): rerun checks after later base sync",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_rejects_same_root_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#discussion_r700"
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={url: "a" * 40},
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"root_resolved": False},
+        {"root_author": "untrusted-reviewer"},
+        {"root_original_commit": "prior"},
+        {"reply_association": "MEMBER"},
+        {"reply_count": 2},
+        {"reply_created_at": "2026-08-12T09:00:00Z"},
+        {"rest_mutation": ("path", "docs/review/PR_41_FIXED_MAPPING.md")},
+        {
+            "rest_mutation": (
+                "pull_request_url",
+                "https://api.github.com/repos/other/repo/pulls/42",
+            )
+        },
+        {"rest_mutation": ("original_commit_id", "a" * 40)},
+        {"rest_user_mutation": ("login", "some-other-bot[bot]")},
+    ],
+    ids=(
+        "unresolved",
+        "wrong-author",
+        "original-commit-mismatch",
+        "non-owner-reply",
+        "multiple-owner-replies",
+        "reply-before-root",
+        "wrong-path",
+        "wrong-repository",
+        "rest-original-commit-mismatch",
+        "wrong-rest-author",
+    ),
+)
+def test_owner_stale_seal_fixed_rejects_metadata_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(tmp_path, monkeypatch, **kwargs)
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "historical_seal_shape",
+    [
+        "absent",
+        "malformed",
+        "wrong-base",
+        "wrong-merge-base",
+        "wrong-material-head",
+        "wrong-digest",
+    ],
+)
+def test_owner_stale_seal_fixed_rejects_invalid_historical_seal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    historical_seal_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        historical_seal_shape=historical_seal_shape,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "reseal_shape",
+    [
+        "non-direct",
+        "empty",
+        "multiple-child",
+        "wrong-seal",
+        "absent-seal",
+        "malformed-seal",
+        "redundant-base-sync",
+    ],
+)
+def test_owner_stale_seal_fixed_rejects_invalid_historical_reseal_topology(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reseal_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        reseal_shape=reseal_shape,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "stale_shape",
+    [
+        "linear-empty",
+        "linear-mapping-only",
+        "linear-mapping-mutation",
+        "three-parent",
+    ],
+    ids=("empty", "mapping-only", "mapping-plus-material", "three-parent"),
+)
+def test_owner_stale_seal_fixed_rejects_invalid_linear_material_topology(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stale_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        stale_shape=stale_shape,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize("historical_seal_shape", ["wrong-base", "wrong-merge-base"])
+def test_owner_stale_seal_fixed_rejects_wrong_linear_historical_base_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    historical_seal_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        stale_shape="linear-material",
+        historical_seal_shape=historical_seal_shape,
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_does_not_fall_through_invalid_base_sync_to_linear(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        reseal_shape="redundant-base-sync",
+    )
+
+    assert (
+        len(evidence_module._stale_seal_commit_parents(Path(graph["repo"]), graph["stale_head"]))
+        == 2
+    )
+    assert covered == set()
+
+
+@pytest.mark.parametrize("current_seal_shape", ["wrong-digest", "malformed"])
+def test_owner_stale_seal_fixed_rejects_mutated_current_embedded_seal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    current_seal_shape: str,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        current_seal_shape=current_seal_shape,
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_requires_reseal_push_before_owner_reply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_time="2026-08-12T13:00:00Z",
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_accepts_any_push_inside_disposition_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_times=("2026-08-12T09:00:00Z", "2026-08-12T11:00:00Z"),
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_accepts_reseal_inside_multi_commit_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        activity_after_mode="live",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_requires_prior_closeout_as_sole_material_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        prior_material_second_child=True,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"historical_seal_shape": "legacy"},
+        {"include_old_material_in_snapshot": False},
+        {"mapping_entries": {"https://github.com/owner/repo/pull/42#discussion_r999": "a" * 40}},
+    ],
+    ids=(
+        "legacy-provider-backed-prior-seal",
+        "prior-material-now-outside-pr",
+        "unrelated-canonical-mapping",
+    ),
+)
+def test_owner_stale_seal_fixed_accepts_supported_historical_shapes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(tmp_path, monkeypatch, **kwargs)
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_does_not_cover_independent_invalid_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        independent_invalid_root=True,
+    )
+
+    assert covered == {graph["url"]}
+    assert graph["invalid_url"] not in covered
+
+
+def test_owner_stale_seal_fixed_rejects_remotely_unreachable_reseal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        remote_reseal_ancestry="unreachable",
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_keeps_remote_ancestry_api_unknown_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _stale_seal_reply_coverage(
+            tmp_path,
+            monkeypatch,
+            remote_reseal_ancestry="api-unknown",
+        )
+
+
+def test_owner_stale_seal_fixed_rejects_same_root_canonical_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_root = tmp_path / "control"
+    control_root.mkdir()
+    control_covered, control_graph = _stale_seal_reply_coverage(
+        control_root,
+        monkeypatch,
+        fingerprint_mode="same",
+        include_fingerprint_record=False,
+    )
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        fingerprint_mode="same",
+    )
+
+    assert control_graph["current_material"] == control_graph["stale_head"]
+    assert control_graph["live_head"] == control_graph["reseal"]
+    assert control_covered == {control_graph["url"]}
+    assert graph["current_material"] == graph["stale_head"]
+    assert graph["live_head"] == graph["reseal"]
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_allows_unrelated_valid_fingerprint_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        fingerprint_mode="unrelated",
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_git_evidence_ignores_replace_refs(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    _git(repo, "replace", head, base)
+
+    assert _git(repo, "rev-list", "--parents", "-n", "1", head) == head
+    assert evidence_module._stale_seal_commit_parents(repo, head) == (base,)
+
+
+def test_owner_stale_seal_git_evidence_rejects_legacy_grafts(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    graft_path = git_dir / "info" / "grafts"
+    graft_path.parent.mkdir(parents=True, exist_ok=True)
+    graft_path.write_text(f"{head} {base}\n", encoding="utf-8")
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._stale_seal_commit_parents(repo, head)
+
+
+def test_owner_stale_seal_git_evidence_rejects_shallow_repository(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    (git_dir / "shallow").write_text(f"{head}\n", encoding="ascii")
+
+    assert _git(repo, "rev-parse", "--is-shallow-repository") == "true"
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._stale_seal_commit_parents(repo, head)
+
+
+def test_owner_stale_seal_git_evidence_allows_unrelated_shallow_boundary(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("head\n", encoding="utf-8")
+    head = _commit(repo, "head")
+    tree = _git(repo, "write-tree")
+    env = os.environ.copy()
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "PulsePlate Test",
+            "GIT_AUTHOR_EMAIL": "test@example.invalid",
+            "GIT_COMMITTER_NAME": "PulsePlate Test",
+            "GIT_COMMITTER_EMAIL": "test@example.invalid",
+        }
+    )
+    unrelated = _git(
+        repo,
+        "commit-tree",
+        tree,
+        "-m",
+        "unrelated boundary",
+        env=env,
+    )
+    git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
+    if not git_dir.is_absolute():
+        git_dir = repo / git_dir
+    (git_dir / "shallow").write_text(f"{unrelated}\n", encoding="ascii")
+
+    assert _git(repo, "rev-parse", "--is-shallow-repository") == "true"
+    assert evidence_module._stale_seal_commit_parents(repo, head) == (base,)
+
+
+def test_owner_stale_seal_snapshot_children_batches_parent_enumeration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base = _commit(repo, "base")
+    (repo / "README.md").write_text("first\n", encoding="utf-8")
+    first = _commit(repo, "first")
+    _git(repo, "reset", "--hard", base)
+    (repo / "README.md").write_text("second\n", encoding="utf-8")
+    second = _commit(repo, "second")
+
+    original_run_git = evidence_module._run_git
+    batch_calls = 0
+
+    def counted_run_git(
+        repo_root: Path,
+        args: list[str],
+        *,
+        input_bytes: bytes | None = None,
+        timeout: int = 30,
+    ) -> bytes:
+        nonlocal batch_calls
+        if args == ["rev-list", "--parents", "--no-walk", "--stdin"]:
+            batch_calls += 1
+        return original_run_git(
+            repo_root,
+            args,
+            input_bytes=input_bytes,
+            timeout=timeout,
+        )
+
+    monkeypatch.setattr(evidence_module, "_run_git", counted_run_git)
+    snapshot = SimpleNamespace(commit_shas=frozenset({base, first, second}))
+    parent_cache: dict[str, tuple[str, ...]] = {}
+
+    expected = tuple(sorted((first, second)))
+    assert (
+        evidence_module._stale_seal_snapshot_children(
+            repo,
+            snapshot=snapshot,
+            parent_sha=base,
+            parent_cache=parent_cache,
+        )
+        == expected
+    )
+    assert (
+        evidence_module._stale_seal_snapshot_children(
+            repo,
+            snapshot=snapshot,
+            parent_sha=base,
+            parent_cache=parent_cache,
+        )
+        == expected
+    )
+    assert batch_calls == 1
+    assert set(parent_cache) == {base, first, second}
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["opaque\rsecret", "opaque\nsecret", "opaque\x00secret", "opaque\x7fsecret"],
+)
+def test_owner_stale_seal_pagination_rejects_token_control_characters(token: str) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN") as caught:
+        evidence_module._github_api_paginated_pages(
+            "https://api.github.com/repos/owner/repo/events?per_page=100",
+            token=token,
+        )
+
+    assert token not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "link_header",
+    [
+        (
+            "<https://api.github.com/repos/other/repo/activity?activity_type=push&"
+            'per_page=100&ref=feature&page=2>; rel="next"'
+        ),
+        (
+            "<https://api.github.com/repos/owner/repo/events?activity_type=push&"
+            'per_page=100&ref=feature&page=2>; rel="next"'
+        ),
+        (
+            "<https://api.github.com/repos/owner/repo/activity?activity_type=push&"
+            'per_page=100&ref=other&page=2>; rel="next"'
+        ),
+        (
+            "<https://api.github.com/repos/owner/repo/activity?activity_type=push&"
+            'per_page=100&ref=feature>; rel="next"'
+        ),
+    ],
+    ids=("foreign-repository", "foreign-endpoint", "mutated-ref", "repeated-page"),
+)
+def test_owner_stale_seal_pagination_rejects_foreign_or_repeated_next_link(
+    monkeypatch: pytest.MonkeyPatch,
+    link_header: str,
+) -> None:
+    class Response:
+        status = 200
+
+        @staticmethod
+        def read(_limit: int) -> bytes:
+            return b"[]"
+
+        @staticmethod
+        def getheader(name: str) -> str | None:
+            return {
+                "Content-Type": "application/json",
+                "Link": link_header,
+            }.get(name)
+
+    class Connection:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        def request(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        @staticmethod
+        def getresponse() -> Response:
+            return Response()
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", Connection)
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._github_api_paginated_pages(
+            "https://api.github.com/repos/owner/repo/activity?"
+            "activity_type=push&per_page=100&ref=feature",
+            token="opaque",
+        )
+
+
+def test_owner_stale_seal_pagination_allows_prev_and_first_to_share_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page_one = (
+        "https://api.github.com/repos/owner/repo/activity?"
+        "activity_type=push&per_page=100&ref=feature"
+    )
+    page_two = page_one + "&page=2"
+    responses = iter(
+        (
+            (b"[]", f'<{page_two}>; rel="next"'),
+            (b"[]", f'<{page_one}>; rel="prev", <{page_one}>; rel="first"'),
+        )
+    )
+
+    class Response:
+        status = 200
+
+        def __init__(self, raw: bytes, link: str) -> None:
+            self._raw = raw
+            self._link = link
+
+        def read(self, _limit: int) -> bytes:
+            return self._raw
+
+        def getheader(self, name: str) -> str | None:
+            return {
+                "Content-Type": "application/json",
+                "Link": self._link,
+            }.get(name)
+
+    class Connection:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        def request(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        @staticmethod
+        def getresponse() -> Response:
+            raw, link = next(responses)
+            return Response(raw, link)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", Connection)
+
+    assert evidence_module._github_api_paginated_pages(page_one, token="opaque") == ([], [])
+
+
+def test_owner_stale_seal_pagination_accepts_activity_before_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page_one = (
+        "https://api.github.com/repos/owner/repo/activity?"
+        "activity_type=push&per_page=100&ref=feature"
+    )
+    page_two = page_one + "&before=2026-08-12T11%3A00%3A00Z"
+    responses = iter(((b"[]", f'<{page_two}>; rel="next"'), (b"[]", "")))
+
+    class Response:
+        status = 200
+
+        def __init__(self, raw: bytes, link: str) -> None:
+            self._raw = raw
+            self._link = link
+
+        def read(self, _limit: int) -> bytes:
+            return self._raw
+
+        def getheader(self, name: str) -> str | None:
+            return {"Content-Type": "application/json", "Link": self._link}.get(name)
+
+    class Connection:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        def request(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        @staticmethod
+        def getresponse() -> Response:
+            raw, link = next(responses)
+            return Response(raw, link)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(http.client, "HTTPSConnection", Connection)
+
+    assert evidence_module._github_api_paginated_pages(page_one, token="opaque") == ([], [])
+
+
+def test_owner_stale_seal_snapshot_known_unavailable_commit_is_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot()
+    monkeypatch.setattr(
+        identity_module,
+        "classify_commit_ref",
+        lambda *_args, **_kwargs: ReviewExecutionRef(
+            value=HEAD_SHA,
+            kind=CommitRefKind.REVIEW_REF_UNAVAILABLE,
+            reason="Commit API returned 404",
+        ),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="conflicts with GitHub"):
+        evidence_module._stale_seal_repository_commit(
+            HEAD_SHA,
+            snapshot=snapshot,
+            token="opaque",
+            require_pr_commit=True,
+        )
+
+
+def _stub_stale_seal_git_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+) -> None:
+    def run(args: list[str], *_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        if args[1:4] == ["rev-parse", "--git-path", "info/grafts"]:
+            return SimpleNamespace(returncode=0, stdout=b".git/info/grafts\n", stderr=b"")
+        if args[1:4] == ["rev-parse", "--git-path", "shallow"]:
+            return SimpleNamespace(returncode=0, stdout=b"/controlled/no-shallow\n", stderr=b"")
+        return SimpleNamespace(
+            returncode=returncode,
+            stdout=b"",
+            stderr=b"diagnostic",
+        )
+
+    monkeypatch.setattr(evidence_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+
+def test_owner_stale_seal_pr_head_lookup_preserves_programming_errors() -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise TypeError("bad injected request wiring")
+
+    with pytest.raises(TypeError, match="bad injected request wiring"):
+        evidence_module._fetch_stale_seal_reseal_push_times(
+            repo_root=Path.cwd(),
+            snapshot=SimpleNamespace(pr_number=42),
+            repository="owner/repo",
+            stale_head_sha=BASE_SHA,
+            reseal_sha=HEAD_SHA,
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+def test_owner_stale_seal_pr_head_lookup_converts_transport_errors() -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise OSError("transport unavailable")
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._fetch_stale_seal_reseal_push_times(
+            repo_root=Path.cwd(),
+            snapshot=SimpleNamespace(pr_number=42),
+            repository="owner/repo",
+            stale_head_sha=BASE_SHA,
+            reseal_sha=HEAD_SHA,
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("returncode", "error"),
+    [(1, "not locally reachable"), (2, "API_UNKNOWN")],
+)
+def test_owner_stale_seal_local_ancestor_distinguishes_uncovered_from_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    error: str,
+) -> None:
+    _stub_stale_seal_git_exit_code(monkeypatch, returncode)
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        evidence_module._stale_seal_local_ancestor(
+            tmp_path,
+            ancestor_sha=BASE_SHA,
+            descendant_sha=HEAD_SHA,
+        )
+
+
+@pytest.mark.parametrize(
+    ("returncode", "error"),
+    [(0, "already preceded prior closeout"), (2, "API_UNKNOWN")],
+)
+def test_owner_stale_seal_local_non_ancestor_distinguishes_conflict_from_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    error: str,
+) -> None:
+    _stub_stale_seal_git_exit_code(monkeypatch, returncode)
+
+    with pytest.raises(ReviewEvidenceError, match=error):
+        evidence_module._stale_seal_local_non_ancestor(
+            tmp_path,
+            ancestor_sha=BASE_SHA,
+            descendant_sha=HEAD_SHA,
+        )
+
+
+def test_owner_stale_seal_malformed_rest_identity_is_terminal() -> None:
+    finding = ReviewCommentEvidence(
+        url="https://github.com/owner/repo/pull/42#discussion_r700",
+        body="historical stale seal",
+        created_at="2026-08-12T10:00:00Z",
+        author_login="chatgpt-codex-connector",
+        author_association="NONE",
+        original_commit_sha=HEAD_SHA,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        evidence_module._validate_stale_seal_root_identity(
+            url=finding.url,
+            finding=finding,
+            stale_head_sha=HEAD_SHA,
+            owner="owner",
+            name="repo",
+            pr_number=42,
+            token="opaque",
+            request_json=lambda *_args, **_kwargs: {"id": 700},
+        )
 
 
 def _owner_unavailable_reply(review_ref: str) -> str:

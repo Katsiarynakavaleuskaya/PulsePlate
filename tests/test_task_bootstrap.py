@@ -3164,6 +3164,31 @@ def test_invariant_review_no_trigger_preserves_legacy_dispatch_and_rag_scope() -
     assert "dispatch_role_order" not in packet["role_agent_dispatch_contract"]
 
 
+def test_repeated_family_review_has_one_explicit_cli_input() -> None:
+    """L2 uses one bounded opt-in flag and no parallel parser surface."""
+
+    raw_path = "artifacts/orchestration/review_invariant_family_relations/input.json"
+    args = task_bootstrap_module._parse_args(
+        [
+            "--goal",
+            "Review repeated families",
+            "--task-class",
+            "Orchestration",
+            "--pr-phase",
+            "post_open_review",
+            "--review-invariant-family-relations-input",
+            raw_path,
+        ]
+    )
+
+    assert args.review_invariant_family_relations_input == raw_path
+    source = Path(task_bootstrap_module.__file__).read_text(encoding="utf-8")
+    assert (
+        source.count('parser.add_argument(\n        "--review-invariant-family-relations-input"')
+        == 1
+    )
+
+
 def test_invariant_review_packet_id_uses_order_insensitive_class_set() -> None:
     """Equivalent class sets share identity while a different set changes it."""
 
