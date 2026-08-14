@@ -56,6 +56,7 @@ def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
         from app.bootstrap.lifespan import application_lifespan as lifespan
 
         build_application_metadata = _build_application_metadata
+        _application_metadata = APPLICATION_METADATA
         app = _canonical_app
         """)
     app_sources = {
@@ -70,7 +71,10 @@ def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
             APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)
 
             def _create_fastapi_application(metadata):
-                return FastAPI(metadata=metadata, lifespan=application_lifespan)
+                return FastAPI(
+                    **metadata.to_fastapi_kwargs(),
+                    lifespan=application_lifespan,
+                )
 
             app = _create_fastapi_application(APPLICATION_METADATA)
             """),
@@ -91,6 +95,11 @@ def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
                 ensure_canonical_app_bootstrap(canonical_app)
                 _legacy()
                 return canonical_app
+
+            def __getattr__(name):
+                if name == "app":
+                    return _ensure_canonical_bootstrap()
+                raise AttributeError(name)
             """),
         "app/other.py": "pass\n",
     }
@@ -171,6 +180,37 @@ def test_application_instance_ownership_rejects_wrong_lifespan() -> None:
     assert any("constructor lifespan must be exactly" in error for error in errors)
 
 
+def test_application_instance_ownership_requires_factory_metadata_expansion() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "**metadata.to_fastapi_kwargs(),",
+        "title='decoy',",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "constructor must expand the factory metadata parameter" in error for error in errors
+    )
+
+
+def test_application_instance_ownership_rejects_factory_rebinding() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "app = _create_fastapi_application(APPLICATION_METADATA)",
+        "_create_fastapi_application = lambda metadata: object()\n"
+        "app = _create_fastapi_application(APPLICATION_METADATA)",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("_create_fastapi_application must not be rebound" in error for error in errors)
+
+
 def test_application_instance_ownership_rejects_rebound_canonical_lifespan() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/bootstrap/application.py"] = app_sources[
@@ -234,6 +274,18 @@ def test_application_instance_ownership_rejects_facade_legacy_authority() -> Non
     assert "app/__init__.py: selecting app through legacy_app is forbidden" in errors
 
 
+def test_application_instance_ownership_requires_canonical_facade_return_path() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/__init__.py"] = app_sources["app/__init__.py"].replace(
+        "return _ensure_canonical_bootstrap()",
+        "return object()",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/__init__.py: app facade branch must return the canonical application" in errors
+
+
 def test_application_instance_ownership_rejects_global_app_rebinding() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/main.py"] += textwrap.dedent("""
@@ -289,6 +341,30 @@ def test_application_instance_ownership_rejects_vars_namespace_app_mutation() ->
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
     assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+def test_application_instance_ownership_rejects_module_dunder_dict_app_mutation() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += textwrap.dedent("""
+        import legacy_app
+        legacy_app.__dict__["app"] = object()
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+def test_application_instance_ownership_rejects_import_module_constructor() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = textwrap.dedent("""
+        import importlib
+        rogue = importlib.import_module("fastapi").FastAPI()
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("unsupported FastAPI constructor form is forbidden" in error for error in errors)
 
 
 @pytest.mark.parametrize(
@@ -504,6 +580,20 @@ def test_application_instance_ownership_requires_exact_metadata_factory_reexport
 
     assert (
         "legacy_app.py: exact compatibility re-export is required: build_application_metadata"
+    ) in errors
+
+
+def test_application_instance_ownership_requires_canonical_legacy_metadata_alias() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    legacy_source = legacy_source.replace(
+        "_application_metadata = APPLICATION_METADATA",
+        '_application_metadata = build_application_metadata(runtime_env="production")',
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "legacy_app.py: _application_metadata must alias canonical APPLICATION_METADATA"
     ) in errors
 
 

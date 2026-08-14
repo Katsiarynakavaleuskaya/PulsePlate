@@ -11175,6 +11175,13 @@ def _constructor_lexicon(tree: ast.Module) -> _ConstructorLexicon:
 def _constructor_call_kind(call: ast.Call, lexicon: _ConstructorLexicon) -> str | None:
     target = call.func
     candidate = _literal_element(target) or target
+    dynamic_import_constructor = (
+        isinstance(candidate, ast.Attribute)
+        and candidate.attr == "FastAPI"
+        and _imported_module_name(candidate.value) in {"fastapi", "fastapi.applications"}
+    )
+    if dynamic_import_constructor:
+        return "unsupported"
     unsupported_module = (
         isinstance(candidate, ast.Attribute)
         and candidate.attr == "FastAPI"
@@ -11301,8 +11308,13 @@ def _module_app_mutation(tree: ast.Module) -> bool:
     namespaces = exact_namespaces | _one_hop_name_aliases(tree, exact_namespaces)
 
     def protected_namespace(node: ast.AST) -> bool:
-        return (isinstance(node, ast.Name) and node.id in namespaces) or (
-            isinstance(node, ast.Call)
+        return (
+            isinstance(node, ast.Name)
+            and node.id in namespaces
+            or isinstance(node, ast.Attribute)
+            and node.attr == "__dict__"
+            and protected(node.value)
+            or isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "vars"
             and len(node.args) == 1
@@ -11481,6 +11493,112 @@ def _has_exact_compatibility_reexport(
     return False
 
 
+def _factory_expands_its_metadata(
+    factory: ast.FunctionDef | ast.AsyncFunctionDef,
+    constructor: ast.Call,
+) -> bool:
+    """Require the bounded factory to expand its sole metadata parameter."""
+
+    parameters = [*factory.args.posonlyargs, *factory.args.args]
+    if (
+        len(parameters) != 1
+        or factory.args.vararg is not None
+        or factory.args.kwonlyargs
+        or factory.args.kwarg is not None
+        or constructor.args
+    ):
+        return False
+    metadata_name = parameters[0].arg
+    expansions = [keyword for keyword in constructor.keywords if keyword.arg is None]
+    return (
+        len(expansions) == 1
+        and isinstance(expansions[0].value, ast.Call)
+        and isinstance(expansions[0].value.func, ast.Attribute)
+        and expansions[0].value.func.attr == "to_fastapi_kwargs"
+        and isinstance(expansions[0].value.func.value, ast.Name)
+        and expansions[0].value.func.value.id == metadata_name
+        and not expansions[0].value.args
+        and not expansions[0].value.keywords
+    )
+
+
+def _facade_returns_canonical_app(tree: ast.Module) -> bool:
+    """Tie the public ``app`` branch to the bounded canonical return path."""
+
+    bootstrap_functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_ensure_canonical_bootstrap"
+    ]
+    getattr_functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "__getattr__"
+    ]
+    if len(bootstrap_functions) != 1 or len(getattr_functions) != 1:
+        return False
+
+    bootstrap = bootstrap_functions[0]
+    exact_import = any(
+        isinstance(statement, ast.ImportFrom)
+        and statement.module == "app.bootstrap.application"
+        and any(
+            alias.name == "app" and alias.asname == "canonical_app" for alias in statement.names
+        )
+        for statement in bootstrap.body
+    )
+    bootstrap_returns = [node for node in ast.walk(bootstrap) if isinstance(node, ast.Return)]
+    if not (
+        exact_import
+        and len(bootstrap_returns) == 1
+        and isinstance(bootstrap_returns[0].value, ast.Name)
+        and bootstrap_returns[0].value.id == "canonical_app"
+    ):
+        return False
+
+    for statement in getattr_functions[0].body:
+        if not isinstance(statement, ast.If):
+            continue
+        app_branch = (
+            isinstance(statement.test, ast.Compare)
+            and isinstance(statement.test.left, ast.Name)
+            and statement.test.left.id == "name"
+            and len(statement.test.ops) == 1
+            and isinstance(statement.test.ops[0], ast.Eq)
+            and len(statement.test.comparators) == 1
+            and _static_string(statement.test.comparators[0]) == "app"
+        )
+        if not app_branch or len(statement.body) != 1:
+            continue
+        result = statement.body[0]
+        return (
+            isinstance(result, ast.Return)
+            and isinstance(result.value, ast.Call)
+            and isinstance(result.value.func, ast.Name)
+            and result.value.func.id == "_ensure_canonical_bootstrap"
+            and not result.value.args
+            and not result.value.keywords
+        )
+    return False
+
+
+def _has_exact_name_alias(tree: ast.Module, *, target: str, source: str) -> bool:
+    assignments = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == target
+        and isinstance(node.value, ast.Name)
+        and node.value.id == source
+    ]
+    return len(assignments) == 1 and _module_binding_events(tree, target) == [
+        (assignments[0].lineno, "assignment")
+    ]
+
+
 def validate_application_instance_ownership(
     legacy_source: str,
     app_sources: Mapping[str, str],
@@ -11599,6 +11717,15 @@ def validate_application_instance_ownership(
                 f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor must be owned by "
                 "_create_fastapi_application"
             )
+        if len(factories) == 1 and not _factory_expands_its_metadata(factories[0], constructor):
+            errors.append(
+                f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor must expand the "
+                "factory metadata parameter with to_fastapi_kwargs()"
+            )
+
+    factory_events = _module_binding_events(canonical_tree, "_create_fastapi_application")
+    if len(factory_events) != 1 or factory_events[0][1] != "definition":
+        errors.append(f"{CANONICAL_APPLICATION}: _create_fastapi_application must not be rebound")
 
     runtime_env_assignment = any(
         isinstance(node, ast.Assign)
@@ -11708,6 +11835,8 @@ def validate_application_instance_ownership(
         errors.append(f"{APP_FACADE}: selecting app through legacy_app is forbidden")
     if not _selects_module_app(facade_tree, "app.bootstrap.application"):
         errors.append(f"{APP_FACADE}: canonical application selection is required")
+    if not _facade_returns_canonical_app(facade_tree):
+        errors.append(f"{APP_FACADE}: app facade branch must return the canonical application")
 
     legacy_tree = trees[LEGACY_APP]
     for module, imported, bound in (
@@ -11724,6 +11853,14 @@ def validate_application_instance_ownership(
             errors.append(f"{LEGACY_APP}: exact compatibility re-export is required: {bound}")
         if len(_module_binding_events(legacy_tree, bound)) != 1:
             errors.append(f"{LEGACY_APP}: compatibility re-export must not be rebound: {bound}")
+    if not _has_exact_name_alias(
+        legacy_tree,
+        target="_application_metadata",
+        source="APPLICATION_METADATA",
+    ):
+        errors.append(
+            f"{LEGACY_APP}: _application_metadata must alias canonical APPLICATION_METADATA"
+        )
     return sorted(set(errors))
 
 
