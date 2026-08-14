@@ -361,6 +361,10 @@ def test_builder_requires_explicit_rfc3339_offset(produced_at: str) -> None:
             "2026-08-14T12:00:00.000000001-04:30",
             "2026-08-14T16:30:00.000000001Z",
         ),
+        ("2026-08-14T12:00:00.10+00:00", "2026-08-14T12:00:00.1Z"),
+        ("2026-08-14T12:00:00.0100-04:30", "2026-08-14T16:30:00.01Z"),
+        ("2026-08-14T12:00:00.10100100z", "2026-08-14T12:00:00.101001Z"),
+        ("2026-08-14T12:00:00.000000z", "2026-08-14T12:00:00Z"),
         ("2026-08-14t12:00:00z", "2026-08-14T12:00:00Z"),
         ("2026-08-14t12:00:00+03:00", "2026-08-14T09:00:00Z"),
         ("2026-08-14T12:00:00.123456789z", "2026-08-14T12:00:00.123456789Z"),
@@ -392,6 +396,36 @@ def test_high_precision_fraction_difference_is_divergent_replay(tmp_path: Path) 
             produced_at="2026-08-14T12:00:00.123456788Z",
             terminal_outcomes_root=root,
         )
+    _assert_file_snapshot(sidecar, before)
+
+
+@pytest.mark.parametrize(
+    ("first_timestamp", "equivalent_timestamp"),
+    [
+        ("2026-08-14T12:00:00.1Z", "2026-08-14T12:00:00.10+00:00"),
+        ("2026-08-14t12:00:00z", "2026-08-14T12:00:00.000000Z"),
+    ],
+)
+def test_fractionally_equivalent_timestamp_replay_is_identical(
+    tmp_path: Path,
+    first_timestamp: str,
+    equivalent_timestamp: str,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar, replayed = cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at=first_timestamp,
+        terminal_outcomes_root=root,
+    )
+    before = _file_snapshot(sidecar)
+
+    assert replayed is False
+    assert cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at=equivalent_timestamp,
+        terminal_outcomes_root=root,
+    ) == (sidecar, True)
     _assert_file_snapshot(sidecar, before)
 
 

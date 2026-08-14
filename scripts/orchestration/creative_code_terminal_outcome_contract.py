@@ -933,7 +933,8 @@ def _normalize_projection_produced_at(produced_at: str) -> str:
         normalized = parsed.astimezone(timezone.utc).isoformat(timespec="seconds")
     except (OverflowError, ValueError) as exc:
         raise CreativeCodeTerminalOutcomeError("produced_at is invalid.") from exc
-    return normalized.removesuffix("+00:00") + (matched.group("fraction") or "") + "Z"
+    canonical_fraction = (matched.group("fraction") or "").rstrip("0").removesuffix(".")
+    return normalized.removesuffix("+00:00") + canonical_fraction + "Z"
 
 
 def _terminal_projection_status(outcome: Mapping[str, Any]) -> str:
