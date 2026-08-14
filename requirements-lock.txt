@@ -87,7 +87,7 @@ cycler==0.12.1
     # via
     #   -c requirements.txt
     #   matplotlib
-cyclonedx-python-lib==11.8.0
+cyclonedx-python-lib==11.11.0
     # via pip-audit
 defusedxml==0.7.1
     # via py-serializable
@@ -99,7 +99,7 @@ detect-secrets==1.5.0
     # via -r requirements-dev.in
 diff-cover==10.3.0
     # via -r requirements-dev.in
-distlib==0.4.1
+distlib==0.4.3
     # via virtualenv
 distro==1.9.0
     # via
@@ -305,7 +305,7 @@ pip-audit==2.10.1
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
     # via pip-audit
-pip-tools==7.5.3
+pip-tools==7.6.0
     # via -r requirements-dev.in
 platformdirs==4.10.0
     # via
@@ -318,7 +318,7 @@ pluggy==1.6.0
     #   diff-cover
     #   pytest
     #   pytest-cov
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via -r requirements-dev.in
 prometheus-client==0.24.1
     # via
