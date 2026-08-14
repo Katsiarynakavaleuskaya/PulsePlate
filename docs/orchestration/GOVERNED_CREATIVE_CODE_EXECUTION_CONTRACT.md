@@ -277,10 +277,13 @@ python -m scripts.orchestration.creative_code_terminal_outcome \
 `project-evidence` accepts only the canonical `terminal_outcome.json` path and
 writes only its sibling `evidence_events.json`. There is no public output-root,
 output-file, or arbitrary-events option. `produced_at` is explicit projection
-time: offsets are normalized to `Z`; clocks and filesystem times are never
-inputs. It is deliberately excluded from bundle identity, event fingerprints,
-idempotency keys, and event ids. Changing it still changes canonical bytes, so
-replay against an existing sidecar is `divergent_replay`.
+time in the RFC3339 subset supported by the existing evidence-event contract:
+the UTC offset must be known and leap-second representations
+(`time-second=60`) fail closed. Accepted offsets are normalized to `Z`; clocks
+and filesystem times are never inputs. It is deliberately excluded from bundle
+identity, event fingerprints, idempotency keys, and event ids. Changing it still
+changes canonical bytes, so replay against an existing sidecar is
+`divergent_replay`.
 
 The sidecar is one atomic JSON array in the fixed order `item_metadata`,
 `gate_metric`, `gate_decision`. The three rows are one indivisible

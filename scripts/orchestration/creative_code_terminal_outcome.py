@@ -323,7 +323,11 @@ def _load_canonical_projection_outcome(
         if terminal_outcomes_root.is_absolute()
         else Path.cwd() / terminal_outcomes_root
     )
-    canonical = root_path.resolve(strict=True) / normalized["outcome_id"] / OUTCOME_FILE
+    try:
+        canonical_root = root_path.resolve(strict=True)
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_root_read_failed") from exc
+    canonical = canonical_root / normalized["outcome_id"] / OUTCOME_FILE
     if resolved != canonical:
         raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_noncanonical_path")
     try:

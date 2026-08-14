@@ -214,8 +214,11 @@
   through `project-evidence --outcome ... --produced-at <RFC3339-UTC>`, and may
   validate it read-only through `validate-evidence-projection --outcome ...`.
   The destination is fixed; public output-root/output/events overrides are
-  forbidden. The timestamp must be explicit, is normalized to `Z`, and is
-  projection time only; clocks and filesystem times are not evidence. The
+  forbidden. The timestamp must be explicit, use a known UTC offset, and use
+  the RFC3339 profile supported by the existing evidence-event contract;
+  leap-second representations (`time-second=60`) fail closed. Accepted offsets
+  are normalized to `Z`. The timestamp is projection time only; clocks and
+  filesystem times are not evidence. The
   output is one atomic no-replace, mode-`0600`, three-row control-plane
   normalization bundle using the existing `item_metadata`, `gate_metric`, and
   `gate_decision` event types. It is not three lifecycle events, telemetry,

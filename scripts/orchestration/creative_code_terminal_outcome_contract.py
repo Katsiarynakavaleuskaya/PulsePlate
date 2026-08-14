@@ -917,6 +917,8 @@ def _normalize_projection_produced_at(produced_at: str) -> str:
         raise CreativeCodeTerminalOutcomeError(
             "produced_at must include an explicit known UTC offset."
         )
+    if matched.group("base").endswith(":60"):
+        raise CreativeCodeTerminalOutcomeError("produced_at is invalid.")
     try:
         base = matched.group("base")
         canonical_base = base[:10] + "T" + base[11:]

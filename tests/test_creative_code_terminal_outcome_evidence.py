@@ -334,6 +334,9 @@ def test_event_fingerprint_idempotency_and_id_oracles_are_direct() -> None:
         "2026-02-30T12:00:00Z",
         "2026-08-14T25:00:00Z",
         "2026-08-14T12:00:60Z",
+        "2016-12-30T23:59:60Z",
+        "2016-12-31T23:58:60Z",
+        "2016-12-31T23:59:61Z",
         "not-time",
     ],
 )
@@ -436,9 +439,15 @@ def test_unknown_rfc3339_offset_marker_fails_cli_without_sidecar(
 
 @pytest.mark.parametrize(
     "produced_at",
-    ["0001-01-01T00:00:00+23:59", "9999-12-31T23:59:59-23:59"],
+    [
+        "0001-01-01T00:00:00+23:59",
+        "9999-12-31T23:59:59-23:59",
+        "2016-12-31T23:59:60Z",
+        "2017-01-01T00:59:60+01:00",
+        "2016-12-31T18:59:60.123456789-05:00",
+    ],
 )
-def test_timestamp_utc_conversion_overflow_is_a_controlled_error(
+def test_timestamp_unrepresentable_by_evidence_event_is_a_controlled_error(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     produced_at: str,
@@ -624,6 +633,51 @@ def test_missing_outcome_publishes_nothing(tmp_path: Path) -> None:
             terminal_outcomes_root=root,
         )
     assert not missing.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+
+
+@pytest.mark.parametrize("command", ["project-evidence", "validate-evidence-projection"])
+def test_projection_cli_maps_canonical_root_resolve_race_to_controlled_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    if command == "validate-evidence-projection":
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+    outcome_before = _file_snapshot(outcome_path)
+    sidecar_before = _file_snapshot(sidecar) if sidecar.exists() else None
+    original_resolve = Path.resolve
+    root_resolve_calls = 0
+
+    def fail_second_root_resolve(path: Path, *args: Any, **kwargs: Any) -> Path:
+        nonlocal root_resolve_calls
+        if path == root:
+            root_resolve_calls += 1
+            if root_resolve_calls == 2:
+                raise FileNotFoundError("injected canonical-root resolve race")
+        return original_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", fail_second_root_resolve)
+    argv = [command, "--outcome", str(outcome_path)]
+    if command == "project-evidence":
+        argv.extend(["--produced-at", "2026-08-14T12:00:00Z"])
+
+    assert cli.main(argv, terminal_outcomes_root=root) == 1
+    assert capsys.readouterr().out == "FAIL: terminal_outcome_root_read_failed\n"
+    assert root_resolve_calls == 2
+    _assert_file_snapshot(outcome_path, outcome_before)
+    if sidecar_before is None:
+        assert not sidecar.exists()
+    else:
+        _assert_file_snapshot(sidecar, sidecar_before)
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
 
 
 def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
