@@ -10889,7 +10889,8 @@ def _scope_bindings(
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
             ordinary.add(node.name)
 
-        visit_AsyncFunctionDef = visit_FunctionDef
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            ordinary.add(node.name)
 
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
             ordinary.add(node.name)
@@ -10900,9 +10901,14 @@ def _scope_bindings(
         def visit_ListComp(self, node: ast.ListComp) -> None:
             return
 
-        visit_SetComp = visit_ListComp
-        visit_DictComp = visit_ListComp
-        visit_GeneratorExp = visit_ListComp
+        def visit_SetComp(self, node: ast.SetComp) -> None:
+            return
+
+        def visit_DictComp(self, node: ast.DictComp) -> None:
+            return
+
+        def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+            return
 
         def visit_Import(self, node: ast.Import) -> None:
             for alias in node.names:
@@ -11084,7 +11090,7 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
             index -= 1
         return True
 
-    def _record_constructor(self, node: ast.AST) -> None:
+    def _record_constructor(self, node: ast.Name | ast.Attribute) -> None:
         parent = self.parents.get(id(node))
         if self.annotation_depth:
             if isinstance(parent, ast.Call) and parent.func is node:
@@ -11281,7 +11287,7 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
                 self.escape_lines.add(node.lineno)
             return
         fastapi_index = attributes.index("FastAPI")
-        constructor_node: ast.AST = node
+        constructor_node: ast.Name | ast.Attribute = node
         for _ in range(fastapi_index + 1):
             parent = self.parents.get(id(constructor_node))
             if not isinstance(parent, ast.Attribute):
