@@ -1284,6 +1284,7 @@ def test_malformed_oversized_or_hardlinked_sidecar_is_never_repaired(tmp_path: P
             build_terminal_evidence_events(_outcome(), produced_at="2026-08-14T12:00:00Z")
         )
     )
+    sidecar.chmod(0o600)
     os.link(sidecar, sidecar.with_suffix(".link"))
     with pytest.raises(cli.CreativeCodeTerminalOutcomeIOError, match="hardlink"):
         cli.project_terminal_evidence(
@@ -2230,6 +2231,104 @@ def test_public_replay_retries_only_link_settled_during_open_transition(
             terminal_outcomes_root=root,
         ) == (target, True)
     assert target_open_calls == 2
+    assert target.read_bytes() == winner_content
+    assert target.stat().st_nlink == 1
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert not winner_staging.exists()
+
+
+@pytest.mark.parametrize("operation", ["project", "validate"])
+@pytest.mark.parametrize("divergent", [False, True])
+def test_public_reader_retries_link_settle_between_fstats(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    divergent: bool,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    requested_timestamp = "2026-08-14T12:00:00Z"
+    if operation == "project":
+        winner_content = terminal_evidence_projection_bytes(
+            build_terminal_evidence_events(
+                outcome,
+                produced_at=("2026-08-14T12:00:01Z" if divergent else requested_timestamp),
+            )
+        )
+    else:
+        rows = _projection_payload(outcome)
+        if divergent:
+            rows[0]["rail"] = "not_control_plane"
+        winner_content = (json.dumps(rows, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    target = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    winner_staging = target.with_name(".between-fstats-winner.staging")
+    winner_staging.write_bytes(winner_content)
+    winner_staging.chmod(0o600)
+    os.link(winner_staging, target, follow_symlinks=False)
+    original_open = cli.os.open
+    original_read = cli.os.read
+    target_descriptor: int | None = None
+    target_open_calls = 0
+    target_read_calls = 0
+    unlinked = False
+
+    def capture_target_descriptor(path: Any, flags: int, *args: Any) -> int:
+        nonlocal target_descriptor, target_open_calls
+        descriptor = original_open(path, flags, *args)
+        if Path(path) == target:
+            target_descriptor = descriptor
+            target_open_calls += 1
+        return descriptor
+
+    def unlink_after_first_target_read(descriptor: int, size: int) -> bytes:
+        nonlocal target_read_calls, unlinked
+        chunk = original_read(descriptor, size)
+        if descriptor == target_descriptor:
+            target_read_calls += 1
+            if chunk and not unlinked:
+                winner_staging.unlink()
+                unlinked = True
+        return chunk
+
+    monkeypatch.setattr(cli.os, "open", capture_target_descriptor)
+    monkeypatch.setattr(cli.os, "read", unlink_after_first_target_read)
+    monkeypatch.setattr(cli.time, "sleep", lambda _: None)
+
+    if operation == "project" and not divergent:
+        assert cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at=requested_timestamp,
+            terminal_outcomes_root=root,
+        ) == (target, True)
+    elif operation == "validate" and not divergent:
+        assert (
+            cli.validate_projected_terminal_evidence(
+                outcome_path=outcome_path,
+                terminal_outcomes_root=root,
+            )
+            is None
+        )
+    elif operation == "project":
+        with pytest.raises(
+            cli.CreativeCodeTerminalOutcomeIOError,
+            match="^divergent_replay$",
+        ):
+            cli.project_terminal_evidence(
+                outcome_path=outcome_path,
+                produced_at=requested_timestamp,
+                terminal_outcomes_root=root,
+            )
+    else:
+        with pytest.raises(CreativeCodeTerminalOutcomeError):
+            cli.validate_projected_terminal_evidence(
+                outcome_path=outcome_path,
+                terminal_outcomes_root=root,
+            )
+
+    assert unlinked is True
+    assert target_open_calls == 2
+    assert target_read_calls == 4
     assert target.read_bytes() == winner_content
     assert target.stat().st_nlink == 1
     assert stat.S_IMODE(target.stat().st_mode) == 0o600

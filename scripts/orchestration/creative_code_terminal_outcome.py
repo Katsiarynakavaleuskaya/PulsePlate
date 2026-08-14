@@ -221,8 +221,6 @@ def _read_bounded_regular_bytes(
                     f"{label}_collision_link_settled_during_open"
                 )
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
-        if require_single_link and before.st_nlink != 1:
-            raise CreativeCodeTerminalOutcomeIOError(f"{label}_hardlink_rejected")
         if required_mode is not None and stat.S_IMODE(before.st_mode) != required_mode:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_mode_invalid")
         if before.st_size > max_bytes:
@@ -239,8 +237,17 @@ def _read_bounded_regular_bytes(
         if len(raw) > max_bytes:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_too_large")
         after = os.fstat(descriptor)
-        if _regular_file_identity(after) != before_identity or len(raw) != before.st_size:
+        after_identity = _regular_file_identity(after)
+        if len(raw) != before.st_size:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
+        if after_identity != before_identity:
+            if _is_collision_link_settled_during_open(before_identity, after_identity):
+                raise CreativeCodeTerminalOutcomeIOError(
+                    f"{label}_collision_link_settled_during_open"
+                )
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
+        if require_single_link and after.st_nlink != 1:
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_hardlink_rejected")
         result = (raw, before_identity)
     except OSError as exc:
         primary_error = CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed")
