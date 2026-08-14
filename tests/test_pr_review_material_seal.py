@@ -7691,6 +7691,7 @@ def _owner_only_empty_mapping_coverage(
     snapshot_repository: str = "owner/repo",
     root_repository: str = "owner/repo",
     additional_owner_reply_body: str | None = None,
+    additional_non_owner_reply_body: str | None = None,
     rest_identity_variant: str = "valid",
     classified_values: list[str] | None = None,
     forbid_classifier: bool = False,
@@ -7838,7 +7839,26 @@ def _owner_only_empty_mapping_coverage(
             if additional_owner_reply_body is not None
             else ()
         )
-        comments = (root, *replies, *additional_owner_replies)
+        additional_non_owner_replies = (
+            (
+                ReviewCommentEvidence(
+                    url=f"{root_url}_additional_non_owner_reply",
+                    body=additional_non_owner_reply_body,
+                    created_at="2026-08-11T12:00:00Z",
+                    author_login="follow-up-reviewer",
+                    author_association="CONTRIBUTOR",
+                    original_commit_sha=live_head_sha,
+                ),
+            )
+            if additional_non_owner_reply_body is not None
+            else ()
+        )
+        comments = (
+            root,
+            *replies,
+            *additional_owner_replies,
+            *additional_non_owner_replies,
+        )
         if not root_is_first:
             sibling = ReviewCommentEvidence(
                 url=f"{root_url}_earlier",
@@ -8106,6 +8126,22 @@ def test_owner_provider_evidence_generic_reply_covers_each_eligible_root(
         "https://github.com/owner/repo/pull/42#discussion_r101",
         "https://github.com/owner/repo/pull/42#discussion_r102",
     }
+
+
+def test_owner_provider_evidence_generic_reply_allows_non_owner_discussion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override="Provider-only evidence unavailable.",
+        additional_non_owner_reply_body="Follow-up context without OWNER authority.",
+        forbid_classifier=True,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
 
 
 @pytest.mark.parametrize(

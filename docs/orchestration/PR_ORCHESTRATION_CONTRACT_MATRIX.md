@@ -384,10 +384,12 @@ reply and no provider identifier:
 
 `OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; authenticated live PR state is authoritative.`
 
-The sole later GraphQL comment must be associated exactly with `OWNER` and be
-byte-equal to that line. The human OWNER must first read the complete root and
-confirm that it contains no independent actionable finding beyond provider-only
-evidence that is unavailable or synthetic. *Unavailable* means that evidence is
+The thread must contain exactly one later GraphQL-authenticated `OWNER`
+comment; that sole OWNER comment must be byte-equal to that line. Other
+non-OWNER discussion does not silently acquire disposition authority. The human
+OWNER must first read the complete root and confirm that it contains no
+independent actionable finding beyond provider-only evidence that is unavailable
+or synthetic. *Unavailable* means that evidence is
 not repository-addressable evidence usable by the authenticated live PR
 validator; it never labels a material, security, code, workflow, dependency, or
 runtime defect as unavailable. Automation neither parses the root prose nor

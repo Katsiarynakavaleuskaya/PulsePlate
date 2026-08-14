@@ -625,7 +625,8 @@ Use this as the canonical operating loop from branch creation to merge window:
      validator; it never describes a real material, security, code, workflow,
      dependency, or runtime defect. Then post exactly:
      `OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; authenticated live PR state is authoritative.`
-     The sole later GraphQL comment must be `OWNER` and byte-equal to that line.
+     The thread must contain exactly one later GraphQL-authenticated `OWNER`
+     comment; that sole OWNER comment must be byte-equal to that line.
      Do not add Markdown, whitespace, a ref, fingerprint, URL, or explanation.
      Only after the exact OWNER reply is visible, resolve the thread. Then run
      the reply-only validator and authenticated strict checks against that
