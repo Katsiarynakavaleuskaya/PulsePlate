@@ -43,7 +43,7 @@ nh3>=0.3.2,<1.0.0
 setuptools>=83.0.0,<84.0.0
 
 # Control-plane CI tooling only.
-pre-commit~=4.6.0
+pre-commit~=4.6.1
 bandit>=1.8.6
 pip-audit>=2.10.1
 diff-cover~=10.3.0

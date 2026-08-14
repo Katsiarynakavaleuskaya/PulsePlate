@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 # Section extraction from artifact; auth from disposition
 import scripts.orchestration.check_review_threads_disposition as _disposition_mod
+from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
     _block_thread_urls,
@@ -38,6 +39,15 @@ from scripts.orchestration.pr_commit_identity import (
     ReviewExecutionRef,
 )
 from scripts.orchestration.review_mapping_artifact import extract_fixed_mapping_section
+
+
+def test_disposition_guard_uses_canonical_shared_reply_validator() -> None:
+    """Real-Git producer cases plus the main wiring test cover composition."""
+
+    assert (
+        _disposition_mod.validated_duplicate_reply_urls
+        is evidence_module.validated_duplicate_reply_urls
+    )
 
 
 def test_extract_fixed_mapping_section_finds_section() -> None:
@@ -1515,7 +1525,7 @@ def test_main_passes_in_ci_mode_with_valid_gh_token(
         "deferred-arrow",
     ),
 )
-def test_main_v1_recordless_mapping_and_inventory_guards(
+def test_main_v1_reply_only_mapping_and_inventory_guards(
     monkeypatch: "MonkeyPatch",
     capsys: pytest.CaptureFixture[str],
     disposition: str,
@@ -1630,9 +1640,28 @@ def test_main_v1_recordless_mapping_and_inventory_guards(
     assert exc_info.value.code == expected_code
     assert fetch_count == expected_fetches
     if disposition == "FIXED" and has_resolved_thread:
+        assert set(captured) == {
+            "candidate_urls",
+            "fingerprint_records",
+            "mapping_entries",
+            "material_digest",
+            "material_head_sha",
+            "repo_root",
+            "repository",
+            "snapshot",
+            "threads",
+            "token",
+        }
+        assert captured["candidate_urls"] == {root_url}
+        assert captured["threads"] == (thread,)
         assert captured["fingerprint_records"] == {}
         assert captured["mapping_entries"] == {mapped_url: fix_sha}
+        assert captured["material_digest"] == "sha256:" + "e" * 64
         assert captured["material_head_sha"] == material_head_sha
+        assert captured["repo_root"] == _disposition_mod.REPO_ROOT
+        assert captured["snapshot"] is snapshot
+        assert captured["repository"] == "owner/repo"
+        assert captured["token"] == "opaque"
         if inventory_changes:
             assert "SNAPSHOT_CHANGED: review-thread inventory changed" in output
         else:

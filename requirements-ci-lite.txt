@@ -84,7 +84,7 @@ deprecated==1.3.1
     #   limits
 diff-cover==10.3.0
     # via -r requirements-ci-lite.in
-distlib==0.4.0
+distlib==0.4.3
     # via virtualenv
 distro==1.9.0
     # via
@@ -259,7 +259,7 @@ pluggy==1.6.0
     # via
     #   diff-cover
     #   pytest
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via -r requirements-ci-lite.in
 prometheus-client==0.24.1
     # via
