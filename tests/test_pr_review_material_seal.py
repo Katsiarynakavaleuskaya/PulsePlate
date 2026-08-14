@@ -7233,7 +7233,23 @@ def test_owner_stale_seal_git_evidence_allows_unrelated_shallow_boundary(
     (repo / "README.md").write_text("head\n", encoding="utf-8")
     head = _commit(repo, "head")
     tree = _git(repo, "write-tree")
-    unrelated = _git(repo, "commit-tree", tree, "-m", "unrelated boundary")
+    env = os.environ.copy()
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "PulsePlate Test",
+            "GIT_AUTHOR_EMAIL": "test@example.invalid",
+            "GIT_COMMITTER_NAME": "PulsePlate Test",
+            "GIT_COMMITTER_EMAIL": "test@example.invalid",
+        }
+    )
+    unrelated = _git(
+        repo,
+        "commit-tree",
+        tree,
+        "-m",
+        "unrelated boundary",
+        env=env,
+    )
     git_dir = Path(_git(repo, "rev-parse", "--git-dir"))
     if not git_dir.is_absolute():
         git_dir = repo / git_dir

@@ -504,7 +504,7 @@ Evidence:
 - `tests/test_pr_review_material_seal.py:6959` — linear topology negative matrix
 - `tests/test_pr_review_material_seal.py:6974` — linear historical base-binding negatives
 - `tests/test_pr_review_material_seal.py:6989` — invalid base-sync no-fallthrough proof
-- `tests/test_pr_review_material_seal.py:7246` — batched complete parent enumeration
+- `tests/test_pr_review_material_seal.py:7262` — batched complete parent enumeration
 - `tests/test_pr_merge_readiness_gate.py:48` — strict merge-readiness consumer uses the shared producer
 - `tests/test_pr_merge_readiness_gate.py:81` — strict merge-readiness input wiring
 - `tests/test_review_threads_disposition_strict.py:44` — disposition consumer uses the shared producer
