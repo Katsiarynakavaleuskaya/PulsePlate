@@ -8162,7 +8162,6 @@ def test_owner_unavailable_evidence_reply_requires_material_head_in_pr_graph(
         tmp_path,
         monkeypatch,
         reply_format=reply_format,
-        root_body_override="Provider-only evidence unavailable.",
         material_head_in_snapshot=False,
         forbid_classifier=reply_format == "generic",
     )
