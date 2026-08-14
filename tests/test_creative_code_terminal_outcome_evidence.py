@@ -939,16 +939,27 @@ def test_injected_write_or_install_failure_cleans_private_staging(
 ) -> None:
     root = tmp_path / "terminal_outcomes"
     outcome_path = _write_outcome(root, _outcome())
+    original_mkstemp = cli.tempfile.mkstemp
     original_write = cli.os.write
-    writes = 0
+    staging_descriptor: int | None = None
+    staging_writes = 0
+
+    def capture_staging_descriptor(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        nonlocal staging_descriptor
+        descriptor, path = original_mkstemp(*args, **kwargs)
+        staging_descriptor = descriptor
+        return descriptor, path
 
     def fail_second_write(descriptor: int, content: bytes) -> int:
-        nonlocal writes
-        writes += 1
-        if writes == 1:
+        nonlocal staging_writes
+        if descriptor != staging_descriptor:
+            return original_write(descriptor, content)
+        staging_writes += 1
+        if staging_writes == 1:
             return original_write(descriptor, content[: max(1, len(content) // 2)])
         raise OSError("injected write failure")
 
+    monkeypatch.setattr(cli.tempfile, "mkstemp", capture_staging_descriptor)
     monkeypatch.setattr(cli.os, "write", fail_second_write)
     with pytest.raises(cli.CreativeCodeTerminalOutcomeIOError, match="staging_io_failed"):
         cli.project_terminal_evidence(
@@ -972,6 +983,40 @@ def test_injected_write_or_install_failure_cleans_private_staging(
             terminal_outcomes_root=root,
         )
     assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
+def test_cleanup_failure_is_attempted_once_and_preserves_first_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    original_cleanup = cli._cleanup_projection_staging
+    cleanup_calls = 0
+
+    def cleanup_then_fail(staging_file: Path) -> None:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+        original_cleanup(staging_file)
+        if cleanup_calls == 1:
+            raise cli.CreativeCodeTerminalOutcomeIOError("first_cleanup_error")
+        raise cli.CreativeCodeTerminalOutcomeIOError("second_cleanup_error")
+
+    monkeypatch.setattr(cli, "_cleanup_projection_staging", cleanup_then_fail)
+    with pytest.raises(cli.CreativeCodeTerminalOutcomeIOError, match="^first_cleanup_error$"):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+    assert cleanup_calls == 1
+    sidecar = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    assert sidecar.read_bytes() == terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    assert sidecar.stat().st_nlink == 1
+    assert stat.S_IMODE(sidecar.stat().st_mode) == 0o600
     assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
 
 

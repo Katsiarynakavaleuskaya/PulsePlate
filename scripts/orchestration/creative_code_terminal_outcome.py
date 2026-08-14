@@ -608,8 +608,10 @@ def _project_terminal_evidence_locked(
             installed = True
         except FileExistsError:
             installed = False
-        _cleanup_projection_staging(staging_file)
-        staging_file = None
+        try:
+            _cleanup_projection_staging(staging_file)
+        finally:
+            staging_file = None
         if installed:
             _fsync_directory(resolved.parent)
             return target_file, False
@@ -625,10 +627,6 @@ def _project_terminal_evidence_locked(
             parent_identity=parent_identity,
         )
         return target_file, True
-    except CreativeCodeTerminalOutcomeError:
-        raise
-    except CreativeCodeTerminalOutcomeIOError:
-        raise
     finally:
         if staging_file is not None:
             _cleanup_projection_staging(staging_file)
