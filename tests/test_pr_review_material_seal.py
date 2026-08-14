@@ -8370,30 +8370,48 @@ def test_owner_only_accepts_unrelated_fixed_mapping_entries(
 
 
 @pytest.mark.parametrize("reply_format", ("legacy", "generic"))
+@pytest.mark.parametrize(
+    "mapped_url",
+    (
+        "https://github.com/owner/repo/pull/42#discussion_r100",
+        "https://github.com/OWNER/REPO/pull/42#discussion_r100",
+    ),
+    ids=("exact-url", "case-variant-repository"),
+)
 def test_owner_only_rejects_root_with_its_own_fixed_mapping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     reply_format: str,
+    mapped_url: str,
 ) -> None:
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
         reply_format=reply_format,
-        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": FIX_SHA},
+        mapping_entries={mapped_url: FIX_SHA},
     )
 
     assert covered == set()
 
 
+@pytest.mark.parametrize(
+    "mapped_url",
+    (
+        "https://github.com/owner/repo/pull/42#discussion_r100",
+        "https://github.com/OWNER/REPO/pull/42#discussion_r100",
+    ),
+    ids=("exact-url", "case-variant-repository"),
+)
 def test_owner_provider_evidence_generic_reply_rejects_same_root_url_only_mapping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    mapped_url: str,
 ) -> None:
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
         reply_format="generic",
-        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": ""},
+        mapping_entries={mapped_url: ""},
     )
 
     assert covered == set()
@@ -8488,6 +8506,37 @@ def test_owner_only_empty_mapping_counts_root_hidden_by_url_only_disposition_fil
     )
 
     assert covered == set()
+
+
+def test_owner_only_legacy_singleton_counts_url_only_mapped_eligible_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_count=2,
+        candidate_indexes=frozenset({1}),
+        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": ""},
+    )
+
+    assert covered == set()
+
+
+def test_owner_provider_evidence_generic_reply_excludes_only_mapped_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_count=2,
+        mapping_entries={"https://github.com/OWNER/REPO/pull/42#discussion_r100": ""},
+        forbid_classifier=True,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r101"}
 
 
 def test_owner_only_empty_mapping_rejects_additional_malformed_owner_reply(

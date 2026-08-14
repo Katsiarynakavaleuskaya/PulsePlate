@@ -984,12 +984,41 @@ def validated_duplicate_reply_urls(
             continue
         covered.add(url)
 
-    canonical_mapping_urls = frozenset(mapping_entries)
     validated_mapping_entries = {
         url: _require_sha(value, label="mapped FIXED SHA")
         for url, value in mapping_entries.items()
         if value
     }
+
+    def canonical_review_root_identity(value: Any) -> tuple[str, str, int, int] | None:
+        if not isinstance(value, str):
+            return None
+        match = re.fullmatch(
+            r"https://github\.com/"
+            r"(?P<owner>[A-Za-z0-9_.-]+)/(?P<name>[A-Za-z0-9_.-]+)/pull/"
+            r"(?P<pr_number>[1-9][0-9]*)#discussion_r(?P<comment_id>[1-9][0-9]*)",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        return (
+            match.group("owner").casefold(),
+            match.group("name").casefold(),
+            int(match.group("pr_number")),
+            int(match.group("comment_id")),
+        )
+
+    canonical_mapping_root_identities = frozenset(
+        identity
+        for url in mapping_entries
+        if (identity := canonical_review_root_identity(url)) is not None
+    )
+    validated_mapping_root_identities = frozenset(
+        identity
+        for url in validated_mapping_entries
+        if (identity := canonical_review_root_identity(url)) is not None
+    )
     mapped_fixes = frozenset(validated_mapping_entries.values())
     commit_pushed_at = {commit.sha: commit.pushed_at for commit in snapshot.commits}
     eligible_recordless_by_fingerprint: dict[str, list[str]] = {}
@@ -1148,9 +1177,11 @@ def validated_duplicate_reply_urls(
     live_roots = sorted((thread.comments[0].url, thread) for thread in threads if thread.comments)
     for url, thread in live_roots:
         location = comment_locations.get(url)
+        root_identity = canonical_review_root_identity(url)
         if (
             url in covered
-            or url in canonical_mapping_urls
+            or root_identity is None
+            or root_identity in validated_mapping_root_identities
             or url in validated_fingerprint_urls
             or location is None
             or location[0] is not thread
@@ -1178,6 +1209,8 @@ def validated_duplicate_reply_urls(
             continue
         owner_reply = owner_replies[0]
         generic_reply = owner_reply.body == _OWNER_PROVIDER_EVIDENCE_UNAVAILABLE_REPLY
+        if generic_reply and root_identity in canonical_mapping_root_identities:
+            continue
         selected_ref: str | None = None
         if not generic_reply:
             try:
