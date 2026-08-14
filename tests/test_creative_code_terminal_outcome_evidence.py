@@ -358,6 +358,9 @@ def test_builder_requires_explicit_rfc3339_offset(produced_at: str) -> None:
             "2026-08-14T12:00:00.000000001-04:30",
             "2026-08-14T16:30:00.000000001Z",
         ),
+        ("2026-08-14t12:00:00z", "2026-08-14T12:00:00Z"),
+        ("2026-08-14t12:00:00+03:00", "2026-08-14T09:00:00Z"),
+        ("2026-08-14T12:00:00.123456789z", "2026-08-14T12:00:00.123456789Z"),
     ],
 )
 def test_timestamp_positive_normalization_table(produced_at: str, expected: str) -> None:
@@ -639,7 +642,7 @@ def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
                 "--outcome",
                 str(outcome_path),
                 "--produced-at",
-                "2026-08-14T12:00:00Z",
+                "2026-08-14t12:00:00z",
             ],
             terminal_outcomes_root=root,
         )

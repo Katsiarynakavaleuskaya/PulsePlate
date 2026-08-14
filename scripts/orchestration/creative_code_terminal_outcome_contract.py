@@ -53,8 +53,8 @@ PROMOTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 RFC3339_RE = re.compile(
-    r"^(?P<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
-    r"(?P<fraction>\.[0-9]+)?(?P<offset>Z|[+-][0-9]{2}:[0-9]{2})$"
+    r"^(?P<base>[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?P<fraction>\.[0-9]+)?(?P<offset>[Zz]|[+-][0-9]{2}:[0-9]{2})$"
 )
 
 TERMINAL_STATES = frozenset({"merged", "closed_unmerged"})
@@ -918,8 +918,10 @@ def _normalize_projection_produced_at(produced_at: str) -> str:
             "produced_at must include an explicit known UTC offset."
         )
     try:
+        base = matched.group("base")
+        canonical_base = base[:10] + "T" + base[11:]
         parsed = datetime.fromisoformat(
-            matched.group("base") + ("+00:00" if offset == "Z" else offset)
+            canonical_base + ("+00:00" if offset in {"Z", "z"} else offset)
         )
     except (OverflowError, ValueError) as exc:
         raise CreativeCodeTerminalOutcomeError("produced_at is invalid.") from exc
