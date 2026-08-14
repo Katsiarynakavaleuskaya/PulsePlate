@@ -699,7 +699,9 @@ def validate_projected_terminal_evidence(
     target_file = resolved.parent / EVIDENCE_EVENTS_FILE
     if not target_file.exists() and not target_file.is_symlink():
         raise CreativeCodeTerminalOutcomeIOError("evidence_projection_missing")
-    raw, target_identity, sidecar_parent_identity = _read_existing_projection_bytes(target_file)
+    raw, target_identity, sidecar_parent_identity = _read_collision_winner_projection_bytes(
+        target_file
+    )
     validate_terminal_evidence_projection(outcome, raw)
     _recheck_projection_sidecar_identity(
         target_file=target_file,

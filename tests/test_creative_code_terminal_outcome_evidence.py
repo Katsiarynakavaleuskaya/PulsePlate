@@ -177,6 +177,22 @@ def _projection_payload(
     ]
 
 
+def _file_snapshot(path: Path) -> tuple[bytes, tuple[int, ...]]:
+    info = path.stat()
+    return path.read_bytes(), (
+        info.st_ino,
+        info.st_nlink,
+        info.st_mode,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _assert_file_snapshot(path: Path, snapshot: tuple[bytes, tuple[int, ...]]) -> None:
+    assert _file_snapshot(path) == snapshot
+
+
 def test_builder_emits_exact_fixed_bundle_and_normalizes_timestamp() -> None:
     outcome = _outcome()
     events = build_terminal_evidence_events(outcome, produced_at="2026-08-14T15:00:00+03:00")
@@ -315,6 +331,9 @@ def test_event_fingerprint_idempotency_and_id_oracles_are_direct() -> None:
         "2026-08-14T12:00:00",
         "2026-08-14 12:00:00Z",
         "2026-08-14T12:00:00-00:00",
+        "2026-02-30T12:00:00Z",
+        "2026-08-14T25:00:00Z",
+        "2026-08-14T12:00:60Z",
         "not-time",
     ],
 )
@@ -330,11 +349,61 @@ def test_builder_requires_explicit_rfc3339_offset(produced_at: str) -> None:
         ("2026-08-14T12:00:00+03:00", "2026-08-14T09:00:00Z"),
         ("2026-08-14T12:00:00-04:30", "2026-08-14T16:30:00Z"),
         ("2026-08-14T12:00:00.123456+02:00", "2026-08-14T10:00:00.123456Z"),
+        ("2026-08-14T12:00:00.123456789Z", "2026-08-14T12:00:00.123456789Z"),
+        (
+            "2026-08-14T12:00:00.123456789+02:00",
+            "2026-08-14T10:00:00.123456789Z",
+        ),
+        (
+            "2026-08-14T12:00:00.000000001-04:30",
+            "2026-08-14T16:30:00.000000001Z",
+        ),
     ],
 )
 def test_timestamp_positive_normalization_table(produced_at: str, expected: str) -> None:
-    events = build_terminal_evidence_events(_outcome(), produced_at=produced_at)
+    outcome = _outcome()
+    events = build_terminal_evidence_events(outcome, produced_at=produced_at)
     assert {event.produced_at for event in events} == {expected}
+    projection = terminal_evidence_projection_bytes(events)
+    assert len(projection) <= MAX_EVIDENCE_PROJECTION_BYTES
+    assert validate_terminal_evidence_projection(outcome, projection) == events
+
+
+def test_high_precision_fraction_difference_is_divergent_replay(tmp_path: Path) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar, replayed = cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at="2026-08-14T12:00:00.123456789Z",
+        terminal_outcomes_root=root,
+    )
+    before = _file_snapshot(sidecar)
+
+    assert replayed is False
+    with pytest.raises(cli.CreativeCodeTerminalOutcomeIOError, match="^divergent_replay$"):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00.123456788Z",
+            terminal_outcomes_root=root,
+        )
+    _assert_file_snapshot(sidecar, before)
+
+
+def test_high_precision_timestamp_cannot_exceed_sidecar_bound(tmp_path: Path) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    produced_at = "2026-08-14T12:00:00." + ("1" * 25_000) + "Z"
+
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^evidence_projection_too_large$",
+    ):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at=produced_at,
+            terminal_outcomes_root=root,
+        )
+    assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
 
 
 def test_unknown_rfc3339_offset_marker_fails_cli_without_sidecar(
@@ -814,6 +883,151 @@ def test_read_only_validator_requires_final_source_identity_seal(
         sidecar_before.st_mtime_ns,
         sidecar_before.st_ctime_ns,
     )
+
+
+def test_read_only_validator_waits_for_transient_winner_hardlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar, _ = cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at="2026-08-14T12:00:00Z",
+        terminal_outcomes_root=root,
+    )
+    winner_staging = sidecar.with_name(".validator-winner.staging")
+    os.link(sidecar, winner_staging, follow_symlinks=False)
+    waiting = threading.Event()
+    release = threading.Event()
+
+    def controlled_sleep(_: float) -> None:
+        waiting.set()
+        assert release.wait(timeout=5)
+
+    def forbid_validator_fsync(_: Path) -> None:
+        pytest.fail("read-only validator must not fsync")
+
+    monkeypatch.setattr(cli.time, "sleep", controlled_sleep)
+    monkeypatch.setattr(cli, "_fsync_directory", forbid_validator_fsync)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        validation = pool.submit(
+            cli.validate_projected_terminal_evidence,
+            outcome_path=outcome_path,
+            terminal_outcomes_root=root,
+        )
+        assert waiting.wait(timeout=5)
+        assert sidecar.stat().st_nlink == 2
+        winner_staging.unlink()
+        settled = _file_snapshot(sidecar)
+        release.set()
+        assert validation.result(timeout=5) is None
+
+    _assert_file_snapshot(sidecar, settled)
+
+
+def test_read_only_validator_accepts_exact_lstat_fstat_link_settle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar, _ = cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at="2026-08-14T12:00:00Z",
+        terminal_outcomes_root=root,
+    )
+    winner_staging = sidecar.with_name(".validator-open-winner.staging")
+    os.link(sidecar, winner_staging, follow_symlinks=False)
+    original_open = cli.os.open
+    target_open_calls = 0
+    settled: tuple[bytes, tuple[int, ...]] | None = None
+
+    def settle_between_lstat_and_fstat(path: Any, flags: int, *args: Any) -> int:
+        nonlocal settled, target_open_calls
+        descriptor = original_open(path, flags, *args)
+        if Path(path) == sidecar:
+            target_open_calls += 1
+            if target_open_calls == 1:
+                winner_staging.unlink()
+                settled = _file_snapshot(sidecar)
+        return descriptor
+
+    monkeypatch.setattr(cli.os, "open", settle_between_lstat_and_fstat)
+    monkeypatch.setattr(cli.time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        cli,
+        "_fsync_directory",
+        lambda _: pytest.fail("read-only validator must not fsync"),
+    )
+    cli.validate_projected_terminal_evidence(
+        outcome_path=outcome_path,
+        terminal_outcomes_root=root,
+    )
+
+    assert target_open_calls == 2
+    assert settled is not None
+    _assert_file_snapshot(sidecar, settled)
+
+
+@pytest.mark.parametrize("case", ["stable", "malformed", "persistent_hardlink"])
+def test_read_only_validator_syscall_and_metadata_immutability_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar, _ = cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at="2026-08-14T12:00:00Z",
+        terminal_outcomes_root=root,
+    )
+    persistent_link: Path | None = None
+    if case == "malformed":
+        sidecar.write_bytes(b"not-json")
+        sidecar.chmod(0o600)
+    elif case == "persistent_hardlink":
+        persistent_link = sidecar.with_name("persistent-validator-link.json")
+        os.link(sidecar, persistent_link, follow_symlinks=False)
+        monkeypatch.setattr(cli, "_COLLISION_STABILIZATION_ATTEMPTS", 2)
+        monkeypatch.setattr(cli, "_COLLISION_STABILIZATION_DELAY_SECONDS", 0.0)
+
+    outcome_before = _file_snapshot(outcome_path)
+    sidecar_before = _file_snapshot(sidecar)
+
+    def forbidden_mutation(*_: Any, **__: Any) -> Any:
+        pytest.fail("read-only validator must not fsync, write, link, unlink, or chmod")
+
+    with monkeypatch.context() as validation_patch:
+        validation_patch.setattr(cli, "_fsync_directory", forbidden_mutation)
+        validation_patch.setattr(cli.os, "write", forbidden_mutation)
+        validation_patch.setattr(cli.os, "link", forbidden_mutation)
+        validation_patch.setattr(cli.os, "unlink", forbidden_mutation)
+        validation_patch.setattr(cli.os, "chmod", forbidden_mutation)
+        if case == "stable":
+            cli.validate_projected_terminal_evidence(
+                outcome_path=outcome_path,
+                terminal_outcomes_root=root,
+            )
+        elif case == "malformed":
+            with pytest.raises(CreativeCodeTerminalOutcomeError):
+                cli.validate_projected_terminal_evidence(
+                    outcome_path=outcome_path,
+                    terminal_outcomes_root=root,
+                )
+        else:
+            with pytest.raises(
+                cli.CreativeCodeTerminalOutcomeIOError,
+                match="^evidence_projection_hardlink_rejected$",
+            ):
+                cli.validate_projected_terminal_evidence(
+                    outcome_path=outcome_path,
+                    terminal_outcomes_root=root,
+                )
+
+    _assert_file_snapshot(outcome_path, outcome_before)
+    _assert_file_snapshot(sidecar, sidecar_before)
+    if persistent_link is not None:
+        assert persistent_link.exists()
 
 
 @pytest.mark.parametrize("replay_path", ["early_existing", "eexist_collision"])
