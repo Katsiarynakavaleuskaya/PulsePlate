@@ -8,10 +8,10 @@ EN: Tests for VIP API endpoints
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from app.services import fitchef_runtime
@@ -30,6 +30,21 @@ def _valid_weekly_profile_payload() -> dict[str, Any]:
         "activity": "active",
         "goal": "maintain",
     }
+
+
+def test_vip_weekly_plan_openapi_publishes_required_profile_contract(
+    client: TestClient,
+) -> None:
+    """OpenAPI mirrors the six-field schema without moving validation before auth."""
+
+    schema = cast(FastAPI, client.app).openapi()
+    request_schema = schema["paths"]["/api/v1/vip/menu/weekly/plan"]["post"]["requestBody"][
+        "content"
+    ]["application/json"]["schema"]
+
+    assert request_schema["required"] == list(_CORE_WEEKLY_PROFILE_FIELDS)
+    assert set(request_schema["properties"]) >= set(_CORE_WEEKLY_PROFILE_FIELDS)
+    assert request_schema["additionalProperties"] is True
 
 
 def test_vip_health(client: TestClient, vip_headers: dict[str, str]) -> None:

@@ -119,6 +119,15 @@ else:
 
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
+_WEEKLY_PLAN_REQUEST_BODY_OPENAPI: Dict[str, Any] = {
+    "required": True,
+    "content": {
+        "application/json": {
+            "schema": WeeklyPlanRequest.model_json_schema(),
+        }
+    },
+}
+
 # VIP shoplist preview (offline/deterministic)
 router.include_router(vip_shoplist_router)
 
@@ -503,7 +512,11 @@ def vip_health() -> Dict[str, Any]:
     }
 
 
-@router.post("/menu/weekly/plan", dependencies=[Depends(require_vip_tier)])
+@router.post(
+    "/menu/weekly/plan",
+    dependencies=[Depends(require_vip_tier)],
+    openapi_extra={"requestBody": _WEEKLY_PLAN_REQUEST_BODY_OPENAPI},
+)
 async def weekly_menu_plan(
     payload: Dict[str, Any] = Body(...),
 ) -> Dict[str, Any]:

@@ -6987,6 +6987,76 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * Activity
+                     * @description Activity level
+                     * @enum {string}
+                     */
+                    activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
+                    /**
+                     * Age
+                     * @description Age in years
+                     */
+                    age: number;
+                    /**
+                     * Calories
+                     * @description Daily calories target
+                     */
+                    calories?: number | null;
+                    /**
+                     * Constraints
+                     * @description Dietary constraints
+                     */
+                    constraints?: {
+                        [key: string]: unknown;
+                    };
+                    /**
+                     * Goal
+                     * @description Nutrition goal
+                     * @enum {string}
+                     */
+                    goal: "loss" | "maintain" | "gain";
+                    /**
+                     * Goals
+                     * @description Nutrition goals
+                     */
+                    goals?: {
+                        [key: string]: unknown;
+                    };
+                    /**
+                     * Height Cm
+                     * @description Height in centimeters
+                     */
+                    height_cm: number;
+                    /**
+                     * Preferences
+                     * @description User preferences
+                     */
+                    preferences?: {
+                        [key: string]: unknown;
+                    };
+                    /**
+                     * Protein
+                     * @description Daily protein target (g)
+                     */
+                    protein?: number | null;
+                    /**
+                     * Sex
+                     * @description Gender (male/female)
+                     * @enum {string}
+                     */
+                    sex: "female" | "male";
+                    /**
+                     * User Id
+                     * @description User identifier
+                     */
+                    user_id?: string | null;
+                    /**
+                     * Weight Kg
+                     * @description Weight in kilograms
+                     */
+                    weight_kg: number;
+                } & {
                     [key: string]: unknown;
                 };
             };
