@@ -1189,6 +1189,97 @@ def test_collision_reader_does_not_repair_persistent_hardlink(
     )
 
 
+@pytest.mark.parametrize("divergent", [False, True])
+def test_public_replay_waits_for_early_visible_winner_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    divergent: bool,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    requested_timestamp = "2026-08-14T12:00:00Z"
+    winner_timestamp = "2026-08-14T12:00:01Z" if divergent else requested_timestamp
+    winner_content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at=winner_timestamp)
+    )
+    winner_staging = outcome_path.with_name(".early-winner.staging")
+    target = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    winner_staging.write_bytes(winner_content)
+    winner_staging.chmod(0o600)
+    os.link(winner_staging, target, follow_symlinks=False)
+    waiting = threading.Event()
+    release = threading.Event()
+
+    def controlled_sleep(_: float) -> None:
+        waiting.set()
+        assert release.wait(timeout=5)
+
+    def replay_loser() -> tuple[Path, bool] | str:
+        try:
+            return cli.project_terminal_evidence(
+                outcome_path=outcome_path,
+                produced_at=requested_timestamp,
+                terminal_outcomes_root=root,
+            )
+        except cli.CreativeCodeTerminalOutcomeIOError as exc:
+            return str(exc)
+
+    monkeypatch.setattr(cli.time, "sleep", controlled_sleep)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        loser = pool.submit(replay_loser)
+        assert waiting.wait(timeout=5)
+        assert target.stat().st_nlink == 2
+        winner_staging.unlink()
+        release.set()
+        result = loser.result(timeout=5)
+
+    if divergent:
+        assert result == "divergent_replay"
+    else:
+        assert result == (target, True)
+    assert target.read_bytes() == winner_content
+    assert target.stat().st_nlink == 1
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
+def test_public_replay_does_not_repair_persistent_hardlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    external_link = outcome_path.with_name("external-sidecar-link.json")
+    target = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    external_link.write_bytes(content)
+    external_link.chmod(0o600)
+    os.link(external_link, target, follow_symlinks=False)
+    before = target.stat()
+    monkeypatch.setattr(cli, "_COLLISION_STABILIZATION_ATTEMPTS", 2)
+    monkeypatch.setattr(cli, "_COLLISION_STABILIZATION_DELAY_SECONDS", 0.0)
+
+    with pytest.raises(cli.CreativeCodeTerminalOutcomeIOError, match="hardlink_rejected"):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+    after = target.stat()
+    assert target.read_bytes() == content
+    assert external_link.exists()
+    assert (after.st_ino, after.st_nlink, after.st_mode, after.st_mtime_ns, after.st_ctime_ns) == (
+        before.st_ino,
+        before.st_nlink,
+        before.st_mode,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+
+
 def test_injected_after_collision_failure_preserves_complete_winner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

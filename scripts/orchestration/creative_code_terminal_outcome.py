@@ -581,6 +581,7 @@ def _project_terminal_evidence_locked(
             outcome=outcome,
             target_file=target_file,
             expected_content=content,
+            collision_winner=True,
         )
         _recheck_projection_source_identity(
             outcome_path=resolved,
