@@ -606,6 +606,7 @@ def _project_terminal_evidence_locked(
             expected_content=content,
             collision_winner=True,
         )
+        _fsync_directory(resolved.parent)
         _recheck_projection_source_identity(
             outcome_path=resolved,
             outcome_identity=outcome_identity,
@@ -655,6 +656,7 @@ def _project_terminal_evidence_locked(
             expected_content=content,
             collision_winner=True,
         )
+        _fsync_directory(resolved.parent)
         _recheck_projection_source_identity(
             outcome_path=resolved,
             outcome_identity=outcome_identity,

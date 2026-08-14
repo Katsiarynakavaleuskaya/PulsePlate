@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import hashlib
 import inspect
 import json
 import os
@@ -556,6 +557,7 @@ def test_missing_outcome_publishes_nothing(tmp_path: Path) -> None:
 def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / "terminal_outcomes"
     outcome_path = _write_outcome(root, _outcome())
@@ -579,6 +581,28 @@ def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
     assert sidecar.stat().st_mode & 0o777 == 0o600
     first = sidecar.stat()
     first_bytes = sidecar.read_bytes()
+    first_hash = hashlib.sha256(first_bytes).hexdigest()
+    fsync_paths: list[Path] = []
+    original_fsync_directory = cli._fsync_directory
+
+    def forbidden_mutation(*_: Any, **__: Any) -> Any:
+        pytest.fail("serial replay must not write, link, unlink, or chmod")
+
+    def record_directory_fsync(path: Path) -> None:
+        fsync_paths.append(path)
+        original_fsync_directory(path)
+
+    with monkeypatch.context() as replay_patch:
+        replay_patch.setattr(cli.os, "write", forbidden_mutation)
+        replay_patch.setattr(cli.os, "link", forbidden_mutation)
+        replay_patch.setattr(cli.os, "unlink", forbidden_mutation)
+        replay_patch.setattr(cli.os, "chmod", forbidden_mutation)
+        replay_patch.setattr(cli, "_fsync_directory", record_directory_fsync)
+        assert cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        ) == (sidecar, True)
     assert (
         cli.main(
             [
@@ -593,6 +617,7 @@ def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
         == 0
     )
     second = sidecar.stat()
+    assert fsync_paths == [sidecar.parent]
     assert (
         second.st_ino,
         second.st_mode,
@@ -601,6 +626,7 @@ def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
         second.st_ctime_ns,
     ) == (first.st_ino, first.st_mode, first.st_size, first.st_mtime_ns, first.st_ctime_ns)
     assert sidecar.read_bytes() == first_bytes
+    assert hashlib.sha256(sidecar.read_bytes()).hexdigest() == first_hash
     assert (
         cli.main(
             ["validate-evidence-projection", "--outcome", str(outcome_path)],
@@ -623,7 +649,10 @@ def test_project_and_validate_cli_are_sibling_only_and_replay_is_no_write(
         outcome_before.st_mtime_ns,
         outcome_before.st_ctime_ns,
     )
-    assert "replay=identical" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert cli.SUCCESS_PROJECT_OUTPUT in output
+    assert cli.SUCCESS_VALIDATE_PROJECTION_OUTPUT in output
+    assert "replay=identical" in output
 
 
 def test_different_timestamp_is_divergent_and_preserves_winner(tmp_path: Path) -> None:
@@ -1694,6 +1723,144 @@ def test_public_replay_retries_only_link_settled_during_open_transition(
     assert target.stat().st_nlink == 1
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
     assert not winner_staging.exists()
+
+
+@pytest.mark.parametrize("replay_path", ["early_existing", "eexist_collision"])
+def test_replay_fsyncs_validated_parent_before_final_source_seal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replay_path: str,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    target = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    winner_unlinked_without_fsync = False
+
+    if replay_path == "early_existing":
+        winner = target.with_name(".early-unfsynced-winner.staging")
+        winner.write_bytes(content)
+        winner.chmod(0o600)
+        os.link(winner, target, follow_symlinks=False)
+        winner.unlink()
+        winner_unlinked_without_fsync = True
+    else:
+
+        def publish_unfsynced_winner_then_collide(_: Path, destination: Path) -> None:
+            nonlocal winner_unlinked_without_fsync
+            winner = destination.with_name(".eexist-unfsynced-winner.staging")
+            winner.write_bytes(content)
+            winner.chmod(0o600)
+            os.link(winner, destination, follow_symlinks=False)
+            winner.unlink()
+            winner_unlinked_without_fsync = True
+            raise FileExistsError("injected EEXIST before winner directory fsync")
+
+        monkeypatch.setattr(
+            cli, "_link_staging_file_noreplace", publish_unfsynced_winner_then_collide
+        )
+
+    sequence: list[str] = []
+    original_validate = cli._validate_existing_projection
+    original_fsync_directory = cli._fsync_directory
+    original_source_seal = cli._recheck_projection_source_identity
+
+    def record_validation(**kwargs: Any) -> bool:
+        result = original_validate(**kwargs)
+        sequence.append("validated")
+        return result
+
+    def record_directory_fsync(path: Path) -> None:
+        sequence.append("parent_fsync")
+        original_fsync_directory(path)
+
+    def record_source_seal(**kwargs: Any) -> None:
+        original_source_seal(**kwargs)
+        sequence.append("source_seal")
+
+    monkeypatch.setattr(cli, "_validate_existing_projection", record_validation)
+    monkeypatch.setattr(cli, "_fsync_directory", record_directory_fsync)
+    monkeypatch.setattr(cli, "_recheck_projection_source_identity", record_source_seal)
+
+    assert cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at="2026-08-14T12:00:00Z",
+        terminal_outcomes_root=root,
+    ) == (target, True)
+    assert winner_unlinked_without_fsync is True
+    assert sequence[-3:] == ["validated", "parent_fsync", "source_seal"]
+    assert target.read_bytes() == content
+    assert target.stat().st_nlink == 1
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
+@pytest.mark.parametrize("replay_path", ["early_existing", "eexist_collision"])
+def test_replay_parent_fsync_failure_is_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replay_path: str,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    target = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    failing_fsync_call = 1
+    expected_source_seals = 0
+    if replay_path == "early_existing":
+        target.write_bytes(content)
+        target.chmod(0o600)
+    else:
+        failing_fsync_call = 2
+        expected_source_seals = 2
+
+        def collide(staging: Path, destination: Path) -> None:
+            os.link(staging, destination, follow_symlinks=False)
+            raise FileExistsError("injected EEXIST")
+
+        monkeypatch.setattr(cli, "_link_staging_file_noreplace", collide)
+
+    original_fsync_directory = cli._fsync_directory
+    original_source_seal = cli._recheck_projection_source_identity
+    fsync_calls = 0
+    source_seals = 0
+
+    def fail_replay_fsync(path: Path) -> None:
+        nonlocal fsync_calls
+        fsync_calls += 1
+        if fsync_calls == failing_fsync_call:
+            raise cli.CreativeCodeTerminalOutcomeIOError("directory_fsync_failed")
+        original_fsync_directory(path)
+
+    def count_source_seals(**kwargs: Any) -> None:
+        nonlocal source_seals
+        original_source_seal(**kwargs)
+        source_seals += 1
+
+    monkeypatch.setattr(cli, "_fsync_directory", fail_replay_fsync)
+    monkeypatch.setattr(cli, "_recheck_projection_source_identity", count_source_seals)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^directory_fsync_failed$",
+    ):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+
+    assert fsync_calls == failing_fsync_call
+    assert source_seals == expected_source_seals
+    assert target.read_bytes() == content
+    assert target.stat().st_nlink == 1
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
 
 
 @pytest.mark.parametrize("divergent", [False, True])
