@@ -16,7 +16,7 @@ import pytest
 import scripts.ci.check_legacy_growth_guard as legacy_guard
 
 EXPECTED_OPENAPI_DIGEST = (
-    "478873f1cc82292211c1191013f6d96250dc3d46a617bac8151fee65fdff3f1a"  # pragma: allowlist secret
+    "490d477edcde3aa69008f83e9f77ea1f3862c3d92575f18d9a782b4cdc286dd9"  # pragma: allowlist secret
 )
 EXPECTED_ROUTE_PROJECTION_COUNT = 133
 EXPECTED_ROUTE_PROJECTION_DIGEST = (
