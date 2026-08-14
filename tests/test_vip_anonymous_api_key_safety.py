@@ -2,6 +2,7 @@
 
 import pytest
 
+from settings import is_production_like_env
 from tests._client import open_test_client
 
 
@@ -126,7 +127,12 @@ class TestVIPAnonymousAPIKeySafety:
 
         with open_test_client(app.app) as client:
             with monkeypatch.context() as request_env:
+                request_env.setenv("APP_ENV", "preview")
+                request_env.setenv("DEBUG", "true")
+                assert is_production_like_env() is False
+
                 request_env.setenv("DEBUG", "false")
+                assert is_production_like_env() is True
 
                 # Test request without API key to VIP endpoint
                 response = client.post(
@@ -229,6 +235,7 @@ class TestVIPAnonymousAPIKeySafety:
             with monkeypatch.context() as request_env:
                 request_env.setenv("APP_ENV", "development")
                 request_env.setenv("DEBUG", "true")
+                request_env.setenv("ALLOW_DEV_API_KEY", "true")
                 request_env.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
 
                 # Test request without API key to VIP endpoint
