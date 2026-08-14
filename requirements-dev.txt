@@ -55,7 +55,7 @@ cryptography==50.0.0
     # via
     #   -c requirements.txt
     #   -r requirements-dev.in
-cyclonedx-python-lib==11.6.0
+cyclonedx-python-lib==11.11.0
     # via pip-audit
 defusedxml==0.7.1
     # via py-serializable
@@ -63,7 +63,7 @@ detect-secrets==1.5.0
     # via -r requirements-dev.in
 diff-cover==10.3.0
     # via -r requirements-dev.in
-distlib==0.4.0
+distlib==0.4.3
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
@@ -160,7 +160,7 @@ pip-audit==2.10.1
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
     # via pip-audit
-pip-tools==7.5.3
+pip-tools==7.6.0
     # via -r requirements-dev.in
 platformdirs==4.5.1
     # via
@@ -172,7 +172,7 @@ pluggy==1.6.0
     #   diff-cover
     #   pytest
     #   pytest-cov
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via -r requirements-dev.in
 py-serializable==2.1.0
     # via cyclonedx-python-lib

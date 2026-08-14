@@ -290,6 +290,61 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     from bot wording. The validator is read-only and never authors the reply. This narrow
     NOT-A-BUG disposition is not review, approval, merge authority, or a bypass
     of findings, CI, security, mapping, thread, ancestry, or wait-window gates.
+    A fourth, mutually exclusive owner-only recordless class covers a historical
+    stale-seal finding as `FIXED` only when the same root has no canonical
+    fingerprint or FIXED mapping and the human OWNER has inspected the whole
+    root and confirmed that it contains no independent actionable finding
+    beyond the historical stale-seal defect that `R` corrected. The resolved
+    root must be the first comment, be authored by
+    `chatgpt-codex-connector`, target the canonical current-PR mapping artifact,
+    and have `originalCommit` equal to the selected stale head `S`. The thread
+    must contain exactly one later comment whose GraphQL `authorAssociation` is
+    `OWNER`; that sole OWNER comment must equal this single line byte-for-byte,
+    with two distinct lowercase full 40-character SHAs and no Markdown, extra
+    whitespace, newline, or explanation:
+    `OWNER FIXED: stale seal at <full-stale-head-sha> is corrected by mapping-only reseal <full-reseal-sha>; authenticated live PR graph is authoritative.`
+    The selected reseal `R` must be a real, reachable PR commit pushed after the
+    root but no later than the OWNER reply and the sole direct child of `S` in
+    the complete live PR commit graph. It must be non-empty, non-trigger-only,
+    and change only the regular canonical mapping blob. `S` must match exactly
+    one member of the closed disjoint union `LINEAR_MATERIAL ∪ BASE_SYNC`.
+    `LINEAR_MATERIAL` has sole parent `P`, inherits `P`'s mapping byte-for-byte,
+    and contains a non-empty real material diff from `P` with no mapping
+    mutation; the valid prior seal at `P` binds its exact historical base and
+    merge-base, that base remains the base for `S` and `R` and is an ancestor
+    of the authenticated current base, `P` is a reachable live PR commit, and
+    the inherited seal is demonstrably stale at `S`. This linear form is
+    retrospective only: it is not permission to manufacture post-closeout
+    material. `BASE_SYNC` is the exact two-parent form: the synchronized-base
+    second parent must advance the prior sealed base and must not already be an
+    ancestor of the first parent. A failed `BASE_SYNC` never falls through to
+    `LINEAR_MATERIAL`; any other parent count is rejected. In either form the
+    inherited seal, including a valid legacy v1 provider shape, must recompute
+    for the repository-addressable prior material/base through its unique direct
+    mapping-only closeout but be stale at `S`, while the seal in `R` must bind
+    material head `S`, the form-selected unchanged or synchronized base, the
+    exact merge-base, and the recomputed material digest. The
+    `S` and `R` material projections must be identical after excluding only the
+    canonical mapping. Later ordinary base syncs and reseals may place `R` below
+    the live head, but the current live seal must independently pass the normal
+    current-base, material-head, digest, and sole mapping-only successor checks.
+    Unrelated canonical records may coexist; exactly one root may be globally
+    eligible before caller URL filtering, while two leave all blocking. Every
+    REST pagination link must remain on `api.github.com` at the same repository
+    endpoint and path with immutable non-pagination query fields; repeated,
+    cross-repository, or cross-endpoint pages fail closed. Local Git evidence is
+    evaluated with replacement objects disabled. A shallow boundary that hides
+    any selected commit parent or lies in selected ancestry is terminal; an
+    unrelated legacy shallow boundary is not evidence for or against that graph.
+    Any repository, REST/GraphQL,
+    Git graph, regular-path, seal, digest, timestamp, pagination,
+    shallow-boundary, replacement-object, or cardinality uncertainty fails closed. The validator
+    never interprets bot prose or authors the reply. This historical class is
+    `FIXED`, because `R`
+    corrected a real defect at `S`; it is not review, provider output,
+    approval, scan, PASS, merge authority, or a bypass of current CI, security,
+    mapping, unresolved
+    threads, bot actionables, ancestry, or the wait window.
     None of the reply-only paths creates another docs commit or restarts
     review/security scans.
 11. **Pre-closeout ordering gate:** after `seal` writes the local canonical

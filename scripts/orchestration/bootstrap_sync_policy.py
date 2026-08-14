@@ -8,9 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import json
 from pathlib import Path, PurePosixPath
 import re
-from typing import Literal, cast
+from typing import Any, Literal, cast
+
+from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration.context_pack import compute_task_packet_id
+from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -43,9 +48,28 @@ INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
     "stop_condition",
     "residual_risk",
 )
+INVARIANT_REVIEW_V2_REQUIRED_OUTPUT_FIELDS: tuple[str, ...] = (
+    *INVARIANT_REVIEW_REQUIRED_OUTPUT_FIELDS,
+    "family_membership_assessment",
+    "set_relation_interpretation",
+    "abstraction_level",
+    "root_cause_hypothesis",
+    "recommended_resolution",
+    "evidence_refs",
+)
+INVARIANT_REVIEW_RECOMMENDED_RESOLUTIONS: tuple[str, ...] = (
+    "bounded_object_fix",
+    "family_fix",
+    "mechanism_fix",
+    "authority_rescope",
+    "no_change_required",
+    "unknown_requires_human",
+)
 INVARIANT_REVIEW_STOP_CONDITION = (
     "second_materially_novel_carrier_same_open_world_invariant_requires_rescope"
 )
+INVARIANT_FAMILY_REPEAT_TRIGGER_RULE = "explicit_family_cardinality_gte_2"
+INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA = "task_packet_id.invariant_review.v2"
 INVARIANT_REVIEW_V1_FIELDS = frozenset(
     {
         "schema_version",
@@ -59,6 +83,34 @@ INVARIANT_REVIEW_V1_FIELDS = frozenset(
         "stop_condition",
         "implementation_authority",
         "merge_authority",
+    }
+)
+INVARIANT_REVIEW_V2_FIELDS = frozenset(
+    {
+        "schema_version",
+        "state",
+        "coverage_claim",
+        "required_roles",
+        "boundary_classes",
+        "required_output_fields",
+        "stop_condition",
+        "family_repeat",
+        "implementation_authority",
+        "merge_authority",
+    }
+)
+INVARIANT_REVIEW_FAMILY_REPEAT_FIELDS = frozenset(
+    {
+        "source_schema_version",
+        "source_policy_version",
+        "snapshot_fingerprint",
+        "artifact_fingerprint",
+        "idempotency_key",
+        "trigger_rule",
+        "membership_source",
+        "repeated_families",
+        "relations_touching_repeated_families",
+        "unknown_findings_present",
     }
 )
 INVARIANT_REVIEW_AUTHORITY_PATHS: tuple[str, ...] = (
@@ -127,6 +179,100 @@ class InvariantReviewDecision:
         return ",".join(self.change_classes)
 
 
+def compute_invariant_family_review_packet_id(
+    *,
+    goal: str,
+    task_class: str,
+    domain: str,
+    candidate_paths: list[str] | tuple[str, ...],
+    requested_agents: list[str] | tuple[str, ...],
+    pr_phase: str,
+    design_lane_mode: str,
+    design_lane_contract: dict[str, Any],
+    creative_learning_hints_fingerprint: str,
+    creative_learning_hints_projection: dict[str, Any],
+    recommended_skills: list[str] | tuple[str, ...],
+    skill_routing: dict[str, Any],
+    artifact_fingerprint: str,
+    invariant_review_projection: dict[str, Any],
+    required_context: list[str] | tuple[str, ...],
+    primary_agent: str,
+    secondary_agents: list[str] | tuple[str, ...],
+    reviewer: str,
+    requested_agent_disposition: list[dict[str, str]] | tuple[dict[str, str], ...],
+) -> str:
+    """Bind the closed v2 review and role projections into the packet-id frame."""
+
+    base_identity_strings = (
+        goal,
+        task_class,
+        domain,
+        pr_phase,
+        creative_learning_hints_fingerprint,
+        *candidate_paths,
+        *requested_agents,
+    )
+    if any(
+        any(ord(character) < 32 or ord(character) == 127 for character in value)
+        for value in base_identity_strings
+    ):
+        raise ValueError("invariant_review.v2 base identity strings reject control characters")
+    canonical_design_contract = dict(design_lane_contract)
+    canonical_design_contract["blockers"] = canonicalize_design_blockers(
+        list(design_lane_contract.get("blockers", ()))
+    )
+    design_fingerprint = json.dumps(
+        {
+            "design_lane_mode": design_lane_mode,
+            "design_lane_contract": canonical_design_contract,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    base_packet_id = compute_task_packet_id(
+        goal=goal,
+        task_class=task_class,
+        domain=domain,
+        candidate_paths=candidate_paths,
+        requested_agents=requested_agents,
+        pr_phase=pr_phase,
+        design_fingerprint=design_fingerprint,
+        creative_learning_hints_fingerprint=creative_learning_hints_fingerprint,
+    )
+    framed_fingerprint = str(
+        fingerprint_payload(
+            {
+                "base_task_packet_id": base_packet_id,
+                "identity_schema": INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA,
+                "artifact_fingerprint": artifact_fingerprint,
+                "trigger_rule": INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
+                "creative_learning_hints_projection_fingerprint": fingerprint_payload(
+                    creative_learning_hints_projection
+                ),
+                "invariant_review_projection_fingerprint": fingerprint_payload(
+                    invariant_review_projection
+                ),
+                "required_context_projection_fingerprint": fingerprint_payload(
+                    list(required_context)
+                ),
+                "recommended_skills_projection_fingerprint": fingerprint_payload(
+                    list(recommended_skills)
+                ),
+                "skill_routing_projection_fingerprint": fingerprint_payload(skill_routing),
+                "role_assignment_projection_fingerprint": fingerprint_payload(
+                    {
+                        "primary_agent": primary_agent,
+                        "secondary_agents": list(secondary_agents),
+                        "reviewer": reviewer,
+                        "requested_agent_disposition": list(requested_agent_disposition),
+                    }
+                ),
+            }
+        )
+    )
+    return framed_fingerprint.removeprefix("sha256:")[:12]
+
+
 def _normalize_invariant_review_path(raw_path: str) -> str:
     """Return a strict repo-relative POSIX path for bounded matching."""
 
@@ -152,7 +298,7 @@ def _normalize_invariant_review_path(raw_path: str) -> str:
     normalized = PurePosixPath(candidate_text)
     if ".." in normalized.parts:
         raise ValueError(
-            "invariant review paths: path must stay inside repo; " "parent traversal is forbidden"
+            "invariant review paths: path must stay inside repo; parent traversal is forbidden"
         )
     normalized_text = normalized.as_posix()
     while normalized_text.startswith("./"):
@@ -211,8 +357,7 @@ def classify_invariant_review(
         ):
             supported = ", ".join(INVARIANT_CHANGE_CLASSES)
             raise ValueError(
-                "Unsupported invariant change class: "
-                f"{raw_change_class!r}. Supported: {supported}"
+                f"Unsupported invariant change class: {raw_change_class!r}. Supported: {supported}"
             )
         explicit_set.add(cast(InvariantChangeClass, raw_change_class))
 

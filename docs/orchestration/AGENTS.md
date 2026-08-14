@@ -7,6 +7,7 @@ Scope: `docs/orchestration/**`
 - When a PR changes workflow or agent behavior only for an orchestration/docs lane, update this scoped file instead of broadcasting initiative-specific routing into root `AGENTS.md`.
 - PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
 - The optional L1 explicit-family relation projection is governed only by [`contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`](./contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md); it is a derived offline view with no runtime, learning, reflection, mapping, oracle, routing, review, or merge authority.
+- The optional L2 repeated-family consumer is governed only by [`contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md`](./contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md): `task_bootstrap.py` may consume the canonical L1 artifact only as a `post_open_review` opt-in; a repeated explicit family produces one joint `agent-coordinator -> logic-agent -> philosophy-agent -> qa-engineer-agent -> bug-hunter -> security-auditor` pass, adds no parser or semantic inference, and grants no implementation or merge authority.
 - Repo-global post-open review gates supersede historical scoped lane shorthand:
   every current non-trivial PR must run
   `qa-engineer-agent -> bug-hunter -> security-auditor`

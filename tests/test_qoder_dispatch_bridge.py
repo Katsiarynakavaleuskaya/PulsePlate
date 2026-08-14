@@ -6,10 +6,15 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, cast, Dict, List
 
 import pytest
-from scripts.orchestration import qoder_dispatch_bridge, role_dispatch_bridge
+from scripts.orchestration import (
+    qoder_dispatch_bridge,
+    review_invariant_family_relations as relations,
+    role_dispatch_bridge,
+    task_bootstrap,
+)
 from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
 from scripts.orchestration.task_bootstrap import build_role_agent_dispatch_contract
 
@@ -89,6 +94,632 @@ def test_role_dispatch_bridge_help_uses_neutral_name(capsys: pytest.CaptureFixtu
     assert "usage: role_dispatch_bridge" in captured.out
     assert "Generate a JSON role dispatch manifest" in captured.out
     assert "Generate a JSON dispatch manifest for Qoder" not in captured.out
+
+
+def _v2_source_artifact(*, repeated: bool = True) -> dict[str, object]:
+    relation = {
+        "left_family_id": "family_alpha",
+        "right_family_id": "family_beta",
+        "relation": "partial_overlap",
+        "intersection_finding_ids": ["finding_b"],
+        "left_only_finding_ids": ["finding_a"],
+        "right_only_finding_ids": ["finding_c"],
+    }
+    return {
+        "schema_version": "review_invariant_family_relations.v1",
+        "policy_version": "review_invariant_family_relations.policy.v1",
+        "snapshot": {
+            "families": [
+                {"family_id": "family_alpha", "finding_ids": ["finding_a", "finding_b"]},
+                {
+                    "family_id": "family_beta",
+                    "finding_ids": ["finding_b", "finding_c"] if repeated else ["finding_c"],
+                },
+            ]
+        },
+        "snapshot_fingerprint": "sha256:" + ("1" * 64),
+        "artifact_fingerprint": "sha256:" + ("2" * 64),
+        "idempotency_key": "review-invariant-family-relations.v1:" + ("2" * 64),
+        "relations": [relation],
+        "unknown_finding_ids": [],
+    }
+
+
+def _v2_packet(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    repeated: bool = True,
+    requested_agents: List[str] | None = None,
+) -> dict[str, object]:
+    artifact = _v2_source_artifact(repeated=repeated)
+    if not repeated:
+        snapshot = artifact["snapshot"]
+        assert isinstance(snapshot, dict)
+        families = snapshot["families"]
+        assert isinstance(families, list)
+        first_family = families[0]
+        assert isinstance(first_family, dict)
+        first_family["finding_ids"] = ["finding_a"]
+    monkeypatch.setattr(
+        task_bootstrap,
+        "_read_invariant_family_relations_input",
+        lambda _path: artifact,
+    )
+    return task_bootstrap.build_task_packet(
+        goal="Review repeated explicit invariant families",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+        requested_agents=(["agent-coordinator"] if requested_agents is None else requested_agents),
+        review_invariant_family_relations_input=(
+            "artifacts/orchestration/review_invariant_family_relations/input.json"
+        ),
+        pr_phase="post_open_review",
+    )
+
+
+def _recompute_v2_packet_id(packet: dict[str, object]) -> str:
+    review = cast(Dict[str, Any], packet["invariant_review"])
+    family_repeat = cast(Dict[str, Any], review["family_repeat"])
+    creative_learning_hints = cast(Dict[str, Any], packet["creative_learning_hints"])
+    return task_bootstrap.compute_invariant_family_review_packet_id(
+        goal=cast(str, packet["goal"]),
+        task_class=cast(str, packet["task_class"]),
+        domain=cast(str, packet["domain"]),
+        candidate_paths=cast(List[str], packet["candidate_paths"]),
+        requested_agents=cast(List[str], packet["requested_agents"]),
+        pr_phase=cast(str, packet["pr_phase"]),
+        design_lane_mode=cast(str, packet["design_lane_mode"]),
+        design_lane_contract=cast(Dict[str, Any], packet["design_lane_contract"]),
+        creative_learning_hints_fingerprint=cast(
+            str, creative_learning_hints["source_hints_fingerprint"]
+        ),
+        creative_learning_hints_projection=creative_learning_hints,
+        recommended_skills=cast(List[str], packet["recommended_skills"]),
+        skill_routing=cast(Dict[str, Any], packet["skill_routing"]),
+        artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
+        invariant_review_projection=review,
+        required_context=cast(List[str], packet["required_context"]),
+        primary_agent=cast(str, packet["primary_agent"]),
+        secondary_agents=cast(List[str], packet["secondary_agents"]),
+        reviewer=cast(str, packet["reviewer"]),
+        requested_agent_disposition=cast(
+            List[Dict[str, str]], packet["requested_agent_disposition"]
+        ),
+    )
+
+
+def test_qoder_accepts_closed_v2_without_recomputing_l1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    monkeypatch.setattr(
+        relations,
+        "process_input_bytes",
+        lambda _raw: pytest.fail("Qoder must not recompute L1"),
+    )
+
+    assert qoder_dispatch_bridge._parse_json_packet_roles(packet) == [
+        "agent-coordinator",
+        "logic-agent",
+        "philosophy-agent",
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+
+
+def test_qoder_rejects_open_or_semantically_widened_v2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    review["change_classes"] = ["guard"]
+
+    with pytest.raises(ValueError, match="exactly match the invariant_review.v2 fields"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_under_legacy_task_packet_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["schema_version"] = "3.0"
+
+    with pytest.raises(ValueError, match="requires task packet schema 3.1"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_idempotency_digest_mismatched_to_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    family_repeat = review["family_repeat"]
+    assert isinstance(family_repeat, dict)
+    family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("0" * 64)
+
+    with pytest.raises(ValueError, match="must match artifact_fingerprint"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_accepts_not_required_v2_with_ordinary_post_open_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+    qa_index = roles.index("qa-engineer-agent")
+    assert roles[qa_index : qa_index + 3] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    assert review["state"] == "not_required"
+
+
+def test_qoder_accepts_producer_rejected_unknown_requested_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(
+        monkeypatch,
+        repeated=False,
+        requested_agents=["invalid_slug"],
+    )
+
+    assert packet["requested_agent_disposition"] == [
+        {
+            "agent": "invalid_slug",
+            "status": "rejected_unknown_agent",
+            "reason": "Agent is not registered in the canonical inventory.",
+        }
+    ]
+    roles = qoder_dispatch_bridge._parse_json_packet_roles(packet)
+    qa_index = roles.index("qa-engineer-agent")
+    assert roles[qa_index : qa_index + 3] == [
+        "qa-engineer-agent",
+        "bug-hunter",
+        "security-auditor",
+    ]
+
+
+def test_repeated_family_producer_rejects_credential_shaped_requested_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="credential-shaped requested agents"):
+        _v2_packet(
+            monkeypatch,
+            repeated=False,
+            requested_agents=["gh" + "p_" + ("a" * 20)],
+        )
+
+
+def test_qoder_rejects_credential_shaped_unknown_requested_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(
+        monkeypatch,
+        repeated=False,
+        requested_agents=["invalid_slug"],
+    )
+    credential_shaped_agent = "gh" + "p_" + ("a" * 20)
+    packet["requested_agents"] = [credential_shaped_agent]
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    dispositions[0]["agent"] = credential_shaped_agent
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="credential-shaped requested agents"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    packet["primary_agent"] = "agent-coordinator"
+    packet["secondary_agents"] = []
+    packet["reviewer"] = "security-auditor"
+    packet["requested_agent_disposition"] = [
+        {
+            "agent": "agent-coordinator",
+            "status": "honored_primary",
+            "reason": "Forged canonical assignment without the ordinary post-open tail.",
+        }
+    ]
+    packet["native_subagent_bridge"] = build_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=[],
+        advisory_agents=[],
+        reviewer="security-auditor",
+    )
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=packet["native_subagent_bridge"],
+        pr_phase="post_open_review",
+    )
+    review = cast(Dict[str, Any], packet["invariant_review"])
+    family_repeat = cast(Dict[str, Any], review["family_repeat"])
+    creative_learning_hints = cast(Dict[str, Any], packet["creative_learning_hints"])
+    packet["task_packet_id"] = task_bootstrap.compute_invariant_family_review_packet_id(
+        goal=cast(str, packet["goal"]),
+        task_class=cast(str, packet["task_class"]),
+        domain=cast(str, packet["domain"]),
+        candidate_paths=cast(List[str], packet["candidate_paths"]),
+        requested_agents=cast(List[str], packet["requested_agents"]),
+        pr_phase=cast(str, packet["pr_phase"]),
+        design_lane_mode=cast(str, packet["design_lane_mode"]),
+        design_lane_contract=cast(Dict[str, Any], packet["design_lane_contract"]),
+        creative_learning_hints_fingerprint=cast(
+            str, creative_learning_hints["source_hints_fingerprint"]
+        ),
+        creative_learning_hints_projection=creative_learning_hints,
+        recommended_skills=cast(List[str], packet["recommended_skills"]),
+        skill_routing=cast(Dict[str, Any], packet["skill_routing"]),
+        artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
+        invariant_review_projection=review,
+        required_context=cast(List[str], packet["required_context"]),
+        primary_agent=cast(str, packet["primary_agent"]),
+        secondary_agents=cast(List[str], packet["secondary_agents"]),
+        reviewer=cast(str, packet["reviewer"]),
+        requested_agent_disposition=cast(
+            List[Dict[str, str]], packet["requested_agent_disposition"]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="exact ordinary post-open role tail"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    ("field", "forged_value"),
+    [
+        ("source_hints_id", "hints-forged"),
+        ("recommended_role_focus", [{"role": "logic-agent"}]),
+        ("reuse_lesson_ids", ["lesson-forged"]),
+        ("avoid_lesson_ids", ["lesson-forged"]),
+    ],
+)
+def test_qoder_rejects_v2_creative_hints_projection_tampering(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    forged_value: object,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    creative_learning_hints = cast(Dict[str, Any], packet["creative_learning_hints"])
+    creative_learning_hints[field] = forged_value
+
+    with pytest.raises(ValueError, match="task_packet_id"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize("field", ["recommended_skills", "skill_routing"])
+def test_qoder_rejects_v2_skill_projection_tampering(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    if field == "recommended_skills":
+        recommended_skills = cast(List[str], packet[field])
+        recommended_skills.append("forged-skill")
+    else:
+        skill_routing = cast(Dict[str, Any], packet[field])
+        skill_routing["forged"] = True
+
+    with pytest.raises(ValueError, match="task_packet_id"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_active_v2_requested_agent_disposition_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["requested_agents"] = ["backend-engineer"]
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="requested_agents"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_active_v2_requested_agent_outside_fixed_role_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["requested_agents"] = ["backend-engineer"]
+    packet["requested_agent_disposition"] = [
+        {
+            "agent": "backend-engineer",
+            "status": "rejected_unknown_agent",
+            "reason": "Forged aligned metadata must not widen the fixed L2 role order.",
+        }
+    ]
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="stay inside the repeated-family role order"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_active_v2_requested_agent_status_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    dispositions[0]["status"] = "rejected_unknown_agent"
+    dispositions[0]["reason"] = "Forged status contradicts the fixed primary assignment."
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="status must match the fixed role assignment"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_not_required_v2_requested_agent_status_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    secondary_agents = cast(List[str], packet["secondary_agents"])
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    assert "agent-coordinator" in secondary_agents
+    assert packet["reviewer"] != "agent-coordinator"
+    assert dispositions[0]["status"] == "honored_secondary"
+    dispositions[0]["status"] = "honored_reviewer"
+    dispositions[0]["reason"] = "Forged status contradicts the ordinary role assignment."
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="status must match the role assignment"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_not_required_v2_assigned_agent_as_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    secondary_agents = cast(List[str], packet["secondary_agents"])
+    dispositions = cast(List[Dict[str, str]], packet["requested_agent_disposition"])
+    assert "agent-coordinator" in secondary_agents
+    assert dispositions[0]["status"] == "honored_secondary"
+    dispositions[0]["status"] = "rejected_unknown_agent"
+    dispositions[0]["reason"] = "Forged unknown status contradicts the assigned role."
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="status must match the role assignment"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_noncanonical_candidate_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    candidate_paths = cast(List[str], packet["candidate_paths"])
+    packet["candidate_paths"] = [str(REPO_ROOT / candidate_paths[0])]
+
+    with pytest.raises(ValueError, match="candidate_paths"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_parent_traversal_with_recomputed_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["candidate_paths"] = ["../outside.py"]
+    packet["required_context"] = sorted(
+        set(
+            qoder_dispatch_bridge.collect_context_pack(
+                ["../outside.py"],
+                include_orchestration=True,
+            )
+        ).union({task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT})
+    )
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="candidate_paths"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_without_repeated_family_contract_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    packet["required_context"] = [
+        path
+        for path in required_context
+        if path != task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT
+    ]
+
+    with pytest.raises(ValueError, match="required_context"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    "extra_context",
+    ["/etc/passwd", "docs/roadmap/BACKLOG_LEDGER.md"],
+)
+def test_qoder_rejects_v2_required_context_addition_with_stale_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    extra_context: str,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    packet["required_context"] = sorted([*required_context, extra_context])
+
+    with pytest.raises(ValueError, match="required_context|task_packet_id"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+@pytest.mark.parametrize(
+    "extra_context",
+    [
+        ".",
+        ".env",
+        "artifacts/orchestration/review_invariant_family_relations/input.json",
+    ],
+)
+def test_qoder_rejects_recomputed_v2_context_outside_producer_owned_set(
+    monkeypatch: pytest.MonkeyPatch,
+    extra_context: str,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    packet["required_context"] = sorted([*required_context, extra_context])
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="producer-owned context paths"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_recomputed_v2_context_missing_required_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    packet["required_context"] = [task_bootstrap.INVARIANT_FAMILY_REVIEW_REQUIRED_CONTEXT]
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="required producer context baseline"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_recomputed_v2_context_missing_ops_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+    orchestration_context = set(task_bootstrap.ORCHESTRATION_CONTEXT_FILES)
+    assert orchestration_context.issubset(required_context)
+    packet["required_context"] = [
+        path for path in required_context if path not in orchestration_context
+    ]
+    packet["task_packet_id"] = _recompute_v2_packet_id(packet)
+
+    with pytest.raises(ValueError, match="required producer context baseline"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_v2_manifest_propagates_validated_packet_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    required_context = cast(List[str], packet["required_context"])
+
+    agents_dir = tmp_path / ".cursor" / "agents"
+    agents_dir.mkdir(parents=True)
+    for role in task_bootstrap.INVARIANT_FAMILY_REVIEW_ROLE_ORDER:
+        (agents_dir / f"{role}.md").write_text(
+            "---\n"
+            f"name: {role}\n"
+            "model: auto\n"
+            f"description: {role}\n"
+            "readonly: true\n"
+            "---\n"
+            f"\n# {role}\n",
+            encoding="utf-8",
+        )
+    packet_path = tmp_path / "v2.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet_path), "--mode", "analysis"])
+
+    assert result == 0
+    manifest = json.loads(capsys.readouterr().out)
+
+    assert all(
+        entry["required_context_paths"] == sorted(required_context)
+        for entry in manifest["dispatch_sequence"]
+    )
+    assert all(
+        not any(
+            path.startswith("artifacts/orchestration/review_invariant_family_relations/")
+            for path in entry["required_context_paths"]
+        )
+        for entry in manifest["dispatch_sequence"]
+    )
+
+
+def test_qoder_rejects_not_required_v2_with_injected_secondary_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch, repeated=False)
+    secondary_agents = packet["secondary_agents"]
+    assert isinstance(secondary_agents, list)
+    secondary_agents.append("philosophy-agent")
+    primary_agent = packet["primary_agent"]
+    reviewer = packet["reviewer"]
+    assert isinstance(primary_agent, str)
+    assert isinstance(reviewer, str)
+    packet["native_subagent_bridge"] = build_native_subagent_bridge(
+        primary_agent=primary_agent,
+        secondary_agents=secondary_agents,
+        advisory_agents=[],
+        reviewer=reviewer,
+    )
+    packet["role_agent_dispatch_contract"] = build_role_agent_dispatch_contract(
+        native_subagent_bridge=packet["native_subagent_bridge"],
+        pr_phase="post_open_review",
+    )
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_v2_artifact_pair_tampering_with_stale_task_packet_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    original_packet_id = packet["task_packet_id"]
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    family_repeat = review["family_repeat"]
+    assert isinstance(family_repeat, dict)
+    family_repeat["artifact_fingerprint"] = "sha256:" + ("3" * 64)
+    family_repeat["idempotency_key"] = "review-invariant-family-relations.v1:" + ("3" * 64)
+    assert packet["task_packet_id"] == original_packet_id
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
+
+
+def test_qoder_rejects_active_projection_substituted_with_not_required_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    active_packet = _v2_packet(monkeypatch)
+    active_review = active_packet["invariant_review"]
+    assert isinstance(active_review, dict)
+    active_repeat = active_review["family_repeat"]
+    assert isinstance(active_repeat, dict)
+    not_required_packet = _v2_packet(monkeypatch, repeated=False)
+    not_required_review = not_required_packet["invariant_review"]
+    assert isinstance(not_required_review, dict)
+    not_required_repeat = not_required_review["family_repeat"]
+    assert isinstance(not_required_repeat, dict)
+    not_required_repeat["artifact_fingerprint"] = active_repeat["artifact_fingerprint"]
+    not_required_repeat["idempotency_key"] = active_repeat["idempotency_key"]
+    not_required_packet["task_packet_id"] = active_packet["task_packet_id"]
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(not_required_packet)
+
+
+def test_qoder_rejects_altered_repeated_families_with_stale_task_packet_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _v2_packet(monkeypatch)
+    review = packet["invariant_review"]
+    assert isinstance(review, dict)
+    family_repeat = review["family_repeat"]
+    assert isinstance(family_repeat, dict)
+    repeated = family_repeat["repeated_families"]
+    assert isinstance(repeated, list)
+    assert isinstance(repeated[0], dict)
+    repeated[0]["finding_ids"] = ["finding_a", "finding_c"]
+
+    with pytest.raises(ValueError, match="task_packet_id must bind"):
+        qoder_dispatch_bridge._parse_json_packet_roles(packet)
 
 
 def require_feature(feature_key: str) -> None:
@@ -1443,7 +2074,7 @@ def test_relative_json_symlink_cannot_downgrade_to_markdown(
 ) -> None:
     target = tmp_path / "packet.md"
     target.write_text(
-        "## Coordinator Role Order\n" "1. agent-coordinator\n" "2. backend-engineer\n",
+        "## Coordinator Role Order\n1. agent-coordinator\n2. backend-engineer\n",
         encoding="utf-8",
     )
     (tmp_path / "packet.json").symlink_to(target)
@@ -3309,7 +3940,7 @@ def test_bracket_group_detection(tmp_path: Path) -> None:
         pytest.skip("Need at least two agent definitions for bracket group test")
 
     slug_a, slug_b = known[0], known[1]
-    packet_content = "# Test\n\n" "## Coordinator Role Order\n\n" f"1. [{slug_a}, {slug_b}]\n"
+    packet_content = f"# Test\n\n## Coordinator Role Order\n\n1. [{slug_a}, {slug_b}]\n"
     fake_packet = tmp_path / "bracket_test.md"
     fake_packet.write_text(packet_content, encoding="utf-8")
 
@@ -3328,7 +3959,7 @@ def test_bracket_group_detection_strips_inline_code_ticks(tmp_path: Path) -> Non
         pytest.skip("Need at least two agent definitions for bracket group test")
 
     slug_a, slug_b = known[0], known[1]
-    packet_content = "# Test\n\n" "## Coordinator Role Order\n\n" f"1. [`{slug_a}`, `{slug_b}`]\n"
+    packet_content = f"# Test\n\n## Coordinator Role Order\n\n1. [`{slug_a}`, `{slug_b}`]\n"
     fake_packet = tmp_path / "bracket_backticks_test.md"
     fake_packet.write_text(packet_content, encoding="utf-8")
 
