@@ -7696,6 +7696,7 @@ def _owner_only_empty_mapping_coverage(
     classified_values: list[str] | None = None,
     forbid_classifier: bool = False,
     material_head_in_snapshot: bool = True,
+    captured_threads: list[ReviewThreadEvidence] | None = None,
 ) -> tuple[set[str], list[str]]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -7876,7 +7877,13 @@ def _owner_only_empty_mapping_coverage(
                 author_association="NONE",
                 original_commit_sha=live_head_sha,
             )
-            comments = (sibling, root, *replies, *additional_owner_replies)
+            comments = (
+                sibling,
+                root,
+                *replies,
+                *additional_owner_replies,
+                *additional_non_owner_replies,
+            )
         threads.append(
             ReviewThreadEvidence(
                 f"owner-seed-{index}",
@@ -8051,6 +8058,8 @@ def _owner_only_empty_mapping_coverage(
     if forbid_generic:
         monkeypatch.setattr(identity_module, "is_ancestor", forbidden_generic)
         monkeypatch.setattr(evidence_module, "review_finding_sha_candidates", forbidden_generic)
+    if captured_threads is not None:
+        captured_threads.extend(threads)
     covered = validated_duplicate_reply_urls(
         candidate_urls={
             root_urls[index]
@@ -8150,6 +8159,31 @@ def test_owner_provider_evidence_generic_reply_allows_non_owner_discussion(
     )
 
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_provider_evidence_fixture_preserves_non_owner_reply_after_earlier_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_threads: list[ReviewThreadEvidence] = []
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override="Provider-only evidence unavailable.",
+        root_is_first=False,
+        additional_non_owner_reply_body="Follow-up context without OWNER authority.",
+        forbid_classifier=True,
+        captured_threads=captured_threads,
+    )
+
+    assert covered == set()
+    assert [comment.body for comment in captured_threads[0].comments] == [
+        "Earlier thread root",
+        "Provider-only evidence unavailable.",
+        _owner_provider_evidence_unavailable_reply(),
+        "Follow-up context without OWNER authority.",
+    ]
 
 
 @pytest.mark.parametrize("reply_format", ["generic", "legacy"])
