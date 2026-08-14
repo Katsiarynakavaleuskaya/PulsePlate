@@ -42,6 +42,10 @@ MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
 REVIEW_FINGERPRINT_DOMAIN = b"pulseplate-review-finding/v1\0"
 UNAVAILABLE_REVIEW_REF_CAUSE = "unavailable_review_ref_ancestry"
+_OWNER_PROVIDER_EVIDENCE_UNAVAILABLE_REPLY = (
+    "OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; "
+    "authenticated live PR state is authoritative."
+)
 _OWNER_UNAVAILABLE_REF_REPLY_RE = re.compile(
     r"OWNER NOT-A-BUG: ignore unavailable reviewer ref "
     r"(?P<review_ref>[0-9a-f]{40}); authenticated live PR graph is authoritative\."
@@ -980,6 +984,7 @@ def validated_duplicate_reply_urls(
             continue
         covered.add(url)
 
+    canonical_mapping_urls = frozenset(mapping_entries)
     validated_mapping_entries = {
         url: _require_sha(value, label="mapped FIXED SHA")
         for url, value in mapping_entries.items()
@@ -1109,12 +1114,6 @@ def validated_duplicate_reply_urls(
             "owner unavailable-ref repository does not match snapshot repository"
         )
     owner, name = snapshot_owner, snapshot_name
-    canonical_mapping_path = f"docs/review/PR_{snapshot.pr_number}_FIXED_MAPPING.md"
-    root_url_re = re.compile(
-        r"https://github\.com/(?P<owner>[A-Za-z0-9_.-]+)/"
-        r"(?P<name>[A-Za-z0-9_.-]+)/pull/"
-        rf"{snapshot.pr_number}#discussion_r(?P<comment_id>[1-9][0-9]*)"
-    )
 
     def root_body_has_bound_evidence(body: Any, *, selected_ref: str) -> bool:
         if not isinstance(body, str):
@@ -1142,43 +1141,16 @@ def validated_duplicate_reply_urls(
 
         return has_exact_token(material_head_sha) and has_exact_token(selected_ref)
 
-    def root_has_canonical_mapping_path(url: str) -> bool:
-        match = root_url_re.fullmatch(url)
-        if match is None or (
-            match.group("owner").lower(),
-            match.group("name").lower(),
-        ) != (owner.lower(), name.lower()):
-            return False
-        try:
-            response = github_api_request(
-                f"https://api.github.com/repos/{owner}/{name}/pulls/comments/"
-                f"{match.group('comment_id')}",
-                token=token,
-            )
-        except (
-            GitHubHttpError,
-            CommitIdentityError,
-            OSError,
-            TimeoutError,
-            http.client.HTTPException,
-        ) as exc:
-            raise ReviewEvidenceError(
-                "owner unavailable-ref review-comment identity is API_UNKNOWN"
-            ) from exc
-        if not isinstance(response, dict):
-            raise ReviewEvidenceError(
-                "owner unavailable-ref review-comment identity is API_UNKNOWN"
-            )
-        return response.get("html_url") == url and response.get("path") == canonical_mapping_path
-
+    generic_owner_eligible_urls: list[str] = []
     owner_eligible_urls: list[str] = []
     closeout_validated = False
+    closeout_parent_cache: dict[str, tuple[str, ...]] = {}
     live_roots = sorted((thread.comments[0].url, thread) for thread in threads if thread.comments)
     for url, thread in live_roots:
         location = comment_locations.get(url)
         if (
             url in covered
-            or url in validated_mapping_entries
+            or url in canonical_mapping_urls
             or url in validated_fingerprint_urls
             or location is None
             or location[0] is not thread
@@ -1205,17 +1177,25 @@ def validated_duplicate_reply_urls(
         if len(owner_replies) != 1:
             continue
         owner_reply = owner_replies[0]
-        try:
-            selected_ref = parse_owner_unavailable_ref_reply(owner_reply.body)
-        except ReviewEvidenceError:
-            continue
+        generic_reply = owner_reply.body == _OWNER_PROVIDER_EVIDENCE_UNAVAILABLE_REPLY
+        selected_ref: str | None = None
+        if not generic_reply:
+            try:
+                selected_ref = parse_owner_unavailable_ref_reply(owner_reply.body)
+            except ReviewEvidenceError:
+                continue
         reply_time = _parse_timestamp(
             owner_reply.created_at,
             label="owner unavailable-ref reply createdAt",
         )
-        if reply_time <= finding_time or not root_body_has_bound_evidence(
-            finding.body,
-            selected_ref=selected_ref,
+        if reply_time <= finding_time:
+            continue
+        if not generic_reply and (
+            selected_ref is None
+            or not root_body_has_bound_evidence(
+                finding.body,
+                selected_ref=selected_ref,
+            )
         ):
             continue
         try:
@@ -1237,9 +1217,68 @@ def validated_duplicate_reply_urls(
                     raise ReviewEvidenceError(
                         "owner unavailable-ref material digest does not recompute"
                     )
+                _validate_stale_seal_mapping_only_edge(
+                    repo_root,
+                    parent_sha=validated_material_head,
+                    child_sha=snapshot.head_sha,
+                    pr_number=snapshot.pr_number,
+                    allow_mapping_add=True,
+                )
+                if _stale_seal_snapshot_children(
+                    repo_root,
+                    snapshot=snapshot,
+                    parent_sha=validated_material_head,
+                    parent_cache=closeout_parent_cache,
+                ) != (snapshot.head_sha,):
+                    raise ReviewEvidenceError(
+                        "owner unavailable-ref live head is not the sole direct child"
+                    )
+                material_manifest = _stale_seal_material_manifest(
+                    repo_root,
+                    base_ref_oid=snapshot.base_sha,
+                    head_ref_oid=validated_material_head,
+                    pr_number=snapshot.pr_number,
+                )
+                live_manifest = _stale_seal_material_manifest(
+                    repo_root,
+                    base_ref_oid=snapshot.base_sha,
+                    head_ref_oid=snapshot.head_sha,
+                    pr_number=snapshot.pr_number,
+                )
+                if not _stale_seal_manifests_match(material_manifest, live_manifest):
+                    raise ReviewEvidenceError(
+                        "owner unavailable-ref live closeout changes material identity"
+                    )
+                _validate_stale_seal_projection(
+                    _stale_seal_mapping_blob(
+                        repo_root,
+                        commit_sha=snapshot.head_sha,
+                        pr_number=snapshot.pr_number,
+                    ),
+                    manifest=material_manifest,
+                    repository=repository,
+                    pr_number=snapshot.pr_number,
+                    require_provider_no_claim=True,
+                )
                 closeout_validated = True
-            if not root_has_canonical_mapping_path(url):
+            if not _validate_stale_seal_root_identity(
+                url=url,
+                finding=finding,
+                stale_head_sha=snapshot.head_sha,
+                owner=owner,
+                name=name,
+                pr_number=snapshot.pr_number,
+                token=token,
+                request_json=github_api_request,
+            ):
                 continue
+            if generic_reply:
+                generic_owner_eligible_urls.append(url)
+                continue
+            if selected_ref is None:
+                raise ReviewEvidenceError(
+                    "owner unavailable-ref legacy reply did not select a required review ref"
+                )
             if selected_ref in {
                 snapshot.base_sha,
                 snapshot.head_sha,
@@ -1268,6 +1307,7 @@ def validated_duplicate_reply_urls(
                 raise
             continue
         owner_eligible_urls.append(url)
+    covered.update(url for url in generic_owner_eligible_urls if url in candidate_urls)
     if len(owner_eligible_urls) == 1 and owner_eligible_urls[0] in candidate_urls:
         covered.add(owner_eligible_urls[0])
 

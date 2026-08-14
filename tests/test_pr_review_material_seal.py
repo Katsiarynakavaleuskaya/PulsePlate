@@ -6853,6 +6853,20 @@ def test_owner_stale_seal_fixed_rejects_same_root_fixed_mapping(
     assert covered == set()
 
 
+def test_owner_stale_seal_fixed_ignores_url_only_mapping_entry_for_legacy_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#discussion_r700"
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={url: ""},
+    )
+
+    assert covered == {graph["url"]}
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -7637,6 +7651,13 @@ def _owner_unavailable_reply(review_ref: str) -> str:
     )
 
 
+def _owner_provider_evidence_unavailable_reply() -> str:
+    return (
+        "OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; "
+        "authenticated live PR state is authoritative."
+    )
+
+
 def _owner_only_empty_mapping_coverage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7647,29 +7668,38 @@ def _owner_only_empty_mapping_coverage(
     root_author: str = "chatgpt-codex-connector",
     original_commit: str = "live",
     reply_body: str | None = None,
+    reply_format: str = "legacy",
     reply_association: str = "OWNER",
     reply_count: int = 1,
     reply_created_at: str = "2026-08-11T11:00:00Z",
     root_body_variant: str = "valid",
+    root_body_override: str | None = None,
     ref_resolution: str = "unavailable",
     mapping_path: str = "canonical",
     successor_shape: str = "direct",
+    successor_subject: str = "mapping closeout",
+    mapping_seal_shape: str = "valid",
     material_digest_matches: bool = True,
     mapping_entries: dict[str, str] | None = None,
     fingerprint_root: str | None = None,
     forbid_generic: bool = True,
     comment_path_matches: bool = True,
+    comment_path_override: str | None = None,
     selected_ref_source: str = "review",
     candidate_indexes: frozenset[int] | None = None,
     repository_arg: str = "owner/repo",
     snapshot_repository: str = "owner/repo",
     root_repository: str = "owner/repo",
     additional_owner_reply_body: str | None = None,
+    rest_identity_variant: str = "valid",
     classified_values: list[str] | None = None,
+    forbid_classifier: bool = False,
 ) -> tuple[set[str], list[str]]:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
+    (repo / "AGENTS.md").write_text("test scope\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     source = repo / "src" / "policy.py"
@@ -7682,24 +7712,56 @@ def _owner_only_empty_mapping_coverage(
         head_ref_oid=material_head_sha,
         pr_number=42,
     )
+    valid_mapping = _mapping_artifact_with_seal(_provider_no_claim_seal_for_manifest(manifest))
+    if mapping_seal_shape == "malformed":
+        mapping_text = "# PR 42 — Review Governance\n\n## Review Material Seal\n- malformed\n"
+    elif mapping_seal_shape == "stale":
+        stale_manifest = compute_material_manifest(
+            repo,
+            base_ref_oid=base_sha,
+            head_ref_oid=base_sha,
+            pr_number=42,
+        )
+        mapping_text = _mapping_artifact_with_seal(
+            _provider_no_claim_seal_for_manifest(stale_manifest)
+        )
+    elif mapping_seal_shape == "valid":
+        mapping_text = valid_mapping
+    else:
+        raise ValueError("unsupported mapping_seal_shape")
     if successor_shape == "two-successors":
         mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
         mapping.parent.mkdir(parents=True)
-        mapping.write_text("first closeout\n", encoding="utf-8")
+        mapping.write_text(mapping_text, encoding="utf-8")
         _commit(repo, "first mapping closeout")
-        mapping.write_text("second closeout\n", encoding="utf-8")
+        mapping.write_text(mapping_text + "\n", encoding="utf-8")
     elif mapping_path == "wrong":
         mapping = repo / "docs" / "review" / "PR_41_FIXED_MAPPING.md"
         mapping.parent.mkdir(parents=True)
-        mapping.write_text("wrong closeout\n", encoding="utf-8")
+        mapping.write_text(mapping_text, encoding="utf-8")
+    elif successor_shape == "empty":
+        mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
     else:
         mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
         mapping.parent.mkdir(parents=True)
-        mapping.write_text("closeout\n", encoding="utf-8")
-    live_head_sha = _commit(repo, "mapping closeout")
+        mapping.write_text(mapping_text, encoding="utf-8")
+    if successor_shape == "material-changing":
+        source.write_text("ENFORCED = False\n", encoding="utf-8")
+    live_head_sha = _commit(
+        repo,
+        successor_subject,
+        allow_empty=(successor_shape == "empty"),
+    )
     sealed_head_sha = base_sha if successor_shape == "non-direct" else material_head_sha
     selected_ref = material_head_sha if selected_ref_source == "pr-commit" else "6" * 40
-    exact_reply = _owner_unavailable_reply(selected_ref) if reply_body is None else reply_body
+    if reply_body is not None:
+        exact_reply = reply_body
+    elif reply_format == "generic":
+        exact_reply = _owner_provider_evidence_unavailable_reply()
+    elif reply_format == "legacy":
+        exact_reply = _owner_unavailable_reply(selected_ref)
+    else:
+        raise ValueError("unsupported reply_format")
     root_body = (
         "Commit ancestry finding on docs/review/PR_42_FIXED_MAPPING.md: "
         f"sealed material {sealed_head_sha}; reviewer execution ref {selected_ref} "
@@ -7727,6 +7789,8 @@ def _owner_only_empty_mapping_coverage(
         root_body = root_body.replace(sealed_head_sha, f"a{sealed_head_sha}", 1)
     elif root_body_variant == "ref-boundary":
         root_body = root_body.replace(selected_ref, f"{selected_ref}a", 1)
+    if root_body_override is not None:
+        root_body = root_body_override
 
     snapshot = PrSnapshot(
         repository=snapshot_repository,
@@ -7834,14 +7898,73 @@ def _owner_only_empty_mapping_coverage(
     def request_json(url: str, **_kwargs: Any) -> Any:
         api_calls.append(url)
         if "/pulls/comments/" in url:
-            return {
+            if rest_identity_variant == "api-unknown":
+                raise GitHubHttpError(503)
+            if rest_identity_variant == "malformed-response":
+                return []
+            comment_index = int(url.rsplit("/", 1)[-1]) - 100
+            response = {
+                "id": comment_index + 100,
                 "html_url": root_urls[int(url.rsplit("/", 1)[-1]) - 100],
                 "path": (
-                    "docs/review/PR_42_FIXED_MAPPING.md"
-                    if comment_path_matches
-                    else "docs/review/PR_41_FIXED_MAPPING.md"
+                    comment_path_override
+                    if comment_path_override is not None
+                    else (
+                        "docs/review/PR_42_FIXED_MAPPING.md"
+                        if comment_path_matches
+                        else "docs/review/PR_41_FIXED_MAPPING.md"
+                    )
                 ),
+                "body": root_body,
+                "created_at": "2026-08-11T10:00:00Z",
+                "updated_at": "2026-08-11T10:00:00Z",
+                "original_commit_id": (
+                    live_head_sha if original_commit == "live" else material_head_sha
+                ),
+                "pull_request_url": (
+                    f"https://api.github.com/repos/{snapshot_repository}/pulls/42"
+                ),
+                "user": {
+                    "id": 199_175_422,
+                    "login": "chatgpt-codex-connector[bot]",
+                    "type": "Bot",
+                },
             }
+            if rest_identity_variant == "wrong-body":
+                response["body"] = "different provider evidence"
+            elif rest_identity_variant == "wrong-created-at":
+                response["created_at"] = "2026-08-11T10:00:01Z"
+            elif rest_identity_variant == "wrong-updated-at":
+                response["updated_at"] = "2026-08-11T10:00:01Z"
+            elif rest_identity_variant == "wrong-original-commit":
+                response["original_commit_id"] = material_head_sha
+            elif rest_identity_variant == "wrong-pull":
+                response["pull_request_url"] = (
+                    f"https://api.github.com/repos/{snapshot_repository}/pulls/41"
+                )
+            elif rest_identity_variant == "wrong-id":
+                response["id"] = 999
+            elif rest_identity_variant == "wrong-user-login":
+                response["user"]["login"] = "other-reviewer[bot]"
+            elif rest_identity_variant == "wrong-user-type":
+                response["user"]["type"] = "User"
+            elif rest_identity_variant == "wrong-user-id":
+                response["user"]["id"] = 1
+            elif rest_identity_variant == "missing-updated-at":
+                del response["updated_at"]
+            elif rest_identity_variant == "missing-user":
+                del response["user"]
+            elif rest_identity_variant == "user-not-object":
+                response["user"] = "chatgpt-codex-connector[bot]"
+            elif rest_identity_variant == "missing-user-login":
+                del response["user"]["login"]
+            elif rest_identity_variant == "missing-user-type":
+                del response["user"]["type"]
+            elif rest_identity_variant == "missing-user-id":
+                del response["user"]["id"]
+            elif rest_identity_variant != "valid":
+                raise ValueError("unsupported rest_identity_variant")
+            return response
         if url.endswith(f"/commits/{selected_ref}"):
             if ref_resolution == "unavailable":
                 raise GitHubHttpError(404)
@@ -7895,6 +8018,8 @@ def _owner_only_empty_mapping_coverage(
             )
 
         monkeypatch.setattr(identity_module, "classify_commit_ref", tracked_classifier)
+    if forbid_classifier:
+        monkeypatch.setattr(identity_module, "classify_commit_ref", forbidden_generic)
     if forbid_generic:
         monkeypatch.setattr(identity_module, "is_ancestor", forbidden_generic)
         monkeypatch.setattr(evidence_module, "review_finding_sha_candidates", forbidden_generic)
@@ -7933,6 +8058,196 @@ def test_owner_only_empty_mapping_accepts_exact_sanitized_finding(
     assert any(call.endswith("/commits/" + "6" * 40) for call in api_calls)
 
 
+@pytest.mark.parametrize(
+    "root_body",
+    [
+        "Provider execution ref 4f811b1a is unavailable.",
+        "Provider execution ref " + "4" * 40 + " is unavailable.",
+        "Synthetic merge evidence refs/pull/42/merge is unavailable.",
+        "Opaque provider token result:codex:unaddressable is unavailable.",
+        "The provider supplied no repository-addressable evidence ref.",
+        "Provider-only evidence unavailable.",
+    ],
+    ids=("short-sha", "full-sha", "synthetic-ref", "opaque-token", "missing-ref", "no-ref"),
+)
+def test_owner_provider_evidence_generic_reply_is_prose_and_ref_agnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    root_body: str,
+) -> None:
+    covered, api_calls = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override=root_body,
+        forbid_classifier=True,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+    assert any("/pulls/comments/100" in call for call in api_calls)
+    assert not any("/commits/" in call for call in api_calls)
+
+
+def test_owner_provider_evidence_generic_reply_covers_each_eligible_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_count=3,
+        root_body_override="Provider-only evidence unavailable.",
+        forbid_classifier=True,
+    )
+
+    assert covered == {
+        "https://github.com/owner/repo/pull/42#discussion_r100",
+        "https://github.com/owner/repo/pull/42#discussion_r101",
+        "https://github.com/owner/repo/pull/42#discussion_r102",
+    }
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        " " + _owner_provider_evidence_unavailable_reply(),
+        _owner_provider_evidence_unavailable_reply() + " ",
+        _owner_provider_evidence_unavailable_reply() + "\n",
+        _owner_provider_evidence_unavailable_reply() + " Extra.",
+        "`" + _owner_provider_evidence_unavailable_reply() + "`",
+        _owner_provider_evidence_unavailable_reply().replace("OWNER", "Owner"),
+    ],
+    ids=("leading-space", "trailing-space", "newline", "extra", "markdown", "case"),
+)
+def test_owner_provider_evidence_generic_reply_is_byte_exact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    body: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        reply_body=body,
+        root_body_override="Provider-only evidence unavailable.",
+        forbid_classifier=True,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"reply_association": "MEMBER"},
+        {"reply_count": 0},
+        {"reply_count": 2},
+        {"reply_created_at": "2026-08-11T09:00:00Z"},
+        {"root_resolved": False},
+        {"root_is_first": False},
+        {"root_author": "other-reviewer"},
+        {"root_repository": "other/repo"},
+        {"original_commit": "material"},
+        {"material_digest_matches": False},
+        {"successor_shape": "non-direct"},
+        {"successor_shape": "two-successors"},
+        {"successor_shape": "empty"},
+        {"successor_shape": "material-changing"},
+        {"successor_subject": "trigger ci"},
+        {"mapping_path": "wrong"},
+        {"comment_path_matches": False},
+        {"comment_path_override": "scripts/orchestration/pr_review_evidence.py"},
+        {"mapping_seal_shape": "malformed"},
+        {"mapping_seal_shape": "stale"},
+        {"rest_identity_variant": "wrong-body"},
+        {"rest_identity_variant": "wrong-created-at"},
+        {"rest_identity_variant": "wrong-updated-at"},
+        {"rest_identity_variant": "wrong-original-commit"},
+        {"rest_identity_variant": "wrong-pull"},
+        {"rest_identity_variant": "wrong-id"},
+        {"rest_identity_variant": "wrong-user-login"},
+        {"rest_identity_variant": "wrong-user-type"},
+        {"rest_identity_variant": "wrong-user-id"},
+    ],
+    ids=(
+        "member",
+        "zero-replies",
+        "two-replies",
+        "reply-before-root",
+        "unresolved",
+        "not-thread-root",
+        "wrong-root-author",
+        "wrong-root-repository",
+        "historical-stale-seal-root",
+        "wrong-caller-digest",
+        "non-direct",
+        "multiple-successors",
+        "empty-successor",
+        "material-changing-successor",
+        "trigger-only-successor",
+        "wrong-mapping-path",
+        "wrong-rest-path",
+        "material-code-path",
+        "malformed-current-seal",
+        "stale-current-seal",
+        "rest-body-mismatch",
+        "rest-timestamp-mismatch",
+        "rest-updated-at-mismatch",
+        "rest-original-commit-mismatch",
+        "rest-pr-mismatch",
+        "rest-comment-id-mismatch",
+        "rest-user-login-mismatch",
+        "rest-user-type-mismatch",
+        "rest-user-id-mismatch",
+    ),
+)
+def test_owner_provider_evidence_generic_reply_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override="Provider-only evidence unavailable.",
+        forbid_classifier=True,
+        **kwargs,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "rest_identity_variant",
+    (
+        "api-unknown",
+        "malformed-response",
+        "missing-updated-at",
+        "missing-user",
+        "user-not-object",
+        "missing-user-login",
+        "missing-user-type",
+        "missing-user-id",
+    ),
+)
+def test_owner_provider_evidence_generic_reply_keeps_api_uncertainty_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    rest_identity_variant: str,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _owner_only_empty_mapping_coverage(
+            tmp_path,
+            monkeypatch,
+            reply_format="generic",
+            root_body_override="Provider-only evidence unavailable.",
+            rest_identity_variant=rest_identity_variant,
+            forbid_classifier=True,
+        )
+
+
 def test_owner_only_empty_mapping_accepts_exact_unavailable_422(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7959,14 +8274,31 @@ def test_owner_only_accepts_unrelated_fixed_mapping_entries(
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
 
 
+@pytest.mark.parametrize("reply_format", ("legacy", "generic"))
 def test_owner_only_rejects_root_with_its_own_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reply_format: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format=reply_format,
+        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": FIX_SHA},
+    )
+
+    assert covered == set()
+
+
+def test_owner_provider_evidence_generic_reply_rejects_same_root_url_only_mapping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
-        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": FIX_SHA},
+        reply_format="generic",
+        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": ""},
     )
 
     assert covered == set()
@@ -7988,6 +8320,31 @@ def test_owner_only_applies_fingerprint_exclusion_per_root(
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
+        fingerprint_root=fingerprint_root,
+        root_body_variant="real-2265",
+        forbid_generic=False,
+    )
+
+    assert covered == expected
+
+
+@pytest.mark.parametrize(
+    ("fingerprint_root", "expected"),
+    [
+        ("unrelated", {"https://github.com/owner/repo/pull/42#discussion_r100"}),
+        ("same", set()),
+    ],
+)
+def test_owner_provider_evidence_generic_reply_applies_disposition_exclusion_per_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fingerprint_root: str,
+    expected: set[str],
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
         fingerprint_root=fingerprint_root,
         root_body_variant="real-2265",
         forbid_generic=False,
