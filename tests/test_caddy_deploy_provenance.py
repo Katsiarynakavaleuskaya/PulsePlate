@@ -20,8 +20,8 @@ TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c
 TRIVY_VERSION = "v0.72.0"
 
 GO_BUILDER = (
-    "golang:1.26.5-alpine3.23@"
-    "sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc"
+    "golang:1.26.6-alpine3.23@"
+    "sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3"
 )
 CADDY_BASE = (
     "caddy:2.11.4-alpine@" "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
@@ -485,16 +485,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.5"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.6"' in text
     assert "*v2.11.4*" not in text
-    assert "*go1.26.5*" not in text
+    assert "*go1.26.6*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.40 h1:test", "go\tgo1.26.5\n", "Expected Caddy v2.11.4"),
-        ("v2.11.4 h1:test", "go\tgo1.26.50\n", "Expected Caddy built with Go 1.26.5"),
+        ("v2.11.40 h1:test", "go\tgo1.26.6\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.60\n", "Expected Caddy built with Go 1.26.6"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -518,7 +518,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         curl_exit=22,
     )
 
@@ -533,7 +533,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -564,7 +564,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -585,7 +585,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         create_env=False,
     )
 
@@ -599,7 +599,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -637,7 +637,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         extra_env=f"{legacy_line}\n",
     )
 
