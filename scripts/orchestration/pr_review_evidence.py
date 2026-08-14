@@ -1203,6 +1203,10 @@ def validated_duplicate_reply_urls(
                 material_head_sha,
                 label="material_head_sha",
             )
+            if validated_material_head not in snapshot.commit_shas:
+                raise ReviewEvidenceError(
+                    "owner unavailable-ref material head is not a live PR commit"
+                )
             if not closeout_validated:
                 validate_mapping_only_closeout_successor(
                     repo_root,

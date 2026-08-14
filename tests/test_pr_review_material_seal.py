@@ -7695,6 +7695,7 @@ def _owner_only_empty_mapping_coverage(
     rest_identity_variant: str = "valid",
     classified_values: list[str] | None = None,
     forbid_classifier: bool = False,
+    material_head_in_snapshot: bool = True,
 ) -> tuple[set[str], list[str]]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -7798,7 +7799,14 @@ def _owner_only_empty_mapping_coverage(
         pr_number=42,
         base_sha=base_sha,
         head_sha=live_head_sha,
-        commits=tuple(PrCommitEvidence(sha, None) for sha in (material_head_sha, live_head_sha)),
+        commits=tuple(
+            PrCommitEvidence(sha, None)
+            for sha in (
+                (material_head_sha, live_head_sha)
+                if material_head_in_snapshot
+                else (live_head_sha,)
+            )
+        ),
     )
     root_urls = tuple(
         f"https://github.com/{root_repository}/pull/42#discussion_r{100 + index}"
@@ -8142,6 +8150,24 @@ def test_owner_provider_evidence_generic_reply_allows_non_owner_discussion(
     )
 
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+@pytest.mark.parametrize("reply_format", ["generic", "legacy"])
+def test_owner_unavailable_evidence_reply_requires_material_head_in_pr_graph(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reply_format: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format=reply_format,
+        root_body_override="Provider-only evidence unavailable.",
+        material_head_in_snapshot=False,
+        forbid_classifier=reply_format == "generic",
+    )
+
+    assert covered == set()
 
 
 @pytest.mark.parametrize(
