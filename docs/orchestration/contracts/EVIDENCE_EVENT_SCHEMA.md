@@ -95,6 +95,46 @@ Event creation must reject:
 The event object defensively copies caller-owned lists/dicts and returns
 defensive metadata copies from accessors.
 
+## Closed Terminal-Outcome Projection Profile
+
+`creative_code_terminal_outcome.py project-evidence` uses the existing event
+model without widening it. One validated `CreativeCodeTerminalOutcomeV1`
+becomes one canonical JSON array of exactly three rows, in this order:
+
+| Event type | Exact metadata profile |
+|---|---|
+| `item_metadata` | `projection_bundle_fingerprint`, `terminal_outcome_fingerprint`, `terminal_state`, `review_observation`, `governance_observation`, `post_merge_observation`, `reason_code_present`, `terminal_policy_version` |
+| `gate_metric` | the two fingerprint fields; review counters `sources_configured`, `sources_observed`, `findings_total`, `fixed`, `not_a_bug`, `deferred`, `unresolved_actionable`; process counters `review_cycles`, `repair_cycles`, `validation_attempts`; post-merge counters `post_merge_commands_configured`, `post_merge_commands_executed`, `post_merge_commands_passed` |
+| `gate_decision` | the two fingerprint fields; `decision`, the three observation fields, `current_main_ci`, `current_main_sha`, `validation_inventory_fingerprint`, `reason_code` |
+
+Every row has `rail=control_plane`, empty `asset_refs`, normalized
+`outcome_id`/`promotion_id`/`receipt_id` upstreams, policy
+`creative-code-terminal-outcome-evidence-v1`, producer
+`creative_code_terminal_outcome@1.0`, and tracked source class
+`docs/orchestration/contracts/creative_code_terminal_outcome.v1.schema.json`.
+No local artifact path is serialized. The bundle fingerprint binds the
+validated normalized terminal-outcome fingerprint and fixed projection policy;
+each event fingerprint additionally binds its event type and exact allowlisted
+metadata. Projection time is explicit and common but excluded from bundle and
+event identity.
+
+The closed status function is: `closed_unmerged -> deferred`; the complete
+merged predicate (`no_actionables_observed`, `no_blockers_observed`,
+`complete_observed`, and current-main CI `success`) -> `valid`; every other
+structurally valid merged observation -> `degraded`. Invalid or contradictory
+terminal input creates no rows. The three rows are one indivisible
+normalization bundle, not independently countable lifecycle outcomes, and
+`gate_decision` carries no merge, review, promotion, admission, serving, or
+runtime authority.
+
+The validator reads the sibling sidecar only, extracts its one common
+`produced_at`, rebuilds the expected projection, and requires exact JSON types,
+values, array/object order, and canonical bytes. Duplicate keys, BOM, invalid
+UTF-8, trailing JSON material, non-finite numbers, reordered/extra/missing
+rows, and field mutation fail closed. This profile adds no schema, event type,
+rail, status, Evidence Asset, universal provenance parser, writer, or Evidence
+Graph admission path.
+
 ## Boundaries
 
 This PR is not a second eval runner. RAGAS and RAG release gates remain upstream

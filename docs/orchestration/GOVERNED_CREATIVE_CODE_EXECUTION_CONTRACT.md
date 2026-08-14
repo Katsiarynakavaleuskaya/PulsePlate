@@ -249,6 +249,7 @@ The terminal creative-code outcome artifacts are:
 - `scripts/orchestration/creative_code_terminal_outcome_contract.py`
 - `scripts/orchestration/creative_code_terminal_outcome.py`
 - `artifacts/orchestration/creative_code/terminal_outcomes/<outcome-id>/terminal_outcome.json`
+- `artifacts/orchestration/creative_code/terminal_outcomes/<outcome-id>/evidence_events.json`
 
 The caller observation is a closed input object, not a second canonical
 artifact. Outcome identity binds repository, PR number, promotion id, and
@@ -257,6 +258,68 @@ same identity is `divergent_replay` and preserves the original artifact.
 Review/governance/post-merge tokens are derived observation vocabulary only.
 They are not provider PASS/no-findings, review completion, fixed-mapping
 evidence, merge-readiness evidence, or merge authority.
+
+### Terminal-outcome control-plane evidence projection
+
+The existing terminal-outcome operator exposes one closed projection profile:
+
+```bash
+python -m scripts.orchestration.creative_code_terminal_outcome \
+  project-evidence \
+  --outcome artifacts/orchestration/creative_code/terminal_outcomes/<outcome-id>/terminal_outcome.json \
+  --produced-at <RFC3339-with-UTC-offset>
+
+python -m scripts.orchestration.creative_code_terminal_outcome \
+  validate-evidence-projection \
+  --outcome artifacts/orchestration/creative_code/terminal_outcomes/<outcome-id>/terminal_outcome.json
+```
+
+`project-evidence` accepts only the canonical `terminal_outcome.json` path and
+writes only its sibling `evidence_events.json`. There is no public output-root,
+output-file, or arbitrary-events option. `produced_at` is explicit projection
+time: offsets are normalized to `Z`; clocks and filesystem times are never
+inputs. It is deliberately excluded from bundle identity, event fingerprints,
+idempotency keys, and event ids. Changing it still changes canonical bytes, so
+replay against an existing sidecar is `divergent_replay`.
+
+The sidecar is one atomic JSON array in the fixed order `item_metadata`,
+`gate_metric`, `gate_decision`. The three rows are one indivisible
+normalization bundle, not three terminal, review, or post-merge lifecycle
+outcomes. All rows use `rail=control_plane`, the tracked terminal-outcome schema
+as `source_artifact`, no asset refs, normalized outcome/promotion/receipt
+upstreams, projection policy
+`creative-code-terminal-outcome-evidence-v1`, and producer
+`creative_code_terminal_outcome@1.0`. Local `artifacts/orchestration/...`
+paths are never serialized as a source class.
+
+| Validated terminal outcome | Evidence status on all three rows |
+|---|---|
+| `closed_unmerged` | `deferred` |
+| `merged` with `no_actionables_observed`, `no_blockers_observed`, `complete_observed`, and `current_main_ci=success` | `valid` |
+| Any other structurally valid `merged` observation | `degraded` |
+| Missing, malformed, unsupported, contradictory, or lineage/fingerprint-mismatched input | No publication; fail closed |
+
+These values are only `evidence_eval_status`. `deferred` is not Review
+Governance `DEFERRED`, a backlog item, retry request, or permission to reopen
+work. `merged` does not mean approved, correct, deployed, healthy now, or
+merge-ready. `gate_decision` is an observational classification, never an
+admission, promotion, review-disposition, serving, or merge decision.
+`produced_at` does not prove that review, CI, merge, and post-merge observations
+were simultaneous.
+
+Publication is bounded, sibling-only, mode `0600`, fsynced, and atomic
+no-replace. Traversal, symlink components, non-regular or hardlinked files,
+oversized inputs/outputs, identity changes, malformed existing sidecars, and
+divergent replay fail closed without replacing or repairing the winner.
+Identical serial replay performs no write/link/unlink/chmod and preserves the
+sidecar identity and metadata. Validation is strictly read-only and rebuilds
+the expected bundle from the validated outcome and the one common timestamp,
+then checks exact JSON types, order, values, and canonical bytes.
+
+This profile performs no historical backfill and cannot synthesize missing
+promotion/receipt lineage. Pilot 4 adaptive evidence does not enter this
+adapter. The projection has no product/runtime, Evidence Graph write,
+promotion, telemetry, provider, network, GitHub, review, or merge authority.
 
 Candidate-patch promotion evidence is valid only when it is materialized under
 `artifacts/orchestration/creative_code/patch_runs/<run-id>/` with a valid

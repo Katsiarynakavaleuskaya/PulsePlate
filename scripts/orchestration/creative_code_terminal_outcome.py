@@ -3,32 +3,80 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import errno
 import os
 from pathlib import Path
 import stat
 import tempfile
+import threading
+import time
 from typing import Any
 
 from scripts.orchestration.creative_code_terminal_outcome_contract import (
     CreativeCodeTerminalOutcomeError,
+    MAX_EVIDENCE_PROJECTION_BYTES,
     MAX_JSON_OBJECT_BYTES,
+    build_terminal_evidence_events,
     build_creative_code_terminal_outcome,
     canonical_json_bytes,
+    decode_terminal_outcome_bytes,
     read_json_object,
+    terminal_evidence_projection_bytes,
     validate_creative_code_terminal_outcome,
+    validate_terminal_evidence_projection,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 TERMINAL_OUTCOMES_ROOT = CREATIVE_CODE_ROOT / "terminal_outcomes"
 OUTCOME_FILE = "terminal_outcome.json"
+EVIDENCE_EVENTS_FILE = "evidence_events.json"
 SUCCESS_BUILD_OUTPUT = "PASS: creative-code terminal outcome built"
 SUCCESS_VALIDATE_OUTPUT = "PASS: creative-code terminal outcome valid"
+SUCCESS_PROJECT_OUTPUT = "PASS: creative-code terminal evidence projected"
+SUCCESS_VALIDATE_PROJECTION_OUTPUT = "PASS: creative-code terminal evidence projection valid"
+_EVIDENCE_PROJECTION_PUBLISH_LOCK = threading.Lock()
+_COLLISION_STABILIZATION_ATTEMPTS = 100
+_COLLISION_STABILIZATION_DELAY_SECONDS = 0.005
 
 
 class CreativeCodeTerminalOutcomeIOError(ValueError):
     """Raised when terminal-outcome IO cannot stay immutable and contained."""
+
+
+@dataclass(frozen=True)
+class _RegularFileIdentity:
+    device: int
+    inode: int
+    mode: int
+    links: int
+    size: int
+    modified_ns: int
+    changed_ns: int
+
+
+@dataclass(frozen=True)
+class _DirectoryIdentity:
+    device: int
+    inode: int
+    mode: int
+
+
+def _regular_file_identity(info: os.stat_result) -> _RegularFileIdentity:
+    return _RegularFileIdentity(
+        device=info.st_dev,
+        inode=info.st_ino,
+        mode=info.st_mode,
+        links=info.st_nlink,
+        size=info.st_size,
+        modified_ns=info.st_mtime_ns,
+        changed_ns=info.st_ctime_ns,
+    )
+
+
+def _directory_identity(info: os.stat_result) -> _DirectoryIdentity:
+    return _DirectoryIdentity(device=info.st_dev, inode=info.st_ino, mode=info.st_mode)
 
 
 def _existing_components(path: Path) -> list[Path]:
@@ -103,6 +151,125 @@ def _read_regular_json(
         raise CreativeCodeTerminalOutcomeIOError(f"{label}_too_large")
     payload: dict[str, Any] = read_json_object(contained)
     return payload
+
+
+def _read_bounded_regular_bytes(
+    path: Path,
+    *,
+    label: str,
+    max_bytes: int,
+    require_single_link: bool,
+    required_mode: int | None = None,
+) -> tuple[bytes, _RegularFileIdentity]:
+    try:
+        path_info = path.lstat()
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed") from exc
+    if not stat.S_ISREG(path_info.st_mode):
+        raise CreativeCodeTerminalOutcomeIOError(f"{label}_must_be_regular")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed") from exc
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_must_be_regular")
+        if require_single_link and before.st_nlink != 1:
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_hardlink_rejected")
+        if required_mode is not None and stat.S_IMODE(before.st_mode) != required_mode:
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_mode_invalid")
+        if before.st_size > max_bytes:
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_too_large")
+        chunks: list[bytes] = []
+        remaining = max_bytes + 1
+        while remaining:
+            chunk = os.read(descriptor, min(65_536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > max_bytes:
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_too_large")
+        after = os.fstat(descriptor)
+        before_identity = _regular_file_identity(before)
+        if (
+            _regular_file_identity(path_info) != before_identity
+            or _regular_file_identity(after) != before_identity
+            or len(raw) != before.st_size
+        ):
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
+        return raw, before_identity
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed") from exc
+    finally:
+        os.close(descriptor)
+
+
+def _recheck_projection_source_identity(
+    *,
+    outcome_path: Path,
+    outcome_identity: _RegularFileIdentity,
+    parent_identity: _DirectoryIdentity,
+) -> None:
+    _reject_symlink_components(outcome_path, label="terminal_outcome")
+    try:
+        path_info = outcome_path.lstat()
+        parent_info = outcome_path.parent.lstat()
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError(
+            "terminal_outcome_changed_before_projection"
+        ) from exc
+    if (
+        not stat.S_ISREG(path_info.st_mode)
+        or path_info.st_nlink != 1
+        or _regular_file_identity(path_info) != outcome_identity
+        or not stat.S_ISDIR(parent_info.st_mode)
+        or _directory_identity(parent_info) != parent_identity
+    ):
+        raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_changed_before_projection")
+
+
+def _load_canonical_projection_outcome(
+    outcome_path: Path,
+    *,
+    terminal_outcomes_root: Path,
+) -> tuple[dict[str, Any], Path, _RegularFileIdentity, _DirectoryIdentity]:
+    if outcome_path.name != OUTCOME_FILE:
+        raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_wrong_basename")
+    resolved = _resolve_contained_input(
+        outcome_path,
+        label="terminal_outcome",
+        allowed_root=terminal_outcomes_root,
+    )
+    raw, identity = _read_bounded_regular_bytes(
+        resolved,
+        label="terminal_outcome",
+        max_bytes=MAX_JSON_OBJECT_BYTES,
+        require_single_link=True,
+    )
+    try:
+        outcome = decode_terminal_outcome_bytes(raw)
+        normalized = validate_creative_code_terminal_outcome(outcome)
+    except CreativeCodeTerminalOutcomeError:
+        raise
+    root_path = (
+        terminal_outcomes_root
+        if terminal_outcomes_root.is_absolute()
+        else Path.cwd() / terminal_outcomes_root
+    )
+    canonical = root_path.resolve(strict=True) / normalized["outcome_id"] / OUTCOME_FILE
+    if resolved != canonical:
+        raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_noncanonical_path")
+    try:
+        parent_info = resolved.parent.lstat()
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_parent_read_failed") from exc
+    if not stat.S_ISDIR(parent_info.st_mode):
+        raise CreativeCodeTerminalOutcomeIOError("terminal_outcome_parent_must_be_directory")
+    return normalized, resolved, identity, _directory_identity(parent_info)
 
 
 def _ensure_output_root(root: Path) -> Path:
@@ -249,6 +416,269 @@ def _cleanup_staging_file(staging_file: Path, *, root: Path) -> None:
     _fsync_directory(root)
 
 
+def _read_existing_projection_bytes(
+    target_file: Path,
+) -> tuple[bytes, _RegularFileIdentity, _DirectoryIdentity]:
+    _reject_symlink_components(target_file.parent, label="evidence_projection")
+    try:
+        parent_info = target_file.parent.lstat()
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError("evidence_projection_parent_read_failed") from exc
+    if not stat.S_ISDIR(parent_info.st_mode):
+        raise CreativeCodeTerminalOutcomeIOError("evidence_projection_parent_must_be_directory")
+    _reject_symlink_components(target_file, label="evidence_projection")
+    raw, identity = _read_bounded_regular_bytes(
+        target_file,
+        label="evidence_projection",
+        max_bytes=MAX_EVIDENCE_PROJECTION_BYTES,
+        require_single_link=True,
+        required_mode=0o600,
+    )
+    return raw, identity, _directory_identity(parent_info)
+
+
+def _recheck_projection_sidecar_identity(
+    *,
+    target_file: Path,
+    target_identity: _RegularFileIdentity,
+    parent_identity: _DirectoryIdentity,
+) -> None:
+    _reject_symlink_components(target_file, label="evidence_projection")
+    try:
+        target_info = target_file.lstat()
+        parent_info = target_file.parent.lstat()
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError("evidence_projection_changed_after_read") from exc
+    if (
+        not stat.S_ISREG(target_info.st_mode)
+        or target_info.st_nlink != 1
+        or stat.S_IMODE(target_info.st_mode) != 0o600
+        or _regular_file_identity(target_info) != target_identity
+        or not stat.S_ISDIR(parent_info.st_mode)
+        or _directory_identity(parent_info) != parent_identity
+    ):
+        raise CreativeCodeTerminalOutcomeIOError("evidence_projection_changed_after_read")
+
+
+def _read_collision_winner_projection_bytes(
+    target_file: Path,
+) -> tuple[bytes, _RegularFileIdentity, _DirectoryIdentity]:
+    """Wait boundedly for the winner to drop only its private staging link."""
+
+    for attempt in range(_COLLISION_STABILIZATION_ATTEMPTS):
+        try:
+            return _read_existing_projection_bytes(target_file)
+        except CreativeCodeTerminalOutcomeIOError as exc:
+            if str(exc) != "evidence_projection_hardlink_rejected":
+                raise
+            if attempt + 1 == _COLLISION_STABILIZATION_ATTEMPTS:
+                raise
+            time.sleep(_COLLISION_STABILIZATION_DELAY_SECONDS)
+    raise CreativeCodeTerminalOutcomeIOError("evidence_projection_hardlink_rejected")
+
+
+def _write_projection_staging_file(parent: Path, content: bytes) -> Path:
+    descriptor = -1
+    raw_path = ""
+    primary_error: Exception | None = None
+    try:
+        descriptor, raw_path = tempfile.mkstemp(
+            prefix=".evidence_events.",
+            suffix=".staging",
+            dir=parent,
+        )
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise CreativeCodeTerminalOutcomeIOError("evidence_projection_staging_must_be_regular")
+        if stat.S_IMODE(info.st_mode) != 0o600:
+            raise CreativeCodeTerminalOutcomeIOError("evidence_projection_staging_mode_invalid")
+        written = 0
+        while written < len(content):
+            count = os.write(descriptor, content[written:])
+            if count <= 0:
+                raise CreativeCodeTerminalOutcomeIOError("evidence_projection_staging_write_failed")
+            written += count
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = -1
+    except CreativeCodeTerminalOutcomeIOError as exc:
+        primary_error = exc
+    except OSError as exc:
+        primary_error = CreativeCodeTerminalOutcomeIOError("evidence_projection_staging_io_failed")
+        primary_error.__cause__ = exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if primary_error is not None:
+        cleanup_error: Exception | None = None
+        if raw_path:
+            try:
+                _cleanup_projection_staging(Path(raw_path))
+            except Exception as exc:
+                cleanup_error = exc
+        if cleanup_error is not None:
+            raise primary_error from cleanup_error
+        raise primary_error
+    return Path(raw_path)
+
+
+def _cleanup_projection_staging(staging_file: Path) -> None:
+    try:
+        staging_file.unlink()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise CreativeCodeTerminalOutcomeIOError(
+            "evidence_projection_staging_cleanup_failed"
+        ) from exc
+    _fsync_directory(staging_file.parent)
+
+
+def _validate_existing_projection(
+    *,
+    outcome: dict[str, Any],
+    target_file: Path,
+    expected_content: bytes,
+    collision_winner: bool = False,
+) -> bool:
+    reader = (
+        _read_collision_winner_projection_bytes
+        if collision_winner
+        else _read_existing_projection_bytes
+    )
+    existing, target_identity, parent_identity = reader(target_file)
+    validate_terminal_evidence_projection(outcome, existing)
+    if existing != expected_content:
+        raise CreativeCodeTerminalOutcomeIOError("divergent_replay")
+    _recheck_projection_sidecar_identity(
+        target_file=target_file,
+        target_identity=target_identity,
+        parent_identity=parent_identity,
+    )
+    return True
+
+
+def _project_terminal_evidence_locked(
+    *,
+    outcome_path: Path,
+    produced_at: str,
+    terminal_outcomes_root: Path | None = None,
+) -> tuple[Path, bool]:
+    """Publish the single sibling evidence projection with atomic no-replace."""
+
+    outcome_root = terminal_outcomes_root or TERMINAL_OUTCOMES_ROOT
+    outcome, resolved, outcome_identity, parent_identity = _load_canonical_projection_outcome(
+        outcome_path,
+        terminal_outcomes_root=outcome_root,
+    )
+    events = build_terminal_evidence_events(outcome, produced_at=produced_at)
+    content = terminal_evidence_projection_bytes(events)
+    if len(content) > MAX_EVIDENCE_PROJECTION_BYTES:
+        raise CreativeCodeTerminalOutcomeIOError("evidence_projection_too_large")
+    target_file = resolved.parent / EVIDENCE_EVENTS_FILE
+    if target_file.exists() or target_file.is_symlink():
+        _validate_existing_projection(
+            outcome=outcome,
+            target_file=target_file,
+            expected_content=content,
+        )
+        _recheck_projection_source_identity(
+            outcome_path=resolved,
+            outcome_identity=outcome_identity,
+            parent_identity=parent_identity,
+        )
+        return target_file, True
+
+    staging_file: Path | None = None
+    installed = False
+    try:
+        _recheck_projection_source_identity(
+            outcome_path=resolved,
+            outcome_identity=outcome_identity,
+            parent_identity=parent_identity,
+        )
+        staging_file = _write_projection_staging_file(resolved.parent, content)
+        _recheck_projection_source_identity(
+            outcome_path=resolved,
+            outcome_identity=outcome_identity,
+            parent_identity=parent_identity,
+        )
+        try:
+            _link_staging_file_noreplace(staging_file, target_file)
+            installed = True
+        except FileExistsError:
+            installed = False
+        _cleanup_projection_staging(staging_file)
+        staging_file = None
+        if installed:
+            _fsync_directory(resolved.parent)
+            return target_file, False
+        _validate_existing_projection(
+            outcome=outcome,
+            target_file=target_file,
+            expected_content=content,
+            collision_winner=True,
+        )
+        _recheck_projection_source_identity(
+            outcome_path=resolved,
+            outcome_identity=outcome_identity,
+            parent_identity=parent_identity,
+        )
+        return target_file, True
+    except CreativeCodeTerminalOutcomeError:
+        raise
+    except CreativeCodeTerminalOutcomeIOError:
+        raise
+    finally:
+        if staging_file is not None:
+            _cleanup_projection_staging(staging_file)
+
+
+def project_terminal_evidence(
+    *,
+    outcome_path: Path,
+    produced_at: str,
+    terminal_outcomes_root: Path | None = None,
+) -> tuple[Path, bool]:
+    """Serialize in-process publishers while retaining atomic filesystem install."""
+
+    with _EVIDENCE_PROJECTION_PUBLISH_LOCK:
+        return _project_terminal_evidence_locked(
+            outcome_path=outcome_path,
+            produced_at=produced_at,
+            terminal_outcomes_root=terminal_outcomes_root,
+        )
+
+
+def validate_projected_terminal_evidence(
+    *,
+    outcome_path: Path,
+    terminal_outcomes_root: Path | None = None,
+) -> None:
+    """Validate the canonical sibling projection without mutating either file."""
+
+    outcome_root = terminal_outcomes_root or TERMINAL_OUTCOMES_ROOT
+    outcome, resolved, outcome_identity, parent_identity = _load_canonical_projection_outcome(
+        outcome_path,
+        terminal_outcomes_root=outcome_root,
+    )
+    target_file = resolved.parent / EVIDENCE_EVENTS_FILE
+    if not target_file.exists() and not target_file.is_symlink():
+        raise CreativeCodeTerminalOutcomeIOError("evidence_projection_missing")
+    raw, target_identity, sidecar_parent_identity = _read_existing_projection_bytes(target_file)
+    validate_terminal_evidence_projection(outcome, raw)
+    _recheck_projection_sidecar_identity(
+        target_file=target_file,
+        target_identity=target_identity,
+        parent_identity=sidecar_parent_identity,
+    )
+    _recheck_projection_source_identity(
+        outcome_path=resolved,
+        outcome_identity=outcome_identity,
+        parent_identity=parent_identity,
+    )
+
+
 def publish_terminal_outcome(
     outcome: dict[str, Any],
     *,
@@ -368,6 +798,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     build_parser.add_argument("--observation", required=True)
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument("--outcome", required=True)
+    project_parser = subparsers.add_parser("project-evidence")
+    project_parser.add_argument("--outcome", required=True)
+    project_parser.add_argument("--produced-at", required=True)
+    validate_projection_parser = subparsers.add_parser("validate-evidence-projection")
+    validate_projection_parser.add_argument("--outcome", required=True)
     return parser.parse_args(argv)
 
 
@@ -390,6 +825,22 @@ def main(
             )
             replay = "identical" if replayed else "new"
             print(f"{SUCCESS_BUILD_OUTPUT}: outcome_id={outcome['outcome_id']} replay={replay}")
+            return 0
+        if args.command == "project-evidence":
+            path, replayed = project_terminal_evidence(
+                outcome_path=Path(args.outcome),
+                produced_at=args.produced_at,
+                terminal_outcomes_root=outcome_root,
+            )
+            replay = "identical" if replayed else "new"
+            print(f"{SUCCESS_PROJECT_OUTPUT}: path={path.name} replay={replay}")
+            return 0
+        if args.command == "validate-evidence-projection":
+            validate_projected_terminal_evidence(
+                outcome_path=Path(args.outcome),
+                terminal_outcomes_root=outcome_root,
+            )
+            print(SUCCESS_VALIDATE_PROJECTION_OUTPUT)
             return 0
         outcome_path = Path(args.outcome)
         outcome = _read_regular_json(
