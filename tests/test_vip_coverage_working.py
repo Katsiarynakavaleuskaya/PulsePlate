@@ -376,5 +376,6 @@ class TestVIPCoverageWorking:
             json={"invalid": None, "calories": 2000},
             headers=vip_headers,
         )
-        # Echo mode should still work
-        assert response.status_code == 200
+        assert response.status_code == 422
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"detail": "Invalid weekly plan request payload"}
