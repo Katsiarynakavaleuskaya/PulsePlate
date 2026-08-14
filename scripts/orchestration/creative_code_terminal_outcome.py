@@ -75,6 +75,23 @@ def _regular_file_identity(info: os.stat_result) -> _RegularFileIdentity:
     )
 
 
+def _is_collision_link_settled_during_open(
+    path_identity: _RegularFileIdentity,
+    descriptor_identity: _RegularFileIdentity,
+) -> bool:
+    """Recognize only a winner dropping its private link during loser open."""
+
+    return (
+        path_identity.links == 2
+        and descriptor_identity.links == 1
+        and path_identity.device == descriptor_identity.device
+        and path_identity.inode == descriptor_identity.inode
+        and path_identity.mode == descriptor_identity.mode
+        and path_identity.size == descriptor_identity.size
+        and path_identity.modified_ns == descriptor_identity.modified_ns
+    )
+
+
 def _directory_identity(info: os.stat_result) -> _DirectoryIdentity:
     return _DirectoryIdentity(device=info.st_dev, inode=info.st_ino, mode=info.st_mode)
 
@@ -176,6 +193,14 @@ def _read_bounded_regular_bytes(
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_must_be_regular")
+        path_identity = _regular_file_identity(path_info)
+        before_identity = _regular_file_identity(before)
+        if path_identity != before_identity:
+            if _is_collision_link_settled_during_open(path_identity, before_identity):
+                raise CreativeCodeTerminalOutcomeIOError(
+                    f"{label}_collision_link_settled_during_open"
+                )
+            raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
         if require_single_link and before.st_nlink != 1:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_hardlink_rejected")
         if required_mode is not None and stat.S_IMODE(before.st_mode) != required_mode:
@@ -194,12 +219,7 @@ def _read_bounded_regular_bytes(
         if len(raw) > max_bytes:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_too_large")
         after = os.fstat(descriptor)
-        before_identity = _regular_file_identity(before)
-        if (
-            _regular_file_identity(path_info) != before_identity
-            or _regular_file_identity(after) != before_identity
-            or len(raw) != before.st_size
-        ):
+        if _regular_file_identity(after) != before_identity or len(raw) != before.st_size:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
         return raw, before_identity
     except OSError as exc:
@@ -469,7 +489,10 @@ def _read_collision_winner_projection_bytes(
         try:
             return _read_existing_projection_bytes(target_file)
         except CreativeCodeTerminalOutcomeIOError as exc:
-            if str(exc) != "evidence_projection_hardlink_rejected":
+            if str(exc) not in {
+                "evidence_projection_hardlink_rejected",
+                "evidence_projection_collision_link_settled_during_open",
+            }:
                 raise
             if attempt + 1 == _COLLISION_STABILIZATION_ATTEMPTS:
                 raise
@@ -615,6 +638,16 @@ def _project_terminal_evidence_locked(
             staging_file = None
         if installed:
             _fsync_directory(resolved.parent)
+            _validate_existing_projection(
+                outcome=outcome,
+                target_file=target_file,
+                expected_content=content,
+            )
+            _recheck_projection_source_identity(
+                outcome_path=resolved,
+                outcome_identity=outcome_identity,
+                parent_identity=parent_identity,
+            )
             return target_file, False
         _validate_existing_projection(
             outcome=outcome,

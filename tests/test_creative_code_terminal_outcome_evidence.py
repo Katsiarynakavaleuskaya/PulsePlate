@@ -308,11 +308,107 @@ def test_event_fingerprint_idempotency_and_id_oracles_are_direct() -> None:
 
 @pytest.mark.parametrize(
     "produced_at",
-    ["", "2026-08-14", "2026-08-14T12:00:00", "2026-08-14 12:00:00Z", "not-time"],
+    [
+        "",
+        "2026-08-14",
+        "2026-08-14T12:00:00",
+        "2026-08-14 12:00:00Z",
+        "2026-08-14T12:00:00-00:00",
+        "not-time",
+    ],
 )
 def test_builder_requires_explicit_rfc3339_offset(produced_at: str) -> None:
     with pytest.raises(CreativeCodeTerminalOutcomeError, match="produced_at"):
         build_terminal_evidence_events(_outcome(), produced_at=produced_at)
+
+
+@pytest.mark.parametrize(
+    ("produced_at", "expected"),
+    [
+        ("2026-08-14T12:00:00Z", "2026-08-14T12:00:00Z"),
+        ("2026-08-14T12:00:00+03:00", "2026-08-14T09:00:00Z"),
+        ("2026-08-14T12:00:00-04:30", "2026-08-14T16:30:00Z"),
+        ("2026-08-14T12:00:00.123456+02:00", "2026-08-14T10:00:00.123456Z"),
+    ],
+)
+def test_timestamp_positive_normalization_table(produced_at: str, expected: str) -> None:
+    events = build_terminal_evidence_events(_outcome(), produced_at=produced_at)
+    assert {event.produced_at for event in events} == {expected}
+
+
+def test_unknown_rfc3339_offset_marker_fails_cli_without_sidecar(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+
+    assert (
+        cli.main(
+            [
+                "project-evidence",
+                "--outcome",
+                str(outcome_path),
+                "--produced-at",
+                "2026-08-14T12:00:00-00:00",
+            ],
+            terminal_outcomes_root=root,
+        )
+        == 1
+    )
+    assert capsys.readouterr().out == (
+        "FAIL: produced_at must include an explicit known UTC offset.\n"
+    )
+    assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+
+
+@pytest.mark.parametrize(
+    "produced_at",
+    ["0001-01-01T00:00:00+23:59", "9999-12-31T23:59:59-23:59"],
+)
+def test_timestamp_utc_conversion_overflow_is_a_controlled_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    produced_at: str,
+) -> None:
+    outcome = _outcome()
+    with pytest.raises(CreativeCodeTerminalOutcomeError, match="^produced_at is invalid\\.$"):
+        build_terminal_evidence_events(outcome, produced_at=produced_at)
+
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, outcome)
+    assert (
+        cli.main(
+            [
+                "project-evidence",
+                "--outcome",
+                str(outcome_path),
+                "--produced-at",
+                produced_at,
+            ],
+            terminal_outcomes_root=root,
+        )
+        == 1
+    )
+    assert capsys.readouterr().out == "FAIL: produced_at is invalid.\n"
+    sidecar = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    assert not sidecar.exists()
+
+    rows = _projection_payload(outcome)
+    for row in rows:
+        row["produced_at"] = produced_at
+    raw = (json.dumps(rows, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    with pytest.raises(CreativeCodeTerminalOutcomeError, match="^produced_at is invalid\\.$"):
+        validate_terminal_evidence_projection(outcome, raw)
+    sidecar.write_bytes(raw)
+    sidecar.chmod(0o600)
+    assert (
+        cli.main(
+            ["validate-evidence-projection", "--outcome", str(outcome_path)],
+            terminal_outcomes_root=root,
+        )
+        == 1
+    )
+    assert capsys.readouterr().out == "FAIL: produced_at is invalid.\n"
 
 
 def test_builder_defensively_copies_outcome_and_metadata() -> None:
@@ -631,6 +727,66 @@ def test_actual_sidecar_swap_after_validation_fails_closed(
             )
 
 
+def test_read_only_validator_requires_final_source_identity_seal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar, _ = cli.project_terminal_evidence(
+        outcome_path=outcome_path,
+        produced_at="2026-08-14T12:00:00Z",
+        terminal_outcomes_root=root,
+    )
+    outcome_before = outcome_path.stat()
+    sidecar_before = sidecar.stat()
+    outcome_bytes = outcome_path.read_bytes()
+    sidecar_bytes = sidecar.read_bytes()
+
+    def fail_final_source_seal(**_: Any) -> None:
+        raise cli.CreativeCodeTerminalOutcomeIOError("terminal_outcome_changed_before_projection")
+
+    monkeypatch.setattr(cli, "_recheck_projection_source_identity", fail_final_source_seal)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^terminal_outcome_changed_before_projection$",
+    ):
+        cli.validate_projected_terminal_evidence(
+            outcome_path=outcome_path,
+            terminal_outcomes_root=root,
+        )
+
+    outcome_after = outcome_path.stat()
+    sidecar_after = sidecar.stat()
+    assert outcome_path.read_bytes() == outcome_bytes
+    assert sidecar.read_bytes() == sidecar_bytes
+    assert (
+        outcome_after.st_ino,
+        outcome_after.st_mode,
+        outcome_after.st_size,
+        outcome_after.st_mtime_ns,
+        outcome_after.st_ctime_ns,
+    ) == (
+        outcome_before.st_ino,
+        outcome_before.st_mode,
+        outcome_before.st_size,
+        outcome_before.st_mtime_ns,
+        outcome_before.st_ctime_ns,
+    )
+    assert (
+        sidecar_after.st_ino,
+        sidecar_after.st_mode,
+        sidecar_after.st_size,
+        sidecar_after.st_mtime_ns,
+        sidecar_after.st_ctime_ns,
+    ) == (
+        sidecar_before.st_ino,
+        sidecar_before.st_mode,
+        sidecar_before.st_size,
+        sidecar_before.st_mtime_ns,
+        sidecar_before.st_ctime_ns,
+    )
+
+
 @pytest.mark.parametrize("replay_path", ["early_existing", "eexist_collision"])
 def test_actual_outcome_swap_during_replay_fails_closed(
     tmp_path: Path,
@@ -934,6 +1090,46 @@ def test_injected_before_write_failure_touches_no_destination(
     assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
 
 
+def test_post_install_source_replacement_fails_with_complete_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    original_recheck = cli._recheck_projection_source_identity
+    recheck_calls = 0
+
+    def replace_source_after_install(**kwargs: Any) -> None:
+        nonlocal recheck_calls
+        recheck_calls += 1
+        if recheck_calls == 3:
+            replacement = outcome_path.with_name("replacement-outcome.json")
+            replacement.write_bytes(outcome_path.read_bytes())
+            replacement.chmod(stat.S_IMODE(outcome_path.stat().st_mode))
+            os.replace(replacement, outcome_path)
+        original_recheck(**kwargs)
+
+    monkeypatch.setattr(cli, "_recheck_projection_source_identity", replace_source_after_install)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^terminal_outcome_changed_before_projection$",
+    ):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+
+    sidecar = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    assert recheck_calls == 3
+    assert sidecar.read_bytes() == terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    assert sidecar.stat().st_nlink == 1
+    assert stat.S_IMODE(sidecar.stat().st_mode) == 0o600
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
 def test_injected_write_or_install_failure_cleans_private_staging(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -986,6 +1182,49 @@ def test_injected_write_or_install_failure_cleans_private_staging(
     assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
 
 
+def test_staging_file_fsync_failure_closes_fd_and_publishes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    original_mkstemp = cli.tempfile.mkstemp
+    original_fsync = cli.os.fsync
+    staging_descriptor: int | None = None
+    injected = False
+
+    def capture_staging_descriptor(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        nonlocal staging_descriptor
+        descriptor, path = original_mkstemp(*args, **kwargs)
+        staging_descriptor = descriptor
+        return descriptor, path
+
+    def fail_staging_file_fsync(descriptor: int) -> None:
+        nonlocal injected
+        if descriptor == staging_descriptor and not injected:
+            injected = True
+            raise OSError("injected staging fsync failure")
+        original_fsync(descriptor)
+
+    monkeypatch.setattr(cli.tempfile, "mkstemp", capture_staging_descriptor)
+    monkeypatch.setattr(cli.os, "fsync", fail_staging_file_fsync)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^evidence_projection_staging_io_failed$",
+    ):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+
+    assert injected is True
+    assert staging_descriptor is not None
+    with pytest.raises(OSError):
+        os.fstat(staging_descriptor)
+    assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
 def test_cleanup_failure_is_attempted_once_and_preserves_first_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1018,6 +1257,84 @@ def test_cleanup_failure_is_attempted_once_and_preserves_first_error(
     assert sidecar.stat().st_nlink == 1
     assert stat.S_IMODE(sidecar.stat().st_mode) == 0o600
     assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
+@pytest.mark.parametrize("failing_call", [1, 2])
+def test_directory_fsync_failure_after_link_preserves_complete_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failing_call: int,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    original_fsync_directory = cli._fsync_directory
+    fsync_calls = 0
+
+    def fail_selected_directory_fsync(path: Path) -> None:
+        nonlocal fsync_calls
+        fsync_calls += 1
+        if fsync_calls == failing_call:
+            raise cli.CreativeCodeTerminalOutcomeIOError("directory_fsync_failed")
+        original_fsync_directory(path)
+
+    monkeypatch.setattr(cli, "_fsync_directory", fail_selected_directory_fsync)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^directory_fsync_failed$",
+    ):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+
+    sidecar = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    assert fsync_calls == failing_call
+    assert sidecar.read_bytes() == terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    assert sidecar.stat().st_nlink == 1
+    assert stat.S_IMODE(sidecar.stat().st_mode) == 0o600
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
+def test_actual_staging_unlink_failure_preserves_target_and_private_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    expected = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    original_unlink = Path.unlink
+
+    def fail_private_staging_unlink(path: Path, *args: Any, **kwargs: Any) -> None:
+        if path.name.startswith(".evidence_events.") and path.name.endswith(".staging"):
+            raise OSError("injected unlink failure")
+        original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_private_staging_unlink)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^evidence_projection_staging_cleanup_failed$",
+    ):
+        cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+
+    sidecar = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    staging_files = list(outcome_path.parent.glob(".evidence_events.*.staging"))
+    assert len(staging_files) == 1
+    staging = staging_files[0]
+    assert sidecar.read_bytes() == expected
+    assert staging.read_bytes() == expected
+    assert sidecar.stat().st_ino == staging.stat().st_ino
+    assert sidecar.stat().st_nlink == staging.stat().st_nlink == 2
+    assert stat.S_IMODE(sidecar.stat().st_mode) == 0o600
 
 
 def test_concurrent_identical_and_divergent_publishers_have_one_winner(tmp_path: Path) -> None:
@@ -1187,6 +1504,178 @@ def test_collision_reader_does_not_repair_persistent_hardlink(
         before.st_mtime_ns,
         before.st_ctime_ns,
     )
+
+
+def test_lstat_to_open_identity_drift_is_not_collision_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outcome = _outcome()
+    content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    target = tmp_path / cli.EVIDENCE_EVENTS_FILE
+    target.write_bytes(content)
+    target.chmod(0o600)
+    displaced = tmp_path / "displaced-evidence-events.json"
+    original_open = cli.os.open
+    open_calls = 0
+
+    def replace_between_lstat_and_open(path: Any, flags: int, *args: Any) -> int:
+        nonlocal open_calls
+        if Path(path) == target:
+            open_calls += 1
+            if open_calls == 1:
+                target.rename(displaced)
+                target.write_bytes(content)
+                target.chmod(0o600)
+        return original_open(path, flags, *args)
+
+    monkeypatch.setattr(cli.os, "open", replace_between_lstat_and_open)
+    monkeypatch.setattr(
+        cli.time,
+        "sleep",
+        lambda _: pytest.fail("general identity drift must not enter collision retry"),
+    )
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^evidence_projection_changed_during_read$",
+    ):
+        cli._read_collision_winner_projection_bytes(target)
+    assert open_calls == 1
+
+
+def test_before_to_after_fstat_identity_drift_is_not_collision_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outcome = _outcome()
+    content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at="2026-08-14T12:00:00Z")
+    )
+    target = tmp_path / cli.EVIDENCE_EVENTS_FILE
+    target.write_bytes(content)
+    target.chmod(0o600)
+    original_read = cli.os.read
+    mutated = False
+
+    def mutate_after_first_read(descriptor: int, size: int) -> bytes:
+        nonlocal mutated
+        chunk = original_read(descriptor, size)
+        if chunk and not mutated:
+            mutated = True
+            info = target.stat()
+            os.utime(
+                target,
+                ns=(info.st_atime_ns, info.st_mtime_ns + 1_000_000_000),
+            )
+        return chunk
+
+    monkeypatch.setattr(cli.os, "read", mutate_after_first_read)
+    monkeypatch.setattr(
+        cli.time,
+        "sleep",
+        lambda _: pytest.fail("post-open identity drift must not enter collision retry"),
+    )
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^evidence_projection_changed_during_read$",
+    ):
+        cli._read_collision_winner_projection_bytes(target)
+    assert mutated is True
+
+
+@pytest.mark.parametrize(
+    ("path_changes", "descriptor_changes", "expected"),
+    [
+        ({}, {}, True),
+        ({"changed_ns": 4}, {"changed_ns": 9}, True),
+        ({"device": 9}, {}, False),
+        ({}, {"inode": 9}, False),
+        ({"mode": stat.S_IFDIR | 0o600}, {}, False),
+        ({}, {"mode": stat.S_IFREG | 0o640}, False),
+        ({"size": 9}, {}, False),
+        ({}, {"modified_ns": 9}, False),
+        ({"links": 3}, {}, False),
+        ({}, {"links": 2}, False),
+    ],
+)
+def test_collision_link_settled_classifier_is_a_closed_matrix(
+    path_changes: dict[str, int],
+    descriptor_changes: dict[str, int],
+    expected: bool,
+) -> None:
+    path_values = {
+        "device": 1,
+        "inode": 2,
+        "mode": stat.S_IFREG | 0o600,
+        "links": 2,
+        "size": 3,
+        "modified_ns": 4,
+        "changed_ns": 5,
+    }
+    descriptor_values = {**path_values, "links": 1}
+    path_values.update(path_changes)
+    descriptor_values.update(descriptor_changes)
+
+    assert (
+        cli._is_collision_link_settled_during_open(
+            cli._RegularFileIdentity(**path_values),
+            cli._RegularFileIdentity(**descriptor_values),
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize("divergent", [False, True])
+def test_public_replay_retries_only_link_settled_during_open_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    divergent: bool,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome = _outcome()
+    outcome_path = _write_outcome(root, outcome)
+    requested_timestamp = "2026-08-14T12:00:00Z"
+    winner_timestamp = "2026-08-14T12:00:01Z" if divergent else requested_timestamp
+    target = outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE)
+    winner_content = terminal_evidence_projection_bytes(
+        build_terminal_evidence_events(outcome, produced_at=winner_timestamp)
+    )
+    winner_staging = outcome_path.with_name(".actual-winner.staging")
+    winner_staging.write_bytes(winner_content)
+    winner_staging.chmod(0o600)
+    os.link(winner_staging, target, follow_symlinks=False)
+    original_open = cli.os.open
+    target_open_calls = 0
+
+    def unlink_winner_between_lstat_and_fstat(path: Any, flags: int, *args: Any) -> int:
+        nonlocal target_open_calls
+        descriptor = original_open(path, flags, *args)
+        if Path(path) == target:
+            target_open_calls += 1
+            if target_open_calls == 1:
+                winner_staging.unlink()
+        return descriptor
+
+    monkeypatch.setattr(cli.os, "open", unlink_winner_between_lstat_and_fstat)
+    monkeypatch.setattr(cli.time, "sleep", lambda _: None)
+    if divergent:
+        with pytest.raises(cli.CreativeCodeTerminalOutcomeIOError, match="^divergent_replay$"):
+            cli.project_terminal_evidence(
+                outcome_path=outcome_path,
+                produced_at=requested_timestamp,
+                terminal_outcomes_root=root,
+            )
+    else:
+        assert cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at=requested_timestamp,
+            terminal_outcomes_root=root,
+        ) == (target, True)
+    assert target_open_calls == 2
+    assert target.read_bytes() == winner_content
+    assert target.stat().st_nlink == 1
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert not winner_staging.exists()
 
 
 @pytest.mark.parametrize("divergent", [False, True])

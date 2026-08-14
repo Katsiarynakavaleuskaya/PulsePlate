@@ -904,13 +904,20 @@ def _normalize_projection_produced_at(produced_at: str) -> str:
         raise CreativeCodeTerminalOutcomeError(
             "produced_at must be an explicit RFC3339 timestamp with a UTC offset."
         )
+    if produced_at.endswith("-00:00"):
+        raise CreativeCodeTerminalOutcomeError(
+            "produced_at must include an explicit known UTC offset."
+        )
     try:
         parsed = datetime.fromisoformat(produced_at.replace("Z", "+00:00"))
-    except ValueError as exc:
+    except (OverflowError, ValueError) as exc:
         raise CreativeCodeTerminalOutcomeError("produced_at is invalid.") from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise CreativeCodeTerminalOutcomeError("produced_at must include a UTC offset.")
-    normalized = parsed.astimezone(timezone.utc).isoformat()
+    try:
+        normalized = parsed.astimezone(timezone.utc).isoformat()
+    except (OverflowError, ValueError) as exc:
+        raise CreativeCodeTerminalOutcomeError("produced_at is invalid.") from exc
     return normalized.removesuffix("+00:00") + "Z"
 
 
