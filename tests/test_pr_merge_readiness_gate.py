@@ -45,6 +45,14 @@ OUTAGE_BASE_SHA = "c" * 40
 OUTAGE_HEAD_SHA = "d" * 40
 
 
+def test_duplicate_reply_coverage_uses_canonical_shared_validator() -> None:
+    """Real-Git producer cases plus the wiring test below cover composition."""
+
+    assert (
+        merge_gate.validated_duplicate_reply_urls is evidence_module.validated_duplicate_reply_urls
+    )
+
+
 def test_is_actionable_detects_known_markers() -> None:
     body = "Actionable comments posted: 1\nPrompt for AI Agents"
     assert _is_actionable(body) is True
@@ -70,7 +78,7 @@ def test_mapped_urls_extracts_review_url_and_no_actionable_marker() -> None:
     assert has_no_actionable is True
 
 
-def test_duplicate_reply_coverage_wires_recordless_snapshot_inputs(
+def test_duplicate_reply_coverage_wires_reply_only_snapshot_inputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     url = "https://github.com/owner/repo/pull/42#discussion_r1"
@@ -125,12 +133,31 @@ def test_duplicate_reply_coverage_wires_recordless_snapshot_inputs(
     )
 
     assert covered == {url}
+    assert set(captured) == {
+        "candidate_urls",
+        "fingerprint_records",
+        "mapping_entries",
+        "material_digest",
+        "material_head_sha",
+        "repo_root",
+        "repository",
+        "snapshot",
+        "threads",
+        "token",
+    }
+    assert captured["candidate_urls"] == {url}
+    assert captured["threads"] == ()
     assert captured["fingerprint_records"] == {}
     assert captured["mapping_entries"] == {
         "https://github.com/owner/repo/pull/42#discussion_mapped": fix_sha,
         "https://github.com/owner/repo/pull/42#discussion_not_bug": "",
     }
+    assert captured["material_digest"] == "sha256:" + "e" * 64
     assert captured["material_head_sha"] == material_head_sha
+    assert captured["repo_root"] == merge_gate.REPO_ROOT
+    assert captured["snapshot"] is snapshot
+    assert captured["repository"] == "owner/repo"
+    assert captured["token"] == "opaque"
 
 
 def test_canonical_artifact_link_count_requires_true_markdown_destination() -> None:
