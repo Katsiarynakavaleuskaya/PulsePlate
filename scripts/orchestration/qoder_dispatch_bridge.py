@@ -867,7 +867,10 @@ def _validate_v2_task_packet_id(payload: Dict[str, Any]) -> None:
             pr_phase=cast(str, required_strings["pr_phase"]),
             design_lane_mode=cast(str, required_strings["design_lane_mode"]),
             design_lane_contract=cast(Dict[str, Any], design_lane_contract),
-            creative_learning_hints_fingerprint=fingerprint_payload(creative_learning_hints),
+            creative_learning_hints_fingerprint=cast(
+                str, creative_learning_hints["source_hints_fingerprint"]
+            ),
+            creative_learning_hints_projection=creative_learning_hints,
             recommended_skills=cast(List[str], recommended_skills),
             skill_routing=cast(Dict[str, Any], skill_routing),
             artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),

@@ -264,9 +264,9 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
             design_lane_mode=str(first["design_lane_mode"]),
             design_lane_contract=first["design_lane_contract"],
         ),
-        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
-            first["creative_learning_hints"]
-        ),
+        creative_learning_hints_fingerprint=first["creative_learning_hints"][
+            "source_hints_fingerprint"
+        ],
     )
     family_repeat = first["invariant_review"]["family_repeat"]
     expected_l2_id = bootstrap_sync_policy.compute_invariant_family_review_packet_id(
@@ -278,9 +278,10 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
         pr_phase="post_open_review",
         design_lane_mode=str(first["design_lane_mode"]),
         design_lane_contract=first["design_lane_contract"],
-        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
-            first["creative_learning_hints"]
-        ),
+        creative_learning_hints_fingerprint=first["creative_learning_hints"][
+            "source_hints_fingerprint"
+        ],
+        creative_learning_hints_projection=first["creative_learning_hints"],
         recommended_skills=first["recommended_skills"],
         skill_routing=first["skill_routing"],
         artifact_fingerprint=family_repeat["artifact_fingerprint"],
@@ -298,6 +299,9 @@ def test_v2_identity_chooses_l2_binder_directly_from_independent_base_id() -> No
                 "identity_schema": (bootstrap_sync_policy.INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA),
                 "artifact_fingerprint": family_repeat["artifact_fingerprint"],
                 "trigger_rule": bootstrap_sync_policy.INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
+                "creative_learning_hints_projection_fingerprint": (
+                    task_bootstrap.fingerprint_payload(first["creative_learning_hints"])
+                ),
                 "invariant_review_projection_fingerprint": (
                     task_bootstrap.fingerprint_payload(first["invariant_review"])
                 ),
@@ -387,6 +391,7 @@ def test_v2_identity_rejects_delimiter_collision_in_creative_fingerprint() -> No
             design_lane_mode=packet["design_lane_mode"],
             design_lane_contract=packet["design_lane_contract"],
             creative_learning_hints_fingerprint="delta\nepsilon",
+            creative_learning_hints_projection=packet["creative_learning_hints"],
             recommended_skills=packet["recommended_skills"],
             skill_routing=packet["skill_routing"],
             artifact_fingerprint=family_repeat["artifact_fingerprint"],
@@ -639,6 +644,7 @@ def test_limit_plus_one_input_fails_closed_before_l1() -> None:
 
 def test_contract_freezes_consumer_boundary_and_outcome_vocabulary() -> None:
     text = CONTRACT.read_text(encoding="utf-8")
+    normalized_text = " ".join(text.split())
 
     for required in (
         "--review-invariant-family-relations-input",
@@ -646,10 +652,15 @@ def test_contract_freezes_consumer_boundary_and_outcome_vocabulary() -> None:
         "explicit_input_only",
         "no_change_required",
         "unknown_requires_human",
+        "one joint abstraction pass",
+        "one separate assessment record per repeated family",
+        "at most one joint pass",
+        "implementation remains blocked",
+        "canonical source-of-truth conflict",
         "_read_invariant_family_relations_input",
         "_validate_invariant_review_v2",
     ):
-        assert required in text
+        assert required.casefold() in normalized_text.casefold()
     assert not any(
         token.startswith("scripts/orchestration/") and token.rpartition(":")[2].isdigit()
         for token in text.replace("`", "").split()

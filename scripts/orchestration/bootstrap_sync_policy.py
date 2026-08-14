@@ -190,6 +190,7 @@ def compute_invariant_family_review_packet_id(
     design_lane_mode: str,
     design_lane_contract: dict[str, Any],
     creative_learning_hints_fingerprint: str,
+    creative_learning_hints_projection: dict[str, Any],
     recommended_skills: list[str] | tuple[str, ...],
     skill_routing: dict[str, Any],
     artifact_fingerprint: str,
@@ -245,6 +246,9 @@ def compute_invariant_family_review_packet_id(
                 "identity_schema": INVARIANT_FAMILY_REVIEW_IDENTITY_SCHEMA,
                 "artifact_fingerprint": artifact_fingerprint,
                 "trigger_rule": INVARIANT_FAMILY_REPEAT_TRIGGER_RULE,
+                "creative_learning_hints_projection_fingerprint": fingerprint_payload(
+                    creative_learning_hints_projection
+                ),
                 "invariant_review_projection_fingerprint": fingerprint_payload(
                     invariant_review_projection
                 ),

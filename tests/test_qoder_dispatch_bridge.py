@@ -170,9 +170,10 @@ def _recompute_v2_packet_id(packet: dict[str, object]) -> str:
         pr_phase=cast(str, packet["pr_phase"]),
         design_lane_mode=cast(str, packet["design_lane_mode"]),
         design_lane_contract=cast(Dict[str, Any], packet["design_lane_contract"]),
-        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
-            creative_learning_hints
+        creative_learning_hints_fingerprint=cast(
+            str, creative_learning_hints["source_hints_fingerprint"]
         ),
+        creative_learning_hints_projection=creative_learning_hints,
         recommended_skills=cast(List[str], packet["recommended_skills"]),
         skill_routing=cast(Dict[str, Any], packet["skill_routing"]),
         artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),
@@ -351,9 +352,10 @@ def test_qoder_rejects_not_required_v2_without_exact_post_open_tail(
         pr_phase=cast(str, packet["pr_phase"]),
         design_lane_mode=cast(str, packet["design_lane_mode"]),
         design_lane_contract=cast(Dict[str, Any], packet["design_lane_contract"]),
-        creative_learning_hints_fingerprint=task_bootstrap.fingerprint_payload(
-            creative_learning_hints
+        creative_learning_hints_fingerprint=cast(
+            str, creative_learning_hints["source_hints_fingerprint"]
         ),
+        creative_learning_hints_projection=creative_learning_hints,
         recommended_skills=cast(List[str], packet["recommended_skills"]),
         skill_routing=cast(Dict[str, Any], packet["skill_routing"]),
         artifact_fingerprint=cast(str, family_repeat["artifact_fingerprint"]),

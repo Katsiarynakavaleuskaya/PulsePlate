@@ -119,9 +119,10 @@ are never added.
 Input-free identity is the existing v1 identity. With input, identity is framed
 from the existing base packet ID, canonical L1 `artifact_fingerprint`, the
 fixed trigger rule, and a deterministic fingerprint of the exact closed
-`invariant_review.v2` projection plus the exact canonical `required_context`
-and `recommended_skills`, `skill_routing`, primary/secondary/reviewer, and
-requested-agent disposition projections.
+`invariant_review.v2` projection plus the exact canonical
+`creative_learning_hints`, `required_context`, `recommended_skills`,
+`skill_routing`, primary/secondary/reviewer, and requested-agent disposition
+projections.
 Equivalent canonical L1 input replays therefore retain the same identity;
 changing the canonical artifact, state, family-repeat rows, closed v2
 projection, role/skill context, or role assignment changes it. This is an
@@ -142,6 +143,19 @@ The closed recommendation vocabulary for role-agent output metadata is:
 These labels are advisory review outcomes, not GitHub review-thread
 dispositions. In particular, L2 uses `no_change_required`; it does not emit a
 GitHub disposition, resolve a thread, or write fixed mapping.
+
+All repeated families in one artifact identity are handled in one joint
+abstraction pass, with one separate assessment record per repeated family. An
+artifact identity permits at most one joint pass: no family-specific swarms,
+automatic reruns, polling, or recursive triggers are permitted.
+
+If the evidence table cannot resolve an opaque finding ID, explicit membership
+is disputed, or the submitted findings are not commensurable, the outcome is
+`unknown_requires_human`. Implementation remains blocked until a human decision
+or a new operator-approved L1 artifact supplies the missing evidence. The
+coordinator may reroute to `architecture-specialist` only after a
+`mechanism_fix`, `authority_rescope`, or canonical source-of-truth conflict;
+the role is never inserted automatically.
 
 ## Security and non-goals
 
