@@ -1554,11 +1554,26 @@ def test_before_to_after_fstat_identity_drift_is_not_collision_retryable(
     target = tmp_path / cli.EVIDENCE_EVENTS_FILE
     target.write_bytes(content)
     target.chmod(0o600)
+    original_open = cli.os.open
     original_read = cli.os.read
+    target_descriptor: int | None = None
+    target_open_calls = 0
+    target_read_calls = 0
     mutated = False
 
+    def capture_exact_target_descriptor(path: Any, flags: int, *args: Any) -> int:
+        nonlocal target_descriptor, target_open_calls
+        descriptor = original_open(path, flags, *args)
+        if Path(path) == target:
+            target_descriptor = descriptor
+            target_open_calls += 1
+        return descriptor
+
     def mutate_after_first_read(descriptor: int, size: int) -> bytes:
-        nonlocal mutated
+        nonlocal mutated, target_read_calls
+        if descriptor != target_descriptor:
+            return original_read(descriptor, size)
+        target_read_calls += 1
         chunk = original_read(descriptor, size)
         if chunk and not mutated:
             mutated = True
@@ -1569,6 +1584,7 @@ def test_before_to_after_fstat_identity_drift_is_not_collision_retryable(
             )
         return chunk
 
+    monkeypatch.setattr(cli.os, "open", capture_exact_target_descriptor)
     monkeypatch.setattr(cli.os, "read", mutate_after_first_read)
     monkeypatch.setattr(
         cli.time,
@@ -1580,6 +1596,8 @@ def test_before_to_after_fstat_identity_drift_is_not_collision_retryable(
         match="^evidence_projection_changed_during_read$",
     ):
         cli._read_collision_winner_projection_bytes(target)
+    assert target_open_calls == 1
+    assert target_read_calls == 2
     assert mutated is True
 
 
