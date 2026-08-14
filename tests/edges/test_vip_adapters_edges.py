@@ -57,7 +57,7 @@ def test_adapter_make_weekly_menu_from_kwargs_profile_dict():
         assert isinstance(out, dict) and out.get("age") == 25
 
 
-def test_adapter_make_weekly_menu_direct_args_passthrough():
+def test_adapter_make_weekly_menu_direct_args_passthrough() -> None:
     try:
         vip = _vip()
     except Exception:
