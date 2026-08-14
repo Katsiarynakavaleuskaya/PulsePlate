@@ -6,8 +6,9 @@ RU: Схемы для VIP функций - микронутриентные це
 EN: Schemas for VIP features - micronutrient goals, auto-repair, regional settings.
 """
 
+from collections.abc import Mapping
 from enum import Enum
-from typing import List, Literal, Optional, Set
+from typing import Any, List, Literal, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -189,15 +190,15 @@ class WeeklyPlanRequest(BaseModel):
     EN: Request for creating a weekly meal plan.
     """
 
-    # Core required fields for full functionality
-    sex: Optional[Literal["female", "male"]] = Field(None, description="Gender (male/female)")
-    age: Optional[int] = Field(None, ge=1, le=120, description="Age in years")
-    height_cm: Optional[float] = Field(None, gt=0, le=300, description="Height in centimeters")
-    weight_kg: Optional[float] = Field(None, gt=0, le=500, description="Weight in kilograms")
-    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = Field(
-        None, description="Activity level"
+    # Core profile fields required for admission.
+    sex: Literal["female", "male"] = Field(..., description="Gender (male/female)")
+    age: int = Field(..., ge=1, le=120, description="Age in years")
+    height_cm: float = Field(..., gt=0, le=300, description="Height in centimeters")
+    weight_kg: float = Field(..., gt=0, le=500, description="Weight in kilograms")
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = Field(
+        ..., description="Activity level"
     )
-    goal: Optional[Literal["loss", "maintain", "gain"]] = Field(None, description="Nutrition goal")
+    goal: Literal["loss", "maintain", "gain"] = Field(..., description="Nutrition goal")
 
     # Legacy/alternative fields for backward compatibility
     calories: Optional[int] = Field(None, ge=100, le=10000, description="Daily calories target")
@@ -207,27 +208,16 @@ class WeeklyPlanRequest(BaseModel):
     goals: dict = Field(default_factory=dict, description="Nutrition goals")
     constraints: dict = Field(default_factory=dict, description="Dietary constraints")
 
-    @model_validator(mode="after")
-    def validate_required_fields(self):
-        """Validate that either all core fields are present OR at least one alternative field is provided."""
-        # Core required fields
-        core_fields = ["sex", "age", "height_cm", "weight_kg", "activity", "goal"]
-        # Alternative fields
-        alt_fields = ["calories", "protein"]
+    @model_validator(mode="before")
+    @classmethod
+    def reject_boolean_numeric_profile_fields(cls, values: Any) -> Any:
+        """Reject booleans before Pydantic can coerce them to profile numbers."""
 
-        # Check if all core fields are present (not None)
-        core_present = all(getattr(self, field) is not None for field in core_fields)
-
-        # Check if at least one alternative field is present
-        alt_present = any(getattr(self, field) is not None for field in alt_fields)
-
-        if not core_present and not alt_present:
-            raise ValueError(
-                "Either all core fields (sex, age, height_cm, weight_kg, activity, goal) "
-                "must be provided, or at least one alternative field (calories or protein) must be provided."
-            )
-
-        return self
+        if isinstance(values, Mapping) and any(
+            isinstance(values.get(field), bool) for field in ("age", "height_cm", "weight_kg")
+        ):
+            raise ValueError("Boolean values are invalid for numeric profile fields")
+        return values
 
     model_config = ConfigDict(extra="allow")  # Allow additional fields for flexibility
 
