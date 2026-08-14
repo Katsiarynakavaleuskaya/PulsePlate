@@ -259,7 +259,7 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     is covered only when exactly one fully eligible recordless seed is currently
     visible; ineligible same-fingerprint comments do not affect cardinality, but
     if more than one eligible seed is visible, none is covered and all remain
-    blocking. A separate owner-only recordless path is available only when that
+    blocking. A legacy owner-only recordless path is available only when that
     same thread root has no canonical fingerprint record or FIXED mapping. It may
     coexist with unrelated canonical records and requires one resolved root on
     the canonical current-PR mapping artifact, authored by
@@ -290,7 +290,38 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
     from bot wording. The validator is read-only and never authors the reply. This narrow
     NOT-A-BUG disposition is not review, approval, merge authority, or a bypass
     of findings, CI, security, mapping, thread, ancestry, or wait-window gates.
-    A fourth, mutually exclusive owner-only recordless class covers a historical
+    This full-ref form remains valid only for compatibility with already-open
+    historical threads and is not the recommended authoring format.
+    A fourth, mutually exclusive owner-only recordless class covers unavailable
+    or synthetic provider-only evidence on the canonical mapping without
+    classifying a provider ref. It requires the same authenticated repository,
+    resolved first connector root, canonical mapping path, exact live-head
+    `originalCommit`, sole direct non-empty non-trigger mapping-only successor,
+    recomputed same material digest, and strict current provider-neutral seal.
+    REST and GraphQL must cross-bind the same repository, PR, numeric comment,
+    URL, path, unedited body, timestamp with `updated_at == created_at`, trusted
+    connector REST user id/login/type, and `originalCommit`. The same root
+    must have no canonical fingerprint or ordinary mapping disposition. After
+    the human OWNER reads the complete root and confirms that it contains no
+    independent actionable finding beyond provider-only evidence that is
+    unavailable or synthetic, exactly one later GraphQL-authenticated `OWNER`
+    reply must equal this one line byte-for-byte:
+    `OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; authenticated live PR state is authoritative.`
+    Here *unavailable* means the provider evidence is not repository-addressable
+    evidence usable by the authenticated live PR validator; it does not mean
+    that a material, security, code, workflow, dependency, or runtime defect is
+    unavailable. Automation does not parse refs, lex SHAs, classify commits, or
+    interpret bot prose for this class. Each structurally eligible root is
+    evaluated independently; no global singleton limit applies. Comments on
+    any material path are ineligible. The reply is only the OWNER's human
+    NOT-A-BUG disposition for provider-only evidence. It is not review,
+    approval, provider output, a scan, PASS, a no-findings claim, merge
+    authority, or a bypass of current seal, CI, security, diff coverage,
+    mapping, unresolved threads, bot actionables, ancestry, or the wait window.
+    Any API, Git, repository, path, seal, digest, timestamp, topology, or
+    identity ambiguity fails closed. The same strict REST connector and
+    unedited-root binding also applies to the legacy full-ref class.
+    A fifth, mutually exclusive owner-only recordless class covers a historical
     stale-seal finding as `FIXED` only when the same root has no canonical
     fingerprint or FIXED mapping and the human OWNER has inspected the whole
     root and confirmed that it contains no independent actionable finding
