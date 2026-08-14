@@ -1468,6 +1468,303 @@ def test_staging_file_fsync_failure_closes_fd_and_publishes_nothing(
     assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
 
 
+def test_staging_close_after_kernel_close_is_one_controlled_attempt(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    original_mkstemp = cli.tempfile.mkstemp
+    original_close = cli.os.close
+    staging_descriptor: int | None = None
+    staging_close_attempts = 0
+    injected = False
+
+    def capture_staging_descriptor(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        nonlocal staging_descriptor
+        descriptor, path = original_mkstemp(*args, **kwargs)
+        staging_descriptor = descriptor
+        return descriptor, path
+
+    def close_then_raise(descriptor: int) -> None:
+        nonlocal injected, staging_close_attempts
+        if descriptor == staging_descriptor and not injected:
+            injected = True
+            staging_close_attempts += 1
+            original_close(descriptor)
+            raise OSError("injected close-after-kernel-close")
+        original_close(descriptor)
+
+    monkeypatch.setattr(cli.tempfile, "mkstemp", capture_staging_descriptor)
+    monkeypatch.setattr(cli.os, "close", close_then_raise)
+    assert (
+        cli.main(
+            [
+                "project-evidence",
+                "--outcome",
+                str(outcome_path),
+                "--produced-at",
+                "2026-08-14T12:00:00Z",
+            ],
+            terminal_outcomes_root=root,
+        )
+        == 1
+    )
+
+    assert capsys.readouterr().out == "FAIL: evidence_projection_staging_io_failed\n"
+    assert injected is True
+    assert staging_close_attempts == 1
+    assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
+@pytest.mark.parametrize("primary_fsync_error", [False, True])
+def test_directory_fsync_close_error_is_controlled_and_never_masks_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    primary_fsync_error: bool,
+) -> None:
+    directory = tmp_path / "fsync-target"
+    directory.mkdir()
+    original_open = cli.os.open
+    original_fsync = cli.os.fsync
+    original_close = cli.os.close
+    target_descriptor: int | None = None
+    close_attempts = 0
+    injected = False
+
+    def capture_target_descriptor(path: Any, flags: int, *args: Any) -> int:
+        nonlocal target_descriptor
+        descriptor = original_open(path, flags, *args)
+        if Path(path) == directory:
+            target_descriptor = descriptor
+        return descriptor
+
+    def maybe_fail_fsync(descriptor: int) -> None:
+        if descriptor == target_descriptor and primary_fsync_error:
+            raise OSError("injected primary fsync error")
+        original_fsync(descriptor)
+
+    def close_then_raise(descriptor: int) -> None:
+        nonlocal close_attempts, injected
+        if descriptor == target_descriptor and not injected:
+            injected = True
+            close_attempts += 1
+            original_close(descriptor)
+            raise OSError("injected directory close error")
+        original_close(descriptor)
+
+    monkeypatch.setattr(cli.os, "open", capture_target_descriptor)
+    monkeypatch.setattr(cli.os, "fsync", maybe_fail_fsync)
+    monkeypatch.setattr(cli.os, "close", close_then_raise)
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match="^directory_fsync_failed$",
+    ) as caught:
+        cli._fsync_directory(directory)
+
+    assert close_attempts == 1
+    assert isinstance(caught.value.__cause__, (OSError, cli.CreativeCodeTerminalOutcomeIOError))
+    if primary_fsync_error:
+        assert isinstance(caught.value.__cause__, cli.CreativeCodeTerminalOutcomeIOError)
+    else:
+        assert isinstance(caught.value.__cause__, OSError)
+
+
+@pytest.mark.parametrize("surface", ["outcome", "sidecar"])
+@pytest.mark.parametrize("primary_read_error", [False, True])
+def test_reader_close_error_is_scoped_controlled_and_preserves_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    surface: str,
+    primary_read_error: bool,
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    sidecar: Path | None = None
+    if surface == "sidecar":
+        sidecar, _ = cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+    target = outcome_path if surface == "outcome" else sidecar
+    assert target is not None
+    outcome_before = _file_snapshot(outcome_path)
+    sidecar_before = _file_snapshot(sidecar) if sidecar is not None else None
+    probe = root / "descriptor-scope-probe"
+    probe.write_bytes(b"probe")
+    original_open = cli.os.open
+    original_read = cli.os.read
+    original_close = cli.os.close
+    target_descriptor: int | None = None
+    injected = False
+    target_close_attempts = 0
+    primary_reads = 0
+
+    def capture_target_descriptor(path: Any, flags: int, *args: Any) -> int:
+        nonlocal target_descriptor
+        descriptor = original_open(path, flags, *args)
+        if Path(path) == target:
+            target_descriptor = descriptor
+        return descriptor
+
+    def maybe_fail_target_read(descriptor: int, size: int) -> bytes:
+        nonlocal primary_reads
+        if descriptor == target_descriptor and primary_read_error and primary_reads == 0:
+            primary_reads += 1
+            raise OSError("injected primary read error")
+        return original_read(descriptor, size)
+
+    def close_target_then_raise(descriptor: int) -> None:
+        nonlocal injected, target_close_attempts
+        if descriptor == target_descriptor and not injected:
+            injected = True
+            target_close_attempts += 1
+            original_close(descriptor)
+            raise OSError("injected reader close error")
+        original_close(descriptor)
+
+    monkeypatch.setattr(cli.os, "open", capture_target_descriptor)
+    monkeypatch.setattr(cli.os, "read", maybe_fail_target_read)
+    monkeypatch.setattr(cli.os, "close", close_target_then_raise)
+    probe_descriptor = cli.os.open(probe, os.O_RDONLY)
+    assert cli.os.read(probe_descriptor, 5) == b"probe"
+    cli.os.close(probe_descriptor)
+
+    expected_label = (
+        f"{'terminal_outcome' if surface == 'outcome' else 'evidence_projection'}_read_failed"
+    )
+
+    def operation() -> Any:
+        if surface == "outcome":
+            return cli.project_terminal_evidence(
+                outcome_path=outcome_path,
+                produced_at="2026-08-14T12:00:00Z",
+                terminal_outcomes_root=root,
+            )
+        return cli.validate_projected_terminal_evidence(
+            outcome_path=outcome_path,
+            terminal_outcomes_root=root,
+        )
+
+    with pytest.raises(
+        cli.CreativeCodeTerminalOutcomeIOError,
+        match=f"^{expected_label}$",
+    ) as caught:
+        operation()
+
+    assert target_close_attempts == 1
+    assert isinstance(caught.value.__cause__, (OSError, cli.CreativeCodeTerminalOutcomeIOError))
+    if primary_read_error:
+        assert primary_reads == 1
+        assert isinstance(caught.value.__cause__, cli.CreativeCodeTerminalOutcomeIOError)
+    else:
+        assert isinstance(caught.value.__cause__, OSError)
+    _assert_file_snapshot(outcome_path, outcome_before)
+    if sidecar is None:
+        assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+    else:
+        assert sidecar_before is not None
+        _assert_file_snapshot(sidecar, sidecar_before)
+
+
+@pytest.mark.parametrize("surface", ["reader", "directory_fsync", "staging_writer"])
+@pytest.mark.parametrize("exception_type", [KeyboardInterrupt, SystemExit])
+def test_base_exception_still_closes_once_and_cleans_up(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    surface: str,
+    exception_type: type[BaseException],
+) -> None:
+    root = tmp_path / "terminal_outcomes"
+    outcome_path = _write_outcome(root, _outcome())
+    outcome_before = _file_snapshot(outcome_path)
+    original_open = cli.os.open
+    original_read = cli.os.read
+    original_write = cli.os.write
+    original_fsync = cli.os.fsync
+    original_close = cli.os.close
+    original_mkstemp = cli.tempfile.mkstemp
+    target_descriptor: int | None = None
+    close_attempts = 0
+    owner_closed = False
+    injected = False
+
+    def capture_open(path: Any, flags: int, *args: Any) -> int:
+        nonlocal target_descriptor
+        descriptor = original_open(path, flags, *args)
+        expected_path = outcome_path if surface == "reader" else root
+        if surface != "staging_writer" and Path(path) == expected_path:
+            target_descriptor = descriptor
+        return descriptor
+
+    def capture_mkstemp(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        nonlocal target_descriptor
+        descriptor, path = original_mkstemp(*args, **kwargs)
+        target_descriptor = descriptor
+        return descriptor, path
+
+    def raise_once(descriptor: int) -> None:
+        nonlocal injected
+        if descriptor == target_descriptor and not injected:
+            injected = True
+            raise exception_type("injected primary BaseException")
+
+    def interrupt_read(descriptor: int, size: int) -> bytes:
+        raise_once(descriptor)
+        return original_read(descriptor, size)
+
+    def interrupt_write(descriptor: int, content: bytes) -> int:
+        raise_once(descriptor)
+        return original_write(descriptor, content)
+
+    def interrupt_fsync(descriptor: int) -> None:
+        raise_once(descriptor)
+        original_fsync(descriptor)
+
+    def close_owned_descriptor(descriptor: int) -> None:
+        nonlocal close_attempts, owner_closed
+        if descriptor == target_descriptor and not owner_closed:
+            owner_closed = True
+            close_attempts += 1
+        original_close(descriptor)
+
+    monkeypatch.setattr(cli.os, "open", capture_open)
+    monkeypatch.setattr(cli.os, "close", close_owned_descriptor)
+    if surface == "reader":
+        monkeypatch.setattr(cli.os, "read", interrupt_read)
+    elif surface == "directory_fsync":
+        monkeypatch.setattr(cli.os, "fsync", interrupt_fsync)
+    else:
+        monkeypatch.setattr(cli.tempfile, "mkstemp", capture_mkstemp)
+        monkeypatch.setattr(cli.os, "write", interrupt_write)
+
+    def operation() -> Any:
+        if surface == "directory_fsync":
+            return cli._fsync_directory(root)
+        return cli.project_terminal_evidence(
+            outcome_path=outcome_path,
+            produced_at="2026-08-14T12:00:00Z",
+            terminal_outcomes_root=root,
+        )
+
+    with pytest.raises(exception_type) as caught:
+        operation()
+
+    assert type(caught.value) is exception_type
+    assert str(caught.value) == "injected primary BaseException"
+    assert injected is True
+    assert close_attempts == 1
+    assert target_descriptor is not None
+    with pytest.raises(OSError):
+        os.fstat(target_descriptor)
+    _assert_file_snapshot(outcome_path, outcome_before)
+    assert not outcome_path.with_name(cli.EVIDENCE_EVENTS_FILE).exists()
+    assert not list(outcome_path.parent.glob(".evidence_events.*.staging"))
+
+
 def test_cleanup_failure_is_attempted_once_and_preserves_first_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

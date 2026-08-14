@@ -96,6 +96,24 @@ def _directory_identity(info: os.stat_result) -> _DirectoryIdentity:
     return _DirectoryIdentity(device=info.st_dev, inode=info.st_ino, mode=info.st_mode)
 
 
+def _close_owned_descriptor_once(
+    descriptor: int,
+    *,
+    error_label: str,
+) -> BaseException | None:
+    """Attempt one close after the caller has invalidated local ownership."""
+
+    try:
+        os.close(descriptor)
+    except OSError as exc:
+        error = CreativeCodeTerminalOutcomeIOError(error_label)
+        error.__cause__ = exc
+        return error
+    except BaseException as exc:
+        return exc
+    return None
+
+
 def _existing_components(path: Path) -> list[Path]:
     components: list[Path] = []
     current = Path(path.anchor) if path.anchor else Path(".")
@@ -189,6 +207,8 @@ def _read_bounded_regular_bytes(
         descriptor = os.open(path, flags)
     except OSError as exc:
         raise CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed") from exc
+    result: tuple[bytes, _RegularFileIdentity] | None = None
+    primary_error: BaseException | None = None
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
@@ -221,11 +241,27 @@ def _read_bounded_regular_bytes(
         after = os.fstat(descriptor)
         if _regular_file_identity(after) != before_identity or len(raw) != before.st_size:
             raise CreativeCodeTerminalOutcomeIOError(f"{label}_changed_during_read")
-        return raw, before_identity
+        result = (raw, before_identity)
     except OSError as exc:
-        raise CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed") from exc
-    finally:
-        os.close(descriptor)
+        primary_error = CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed")
+        primary_error.__cause__ = exc
+    except BaseException as exc:
+        primary_error = exc
+    owned_descriptor = descriptor
+    descriptor = -1
+    close_error = _close_owned_descriptor_once(
+        owned_descriptor,
+        error_label=f"{label}_read_failed",
+    )
+    if primary_error is not None:
+        if close_error is not None:
+            raise primary_error from close_error
+        raise primary_error
+    if close_error is not None:
+        raise close_error
+    if result is None:
+        raise CreativeCodeTerminalOutcomeIOError(f"{label}_read_failed")
+    return result
 
 
 def _recheck_projection_source_identity(
@@ -310,12 +346,26 @@ def _fsync_directory(path: Path) -> None:
         descriptor = os.open(path, os.O_RDONLY)
     except OSError as exc:
         raise CreativeCodeTerminalOutcomeIOError("directory_fsync_open_failed") from exc
+    primary_error: BaseException | None = None
     try:
         os.fsync(descriptor)
     except OSError as exc:
-        raise CreativeCodeTerminalOutcomeIOError("directory_fsync_failed") from exc
-    finally:
-        os.close(descriptor)
+        primary_error = CreativeCodeTerminalOutcomeIOError("directory_fsync_failed")
+        primary_error.__cause__ = exc
+    except BaseException as exc:
+        primary_error = exc
+    owned_descriptor = descriptor
+    descriptor = -1
+    close_error = _close_owned_descriptor_once(
+        owned_descriptor,
+        error_label="directory_fsync_failed",
+    )
+    if primary_error is not None:
+        if close_error is not None:
+            raise primary_error from close_error
+        raise primary_error
+    if close_error is not None:
+        raise close_error
 
 
 def _read_existing_bytes(target_dir: Path, target_file: Path) -> bytes:
@@ -503,7 +553,7 @@ def _read_collision_winner_projection_bytes(
 def _write_projection_staging_file(parent: Path, content: bytes) -> Path:
     descriptor = -1
     raw_path = ""
-    primary_error: Exception | None = None
+    primary_error: BaseException | None = None
     try:
         descriptor, raw_path = tempfile.mkstemp(
             prefix=".evidence_events.",
@@ -522,26 +572,40 @@ def _write_projection_staging_file(parent: Path, content: bytes) -> Path:
                 raise CreativeCodeTerminalOutcomeIOError("evidence_projection_staging_write_failed")
             written += count
         os.fsync(descriptor)
-        os.close(descriptor)
-        descriptor = -1
     except CreativeCodeTerminalOutcomeIOError as exc:
         primary_error = exc
     except OSError as exc:
         primary_error = CreativeCodeTerminalOutcomeIOError("evidence_projection_staging_io_failed")
         primary_error.__cause__ = exc
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
+    except BaseException as exc:
+        primary_error = exc
+    close_error: BaseException | None = None
+    if descriptor >= 0:
+        owned_descriptor = descriptor
+        descriptor = -1
+        close_error = _close_owned_descriptor_once(
+            owned_descriptor,
+            error_label="evidence_projection_staging_io_failed",
+        )
     if primary_error is not None:
-        cleanup_error: Exception | None = None
+        cleanup_error: BaseException | None = None
         if raw_path:
             try:
                 _cleanup_projection_staging(Path(raw_path))
-            except Exception as exc:
+            except BaseException as exc:
                 cleanup_error = exc
+        if close_error is not None:
+            raise primary_error from close_error
         if cleanup_error is not None:
             raise primary_error from cleanup_error
         raise primary_error
+    if close_error is not None:
+        if raw_path:
+            try:
+                _cleanup_projection_staging(Path(raw_path))
+            except BaseException as cleanup_error:
+                raise close_error from cleanup_error
+        raise close_error
     return Path(raw_path)
 
 
