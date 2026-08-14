@@ -13,10 +13,13 @@ These tests target specific lines that diff-cover reports as missing:
 from __future__ import annotations
 
 from fastapi import FastAPI
+from pydantic import ValidationError
 
 import pytest
 
 from app.effective_routes import iter_effective_route_candidates, route_path
+from app.schemas.vip import WeeklyPlanRequest
+from app.services.fitchef_runtime import _is_valid_weekly_profile_field
 
 
 def _registered_paths(app: FastAPI) -> list[str]:
@@ -127,6 +130,30 @@ class TestVIPRegistrationIdempotent:
             return {"status": "wrong-path"}
 
         assert _router_endpoint(router, "/api/v1/vip/fitchef/insight", "POST") is None
+
+
+class TestWeeklyProfileDiffCoverage:
+    """Cover strict weekly-profile branches used by the PR coverage carrier."""
+
+    def test_weekly_plan_request_rejects_boolean_numeric_profile_value(self) -> None:
+        """Pydantic must not coerce a boolean into a numeric profile field."""
+
+        with pytest.raises(ValidationError, match="Boolean values are invalid"):
+            WeeklyPlanRequest(
+                sex="female",
+                age=29,
+                height_cm=True,
+                weight_kg=58.0,
+                activity="active",
+                goal="maintain",
+            )
+
+    def test_weekly_profile_native_integer_and_unknown_field_branches(self) -> None:
+        """The native runtime accepts bounded integers and rejects unknown fields."""
+
+        assert _is_valid_weekly_profile_field("height_cm", 168)
+        assert _is_valid_weekly_profile_field("weight_kg", 58)
+        assert not _is_valid_weekly_profile_field("unknown", "private-value")
 
 
 class TestVIPShoplistPDFExport:

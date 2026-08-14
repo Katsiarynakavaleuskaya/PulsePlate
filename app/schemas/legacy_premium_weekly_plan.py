@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -21,7 +22,7 @@ class LegacyWeekPlanRequest(BaseModel):
     height_cm: Optional[float] = Field(None, gt=0)
     weight_kg: Optional[float] = Field(None, gt=0)
     activity: Optional[Activity] = None
-    goal: Goal = "maintain"
+    goal: Optional[Goal] = None
     deficit_pct: Optional[float] = Field(None, ge=5, le=25)
     surplus_pct: Optional[float] = Field(None, ge=5, le=20)
     bodyfat: Optional[float] = Field(None, ge=3, le=60)
@@ -34,18 +35,22 @@ class LegacyWeekPlanRequest(BaseModel):
     def _normalize_values(
         cls, values: dict[str, Any] | "LegacyWeekPlanRequest"
     ) -> dict[str, Any] | "LegacyWeekPlanRequest":
-        if not isinstance(values, dict):
+        if not isinstance(values, Mapping):
             return values
-        goal = values.get("goal")
+        if any(isinstance(values.get(field), bool) for field in ("age", "height_cm", "weight_kg")):
+            raise ValueError("Boolean values are invalid for numeric profile fields")
+
+        normalized_values = dict(values)
+        goal = normalized_values.get("goal")
         if isinstance(goal, str):
             normalized_goal = goal.strip().lower()
             if normalized_goal in {"lose", "loss", "weight_loss"}:
-                values["goal"] = "loss"
+                normalized_values["goal"] = "loss"
             elif normalized_goal in {"maintain", "maintenance"}:
-                values["goal"] = "maintain"
+                normalized_values["goal"] = "maintain"
             elif normalized_goal in {"gain", "weight_gain"}:
-                values["goal"] = "gain"
-        return values
+                normalized_values["goal"] = "gain"
+        return normalized_values
 
     @model_validator(mode="after")
     def _validate_request_mode(self) -> "LegacyWeekPlanRequest":
@@ -57,15 +62,21 @@ class LegacyWeekPlanRequest(BaseModel):
             except ValidationError as exc:
                 raise ValueError(f"Invalid targets payload: {exc}") from exc
 
-        if self.targets is None:
-            if not all(
-                x is not None
-                for x in [self.sex, self.age, self.height_cm, self.weight_kg, self.activity]
-            ):
-                raise ValueError(
-                    "Either 'targets' must be provided, or all profile fields "
-                    "(sex, age, height_cm, weight_kg, activity) must be present"
-                )
+        profile_values = (
+            self.sex,
+            self.age,
+            self.height_cm,
+            self.weight_kg,
+            self.activity,
+            self.goal,
+        )
+        has_any_profile_value = any(value is not None for value in profile_values)
+        has_complete_profile = all(value is not None for value in profile_values)
+        if (self.targets is None or has_any_profile_value) and not has_complete_profile:
+            raise ValueError(
+                "Either 'targets' must be provided without profile fields, or all profile fields "
+                "(sex, age, height_cm, weight_kg, activity, goal) must be present"
+            )
         return self
 
 

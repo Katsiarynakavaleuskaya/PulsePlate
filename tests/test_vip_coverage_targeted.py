@@ -110,7 +110,17 @@ class TestVipCoverageTargeted:
         vip_headers: dict[str, str],
     ) -> None:
         """Test VIP menu weekly plan endpoint."""
-        payload = {"user_id": "test_user", "preferences": {"diet": "balanced"}, "calories": 2000}
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175.0,
+            "weight_kg": 70.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "user_id": "test_user",
+            "preferences": {"diet": "balanced"},
+            "calories": 2000,
+        }
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=payload,

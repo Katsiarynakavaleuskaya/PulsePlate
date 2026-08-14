@@ -24,6 +24,34 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-weekly-profile-client-confirmation"></a>
+- [ ] P1: Require explicit web and iOS confirmation for profile-driven weekly plans
+  - Owner: Human Product Owner to assign a separate web/iOS client lane
+  - Priority: P1 (client truth / weekly-plan trust)
+  - Target PR: Unassigned; set only when the Human Product Owner opens the client lane
+  - Status: Deferred client follow-up; non-blocking for the narrow E1-01 backend truth boundary
+  - Area: web / iOS / weekly planning / backend-contract parity
+  - Reason (EN): Web and iOS must distinguish unset or unconfirmed profile
+    selections from explicit `moderate` activity and `maintain` goal choices,
+    then require user confirmation before a profile-driven weekly-plan
+    submission. The backend remains the source of admission truth; clients must
+    not infer or synthesize the six core profile values.
+  - Links:
+    - `app/schemas/vip.py`
+    - `app/services/fitchef_runtime.py`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+  - DoD:
+    - web and iOS represent unset and unconfirmed values separately from
+      explicit `moderate` and `maintain` selections
+    - both clients require confirmation before profile-driven weekly submission
+      without moving profile admission or normalization truth out of the backend
+    - deterministic web/iOS parity tests cover unset, unconfirmed, explicit,
+      confirmed, and backend-rejected submissions
+    - the Human Product Owner assigns the separate client lane and target PR
+      only when that lane opens
+    - this item remains non-blocking for narrow E1-01, but blocks any broader
+      claim that a weekly profile is human-confirmed across clients
+
 <a id="ledger-p1-task-normative-envelope-v1-shadow"></a>
 - [ ] P1: Task normative envelope v1 shadow contract umbrella
   - Owner: orchestration / security-auditor

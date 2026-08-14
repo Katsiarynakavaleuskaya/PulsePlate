@@ -156,9 +156,9 @@ class TestVIPIntegration97Ultimate:
                 json=scenario,
                 headers=vip_headers,
             )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] in ["success", "error"]
+            assert response.status_code == 422
+            assert response.headers.get("content-type", "").startswith("application/json")
+            assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 4: Различные комбинации активности и целей
         activity_goals = [
@@ -797,10 +797,9 @@ class TestVIPIntegration97Ultimate:
                 json=payload,
                 headers=vip_headers,
             )
-            assert response.status_code in [200, 422]
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "success"
+            assert response.status_code == 422
+            assert response.headers.get("Content-Type", "").startswith("application/json")
+            assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 2: Пустые данные
         empty_payloads = [
@@ -817,10 +816,9 @@ class TestVIPIntegration97Ultimate:
                 json=payload,
                 headers=vip_headers,
             )
-            assert response.status_code in [200, 422]
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "success"
+            assert response.status_code == 422
+            assert response.headers.get("Content-Type", "").startswith("application/json")
+            assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
         # Тест 3: Отсутствующие обязательные поля
         partial_payloads = [
@@ -838,10 +836,9 @@ class TestVIPIntegration97Ultimate:
                 json=payload,
                 headers=vip_headers,
             )
-            assert response.status_code in [200, 422]
-            if response.status_code == 200:
-                data = response.json()
-                assert data["status"] == "success"
+            assert response.status_code == 422
+            assert response.headers.get("Content-Type", "").startswith("application/json")
+            assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
     def test_vip_api_key_validation_integration_ultimate_scenarios(
         self, production_environment, vip_headers

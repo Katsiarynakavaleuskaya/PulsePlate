@@ -41,10 +41,21 @@ class TestVIPCoverageBoost:
 
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
-                json={"user_id": "test", "preferences": {}, "calories": 2000},
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175.0,
+                    "weight_kg": 70.0,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                    "user_id": "test",
+                    "preferences": {},
+                    "calories": 2000,
+                },
                 headers=vip_headers,
             )
             assert response.status_code == 200
+            assert response.headers.get("Content-Type", "").startswith("application/json")
             data = response.json()
             assert data["status"] == "success"
 
