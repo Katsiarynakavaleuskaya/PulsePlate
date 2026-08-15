@@ -2065,6 +2065,156 @@ def test_cli_staging_cleanup_failure_is_bounded_and_preserves_private_residue(
     assert {path: file_state(path) for path in source_paths} == source_before
 
 
+def test_cli_post_link_cleanup_failure_rolls_back_only_the_installed_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    telemetry_root, analytics_root = _configure_snapshot(monkeypatch, tmp_path, _full_chain())
+    source_paths = (
+        telemetry_root / cli.EVENTS_FILE,
+        telemetry_root / cli.ROLLUP_FILE,
+    )
+
+    def file_state(path: Path) -> tuple[bytes, int, int, int, int, int, int]:
+        info = path.stat()
+        return (
+            path.read_bytes(),
+            info.st_ino,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+            info.st_mode,
+            info.st_nlink,
+        )
+
+    source_before = {path: file_state(path) for path in source_paths}
+    original_link = cli._link_noreplace
+    original_unlink = Path.unlink
+    original_fsync_directory = cli._fsync_directory
+    target: dict[str, Path] = {}
+    events: list[tuple[str, Path]] = []
+
+    def tracked_link(staging: Path, installed_target: Path) -> None:
+        original_link(staging, installed_target)
+        target["path"] = installed_target
+        events.append(("link", installed_target))
+
+    def fail_staging_unlink(path: Path, *args: Any, **kwargs: Any) -> None:
+        if path.name.endswith(".staging"):
+            events.append(("staging_cleanup", path))
+            raise OSError(errno.EIO, "injected post-link staging cleanup failure")
+        if path == target.get("path"):
+            events.append(("rollback_unlink", path))
+        original_unlink(path, *args, **kwargs)
+
+    def tracked_fsync_directory(path: Path) -> None:
+        events.append(("fsync", path))
+        original_fsync_directory(path)
+
+    with monkeypatch.context() as faults:
+        faults.setattr(cli, "_link_noreplace", tracked_link)
+        faults.setattr(Path, "unlink", fail_staging_unlink)
+        faults.setattr(cli, "_fsync_directory", tracked_fsync_directory)
+
+        assert cli.main(["build", "--telemetry-dir", str(telemetry_root)]) == 1
+        output = capsys.readouterr().out
+        assert output == "FAIL: analytics_staging_cleanup_failed\n"
+        assert str(tmp_path) not in output
+        assert "injected" not in output
+
+    installed_target = target["path"]
+    residues = list(analytics_root.rglob("*.staging"))
+    assert len(residues) == 1
+    residue = residues[0]
+    residue_info = residue.stat()
+    assert stat.S_ISREG(residue_info.st_mode)
+    assert stat.S_IMODE(residue_info.st_mode) == 0o600
+    assert residue_info.st_nlink == 1
+    assert not installed_target.exists()
+    assert not list(analytics_root.rglob(cli.ANALYTICS_FILE))
+    assert (
+        events.index(("link", installed_target))
+        < events.index(("rollback_unlink", installed_target))
+        < events.index(("fsync", installed_target.parent))
+    )
+    residue_before = file_state(residue)
+    assert {path: file_state(path) for path in source_paths} == source_before
+
+    assert cli.main(["build", "--telemetry-dir", str(telemetry_root)]) == 1
+    assert capsys.readouterr().out == "FAIL: analytics_namespace_ambiguous\n"
+    assert not installed_target.exists()
+    assert list(analytics_root.rglob("*.staging")) == [residue]
+    assert file_state(residue) == residue_before
+    assert {path: file_state(path) for path in source_paths} == source_before
+
+
+def test_post_link_cleanup_rollback_leaves_replaced_target_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    telemetry_root, analytics_root = _configure_snapshot(monkeypatch, tmp_path, _full_chain())
+    original_link = cli._link_noreplace
+    original_unlink = Path.unlink
+    target: dict[str, Path] = {}
+    replacement_state: dict[str, tuple[bytes, int, int, int, int, int, int]] = {}
+    rollback_unlinks = 0
+
+    def file_state(path: Path) -> tuple[bytes, int, int, int, int, int, int]:
+        info = path.stat()
+        return (
+            path.read_bytes(),
+            info.st_ino,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+            info.st_mode,
+            info.st_nlink,
+        )
+
+    def tracked_link(staging: Path, installed_target: Path) -> None:
+        original_link(staging, installed_target)
+        target["path"] = installed_target
+
+    def replace_target_then_fail_staging_unlink(
+        path: Path,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        nonlocal rollback_unlinks
+        installed_target = target["path"]
+        if path.name.endswith(".staging"):
+            original_unlink(installed_target)
+            installed_target.write_bytes(b"replacement")
+            installed_target.chmod(0o600)
+            replacement_state["value"] = file_state(installed_target)
+            raise OSError(errno.EIO, "injected post-link staging cleanup failure")
+        if path == installed_target:
+            rollback_unlinks += 1
+        original_unlink(path, *args, **kwargs)
+
+    with monkeypatch.context() as faults:
+        faults.setattr(cli, "_link_noreplace", tracked_link)
+        faults.setattr(Path, "unlink", replace_target_then_fail_staging_unlink)
+
+        assert cli.main(["build", "--telemetry-dir", str(telemetry_root)]) == 1
+        output = capsys.readouterr().out
+        assert output == "FAIL: analytics_installed_target_rollback_ambiguous\n"
+        assert str(tmp_path) not in output
+        assert "injected" not in output
+
+    installed_target = target["path"]
+    assert rollback_unlinks == 0
+    assert file_state(installed_target) == replacement_state["value"]
+    residues = list(analytics_root.rglob("*.staging"))
+    assert len(residues) == 1
+    residue_info = residues[0].stat()
+    assert stat.S_ISREG(residue_info.st_mode)
+    assert stat.S_IMODE(residue_info.st_mode) == 0o600
+    assert residue_info.st_nlink == 1
+
+
 @pytest.mark.parametrize("failure", ["create", "read", "not_directory", "existing_not_directory"])
 def test_output_root_failures_are_explicit(
     monkeypatch: pytest.MonkeyPatch,

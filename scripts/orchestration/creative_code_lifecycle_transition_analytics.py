@@ -497,6 +497,97 @@ def _cleanup_staging(staging: Path) -> None:
         ) from exc
 
 
+def _capture_staging_publish_identity(staging: Path, *, expected_size: int) -> _FileIdentity:
+    try:
+        identity = _identity(staging.lstat())
+    except OSError as exc:
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_staging_write_failed"
+        ) from exc
+    if (
+        not stat.S_ISREG(identity.mode)
+        or stat.S_IMODE(identity.mode) != 0o600
+        or identity.links != 1
+        or identity.size != expected_size
+    ):
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError("analytics_staging_write_failed")
+    return identity
+
+
+def _rollback_installed_target_after_cleanup_failure(
+    *,
+    staging: Path,
+    target: Path,
+    target_dir: Path,
+    captured: _FileIdentity,
+) -> None:
+    def read_identity(path: Path) -> _FileIdentity:
+        try:
+            return _identity(path.lstat())
+        except FileNotFoundError as exc:
+            raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+                "analytics_installed_target_rollback_ambiguous"
+            ) from exc
+        except OSError as exc:
+            raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+                "analytics_installed_target_rollback_failed"
+            ) from exc
+
+    def is_captured_link(identity: _FileIdentity, *, links: int) -> bool:
+        return (
+            stat.S_ISREG(identity.mode)
+            and stat.S_IMODE(identity.mode) == 0o600
+            and identity.device == captured.device
+            and identity.inode == captured.inode
+            and identity.size == captured.size
+            and identity.links == links
+        )
+
+    target_identity = read_identity(target)
+    staging_identity = read_identity(staging)
+    if not (
+        is_captured_link(target_identity, links=2)
+        and is_captured_link(staging_identity, links=2)
+        and target_identity.device == staging_identity.device
+        and target_identity.inode == staging_identity.inode
+    ):
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_installed_target_rollback_ambiguous"
+        )
+
+    try:
+        target.unlink()
+    except OSError as exc:
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_installed_target_rollback_failed"
+        ) from exc
+
+    try:
+        target.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_installed_target_rollback_failed"
+        ) from exc
+    else:
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_installed_target_rollback_ambiguous"
+        )
+
+    staging_identity = read_identity(staging)
+    if not is_captured_link(staging_identity, links=1):
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_installed_target_rollback_ambiguous"
+        )
+    try:
+        _fsync_directory(target_dir)
+    except (CreativeCodeLifecycleTransitionAnalyticsIOError, OSError) as exc:
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "analytics_installed_target_rollback_failed"
+        ) from exc
+
+
 def _publish(
     artifact: Mapping[str, Any],
     content: bytes,
@@ -518,6 +609,14 @@ def _publish(
     for index, seal in enumerate(source_seals):
         _recheck_source(seal, label=f"telemetry_source_{index}")
     staging = _write_staging(target_dir, content)
+    try:
+        captured_staging = _capture_staging_publish_identity(
+            staging,
+            expected_size=len(content),
+        )
+    except CreativeCodeLifecycleTransitionAnalyticsIOError:
+        _cleanup_staging(staging)
+        raise
     installed = False
     try:
         for index, seal in enumerate(source_seals):
@@ -528,7 +627,18 @@ def _publish(
         except FileExistsError:
             installed = False
     finally:
-        _cleanup_staging(staging)
+        try:
+            _cleanup_staging(staging)
+        except CreativeCodeLifecycleTransitionAnalyticsIOError as cleanup_error:
+            if str(cleanup_error) != "analytics_staging_cleanup_failed" or not installed:
+                raise
+            _rollback_installed_target_after_cleanup_failure(
+                staging=staging,
+                target=target_file,
+                target_dir=target_dir,
+                captured=captured_staging,
+            )
+            raise
     _fsync_directory(target_dir)
     _fsync_directory(root)
     existing = _read_existing_artifact(target_file)
