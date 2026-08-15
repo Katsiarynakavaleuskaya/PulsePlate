@@ -233,16 +233,19 @@ accepted specification and multiple distinct promotion attempts from one
 accepted patch are counted as separate destination transitions. Duplicate
 promotion-stage carriers, multiple possible predecessors, incompatible status
 transitions, non-canonical event profiles, source drift, or stale rollup input
-fail closed. Here, observed means one validated adjacent event pair joined by
-the exact typed lineage key, with both events present in the frozen telemetry
-snapshot. An unobserved predecessor or successor means that no unique valid
-adjacent counterpart is present in that snapshot; it is never proof that the
-transition did not occur, and ambiguous joins fail closed. A complete terminal
-lineage means that one terminal event is uniquely linked through every
-lifecycle stage inside that frozen snapshot only. It is not operational
-completeness, PR readiness, or lifecycle success. Missing adjacent events never
-create skip edges. Rejected patches and blocked PR openings are observed stop
-branches and do not create missing-successor claims.
+fail closed. Each valid adjacent event pair joined by the exact typed lineage
+key, with both events present in the frozen telemetry snapshot, is observed;
+permitted fanout creates multiple observed pairs. An unobserved predecessor
+means that no unique valid predecessor is present, and an ambiguous predecessor
+fails the build. An unobserved successor means that zero valid successors are
+present; one or more valid successors are observed. This preserves
+specification-to-patch fanout and accepted-patch-to-distinct-promotion fanout.
+Absence is snapshot-local, never proof that the transition did not occur. A
+complete terminal lineage means that one terminal event is uniquely linked
+through every lifecycle stage inside that frozen snapshot only. It is not
+operational completeness, PR readiness, or lifecycle success. Missing adjacent
+events never create skip edges. Rejected patches and blocked PR openings are
+observed stop branches and do not create missing-successor claims.
 
 The artifact contains only aggregate transition rows, complete/incomplete
 terminal-lineage counts, fixed `0 | 1 | 2 | 3_or_more` terminal process

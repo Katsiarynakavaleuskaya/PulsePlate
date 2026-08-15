@@ -576,12 +576,14 @@ def validate_snapshot_artifact(*, telemetry_dir: Path = TELEMETRY_ROOT) -> dict[
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     snapshot_semantics = (
-        "Observed means a validated adjacent event pair joined by exact typed lineage with both "
-        "events present in the frozen telemetry snapshot. An unobserved predecessor or successor "
-        "means no unique valid adjacent counterpart is present in that snapshot; it is not proof "
-        "that the transition did not occur, and ambiguous joins fail closed. A complete terminal "
-        "lineage is linked through every lifecycle stage within the frozen snapshot only; it is "
-        "not operational completeness, PR readiness, or lifecycle success."
+        "Observed counts each valid adjacent event pair joined by exact typed lineage with both "
+        "events present in the frozen telemetry snapshot; permitted fanout creates multiple "
+        "observed pairs. An unobserved predecessor means no unique valid predecessor is present, "
+        "and an ambiguous predecessor fails the build. An unobserved successor means zero valid "
+        "successors are present; one or more valid successors are observed, including permitted "
+        "fanout. Absence is snapshot-local, not proof that the transition did not occur. A "
+        "complete terminal lineage is linked through every lifecycle stage within the frozen "
+        "snapshot only; it is not operational completeness, PR readiness, or lifecycle success."
     )
     parser = argparse.ArgumentParser(
         description=(

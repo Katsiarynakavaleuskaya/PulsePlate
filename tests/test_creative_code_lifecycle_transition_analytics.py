@@ -2403,17 +2403,21 @@ def test_cli_help_closes_snapshot_semantics_and_validation_mutation_boundary(
     build_help = normalized_help(["build", "--help"])
     validate_help = normalized_help(["validate", "--help"])
     semantic_fragments = (
-        "Observed means a validated adjacent event pair joined by exact typed lineage",
+        "Observed counts each valid adjacent event pair joined by exact typed lineage",
         "both events present in the frozen telemetry snapshot",
-        "An unobserved predecessor or successor means no unique valid adjacent counterpart",
-        "it is not proof that the transition did not occur",
-        "ambiguous joins fail closed",
+        "permitted fanout creates multiple observed pairs",
+        "An unobserved predecessor means no unique valid predecessor is present",
+        "an ambiguous predecessor fails the build",
+        "An unobserved successor means zero valid successors are present",
+        "one or more valid successors are observed, including permitted fanout",
+        "Absence is snapshot-local, not proof that the transition did not occur",
         "A complete terminal lineage is linked through every lifecycle stage within the frozen snapshot only",
         "not operational completeness, PR readiness, or lifecycle success",
     )
     for rendered in (root_help, build_help, validate_help):
         for fragment in semantic_fragments:
             assert fragment in rendered
+        assert "no unique valid successor" not in rendered
 
     assert "Publish the snapshot-derived analytics artifact" in build_help
     assert "Mutation-free exact-byte validation" in validate_help
@@ -2426,22 +2430,29 @@ def test_cli_help_closes_snapshot_semantics_and_validation_mutation_boundary(
 def test_contract_and_schema_annotations_define_snapshot_only_accounting() -> None:
     contract = " ".join(TELEMETRY_CONTRACT.read_text(encoding="utf-8").split())
     for fragment in (
-        "observed means one validated adjacent event pair joined by the exact typed lineage key",
+        "Each valid adjacent event pair joined by the exact typed lineage key",
         "both events present in the frozen telemetry snapshot",
-        "An unobserved predecessor or successor means that no unique valid adjacent counterpart",
-        "never proof that the transition did not occur",
-        "ambiguous joins fail closed",
+        "permitted fanout creates multiple observed pairs",
+        "An unobserved predecessor means that no unique valid predecessor is present",
+        "an ambiguous predecessor fails the build",
+        "An unobserved successor means that zero valid successors are present",
+        "one or more valid successors are observed",
+        "specification-to-patch fanout",
+        "accepted-patch-to-distinct-promotion fanout",
+        "Absence is snapshot-local, never proof that the transition did not occur",
         "complete terminal lineage means that one terminal event is uniquely linked through every lifecycle stage",
         "inside that frozen snapshot only",
         "not operational completeness, PR readiness, or lifecycle success",
     ):
         assert fragment in contract
+    assert "no unique valid successor" not in contract
 
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     transition_description = schema["properties"]["transition_counts"]["description"]
-    assert "validated adjacent event pairs" in transition_description
+    assert "valid adjacent event pairs" in transition_description
     assert "exact typed lineage" in transition_description
     assert "frozen telemetry snapshot" in transition_description
+    assert "permitted fanout creates multiple observed pairs" in transition_description
 
     lineage_properties = schema["$defs"]["lineage_accounting"]["properties"]
     descriptions = {
@@ -2463,12 +2474,23 @@ def test_contract_and_schema_annotations_define_snapshot_only_accounting() -> No
         "complete_terminal_lineage_count",
         "incomplete_terminal_lineage_count",
     }
-    assert "validated adjacent event pairs" in descriptions["observed_transition_count"]
+    assert "valid adjacent event pairs" in descriptions["observed_transition_count"]
     assert "exact typed lineage" in descriptions["observed_transition_count"]
-    for key in ("unobserved_predecessors_by_stage", "unobserved_successors_by_stage"):
-        assert "no unique valid adjacent" in descriptions[key]
-        assert "not proof that the transition did not occur" in descriptions[key]
-        assert "ambiguous joins fail closed" in descriptions[key]
+    assert (
+        "permitted fanout creates multiple observed pairs"
+        in descriptions["observed_transition_count"]
+    )
+    predecessor_description = descriptions["unobserved_predecessors_by_stage"]
+    assert "no unique valid predecessor" in predecessor_description
+    assert "an ambiguous predecessor fails the build" in predecessor_description
+    successor_description = descriptions["unobserved_successors_by_stage"]
+    assert "zero valid successors" in successor_description
+    assert "one or more valid successors are observed" in successor_description
+    assert "including permitted fanout" in successor_description
+    assert "no unique valid successor" not in successor_description
+    for description in (predecessor_description, successor_description):
+        assert "absence is snapshot-local" in description
+        assert "not proof that the transition did not occur" in description
     assert "frozen telemetry snapshot only" in descriptions["complete_terminal_lineage_count"]
     assert (
         "not operational completeness, PR readiness, or lifecycle success"

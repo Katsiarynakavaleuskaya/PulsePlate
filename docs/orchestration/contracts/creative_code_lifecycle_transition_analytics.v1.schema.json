@@ -32,7 +32,7 @@
     },
     "corpus": {"$ref": "#/$defs/corpus"},
     "transition_counts": {
-      "description": "Aggregate rows for validated adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot.",
+      "description": "Each aggregate row counts valid adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot; permitted fanout creates multiple observed pairs.",
       "type": "array",
       "maxItems": 9,
       "uniqueItems": true,
@@ -239,7 +239,7 @@
       ],
       "properties": {
         "observed_transition_count": {
-          "description": "Number of validated adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot.",
+          "description": "Number of valid adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot; permitted fanout creates multiple observed pairs.",
           "$ref": "#/$defs/bounded_count"
         },
         "complete_terminal_lineage_count": {
@@ -251,11 +251,11 @@
           "$ref": "#/$defs/bounded_count"
         },
         "unobserved_predecessors_by_stage": {
-          "description": "Counts destination events for which no unique valid adjacent predecessor counterpart is present in the frozen telemetry snapshot; this is not proof that the transition did not occur, and ambiguous joins fail closed.",
+          "description": "Counts destination events for which no unique valid predecessor is present in the frozen telemetry snapshot; an ambiguous predecessor fails the build, and absence is snapshot-local, not proof that the transition did not occur.",
           "$ref": "#/$defs/stage_counts"
         },
         "unobserved_successors_by_stage": {
-          "description": "Counts continuation-eligible source events for which no unique valid adjacent successor counterpart is present in the frozen telemetry snapshot; this is not proof that the transition did not occur, and ambiguous joins fail closed.",
+          "description": "Counts continuation-eligible source events for which zero valid successors are present in the frozen telemetry snapshot; one or more valid successors are observed, including permitted fanout, and absence is snapshot-local, not proof that the transition did not occur.",
           "$ref": "#/$defs/stage_counts"
         }
       }
