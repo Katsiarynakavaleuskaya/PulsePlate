@@ -128,6 +128,7 @@ Canonical output (local, gitignored):
 - `artifacts/orchestration/creative_code/telemetry/creative_code_telemetry_events.jsonl`
 - `artifacts/orchestration/creative_code/telemetry/creative_code_telemetry_summary.md`
 - `artifacts/orchestration/creative_code/telemetry/creative_code_rejection_taxonomy.v1.json`
+- `artifacts/orchestration/creative_code/lifecycle_transition_analytics/<analytics-id>/analytics.json`
 
 Creative-code rollups contain:
 
@@ -169,6 +170,19 @@ authority.
 The creative-code sidecar is intentionally separate from
 `telemetry_rollup.py` agent reliability scoring. It is funnel measurement, not
 automatic routing truth.
+
+The optional lifecycle-transition consumer accepts only an exact validated
+mixed v2 telemetry snapshot. It rebuilds the v2 rollup, joins only adjacent
+stages through typed candidate/promotion lineage, and emits aggregate
+transition counts, explicit unobserved-neighbor counts, terminal-lineage
+completeness, and fixed terminal process histograms. It never infers skip edges
+from event order, timestamps, paths, or missing files. Its output contains only
+aggregate counts and corpus fingerprints; it contains no raw lineage IDs, PR
+numbers, SHAs, paths, timestamps, review text, patches, prompts, command output,
+or provider data. The artifact is local, descriptive, and non-authoritative:
+it cannot change routing, retry, promotion, review, mapping, merge, learning,
+or product runtime behavior. Evidence Eval triplets remain outside telemetry
+and do not contribute lifecycle transitions.
 
 ---
 
@@ -216,18 +230,24 @@ Telemetry provides a suggestion only:
 Run manually (local, optional):
 
 ```bash
+VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"
 mkdir -p artifacts/orchestration
-python scripts/orchestration/telemetry_rollup.py
-python scripts/orchestration/telemetry_rollup.py \
+"$VENV_PYTHON" scripts/orchestration/telemetry_rollup.py
+"$VENV_PYTHON" scripts/orchestration/telemetry_rollup.py \
   --experiment-results-dir artifacts/orchestration/experiments/results \
   --experiment-promotions-dir artifacts/orchestration/experiments/promotions
 
-python -m scripts.orchestration.creative_code_telemetry \
+"$VENV_PYTHON" -m scripts.orchestration.creative_code_telemetry \
   --spec-runs-dir artifacts/orchestration/creative_code/spec_runs \
   --patch-runs-dir artifacts/orchestration/creative_code/patch_runs \
   --promotions-dir artifacts/orchestration/creative_code/promotions \
   --terminal-outcomes-dir artifacts/orchestration/creative_code/terminal_outcomes \
   --output-dir artifacts/orchestration/creative_code/telemetry
+
+"$VENV_PYTHON" -m scripts.orchestration.creative_code_lifecycle_transition_analytics build \
+  --telemetry-dir artifacts/orchestration/creative_code/telemetry
+"$VENV_PYTHON" -m scripts.orchestration.creative_code_lifecycle_transition_analytics validate \
+  --telemetry-dir artifacts/orchestration/creative_code/telemetry
 ```
 
 Omit `--terminal-outcomes-dir` to retain the exact v1 collection mode.
@@ -252,6 +272,9 @@ Omit `--terminal-outcomes-dir` to retain the exact v1 collection mode.
 - No raw Markdown/comment parser, second telemetry root, three-event terminal
   projection, Evidence Graph adapter, probability/cognitive state, or
   terminal-state inference from unavailable evidence.
+- No lifecycle-duration inference, candidate-class inference, causal or success
+  claim, learned transition policy, auto-routing, auto-retry, reward update,
+  Bayesian/Markov model, or historical lineage backfill.
 
 ---
 
