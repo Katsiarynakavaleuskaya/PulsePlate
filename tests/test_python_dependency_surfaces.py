@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import netrc
 import os
 from pathlib import Path
@@ -19,6 +20,16 @@ from scripts.ci import dependabot_requirement_carriers as carriers
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APPROVED_INDEX = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+OBSERVABILITY_UPGRADES = {
+    "opentelemetry-api": "1.44.0",
+    "opentelemetry-sdk": "1.44.0",
+    "opentelemetry-exporter-otlp-proto-http": "1.44.0",
+    "opentelemetry-exporter-otlp-proto-common": "1.44.0",
+    "opentelemetry-proto": "1.44.0",
+    "opentelemetry-semantic-conventions": "0.65b0",
+    "prometheus-client": "0.25.0",
+}
+OBSERVABILITY_REMOVALS = frozenset({"importlib-metadata", "zipp"})
 
 
 def _run_fixture_git(repo: Path, *args: str) -> None:
@@ -985,9 +996,11 @@ def test_compile_registry_is_single_authority_for_every_compiled_surface() -> No
     assert "$(value LOCK_PROFILES)" in makefile
     assert "$(value UPGRADE_PACKAGES)" in makefile
     assert "$(value GRAPH_CHANGE_PACKAGES)" in makefile
+    assert "$(value GRAPH_CHANGE_ADMISSION)" in makefile
     assert "$(LOCK_PROFILES)" not in makefile
     assert "$(UPGRADE_PACKAGES)" not in makefile
     assert "$(GRAPH_CHANGE_PACKAGES)" not in makefile
+    assert "$(GRAPH_CHANGE_ADMISSION)" not in makefile
 
     ci_workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert "--project coverage" in ci_workflow
@@ -1040,8 +1053,9 @@ def test_profile_and_upgrade_selection_rejects_untrusted_values() -> None:
         "coverage": "7.15.1",
         "faker": "40.31.0",
     }
-    with pytest.raises(RuntimeError, match="future versioned artifact-admission contract"):
-        compiler._parse_graph_changes("Example_Pkg transitive.pkg")
+    assert compiler._parse_graph_changes("Example_Pkg transitive.pkg") == frozenset(
+        {"example-pkg", "transitive-pkg"}
+    )
 
     for raw_profiles in (None, "", "test test", "test;touch-pwned"):
         with pytest.raises(RuntimeError):
@@ -2204,15 +2218,15 @@ def test_resolver_candidate_symlink_swap_cannot_overwrite_target(
 
 def test_candidate_delta_allows_only_exact_reviewed_graph_changes(tmp_path: Path) -> None:
     surface = _write_test_profile(tmp_path)
-    baseline = (tmp_path / surface.lockfile).read_text(encoding="utf-8")
-    candidate = baseline + "new-direct-package==1.0\n"
+    candidate = (tmp_path / surface.lockfile).read_text(encoding="utf-8")
+    baseline = candidate + "transitive-package==1.0\n"
 
     compiler._validate_candidate_delta(
         surface=surface,
         baseline_text=baseline,
         candidate_text=candidate,
         upgrades={},
-        graph_changes=frozenset({"new-direct-package"}),
+        graph_changes=frozenset({"transitive-package"}),
         repo_root=tmp_path,
     )
     with pytest.raises(RuntimeError, match="unused=.*other-package"):
@@ -2221,7 +2235,16 @@ def test_candidate_delta_allows_only_exact_reviewed_graph_changes(tmp_path: Path
             baseline_text=baseline,
             candidate_text=candidate,
             upgrades={},
-            graph_changes=frozenset({"new-direct-package", "other-package"}),
+            graph_changes=frozenset({"transitive-package", "other-package"}),
+            repo_root=tmp_path,
+        )
+    with pytest.raises(RuntimeError, match="removal-only"):
+        compiler._validate_candidate_delta(
+            surface=surface,
+            baseline_text=baseline,
+            candidate_text=baseline + "new-package==1.0\n",
+            upgrades={},
+            graph_changes=frozenset({"new-package"}),
             repo_root=tmp_path,
         )
 
@@ -2388,7 +2411,7 @@ def test_runtime_and_dependent_profiles_require_separate_transactions() -> None:
         profiles=("runtime",),
         graph_changes=frozenset(),
     )
-    with pytest.raises(RuntimeError, match="future versioned artifact-admission contract"):
+    with pytest.raises(RuntimeError, match="exact selected closed v1 admission"):
         compiler._validate_profile_transaction(
             repo_root=REPO_ROOT,
             profiles=("dev", "test"),
@@ -2427,6 +2450,414 @@ def test_runtime_transaction_normalizes_constraint_paths(
         )
 
 
+def _copy_graph_change_admission_repo(destination: Path) -> None:
+    admission_path = destination / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    admission_path.parent.mkdir(parents=True)
+    admission_path.write_bytes((REPO_ROOT / compiler.GRAPH_CHANGE_ADMISSION_PATH).read_bytes())
+    seeded_lock = (
+        "importlib-metadata==8.7.0\n"
+        "opentelemetry-api==1.40.0\n"
+        "opentelemetry-exporter-otlp-proto-common==1.40.0\n"
+        "opentelemetry-exporter-otlp-proto-http==1.40.0\n"
+        "opentelemetry-proto==1.40.0\n"
+        "opentelemetry-sdk==1.40.0\n"
+        "opentelemetry-semantic-conventions==0.61b0\n"
+        "prometheus-client==0.24.1\n"
+        "zipp==3.23.0\n"
+    ).encode("utf-8")
+    payload = json.loads(admission_path.read_text(encoding="utf-8"))
+    for lockfile in (
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-ci-lite.txt",
+        "requirements-lock.txt",
+    ):
+        (destination / lockfile).write_bytes(seeded_lock)
+    for baseline in payload["record"]["baselines"].values():
+        baseline["sha256_bytes"] = list(hashlib.sha256(seeded_lock).digest())
+    payload["record"]["runtime_target_observation"]["sha256_bytes"] = list(
+        hashlib.sha256(_synthetic_runtime_target(destination)).digest()
+    )
+    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _synthetic_runtime_surface() -> surfaces.DependencySurface:
+    return surfaces.DependencySurface(
+        name="runtime",
+        source_file="requirements.in",
+        lockfile="requirements.txt",
+        owner="Synthetic graph-admission test",
+        use_case="Closed transition fixture",
+        install_authority="Test only",
+        compile_profile="runtime",
+        compile_sources=("requirements.in",),
+    )
+
+
+def _render_semantic_runtime_target(repo_root: Path) -> bytes:
+    runtime_path = repo_root / "requirements.txt"
+    pins = compiler._exact_pin_map(
+        runtime_path.read_text(encoding="utf-8"),
+        label="test runtime baseline",
+    )
+    rows: list[str] = []
+    for name, pin in sorted(pins.items()):
+        if name in OBSERVABILITY_REMOVALS:
+            continue
+        extras = f"[{','.join(pin.extras)}]" if pin.extras else ""
+        version = OBSERVABILITY_UPGRADES.get(name, pin.version)
+        marker = f"; {pin.marker}" if pin.marker is not None else ""
+        rows.append(f"{name}{extras}=={version}{marker}\n")
+    return "".join(rows).encode("utf-8")
+
+
+def _synthetic_runtime_target(repo_root: Path) -> bytes:
+    return surfaces.render_governed_lock_header(_synthetic_runtime_surface()).encode(
+        "utf-8"
+    ) + _render_semantic_runtime_target(repo_root)
+
+
+def _write_admitted_runtime_target(repo_root: Path) -> None:
+    runtime_path = repo_root / "requirements.txt"
+    runtime_path.write_bytes(_synthetic_runtime_target(repo_root))
+
+
+def test_closed_graph_change_admission_authorizes_only_two_ordered_states(
+    tmp_path: Path,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+
+    runtime_admission = compiler._authorize_graph_changes(
+        repo_root=tmp_path,
+        profiles=("runtime",),
+        upgrades=OBSERVABILITY_UPGRADES,
+        graph_changes=OBSERVABILITY_REMOVALS,
+        admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+    )
+    assert runtime_admission is not None
+    assert runtime_admission.profiles == ("runtime",)
+    assert runtime_admission.removals == OBSERVABILITY_REMOVALS
+
+    _write_admitted_runtime_target(tmp_path)
+    dependent_admission = compiler._authorize_graph_changes(
+        repo_root=tmp_path,
+        profiles=("docker-runtime", "ci-lite", "aggregate"),
+        upgrades=OBSERVABILITY_UPGRADES,
+        graph_changes=OBSERVABILITY_REMOVALS,
+        admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+    )
+    assert dependent_admission is not None
+    assert dependent_admission.profiles == ("docker-runtime", "ci-lite", "aggregate")
+
+    with pytest.raises(RuntimeError, match="runtime baseline is stale"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+    docker_lock = tmp_path / "requirements-docker-runtime.txt"
+    docker_lock.write_bytes(docker_lock.read_bytes() + b"# consumed\n")
+    with pytest.raises(RuntimeError, match="docker-runtime baseline is stale"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("docker-runtime", "ci-lite", "aggregate"),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
+def test_closed_graph_change_admission_rechecks_captured_plan_identity(
+    tmp_path: Path,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    runtime_path = tmp_path / "requirements.txt"
+    stale_runtime_capture = compiler._capture_file(runtime_path)
+    _write_admitted_runtime_target(tmp_path)
+    admission = compiler._authorize_graph_changes(
+        repo_root=tmp_path,
+        profiles=("docker-runtime", "ci-lite", "aggregate"),
+        upgrades=OBSERVABILITY_UPGRADES,
+        graph_changes=OBSERVABILITY_REMOVALS,
+        admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+    )
+    assert admission is not None
+    surface = _surface("docker-runtime")
+    output_path = tmp_path / surface.lockfile
+    plan = compiler.LockInputPlan(
+        surface=surface,
+        output_path=output_path,
+        output_capture=compiler._capture_file(output_path),
+        source_captures=((runtime_path, compiler._capture_file(runtime_path)),),
+        expected_artifacts=frozenset(),
+    )
+    compiler._assert_plans_match_graph_change_admission((plan,), admission)
+
+    stale_source_plan = compiler.LockInputPlan(
+        surface=surface,
+        output_path=output_path,
+        output_capture=plan.output_capture,
+        source_captures=((runtime_path, stale_runtime_capture),),
+        expected_artifacts=frozenset(),
+    )
+    with pytest.raises(RuntimeError, match="runtime constraint does not match"):
+        compiler._assert_plans_match_graph_change_admission((stale_source_plan,), admission)
+
+    wrong_baseline_plan = compiler.LockInputPlan(
+        surface=surface,
+        output_path=output_path,
+        output_capture=compiler._capture_file(runtime_path),
+        source_captures=plan.source_captures,
+        expected_artifacts=frozenset(),
+    )
+    with pytest.raises(RuntimeError, match="does not match.*admission baseline"):
+        compiler._assert_plans_match_graph_change_admission((wrong_baseline_plan,), admission)
+
+
+def test_tx1_rejects_semantically_equal_candidate_with_wrong_byte_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    (tmp_path / "requirements.in").write_text(
+        "\n".join(
+            f"{package}>={version}" for package, version in sorted(OBSERVABILITY_UPGRADES.items())
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    runtime_path = tmp_path / "requirements.txt"
+    baseline = runtime_path.read_bytes()
+    semantic_target_with_byte_drift = (
+        _render_semantic_runtime_target(tmp_path) + b"# semantically inert candidate drift\n"
+    )
+    admitted_target = _synthetic_runtime_target(tmp_path)
+    assert compiler._exact_pin_map(
+        semantic_target_with_byte_drift.decode("utf-8"), label="drifted runtime candidate"
+    ) == compiler._exact_pin_map(admitted_target.decode("utf-8"), label="admitted runtime target")
+    admission = compiler._authorize_graph_changes(
+        repo_root=tmp_path,
+        profiles=("runtime",),
+        upgrades=OBSERVABILITY_UPGRADES,
+        graph_changes=OBSERVABILITY_REMOVALS,
+        admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+    )
+    assert admission is not None
+
+    def write_semantically_equal_candidate(
+        command: list[str], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        _candidate_output_path(command).write_bytes(semantic_target_with_byte_drift)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(compiler.subprocess, "run", write_semantically_equal_candidate)
+    with pytest.raises(RuntimeError, match="exact admitted TX1 target"):
+        compiler._prepare_lock(
+            repo_root=tmp_path,
+            surface=_synthetic_runtime_surface(),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            graph_admission=admission,
+            child_env={},
+        )
+
+    assert runtime_path.read_bytes() == baseline
+    assert not tuple(tmp_path.glob(".requirements.txt.*.candidate"))
+    assert not tuple(tmp_path.glob(".requirements.txt.*.resolver"))
+
+
+@pytest.mark.parametrize(
+    "profiles",
+    (
+        ("aggregate", "ci-lite", "docker-runtime"),
+        ("docker-runtime", "ci-lite"),
+        ("runtime", "docker-runtime", "ci-lite", "aggregate"),
+        ("runtime", "runtime"),
+    ),
+)
+def test_closed_graph_change_admission_rejects_permutation_subset_and_combination(
+    tmp_path: Path,
+    profiles: tuple[str, ...],
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+
+    with pytest.raises(RuntimeError, match="exact ordered transaction"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=profiles,
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
+def test_closed_graph_change_admission_rejects_wrong_selector_upgrades_and_delta(
+    tmp_path: Path,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    with pytest.raises(RuntimeError, match="repository-owned closed v1 admission"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id="other-admission",
+        )
+    wrong_upgrades = dict(OBSERVABILITY_UPGRADES)
+    wrong_upgrades["prometheus-client"] = "0.26.0"
+    with pytest.raises(RuntimeError, match="exact admitted seven targets"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=wrong_upgrades,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+    with pytest.raises(RuntimeError, match="does not match the exact admitted removals"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=frozenset({"zipp"}),
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+    with pytest.raises(RuntimeError, match="forbidden when no graph change"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=frozenset(),
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
+def test_closed_graph_change_admission_rejects_semantically_equal_runtime_byte_drift(
+    tmp_path: Path,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    _write_admitted_runtime_target(tmp_path)
+    runtime_path = tmp_path / "requirements.txt"
+    exact_pins = compiler._exact_pin_map(
+        runtime_path.read_text(encoding="utf-8"), label="exact admitted runtime"
+    )
+    runtime_path.write_bytes(runtime_path.read_bytes() + b"# semantically inert byte drift\n")
+    assert (
+        compiler._exact_pin_map(
+            runtime_path.read_text(encoding="utf-8"), label="drifted admitted runtime"
+        )
+        == exact_pins
+    )
+
+    with pytest.raises(RuntimeError, match="exact admitted runtime target"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("docker-runtime", "ci-lite", "aggregate"),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
+@pytest.mark.parametrize("malformation", ("duplicate", "unknown", "wrong-type"))
+def test_closed_graph_change_admission_rejects_malformed_schema(
+    tmp_path: Path,
+    malformation: str,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    if malformation == "duplicate":
+        original = path.read_text(encoding="utf-8")
+        path.write_text(
+            original.replace(
+                '"schema":',
+                '"schema":"duplicate","schema":',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        expected = "Duplicate graph-change admission field"
+    else:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if malformation == "unknown":
+            payload["unknown"] = True
+            expected = "unknown=.*unknown"
+        else:
+            payload["record"]["profile_universe"] = "runtime"
+            expected = "array of strings"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=expected):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
+@pytest.mark.parametrize("path_kind", ("symlink", "hardlink", "directory"))
+def test_closed_graph_change_admission_rejects_unsafe_path_identity(
+    tmp_path: Path,
+    path_kind: str,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    saved = tmp_path / "saved-admission.json"
+    path.replace(saved)
+    if path_kind == "symlink":
+        path.symlink_to(saved)
+        expected = "regular non-symlink"
+    elif path_kind == "hardlink":
+        os.link(saved, path)
+        expected = "must not be hardlinked"
+    else:
+        path.mkdir()
+        expected = "regular non-symlink"
+
+    with pytest.raises(RuntimeError, match=expected):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
+def test_closed_graph_change_admission_detects_replacement_after_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _copy_graph_change_admission_repo(tmp_path)
+    path = tmp_path / compiler.GRAPH_CHANGE_ADMISSION_PATH
+    original_capture = compiler._capture_file
+    replaced = False
+
+    def capture_then_replace(candidate: Path) -> compiler.FileCapture:
+        nonlocal replaced
+        capture = original_capture(candidate)
+        if candidate == path and not replaced:
+            replaced = True
+            replacement = path.with_suffix(".replacement")
+            replacement.write_bytes(capture.content)
+            replacement.replace(path)
+        return capture
+
+    monkeypatch.setattr(compiler, "_capture_file", capture_then_replace)
+    with pytest.raises(RuntimeError, match="changed during lock compilation"):
+        compiler._authorize_graph_changes(
+            repo_root=tmp_path,
+            profiles=("runtime",),
+            upgrades=OBSERVABILITY_UPGRADES,
+            graph_changes=OBSERVABILITY_REMOVALS,
+            admission_id=compiler.GRAPH_CHANGE_ADMISSION_ID,
+        )
+
+
 def test_graph_change_rejection_happens_before_network_or_input_capture(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2436,7 +2867,7 @@ def test_graph_change_rejection_happens_before_network_or_input_capture(
     monkeypatch.setattr(compiler, "_capture_lock_input_plan", unexpected_call)
     monkeypatch.setattr(compiler, "_private_proxy_child_env", unexpected_call)
 
-    with pytest.raises(RuntimeError, match="future versioned artifact-admission contract"):
+    with pytest.raises(RuntimeError, match="repository-owned closed v1 admission"):
         compiler._compile_selected_profiles_locked(
             repo_root=REPO_ROOT,
             profiles=("test",),
