@@ -6853,6 +6853,20 @@ def test_owner_stale_seal_fixed_rejects_same_root_fixed_mapping(
     assert covered == set()
 
 
+def test_owner_stale_seal_fixed_rejects_case_variant_same_root_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping_url = "https://github.com/OWNER/REPO/pull/42#discussion_r700"
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={mapping_url: "a" * 40},
+    )
+
+    assert covered == set()
+
+
 def test_owner_stale_seal_fixed_ignores_url_only_mapping_entry_for_legacy_loop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6862,6 +6876,20 @@ def test_owner_stale_seal_fixed_ignores_url_only_mapping_entry_for_legacy_loop(
         tmp_path,
         monkeypatch,
         mapping_entries={url: ""},
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_ignores_case_variant_url_only_mapping_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping_url = "https://github.com/OWNER/REPO/pull/42#discussion_r700"
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={mapping_url: ""},
     )
 
     assert covered == {graph["url"]}

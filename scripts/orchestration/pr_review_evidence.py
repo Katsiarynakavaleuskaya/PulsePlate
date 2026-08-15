@@ -1354,9 +1354,10 @@ def validated_duplicate_reply_urls(
     stale_seal_parent_cache: dict[str, tuple[str, ...]] = {}
     for url, thread in live_roots:
         location = comment_locations.get(url)
+        root_identity = canonical_review_root_identity(url)
         if (
             url in covered
-            or url in validated_mapping_entries
+            or root_identity in validated_mapping_root_identities
             or url in validated_fingerprint_urls
             or location is None
             or location[0] is not thread
