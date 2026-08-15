@@ -11247,22 +11247,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 target branch `codex/repeated-invariant-family-abstraction-review-v1`; L3 requires a separate reviewed target PR
-  - Status: L1 merged; bounded L2 consumer implementation in progress; L3 remains closed and is not authorized by L1 or L2
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 target branch `codex/euler-l2-eval-v1`; L3 requires a separate reviewed target PR
+  - Status: L1 and bounded L2 are merged; L2-EVAL v1 is the next prospective descriptive evidence stage; collection begins only after its implementation PR merges; L3 remains closed and is not authorized by L1, L2, or L2-EVAL
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
     - `docs/orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md`
     - `docs/orchestration/contracts/review_invariant_family_relations.v1.schema.json`
+    - `docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md`
     - `scripts/orchestration/review_invariant_family_relations.py`
+    - `scripts/orchestration/invariant_family_review_episode.py`
     - `tests/test_review_invariant_family_relations.py`
+    - `tests/test_invariant_family_review_episode.py`
   - DoD:
     - L1 accepts only the closed snapshot/relations `oneOf`, normalizes explicit finite memberships, emits every canonical pair partition plus separate unknown findings, and fully validates deterministic replay with domain-separated fingerprints
     - L1 enforces input, output, diagnostic, finding, family, membership, pair, derived-reference, ID, strict-JSON, and const-false authority bounds through executable focused tests
     - L1 remains stdin/stdout only and adds no filesystem, environment, network, provider, subprocess, runtime, workflow, public API, mapping, learning, KPP, oracle, routing, review, promotion, or merge admission
     - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
     - L2 consumes canonical L1 output only through the explicit post-open `task_bootstrap.py` input, triggers only on explicit family cardinality at least two, and emits no parser, semantic/causal inference, implementation-owner, review-disposition, mapping, or merge authority
-    - L3 may be scoped only by a later reviewed packet with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; L1 output alone cannot open that gate
+    - L2-EVAL v1 prospectively retains one immutable enrollment and at most one immutable terminal receipt per repository/PR episode, validates a non-persisted joint-pass baseline, measures only explicit `C_f - J_f`, and emits deterministic descriptive cohort reports with every downstream authority grant false
+    - No synthetic primary episode or empirical 5/10 cohort exists at implementation time; real qualifying PRs accrue only after L2-EVAL merges, and its interim/target-count labels are not effectiveness or L3 decisions
+    - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)

@@ -25,6 +25,7 @@ import yaml
 from scripts.ci import ci_risk_profile
 from scripts.evals import eval_validity_contract
 from scripts.evals import judgment_validity
+from scripts.orchestration import invariant_family_review_episode
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
@@ -769,6 +770,260 @@ def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
     assert "_safe_write_text(report_path, report_content)" in writer_source
     assert ".open(" not in writer_source
     assert ".write_text(" not in writer_source
+
+
+def _thaw_invariant_episode_policy(value: object) -> object:
+    if isinstance(value, dict):
+        return {key: _thaw_invariant_episode_policy(item) for key, item in value.items()}
+    if hasattr(value, "items"):
+        return {key: _thaw_invariant_episode_policy(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_invariant_episode_policy(item) for item in value]
+    return value
+
+
+def test_invariant_family_episode_contract_policy_matches_module() -> None:
+    contract_path = (
+        REPO_ROOT / "docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md"
+    )
+    contract = contract_path.read_text(encoding="utf-8")
+    marker = "POLICY_PROJECTION_BEGIN\n"
+    start = contract.index(marker) + len(marker)
+    end = contract.index("\nPOLICY_PROJECTION_END", start)
+    contract_policy = json.loads(contract[start:end])
+
+    module_policy = _thaw_invariant_episode_policy(
+        invariant_family_review_episode.POLICY_PROJECTION
+    )
+    assert module_policy == contract_policy
+    assert json.dumps(module_policy, sort_keys=True, separators=(",", ":")) == json.dumps(
+        contract_policy, sort_keys=True, separators=(",", ":")
+    )
+    assert contract.count("POLICY_PROJECTION_BEGIN") == 1
+    assert contract.count("POLICY_PROJECTION_END") == 1
+
+
+def test_invariant_family_episode_has_closed_stdlib_and_platform_seams() -> None:
+    module_path = REPO_ROOT / "scripts/orchestration/invariant_family_review_episode.py"
+    source = module_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    allowed_imports = {
+        "__future__",
+        "collections.abc",
+        "ctypes",
+        "datetime",
+        "errno",
+        "fcntl",
+        "hashlib",
+        "json",
+        "os",
+        "re",
+        "secrets",
+        "stat",
+        "sys",
+        "types",
+        "typing",
+    }
+    observed_imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            observed_imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            assert node.module is not None
+            observed_imports.add(node.module)
+    assert observed_imports <= allowed_imports
+
+    forbidden_source = (
+        "subprocess",
+        "socket",
+        "requests",
+        "httpx",
+        "urllib",
+        "task_bootstrap",
+        "qoder",
+        "dispatch_bridge",
+        "review_invariant_family_relations",
+        "os.environ",
+        "os.getenv",
+        "datetime.now",
+        "datetime.utcnow",
+        "time.time",
+        "eval(",
+        "exec(",
+        "__import__(",
+    )
+    assert [token for token in forbidden_source if token in source] == []
+
+    cdll_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "ctypes"
+        and node.func.attr == "CDLL"
+    ]
+    assert len(cdll_calls) == 1
+    cdll = cdll_calls[0]
+    assert len(cdll.args) == 1
+    assert isinstance(cdll.args[0], ast.Constant) and cdll.args[0].value is None
+    assert len(cdll.keywords) == 1
+    assert cdll.keywords[0].arg == "use_errno"
+    assert isinstance(cdll.keywords[0].value, ast.Constant)
+    assert cdll.keywords[0].value.value is True
+
+
+def test_invariant_family_episode_remains_a_standalone_cli() -> None:
+    git_binary = shutil.which("git")
+    assert git_binary is not None
+    completed = subprocess.run(
+        [
+            git_binary,
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
+    allowed = {
+        "docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md",
+        "docs/roadmap/BACKLOG_LEDGER.md",
+        "scripts/AGENTS.md",
+        "scripts/orchestration/invariant_family_review_episode.py",
+        "tests/guards/test_security_devtooling_regression_guards.py",
+        "tests/test_invariant_family_review_episode.py",
+    }
+    consumers: list[str] = []
+    for raw_path in completed.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        relative = raw_path.decode("utf-8")
+        if relative in allowed or (
+            relative.startswith("docs/review/PR_") and relative.endswith("_FIXED_MAPPING.md")
+        ):
+            continue
+        path = REPO_ROOT / relative
+        if not path.is_file() or path.stat().st_size > 4_194_304:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if "invariant_family_review_episode" in content:
+            consumers.append(relative)
+    assert consumers == []
+
+
+def _episode_function_calls(tree: ast.AST) -> dict[str, set[str]]:
+    calls: dict[str, set[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        calls[node.name] = {
+            child.func.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+        }
+    return calls
+
+
+def _episode_reachable(calls: dict[str, set[str]], start: str, target: str) -> bool:
+    pending = [start]
+    visited: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        if target in calls.get(current, set()):
+            return True
+        pending.extend(calls.get(current, set()) - visited)
+    return False
+
+
+def test_invariant_family_episode_delegates_only_to_no_replace_publisher() -> None:
+    module_path = REPO_ROOT / "scripts/orchestration/invariant_family_review_episode.py"
+    source = module_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    calls = _episode_function_calls(tree)
+
+    for handler in ("_run_enroll", "_run_terminal", "_run_report"):
+        assert _episode_reachable(calls, handler, "_publish_bundle")
+    assert not _episode_reachable(calls, "_run_validate", "_publish_bundle")
+    assert invariant_family_review_episode.BUNDLE_SHAPES == {
+        "receipt": ("receipt.json",),
+        "report": ("report.json", "report.md"),
+    }
+
+    required_tokens = (
+        '_required_open_flag("O_NOFOLLOW")',
+        '_required_open_flag("O_CLOEXEC")',
+        '_required_open_flag("O_NONBLOCK")',
+        "os.O_CREAT",
+        "os.O_EXCL",
+        "os.fsync(",
+        "os.fchmod(",
+        "os.scandir(",
+        'symbol = "renameatx_np"',
+        'symbol = "renameat2"',
+        "MAX_STAGING_ATTEMPTS = 32",
+        "fcntl.LOCK_NB",
+        "0o700",
+        "0o600",
+    )
+    for token in required_tokens:
+        assert token in source
+
+    forbidden_tokens = (
+        "Path.write_text",
+        "Path.write_bytes",
+        "os.O_TRUNC",
+        "os.O_APPEND",
+        "os.replace(",
+        "os.rename(",
+        "os.link(",
+        "os.walk(",
+        "os.listdir(",
+        ".glob(",
+        ".rglob(",
+        "sleep(",
+        '"amend"',
+        '"reopen"',
+        '"supersede"',
+        '"repair"',
+        '"delete"',
+        '"list"',
+    )
+    assert [token for token in forbidden_tokens if token in source] == []
+
+    builtin_open_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "open"
+    ]
+    assert builtin_open_calls == []
+
+    mutation_owners: dict[str, set[str]] = {"unlink": set(), "rmdir": set()}
+    for function in ast.walk(tree):
+        if not isinstance(function, ast.FunctionDef):
+            continue
+        for node in ast.walk(function):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "os"
+                and node.func.attr in mutation_owners
+            ):
+                mutation_owners[node.func.attr].add(function.name)
+    assert mutation_owners == {
+        "unlink": {"_cleanup_owned_stage"},
+        "rmdir": {"_cleanup_owned_stage"},
+    }
 
 
 def test_eval_validity_contract_rejects_coercive_validator_patterns() -> None:
