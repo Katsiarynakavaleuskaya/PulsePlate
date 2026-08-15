@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 import subprocess
 import sys
@@ -825,8 +826,7 @@ def test_billing_module_reload_reinitializes_app_module_cache() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.asyncio
-async def test_verify_apple_receipt_response_wraps_transport_error(
+def test_verify_apple_receipt_response_wraps_transport_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.routers import billing
@@ -837,8 +837,10 @@ async def test_verify_apple_receipt_response_wraps_transport_error(
         raise payments_activation.AppleVerifyTransportError()
 
     monkeypatch.setattr(payments_activation, "verify_apple_receipt", _raise_transport)
-    response = await billing._verify_apple_receipt_response(
-        AppleReceiptVerificationRequest(receipt_data="receipt-data-validated-12345")
+    response = asyncio.run(
+        billing._verify_apple_receipt_response(
+            AppleReceiptVerificationRequest(receipt_data="receipt-data-validated-12345")
+        )
     )
 
     assert isinstance(response, JSONResponse)
