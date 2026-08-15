@@ -15,6 +15,9 @@ from sqlalchemy.orm import Session
 from app.models import NutritionEvent
 from app.schemas.user_coaching_state import (
     AdherenceSnapshot,
+    CoachingGoalAuthoritySnapshotV1,
+    NoInterventionReason,
+    PromptSafeGoalAuthorityContext,
     RecentBehaviorSnapshot,
     UserCoachingStateV1,
 )
@@ -29,6 +32,20 @@ from core.bayes.adherence_service import DEFAULT_ANALYZER_KEY
 from core.models import AnalyzerStateModel, User
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _OpaqueRefStringSubclass(str):
+    pass
+
+
+def _active_goal() -> CoachingGoalAuthoritySnapshotV1:
+    return CoachingGoalAuthoritySnapshotV1(
+        status="active",
+        source="user_confirmed",
+        data_status="confirmed",
+        goal_ref="goal:91000",
+        goal_version_ref="goal-version:1",
+    )
 
 
 def _sqlite_datetime(value: datetime) -> datetime:
@@ -160,7 +177,10 @@ def test_builder_returns_default_state_without_creating_analyzer_row(
     assert state.profile.goal_profile is None
     assert state.profile.nutrition_profile is None
     assert state.recent_behavior.scanned_event_count == 0
-    assert state.next_recommended_scenario == "mascot_insight"
+    assert state.goal == CoachingGoalAuthoritySnapshotV1()
+    assert state.goal.has_active_authority is False
+    assert state.goal.no_intervention_reason == "goal_unavailable"
+    assert state.next_recommended_scenario is None
     assert "recent_behavior_unavailable" in state.degrade_reasons
 
     context = to_prompt_safe_context(state)
@@ -170,6 +190,12 @@ def test_builder_returns_default_state_without_creating_analyzer_row(
     assert "alpha" not in context_json
     assert "beta" not in context_json
     assert "last_" not in context_json
+    assert context.goal.model_dump() == {
+        "status": "unavailable",
+        "source": "unavailable",
+        "data_status": "unavailable",
+        "has_active_authority": False,
+    }
 
 
 def test_builder_reads_existing_adherence_state_without_mutating_it(
@@ -584,6 +610,7 @@ def test_schema_models_are_frozen_strict_and_recompute_derived_fields() -> None:
                 slip_like_count_7d=2,
                 scanned_event_count=2,
             ),
+            "goal": _active_goal(),
             "available_scenarios": ("slip_support", "mascot_insight", "slip_support"),
             "coaching_urgency": 99.0,
             "next_recommended_scenario": "client_injected",
@@ -616,6 +643,7 @@ def test_prompt_safe_context_recomputes_model_copy_derived_injection() -> None:
             confidence=0.35,
             needs_more_data=True,
         ),
+        goal=_active_goal(),
         available_scenarios=("mascot_insight",),
     )
     copied_state = state.model_copy(
@@ -629,6 +657,418 @@ def test_prompt_safe_context_recomputes_model_copy_derived_injection() -> None:
 
     assert context.coaching_urgency == state.coaching_urgency
     assert context.next_recommended_scenario == "mascot_insight"
+
+
+@pytest.mark.parametrize(
+    ("goal", "expected_active", "expected_reason"),
+    [
+        (CoachingGoalAuthoritySnapshotV1(), False, "goal_unavailable"),
+        (
+            CoachingGoalAuthoritySnapshotV1(data_status="invalid_degraded"),
+            False,
+            "goal_invalid_degraded",
+        ),
+        (_active_goal(), True, None),
+        (
+            CoachingGoalAuthoritySnapshotV1(
+                status="paused",
+                source="user_confirmed",
+                data_status="confirmed",
+                goal_ref="goal:91000",
+                goal_version_ref="goal-version:1",
+            ),
+            False,
+            "goal_paused",
+        ),
+        (
+            CoachingGoalAuthoritySnapshotV1(
+                status="withdrawn",
+                source="user_confirmed",
+                data_status="confirmed",
+                goal_ref="goal:91000",
+                goal_version_ref="goal-version:1",
+            ),
+            False,
+            "goal_withdrawn",
+        ),
+        (
+            CoachingGoalAuthoritySnapshotV1(
+                status="superseded",
+                source="user_confirmed",
+                data_status="confirmed",
+                goal_ref="goal:91000",
+                goal_version_ref="goal-version:1",
+                supersedes_ref="goal-version:0",
+                superseded_by_ref="goal-version:2",
+                correction_ref="correction:1",
+            ),
+            False,
+            "goal_superseded",
+        ),
+    ],
+)
+def test_goal_authority_lifecycle_is_explicit_and_derived(
+    goal: CoachingGoalAuthoritySnapshotV1,
+    expected_active: bool,
+    expected_reason: NoInterventionReason | None,
+) -> None:
+    assert goal.snapshot_version == "coaching_goal_authority_v1"
+    assert goal.has_active_authority is expected_active
+    assert goal.no_intervention_reason == expected_reason
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"status": "unavailable", "source": "user_confirmed"},
+        {"status": "unavailable", "data_status": "confirmed"},
+        {"status": "unavailable", "goal_ref": "goal:1"},
+        {
+            "status": "active",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+        },
+        {
+            "status": "active",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+        },
+        {
+            "status": "active",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_version_ref": "version:1",
+        },
+        {
+            "status": "active",
+            "source": "unavailable",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+        },
+        {
+            "status": "active",
+            "source": "user_confirmed",
+            "data_status": "unavailable",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+        },
+        {
+            "status": "active",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+            "superseded_by_ref": "version:2",
+        },
+        {
+            "status": "paused",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+            "superseded_by_ref": "version:2",
+        },
+        {
+            "status": "withdrawn",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+            "superseded_by_ref": "version:2",
+        },
+        {
+            "status": "superseded",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+        },
+        {
+            "status": "superseded",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+            "supersedes_ref": "version:1",
+            "superseded_by_ref": "version:2",
+        },
+        {
+            "status": "superseded",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+            "superseded_by_ref": "version:1",
+        },
+        {
+            "status": "superseded",
+            "source": "user_confirmed",
+            "data_status": "confirmed",
+            "goal_ref": "goal:1",
+            "goal_version_ref": "version:1",
+            "supersedes_ref": "version:2",
+            "superseded_by_ref": "version:2",
+        },
+    ],
+)
+def test_goal_authority_rejects_invalid_lifecycle_combinations(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        CoachingGoalAuthoritySnapshotV1.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "ref_name",
+    [
+        "goal_ref",
+        "goal_version_ref",
+        "supersedes_ref",
+        "superseded_by_ref",
+        "correction_ref",
+    ],
+)
+def test_unavailable_goal_rejects_every_ref_slot(ref_name: str) -> None:
+    with pytest.raises(ValidationError, match="must not include refs"):
+        CoachingGoalAuthoritySnapshotV1.model_validate({ref_name: "opaque:ref"})
+
+
+@pytest.mark.parametrize("ref", ["a", "A" + "x" * 127, "goal.v1:part-2_ref"])
+def test_goal_authority_accepts_opaque_ref_shape_boundaries(ref: str) -> None:
+    goal = CoachingGoalAuthoritySnapshotV1(
+        status="active",
+        source="user_confirmed",
+        data_status="confirmed",
+        goal_ref=ref,
+        goal_version_ref="version:1",
+        correction_ref="version:1",
+    )
+
+    assert goal.goal_ref == ref
+    assert goal.correction_ref == goal.goal_version_ref
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "",
+        "x" * 129,
+        " leading",
+        "trailing ",
+        "internal prose",
+        "goal/1",
+        "göal",
+        "goal\n1",
+        "goal\n",
+        "goal\t1",
+        "goal\x00",
+        b"goal:1",
+        bytearray(b"goal:1"),
+        _OpaqueRefStringSubclass("goal:1"),
+        123,
+        True,
+    ],
+)
+def test_goal_authority_rejects_nonopaque_refs(ref: object) -> None:
+    with pytest.raises(ValidationError):
+        CoachingGoalAuthoritySnapshotV1.model_validate(
+            {
+                "status": "active",
+                "source": "user_confirmed",
+                "data_status": "confirmed",
+                "goal_ref": ref,
+                "goal_version_ref": "version:1",
+            }
+        )
+
+
+def test_goal_authority_is_frozen_extra_forbid_and_derived_only() -> None:
+    goal = _active_goal()
+
+    assert set(CoachingGoalAuthoritySnapshotV1.model_fields) == {
+        "snapshot_version",
+        "status",
+        "source",
+        "data_status",
+        "goal_ref",
+        "goal_version_ref",
+        "supersedes_ref",
+        "superseded_by_ref",
+        "correction_ref",
+    }
+    with pytest.raises(ValidationError):
+        CoachingGoalAuthoritySnapshotV1.model_validate(
+            {**goal.model_dump(), "has_active_authority": False}
+        )
+    with pytest.raises(ValidationError):
+        CoachingGoalAuthoritySnapshotV1.model_validate({**goal.model_dump(), "extra": True})
+    with pytest.raises(ValidationError):
+        setattr(goal, "status", "paused")
+
+
+def test_goal_authority_unknown_status_reason_fails_closed() -> None:
+    forged = CoachingGoalAuthoritySnapshotV1().model_copy(update={"status": "archived"})
+
+    with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+        _ = forged.no_intervention_reason
+
+
+@pytest.mark.parametrize(
+    "invalid_ref",
+    [
+        "raw goal prose",
+        [],
+        123,
+        "göal",
+        "x" * 129,
+        _OpaqueRefStringSubclass("goal:1"),
+    ],
+)
+def test_goal_authority_model_copy_invalid_refs_cannot_activate_authority(
+    invalid_ref: object,
+) -> None:
+    forged = _active_goal().model_copy(
+        update={
+            "goal_ref": invalid_ref,
+            "goal_version_ref": invalid_ref,
+        }
+    )
+
+    assert forged.has_active_authority is False
+    with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+        _ = forged.no_intervention_reason
+
+
+@pytest.mark.parametrize(
+    "invalid_update",
+    [
+        {"superseded_by_ref": "goal-version:2"},
+        {"supersedes_ref": "goal-version:1"},
+        {"correction_ref": "raw goal prose"},
+        {"snapshot_version": "coaching_goal_authority_v2"},
+    ],
+)
+def test_goal_authority_model_copy_invalid_lifecycle_cannot_activate_authority(
+    invalid_update: dict[str, object],
+) -> None:
+    forged = _active_goal().model_copy(update=invalid_update)
+
+    assert forged.has_active_authority is False
+    with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+        _ = forged.no_intervention_reason
+
+
+def test_goal_authority_controls_scenario_without_changing_observed_urgency() -> None:
+    base = {
+        "user_id": 91_014,
+        "assembled_at": datetime(2026, 6, 5, 15, 0, tzinfo=timezone.utc),
+        "adherence": AdherenceSnapshot(
+            alpha=2.0,
+            beta=8.0,
+            n=10,
+            risk_slip=0.8,
+            confidence=0.85,
+            needs_more_data=False,
+        ),
+        "recent_behavior": RecentBehaviorSnapshot(
+            slip_like_count_7d=2,
+            scanned_event_count=2,
+        ),
+        "available_scenarios": ("slip_support", "mascot_insight"),
+    }
+    goals = (
+        _active_goal(),
+        CoachingGoalAuthoritySnapshotV1(
+            status="paused",
+            source="user_confirmed",
+            data_status="confirmed",
+            goal_ref="goal:91000",
+            goal_version_ref="goal-version:1",
+        ),
+        CoachingGoalAuthoritySnapshotV1(
+            status="withdrawn",
+            source="user_confirmed",
+            data_status="confirmed",
+            goal_ref="goal:91000",
+            goal_version_ref="goal-version:1",
+        ),
+        CoachingGoalAuthoritySnapshotV1(
+            status="superseded",
+            source="user_confirmed",
+            data_status="confirmed",
+            goal_ref="goal:91000",
+            goal_version_ref="goal-version:1",
+            superseded_by_ref="goal-version:2",
+        ),
+        CoachingGoalAuthoritySnapshotV1(),
+    )
+    states = tuple(UserCoachingStateV1.model_validate({**base, "goal": goal}) for goal in goals)
+
+    assert states[0].next_recommended_scenario == "slip_support"
+    assert all(state.next_recommended_scenario is None for state in states[1:])
+    assert {state.coaching_urgency for state in states} == {states[0].coaching_urgency}
+    assert all(state.degrade_reasons == states[0].degrade_reasons for state in states)
+
+
+def test_prompt_safe_goal_projection_is_exact_private_and_recomputed() -> None:
+    state = UserCoachingStateV1(
+        user_id=91_015,
+        assembled_at=datetime(2026, 6, 5, 15, 0, tzinfo=timezone.utc),
+        goal=CoachingGoalAuthoritySnapshotV1(
+            status="active",
+            source="user_confirmed",
+            data_status="confirmed",
+            goal_ref="private-goal-ref",
+            goal_version_ref="private-version-ref",
+            supersedes_ref="private-predecessor-ref",
+            correction_ref="private-correction-ref",
+        ),
+    )
+
+    context = to_prompt_safe_context(state)
+    assert context.goal.model_dump() == {
+        "status": "active",
+        "source": "user_confirmed",
+        "data_status": "confirmed",
+        "has_active_authority": True,
+    }
+    context_json = json.dumps(context.model_dump(mode="json"), sort_keys=True)
+    for forbidden in (
+        "private-goal-ref",
+        "private-version-ref",
+        "private-predecessor-ref",
+        "private-correction-ref",
+        "goal_ref",
+        "goal_version_ref",
+        "supersedes_ref",
+        "superseded_by_ref",
+        "correction_ref",
+        "user_id",
+        "assembled_at",
+        "last_",
+    ):
+        assert forbidden not in context_json
+
+    forged = PromptSafeGoalAuthorityContext(
+        status="active",
+        source="user_confirmed",
+        data_status="confirmed",
+        has_active_authority=False,
+    )
+    assert forged.has_active_authority is True
+    with pytest.raises(ValidationError):
+        PromptSafeGoalAuthorityContext.model_validate(
+            {
+                "status": "active",
+                "source": "user_confirmed",
+                "data_status": "confirmed",
+                "extra": True,
+            }
+        )
+    with pytest.raises(ValidationError):
+        setattr(forged, "status", "paused")
 
 
 def test_service_only_files_do_not_wire_public_runtime_or_write_paths() -> None:
@@ -648,6 +1088,10 @@ def test_service_only_files_do_not_wire_public_runtime_or_write_paths() -> None:
         "FastAPI",
         "legacy_app",
         "fitchef_runtime",
+        "WeeklyPlan",
+        "safe_goal",
+        "backend_policy",
+        "goal_kind",
         "semantic_cache",
         "Redis",
         "record_event(",

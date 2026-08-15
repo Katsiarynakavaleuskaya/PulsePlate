@@ -8,9 +8,18 @@ surface, client contract, prompt injection, or persistence is defined here.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
+import re
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 FitChefCoachingScenario = Literal[
     "mascot_insight",
@@ -49,6 +58,7 @@ FitChefTransitionSafetyLabel = Literal[
 ]
 MarkovOrchestrationDecisionStatus = Literal[
     "shadow_disabled",
+    "no_intervention",
     "no_recommendation",
     "degraded",
     "ready",
@@ -62,6 +72,37 @@ MarkovOrchestrationDegradeReason = Literal[
     "recent_behavior_capped",
     "adherence_state_invalid_degraded",
 ]
+CoachingGoalStatus = Literal[
+    "active",
+    "paused",
+    "withdrawn",
+    "superseded",
+    "unavailable",
+]
+CoachingGoalSource = Literal["user_confirmed", "unavailable"]
+CoachingGoalDataStatus = Literal["confirmed", "unavailable", "invalid_degraded"]
+NoInterventionReason = Literal[
+    "goal_unavailable",
+    "goal_invalid_degraded",
+    "goal_paused",
+    "goal_withdrawn",
+    "goal_superseded",
+]
+_OPAQUE_GOAL_REF_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+_OPAQUE_GOAL_REF_RE = re.compile(_OPAQUE_GOAL_REF_PATTERN, flags=re.ASCII)
+OpaqueGoalRef = Annotated[
+    str,
+    StringConstraints(
+        strict=True,
+        pattern=_OPAQUE_GOAL_REF_PATTERN,
+    ),
+]
+
+
+def _is_valid_opaque_goal_ref(value: object) -> bool:
+    return type(value) is str and _OPAQUE_GOAL_REF_RE.fullmatch(value) is not None
+
+
 RiskBucket = Literal["low", "moderate", "high"]
 ConfidenceBucket = Literal["low", "high"]
 MARKOV_TRANSITION_SAFETY_LABELS: tuple[FitChefTransitionSafetyLabel, ...] = (
@@ -209,6 +250,129 @@ class ProfileSignalSnapshot(BaseModel):
     degrade_reasons: tuple[str, ...] = ("profile_source_unavailable",)
 
 
+class CoachingGoalAuthoritySnapshotV1(BaseModel):
+    """Versioned goal-authority lifecycle metadata without goal content."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    snapshot_version: Literal["coaching_goal_authority_v1"] = "coaching_goal_authority_v1"
+    status: CoachingGoalStatus = "unavailable"
+    source: CoachingGoalSource = "unavailable"
+    data_status: CoachingGoalDataStatus = "unavailable"
+    goal_ref: OpaqueGoalRef | None = None
+    goal_version_ref: OpaqueGoalRef | None = None
+    supersedes_ref: OpaqueGoalRef | None = None
+    superseded_by_ref: OpaqueGoalRef | None = None
+    correction_ref: OpaqueGoalRef | None = None
+
+    @field_validator(
+        "goal_ref",
+        "goal_version_ref",
+        "supersedes_ref",
+        "superseded_by_ref",
+        "correction_ref",
+        mode="before",
+    )
+    @classmethod
+    def _require_builtin_ref_string(cls, value: object) -> object:
+        if value is not None and not _is_valid_opaque_goal_ref(value):
+            raise ValueError("goal authority refs must match the canonical opaque grammar")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_lifecycle(self) -> "CoachingGoalAuthoritySnapshotV1":
+        refs = (
+            self.goal_ref,
+            self.goal_version_ref,
+            self.supersedes_ref,
+            self.superseded_by_ref,
+            self.correction_ref,
+        )
+
+        if self.status == "unavailable":
+            if self.source != "unavailable":
+                raise ValueError("unavailable goal must use unavailable source")
+            if self.data_status not in {"unavailable", "invalid_degraded"}:
+                raise ValueError("unavailable goal must use unavailable or invalid_degraded data")
+            if any(ref is not None for ref in refs):
+                raise ValueError("unavailable goal must not include refs")
+        else:
+            if self.source != "user_confirmed" or self.data_status != "confirmed":
+                raise ValueError("known goal lifecycle requires user_confirmed confirmed data")
+            if self.goal_ref is None or self.goal_version_ref is None:
+                raise ValueError("known goal lifecycle requires goal and version refs")
+            if self.status == "superseded":
+                if self.superseded_by_ref is None:
+                    raise ValueError("superseded goal requires a successor ref")
+            elif self.superseded_by_ref is not None:
+                raise ValueError("non-superseded goal must not include a successor ref")
+
+        if self.goal_version_ref is not None:
+            if self.supersedes_ref == self.goal_version_ref:
+                raise ValueError("goal version must not supersede itself")
+            if self.superseded_by_ref == self.goal_version_ref:
+                raise ValueError("goal version must not be superseded by itself")
+        if (
+            self.supersedes_ref is not None
+            and self.superseded_by_ref is not None
+            and self.supersedes_ref == self.superseded_by_ref
+        ):
+            raise ValueError("predecessor and successor refs must differ")
+        return self
+
+    def _has_valid_lifecycle(self) -> bool:
+        try:
+            CoachingGoalAuthoritySnapshotV1.model_validate(
+                {
+                    "snapshot_version": self.snapshot_version,
+                    "status": self.status,
+                    "source": self.source,
+                    "data_status": self.data_status,
+                    "goal_ref": self.goal_ref,
+                    "goal_version_ref": self.goal_version_ref,
+                    "supersedes_ref": self.supersedes_ref,
+                    "superseded_by_ref": self.superseded_by_ref,
+                    "correction_ref": self.correction_ref,
+                }
+            )
+        except ValidationError:
+            return False
+        return True
+
+    @property
+    def has_active_authority(self) -> bool:
+        """Return authority only for the one validated active lifecycle state."""
+
+        return (
+            self._has_valid_lifecycle()
+            and self.status == "active"
+            and self.source == "user_confirmed"
+            and self.data_status == "confirmed"
+            and _is_valid_opaque_goal_ref(self.goal_ref)
+            and _is_valid_opaque_goal_ref(self.goal_version_ref)
+        )
+
+    @property
+    def no_intervention_reason(self) -> NoInterventionReason | None:
+        """Return the exact abstention reason for a validated non-active goal."""
+
+        if not self._has_valid_lifecycle():
+            raise ValueError("goal snapshot has no valid no_intervention mapping")
+        if self.status == "active":
+            return None
+        if self.status == "unavailable":
+            if self.data_status == "invalid_degraded":
+                return "goal_invalid_degraded"
+            return "goal_unavailable"
+        if self.status == "paused":
+            return "goal_paused"
+        if self.status == "withdrawn":
+            return "goal_withdrawn"
+        if self.status == "superseded":
+            return "goal_superseded"
+        raise ValueError("goal snapshot has no valid no_intervention mapping")
+
+
 class UserCoachingStateV1(BaseModel):
     """Internal immutable coaching state, derived from backend truth only."""
 
@@ -218,6 +382,7 @@ class UserCoachingStateV1(BaseModel):
     state_version: Literal["v1"] = "v1"
     assembled_at: datetime
     profile: ProfileSignalSnapshot = Field(default_factory=ProfileSignalSnapshot)
+    goal: CoachingGoalAuthoritySnapshotV1 = Field(default_factory=CoachingGoalAuthoritySnapshotV1)
     adherence: AdherenceSnapshot = Field(default_factory=AdherenceSnapshot)
     recent_behavior: RecentBehaviorSnapshot = Field(default_factory=RecentBehaviorSnapshot)
     available_scenarios: tuple[FitChefCoachingScenario, ...] = ("mascot_insight",)
@@ -256,10 +421,11 @@ class UserCoachingStateV1(BaseModel):
         priority.append("mascot_insight")
 
         scenario: FitChefCoachingScenario | None = None
-        for candidate in priority:
-            if candidate in available:
-                scenario = candidate
-                break
+        if self.goal.has_active_authority:
+            for candidate in priority:
+                if candidate in available:
+                    scenario = candidate
+                    break
 
         degrade_reasons = list(self.profile.degrade_reasons)
         if self.adherence.needs_more_data:
@@ -319,6 +485,44 @@ class PromptSafeProfileSignalContext(BaseModel):
     data_status: Literal["unavailable"] = "unavailable"
 
 
+class PromptSafeGoalAuthorityContext(BaseModel):
+    """Allowlisted goal lifecycle categories without identifiers or content."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    status: CoachingGoalStatus
+    source: CoachingGoalSource
+    data_status: CoachingGoalDataStatus
+    has_active_authority: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _discard_caller_derived_authority(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        cleaned = dict(data)
+        cleaned.pop("has_active_authority", None)
+        return cleaned
+
+    @model_validator(mode="after")
+    def _recompute_authority(self) -> "PromptSafeGoalAuthorityContext":
+        if self.status == "unavailable":
+            if self.source != "unavailable":
+                raise ValueError("unavailable goal context must use unavailable source")
+            if self.data_status not in {"unavailable", "invalid_degraded"}:
+                raise ValueError("unavailable goal context has invalid data status")
+        elif self.source != "user_confirmed" or self.data_status != "confirmed":
+            raise ValueError("known goal context requires user_confirmed confirmed data")
+
+        has_active_authority = (
+            self.status == "active"
+            and self.source == "user_confirmed"
+            and self.data_status == "confirmed"
+        )
+        object.__setattr__(self, "has_active_authority", has_active_authority)
+        return self
+
+
 class PromptSafeCoachingContext(BaseModel):
     """Static allowlist projection for future prompt-safe use."""
 
@@ -328,6 +532,7 @@ class PromptSafeCoachingContext(BaseModel):
     adherence: PromptSafeAdherenceContext
     recent_behavior: PromptSafeRecentBehaviorContext
     profile: PromptSafeProfileSignalContext
+    goal: PromptSafeGoalAuthorityContext
     coaching_urgency: float = Field(..., ge=0.0, le=1.0)
     next_recommended_scenario: FitChefCoachingScenario | None
     safety_labels: tuple[
@@ -590,16 +795,28 @@ class MarkovCoachingOrchestrationTraceV1(BaseModel):
     state_degraded: bool = False
     planner_degraded: bool = False
     degrade_reasons: tuple[MarkovOrchestrationDegradeReason, ...] = ()
+    no_intervention_reason: NoInterventionReason | None = None
     safety_labels: tuple[FitChefTransitionSafetyLabel, ...] = MARKOV_TRANSITION_SAFETY_LABELS
 
     @model_validator(mode="after")
     def _recompute_trace_safety_labels(self) -> "MarkovCoachingOrchestrationTraceV1":
+        degrade_reasons = tuple(dict.fromkeys(self.degrade_reasons))
         object.__setattr__(self, "safety_labels", MARKOV_TRANSITION_SAFETY_LABELS)
-        object.__setattr__(
-            self,
-            "degrade_reasons",
-            tuple(dict.fromkeys(self.degrade_reasons)),
-        )
+        object.__setattr__(self, "degrade_reasons", degrade_reasons)
+
+        if self.decision_status == "no_intervention":
+            if self.no_intervention_reason is None:
+                raise ValueError("no_intervention trace requires an exact reason")
+            if self.planner_version is not None or self.transition_state is not None:
+                raise ValueError("no_intervention trace must not include planner state")
+            if self.recommended_scenario is not None or self.confidence != 0.0:
+                raise ValueError("no_intervention trace must not include a recommendation")
+            if self.ranked_scenario_count != 0 or self.available_scenario_count != 0:
+                raise ValueError("no_intervention trace must use zero unevaluated counts")
+            if self.state_degraded or self.planner_degraded or degrade_reasons:
+                raise ValueError("no_intervention trace must not be degraded")
+        elif self.no_intervention_reason is not None:
+            raise ValueError("no_intervention_reason is exclusive to no_intervention")
         return self
 
 
@@ -621,11 +838,23 @@ class MarkovCoachingOrchestrationResultV1(BaseModel):
     @model_validator(mode="after")
     def _validate_shadow_boundaries(self) -> "MarkovCoachingOrchestrationResultV1":
         trace = self.decision_trace
+        has_active_authority = self.coaching_state.goal.has_active_authority
         if trace.decision_status == "shadow_disabled":
             if self.transition_plan is not None or self.prompt_safe_context is not None:
                 raise ValueError("shadow_disabled result must not include plan or context")
             if "feature_gate_disabled" not in trace.degrade_reasons:
                 raise ValueError("shadow_disabled trace must include feature gate reason")
+        if trace.decision_status == "no_intervention":
+            expected_reason = self.coaching_state.goal.no_intervention_reason
+            if has_active_authority or expected_reason is None:
+                raise ValueError("no_intervention result requires a non-active goal")
+            if trace.no_intervention_reason != expected_reason:
+                raise ValueError("no_intervention reason must match coaching goal")
+            if self.transition_plan is not None or self.prompt_safe_context is not None:
+                raise ValueError("no_intervention result must not include plan or context")
+        if trace.decision_status in {"ready", "degraded", "no_recommendation"}:
+            if not has_active_authority:
+                raise ValueError("planner decisions require active goal authority")
         if trace.decision_status in {"ready", "degraded"}:
             if self.transition_plan is None or self.prompt_safe_context is None:
                 raise ValueError("ready or degraded result requires plan and context")
@@ -690,6 +919,10 @@ class MarkovCoachingOrchestrationResultV1(BaseModel):
 
 __all__ = [
     "AdherenceSnapshot",
+    "CoachingGoalAuthoritySnapshotV1",
+    "CoachingGoalDataStatus",
+    "CoachingGoalSource",
+    "CoachingGoalStatus",
     "FitChefCoachingScenario",
     "FitChefTransitionReason",
     "FitChefTransitionSafetyLabel",
@@ -702,9 +935,12 @@ __all__ = [
     "MarkovOrchestrationDecisionStatus",
     "MarkovOrchestrationDegradeReason",
     "MarkovScenarioProbability",
+    "NoInterventionReason",
+    "OpaqueGoalRef",
     "ProfileSignalSnapshot",
     "PromptSafeAdherenceContext",
     "PromptSafeCoachingContext",
+    "PromptSafeGoalAuthorityContext",
     "PromptSafeMarkovTransitionContext",
     "PromptSafeProfileSignalContext",
     "PromptSafeRecentBehaviorContext",
