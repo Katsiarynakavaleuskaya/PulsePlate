@@ -63,15 +63,36 @@ def _step_index(steps: list[dict[str, object]], name: str) -> int:
     return steps.index(_named_step(steps, name))
 
 
-def test_frontend_workflow_self_triggers_caddy_contract_on_pull_requests() -> None:
+def test_frontend_workflow_routes_quick_fix_through_caddy_contract() -> None:
     workflow = _workflow(FRONTEND_WORKFLOW)
     triggers = workflow.get("on", workflow.get(True))
     assert isinstance(triggers, dict)
+    quick_fix = "scripts/QUICK_FIX_PRODUCTION.sh"
+
     pull_request = triggers.get("pull_request")
     assert isinstance(pull_request, dict)
-    paths = pull_request.get("paths")
-    assert isinstance(paths, list)
-    assert ".github/workflows/frontend-ci.yml" in paths
+    pull_request_paths = pull_request.get("paths")
+    assert isinstance(pull_request_paths, list)
+    assert ".github/workflows/frontend-ci.yml" in pull_request_paths
+    assert quick_fix in pull_request_paths
+
+    push = triggers.get("push")
+    assert isinstance(push, dict)
+    push_paths = push.get("paths")
+    assert isinstance(push_paths, list)
+    assert quick_fix in push_paths
+
+    changes = _job(workflow, "changes")
+    filter_step = _named_step(_steps(changes), "Detect Caddy contract changes")
+    filter_with = filter_step.get("with")
+    assert isinstance(filter_with, dict)
+    filters_text = filter_with.get("filters")
+    assert isinstance(filters_text, str)
+    filters = yaml.safe_load(filters_text)
+    assert isinstance(filters, dict)
+    caddy_paths = filters.get("caddy")
+    assert isinstance(caddy_paths, list)
+    assert quick_fix in caddy_paths
 
 
 def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
