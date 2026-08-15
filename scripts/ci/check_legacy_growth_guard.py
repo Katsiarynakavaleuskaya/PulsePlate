@@ -11497,6 +11497,11 @@ def _module_app_mutation(
         elif isinstance(scope, ast.Lambda):
             bindings = _scope_bindings((), scope.args, kind="function")
         else:
+            if not isinstance(
+                scope,
+                (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp),
+            ):
+                raise TypeError(f"unsupported lexical scope: {type(scope).__name__}")
             return {
                 name
                 for generator in scope.generators
