@@ -10553,7 +10553,7 @@ def _mutates_openapi_callable_or_cache(tree: ast.Module) -> bool:
     return False
 
 
-def _imports_forbidden_openapi_owner(
+def _imports_forbidden_runtime_owner(
     tree: ast.Module,
     *,
     current_module: str,
@@ -10772,8 +10772,9 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   S := module/function/class/comprehension frames plus global/nonlocal outward lookup
 #   R := runtime load resolved through S to I
 #   A := closed type-expression annotation load | exact constructor call | FastAPI.openapi
-#   B := exact canonical factory/app bindings, reserved private factory capability,
-#        and exact compatibility re-exports
+#   B := exact canonical factory/app bindings, downward-only constructor dependencies,
+#        target-only composition, one ordered facade transition, reserved private factory
+#        capability, and exact compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
 #   N := scope-local protected module/namespace bindings, finite builtin/bound
 #        attribute mutators, one-hop aliases, and reloads
@@ -12011,7 +12012,7 @@ def _factory_expands_its_metadata(
 
 
 def _facade_returns_canonical_app(tree: ast.Module) -> bool:
-    """Tie the public ``app`` branch to the bounded canonical return path."""
+    """Tie the public ``app`` branch to one exact composition transition."""
 
     bootstrap_functions = [
         node
@@ -12028,20 +12029,66 @@ def _facade_returns_canonical_app(tree: ast.Module) -> bool:
         return False
 
     bootstrap = bootstrap_functions[0]
-    exact_import = any(
-        isinstance(statement, ast.ImportFrom)
-        and statement.module == "app.bootstrap.application"
-        and any(
-            alias.name == "app" and alias.asname == "canonical_app" for alias in statement.names
-        )
-        for statement in bootstrap.body
+    if not isinstance(bootstrap, ast.FunctionDef):
+        return False
+    statements = list(bootstrap.body)
+    if (
+        statements
+        and isinstance(statements[0], ast.Expr)
+        and isinstance(statements[0].value, ast.Constant)
+        and isinstance(statements[0].value.value, str)
+    ):
+        statements = statements[1:]
+    if len(statements) != 5:
+        return False
+    canonical_import, main_import, compose, compatibility, result = statements
+    exact_canonical_import = (
+        isinstance(canonical_import, ast.ImportFrom)
+        and canonical_import.module == "app.bootstrap.application"
+        and canonical_import.level == 0
+        and len(canonical_import.names) == 1
+        and canonical_import.names[0].name == "app"
+        and canonical_import.names[0].asname == "canonical_app"
     )
-    bootstrap_returns = [node for node in ast.walk(bootstrap) if isinstance(node, ast.Return)]
-    if not (
-        exact_import
-        and len(bootstrap_returns) == 1
-        and isinstance(bootstrap_returns[0].value, ast.Name)
-        and bootstrap_returns[0].value.id == "canonical_app"
+    exact_main_import = (
+        isinstance(main_import, ast.ImportFrom)
+        and main_import.module == "app.main"
+        and main_import.level == 0
+        and len(main_import.names) == 1
+        and main_import.names[0].name == "ensure_canonical_app_bootstrap"
+        and main_import.names[0].asname is None
+    )
+    exact_compose = (
+        isinstance(compose, ast.Expr)
+        and isinstance(compose.value, ast.Call)
+        and isinstance(compose.value.func, ast.Name)
+        and compose.value.func.id == "ensure_canonical_app_bootstrap"
+        and len(compose.value.args) == 1
+        and isinstance(compose.value.args[0], ast.Name)
+        and compose.value.args[0].id == "canonical_app"
+        and not compose.value.keywords
+    )
+    exact_compatibility = (
+        isinstance(compatibility, ast.Expr)
+        and isinstance(compatibility.value, ast.Call)
+        and isinstance(compatibility.value.func, ast.Name)
+        and compatibility.value.func.id == "_legacy"
+        and not compatibility.value.args
+        and not compatibility.value.keywords
+    )
+    exact_return = (
+        isinstance(result, ast.Return)
+        and isinstance(result.value, ast.Name)
+        and result.value.id == "canonical_app"
+    )
+    if not all(
+        (
+            exact_canonical_import,
+            exact_main_import,
+            exact_compose,
+            exact_compatibility,
+            exact_return,
+        )
     ):
         return False
 
@@ -12111,6 +12158,76 @@ def _has_exact_main_bootstrap_call(tree: ast.Module) -> bool:
     )
 
 
+def _main_bootstrap_composes_only_target(tree: ast.Module) -> bool:
+    """Keep the module singleton out of the independent-object composer."""
+
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "ensure_canonical_app_bootstrap"
+    ]
+    if len(functions) != 1 or not isinstance(functions[0], ast.FunctionDef):
+        return False
+    function = functions[0]
+    parameters = [*function.args.posonlyargs, *function.args.args]
+    if (
+        len(parameters) != 1
+        or parameters[0].arg != "target_app"
+        or function.args.vararg is not None
+        or function.args.kwonlyargs
+        or function.args.kwarg is not None
+        or function.args.defaults
+    ):
+        return False
+    returns = [node for node in ast.walk(function) if isinstance(node, ast.Return)]
+    if not (
+        len(returns) == 1
+        and isinstance(returns[0].value, ast.Name)
+        and returns[0].value.id == "target_app"
+    ):
+        return False
+
+    function_tree = ast.Module(body=function.body, type_ignores=[])
+    if _selects_module_app(function_tree, "app.bootstrap.application"):
+        return False
+
+    top_level_calls = [
+        statement.value
+        for statement in tree.body
+        if isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Call)
+        and isinstance(statement.value.func, ast.Name)
+        and statement.value.func.id == "ensure_canonical_app_bootstrap"
+        and len(statement.value.args) == 1
+        and not statement.value.keywords
+    ]
+    composer_app_loads = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == "app"
+    ]
+    module_app_aliases = [
+        simple
+        for statement in tree.body
+        if isinstance(statement, (ast.Assign, ast.AnnAssign))
+        and (simple := _simple_assignment(statement)) is not None
+        and isinstance(simple[1], ast.Name)
+        and simple[1].id == "app"
+    ]
+    return (
+        len(top_level_calls) == 1
+        and isinstance(top_level_calls[0].args[0], ast.Name)
+        and top_level_calls[0].args[0].id == "app"
+        and not composer_app_loads
+        and not module_app_aliases
+        and not any(
+            isinstance(node, (ast.Global, ast.Nonlocal)) and "app" in node.names
+            for node in ast.walk(function)
+        )
+    )
+
+
 def validate_application_instance_ownership(
     legacy_source: str,
     app_sources: Mapping[str, str],
@@ -12172,6 +12289,13 @@ def validate_application_instance_ownership(
     if not _canonical_application_has_closed_call_grammar(canonical_tree):
         errors.append(
             f"{CANONICAL_APPLICATION}: calls must match the closed canonical application grammar"
+        )
+    if _imports_forbidden_runtime_owner(
+        canonical_tree,
+        current_module="app.bootstrap.application",
+    ):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: reverse legacy/main or dynamic import is forbidden"
         )
     canonical_constructors = [
         call for filename, call in constructors if filename == CANONICAL_APPLICATION
@@ -12337,6 +12461,8 @@ def validate_application_instance_ownership(
             f"{CANONICAL_MAIN}: deployment entrypoint must call "
             "ensure_canonical_app_bootstrap(app) exactly once"
         )
+    if not _main_bootstrap_composes_only_target(main_tree):
+        errors.append(f"{CANONICAL_MAIN}: canonical bootstrap composition must use only target_app")
     if _selects_module_app(main_tree, "legacy_app", legacy_loader=True):
         errors.append(f"{CANONICAL_MAIN}: selecting app through legacy_app is forbidden")
     if _selects_module_app(facade_tree, "legacy_app", legacy_loader=True):
@@ -12471,7 +12597,7 @@ def validate_application_metadata_openapi_ownership(
         (CANONICAL_OPENAPI, openapi_tree),
     ):
         current_module = filename.replace("/", ".").removesuffix(".py")
-        if _imports_forbidden_openapi_owner(tree, current_module=current_module):
+        if _imports_forbidden_runtime_owner(tree, current_module=current_module):
             errors.append(f"{filename}: reverse legacy/main import is forbidden")
     if _parses_environment_directly(metadata_tree):
         errors.append(f"{CANONICAL_APPLICATION_METADATA}: direct environment parsing is forbidden")

@@ -360,6 +360,45 @@ def test_application_instance_ownership_requires_canonical_facade_return_path() 
     assert "app/__init__.py: app facade branch must return the canonical application" in errors
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        ("    from app.main import ensure_canonical_app_bootstrap\n\n"),
+        "    ensure_canonical_app_bootstrap(canonical_app)\n",
+        (
+            "    from app.main import ensure_canonical_app_bootstrap\n\n"
+            "    ensure_canonical_app_bootstrap(canonical_app)\n"
+            "    ensure_canonical_app_bootstrap(canonical_app)\n"
+        ),
+        (
+            "    from app.main import ensure_canonical_app_bootstrap as compose\n\n"
+            "    compose(canonical_app)\n"
+        ),
+        (
+            "    from app.main import ensure_canonical_app_bootstrap\n\n"
+            "    ensure_canonical_app_bootstrap(_legacy())\n"
+        ),
+    ],
+    ids=["missing-call", "missing-import", "duplicate-call", "aliased-call", "wrong-target"],
+)
+def test_application_instance_ownership_requires_exact_facade_bootstrap_transition(
+    mutation: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    original = (
+        "    from app.main import ensure_canonical_app_bootstrap\n\n"
+        "    ensure_canonical_app_bootstrap(canonical_app)\n"
+    )
+    app_sources["app/__init__.py"] = app_sources["app/__init__.py"].replace(
+        original,
+        mutation,
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/__init__.py: app facade branch must return the canonical application" in errors
+
+
 def test_application_instance_ownership_rejects_global_app_rebinding() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/main.py"] += textwrap.dedent("""
@@ -1398,6 +1437,73 @@ def test_application_instance_ownership_requires_main_bootstrap_call() -> None:
         "app/main.py: deployment entrypoint must call "
         "ensure_canonical_app_bootstrap(app) exactly once"
     ) in errors
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import app.main as composition\n",
+        "import legacy_app as compatibility\n",
+        "from app import main as composition\n",
+        "from .. import main as composition\n",
+        'import importlib\ncomposition = importlib.import_module("app.main")\n',
+    ],
+    ids=["import-main", "import-legacy", "from-app", "relative-main", "dynamic-main"],
+)
+def test_application_instance_ownership_rejects_constructor_owner_reverse_imports(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] += f"\n{source}"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/bootstrap/application.py: reverse legacy/main or dynamic import is forbidden" in errors
+    )
+
+
+def test_application_instance_ownership_allows_constructor_owner_downward_import() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources[
+        "app/bootstrap/application.py"
+    ] += "\nfrom app.bootstrap import lifespan as owned_lifespan\n"
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("return target_app", "register_http_middleware_stack(app)\n    return target_app"),
+        ("return target_app", "canonical_app = app\n    return target_app"),
+        (
+            "return target_app",
+            "from app.bootstrap.application import app as canonical_app\n"
+            "    return canonical_app",
+        ),
+        (
+            "def ensure_canonical_app_bootstrap(target_app):",
+            "canonical_app = app\n\n" "def ensure_canonical_app_bootstrap(target_app):",
+        ),
+    ],
+    ids=[
+        "mutates-singleton",
+        "aliases-singleton",
+        "reimports-singleton",
+        "module-alias",
+    ],
+)
+def test_application_instance_ownership_requires_target_only_main_composition(
+    old: str,
+    new: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] = app_sources["app/main.py"].replace(old, new)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: canonical bootstrap composition must use only target_app" in errors
 
 
 def test_application_instance_ownership_rejects_metadata_factory_rebinding() -> None:
