@@ -48,6 +48,7 @@ SCHEMA = (
     / "contracts"
     / "creative_code_lifecycle_transition_analytics.v1.schema.json"
 )
+TELEMETRY_CONTRACT = SCHEMA.parent / "CREATIVE_CODE_TELEMETRY_CONTRACT.md"
 
 
 def _ids(**values: str | None) -> dict[str, str | None]:
@@ -2392,17 +2393,92 @@ def test_cli_prints_bounded_sanitized_pass_lines(
 def test_cli_help_closes_snapshot_semantics_and_validation_mutation_boundary(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    with pytest.raises(SystemExit) as root_help:
-        cli._parse_args(["--help"])
-    assert root_help.value.code == 0
-    rendered = capsys.readouterr().out
-    for term in ("snapshot-only", "observed", "unobserved", "complete terminal lineage"):
-        assert term in rendered
+    def normalized_help(argv: list[str]) -> str:
+        with pytest.raises(SystemExit) as help_exit:
+            cli._parse_args(argv)
+        assert help_exit.value.code == 0
+        return " ".join(capsys.readouterr().out.split())
 
-    with pytest.raises(SystemExit) as validate_help:
-        cli._parse_args(["validate", "--help"])
-    assert validate_help.value.code == 0
-    assert "Mutation-free exact-byte validation" in capsys.readouterr().out
+    root_help = normalized_help(["--help"])
+    build_help = normalized_help(["build", "--help"])
+    validate_help = normalized_help(["validate", "--help"])
+    semantic_fragments = (
+        "Observed means a validated adjacent event pair joined by exact typed lineage",
+        "both events present in the frozen telemetry snapshot",
+        "An unobserved predecessor or successor means no unique valid adjacent counterpart",
+        "it is not proof that the transition did not occur",
+        "ambiguous joins fail closed",
+        "A complete terminal lineage is linked through every lifecycle stage within the frozen snapshot only",
+        "not operational completeness, PR readiness, or lifecycle success",
+    )
+    for rendered in (root_help, build_help, validate_help):
+        for fragment in semantic_fragments:
+            assert fragment in rendered
+
+    assert "Publish the snapshot-derived analytics artifact" in build_help
+    assert "Mutation-free exact-byte validation" in validate_help
+    for rendered in (build_help, validate_help):
+        assert "--telemetry-dir" in rendered
+        assert "fixed-name event JSONL and mixed v2 rollup" in rendered
+        assert "relative paths resolve from the repository root" in rendered
+
+
+def test_contract_and_schema_annotations_define_snapshot_only_accounting() -> None:
+    contract = " ".join(TELEMETRY_CONTRACT.read_text(encoding="utf-8").split())
+    for fragment in (
+        "observed means one validated adjacent event pair joined by the exact typed lineage key",
+        "both events present in the frozen telemetry snapshot",
+        "An unobserved predecessor or successor means that no unique valid adjacent counterpart",
+        "never proof that the transition did not occur",
+        "ambiguous joins fail closed",
+        "complete terminal lineage means that one terminal event is uniquely linked through every lifecycle stage",
+        "inside that frozen snapshot only",
+        "not operational completeness, PR readiness, or lifecycle success",
+    ):
+        assert fragment in contract
+
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    transition_description = schema["properties"]["transition_counts"]["description"]
+    assert "validated adjacent event pairs" in transition_description
+    assert "exact typed lineage" in transition_description
+    assert "frozen telemetry snapshot" in transition_description
+
+    lineage_properties = schema["$defs"]["lineage_accounting"]["properties"]
+    descriptions = {
+        key: value["description"]
+        for key, value in lineage_properties.items()
+        if key
+        in {
+            "observed_transition_count",
+            "unobserved_predecessors_by_stage",
+            "unobserved_successors_by_stage",
+            "complete_terminal_lineage_count",
+            "incomplete_terminal_lineage_count",
+        }
+    }
+    assert set(descriptions) == {
+        "observed_transition_count",
+        "unobserved_predecessors_by_stage",
+        "unobserved_successors_by_stage",
+        "complete_terminal_lineage_count",
+        "incomplete_terminal_lineage_count",
+    }
+    assert "validated adjacent event pairs" in descriptions["observed_transition_count"]
+    assert "exact typed lineage" in descriptions["observed_transition_count"]
+    for key in ("unobserved_predecessors_by_stage", "unobserved_successors_by_stage"):
+        assert "no unique valid adjacent" in descriptions[key]
+        assert "not proof that the transition did not occur" in descriptions[key]
+        assert "ambiguous joins fail closed" in descriptions[key]
+    assert "frozen telemetry snapshot only" in descriptions["complete_terminal_lineage_count"]
+    assert (
+        "not operational completeness, PR readiness, or lifecycle success"
+        in descriptions["complete_terminal_lineage_count"]
+    )
+    assert (
+        "not uniquely linked through every lifecycle stage"
+        in descriptions["incomplete_terminal_lineage_count"]
+    )
+    assert "snapshot-local incompleteness" in descriptions["incomplete_terminal_lineage_count"]
 
 
 def test_cli_contract_failure_does_not_echo_untrusted_rollup_keys(

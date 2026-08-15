@@ -575,10 +575,18 @@ def validate_snapshot_artifact(*, telemetry_dir: Path = TELEMETRY_ROOT) -> dict[
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    snapshot_semantics = (
+        "Observed means a validated adjacent event pair joined by exact typed lineage with both "
+        "events present in the frozen telemetry snapshot. An unobserved predecessor or successor "
+        "means no unique valid adjacent counterpart is present in that snapshot; it is not proof "
+        "that the transition did not occur, and ambiguous joins fail closed. A complete terminal "
+        "lineage is linked through every lifecycle stage within the frozen snapshot only; it is "
+        "not operational completeness, PR readiness, or lifecycle success."
+    )
     parser = argparse.ArgumentParser(
         description=(
-            "Build or mutation-free validate deterministic snapshot-only creative-code analytics "
-            "for observed adjacent transitions, unobserved neighbors, and complete terminal lineage."
+            "Build or mutation-free validate deterministic snapshot-only creative-code analytics. "
+            f"{snapshot_semantics}"
         )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -587,8 +595,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "validate": "Mutation-free exact-byte validation against the current source snapshot.",
     }
     for command, help_text in command_help.items():
-        subparser = subparsers.add_parser(command, help=help_text, description=help_text)
-        subparser.add_argument("--telemetry-dir", default=str(TELEMETRY_ROOT))
+        subparser = subparsers.add_parser(
+            command,
+            help=help_text,
+            description=f"{help_text} {snapshot_semantics}",
+        )
+        subparser.add_argument(
+            "--telemetry-dir",
+            default=str(TELEMETRY_ROOT),
+            help=(
+                "Directory containing the fixed-name event JSONL and mixed v2 rollup that form "
+                "the frozen telemetry snapshot; it must remain inside the fixed creative-code "
+                "telemetry root, and relative paths resolve from the repository root."
+            ),
+        )
     return parser.parse_args(argv)
 
 

@@ -32,6 +32,7 @@
     },
     "corpus": {"$ref": "#/$defs/corpus"},
     "transition_counts": {
+      "description": "Aggregate rows for validated adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot.",
       "type": "array",
       "maxItems": 9,
       "uniqueItems": true,
@@ -237,11 +238,26 @@
         "unobserved_successors_by_stage"
       ],
       "properties": {
-        "observed_transition_count": {"$ref": "#/$defs/bounded_count"},
-        "complete_terminal_lineage_count": {"$ref": "#/$defs/bounded_count"},
-        "incomplete_terminal_lineage_count": {"$ref": "#/$defs/bounded_count"},
-        "unobserved_predecessors_by_stage": {"$ref": "#/$defs/stage_counts"},
-        "unobserved_successors_by_stage": {"$ref": "#/$defs/stage_counts"}
+        "observed_transition_count": {
+          "description": "Number of validated adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot.",
+          "$ref": "#/$defs/bounded_count"
+        },
+        "complete_terminal_lineage_count": {
+          "description": "Count of terminal events uniquely linked through every lifecycle stage within the frozen telemetry snapshot only; this is not operational completeness, PR readiness, or lifecycle success.",
+          "$ref": "#/$defs/bounded_count"
+        },
+        "incomplete_terminal_lineage_count": {
+          "description": "Count of terminal events not uniquely linked through every lifecycle stage within the frozen telemetry snapshot; this is snapshot-local incompleteness, not proof of operational incompleteness, PR unreadiness, or lifecycle failure.",
+          "$ref": "#/$defs/bounded_count"
+        },
+        "unobserved_predecessors_by_stage": {
+          "description": "Counts destination events for which no unique valid adjacent predecessor counterpart is present in the frozen telemetry snapshot; this is not proof that the transition did not occur, and ambiguous joins fail closed.",
+          "$ref": "#/$defs/stage_counts"
+        },
+        "unobserved_successors_by_stage": {
+          "description": "Counts continuation-eligible source events for which no unique valid adjacent successor counterpart is present in the frozen telemetry snapshot; this is not proof that the transition did not occur, and ambiguous joins fail closed.",
+          "$ref": "#/$defs/stage_counts"
+        }
       }
     },
     "histogram": {
