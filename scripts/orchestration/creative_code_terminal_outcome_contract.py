@@ -8,12 +8,19 @@ or repository authority.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
 from typing import Any, cast
 
-from core.evidence.fingerprints import build_asset_id, fingerprint_payload
+from core.evidence.events import EvidenceEvalEvent, create_eval_event
+from core.evidence.fingerprints import (
+    build_asset_id,
+    build_idempotency_key,
+    fingerprint_payload,
+)
+from core.evidence.policies import normalize_upstream_ids
 from scripts.orchestration.creative_code_pr_promotion_contract import (
     CreativeCodePRPromotionContractError,
     promotion_plan_fingerprint,
@@ -31,13 +38,24 @@ POLICY_VERSION = "creative-code-terminal-outcome-v1"
 ARTIFACT_TYPE = "creative_code_terminal_outcome"
 SUCCESS_OUTPUT = "PASS: creative-code terminal outcome valid"
 MAX_JSON_OBJECT_BYTES = 1_048_576
+MAX_EVIDENCE_PROJECTION_BYTES = 65_536
 MAX_CLOSURE_EPOCH = 1_000_000
 CANONICAL_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
+EVIDENCE_PROJECTION_POLICY_VERSION = "creative-code-terminal-outcome-evidence-v1"
+EVIDENCE_PROJECTION_SOURCE_ARTIFACT = (
+    "docs/orchestration/contracts/creative_code_terminal_outcome.v1.schema.json"
+)
+EVIDENCE_PROJECTION_PRODUCER_NAME = "creative_code_terminal_outcome"
+EVIDENCE_PROJECTION_PRODUCER_VERSION = "1.0"
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 PROMOTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+RFC3339_RE = re.compile(
+    r"^(?P<base>[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?P<fraction>\.[0-9]+)?(?P<offset>[Zz]|[+-][0-9]{2}:[0-9]{2})$"
+)
 
 TERMINAL_STATES = frozenset({"merged", "closed_unmerged"})
 CLOSED_REASON_CODES = frozenset(
@@ -166,6 +184,32 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     return payload
 
 
+def _reject_non_finite_json_constant(value: str) -> None:
+    raise CreativeCodeTerminalOutcomeError(f"non-finite JSON value is forbidden: {value}")
+
+
+def decode_terminal_outcome_bytes(raw: bytes) -> dict[str, Any]:
+    """Decode one bounded terminal-outcome object from the exact supplied bytes."""
+
+    if len(raw) > MAX_JSON_OBJECT_BYTES:
+        raise CreativeCodeTerminalOutcomeError("terminal_json_too_large")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise CreativeCodeTerminalOutcomeError("terminal_json_bom_rejected")
+    try:
+        payload = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+            parse_constant=_reject_non_finite_json_constant,
+        )
+    except CreativeCodeTerminalOutcomeError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        raise CreativeCodeTerminalOutcomeError("terminal_json_read_failed") from exc
+    if not isinstance(payload, dict):
+        raise CreativeCodeTerminalOutcomeError("terminal JSON must be an object.")
+    return payload
+
+
 def read_json_object(path: str | Path) -> dict[str, Any]:
     """Read one JSON object while rejecting duplicate keys and unsafe encodings."""
 
@@ -180,11 +224,7 @@ def read_json_object(path: str | Path) -> dict[str, Any]:
             raise CreativeCodeTerminalOutcomeError("terminal_json_too_large")
         if len(raw) != info.st_size:
             raise CreativeCodeTerminalOutcomeError("terminal_json_changed_during_read")
-        decoded = raw.decode("utf-8")
-        payload = json.loads(
-            decoded,
-            object_pairs_hook=_reject_duplicate_json_object_keys,
-        )
+        payload = decode_terminal_outcome_bytes(raw)
     except CreativeCodeTerminalOutcomeError:
         raise
     except (OSError, UnicodeDecodeError, ValueError, RecursionError) as exc:
@@ -194,11 +234,75 @@ def read_json_object(path: str | Path) -> dict[str, Any]:
     return payload
 
 
+def _reject_duplicate_projection_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: set[str] = set()
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise CreativeCodeTerminalOutcomeError(
+                "terminal evidence projection JSON has a duplicate key."
+            )
+        seen.add(key)
+        payload[key] = value
+    return payload
+
+
+def _reject_non_finite_projection_constant(value: str) -> None:
+    raise CreativeCodeTerminalOutcomeError(
+        f"terminal evidence projection contains non-finite JSON: {value}"
+    )
+
+
+def _decode_terminal_evidence_projection(raw: bytes) -> list[dict[str, Any]]:
+    if len(raw) > MAX_EVIDENCE_PROJECTION_BYTES:
+        raise CreativeCodeTerminalOutcomeError("evidence_projection_too_large")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise CreativeCodeTerminalOutcomeError("evidence_projection_bom_rejected")
+    try:
+        payload = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_projection_keys,
+            parse_constant=_reject_non_finite_projection_constant,
+        )
+    except CreativeCodeTerminalOutcomeError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        raise CreativeCodeTerminalOutcomeError("evidence_projection_decode_failed") from exc
+    if not isinstance(payload, list) or len(payload) != 3:
+        raise CreativeCodeTerminalOutcomeError(
+            "evidence projection must be a JSON array of exactly three events."
+        )
+    if any(not isinstance(event, dict) for event in payload):
+        raise CreativeCodeTerminalOutcomeError(
+            "every evidence projection event must be a JSON object."
+        )
+    return cast(list[dict[str, Any]], payload)
+
+
 def canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
     """Return the one canonical byte representation used for immutable replay."""
 
     return (
         json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+
+
+def terminal_evidence_projection_bytes(events: list[EvidenceEvalEvent]) -> bytes:
+    """Return canonical bytes for the one fixed three-event projection bundle."""
+
+    if len(events) != 3:
+        raise CreativeCodeTerminalOutcomeError(
+            "evidence projection must contain exactly three events."
+        )
+    return (
+        json.dumps(
+            [event.to_dict() for event in events],
+            allow_nan=False,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
     ).encode("utf-8")
 
 
@@ -218,7 +322,7 @@ def _require_exact_keys(
 
 def _require_const(payload: Mapping[str, Any], key: str, expected: Any, *, label: str) -> Any:
     value = payload.get(key)
-    if value != expected:
+    if type(value) is not type(expected) or value != expected:
         raise CreativeCodeTerminalOutcomeError(f"{label}.{key} must equal {expected!r}.")
     return value
 
@@ -796,3 +900,229 @@ def validate_creative_code_terminal_outcome(
     except CreativeCodeTelemetryContractError as exc:
         raise CreativeCodeTerminalOutcomeError(str(exc)) from exc
     return normalized
+
+
+def _normalize_projection_produced_at(produced_at: str) -> str:
+    if not isinstance(produced_at, str) or len(produced_at) > MAX_EVIDENCE_PROJECTION_BYTES:
+        raise CreativeCodeTerminalOutcomeError(
+            "produced_at must be an explicit RFC3339 timestamp with a UTC offset."
+        )
+    matched = RFC3339_RE.fullmatch(produced_at)
+    if matched is None:
+        raise CreativeCodeTerminalOutcomeError(
+            "produced_at must be an explicit RFC3339 timestamp with a UTC offset."
+        )
+    offset = matched.group("offset")
+    if offset == "-00:00":
+        raise CreativeCodeTerminalOutcomeError(
+            "produced_at must include an explicit known UTC offset."
+        )
+    if matched.group("base").endswith(":60"):
+        raise CreativeCodeTerminalOutcomeError("produced_at is invalid.")
+    try:
+        base = matched.group("base")
+        canonical_base = base[:10] + "T" + base[11:]
+        parsed = datetime.fromisoformat(
+            canonical_base + ("+00:00" if offset in {"Z", "z"} else offset)
+        )
+    except (OverflowError, ValueError) as exc:
+        raise CreativeCodeTerminalOutcomeError("produced_at is invalid.") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise CreativeCodeTerminalOutcomeError("produced_at must include a UTC offset.")
+    try:
+        normalized = parsed.astimezone(timezone.utc).isoformat(timespec="seconds")
+    except (OverflowError, ValueError) as exc:
+        raise CreativeCodeTerminalOutcomeError("produced_at is invalid.") from exc
+    canonical_fraction = (matched.group("fraction") or "").rstrip("0").removesuffix(".")
+    return normalized.removesuffix("+00:00") + canonical_fraction + "Z"
+
+
+def _terminal_projection_status(outcome: Mapping[str, Any]) -> str:
+    if outcome["terminal_state"] == "closed_unmerged":
+        return "deferred"
+    if (
+        outcome["review_observation"] == "no_actionables_observed"
+        and outcome["governance_observation"] == "no_blockers_observed"
+        and outcome["post_merge_observation"] == "complete_observed"
+        and outcome["post_merge_evidence"]["current_main_ci"] == "success"
+    ):
+        return "valid"
+    return "degraded"
+
+
+def build_terminal_evidence_events(
+    outcome: Mapping[str, Any],
+    *,
+    produced_at: str,
+) -> list[EvidenceEvalEvent]:
+    """Project one validated terminal outcome into a fixed observational bundle."""
+
+    normalized = validate_creative_code_terminal_outcome(dict(outcome))
+    normalized_produced_at = _normalize_projection_produced_at(produced_at)
+    outcome_fingerprint = fingerprint_payload(normalized)
+    bundle_fingerprint = fingerprint_payload(
+        {
+            "projection_policy_version": EVIDENCE_PROJECTION_POLICY_VERSION,
+            "terminal_outcome_fingerprint": outcome_fingerprint,
+        }
+    )
+    review = cast(dict[str, Any], normalized["review_evidence"])
+    post_merge = cast(dict[str, Any], normalized["post_merge_evidence"])
+    process = cast(dict[str, Any], normalized["process"])
+    common_fingerprints = {
+        "projection_bundle_fingerprint": bundle_fingerprint,
+        "terminal_outcome_fingerprint": outcome_fingerprint,
+    }
+    payloads: tuple[tuple[str, dict[str, Any]], ...] = (
+        (
+            "item_metadata",
+            {
+                **common_fingerprints,
+                "terminal_state": normalized["terminal_state"],
+                "review_observation": normalized["review_observation"],
+                "governance_observation": normalized["governance_observation"],
+                "post_merge_observation": normalized["post_merge_observation"],
+                "reason_code_present": normalized["reason_code"] is not None,
+                "terminal_policy_version": normalized["policy_version"],
+            },
+        ),
+        (
+            "gate_metric",
+            {
+                **common_fingerprints,
+                "sources_configured": review["sources_configured"],
+                "sources_observed": review["sources_observed"],
+                "findings_total": review["findings_total"],
+                "fixed": review["fixed"],
+                "not_a_bug": review["not_a_bug"],
+                "deferred": review["deferred"],
+                "unresolved_actionable": review["unresolved_actionable"],
+                "review_cycles": process["review_cycles"],
+                "repair_cycles": process["repair_cycles"],
+                "validation_attempts": process["validation_attempts"],
+                "post_merge_commands_configured": post_merge["commands_configured"],
+                "post_merge_commands_executed": post_merge["commands_executed"],
+                "post_merge_commands_passed": post_merge["commands_passed"],
+            },
+        ),
+        (
+            "gate_decision",
+            {
+                **common_fingerprints,
+                "decision": normalized["terminal_state"],
+                "review_observation": normalized["review_observation"],
+                "governance_observation": normalized["governance_observation"],
+                "post_merge_observation": normalized["post_merge_observation"],
+                "current_main_ci": post_merge["current_main_ci"],
+                "current_main_sha": post_merge["current_main_sha"],
+                "validation_inventory_fingerprint": post_merge["validation_inventory_fingerprint"],
+                "reason_code": normalized["reason_code"],
+            },
+        ),
+    )
+    upstream_ids = normalize_upstream_ids(
+        (
+            cast(str, normalized["outcome_id"]),
+            cast(str, normalized["lineage"]["promotion_id"]),
+            cast(str, normalized["lineage"]["receipt_id"]),
+        )
+    )
+    validation_status = _terminal_projection_status(normalized)
+    events: list[EvidenceEvalEvent] = []
+    for event_type, metadata in payloads:
+        event_fingerprint = fingerprint_payload(
+            {
+                "projection_bundle_fingerprint": bundle_fingerprint,
+                "event_type": event_type,
+                "metadata": metadata,
+            }
+        )
+        idempotency_key = build_idempotency_key(
+            asset_type=event_type,
+            rail="control_plane",
+            version=EVIDENCE_PROJECTION_PRODUCER_VERSION,
+            policy_version=EVIDENCE_PROJECTION_POLICY_VERSION,
+            fingerprint=event_fingerprint,
+            upstream_ids=upstream_ids,
+        )
+        try:
+            event = create_eval_event(
+                event_type=cast(Any, event_type),
+                rail="control_plane",
+                source_artifact=EVIDENCE_PROJECTION_SOURCE_ARTIFACT,
+                asset_refs=(),
+                upstream_ids=upstream_ids,
+                fingerprint=event_fingerprint,
+                idempotency_key=idempotency_key,
+                policy_version=EVIDENCE_PROJECTION_POLICY_VERSION,
+                producer_name=EVIDENCE_PROJECTION_PRODUCER_NAME,
+                producer_version=EVIDENCE_PROJECTION_PRODUCER_VERSION,
+                produced_at=normalized_produced_at,
+                validation_status=cast(Any, validation_status),
+                metadata=dict(metadata),
+            )
+        except (TypeError, ValueError) as exc:
+            raise CreativeCodeTerminalOutcomeError("terminal_evidence_projection_invalid") from exc
+        events.append(event)
+    return events
+
+
+def _require_type_strict_equal(actual: Any, expected: Any, *, path: str) -> None:
+    if type(actual) is not type(expected):
+        raise CreativeCodeTerminalOutcomeError(f"evidence projection JSON type mismatch at {path}.")
+    if isinstance(expected, dict):
+        if list(actual) != list(expected):
+            raise CreativeCodeTerminalOutcomeError(
+                f"evidence projection object shape or key order mismatch at {path}."
+            )
+        for key in expected:
+            _require_type_strict_equal(actual[key], expected[key], path=f"{path}.{key}")
+        return
+    if isinstance(expected, list):
+        if len(actual) != len(expected):
+            raise CreativeCodeTerminalOutcomeError(
+                f"evidence projection array length mismatch at {path}."
+            )
+        for index, (actual_item, expected_item) in enumerate(zip(actual, expected, strict=True)):
+            _require_type_strict_equal(
+                actual_item,
+                expected_item,
+                path=f"{path}[{index}]",
+            )
+        return
+    if actual != expected:
+        raise CreativeCodeTerminalOutcomeError(f"evidence projection value mismatch at {path}.")
+
+
+def validate_terminal_evidence_projection(
+    outcome: Mapping[str, Any],
+    projection_bytes: bytes,
+) -> list[EvidenceEvalEvent]:
+    """Rebuild and exactly validate one serialized terminal projection bundle."""
+
+    normalized = validate_creative_code_terminal_outcome(dict(outcome))
+    decoded = _decode_terminal_evidence_projection(projection_bytes)
+    produced_values: list[str] = []
+    for event in decoded:
+        produced_at = event.get("produced_at")
+        if type(produced_at) is not str:
+            raise CreativeCodeTerminalOutcomeError(
+                "every evidence projection event must carry a string produced_at."
+            )
+        produced_values.append(produced_at)
+    if len(set(produced_values)) != 1:
+        raise CreativeCodeTerminalOutcomeError(
+            "evidence projection events must share one produced_at."
+        )
+    expected_events = build_terminal_evidence_events(
+        normalized,
+        produced_at=produced_values[0],
+    )
+    expected_payload = [event.to_dict() for event in expected_events]
+    _require_type_strict_equal(decoded, expected_payload, path="$.")
+    expected_bytes = terminal_evidence_projection_bytes(expected_events)
+    if projection_bytes != expected_bytes:
+        raise CreativeCodeTerminalOutcomeError(
+            "evidence projection bytes are not canonical or do not match the outcome."
+        )
+    return expected_events
