@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from core.rag.contracts import RAGChunk
 from core.rag.philosophy_pipeline import PipelineResult, run_pipeline
 from tests._client import disable_rate_limiting_for_test_app
+from tests.helpers.module_resolve import resolve_module
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -207,10 +208,17 @@ def _disable_rate_limiting_for_insight_tests(
     monkeypatch: pytest.MonkeyPatch,
     client: TestClient,
 ) -> None:
-    """Keep insight integration tests deterministic outside dedicated 429 suites."""
+    """This philosophy/RAG suite owns neither SlowAPI nor DB-backed VIP monthly quota."""
 
     monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
     disable_rate_limiting_for_test_app(client.app)
+    insight_compat = resolve_module("app.services.insight_compat")
+    monkeypatch.setattr(
+        insight_compat,
+        "_enforce_vip_llm_monthly_quota",
+        lambda *_args, **_kwargs: None,
+        raising=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +228,26 @@ def _disable_rate_limiting_for_insight_tests(
 
 class TestPhilosophyValidationV1:
     """Tests via /api/v1/insight endpoint."""
+
+    def test_suite_isolated_from_vip_monthly_quota(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ) -> None:
+        """A depleted DB-backed quota does not own philosophy/RAG behavior."""
+        _setup_insight(monkeypatch)
+        insight_compat = resolve_module("app.services.insight_compat")
+        monkeypatch.setattr(
+            insight_compat,
+            "attempt_consume_vip_llm_monthly_quota",
+            lambda *_args, **_kwargs: False,
+            raising=True,
+        )
+
+        resp = client.post("/api/v1/insight", json={"text": "test"}, headers=vip_headers)
+
+        assert resp.status_code == 200
 
     def test_flag_off_still_enforces_stage1_filtering(
         self,
