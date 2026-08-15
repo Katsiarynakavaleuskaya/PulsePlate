@@ -10771,10 +10771,10 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   I := exact non-wildcard lexical import binding of ``FastAPI`` or its ``fastapi`` module
 #   S := module/function/class/comprehension frames plus global/nonlocal outward lookup
 #   R := runtime load resolved through S to I
-#   A := annotation load | exact canonical constructor call | FastAPI.openapi
+#   A := closed type-expression annotation load | exact constructor call | FastAPI.openapi
 #   B := exact canonical factory/app bindings and exact compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
-#   N := scope-local protected module/namespace bindings plus one-hop alias mutations
+#   N := scope-local protected module/namespace bindings, one-hop mutations, and reloads
 #
 # A runtime R outside A is rejected at the capability boundary. This closes direct
 # calls, aliases, containers, subclasses, and default/decorator escapes as one class;
@@ -11007,6 +11007,7 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
             for statement in tree.body
         )
         self.annotation_depth = 0
+        self.annotation_roots: list[int] = []
 
     def _resolve(self, name: str) -> str | None:
         skip_class = bool(self.scopes and self.scopes[-1].kind in {"function", "comprehension"})
@@ -11095,8 +11096,24 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
     def _record_constructor(self, node: ast.Name | ast.Attribute) -> None:
         parent = self.parents.get(id(node))
         if self.annotation_depth:
-            if isinstance(parent, ast.Call) and parent.func is node:
-                self.calls.append(parent)
+            current: ast.AST = node
+            annotation_root = self.annotation_roots[-1]
+            while id(current) != annotation_root:
+                parent = self.parents.get(id(current))
+                if isinstance(parent, ast.Call):
+                    if parent.func is current and current is node:
+                        self.calls.append(parent)
+                    else:
+                        self.escape_lines.add(node.lineno)
+                    return
+                if isinstance(parent, ast.BinOp) and isinstance(parent.op, ast.BitOr):
+                    current = parent
+                    continue
+                if isinstance(parent, (ast.Subscript, ast.Tuple, ast.List, ast.Starred)):
+                    current = parent
+                    continue
+                self.escape_lines.add(node.lineno)
+                return
             return
         if (
             self.filename == CANONICAL_OPENAPI
@@ -11164,27 +11181,29 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
         if not generators:
             return
         self.visit(generators[0].iter)
-        ordinary = frozenset(
-            name for generator in generators for name in _assignment_target_names(generator.target)
-        )
-        self.scopes.append(
-            _FastAPIScope(
+        ordinary = set(_assignment_target_names(generators[0].target))
+
+        def comprehension_scope() -> _FastAPIScope:
+            return _FastAPIScope(
                 "comprehension",
                 frozenset(),
                 frozenset(),
                 frozenset(),
                 frozenset(),
-                ordinary,
+                frozenset(ordinary),
                 frozenset(),
                 frozenset(),
                 frozenset(),
                 frozenset(),
             )
-        )
+
+        self.scopes.append(comprehension_scope())
         for condition in generators[0].ifs:
             self.visit(condition)
         for generator in generators[1:]:
             self.visit(generator.iter)
+            ordinary.update(_assignment_target_names(generator.target))
+            self.scopes[-1] = comprehension_scope()
             for condition in generator.ifs:
                 self.visit(condition)
         for result in results:
@@ -11241,9 +11260,11 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
         if node is None:
             return
         self.annotation_depth += 1
+        self.annotation_roots.append(id(node))
         try:
             self.visit(node)
         finally:
+            self.annotation_roots.pop()
             self.annotation_depth -= 1
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -11561,6 +11582,8 @@ def _module_app_mutation(
 
     module_frames: dict[int, dict[str, str]] = {}
     namespace_frames: dict[int, set[str]] = {}
+    importlib_frames: dict[int, set[str]] = {}
+    reload_frames: dict[int, set[str]] = {}
     for scope in sorted(scopes, key=depth):
         scope_id = id(scope)
         parent = lookup_parent(scope)
@@ -11579,6 +11602,16 @@ def _module_app_mutation(
             if parent is not None
             else set()
         )
+        importlib_names = (
+            {name for name in importlib_frames[id(parent)] if name not in names}
+            if parent is not None
+            else set()
+        )
+        reload_names = (
+            {name for name in reload_frames[id(parent)] if name not in names}
+            if parent is not None
+            else set()
+        )
         assignments: list[tuple[str, ast.AST]] = []
         for node in nodes_by_scope[scope_id]:
             if isinstance(node, ast.Import):
@@ -11586,11 +11619,15 @@ def _module_app_mutation(
                     if alias.name in _PROTECTED_APP_MODULES:
                         bound = alias.asname or alias.name.split(".", 1)[0]
                         modules[bound] = alias.name if alias.asname else bound
+                    elif alias.name == "importlib":
+                        importlib_names.add(alias.asname or "importlib")
             elif isinstance(node, ast.ImportFrom):
                 for alias in node.names:
                     reference = _import_reference(node, alias)
                     if reference in _PROTECTED_APP_MODULES:
                         modules[alias.asname or alias.name] = reference
+                    elif reference == "importlib.reload":
+                        reload_names.add(alias.asname or alias.name)
             elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
                 simple = _simple_assignment(node)
                 if simple is None:
@@ -11622,13 +11659,30 @@ def _module_app_mutation(
                 if isinstance(value, ast.Name) and value.id in namespace_sources
             }
         )
+        reload_sources = frozenset(reload_names)
+        reload_names.update(
+            name
+            for name, value in assignments
+            if (
+                isinstance(value, ast.Name)
+                and value.id in reload_sources
+                or isinstance(value, ast.Attribute)
+                and value.attr == "reload"
+                and isinstance(value.value, ast.Name)
+                and value.value.id in importlib_names
+            )
+        )
         module_frames[scope_id] = modules
         namespace_frames[scope_id] = namespaces
+        importlib_frames[scope_id] = importlib_names
+        reload_frames[scope_id] = reload_names
 
     for node in ast.walk(tree):
         scope_id = id(containing_scope(node))
         modules = module_frames[scope_id]
         namespaces = namespace_frames[scope_id]
+        importlib_names = importlib_frames[scope_id]
+        reload_names = reload_frames[scope_id]
 
         def namespace(candidate: ast.AST) -> bool:
             return (
@@ -11645,6 +11699,10 @@ def _module_app_mutation(
             )
 
         def target_mutates(target: ast.AST) -> bool:
+            if isinstance(target, ast.Starred):
+                return target_mutates(target.value)
+            if isinstance(target, (ast.Tuple, ast.List)):
+                return any(target_mutates(element) for element in target.elts)
             if isinstance(target, ast.Attribute) and target.attr == "app":
                 return protected(target.value, modules) or namespace(target.value)
             if isinstance(target, ast.Subscript) and (
@@ -11661,8 +11719,24 @@ def _module_app_mutation(
             targets = (node.target,)
         elif isinstance(node, ast.Delete):
             targets = node.targets
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            targets = (node.target,)
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            targets = tuple(
+                item.optional_vars for item in node.items if item.optional_vars is not None
+            )
         if any(target_mutates(target) for target in targets):
             return True
+        if isinstance(node, ast.Call) and len(node.args) == 1 and not node.keywords:
+            direct_reload = isinstance(node.func, ast.Name) and node.func.id in reload_names
+            module_reload = (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "reload"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id in importlib_names
+            )
+            if (direct_reload or module_reload) and protected(node.args[0], modules):
+                return True
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)

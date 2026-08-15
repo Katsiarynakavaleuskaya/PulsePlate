@@ -424,6 +424,16 @@ def test_application_instance_ownership_rejects_module_app_mutation() -> None:
 
             values = [setattr(owner, "app", object()) for owner in objects]
             """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            def update_unrelated(owner):
+                owner.app, marker = object(), None
+                for owner.app in values:
+                    pass
+                with context() as owner.app:
+                    pass
+            """),
     ],
 )
 def test_application_instance_ownership_keeps_authority_aliases_in_lexical_scope(
@@ -550,6 +560,34 @@ def test_application_instance_ownership_rejects_deleted_app_authority(
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
     assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "owner.app, marker = object(), None",
+        "[owner.app, *rest] = values",
+        "for owner.app in values:\n    pass",
+        "with context() as owner.app:\n    pass",
+        "values = [None for owner.app in items]",
+        textwrap.dedent("""
+            async def mutate():
+                async for owner.app in values:
+                    pass
+                async with context() as owner.app:
+                    pass
+            """),
+    ],
+)
+def test_application_instance_ownership_rejects_nested_or_implicit_authority_targets(
+    mutation: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = "import app.bootstrap.application as owner\n" f"{mutation}\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/other.py: module app authority mutation is forbidden" in errors
 
 
 @pytest.mark.parametrize(
@@ -694,6 +732,100 @@ def test_application_instance_ownership_rejects_one_hop_authority_mutation(
 @pytest.mark.parametrize(
     "source",
     [
+        textwrap.dedent("""
+            import importlib
+            import app.bootstrap.application as owner
+
+            importlib.reload(owner)
+            """),
+        textwrap.dedent("""
+            import importlib as loader
+            import app.bootstrap.application as owner
+
+            loader.reload(owner)
+            """),
+        textwrap.dedent("""
+            from importlib import reload
+            import app.bootstrap.application as owner
+
+            reload(owner)
+            """),
+        textwrap.dedent("""
+            from importlib import reload as reload_owner
+            import app.bootstrap.application as owner
+
+            reload_owner(owner)
+            """),
+        textwrap.dedent("""
+            import importlib
+            import app.bootstrap.application as owner
+
+            reload_owner = importlib.reload
+            reload_owner(owner)
+            """),
+        textwrap.dedent("""
+            import importlib
+
+            importlib.reload(importlib.import_module("app.bootstrap.application"))
+            """),
+    ],
+)
+def test_application_instance_ownership_rejects_protected_module_reload(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/other.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            import importlib
+            import json
+
+            importlib.reload(json)
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            def mutate(importlib):
+                importlib.reload(owner)
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            def mutate(reload):
+                reload(owner)
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            def capture_reload():
+                from importlib import reload
+                return reload
+
+            def mutate_unrelated(reload):
+                reload(owner)
+            """),
+    ],
+)
+def test_application_instance_ownership_allows_foreign_or_shadowed_reload(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
         "def helper(FastAPI):\n    return FastAPI()\n",
         textwrap.dedent("""
             from fastapi import FastAPI
@@ -786,15 +918,39 @@ def test_application_instance_ownership_rejects_evaluated_annotation_constructor
     assert "FastAPI production constructor count must be exactly 1; found 2" in errors
 
 
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        "factory(FastAPI)",
+        "factory((FastAPI,))",
+        "factory([FastAPI])",
+    ],
+)
+def test_application_instance_ownership_rejects_constructor_capability_in_evaluated_call(
+    annotation: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = (
+        "from fastapi import FastAPI\n" f"def helper(value: {annotation}):\n    return value\n"
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "app/other.py" in error and "constructor capability escape is forbidden" in error
+        for error in errors
+    )
+
+
 def test_application_instance_ownership_allows_type_only_annotation_loads() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/other.py"] = textwrap.dedent("""
         from fastapi import FastAPI
 
-        def helper(value: FastAPI) -> FastAPI:
+        def helper(value: list[FastAPI]) -> FastAPI | None:
             return value
 
-        annotated: FastAPI
+        annotated: tuple[FastAPI, ...]
         """)
 
     assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
@@ -845,12 +1001,35 @@ def test_application_instance_ownership_honors_comprehension_local_shadow() -> N
     assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
 
 
-def test_application_instance_ownership_honors_later_comprehension_target_shadow() -> None:
+def test_application_instance_ownership_rejects_constructor_in_later_comprehension_iterable() -> (
+    None
+):
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/other.py"] = textwrap.dedent("""
         from fastapi import FastAPI
 
         ordinary = [FastAPI for _ in (None,) for FastAPI in (FastAPI(),)]
+        """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("constructor is forbidden outside" in error for error in errors)
+    assert "FastAPI production constructor count must be exactly 1; found 2" in errors
+
+
+def test_application_instance_ownership_binds_each_comprehension_target_after_its_iterable() -> (
+    None
+):
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = textwrap.dedent("""
+        from fastapi import FastAPI
+
+        ordinary = [
+            value
+            for _ in (None,)
+            for FastAPI in (object,)
+            for value in (FastAPI(),)
+        ]
         """)
 
     assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
