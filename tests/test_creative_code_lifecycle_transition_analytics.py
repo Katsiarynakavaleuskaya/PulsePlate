@@ -268,6 +268,37 @@ def test_full_merged_chain_emits_six_adjacent_edges_and_one_complete_lineage() -
     )
 
 
+def test_reidentified_full_chain_cannot_understate_complete_terminal_lineage() -> None:
+    genuine = _analytics(_full_chain())
+    lineage = genuine["lineage_accounting"]
+    assert len(genuine["transition_counts"]) == 6
+    assert genuine["corpus"]["terminal_event_count"] == 1
+    assert lineage["complete_terminal_lineage_count"] == 1
+    assert all(
+        lineage["unobserved_predecessors_by_stage"][stage] == 0
+        for stage in analytics_contract.STAGES[1:]
+    )
+    fingerprints = (
+        genuine["corpus"]["events_fingerprint"],
+        genuine["corpus"]["rollup_fingerprint"],
+    )
+
+    forged = copy.deepcopy(genuine)
+    forged["lineage_accounting"]["complete_terminal_lineage_count"] = 0
+    forged["lineage_accounting"]["incomplete_terminal_lineage_count"] = 1
+    assert (
+        forged["corpus"]["events_fingerprint"],
+        forged["corpus"]["rollup_fingerprint"],
+    ) == fingerprints
+    _reidentify_artifact(forged)
+
+    with pytest.raises(CreativeCodeLifecycleTransitionAnalyticsError) as rejection:
+        validate_creative_code_lifecycle_transition_analytics(forged)
+    assert str(rejection.value) == (
+        "zero unobserved predecessor accounting requires every terminal lineage to be complete."
+    )
+
+
 def test_rejected_patch_is_an_observed_stop_without_fabricated_continuation() -> None:
     chain = _full_chain()[:2]
     chain[1] = _legacy_event(

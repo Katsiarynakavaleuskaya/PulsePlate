@@ -712,6 +712,13 @@ def validate_creative_code_lifecycle_transition_analytics(
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "terminal predecessor accounting is inconsistent."
         )
+    if (
+        all(unobserved_predecessors[stage] == 0 for stage in STAGES[1:])
+        and complete_terminal_lineage_count != corpus["terminal_event_count"]
+    ):
+        raise CreativeCodeLifecycleTransitionAnalyticsError(
+            "zero unobserved predecessor accounting requires every terminal lineage to be complete."
+        )
     for from_stage, to_stage in REQUIRED_COMPLETE_LINEAGE_EDGES:
         if complete_terminal_lineage_count > transition_counts_by_edge[(from_stage, to_stage)]:
             raise CreativeCodeLifecycleTransitionAnalyticsError(
