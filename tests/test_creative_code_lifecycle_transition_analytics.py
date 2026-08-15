@@ -295,7 +295,62 @@ def test_reidentified_full_chain_cannot_understate_complete_terminal_lineage() -
     with pytest.raises(CreativeCodeLifecycleTransitionAnalyticsError) as rejection:
         validate_creative_code_lifecycle_transition_analytics(forged)
     assert str(rejection.value) == (
-        "zero unobserved predecessor accounting requires every terminal lineage to be complete."
+        "complete terminal lineage count is below the forced root-connected minimum."
+    )
+
+
+@pytest.mark.parametrize("orphan_stop", ["rejected_patch", "blocked_pr_open"])
+def test_reidentified_root_connected_terminal_cannot_hide_behind_orphan_stop(
+    orphan_stop: str,
+) -> None:
+    events = _full_chain()
+    if orphan_stop == "rejected_patch":
+        stage = "patch_evaluation"
+        events.append(
+            _legacy_event(
+                stage,
+                status="rejected",
+                source_bundle_id="bundle-orphan-rejected",
+                selected_variant_id="variant-orphan-rejected",
+                request_id="request-orphan-rejected",
+                result_id="result-orphan-rejected",
+            )
+        )
+    else:
+        stage = "pr_open"
+        events.append(
+            _legacy_event(
+                stage,
+                status="blocked",
+                result_id="result-orphan-blocked",
+                promotion_id="promotion-orphan-blocked",
+            )
+        )
+
+    genuine = _analytics(events)
+    lineage = genuine["lineage_accounting"]
+    assert lineage["unobserved_predecessors_by_stage"][stage] == 1
+    assert lineage["unobserved_successors_by_stage"][stage] == 0
+    assert genuine["corpus"]["terminal_event_count"] == 1
+    assert lineage["complete_terminal_lineage_count"] == 1
+    fingerprints = (
+        genuine["corpus"]["events_fingerprint"],
+        genuine["corpus"]["rollup_fingerprint"],
+    )
+
+    forged = copy.deepcopy(genuine)
+    forged["lineage_accounting"]["complete_terminal_lineage_count"] = 0
+    forged["lineage_accounting"]["incomplete_terminal_lineage_count"] = 1
+    assert (
+        forged["corpus"]["events_fingerprint"],
+        forged["corpus"]["rollup_fingerprint"],
+    ) == fingerprints
+    _reidentify_artifact(forged)
+
+    with pytest.raises(CreativeCodeLifecycleTransitionAnalyticsError) as rejection:
+        validate_creative_code_lifecycle_transition_analytics(forged)
+    assert str(rejection.value) == (
+        "complete terminal lineage count is below the forced root-connected minimum."
     )
 
 

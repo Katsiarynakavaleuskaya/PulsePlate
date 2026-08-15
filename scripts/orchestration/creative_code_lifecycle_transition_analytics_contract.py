@@ -712,13 +712,6 @@ def validate_creative_code_lifecycle_transition_analytics(
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "terminal predecessor accounting is inconsistent."
         )
-    if (
-        all(unobserved_predecessors[stage] == 0 for stage in STAGES[1:])
-        and complete_terminal_lineage_count != corpus["terminal_event_count"]
-    ):
-        raise CreativeCodeLifecycleTransitionAnalyticsError(
-            "zero unobserved predecessor accounting requires every terminal lineage to be complete."
-        )
     for from_stage, to_stage in REQUIRED_COMPLETE_LINEAGE_EDGES:
         if complete_terminal_lineage_count > transition_counts_by_edge[(from_stage, to_stage)]:
             raise CreativeCodeLifecycleTransitionAnalyticsError(
@@ -767,6 +760,36 @@ def validate_creative_code_lifecycle_transition_analytics(
     if patch_minimum_sources > patch_maximum_sources:
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "patch continuation accounting is not representable."
+        )
+    root_connected_accepted_patches = incoming_by_stage_status[("patch_evaluation", "accepted")]
+    if patch_maximum_sources == root_connected_accepted_patches:
+        minimum_connected_plans = patch_observed_successors
+    else:
+        minimum_connected_plans = max(
+            0,
+            root_connected_accepted_patches - patch_missing_successors,
+        )
+    minimum_connected_validations = max(
+        0,
+        minimum_connected_plans - unobserved_successors["promotion_plan"],
+    )
+    minimum_connected_approvals = max(
+        0,
+        minimum_connected_validations - unobserved_successors["promotion_validation"],
+    )
+    minimum_connected_open_prs = max(
+        0,
+        minimum_connected_approvals
+        - unobserved_successors["promotion_approval"]
+        - incoming_by_stage_status[("pr_open", "blocked")],
+    )
+    minimum_connected_terminals = max(
+        0,
+        minimum_connected_open_prs - unobserved_successors["pr_open"],
+    )
+    if complete_terminal_lineage_count < minimum_connected_terminals:
+        raise CreativeCodeLifecycleTransitionAnalyticsError(
+            "complete terminal lineage count is below the forced root-connected minimum."
         )
     for stage in (
         "promotion_plan",
