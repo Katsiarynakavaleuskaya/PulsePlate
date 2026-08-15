@@ -10774,7 +10774,7 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   A := annotation load | exact canonical constructor call | FastAPI.openapi
 #   B := exact canonical factory/app bindings and exact compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
-#   N := exact current/protected namespace plus one-hop alias mutations
+#   N := scope-local protected module/namespace bindings plus one-hop alias mutations
 #
 # A runtime R outside A is rejected at the capability boundary. This closes direct
 # calls, aliases, containers, subclasses, and default/decorator escapes as one class;
@@ -11291,8 +11291,7 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
 
         attributes, top = self._attribute_path(node)
         if "FastAPI" not in attributes:
-            if not attributes:
-                self.escape_lines.add(node.lineno)
+            self.escape_lines.add(node.lineno)
             return
         fastapi_index = attributes.index("FastAPI")
         constructor_node: ast.Name | ast.Attribute = node
@@ -11387,76 +11386,269 @@ def _module_app_mutation(
     tree: ast.Module,
     builtin_namespace_calls: AbstractSet[int],
 ) -> bool:
-    exact_module_names = {module: _module_names(tree, module) for module in _PROTECTED_APP_MODULES}
-    module_names = {
-        module: names | _one_hop_name_aliases(tree, names)
-        for module, names in exact_module_names.items()
+    """Reject app-authority mutation in a finite table of lexical scopes."""
+
+    lexical_types = (
+        ast.Module,
+        ast.FunctionDef,
+        ast.AsyncFunctionDef,
+        ast.ClassDef,
+        ast.Lambda,
+        ast.ListComp,
+        ast.SetComp,
+        ast.DictComp,
+        ast.GeneratorExp,
+    )
+    parents = {
+        id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)
     }
+    scopes = [node for node in ast.walk(tree) if isinstance(node, lexical_types)]
+    scope_ids = {id(scope) for scope in scopes}
+    scope_overrides: dict[int, ast.AST] = {}
 
-    def protected(node: ast.AST) -> bool:
-        return any(_is_module(node, module, names) for module, names in module_names.items())
+    def containing_scope(node: ast.AST) -> ast.AST:
+        if overridden := scope_overrides.get(id(node)):
+            return overridden
+        current = node
+        while id(current) not in scope_ids:
+            current = parents[id(current)]
+        return current
 
-    exact_namespaces: set[str] = set()
+    scope_parents: dict[int, ast.AST | None] = {}
+    for scope in scopes:
+        current = parents.get(id(scope))
+        while current is not None and id(current) not in scope_ids:
+            current = parents.get(id(current))
+        scope_parents[id(scope)] = current
+
+    def mark_parent_evaluation(expression: ast.AST, parent: ast.AST) -> None:
+        pending = [expression]
+        while pending:
+            current = pending.pop()
+            if isinstance(current, lexical_types):
+                continue
+            scope_overrides[id(current)] = parent
+            pending.extend(ast.iter_child_nodes(current))
+
+    for scope in scopes:
+        parent = scope_parents[id(scope)]
+        if parent is None:
+            continue
+        expressions: list[ast.AST] = []
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            expressions.extend(scope.decorator_list)
+            expressions.extend(scope.args.defaults)
+            expressions.extend(value for value in scope.args.kw_defaults if value is not None)
+            expressions.extend(
+                argument.annotation
+                for argument in (
+                    *scope.args.posonlyargs,
+                    *scope.args.args,
+                    *scope.args.kwonlyargs,
+                )
+                if argument.annotation is not None
+            )
+            if scope.args.vararg is not None and scope.args.vararg.annotation is not None:
+                expressions.append(scope.args.vararg.annotation)
+            if scope.args.kwarg is not None and scope.args.kwarg.annotation is not None:
+                expressions.append(scope.args.kwarg.annotation)
+            if scope.returns is not None:
+                expressions.append(scope.returns)
+        elif isinstance(scope, ast.ClassDef):
+            expressions.extend(scope.decorator_list)
+            expressions.extend(scope.bases)
+            expressions.extend(keyword.value for keyword in scope.keywords)
+        elif isinstance(scope, ast.Lambda):
+            expressions.extend(scope.args.defaults)
+            expressions.extend(value for value in scope.args.kw_defaults if value is not None)
+        elif isinstance(
+            scope,
+            (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp),
+        ):
+            expressions.append(scope.generators[0].iter)
+        for expression in expressions:
+            mark_parent_evaluation(expression, parent)
+
+    def lookup_parent(scope: ast.AST) -> ast.AST | None:
+        parent = scope_parents[id(scope)]
+        while isinstance(parent, ast.ClassDef):
+            parent = scope_parents[id(parent)]
+        return parent
+
+    def depth(scope: ast.AST) -> int:
+        result = 0
+        current = lookup_parent(scope)
+        while current is not None:
+            result += 1
+            current = lookup_parent(current)
+        return result
+
+    nodes_by_scope: dict[int, list[ast.AST]] = {id(scope): [] for scope in scopes}
     for node in ast.walk(tree):
-        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
-            continue
-        simple = _simple_assignment(node)
-        if simple is None:
-            continue
-        name, value = simple
-        if (
-            isinstance(value, ast.Call)
-            and id(value) in builtin_namespace_calls
-            and isinstance(value.func, ast.Name)
-            and value.func.id in {"globals", "vars"}
-            and not value.args
-            and not value.keywords
-        ):
-            exact_namespaces.add(name)
-            continue
-        if (
-            isinstance(value, ast.Call)
-            and id(value) in builtin_namespace_calls
-            and isinstance(value.func, ast.Name)
-            and value.func.id == "vars"
-            and len(value.args) == 1
-            and not value.keywords
-            and protected(value.args[0])
-        ):
-            exact_namespaces.add(name)
-    namespaces = exact_namespaces | _one_hop_name_aliases(tree, exact_namespaces)
+        nodes_by_scope[id(containing_scope(node))].append(node)
 
-    def protected_namespace(node: ast.AST) -> bool:
-        return (
-            isinstance(node, ast.Name)
-            and node.id in namespaces
-            or isinstance(node, ast.Attribute)
-            and node.attr == "__dict__"
-            and protected(node.value)
-            or isinstance(node, ast.Call)
+    def local_names(scope: ast.AST) -> set[str]:
+        if isinstance(scope, ast.Module):
+            bindings = _scope_bindings(scope.body, kind="module")
+        elif isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bindings = _scope_bindings(scope.body, scope.args, kind="function")
+        elif isinstance(scope, ast.ClassDef):
+            bindings = _scope_bindings(scope.body, kind="class")
+        elif isinstance(scope, ast.Lambda):
+            bindings = _scope_bindings((), scope.args, kind="function")
+        else:
+            return {
+                name
+                for generator in scope.generators
+                for name in _assignment_target_names(generator.target)
+            }
+        names = set().union(
+            bindings.constructors,
+            bindings.modules,
+            bindings.import_loaders,
+            bindings.importlib_modules,
+            bindings.ordinary,
+            bindings.ambiguous,
+        )
+        names.difference_update(bindings.globals | bindings.nonlocals)
+        return names
+
+    def protected(node: ast.AST, modules: Mapping[str, str]) -> bool:
+        imported = _imported_module_name(node)
+        if imported in _PROTECTED_APP_MODULES:
+            return True
+        attributes: list[str] = []
+        current = node
+        while isinstance(current, ast.Attribute):
+            attributes.append(current.attr)
+            current = current.value
+        if not isinstance(current, ast.Name) or current.id not in modules:
+            return False
+        candidate = modules[current.id]
+        if attributes:
+            candidate = f"{candidate}.{'.'.join(reversed(attributes))}"
+        return candidate in _PROTECTED_APP_MODULES
+
+    def builtin_namespace_call(node: ast.AST) -> str | None:
+        if (
+            isinstance(node, ast.Call)
             and id(node) in builtin_namespace_calls
             and isinstance(node.func, ast.Name)
-            and node.func.id == "vars"
-            and len(node.args) == 1
+            and node.func.id in {"globals", "vars"}
             and not node.keywords
-            and protected(node.args[0])
+        ):
+            return node.func.id
+        return None
+
+    def direct_namespace(node: ast.AST, modules: Mapping[str, str]) -> bool:
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == "__dict__"
+            and protected(node.value, modules)
+        ):
+            return True
+        builtin = builtin_namespace_call(node)
+        if builtin is None or not isinstance(node, ast.Call):
+            return False
+        return not node.args or (
+            builtin == "vars" and len(node.args) == 1 and protected(node.args[0], modules)
         )
 
-    def namespace(node: ast.AST) -> bool:
-        if protected_namespace(node):
-            return True
-        if (
-            not isinstance(node, ast.Call)
-            or id(node) not in builtin_namespace_calls
-            or not isinstance(node.func, ast.Name)
-        ):
-            return False
-        return (node.func.id == "globals" and not node.args) or (
-            node.func.id == "vars"
-            and (not node.args or (len(node.args) == 1 and protected(node.args[0])))
+    module_frames: dict[int, dict[str, str]] = {}
+    namespace_frames: dict[int, set[str]] = {}
+    for scope in sorted(scopes, key=depth):
+        scope_id = id(scope)
+        parent = lookup_parent(scope)
+        names = local_names(scope)
+        modules = (
+            {
+                name: reference
+                for name, reference in module_frames[id(parent)].items()
+                if name not in names
+            }
+            if parent is not None
+            else {}
         )
+        namespaces = (
+            {name for name in namespace_frames[id(parent)] if name not in names}
+            if parent is not None
+            else set()
+        )
+        assignments: list[tuple[str, ast.AST]] = []
+        for node in nodes_by_scope[scope_id]:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in _PROTECTED_APP_MODULES:
+                        bound = alias.asname or alias.name.split(".", 1)[0]
+                        modules[bound] = alias.name if alias.asname else bound
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    reference = _import_reference(node, alias)
+                    if reference in _PROTECTED_APP_MODULES:
+                        modules[alias.asname or alias.name] = reference
+            elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+                simple = _simple_assignment(node)
+                if simple is None:
+                    continue
+                name, value = simple
+                imported = _imported_module_name(value)
+                if imported in _PROTECTED_APP_MODULES:
+                    modules[name] = imported
+                else:
+                    assignments.append((name, value))
+        modules.update(
+            {
+                name: modules[value.id]
+                for name, value in assignments
+                if isinstance(value, ast.Name) and value.id in modules
+            }
+        )
+        direct_namespaces = {
+            name
+            for name, value in assignments
+            if not isinstance(value, ast.Name) and direct_namespace(value, modules)
+        }
+        namespace_sources = namespaces | direct_namespaces
+        namespaces.update(
+            direct_namespaces
+            | {
+                name
+                for name, value in assignments
+                if isinstance(value, ast.Name) and value.id in namespace_sources
+            }
+        )
+        module_frames[scope_id] = modules
+        namespace_frames[scope_id] = namespaces
 
     for node in ast.walk(tree):
+        scope_id = id(containing_scope(node))
+        modules = module_frames[scope_id]
+        namespaces = namespace_frames[scope_id]
+
+        def namespace(candidate: ast.AST) -> bool:
+            return (
+                isinstance(candidate, ast.Name)
+                and candidate.id in namespaces
+                or direct_namespace(candidate, modules)
+            )
+
+        def direct_current_namespace(candidate: ast.AST) -> bool:
+            return (
+                builtin_namespace_call(candidate) in {"globals", "vars"}
+                and isinstance(candidate, ast.Call)
+                and not candidate.args
+            )
+
+        def target_mutates(target: ast.AST) -> bool:
+            if isinstance(target, ast.Attribute) and target.attr == "app":
+                return protected(target.value, modules) or namespace(target.value)
+            if isinstance(target, ast.Subscript) and (
+                protected(target.value, modules) or namespace(target.value)
+            ):
+                key = _static_string(target.slice)
+                return key == "app" or (key is None and not direct_current_namespace(target.value))
+            return False
+
         targets: Sequence[ast.expr] = ()
         if isinstance(node, ast.Assign):
             targets = node.targets
@@ -11464,28 +11656,18 @@ def _module_app_mutation(
             targets = (node.target,)
         elif isinstance(node, ast.Delete):
             targets = node.targets
-        for target in targets:
-            if isinstance(target, ast.Attribute) and target.attr == "app":
-                if protected(target.value) or namespace(target.value):
-                    return True
-            if isinstance(target, ast.Subscript) and (
-                protected(target.value) or namespace(target.value)
-            ):
-                key = _static_string(target.slice)
-                if key == "app" or (
-                    key is None and (protected(target.value) or protected_namespace(target.value))
-                ):
-                    return True
+        if any(target_mutates(target) for target in targets):
+            return True
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "setattr"
             and len(node.args) >= 2
-            and (protected(node.args[0]) or namespace(node.args[0]))
+            and (protected(node.args[0], modules) or namespace(node.args[0]))
         ):
             attribute = _static_string(node.args[1])
             if attribute == "app" or (
-                attribute is None and (protected(node.args[0]) or protected_namespace(node.args[0]))
+                attribute is None and not direct_current_namespace(node.args[0])
             ):
                 return True
         if (
