@@ -16,6 +16,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -319,12 +320,32 @@ class CoachingGoalAuthoritySnapshotV1(BaseModel):
             raise ValueError("predecessor and successor refs must differ")
         return self
 
+    def _has_valid_lifecycle(self) -> bool:
+        try:
+            CoachingGoalAuthoritySnapshotV1.model_validate(
+                {
+                    "snapshot_version": self.snapshot_version,
+                    "status": self.status,
+                    "source": self.source,
+                    "data_status": self.data_status,
+                    "goal_ref": self.goal_ref,
+                    "goal_version_ref": self.goal_version_ref,
+                    "supersedes_ref": self.supersedes_ref,
+                    "superseded_by_ref": self.superseded_by_ref,
+                    "correction_ref": self.correction_ref,
+                }
+            )
+        except ValidationError:
+            return False
+        return True
+
     @property
     def has_active_authority(self) -> bool:
         """Return authority only for the one validated active lifecycle state."""
 
         return (
-            self.status == "active"
+            self._has_valid_lifecycle()
+            and self.status == "active"
             and self.source == "user_confirmed"
             and self.data_status == "confirmed"
             and _is_valid_opaque_goal_ref(self.goal_ref)
@@ -335,7 +356,9 @@ class CoachingGoalAuthoritySnapshotV1(BaseModel):
     def no_intervention_reason(self) -> NoInterventionReason | None:
         """Return the exact abstention reason for a validated non-active goal."""
 
-        if self.has_active_authority:
+        if not self._has_valid_lifecycle():
+            raise ValueError("goal snapshot has no valid no_intervention mapping")
+        if self.status == "active":
             return None
         if self.status == "unavailable":
             if self.data_status == "invalid_degraded":

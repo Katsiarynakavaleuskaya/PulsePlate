@@ -941,6 +941,25 @@ def test_goal_authority_model_copy_invalid_refs_cannot_activate_authority(
         _ = forged.no_intervention_reason
 
 
+@pytest.mark.parametrize(
+    "invalid_update",
+    [
+        {"superseded_by_ref": "goal-version:2"},
+        {"supersedes_ref": "goal-version:1"},
+        {"correction_ref": "raw goal prose"},
+        {"snapshot_version": "coaching_goal_authority_v2"},
+    ],
+)
+def test_goal_authority_model_copy_invalid_lifecycle_cannot_activate_authority(
+    invalid_update: dict[str, object],
+) -> None:
+    forged = _active_goal().model_copy(update=invalid_update)
+
+    assert forged.has_active_authority is False
+    with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+        _ = forged.no_intervention_reason
+
+
 def test_goal_authority_controls_scenario_without_changing_observed_urgency() -> None:
     base = {
         "user_id": 91_014,

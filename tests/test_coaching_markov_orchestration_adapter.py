@@ -518,12 +518,23 @@ def test_non_active_goal_prevents_planner_and_projection_calls(
     assert result.decision_trace.degrade_reasons == ()
 
 
-def test_forged_active_goal_with_invalid_refs_never_calls_planner_or_projection(
+@pytest.mark.parametrize(
+    "invalid_update",
+    [
+        {"goal_ref": []},
+        {"superseded_by_ref": "goal-version:2"},
+        {"supersedes_ref": "goal-version:1"},
+        {"correction_ref": "raw goal prose"},
+        {"snapshot_version": "coaching_goal_authority_v2"},
+    ],
+)
+def test_forged_active_goal_never_calls_planner_or_projection(
     configure_sqlite_database: Any,
     monkeypatch: pytest.MonkeyPatch,
+    invalid_update: dict[str, object],
 ) -> None:
     state = _state()
-    forged_goal = state.goal.model_copy(update={"goal_ref": []})
+    forged_goal = state.goal.model_copy(update=invalid_update)
     forged_state = state.model_copy(update={"goal": forged_goal})
     calls = {"planner": 0, "projection": 0}
 
