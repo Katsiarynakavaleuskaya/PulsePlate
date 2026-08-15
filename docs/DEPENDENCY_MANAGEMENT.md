@@ -397,12 +397,41 @@ targets, missing direct owners, and any unrelated version movement.
 
 ### Add or remove a dependency graph entry
 
-`GRAPH_CHANGE_PACKAGES` is currently fail-closed. The governed compiler admits
-only the exact seeded graph plus exact existing-package `UPGRADE_PACKAGES`
-substitutions. Dependency additions or removals require a future versioned
-artifact-admission contract that can bind the newly admitted graph and its
-artifacts before credential-free compilation; do not bypass this boundary with
-direct pip or resolver commands.
+`GRAPH_CHANGE_PACKAGES` remains fail-closed except for the single repository-owned
+`observability-refresh-2026-08-15` v1 transition. That record admits only removal
+of `importlib-metadata` and `zipp` while upgrading the exact seven declared
+OpenTelemetry/Prometheus packages. It is bound to the four seeded lock byte
+digests and is consumed in exactly two ordered invocations:
+
+```bash
+observability_upgrades="opentelemetry-api==1.44.0 opentelemetry-sdk==1.44.0 opentelemetry-exporter-otlp-proto-http==1.44.0 opentelemetry-exporter-otlp-proto-common==1.44.0 opentelemetry-proto==1.44.0 opentelemetry-semantic-conventions==0.65b0 prometheus-client==0.25.0"
+
+LOCK_PROFILES="runtime" \
+  UPGRADE_PACKAGES="$observability_upgrades" \
+  GRAPH_CHANGE_PACKAGES="importlib-metadata zipp" \
+  GRAPH_CHANGE_ADMISSION="observability-refresh-2026-08-15" \
+  make requirements-locks
+
+LOCK_PROFILES="docker-runtime ci-lite aggregate" \
+  UPGRADE_PACKAGES="$observability_upgrades" \
+  GRAPH_CHANGE_PACKAGES="importlib-metadata zipp" \
+  GRAPH_CHANGE_ADMISSION="observability-refresh-2026-08-15" \
+  make requirements-locks
+```
+
+The second invocation requires the exact SHA-256 of the complete admitted
+`requirements.txt` bytes, including its generated header, annotations, and
+line endings; semantic pin equivalence is insufficient. The recorded target
+was established by two byte-identical canonical TX1 runs in independent
+disposable detached worktrees. That bounded discovery did not mutate the lane
+locks and is not final replay, commit-binding, or merge evidence.
+Wrong order, subsets, permutations, combined/repeated invocations, additions,
+or stale baseline bytes fail before credentialed network access. Each invocation
+prepares and validates all of its candidates before replacement and retains the
+existing rollback behavior, but the two-invocation four-lock sequence is not a
+crash-atomic transaction. This record creates no reusable authority for another
+dependency identity or future baseline; do not bypass it with direct pip or
+resolver commands.
 
 ## CI/CD Integration
 

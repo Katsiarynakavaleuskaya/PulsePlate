@@ -73,7 +73,6 @@ updates:
         patterns:
           - "opentelemetry-*"
           - "prometheus-client"
-          - "zipp"
         update-types:
           - "minor"
           - "patch"

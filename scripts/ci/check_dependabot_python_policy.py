@@ -86,7 +86,7 @@ EXPECTED_GROUPS: dict[str, dict[str, tuple[str, ...] | str]] = {
         "applies-to": "version-updates",
     },
     "runtime-observability": {
-        "patterns": ("opentelemetry-*", "prometheus-client", "zipp"),
+        "patterns": ("opentelemetry-*", "prometheus-client"),
         "update-types": ("minor", "patch"),
         "applies-to": "version-updates",
     },

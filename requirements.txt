@@ -72,8 +72,6 @@ idna==3.15
     #   email-validator
     #   httpx
     #   requests
-importlib-metadata==8.7.1
-    # via opentelemetry-api
 jiter==0.12.0
     # via openai
 kiwisolver==1.4.9
@@ -97,25 +95,25 @@ numpy==2.4.6
     #   matplotlib
 openai==2.29.0
     # via -r requirements.in
-opentelemetry-api==1.40.0
+opentelemetry-api==1.44.0
     # via
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-exporter-otlp-proto-common==1.40.0
+opentelemetry-exporter-otlp-proto-common==1.44.0
     # via opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-http==1.40.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
     # via -r requirements.in
-opentelemetry-proto==1.40.0
+opentelemetry-proto==1.44.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-sdk==1.40.0
+opentelemetry-sdk==1.44.0
     # via
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-proto-http
-opentelemetry-semantic-conventions==0.61b0
+opentelemetry-semantic-conventions==0.65b0
     # via opentelemetry-sdk
 packaging==25.0
     # via
@@ -126,7 +124,7 @@ pillow==12.3.0
     #   -r requirements.in
     #   matplotlib
     #   reportlab
-prometheus-client==0.24.1
+prometheus-client==0.25.0
     # via -r requirements.in
 protobuf==6.33.5
     # via
@@ -205,5 +203,3 @@ uvicorn==0.42.0
     # via -r requirements.in
 wrapt==2.0.1
     # via deprecated
-zipp==3.23.0
-    # via importlib-metadata
