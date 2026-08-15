@@ -615,6 +615,41 @@ Use this as the canonical operating loop from branch creation to merge window:
      that root; the validator does not infer it from bot prose. For a root actually covered by this validator, the exact
      reply plus resolved thread is the disposition evidence; do not add a second
      mapping entry or docs commit. Every non-covered root follows ordinary mapping.
+   - For new authoring, prefer the general provider-only evidence class instead
+     of the legacy full-ref line. First read the entire connector root
+     and confirm that it is the first comment on the canonical current-PR
+     mapping, its `originalCommit` is the exact live mapping head, and it has no
+     independent actionable finding beyond unavailable or synthetic
+     provider-only evidence. *Unavailable* here means not
+     repository-addressable evidence usable by the authenticated live PR
+     validator; it never describes a real material, security, code, workflow,
+     dependency, or runtime defect. Then post exactly:
+     `OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; authenticated live PR state is authoritative.`
+     The thread must contain exactly one later GraphQL-authenticated `OWNER`
+     comment; that sole OWNER comment must be byte-equal to that line.
+     Do not add Markdown, whitespace, a ref, fingerprint, URL, or explanation.
+     Only after the exact OWNER reply is visible, resolve the thread. Then run
+     the reply-only validator and authenticated strict checks against that
+     resolved state. Never resolve first: the visible reply is the disposition
+     evidence required by enforcement rule 2.
+     The validator does not parse the root prose, lex or classify refs, or infer
+     the human disposition. It instead fail-closes unless REST and GraphQL
+     cross-bind the same repository, PR, comment ID, URL, canonical path,
+     unedited body, `updated_at == created_at`, trusted connector REST user
+     id/login/type, and live-head `originalCommit`; the live head is
+     the sole direct non-empty non-trigger mapping-only successor; both heads
+     preserve one material digest; and the current provider-neutral seal is
+     strict and current. Same-root mapping/fingerprint evidence blocks this
+     reply-only path. Multiple independent eligible roots may each use their
+     own exact OWNER reply; there is no global singleton census for this new
+     class. Material-path comments remain ineligible and require ordinary
+     disposition. The line grants no review, approval, provider output, scan,
+     PASS, no-findings claim, merge authority, or bypass of current seal, CI,
+     security, coverage, mapping, unresolved threads, bot actionables,
+     ancestry, or the wait window. Any API, Git, identity, seal, digest,
+     timestamp, path, or topology uncertainty leaves the root blocking. The
+     full-ref OWNER line remains accepted only for historical compatibility
+     and uses the same strict REST connector/unedited-root binding.
    - For one historical stale-seal root already corrected by the sole
      mapping-only reseal, first inspect the complete root and confirm that it has
      no independent actionable finding beyond the historical stale-seal defect
