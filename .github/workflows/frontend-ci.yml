@@ -56,6 +56,7 @@ on:
       - 'deploy/Caddyfile.production'
       - 'deploy/docker-compose.staging.yaml'
       - 'scripts/deploy.sh'
+      - 'scripts/QUICK_FIX_PRODUCTION.sh'
       - 'tests/test_caddy_deploy_provenance.py'
       - 'tests/test_cd_attestation_workflow_contract.py'
       - '.github/workflows/cd.yml'
@@ -101,12 +102,12 @@ on:
       - 'deploy/Caddyfile.production'
       - 'deploy/docker-compose.staging.yaml'
       - 'scripts/deploy.sh'
+      - 'scripts/QUICK_FIX_PRODUCTION.sh'
       - 'tests/test_caddy_deploy_provenance.py'
       - 'tests/test_cd_attestation_workflow_contract.py'
       - '.github/workflows/cd.yml'
       - '.github/workflows/frontend-ci.yml'
   workflow_dispatch:
-
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -121,7 +122,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-
       - name: Detect Caddy contract changes
         id: filter
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
@@ -133,11 +133,11 @@ jobs:
               - 'deploy/Caddyfile.production'
               - 'deploy/docker-compose.staging.yaml'
               - 'scripts/deploy.sh'
+              - 'scripts/QUICK_FIX_PRODUCTION.sh'
               - 'tests/test_caddy_deploy_provenance.py'
               - 'tests/test_cd_attestation_workflow_contract.py'
               - '.github/workflows/cd.yml'
               - '.github/workflows/frontend-ci.yml'
-
   build-and-test:
     runs-on: ubuntu-latest
     env:
@@ -283,7 +283,7 @@ jobs:
             "$evidence_dir/version.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract caddy build-info | tee "$evidence_dir/build-info.txt"
-          awk -F '\t' '$1 == "go" && $2 == "go1.26.5" { found=1 } END { exit found ? 0 : 1 }' \
+          awk -F '\t' '$1 == "go" && $2 == "go1.26.6" { found=1 } END { exit found ? 0 : 1 }' \
             "$evidence_dir/build-info.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract getcap /usr/bin/caddy | tee "$evidence_dir/capabilities.txt"

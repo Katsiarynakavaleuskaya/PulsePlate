@@ -5,7 +5,7 @@
 # Or with explicit absolute API base (split-origin / Workers):
 #   docker build -f Dockerfile.caddy-spa --build-arg VITE_API_BASE=https://example.com/api/v1 -t pulseplate-caddy:local .
 
-FROM golang:1.26.5-alpine3.23@sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc AS caddy-build
+FROM golang:1.26.6-alpine3.23@sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3 AS caddy-build
 
 ENV CGO_ENABLED=0 \
     GOTOOLCHAIN=local \
@@ -59,7 +59,7 @@ RUN npm run build
 FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
 
 LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \
-      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.5 and PulsePlate frontend assets"
+      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.6 and PulsePlate frontend assets"
 
 # Compare the standard module surface before replacing the upstream binary.
 # Package versions and build metadata are intentionally excluded from parity.
@@ -77,7 +77,7 @@ RUN set -eux; \
     setcap cap_net_bind_service=+ep /usr/bin/caddy; \
     getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \
     caddy version | awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }'; \
-    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.5" { found=1 } END { exit found ? 0 : 1 }'; \
+    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.6" { found=1 } END { exit found ? 0 : 1 }'; \
     rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 
 RUN ["/bin/busybox", "rm", "-rf", "/srv/frontend"]
