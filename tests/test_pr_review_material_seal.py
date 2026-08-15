@@ -5281,16 +5281,20 @@ def test_closeout_git_disables_replacements_and_inherited_git_environment(
         assert all(
             key
             in {
+                "GIT_CONFIG_GLOBAL",
                 "GIT_CONFIG_NOSYSTEM",
                 "GIT_NO_REPLACE_OBJECTS",
                 "GIT_OPTIONAL_LOCKS",
+                "GIT_TERMINAL_PROMPT",
             }
             for key in env
             if key.startswith("GIT_")
         )
+        assert env["GIT_CONFIG_GLOBAL"] == os.devnull
         assert env["GIT_CONFIG_NOSYSTEM"] == "1"
         assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
         assert env["GIT_OPTIONAL_LOCKS"] == "0"
+        assert env["GIT_TERMINAL_PROMPT"] == "0"
         assert env["LC_ALL"] == "C"
 
 
@@ -5320,6 +5324,72 @@ def test_closeout_git_rejects_active_grafts(
     with pytest.raises(closeout_module.CloseoutError, match="legacy Git grafts"):
         closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
     assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "expected"),
+    [
+        (1, "", "git graft-path lookup failed"),
+        (0, "", "git graft path is malformed"),
+        (0, ".git/info/grafts\nsecond-path\n", "git graft path is malformed"),
+    ],
+    ids=["lookup-failed", "empty-path", "multiline-path"],
+)
+def test_closeout_git_rejects_invalid_graft_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    stdout: str,
+    expected: str,
+) -> None:
+    calls = 0
+
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=returncode, stdout=stdout, stderr="diagnostic")
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(closeout_module.CloseoutError, match=expected):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("method", "error"),
+    [
+        ("exists", OSError("unavailable")),
+        ("is_symlink", ValueError("malformed")),
+    ],
+    ids=["exists-os-error", "symlink-value-error"],
+)
+def test_closeout_git_converts_graft_path_inspection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    error: BaseException,
+) -> None:
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=0, stdout=".git/info/grafts\n", stderr="")
+
+    def raise_error(_path: Path) -> bool:
+        raise error
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+    if method == "exists":
+        monkeypatch.setattr(Path, "exists", raise_error)
+    else:
+        monkeypatch.setattr(Path, "exists", lambda _path: False)
+        monkeypatch.setattr(Path, "is_symlink", raise_error)
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="git graft path could not be inspected",
+    ):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
 
 
 @pytest.mark.parametrize("stage", ["graft_lookup", "git_command"])
