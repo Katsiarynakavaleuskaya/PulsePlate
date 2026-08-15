@@ -10772,9 +10772,10 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   S := module/function/class/comprehension frames plus global/nonlocal outward lookup
 #   R := runtime load resolved through S to I
 #   A := closed type-expression annotation load | exact constructor call | FastAPI.openapi
-#   B := exact canonical factory/app bindings, downward-only constructor dependencies,
-#        target-only composition, one ordered facade transition, reserved private factory
-#        capability, and exact compatibility re-exports
+#   B := synchronous non-generator canonical factory, downward-only constructor dependencies,
+#        target-only composition, one ordered facade transition, exact lexical protected-module
+#        acquisition with all simple-name chain targets, reserved private factory capability,
+#        and exact compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
 #   N := scope-local protected module/namespace bindings, finite builtin/bound
 #        attribute mutators, one-hop aliases, and reloads
@@ -10901,6 +10902,19 @@ def _simple_assignment(
     if node.value is not None and isinstance(node.target, ast.Name):
         return node.target.id, node.value
     return None
+
+
+def _simple_name_assignments(
+    node: ast.Assign | ast.AnnAssign | ast.NamedExpr,
+) -> tuple[tuple[str, ast.AST], ...]:
+    """Return every simple-name binding that receives one shared RHS value."""
+
+    if isinstance(node, ast.Assign):
+        return tuple(
+            (target.id, node.value) for target in node.targets if isinstance(target, ast.Name)
+        )
+    simple = _simple_assignment(node)
+    return (simple,) if simple is not None else ()
 
 
 def _scope_bindings(
@@ -11414,20 +11428,21 @@ def _module_names(tree: ast.Module, module: str) -> set[str]:
                 if _import_reference(node, alias) == module
             )
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-            simple = _simple_assignment(node)
-            if simple is not None and _imported_module_name(simple[1]) == module:
-                names.add(simple[0])
+            names.update(
+                name
+                for name, value in _simple_name_assignments(node)
+                if _imported_module_name(value) == module
+            )
     return names
 
 
 def _one_hop_name_aliases(tree: ast.Module, source_names: AbstractSet[str]) -> set[str]:
     return {
-        simple[0]
+        name
         for node in ast.walk(tree)
         if isinstance(node, (ast.Assign, ast.AnnAssign))
-        and (simple := _simple_assignment(node)) is not None
-        and isinstance(simple[1], ast.Name)
-        and simple[1].id in source_names
+        for name, value in _simple_name_assignments(node)
+        if isinstance(value, ast.Name) and value.id in source_names
     }
 
 
@@ -11575,8 +11590,31 @@ def _module_app_mutation(
         names.difference_update(bindings.globals | bindings.nonlocals)
         return names
 
-    def protected(node: ast.AST, modules: Mapping[str, str]) -> bool:
-        imported = _imported_module_name(node)
+    def imported_module(
+        node: ast.AST,
+        importlib_names: AbstractSet[str],
+        import_loaders: AbstractSet[str],
+    ) -> str | None:
+        if not isinstance(node, ast.Call) or len(node.args) != 1 or node.keywords:
+            return None
+        direct_loader = isinstance(node.func, ast.Name) and node.func.id in import_loaders
+        module_loader = (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "import_module"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in importlib_names
+        )
+        if not (direct_loader or module_loader):
+            return None
+        return _static_string(node.args[0])
+
+    def protected(
+        node: ast.AST,
+        modules: Mapping[str, str],
+        importlib_names: AbstractSet[str],
+        import_loaders: AbstractSet[str],
+    ) -> bool:
+        imported = imported_module(node, importlib_names, import_loaders)
         if imported in _PROTECTED_APP_MODULES:
             return True
         attributes: list[str] = []
@@ -11602,23 +11640,31 @@ def _module_app_mutation(
             return node.func.id
         return None
 
-    def direct_namespace(node: ast.AST, modules: Mapping[str, str]) -> bool:
+    def direct_namespace(
+        node: ast.AST,
+        modules: Mapping[str, str],
+        importlib_names: AbstractSet[str],
+        import_loaders: AbstractSet[str],
+    ) -> bool:
         if (
             isinstance(node, ast.Attribute)
             and node.attr == "__dict__"
-            and protected(node.value, modules)
+            and protected(node.value, modules, importlib_names, import_loaders)
         ):
             return True
         builtin = builtin_namespace_call(node)
         if builtin is None or not isinstance(node, ast.Call):
             return False
         return not node.args or (
-            builtin == "vars" and len(node.args) == 1 and protected(node.args[0], modules)
+            builtin == "vars"
+            and len(node.args) == 1
+            and protected(node.args[0], modules, importlib_names, import_loaders)
         )
 
     module_frames: dict[int, dict[str, str]] = {}
     namespace_frames: dict[int, set[str]] = {}
     importlib_frames: dict[int, set[str]] = {}
+    import_loader_frames: dict[int, set[str]] = {}
     reload_frames: dict[int, set[str]] = {}
     builtins_frames: dict[int, set[str]] = {}
     attribute_mutator_frames: dict[int, dict[str, str]] = {}
@@ -11642,6 +11688,11 @@ def _module_app_mutation(
         )
         importlib_names = (
             {name for name in importlib_frames[id(parent)] if name not in names}
+            if parent is not None
+            else set()
+        )
+        import_loaders = (
+            {name for name in import_loader_frames[id(parent)] if name not in names}
             if parent is not None
             else set()
         )
@@ -11680,20 +11731,41 @@ def _module_app_mutation(
                     reference = _import_reference(node, alias)
                     if reference in _PROTECTED_APP_MODULES:
                         modules[alias.asname or alias.name] = reference
+                    elif reference == "importlib.import_module":
+                        import_loaders.add(alias.asname or alias.name)
                     elif reference == "importlib.reload":
                         reload_names.add(alias.asname or alias.name)
                     elif reference in {"builtins.delattr", "builtins.setattr"}:
                         attribute_mutators[alias.asname or alias.name] = alias.name
             elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
-                simple = _simple_assignment(node)
-                if simple is None:
-                    continue
-                name, value = simple
-                imported = _imported_module_name(value)
-                if imported in _PROTECTED_APP_MODULES:
-                    modules[name] = imported
-                else:
-                    assignments.append((name, value))
+                assignments.extend(_simple_name_assignments(node))
+        importlib_sources = frozenset(importlib_names)
+        importlib_names.update(
+            name
+            for name, value in assignments
+            if isinstance(value, ast.Name) and value.id in importlib_sources
+        )
+        import_loader_sources = frozenset(import_loaders)
+        import_loaders.update(
+            name
+            for name, value in assignments
+            if (
+                isinstance(value, ast.Name)
+                and value.id in import_loader_sources
+                or isinstance(value, ast.Attribute)
+                and value.attr == "import_module"
+                and isinstance(value.value, ast.Name)
+                and value.value.id in importlib_names
+            )
+        )
+        modules.update(
+            {
+                name: imported
+                for name, value in assignments
+                if (imported := imported_module(value, importlib_names, import_loaders))
+                in _PROTECTED_APP_MODULES
+            }
+        )
         builtins_sources = frozenset(builtins_names)
         builtins_names.update(
             name
@@ -11710,7 +11782,8 @@ def _module_app_mutation(
         direct_namespaces = {
             name
             for name, value in assignments
-            if not isinstance(value, ast.Name) and direct_namespace(value, modules)
+            if not isinstance(value, ast.Name)
+            and direct_namespace(value, modules, importlib_names, import_loaders)
         }
         namespace_sources = namespaces | direct_namespaces
         namespaces.update(
@@ -11748,6 +11821,7 @@ def _module_app_mutation(
         module_frames[scope_id] = modules
         namespace_frames[scope_id] = namespaces
         importlib_frames[scope_id] = importlib_names
+        import_loader_frames[scope_id] = import_loaders
         reload_frames[scope_id] = reload_names
         builtins_frames[scope_id] = builtins_names
         attribute_mutator_frames[scope_id] = attribute_mutators
@@ -11757,6 +11831,7 @@ def _module_app_mutation(
         modules = module_frames[scope_id]
         namespaces = namespace_frames[scope_id]
         importlib_names = importlib_frames[scope_id]
+        import_loaders = import_loader_frames[scope_id]
         reload_names = reload_frames[scope_id]
         builtins_names = builtins_frames[scope_id]
         attribute_mutators = attribute_mutator_frames[scope_id]
@@ -11765,7 +11840,7 @@ def _module_app_mutation(
             return (
                 isinstance(candidate, ast.Name)
                 and candidate.id in namespaces
-                or direct_namespace(candidate, modules)
+                or direct_namespace(candidate, modules, importlib_names, import_loaders)
             )
 
         def direct_current_namespace(candidate: ast.AST) -> bool:
@@ -11781,9 +11856,15 @@ def _module_app_mutation(
             if isinstance(target, (ast.Tuple, ast.List)):
                 return any(target_mutates(element) for element in target.elts)
             if isinstance(target, ast.Attribute) and target.attr == "app":
-                return protected(target.value, modules) or namespace(target.value)
+                return protected(
+                    target.value,
+                    modules,
+                    importlib_names,
+                    import_loaders,
+                ) or namespace(target.value)
             if isinstance(target, ast.Subscript) and (
-                protected(target.value, modules) or namespace(target.value)
+                protected(target.value, modules, importlib_names, import_loaders)
+                or namespace(target.value)
             ):
                 key = _static_string(target.slice)
                 return key == "app" or (key is None and not direct_current_namespace(target.value))
@@ -11812,7 +11893,12 @@ def _module_app_mutation(
                 and isinstance(node.func.value, ast.Name)
                 and node.func.value.id in importlib_names
             )
-            if (direct_reload or module_reload) and protected(node.args[0], modules):
+            if (direct_reload or module_reload) and protected(
+                node.args[0],
+                modules,
+                importlib_names,
+                import_loaders,
+            ):
                 return True
         if isinstance(node, ast.Call):
             operation: str | None = None
@@ -11839,14 +11925,22 @@ def _module_app_mutation(
                     operation = _BOUND_ATTRIBUTE_MUTATORS[node.func.attr]
                     minimum_arguments = 1 if operation == "delattr" else 2
                     if len(node.args) >= minimum_arguments and (
-                        protected(node.func.value, modules) or namespace(node.func.value)
+                        protected(
+                            node.func.value,
+                            modules,
+                            importlib_names,
+                            import_loaders,
+                        )
+                        or namespace(node.func.value)
                     ):
                         target = node.func.value
                         attribute_node = node.args[0]
             if (
                 target is not None
                 and attribute_node is not None
-                and (protected(target, modules) or namespace(target))
+                and (
+                    protected(target, modules, importlib_names, import_loaders) or namespace(target)
+                )
             ):
                 attribute = _static_string(attribute_node)
                 if attribute in {None, "app"}:
@@ -11980,6 +12074,39 @@ def _has_exact_compatibility_reexport(
             ):
                 return True
     return False
+
+
+def _is_synchronous_nongenerator_function(node: ast.AST) -> bool:
+    """Classify one function body without borrowing yields from nested scopes."""
+
+    if not isinstance(node, ast.FunctionDef):
+        return False
+
+    class YieldFinder(ast.NodeVisitor):
+        found = False
+
+        def visit_Yield(self, child: ast.Yield) -> None:
+            self.found = True
+
+        def visit_YieldFrom(self, child: ast.YieldFrom) -> None:
+            self.found = True
+
+        def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, child: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, child: ast.Lambda) -> None:
+            return
+
+    finder = YieldFinder()
+    for statement in node.body:
+        finder.visit(statement)
+    return not finder.found
 
 
 def _factory_expands_its_metadata(
@@ -12208,12 +12335,11 @@ def _main_bootstrap_composes_only_target(tree: ast.Module) -> bool:
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == "app"
     ]
     module_app_aliases = [
-        simple
+        (name, value)
         for statement in tree.body
         if isinstance(statement, (ast.Assign, ast.AnnAssign))
-        and (simple := _simple_assignment(statement)) is not None
-        and isinstance(simple[1], ast.Name)
-        and simple[1].id == "app"
+        for name, value in _simple_name_assignments(statement)
+        if isinstance(value, ast.Name) and value.id == "app"
     ]
     return (
         len(top_level_calls) == 1
@@ -12310,6 +12436,11 @@ def validate_application_instance_ownership(
         errors.append(
             f"{CANONICAL_APPLICATION}: exactly one _create_fastapi_application definition "
             "is required"
+        )
+    elif not _is_synchronous_nongenerator_function(factories[0]):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: _create_fastapi_application must be a synchronous "
+            "non-generator function"
         )
     if len(canonical_constructors) == 1:
         constructor = canonical_constructors[0]

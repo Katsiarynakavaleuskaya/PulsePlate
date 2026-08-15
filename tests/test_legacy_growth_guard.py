@@ -285,6 +285,51 @@ def test_application_instance_ownership_rejects_factory_rebinding() -> None:
     assert any("_create_fastapi_application must not be rebound" in error for error in errors)
 
 
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "def _create_fastapi_application(metadata):",
+            "async def _create_fastapi_application(metadata):",
+        ),
+        (
+            "def _create_fastapi_application(metadata):\n",
+            "def _create_fastapi_application(metadata):\n    yield metadata\n",
+        ),
+    ],
+    ids=["async-function", "generator-function"],
+)
+def test_application_instance_ownership_requires_synchronous_nongenerator_factory(
+    old: str,
+    new: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(old, new)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/bootstrap/application.py: _create_fastapi_application must be a synchronous "
+        "non-generator function"
+    ) in errors
+
+
+def test_application_instance_ownership_ignores_nested_generator_in_factory() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "def _create_fastapi_application(metadata):\n",
+        "def _create_fastapi_application(metadata):\n"
+        "    def deferred_values():\n"
+        "        yield metadata\n\n",
+    )
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
 def test_application_instance_ownership_rejects_rebound_canonical_lifespan() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/bootstrap/application.py"] = app_sources[
@@ -917,6 +962,129 @@ def test_application_instance_ownership_rejects_one_hop_authority_mutation(
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
     assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+            first = second = owner
+            first.app = object()
+            """),
+        textwrap.dedent("""
+            from importlib import import_module
+            owner = import_module("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            from importlib import import_module as load
+            owner = load("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            import importlib as loader
+            owner = loader.import_module("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            import importlib
+            loader = importlib
+            owner = loader.import_module("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            from importlib import import_module
+            load = import_module
+            owner = load("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            from importlib import import_module
+            first = second = import_module("app.bootstrap.application")
+            second.app = object()
+            """),
+        textwrap.dedent("""
+            def mutate():
+                from importlib import import_module as load
+                first = second = load("app.bootstrap.application")
+                second.app = object()
+
+            mutate()
+            """),
+    ],
+    ids=[
+        "chained-module-alias",
+        "direct-import-loader",
+        "aliased-import-loader",
+        "aliased-importlib-module",
+        "one-hop-importlib-module",
+        "one-hop-import-loader",
+        "chained-import-loader-result",
+        "nested-chained-import-loader",
+    ],
+)
+def test_application_instance_ownership_rejects_closed_module_acquisition_aliases(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/other.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            def import_module(name):
+                return object()
+
+            owner = import_module("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            from helpers import import_module
+            owner = import_module("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            import helpers as importlib
+            owner = importlib.import_module("app.bootstrap.application")
+            owner.app = object()
+            """),
+        textwrap.dedent("""
+            owner = object()
+            first = second = owner
+            first.app = object()
+            """),
+        textwrap.dedent("""
+            def capture_loader():
+                from importlib import import_module
+                return import_module
+
+            def mutate(import_module):
+                owner = import_module("app.bootstrap.application")
+                owner.app = object()
+            """),
+    ],
+    ids=[
+        "shadowed-loader",
+        "foreign-loader",
+        "foreign-module",
+        "ordinary-chain",
+        "cross-scope-shadow",
+    ],
+)
+def test_application_instance_ownership_allows_foreign_module_acquisition_aliases(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
 
 
 @pytest.mark.parametrize(
