@@ -12129,6 +12129,7 @@ def _has_exact_compatibility_reexport(
                 len(private_events) == 1
                 and private_events[0][1] == reference
                 and len(assignments) == 1
+                and private_events[0][0] < assignments[0].lineno
                 and public_events == [(assignments[0].lineno, "assignment")]
             ):
                 return True
@@ -12301,30 +12302,37 @@ def _facade_returns_canonical_app(tree: ast.Module) -> bool:
 
     if not isinstance(getter, ast.FunctionDef):
         return False
-    for statement in getter.body:
-        if not isinstance(statement, ast.If):
-            continue
-        app_branch = (
-            isinstance(statement.test, ast.Compare)
-            and isinstance(statement.test.left, ast.Name)
-            and statement.test.left.id == "name"
-            and len(statement.test.ops) == 1
-            and isinstance(statement.test.ops[0], ast.Eq)
-            and len(statement.test.comparators) == 1
-            and _static_string(statement.test.comparators[0]) == "app"
-        )
-        if not app_branch or len(statement.body) != 1:
-            continue
-        result = statement.body[0]
-        return (
-            isinstance(result, ast.Return)
-            and isinstance(result.value, ast.Call)
-            and isinstance(result.value.func, ast.Name)
-            and result.value.func.id == "_ensure_canonical_bootstrap"
-            and not result.value.args
-            and not result.value.keywords
-        )
-    return False
+    getter_statements = list(getter.body)
+    if (
+        getter_statements
+        and isinstance(getter_statements[0], ast.Expr)
+        and isinstance(getter_statements[0].value, ast.Constant)
+        and isinstance(getter_statements[0].value.value, str)
+    ):
+        getter_statements = getter_statements[1:]
+    if not getter_statements or not isinstance(getter_statements[0], ast.If):
+        return False
+    app_statement = getter_statements[0]
+    app_branch = (
+        isinstance(app_statement.test, ast.Compare)
+        and isinstance(app_statement.test.left, ast.Name)
+        and app_statement.test.left.id == "name"
+        and len(app_statement.test.ops) == 1
+        and isinstance(app_statement.test.ops[0], ast.Eq)
+        and len(app_statement.test.comparators) == 1
+        and _static_string(app_statement.test.comparators[0]) == "app"
+    )
+    if not app_branch or len(app_statement.body) != 1:
+        return False
+    result = app_statement.body[0]
+    return (
+        isinstance(result, ast.Return)
+        and isinstance(result.value, ast.Call)
+        and isinstance(result.value.func, ast.Name)
+        and result.value.func.id == "_ensure_canonical_bootstrap"
+        and not result.value.args
+        and not result.value.keywords
+    )
 
 
 def _has_exact_name_alias(tree: ast.Module, *, target: str, source: str) -> bool:
@@ -12416,10 +12424,45 @@ def _main_bootstrap_composes_only_target(tree: ast.Module) -> bool:
         for name, value in _simple_name_assignments(statement)
         if isinstance(value, ast.Name) and value.id == "app"
     ]
+    required_composition_phase_bindings = {
+        "validate_openapi_builder_state": ("app.bootstrap.openapi.validate_openapi_builder_state"),
+        "register_http_middleware_stack": (
+            "app.bootstrap.http_stack.register_http_middleware_stack"
+        ),
+        "_register_paid_tier_routes": "definition",
+        "apply_public_openapi_input_policy": (
+            "app.bootstrap.openapi.apply_public_openapi_input_policy"
+        ),
+        "install_canonical_openapi_builder": (
+            "app.bootstrap.openapi.install_canonical_openapi_builder"
+        ),
+    }
+    required_composition_phases = tuple(required_composition_phase_bindings)
+    observed_composition_phases = [
+        statement.value.func.id
+        for statement in function.body
+        if isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Call)
+        and isinstance(statement.value.func, ast.Name)
+        and statement.value.func.id in required_composition_phases
+        and len(statement.value.args) == 1
+        and isinstance(statement.value.args[0], ast.Name)
+        and statement.value.args[0].id == "target_app"
+        and not statement.value.keywords
+    ]
+    composition_body_bindings = _statement_binding_names(function.body)
+    protected_composition_bindings = {"target_app", *required_composition_phases}
+    stable_composition_phase_owners = all(
+        len(events := _module_binding_events(tree, name)) == 1 and events[0][1] == owner
+        for name, owner in required_composition_phase_bindings.items()
+    )
     return (
         len(top_level_calls) == 1
         and isinstance(top_level_calls[0].args[0], ast.Name)
         and top_level_calls[0].args[0].id == "app"
+        and observed_composition_phases == list(required_composition_phases)
+        and stable_composition_phase_owners
+        and protected_composition_bindings.isdisjoint(composition_body_bindings)
         and not composer_app_loads
         and not module_app_aliases
         and not any(
@@ -12617,8 +12660,10 @@ def validate_application_instance_ownership(
         )
 
     canonical_events = _module_binding_events(canonical_tree, "app")
-    canonical_assignment = any(
-        isinstance(node, ast.Assign)
+    canonical_app_assignments = [
+        node
+        for node in canonical_tree.body
+        if isinstance(node, ast.Assign)
         and len(node.targets) == 1
         and isinstance(node.targets[0], ast.Name)
         and node.targets[0].id == "app"
@@ -12629,14 +12674,31 @@ def validate_application_instance_ownership(
         and isinstance(node.value.args[0], ast.Name)
         and node.value.args[0].id == "APPLICATION_METADATA"
         and not node.value.keywords
-        for node in canonical_tree.body
-    )
+    ]
+    canonical_assignment = bool(canonical_app_assignments)
     if len(canonical_events) != 1 or canonical_events[0][1] != "assignment":
         errors.append(f"{CANONICAL_APPLICATION}: canonical app must have one module assignment")
     if not canonical_assignment:
         errors.append(
             f"{CANONICAL_APPLICATION}: app must be created from APPLICATION_METADATA by "
             "_create_fastapi_application"
+        )
+    canonical_factory_calls = [
+        node
+        for node in ast.walk(canonical_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_create_fastapi_application"
+    ]
+    canonical_app_factory_calls = [node.value for node in canonical_app_assignments]
+    if (
+        len(canonical_factory_calls) != 1
+        or len(canonical_app_factory_calls) != 1
+        or canonical_factory_calls[0] is not canonical_app_factory_calls[0]
+    ):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: private factory must be called only by the canonical app "
+            "assignment"
         )
     canonical_initialization_order: list[str] = []
     for statement in canonical_tree.body:

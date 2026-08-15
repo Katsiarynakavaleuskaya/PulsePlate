@@ -81,8 +81,22 @@ def _application_instance_ownership_sources() -> tuple[str, dict[str, str]]:
         "app/main.py": textwrap.dedent("""
             import legacy_app as _legacy_module
             from app.bootstrap.application import app
+            from app.bootstrap.http_stack import register_http_middleware_stack
+            from app.bootstrap.openapi import (
+                apply_public_openapi_input_policy,
+                install_canonical_openapi_builder,
+                validate_openapi_builder_state,
+            )
+
+            def _register_paid_tier_routes(target_app):
+                return None
 
             def ensure_canonical_app_bootstrap(target_app):
+                validate_openapi_builder_state(target_app)
+                register_http_middleware_stack(target_app)
+                _register_paid_tier_routes(target_app)
+                apply_public_openapi_input_policy(target_app)
+                install_canonical_openapi_builder(target_app)
                 return target_app
 
             ensure_canonical_app_bootstrap(app)
@@ -285,6 +299,24 @@ def test_application_instance_ownership_rejects_factory_rebinding() -> None:
     assert any("_create_fastapi_application must not be rebound" in error for error in errors)
 
 
+def test_application_instance_ownership_restricts_factory_call_to_canonical_app() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "app = _create_fastapi_application(APPLICATION_METADATA)",
+        "rogue = _create_fastapi_application(APPLICATION_METADATA)\n"
+        "app = _create_fastapi_application(APPLICATION_METADATA)",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/bootstrap/application.py: private factory must be called only by the canonical app "
+        "assignment"
+    ) in errors
+
+
 @pytest.mark.parametrize(
     ("old", "new"),
     [
@@ -462,6 +494,18 @@ def test_application_instance_ownership_requires_plain_facade_getter(
     app_sources["app/__init__.py"] = app_sources["app/__init__.py"].replace(
         "def __getattr__(name):",
         replacement,
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/__init__.py: app facade branch must return the canonical application" in errors
+
+
+def test_application_instance_ownership_rejects_facade_lookup_name_rebinding() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/__init__.py"] = app_sources["app/__init__.py"].replace(
+        'def __getattr__(name):\n    if name == "app":',
+        'def __getattr__(name):\n    name = "metrics"\n    if name == "app":',
     )
 
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
@@ -1686,6 +1730,53 @@ def test_application_instance_ownership_requires_main_bootstrap_call() -> None:
     ) in errors
 
 
+def test_application_instance_ownership_requires_main_bootstrap_composition_phases() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    phase_calls = (
+        "    validate_openapi_builder_state(target_app)\n"
+        "    register_http_middleware_stack(target_app)\n"
+        "    _register_paid_tier_routes(target_app)\n"
+        "    apply_public_openapi_input_policy(target_app)\n"
+        "    install_canonical_openapi_builder(target_app)\n"
+    )
+    app_sources["app/main.py"] = app_sources["app/main.py"].replace(phase_calls, "")
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: canonical bootstrap composition must use only target_app" in errors
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "    target_app = object()\n",
+        "    validate_openapi_builder_state = lambda app: None\n",
+    ],
+    ids=["target-rebinding", "phase-callable-rebinding"],
+)
+def test_application_instance_ownership_rejects_main_bootstrap_local_rebinding(
+    mutation: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] = app_sources["app/main.py"].replace(
+        "    validate_openapi_builder_state(target_app)\n",
+        f"{mutation}    validate_openapi_builder_state(target_app)\n",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: canonical bootstrap composition must use only target_app" in errors
+
+
+def test_application_instance_ownership_rejects_main_bootstrap_owner_rebinding() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += "\nvalidate_openapi_builder_state = object\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: canonical bootstrap composition must use only target_app" in errors
+
+
 def test_application_instance_ownership_requires_main_app_import_at_module_scope() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/main.py"] = app_sources["app/main.py"].replace(
@@ -1872,6 +1963,18 @@ def test_application_instance_ownership_requires_exact_metadata_factory_reexport
     assert (
         "legacy_app.py: exact compatibility re-export is required: build_application_metadata"
     ) in errors
+
+
+def test_application_instance_ownership_requires_compatibility_alias_after_import() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    legacy_source = legacy_source.replace("app = _canonical_app\n", "").replace(
+        "from app.bootstrap.application import (",
+        "app = _canonical_app\nfrom app.bootstrap.application import (",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "legacy_app.py: app must be an exact canonical compatibility import" in errors
 
 
 def test_application_instance_ownership_requires_canonical_legacy_metadata_alias() -> None:
