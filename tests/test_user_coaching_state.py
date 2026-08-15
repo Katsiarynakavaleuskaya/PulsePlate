@@ -910,7 +910,33 @@ def test_goal_authority_is_frozen_extra_forbid_and_derived_only() -> None:
 def test_goal_authority_unknown_status_reason_fails_closed() -> None:
     forged = CoachingGoalAuthoritySnapshotV1().model_copy(update={"status": "archived"})
 
-    with pytest.raises(ValueError, match="unexpected goal status"):
+    with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+        _ = forged.no_intervention_reason
+
+
+@pytest.mark.parametrize(
+    "invalid_ref",
+    [
+        "raw goal prose",
+        [],
+        123,
+        "göal",
+        "x" * 129,
+        _OpaqueRefStringSubclass("goal:1"),
+    ],
+)
+def test_goal_authority_model_copy_invalid_refs_cannot_activate_authority(
+    invalid_ref: object,
+) -> None:
+    forged = _active_goal().model_copy(
+        update={
+            "goal_ref": invalid_ref,
+            "goal_version_ref": invalid_ref,
+        }
+    )
+
+    assert forged.has_active_authority is False
+    with pytest.raises(ValueError, match="no valid no_intervention mapping"):
         _ = forged.no_intervention_reason
 
 

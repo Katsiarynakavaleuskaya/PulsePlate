@@ -503,6 +503,45 @@ def test_non_active_goal_prevents_planner_and_projection_calls(
     assert result.decision_trace.degrade_reasons == ()
 
 
+def test_forged_active_goal_with_invalid_refs_never_calls_planner_or_projection(
+    configure_sqlite_database: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = _state()
+    forged_goal = state.goal.model_copy(update={"goal_ref": []})
+    forged_state = state.model_copy(update={"goal": forged_goal})
+    calls = {"planner": 0, "projection": 0}
+
+    def _unexpected_planner(*args: object, **kwargs: object) -> None:
+        calls["planner"] += 1
+        raise AssertionError("planner must not run with invalid goal refs")
+
+    def _unexpected_projection(*args: object, **kwargs: object) -> None:
+        calls["projection"] += 1
+        raise AssertionError("projection must not run with invalid goal refs")
+
+    monkeypatch.setattr(adapter_module, "build_user_coaching_state", lambda **_: forged_state)
+    monkeypatch.setattr(
+        adapter_module,
+        "build_markov_coaching_transition_plan",
+        _unexpected_planner,
+    )
+    monkeypatch.setattr(
+        adapter_module,
+        "to_prompt_safe_markov_context",
+        _unexpected_projection,
+    )
+
+    with configure_sqlite_database.session_scope() as session:
+        with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+            build_markov_coaching_orchestration_result(
+                user_id=forged_state.user_id,
+                session=session,
+            )
+
+    assert calls == {"planner": 0, "projection": 0}
+
+
 @pytest.mark.parametrize(
     "trace_payload",
     [

@@ -8,6 +8,7 @@ surface, client contract, prompt injection, or persistence is defined here.
 from __future__ import annotations
 
 from datetime import date, datetime
+import re
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -86,13 +87,21 @@ NoInterventionReason = Literal[
     "goal_withdrawn",
     "goal_superseded",
 ]
+_OPAQUE_GOAL_REF_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+_OPAQUE_GOAL_REF_RE = re.compile(_OPAQUE_GOAL_REF_PATTERN, flags=re.ASCII)
 OpaqueGoalRef = Annotated[
     str,
     StringConstraints(
         strict=True,
-        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+        pattern=_OPAQUE_GOAL_REF_PATTERN,
     ),
 ]
+
+
+def _is_valid_opaque_goal_ref(value: object) -> bool:
+    return type(value) is str and _OPAQUE_GOAL_REF_RE.fullmatch(value) is not None
+
+
 RiskBucket = Literal["low", "moderate", "high"]
 ConfidenceBucket = Literal["low", "high"]
 MARKOV_TRANSITION_SAFETY_LABELS: tuple[FitChefTransitionSafetyLabel, ...] = (
@@ -265,8 +274,8 @@ class CoachingGoalAuthoritySnapshotV1(BaseModel):
     )
     @classmethod
     def _require_builtin_ref_string(cls, value: object) -> object:
-        if value is not None and type(value) is not str:
-            raise ValueError("goal authority refs must use built-in str values")
+        if value is not None and not _is_valid_opaque_goal_ref(value):
+            raise ValueError("goal authority refs must match the canonical opaque grammar")
         return value
 
     @model_validator(mode="after")
@@ -318,8 +327,8 @@ class CoachingGoalAuthoritySnapshotV1(BaseModel):
             self.status == "active"
             and self.source == "user_confirmed"
             and self.data_status == "confirmed"
-            and self.goal_ref is not None
-            and self.goal_version_ref is not None
+            and _is_valid_opaque_goal_ref(self.goal_ref)
+            and _is_valid_opaque_goal_ref(self.goal_version_ref)
         )
 
     @property
@@ -338,7 +347,7 @@ class CoachingGoalAuthoritySnapshotV1(BaseModel):
             return "goal_withdrawn"
         if self.status == "superseded":
             return "goal_superseded"
-        raise ValueError("unexpected goal status has no no_intervention mapping")
+        raise ValueError("goal snapshot has no valid no_intervention mapping")
 
 
 class UserCoachingStateV1(BaseModel):
