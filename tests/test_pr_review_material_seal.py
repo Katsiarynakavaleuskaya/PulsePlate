@@ -5120,11 +5120,14 @@ def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() ->
 def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    previous_base = BASE_SHA
+    previous_merge_base = "5" * 40
     next_base = "6" * 40
     next_head = "7" * 40
+    next_merge_base = "8" * 40
     old_seal = _seal(
         build_security_outage_override_receipt(
-            base_revision=BASE_SHA,
+            base_revision=previous_merge_base,
             head_revision=HEAD_SHA,
             material_digest=DIGEST,
             override_reference="https://github.com/owner/repo/pull/42#issuecomment-1",
@@ -5134,10 +5137,16 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             operator_association="OWNER",
         )
     )
+    old_seal["material"].update(
+        {
+            "base_ref_oid": previous_base,
+            "merge_base_sha": previous_merge_base,
+        }
+    )
     next_digest = "sha256:" + "c" * 64
     new_seal = _seal(
         build_security_outage_override_receipt(
-            base_revision=next_base,
+            base_revision=next_merge_base,
             head_revision=next_head,
             material_digest=next_digest,
             override_reference="https://github.com/owner/repo/pull/42#issuecomment-2",
@@ -5154,7 +5163,7 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             "base_ref_oid": next_base,
             "digest": next_digest,
             "material_head_sha": next_head,
-            "merge_base_sha": next_base,
+            "merge_base_sha": next_merge_base,
         }
     )
     state = {
@@ -5166,17 +5175,23 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
     existing = closeout_module._render_mapping(state, old_seal)
     replacement = closeout_module._render_mapping(state, new_seal)
     merge_bases = {
-        (BASE_SHA, next_base): BASE_SHA,
+        (previous_base, next_base): previous_base,
+        (previous_merge_base, next_merge_base): previous_merge_base,
         (HEAD_SHA, next_head): HEAD_SHA,
     }
+
+    merge_base_calls: list[tuple[str, str]] = []
+
+    def fake_git(command: str, left: str, right: str) -> str:
+        if command != "merge-base":
+            pytest.fail(f"unexpected git command: {command}")
+        merge_base_calls.append((left, right))
+        return merge_bases[(left, right)]
+
     monkeypatch.setattr(
         closeout_module,
         "_git",
-        lambda command, left, right: (
-            merge_bases[(left, right)]
-            if command == "merge-base"
-            else pytest.fail(f"unexpected git command: {command}")
-        ),
+        fake_git,
     )
 
     assert (
@@ -5189,8 +5204,13 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
         )
         == HEAD_SHA
     )
+    assert merge_base_calls == [
+        (previous_base, next_base),
+        (previous_merge_base, next_merge_base),
+        (HEAD_SHA, next_head),
+    ]
 
-    merge_bases[(BASE_SHA, next_base)] = OUTSIDE_SHA
+    merge_bases[(previous_base, next_base)] = OUTSIDE_SHA
     with pytest.raises(
         closeout_module.CloseoutError,
         match="without a proven fast-forward",
@@ -5203,7 +5223,21 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             expected_freeze=new_seal["material"],
         )
 
-    merge_bases[(BASE_SHA, next_base)] = BASE_SHA
+    merge_bases[(previous_base, next_base)] = previous_base
+    merge_bases[(previous_merge_base, next_merge_base)] = OUTSIDE_SHA
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+
+    merge_bases[(previous_merge_base, next_merge_base)] = previous_merge_base
     merge_bases[(HEAD_SHA, next_head)] = OUTSIDE_SHA
     with pytest.raises(
         closeout_module.CloseoutError,
@@ -5218,35 +5252,111 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
         )
 
     merge_bases[(HEAD_SHA, next_head)] = HEAD_SHA
-    old_seal["material"]["base_ref_oid"] = FIX_SHA
-    previous_identity_mismatch = closeout_module._render_mapping(state, old_seal)
-    with pytest.raises(
-        closeout_module.CloseoutError,
-        match="without a proven fast-forward",
-    ):
-        closeout_module._validate_reseal_transition(
-            previous_identity_mismatch,
-            replacement,
-            repository="owner/repo",
-            pr_number=42,
-            expected_freeze=new_seal["material"],
-        )
 
-    old_seal["material"]["base_ref_oid"] = BASE_SHA
-    new_seal["material"]["merge_base_sha"] = BASE_SHA
-    new_seal["codex_security"]["base_revision"] = BASE_SHA
-    next_identity_mismatch = closeout_module._render_mapping(state, new_seal)
-    with pytest.raises(
-        closeout_module.CloseoutError,
-        match="without a proven fast-forward",
-    ):
-        closeout_module._validate_reseal_transition(
-            existing,
-            next_identity_mismatch,
-            repository="owner/repo",
-            pr_number=42,
-            expected_freeze=new_seal["material"],
+
+def test_closeout_git_disables_replacements_and_inherited_git_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def run(args: list[str], **kwargs: Any) -> SimpleNamespace:
+        calls.append((args, kwargs["env"]))
+        if args[1:] == ["rev-parse", "--git-path", "info/grafts"]:
+            return SimpleNamespace(returncode=0, stdout=".git/info/grafts\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="result\n", stderr="")
+
+    monkeypatch.setenv("GIT_DIR", "/attacker/git-dir")
+    monkeypatch.setenv("GIT_OBJECT_DIRECTORY", "/attacker/objects")
+    monkeypatch.setenv("GIT_ALTERNATE_OBJECT_DIRECTORIES", "/attacker/alternate")
+    monkeypatch.setenv("GIT_REPLACE_REF_BASE", "refs/attacker/")
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert closeout_module._git("merge-base", BASE_SHA, HEAD_SHA) == "result"
+    assert [args[1:] for args, _env in calls] == [
+        ["rev-parse", "--git-path", "info/grafts"],
+        ["merge-base", BASE_SHA, HEAD_SHA],
+    ]
+    for _args, env in calls:
+        assert all(
+            key
+            in {
+                "GIT_CONFIG_NOSYSTEM",
+                "GIT_NO_REPLACE_OBJECTS",
+                "GIT_OPTIONAL_LOCKS",
+            }
+            for key in env
+            if key.startswith("GIT_")
         )
+        assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+        assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
+        assert env["GIT_OPTIONAL_LOCKS"] == "0"
+        assert env["LC_ALL"] == "C"
+
+
+@pytest.mark.parametrize("graft_kind", ["file", "symlink"])
+def test_closeout_git_rejects_active_grafts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    graft_kind: str,
+) -> None:
+    graft_path = tmp_path / "git-grafts"
+    if graft_kind == "file":
+        graft_path.write_text(f"{HEAD_SHA} {BASE_SHA}\n", encoding="utf-8")
+    else:
+        graft_path.symlink_to(tmp_path / "missing-graft-target")
+
+    calls = 0
+
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=0, stdout=f"{graft_path}\n", stderr="")
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(closeout_module.CloseoutError, match="legacy Git grafts"):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
+    assert calls == 1
+
+
+@pytest.mark.parametrize("stage", ["graft_lookup", "git_command"])
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("unavailable"),
+        subprocess.TimeoutExpired(cmd=["git"], timeout=30),
+        UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid"),
+    ],
+    ids=["os-error", "timeout", "decode-error"],
+)
+def test_closeout_git_converts_execution_uncertainty_to_closeout_error(
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+    error: BaseException,
+) -> None:
+    calls = 0
+
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        if stage == "graft_lookup" or calls == 2:
+            raise error
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=0, stdout=".git/info/grafts\n", stderr="")
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    expected = (
+        "git graft-path lookup could not execute"
+        if stage == "graft_lookup"
+        else "git merge-base .* could not execute"
+    )
+    with pytest.raises(closeout_module.CloseoutError, match=expected):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
 
 
 def test_embedded_seal_rejects_duplicate_keys() -> None:
