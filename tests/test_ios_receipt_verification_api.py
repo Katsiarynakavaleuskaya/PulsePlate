@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+import subprocess
+import sys
+import textwrap
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -796,13 +800,29 @@ def test_activation_state_detail_maps_manual_status_detail() -> None:
 
 
 def test_billing_module_reload_reinitializes_app_module_cache() -> None:
-    import importlib
-    import app.routers.billing as billing_module
+    """Keep the reload probe isolated from the live canonical route table."""
+    repo_root = Path(__file__).resolve().parents[1]
+    scenario = textwrap.dedent("""
+        import importlib
 
-    billing_module._APP_MODULE = object()
-    reloaded_module = importlib.reload(billing_module)
+        import app.routers.billing as billing_module
 
-    assert reloaded_module._APP_MODULE is None
+
+        billing_module._APP_MODULE = object()
+        reloaded_module = importlib.reload(billing_module)
+
+        assert reloaded_module._APP_MODULE is None
+        """)
+
+    result = subprocess.run(
+        [sys.executable, "-c", scenario],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.asyncio
