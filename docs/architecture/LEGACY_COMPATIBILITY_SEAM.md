@@ -187,26 +187,15 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-The same guard verifies application-construction, metadata, and OpenAPI
-ownership: only `app/bootstrap/application.py` may construct the production
-FastAPI object; legacy must alias canonical environment/metadata/application
-state; `app/main.py` must import the canonical singleton and OpenAPI lifecycle
-directly; the package facade cannot install OpenAPI or adopt a mutable legacy
-binding; and canonical modules cannot reverse-import the compatibility app.
-For constructor authority, the mechanically closed grammar resolves exact
-`FastAPI`/`fastapi` imports through the closed module/function/class/comprehension
-frames enumerated by the guard; method resolution skips class namespaces and a
-comprehension's first iterable stays in its enclosing frame, while
-`global`/`nonlocal` resolve outward. The same finite grammar recognizes exact
-stdlib `import_module` bindings with static FastAPI literals and exact current
-or protected namespace mutations through one ordinary alias. Runtime references
-are allowed only as postponed annotations or non-calling type annotations, the
-exact canonical constructor call, or the retained `FastAPI.openapi` identity check. Evaluated
-annotation calls, assignment, class/container capture, subclassing, defaults,
-decorators, and non-canonical calls are rejected at that same capability
-boundary without following the derived value. The canonical application module
-also has a closed call grammar, so reflection cannot become a second constructor
-path there.
+The same guard verifies bounded metadata and OpenAPI ownership plus the direct
+application-construction boundary. For constructor authority, its lexical check
+proves finite source-shape facts: there is exactly one direct syntactic
+`FastAPI(...)` call; it belongs to `app/bootstrap/application.py`; and the
+complete private factory body is exactly the metadata expansion plus canonical
+lifespan return. It does not resolve aliases or model Python control/data flow.
+Canonical/legacy alias identity, the direct `app.main` import, facade authority,
+import order, composition, routes, middleware, lifespan, and OpenAPI parity are
+behavioral contracts owned by the dedicated runtime tests.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.
@@ -214,9 +203,8 @@ growth while later extraction PRs move routes behind canonical routers.
 ## Static Guard Threat Model
 
 The legacy growth guard is an architectural regression detector for trusted,
-reviewed repository source. It detects explicit ownership violations, direct
-reverse imports and lookups, bounded module-authority mutations, and runtime
-escape of an exactly imported FastAPI constructor capability.
+reviewed repository source. Its application-instance check detects direct
+constructor duplication or relocation and exact canonical factory-shape drift.
 
 It is not a Python sandbox, abstract interpreter, or proof against intentionally
 obfuscated source. Custom import hooks, unrecognized reflection, descriptor or

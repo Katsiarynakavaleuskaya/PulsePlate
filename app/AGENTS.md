@@ -338,20 +338,15 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - `legacy_app.py` imports and re-exports canonical `app`,
   `APPLICATION_METADATA`, and `RUNTIME_ENV`. A mutable reassignment of
   `legacy_app.app` is never application authority.
-- The ownership guard is complete only for its closed static grammar. A runtime
-  reference resolved from an exact `FastAPI`/`fastapi` import may appear only in
-  postponed annotations or non-calling type annotations, the exact canonical
-  constructor call, or the retained `FastAPI.openapi` identity check. Evaluated
-  annotation calls, assignment, class/container capture, subclassing, defaults,
-  decorators, and non-canonical calls are one forbidden capability-escape class;
-  method resolution skips class namespaces and comprehensions use their own
-  implicit function frame exactly as Python does; `global`/`nonlocal` resolve
-  outward. Exact stdlib `import_module` bindings with static FastAPI literals
-  and exact current/protected namespace mutations through one alias are also
-  closed parts of the grammar. The guard rejects the first escape and never
-  follows the derived value. Reflection,
-  import hooks, plugins, proxies, and general Python object flow are an
-  `OPEN_WORLD_STOP`, not reasons to grow a custom interpreter.
+- The ownership guard is a small lexical regression detector, not a Python
+  interpreter. It proves only that the scanned production sources contain one
+  direct `FastAPI(...)` call, that the call belongs to
+  `app/bootstrap/application.py`, and that the complete private factory body is
+  the exact metadata-plus-lifespan return. Alias propagation, dynamic imports,
+  reflection, descriptors, plugins, proxies, and general Python control/data
+  flow are deliberately outside this static claim. Runtime identity,
+  import-order, route, middleware, OpenAPI, and composition tests own behavior;
+  a novel carrier must not grow another custom parser in this PR.
 - A lifespan-only PR must not also change FastAPI instance identity, OpenAPI
   policy, deployment entrypoints, or worker topology.
 
