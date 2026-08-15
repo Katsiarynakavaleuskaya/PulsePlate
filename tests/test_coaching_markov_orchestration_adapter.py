@@ -184,6 +184,21 @@ def _install_active_goal_builder(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(adapter_module, "build_user_coaching_state", _build_with_active_goal)
 
 
+def _install_static_state_builder(
+    monkeypatch: pytest.MonkeyPatch,
+    state: UserCoachingStateV1,
+) -> None:
+    def _build_static_state(
+        user_id: int,
+        session: Session,
+        analyzer_key: str = DEFAULT_ANALYZER_KEY,
+    ) -> UserCoachingStateV1:
+        del user_id, session, analyzer_key
+        return state
+
+    monkeypatch.setattr(adapter_module, "build_user_coaching_state", _build_static_state)
+
+
 def _safe_json(result: MarkovCoachingOrchestrationResultV1) -> str:
     context = to_prompt_safe_markov_orchestration_context(result)
     return json.dumps(
@@ -279,7 +294,7 @@ def test_active_cold_start_preserves_existing_ready_policy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = _state(user_id=93_009)
-    monkeypatch.setattr(adapter_module, "build_user_coaching_state", lambda **_: state)
+    _install_static_state_builder(monkeypatch, state)
 
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(
@@ -468,7 +483,7 @@ def test_non_active_goal_prevents_planner_and_projection_calls(
         calls["projection"] += 1
         raise AssertionError("projection must not run without active goal authority")
 
-    monkeypatch.setattr(adapter_module, "build_user_coaching_state", lambda **_: state)
+    _install_static_state_builder(monkeypatch, state)
     monkeypatch.setattr(
         adapter_module,
         "build_markov_coaching_transition_plan",
@@ -520,7 +535,7 @@ def test_forged_active_goal_with_invalid_refs_never_calls_planner_or_projection(
         calls["projection"] += 1
         raise AssertionError("projection must not run with invalid goal refs")
 
-    monkeypatch.setattr(adapter_module, "build_user_coaching_state", lambda **_: forged_state)
+    _install_static_state_builder(monkeypatch, forged_state)
     monkeypatch.setattr(
         adapter_module,
         "build_markov_coaching_transition_plan",
@@ -682,11 +697,7 @@ def test_ready_status_uses_existing_prompt_safe_markov_projection(
             scanned_event_count=2,
         ),
     )
-    monkeypatch.setattr(
-        adapter_module,
-        "build_user_coaching_state",
-        lambda **_: ready_state,
-    )
+    _install_static_state_builder(monkeypatch, ready_state)
 
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(
@@ -802,11 +813,7 @@ def test_degraded_state_and_recent_behavior_reasons_are_deterministic(
             events_capped=True,
         ),
     )
-    monkeypatch.setattr(
-        adapter_module,
-        "build_user_coaching_state",
-        lambda **_: degraded_state,
-    )
+    _install_static_state_builder(monkeypatch, degraded_state)
 
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(
@@ -831,6 +838,7 @@ def test_prompt_safe_adapter_projection_excludes_identifiers_timestamps_and_clai
     user_id = 93_006
     other_user_id = 93_007
     monkeypatch.setattr(builder_module, "_now_utc", lambda: FIXED_NOW)
+    _install_active_goal_builder(monkeypatch)
     with configure_sqlite_database.session_scope() as session:
         _reset_subjects(session, user_id, other_user_id)
         session.add(
@@ -860,6 +868,7 @@ def test_prompt_safe_adapter_projection_excludes_identifiers_timestamps_and_clai
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(user_id=user_id, session=session)
 
+    assert result.prompt_safe_context is not None
     safe_json = _safe_json(result).lower()
     for forbidden in (
         "user_id",

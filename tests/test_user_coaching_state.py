@@ -16,6 +16,7 @@ from app.models import NutritionEvent
 from app.schemas.user_coaching_state import (
     AdherenceSnapshot,
     CoachingGoalAuthoritySnapshotV1,
+    NoInterventionReason,
     PromptSafeGoalAuthorityContext,
     RecentBehaviorSnapshot,
     UserCoachingStateV1,
@@ -709,7 +710,7 @@ def test_prompt_safe_context_recomputes_model_copy_derived_injection() -> None:
 def test_goal_authority_lifecycle_is_explicit_and_derived(
     goal: CoachingGoalAuthoritySnapshotV1,
     expected_active: bool,
-    expected_reason: str | None,
+    expected_reason: NoInterventionReason | None,
 ) -> None:
     assert goal.snapshot_version == "coaching_goal_authority_v1"
     assert goal.has_active_authority is expected_active
@@ -984,7 +985,7 @@ def test_goal_authority_controls_scenario_without_changing_observed_urgency() ->
         ),
         CoachingGoalAuthoritySnapshotV1(),
     )
-    states = tuple(UserCoachingStateV1(**base, goal=goal) for goal in goals)
+    states = tuple(UserCoachingStateV1.model_validate({**base, "goal": goal}) for goal in goals)
 
     assert states[0].next_recommended_scenario == "slip_support"
     assert all(state.next_recommended_scenario is None for state in states[1:])
