@@ -12638,6 +12638,27 @@ def validate_application_instance_ownership(
             f"{CANONICAL_APPLICATION}: app must be created from APPLICATION_METADATA by "
             "_create_fastapi_application"
         )
+    canonical_initialization_order: list[str] = []
+    for statement in canonical_tree.body:
+        if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+            continue
+        target = statement.targets[0]
+        if isinstance(target, ast.Name) and target.id in {
+            "RUNTIME_ENV",
+            "APPLICATION_METADATA",
+            "app",
+        }:
+            canonical_initialization_order.append(target.id)
+    if (
+        runtime_env_assignment
+        and metadata_assignment
+        and canonical_assignment
+        and canonical_initialization_order != ["RUNTIME_ENV", "APPLICATION_METADATA", "app"]
+    ):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: canonical initialization order must be "
+            "RUNTIME_ENV -> APPLICATION_METADATA -> app"
+        )
 
     if not _has_single_exact_import_binding(
         trees[CANONICAL_MAIN],

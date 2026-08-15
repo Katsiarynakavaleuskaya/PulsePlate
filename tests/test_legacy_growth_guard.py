@@ -374,6 +374,44 @@ def test_application_instance_ownership_rejects_noncanonical_environment_metadat
     assert any(expected in error for error in errors)
 
 
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "RUNTIME_ENV = get_runtime_env_name()\n"
+            "APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)",
+            "APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)\n"
+            "RUNTIME_ENV = get_runtime_env_name()",
+        ),
+        (
+            "APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)\n",
+            "",
+        ),
+    ],
+    ids=["metadata-before-runtime-env", "app-before-metadata"],
+)
+def test_application_instance_ownership_requires_initialization_dependency_order(
+    old: str,
+    new: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    source = app_sources["app/bootstrap/application.py"].replace(old, new)
+    if not new:
+        source = source.replace(
+            "app = _create_fastapi_application(APPLICATION_METADATA)",
+            "app = _create_fastapi_application(APPLICATION_METADATA)\n"
+            "APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)",
+        )
+    app_sources["app/bootstrap/application.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/bootstrap/application.py: canonical initialization order must be "
+        "RUNTIME_ENV -> APPLICATION_METADATA -> app"
+    ) in errors
+
+
 def test_application_instance_ownership_rejects_reverse_main_authority() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/main.py"] = "from legacy_app import app\n"
