@@ -10777,7 +10777,8 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #        protected-module acquisition with all simple-name chain targets, immutable exact call
 #        and authority-callable owners, reserved private factory capability, and exact
 #        compatibility re-exports
-#   L := static-literal importlib.import_module via exact module/direct import aliases
+#   L := static-literal importlib.import_module via exact module/direct import aliases, or
+#        the unshadowed builtin __import__
 #   N := scope-local protected module/namespace bindings, finite builtin/bound
 #        attribute mutators, one-hop aliases, and reloads
 #
@@ -11344,6 +11345,20 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
             and self._resolve(node.func.value.id) == "importlib_module"
         ):
             imported_module = _static_string(node.args[0])
+        if (
+            imported_module is None
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "__import__"
+            and self._resolves_builtin("__import__")
+        ):
+            module_argument: ast.AST | None = node.args[0] if node.args else None
+            if module_argument is None:
+                for keyword in node.keywords:
+                    if keyword.arg == "name":
+                        module_argument = keyword.value
+                        break
+            if module_argument is not None:
+                imported_module = _static_string(module_argument)
         if imported_module in {"fastapi", "fastapi.applications"}:
             self.dynamic_lines.add(node.lineno)
         self.generic_visit(node)
@@ -12211,6 +12226,16 @@ def _factory_expands_its_metadata(
     )
 
 
+def _factory_constructor_has_exact_argument_set(constructor: ast.Call) -> bool:
+    """Allow only the metadata expansion and canonical lifespan keyword."""
+
+    return (
+        not constructor.args
+        and len(constructor.keywords) == 2
+        and {keyword.arg for keyword in constructor.keywords} == {None, "lifespan"}
+    )
+
+
 def _facade_returns_canonical_app(tree: ast.Module) -> bool:
     """Tie the public ``app`` branch to one exact composition transition."""
 
@@ -12596,6 +12621,11 @@ def validate_application_instance_ownership(
             errors.append(
                 f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor must expand the "
                 "factory metadata parameter with to_fastapi_kwargs()"
+            )
+        if not _factory_constructor_has_exact_argument_set(constructor):
+            errors.append(
+                f"{CANONICAL_APPLICATION}:{constructor.lineno}: constructor arguments must be "
+                "exactly metadata.to_fastapi_kwargs() plus lifespan=application_lifespan"
             )
 
     factory_events = _module_binding_events(canonical_tree, "_create_fastapi_application")

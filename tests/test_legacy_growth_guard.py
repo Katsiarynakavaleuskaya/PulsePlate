@@ -284,6 +284,20 @@ def test_application_instance_ownership_requires_factory_metadata_expansion() ->
     )
 
 
+def test_application_instance_ownership_rejects_extra_factory_constructor_keyword() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/bootstrap/application.py"] = app_sources[
+        "app/bootstrap/application.py"
+    ].replace(
+        "**metadata.to_fastapi_kwargs(),",
+        "**metadata.to_fastapi_kwargs(),\n        title='wrong',",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("constructor arguments must be exactly" in error for error in errors)
+
+
 def test_application_instance_ownership_rejects_factory_rebinding() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources["app/bootstrap/application.py"] = app_sources[
@@ -966,6 +980,40 @@ def test_application_instance_ownership_rejects_import_module_constructor(
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
     assert any("dynamic FastAPI capability acquisition" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'rogue = __import__("fastapi").FastAPI()\n',
+        ('rogue = __import__(name="fastapi.applications", ' 'fromlist=["FastAPI"]).FastAPI()\n'),
+    ],
+)
+def test_application_instance_ownership_rejects_builtin_import_constructor(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("dynamic FastAPI capability acquisition" in error for error in errors)
+
+
+def test_application_instance_ownership_ignores_shadowed_builtin_import() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = textwrap.dedent("""
+        class LocalModule:
+            def FastAPI(self):
+                return object()
+
+        def __import__(name):
+            return LocalModule()
+
+        local = __import__("fastapi").FastAPI()
+        """)
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
 
 
 @pytest.mark.parametrize(
