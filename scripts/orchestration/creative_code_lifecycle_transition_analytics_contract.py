@@ -681,10 +681,18 @@ def validate_creative_code_lifecycle_transition_analytics(
             "observed transition count is inconsistent."
         )
     transition_counts_by_edge: Counter[tuple[str, str]] = Counter()
+    incoming_by_stage: Counter[str] = Counter()
+    incoming_by_stage_status: Counter[tuple[str, str]] = Counter()
+    outgoing_by_stage: Counter[str] = Counter()
     for row in transitions:
-        transition_counts_by_edge[
-            (cast(str, row["from_stage"]), cast(str, row["to_stage"]))
-        ] += cast(int, row["count"])
+        from_stage = cast(str, row["from_stage"])
+        to_stage = cast(str, row["to_stage"])
+        to_status = cast(str, row["to_status"])
+        count = cast(int, row["count"])
+        transition_counts_by_edge[(from_stage, to_stage)] += count
+        incoming_by_stage[to_stage] += count
+        incoming_by_stage_status[(to_stage, to_status)] += count
+        outgoing_by_stage[from_stage] += count
     if observed_transition_count > corpus["event_count"]:
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "observed transition count exceeds the represented corpus."
@@ -716,6 +724,47 @@ def validate_creative_code_lifecycle_transition_analytics(
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "complete terminal lineage requires an observed accepted specification edge."
         )
+
+    represented_non_root_nodes = {
+        stage: incoming_by_stage[stage] + unobserved_predecessors[stage] for stage in STAGES[1:]
+    }
+    minimum_specification_nodes = unobserved_successors["specification"] + int(
+        outgoing_by_stage["specification"] > 0
+    )
+    minimum_represented_nodes = minimum_specification_nodes + sum(
+        represented_non_root_nodes.values()
+    )
+    if minimum_represented_nodes > corpus["event_count"]:
+        raise CreativeCodeLifecycleTransitionAnalyticsError(
+            "minimum represented lifecycle node accounting exceeds the represented corpus."
+        )
+
+    continuation_sources_by_stage = {
+        stage: sum(
+            incoming_by_stage_status[(stage, status)] for status in CONTINUATION_STATUSES[stage]
+        )
+        + unobserved_predecessors[stage]
+        for stage in STAGES[1:-1]
+    }
+    patch_required_sources = unobserved_successors["patch_evaluation"] + int(
+        outgoing_by_stage["patch_evaluation"] > 0
+    )
+    if patch_required_sources > continuation_sources_by_stage["patch_evaluation"]:
+        raise CreativeCodeLifecycleTransitionAnalyticsError(
+            "patch continuation accounting exceeds represented accepted patch sources."
+        )
+    for stage in (
+        "promotion_plan",
+        "promotion_validation",
+        "promotion_approval",
+        "pr_open",
+    ):
+        required_sources = outgoing_by_stage[stage] + unobserved_successors[stage]
+        if required_sources > continuation_sources_by_stage[stage]:
+            raise CreativeCodeLifecycleTransitionAnalyticsError(
+                "one-to-one continuation accounting exceeds represented source events."
+            )
+
     if unobserved_predecessors["specification"] != 0:
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "specification cannot have an unobserved predecessor."

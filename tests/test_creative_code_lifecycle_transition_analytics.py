@@ -731,6 +731,133 @@ def test_reidentified_complete_lineage_requires_one_observed_accepted_specificat
         validate_creative_code_lifecycle_transition_analytics(forged)
 
 
+def test_reidentified_one_event_corpus_cannot_claim_one_adjacent_transition() -> None:
+    specification = _legacy_event(
+        "specification",
+        status="accepted",
+        source_packet_id="packet-one-event",
+        source_bundle_id="bundle-one-event",
+        selected_variant_id="variant-one-event",
+    )
+    forged = copy.deepcopy(_analytics([specification]))
+    forged["transition_counts"] = [
+        {
+            "from_stage": "specification",
+            "from_status": "accepted",
+            "to_stage": "patch_evaluation",
+            "to_status": "accepted",
+            "count": 1,
+        }
+    ]
+    forged["lineage_accounting"]["observed_transition_count"] = 1
+    forged["lineage_accounting"]["unobserved_successors_by_stage"]["specification"] = 0
+    _reidentify_artifact(forged)
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="minimum represented lifecycle node accounting exceeds",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
+def test_reidentified_disjoint_edges_cannot_hide_sources_in_unrelated_events() -> None:
+    events = [
+        _legacy_event(
+            "specification",
+            status="accepted",
+            source_packet_id="packet-disjoint-a",
+            source_bundle_id="bundle-disjoint-a",
+            selected_variant_id="variant-disjoint-a",
+        ),
+        _legacy_event(
+            "specification",
+            status="accepted",
+            source_packet_id="packet-disjoint-b",
+            source_bundle_id="bundle-disjoint-b",
+            selected_variant_id="variant-disjoint-b",
+        ),
+        _artifact_read_error_event(),
+    ]
+    forged = copy.deepcopy(_analytics(events))
+    forged["transition_counts"] = [
+        {
+            "from_stage": "specification",
+            "from_status": "accepted",
+            "to_stage": "patch_evaluation",
+            "to_status": "accepted",
+            "count": 1,
+        },
+        {
+            "from_stage": "promotion_plan",
+            "from_status": "accepted",
+            "to_stage": "promotion_validation",
+            "to_status": "accepted",
+            "count": 1,
+        },
+    ]
+    forged["lineage_accounting"]["observed_transition_count"] = 2
+    forged["lineage_accounting"]["unobserved_successors_by_stage"]["specification"] = 1
+    _reidentify_artifact(forged)
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="minimum represented lifecycle node accounting exceeds",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
+@pytest.mark.parametrize("stage", ["promotion_plan", "pr_open"])
+def test_reidentified_one_to_one_edges_require_distinct_represented_sources(stage: str) -> None:
+    if stage == "promotion_plan":
+        promotion_a = "promotion-one-to-one-plan-a"
+        promotion_b = "promotion-one-to-one-plan-b"
+        events = [
+            _legacy_event(
+                "promotion_plan",
+                status="accepted",
+                source_bundle_id="bundle-one-to-one-plan",
+                selected_variant_id="variant-one-to-one-plan",
+                request_id="request-one-to-one-plan",
+                result_id="result-one-to-one-plan",
+                promotion_id=promotion_a,
+            ),
+            _legacy_event("promotion_validation", status="accepted", promotion_id=promotion_a),
+            _legacy_event("promotion_validation", status="accepted", promotion_id=promotion_b),
+        ]
+        destination_stage = "promotion_validation"
+    else:
+        promotion_a = "promotion-one-to-one-open-a"
+        promotion_b = "promotion-one-to-one-open-b"
+        events = [
+            _legacy_event(
+                "pr_open",
+                status="opened",
+                result_id="result-one-to-one-open",
+                promotion_id=promotion_a,
+            ),
+            _terminal_event(promotion_a, number=2710),
+            _terminal_event(promotion_b, number=2711),
+        ]
+        destination_stage = "pr_terminal"
+
+    forged = copy.deepcopy(_analytics(events))
+    row = next(
+        row
+        for row in forged["transition_counts"]
+        if row["from_stage"] == stage and row["to_stage"] == destination_stage
+    )
+    row["count"] = 2
+    forged["lineage_accounting"]["observed_transition_count"] += 1
+    forged["lineage_accounting"]["unobserved_predecessors_by_stage"][destination_stage] -= 1
+    _reidentify_artifact(forged)
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="one-to-one continuation accounting exceeds",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
