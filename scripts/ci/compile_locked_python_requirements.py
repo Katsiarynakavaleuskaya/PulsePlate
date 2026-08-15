@@ -17,6 +17,7 @@ import fcntl
 import hashlib
 import hmac
 from importlib import metadata as importlib_metadata
+import json
 import netrc
 import os
 from pathlib import Path
@@ -65,6 +66,11 @@ MAKE_AUTHORITY_ENV = "PULSEPLATE_LOCK_COMPILE_VIA_MAKE"
 PROFILE_SELECTION_ENV = "PULSEPLATE_LOCK_PROFILES_RAW"
 UPGRADE_SELECTION_ENV = "PULSEPLATE_LOCK_UPGRADES_RAW"
 GRAPH_CHANGE_SELECTION_ENV = "PULSEPLATE_LOCK_GRAPH_CHANGES_RAW"
+GRAPH_CHANGE_ADMISSION_ENV = "PULSEPLATE_LOCK_GRAPH_ADMISSION_RAW"
+GRAPH_CHANGE_ADMISSION_PATH = Path("scripts/ci/python_dependency_graph_change_admissions.v1.json")
+GRAPH_CHANGE_ADMISSION_SCHEMA = "pulseplate-python-dependency-graph-change-admission.v1"
+GRAPH_CHANGE_ADMISSION_ID = "observability-refresh-2026-08-15"
+GRAPH_CHANGE_ADMISSION_MAX_BYTES = 32 * 1024
 COMPILE_TIMEOUT_SECONDS = 300
 DOWNLOAD_TIMEOUT_SECONDS = 300
 ARTIFACT_ADMISSION_TIMEOUT_SECONDS = 60.0
@@ -203,6 +209,19 @@ class PreparedLock:
             raise ValueError("Rollback baseline bytes must match the captured output snapshot.")
 
 
+@dataclass(frozen=True)
+class GraphChangeAdmission:
+    """One closed-world, removal-only lock transition authorized by the repository."""
+
+    path: Path
+    capture: FileCapture
+    profiles: tuple[str, ...]
+    upgrades: Mapping[str, str]
+    removals: frozenset[str]
+    baseline_digests: Mapping[str, str]
+    runtime_target_sha256: str
+
+
 def _profile_registry() -> dict[str, DependencySurface]:
     validate_compile_registry()
     registry: dict[str, DependencySurface] = {}
@@ -270,14 +289,297 @@ def _parse_graph_changes(raw_value: str | None) -> frozenset[str]:
         if normalized_name in packages:
             raise RuntimeError(f"Duplicate graph-change package: {normalized_name}")
         packages.add(normalized_name)
-    if packages:
-        raise RuntimeError(
-            "GRAPH_CHANGE_PACKAGES is not supported by the governed lock compiler. "
-            "Only exact seeded-baseline refreshes selected with UPGRADE_PACKAGES are "
-            "admitted; dependency graph changes require a future versioned "
-            "artifact-admission contract."
-        )
     return frozenset(packages)
+
+
+def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise RuntimeError(f"Duplicate graph-change admission field: {key}")
+        result[key] = value
+    return result
+
+
+def _require_exact_keys(
+    value: object,
+    *,
+    keys: frozenset[str],
+    label: str,
+) -> dict[str, object]:
+    if type(value) is not dict:
+        raise RuntimeError(f"{label} must be a JSON object.")
+    mapping = value
+    actual = frozenset(mapping)
+    if actual != keys:
+        raise RuntimeError(
+            f"{label} fields must match the closed v1 schema; "
+            f"missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
+        )
+    return mapping
+
+
+def _require_string_list(value: object, *, label: str) -> tuple[str, ...]:
+    if type(value) is not list or any(type(item) is not str for item in value):
+        raise RuntimeError(f"{label} must be a JSON array of strings.")
+    return tuple(value)
+
+
+def _require_sha256_bytes(value: object, *, label: str) -> str:
+    if (
+        type(value) is not list
+        or len(value) != 32
+        or any(type(item) is not int or not 0 <= item <= 255 for item in value)
+    ):
+        raise RuntimeError(f"{label} must contain exactly 32 JSON byte integers.")
+    return bytes(value).hex()
+
+
+def _capture_graph_change_admission(repo_root: Path) -> tuple[Path, FileCapture]:
+    path = _validated_repo_file(repo_root, str(GRAPH_CHANGE_ADMISSION_PATH))
+    metadata = path.lstat()
+    if metadata.st_nlink != 1:
+        raise RuntimeError("Graph-change admission must not be hardlinked.")
+    capture = _capture_file(path)
+    if capture.snapshot.size > GRAPH_CHANGE_ADMISSION_MAX_BYTES:
+        raise RuntimeError("Graph-change admission exceeds the closed v1 size limit.")
+    try:
+        final_metadata = path.lstat()
+    except OSError as exc:
+        raise RuntimeError("Graph-change admission identity changed while it was read.") from exc
+    if final_metadata.st_nlink != 1:
+        raise RuntimeError("Graph-change admission link identity changed while it was read.")
+    return path, capture
+
+
+def _assert_graph_change_admission(admission: GraphChangeAdmission) -> None:
+    try:
+        metadata = admission.path.lstat()
+    except OSError as exc:
+        raise RuntimeError("Graph-change admission disappeared during lock compilation.") from exc
+    if metadata.st_nlink != 1:
+        raise RuntimeError("Graph-change admission must remain singly linked.")
+    _assert_snapshot(admission.path, admission.capture.snapshot)
+
+
+def _authorize_graph_changes(
+    *,
+    repo_root: Path,
+    profiles: Sequence[str],
+    upgrades: Mapping[str, str],
+    graph_changes: frozenset[str],
+    admission_id: str | None,
+) -> GraphChangeAdmission | None:
+    selector = (admission_id or "").strip()
+    if not graph_changes:
+        if selector:
+            raise RuntimeError(
+                "GRAPH_CHANGE_ADMISSION is forbidden when no graph change is requested."
+            )
+        return None
+    if selector != GRAPH_CHANGE_ADMISSION_ID:
+        raise RuntimeError(
+            "Dependency graph changes require the exact repository-owned closed v1 admission."
+        )
+
+    path, capture = _capture_graph_change_admission(repo_root)
+    try:
+        raw = capture.content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("Graph-change admission must be UTF-8.") from exc
+    try:
+        document = json.loads(
+            raw,
+            object_pairs_hook=_strict_json_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                RuntimeError(f"Invalid graph-change admission constant: {value}")
+            ),
+        )
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Graph-change admission must be strict JSON: {exc}") from exc
+
+    root = _require_exact_keys(
+        document,
+        keys=frozenset({"schema", "record"}),
+        label="Graph-change admission",
+    )
+    if root["schema"] != GRAPH_CHANGE_ADMISSION_SCHEMA:
+        raise RuntimeError("Graph-change admission schema is not the exact supported v1 schema.")
+    record = _require_exact_keys(
+        root["record"],
+        keys=frozenset(
+            {
+                "admission_id",
+                "profile_universe",
+                "allowed_transactions",
+                "upgrades",
+                "graph_change",
+                "baselines",
+                "runtime_target_observation",
+            }
+        ),
+        label="Graph-change admission record",
+    )
+    if record["admission_id"] != GRAPH_CHANGE_ADMISSION_ID:
+        raise RuntimeError("Graph-change admission record ID does not match the selector.")
+
+    profile_universe = _require_string_list(
+        record["profile_universe"], label="Graph-change profile_universe"
+    )
+    expected_universe = ("runtime", "docker-runtime", "ci-lite", "aggregate")
+    if profile_universe != expected_universe:
+        raise RuntimeError("Graph-change profile_universe is not the exact closed v1 universe.")
+
+    raw_transactions = record["allowed_transactions"]
+    if type(raw_transactions) is not list:
+        raise RuntimeError("Graph-change allowed_transactions must be a JSON array.")
+    transactions = tuple(
+        _require_string_list(item, label="Graph-change transaction") for item in raw_transactions
+    )
+    expected_transactions = (
+        ("runtime",),
+        ("docker-runtime", "ci-lite", "aggregate"),
+    )
+    if transactions != expected_transactions or tuple(profiles) not in transactions:
+        raise RuntimeError(
+            "Selected profiles are not one exact ordered transaction in the closed v1 admission."
+        )
+
+    raw_upgrades = _require_exact_keys(
+        record["upgrades"],
+        keys=frozenset(
+            {
+                "opentelemetry-api",
+                "opentelemetry-sdk",
+                "opentelemetry-exporter-otlp-proto-http",
+                "opentelemetry-exporter-otlp-proto-common",
+                "opentelemetry-proto",
+                "opentelemetry-semantic-conventions",
+                "prometheus-client",
+            }
+        ),
+        label="Graph-change upgrades",
+    )
+    expected_upgrades = {
+        "opentelemetry-api": "1.44.0",
+        "opentelemetry-sdk": "1.44.0",
+        "opentelemetry-exporter-otlp-proto-http": "1.44.0",
+        "opentelemetry-exporter-otlp-proto-common": "1.44.0",
+        "opentelemetry-proto": "1.44.0",
+        "opentelemetry-semantic-conventions": "0.65b0",
+        "prometheus-client": "0.25.0",
+    }
+    if raw_upgrades != expected_upgrades or dict(upgrades) != expected_upgrades:
+        raise RuntimeError("Graph-change upgrades are not the exact admitted seven targets.")
+
+    raw_graph_change = _require_exact_keys(
+        record["graph_change"],
+        keys=frozenset({"removals", "additions"}),
+        label="Graph-change delta",
+    )
+    removals = _require_string_list(raw_graph_change["removals"], label="Graph-change removals")
+    additions = _require_string_list(raw_graph_change["additions"], label="Graph-change additions")
+    if removals != ("importlib-metadata", "zipp") or additions:
+        raise RuntimeError("Graph-change delta is not the exact removal-only v1 transition.")
+    if graph_changes != frozenset(removals):
+        raise RuntimeError("GRAPH_CHANGE_PACKAGES does not match the exact admitted removals.")
+
+    baselines = _require_exact_keys(
+        record["baselines"],
+        keys=frozenset(profile_universe),
+        label="Graph-change baselines",
+    )
+    expected_lockfiles = {
+        "runtime": "requirements.txt",
+        "docker-runtime": "requirements-docker-runtime.txt",
+        "ci-lite": "requirements-ci-lite.txt",
+        "aggregate": "requirements-lock.txt",
+    }
+    baseline_records: dict[str, dict[str, object]] = {}
+    for profile in profile_universe:
+        baseline = _require_exact_keys(
+            baselines[profile],
+            keys=frozenset({"lockfile", "sha256_bytes"}),
+            label=f"Graph-change {profile} baseline",
+        )
+        if baseline["lockfile"] != expected_lockfiles[profile]:
+            raise RuntimeError(f"Graph-change {profile} baseline lockfile is not canonical.")
+        digest = _require_sha256_bytes(
+            baseline["sha256_bytes"], label=f"Graph-change {profile} baseline SHA-256"
+        )
+        baseline["sha256_bytes"] = digest
+        baseline_records[profile] = baseline
+
+    observation = _require_exact_keys(
+        record["runtime_target_observation"],
+        keys=frozenset({"lockfile", "sha256_bytes"}),
+        label="Graph-change runtime target observation",
+    )
+    target_digest = _require_sha256_bytes(
+        observation["sha256_bytes"],
+        label="Graph-change runtime target byte SHA-256",
+    )
+    if observation["lockfile"] != "requirements.txt":
+        raise RuntimeError("Graph-change runtime target observation is invalid.")
+
+    selected = tuple(profiles)
+    profiles_requiring_baseline: tuple[str, ...]
+    if selected == expected_transactions[0]:
+        profiles_requiring_baseline = profile_universe
+    else:
+        profiles_requiring_baseline = selected
+    for profile in profiles_requiring_baseline:
+        lock_path = _validated_repo_file(repo_root, expected_lockfiles[profile])
+        baseline_capture = _capture_file(lock_path)
+        if baseline_capture.snapshot.digest != baseline_records[profile]["sha256_bytes"]:
+            raise RuntimeError(f"Graph-change {profile} baseline is stale or has unexpected bytes.")
+    if selected == expected_transactions[1]:
+        runtime_path = _validated_repo_file(repo_root, "requirements.txt")
+        runtime_capture = _capture_file(runtime_path)
+        if runtime_capture.snapshot.digest != target_digest:
+            raise RuntimeError(
+                "Graph-change dependent transaction requires the exact admitted runtime target."
+            )
+
+    admission = GraphChangeAdmission(
+        path=path,
+        capture=capture,
+        profiles=selected,
+        upgrades=dict(expected_upgrades),
+        removals=frozenset(removals),
+        baseline_digests={
+            profile: str(baseline_records[profile]["sha256_bytes"]) for profile in profile_universe
+        },
+        runtime_target_sha256=target_digest,
+    )
+    _assert_graph_change_admission(admission)
+    return admission
+
+
+def _assert_plans_match_graph_change_admission(
+    plans: Sequence[LockInputPlan],
+    admission: GraphChangeAdmission,
+) -> None:
+    for plan in plans:
+        profile = plan.surface.compile_profile
+        if profile is None or (
+            plan.output_capture.snapshot.digest != admission.baseline_digests.get(profile)
+        ):
+            raise RuntimeError(
+                "Captured lock input does not match the exact graph-change admission baseline."
+            )
+        if profile != "runtime":
+            runtime_sources = [
+                capture for path, capture in plan.source_captures if path.name == "requirements.txt"
+            ]
+            if len(runtime_sources) != 1:
+                raise RuntimeError(
+                    f"Graph-change {profile} transaction lacks one captured runtime constraint."
+                )
+            if runtime_sources[0].snapshot.digest != admission.runtime_target_sha256:
+                raise RuntimeError(
+                    "Captured runtime constraint does not match the admitted target observation."
+                )
 
 
 def _capture_file(path: Path) -> FileCapture:
@@ -727,6 +1029,11 @@ def _validate_candidate_delta(
             f"{surface.lockfile}: dependency graph change is not exactly authorized; "
             f"missing={missing}, added={added}, "
             f"unexpected={unexpected_graph_changes}, unused={unused_graph_changes}"
+        )
+    if graph_changes and (set(missing) != set(graph_changes) or added):
+        raise RuntimeError(
+            f"{surface.lockfile}: the closed v1 graph admission is removal-only; "
+            f"missing={missing}, added={added}"
         )
 
     changed: set[str] = set()
@@ -1512,14 +1819,21 @@ def _prepare_lock(
     surface: DependencySurface,
     upgrades: Mapping[str, str],
     graph_changes: frozenset[str],
+    graph_admission: GraphChangeAdmission | None = None,
     child_env: Mapping[str, str],
     input_plan: LockInputPlan | None = None,
     wheel_artifacts: Sequence[ValidatedWheel] = (),
 ) -> PreparedLock:
-    if graph_changes:
+    if graph_changes and (
+        graph_admission is None
+        or graph_admission.removals != graph_changes
+        or surface.compile_profile not in graph_admission.profiles
+    ):
         raise RuntimeError(
-            "Dependency graph changes require a future versioned artifact-admission contract."
+            "Dependency graph changes require the exact selected closed v1 admission."
         )
+    if graph_admission is not None:
+        _assert_graph_change_admission(graph_admission)
     plan = input_plan or _capture_lock_input_plan(
         repo_root=repo_root,
         surface=surface,
@@ -1527,6 +1841,8 @@ def _prepare_lock(
     )
     if plan.surface != surface:
         raise RuntimeError("Lock input plan does not match the selected dependency surface.")
+    if graph_admission is not None:
+        _assert_plans_match_graph_change_admission((plan,), graph_admission)
     _assert_lock_input_plan(plan)
     output_path = plan.output_path
     source_captures = dict(plan.source_captures)
@@ -1637,6 +1953,14 @@ def _prepare_lock(
             candidate_file.flush()
             os.fsync(candidate_file.fileno())
         candidate_snapshot = _snapshot(governed_candidate_path)
+        if (
+            graph_admission is not None
+            and surface.compile_profile == "runtime"
+            and candidate_snapshot.digest != graph_admission.runtime_target_sha256
+        ):
+            raise RuntimeError(
+                "Prepared runtime lock bytes do not match the exact admitted TX1 target."
+            )
         return PreparedLock(
             surface=surface,
             output_path=output_path,
@@ -1659,11 +1983,15 @@ def _validate_profile_transaction(
     repo_root: Path,
     profiles: Sequence[str],
     graph_changes: frozenset[str],
+    graph_admission: GraphChangeAdmission | None = None,
 ) -> None:
-    if graph_changes:
+    if graph_changes and (
+        graph_admission is None
+        or graph_admission.removals != graph_changes
+        or graph_admission.profiles != tuple(profiles)
+    ):
         raise RuntimeError(
-            "GRAPH_CHANGE_PACKAGES is not supported; dependency graph changes require "
-            "a future versioned artifact-admission contract."
+            "Dependency graph changes require the exact selected closed v1 admission."
         )
     if "runtime" not in profiles:
         return
@@ -1798,10 +2126,18 @@ def _compile_selected_profiles_locked(
     environment: Mapping[str, str],
 ) -> None:
     registry = _profile_registry()
+    graph_admission = _authorize_graph_changes(
+        repo_root=repo_root,
+        profiles=profiles,
+        upgrades=upgrades,
+        graph_changes=graph_changes,
+        admission_id=environment.get(GRAPH_CHANGE_ADMISSION_ENV),
+    )
     _validate_profile_transaction(
         repo_root=repo_root,
         profiles=profiles,
         graph_changes=graph_changes,
+        graph_admission=graph_admission,
     )
     plans = tuple(
         _capture_lock_input_plan(
@@ -1811,7 +2147,11 @@ def _compile_selected_profiles_locked(
         )
         for profile in profiles
     )
+    if graph_admission is not None:
+        _assert_plans_match_graph_change_admission(plans, graph_admission)
     bootstrap_artifacts = _resolver_bootstrap_artifacts()
+    if graph_admission is not None:
+        _assert_graph_change_admission(graph_admission)
     with tempfile.TemporaryDirectory(prefix="pulseplate-lock-transaction-") as transaction_dir:
         transaction_root = Path(transaction_dir)
         os.chmod(transaction_root, 0o700)
@@ -1839,6 +2179,8 @@ def _compile_selected_profiles_locked(
             )
             for plan in plans:
                 _assert_lock_input_plan(plan)
+            if graph_admission is not None:
+                _assert_graph_change_admission(graph_admission)
             _remove_credential_material(credentialed_home)
         if Path(credentialed_home_dir).exists():
             raise RuntimeError("Credentialed download HOME was not removed before compilation.")
@@ -1858,6 +2200,8 @@ def _compile_selected_profiles_locked(
         )
         for plan in plans:
             _assert_lock_input_plan(plan)
+        if graph_admission is not None:
+            _assert_graph_change_admission(graph_admission)
 
         with tempfile.TemporaryDirectory(
             prefix="offline-home-",
@@ -1886,6 +2230,7 @@ def _compile_selected_profiles_locked(
                             surface=plan.surface,
                             upgrades=upgrades,
                             graph_changes=graph_changes,
+                            graph_admission=graph_admission,
                             child_env=offline_env,
                             input_plan=plan,
                             wheel_artifacts=profile_wheelhouse.artifacts,
@@ -1896,6 +2241,8 @@ def _compile_selected_profiles_locked(
                         _assert_snapshot(path, snapshot)
                     _assert_snapshot(candidate.output_path, candidate.output_snapshot)
                     _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+                if graph_admission is not None:
+                    _assert_graph_change_admission(graph_admission)
                 try:
                     for candidate in prepared:
                         _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
