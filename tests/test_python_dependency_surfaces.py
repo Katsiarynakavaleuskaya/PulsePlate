@@ -2454,13 +2454,44 @@ def _copy_graph_change_admission_repo(destination: Path) -> None:
     admission_path = destination / compiler.GRAPH_CHANGE_ADMISSION_PATH
     admission_path.parent.mkdir(parents=True)
     admission_path.write_bytes((REPO_ROOT / compiler.GRAPH_CHANGE_ADMISSION_PATH).read_bytes())
+    seeded_lock = (
+        "importlib-metadata==8.7.0\n"
+        "opentelemetry-api==1.40.0\n"
+        "opentelemetry-exporter-otlp-proto-common==1.40.0\n"
+        "opentelemetry-exporter-otlp-proto-http==1.40.0\n"
+        "opentelemetry-proto==1.40.0\n"
+        "opentelemetry-sdk==1.40.0\n"
+        "opentelemetry-semantic-conventions==0.61b0\n"
+        "prometheus-client==0.24.1\n"
+        "zipp==3.23.0\n"
+    ).encode("utf-8")
+    payload = json.loads(admission_path.read_text(encoding="utf-8"))
     for lockfile in (
         "requirements.txt",
         "requirements-docker-runtime.txt",
         "requirements-ci-lite.txt",
         "requirements-lock.txt",
     ):
-        (destination / lockfile).write_bytes((REPO_ROOT / lockfile).read_bytes())
+        (destination / lockfile).write_bytes(seeded_lock)
+    for baseline in payload["record"]["baselines"].values():
+        baseline["sha256_bytes"] = list(hashlib.sha256(seeded_lock).digest())
+    payload["record"]["runtime_target_observation"]["sha256_bytes"] = list(
+        hashlib.sha256(_synthetic_runtime_target(destination)).digest()
+    )
+    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _synthetic_runtime_surface() -> surfaces.DependencySurface:
+    return surfaces.DependencySurface(
+        name="runtime",
+        source_file="requirements.in",
+        lockfile="requirements.txt",
+        owner="Synthetic graph-admission test",
+        use_case="Closed transition fixture",
+        install_authority="Test only",
+        compile_profile="runtime",
+        compile_sources=("requirements.in",),
+    )
 
 
 def _render_semantic_runtime_target(repo_root: Path) -> bytes:
@@ -2480,16 +2511,15 @@ def _render_semantic_runtime_target(repo_root: Path) -> bytes:
     return "".join(rows).encode("utf-8")
 
 
+def _synthetic_runtime_target(repo_root: Path) -> bytes:
+    return surfaces.render_governed_lock_header(_synthetic_runtime_surface()).encode(
+        "utf-8"
+    ) + _render_semantic_runtime_target(repo_root)
+
+
 def _write_admitted_runtime_target(repo_root: Path) -> None:
     runtime_path = repo_root / "requirements.txt"
-    runtime_bytes = _render_semantic_runtime_target(repo_root)
-    runtime_path.write_bytes(runtime_bytes)
-    admission_path = repo_root / compiler.GRAPH_CHANGE_ADMISSION_PATH
-    payload = json.loads(admission_path.read_text(encoding="utf-8"))
-    payload["record"]["runtime_target_observation"]["sha256_bytes"] = list(
-        hashlib.sha256(runtime_bytes).digest()
-    )
-    admission_path.write_text(json.dumps(payload), encoding="utf-8")
+    runtime_path.write_bytes(_synthetic_runtime_target(repo_root))
 
 
 def test_closed_graph_change_admission_authorizes_only_two_ordered_states(
@@ -2592,10 +2622,22 @@ def test_tx1_rejects_semantically_equal_candidate_with_wrong_byte_digest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _copy_graph_change_admission_repo(tmp_path)
-    (tmp_path / "requirements.in").write_bytes((REPO_ROOT / "requirements.in").read_bytes())
+    (tmp_path / "requirements.in").write_text(
+        "\n".join(
+            f"{package}>={version}" for package, version in sorted(OBSERVABILITY_UPGRADES.items())
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     runtime_path = tmp_path / "requirements.txt"
     baseline = runtime_path.read_bytes()
-    semantic_target = _render_semantic_runtime_target(tmp_path)
+    semantic_target_with_byte_drift = (
+        _render_semantic_runtime_target(tmp_path) + b"# semantically inert candidate drift\n"
+    )
+    admitted_target = _synthetic_runtime_target(tmp_path)
+    assert compiler._exact_pin_map(
+        semantic_target_with_byte_drift.decode("utf-8"), label="drifted runtime candidate"
+    ) == compiler._exact_pin_map(admitted_target.decode("utf-8"), label="admitted runtime target")
     admission = compiler._authorize_graph_changes(
         repo_root=tmp_path,
         profiles=("runtime",),
@@ -2608,14 +2650,14 @@ def test_tx1_rejects_semantically_equal_candidate_with_wrong_byte_digest(
     def write_semantically_equal_candidate(
         command: list[str], **_: object
     ) -> subprocess.CompletedProcess[str]:
-        _candidate_output_path(command).write_bytes(semantic_target)
+        _candidate_output_path(command).write_bytes(semantic_target_with_byte_drift)
         return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(compiler.subprocess, "run", write_semantically_equal_candidate)
     with pytest.raises(RuntimeError, match="exact admitted TX1 target"):
         compiler._prepare_lock(
             repo_root=tmp_path,
-            surface=_surface("runtime"),
+            surface=_synthetic_runtime_surface(),
             upgrades=OBSERVABILITY_UPGRADES,
             graph_changes=OBSERVABILITY_REMOVALS,
             graph_admission=admission,
@@ -2730,8 +2772,8 @@ def test_closed_graph_change_admission_rejects_malformed_schema(
         original = path.read_text(encoding="utf-8")
         path.write_text(
             original.replace(
-                '  "schema":',
-                '  "schema": "duplicate",\n  "schema":',
+                '"schema":',
+                '"schema":"duplicate","schema":',
                 1,
             ),
             encoding="utf-8",
