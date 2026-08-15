@@ -10769,7 +10769,7 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 
 
 # Closed FastAPI ownership grammar G:
-#   I := exact lexical import binding of ``FastAPI`` or its ``fastapi`` module
+#   I := exact non-wildcard lexical import binding of ``FastAPI`` or its ``fastapi`` module
 #   S := module/function/class/comprehension frames plus global/nonlocal outward lookup
 #   R := runtime load resolved through S to I
 #   A := annotation load | exact canonical constructor call | FastAPI.openapi
@@ -11229,6 +11229,12 @@ class _FastAPICapabilityVisitor(ast.NodeVisitor):
     def visit_arg(self, node: ast.arg) -> None:
         return
 
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module in {"fastapi", "fastapi.applications"} and any(
+            alias.name == "*" for alias in node.names
+        ):
+            self.dynamic_lines.add(node.lineno)
+
     def _visit_annotation(self, node: ast.AST | None) -> None:
         if node is None:
             return
@@ -11454,6 +11460,8 @@ def _module_app_mutation(
             targets = node.targets
         elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
             targets = (node.target,)
+        elif isinstance(node, ast.Delete):
+            targets = node.targets
         for target in targets:
             if isinstance(target, ast.Attribute) and target.attr == "app":
                 if protected(target.value) or namespace(target.value):

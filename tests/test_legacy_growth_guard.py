@@ -163,6 +163,22 @@ def test_application_instance_ownership_rejects_fastapi_submodule_alias_construc
     assert "FastAPI production constructor count must be exactly 1; found 2" in errors
 
 
+@pytest.mark.parametrize("module", ["fastapi", "fastapi.applications"])
+def test_application_instance_ownership_rejects_fastapi_wildcard_import(
+    module: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = f"from {module} import *\nrogue = FastAPI()\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any(
+        "app/other.py" in error
+        and "dynamic FastAPI capability acquisition is outside grammar G" in error
+        for error in errors
+    )
+
+
 def test_application_instance_ownership_rejects_second_canonical_constructor() -> None:
     legacy_source, app_sources = _application_instance_ownership_sources()
     app_sources[
@@ -384,6 +400,25 @@ def test_application_instance_ownership_rejects_module_dunder_dict_app_mutation(
         import legacy_app
         legacy_app.__dict__["app"] = object()
         """)
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "del owner.app",
+        'del owner.__dict__["app"]',
+        'namespace = vars(owner)\ndel namespace["app"]',
+    ],
+)
+def test_application_instance_ownership_rejects_deleted_app_authority(
+    mutation: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] += "\nimport app.bootstrap.application as owner\n" f"{mutation}\n"
 
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
@@ -637,6 +672,17 @@ def test_application_instance_ownership_honors_comprehension_local_shadow() -> N
         from fastapi import FastAPI
 
         ordinary = lambda: [FastAPI() for FastAPI in (object,)]
+        """)
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+def test_application_instance_ownership_honors_later_comprehension_target_shadow() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = textwrap.dedent("""
+        from fastapi import FastAPI
+
+        ordinary = [FastAPI for _ in (None,) for FastAPI in (FastAPI(),)]
         """)
 
     assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
