@@ -10775,7 +10775,8 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   B := exact plain authority callables, downward-only constructor dependencies, target-only
 #        composition with a final direct return, one ordered facade transition, exact lexical
 #        protected-module acquisition with all simple-name chain targets, immutable exact call
-#        owners, reserved private factory capability, and exact compatibility re-exports
+#        and authority-callable owners, reserved private factory capability, and exact
+#        compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
 #   N := scope-local protected module/namespace bindings, finite builtin/bound
 #        attribute mutators, one-hop aliases, and reloads
@@ -12225,6 +12226,10 @@ def _facade_returns_canonical_app(tree: ast.Module) -> bool:
     ]
     if len(bootstrap_functions) != 1 or len(getattr_functions) != 1:
         return False
+    for name in ("_ensure_canonical_bootstrap", "__getattr__"):
+        events = _module_binding_events(tree, name)
+        if len(events) != 1 or events[0][1] != "definition":
+            return False
 
     bootstrap = bootstrap_functions[0]
     getter = getattr_functions[0]

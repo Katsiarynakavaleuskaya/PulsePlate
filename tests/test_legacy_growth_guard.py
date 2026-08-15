@@ -432,6 +432,21 @@ def test_application_instance_ownership_requires_plain_facade_getter(
 
 
 @pytest.mark.parametrize(
+    "rebound_name",
+    ["__getattr__", "_ensure_canonical_bootstrap"],
+)
+def test_application_instance_ownership_rejects_facade_authority_callable_rebinding(
+    rebound_name: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/__init__.py"] += f"\n{rebound_name} = object\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/__init__.py: app facade branch must return the canonical application" in errors
+
+
+@pytest.mark.parametrize(
     "mutation",
     [
         ("    from app.main import ensure_canonical_app_bootstrap\n\n"),
