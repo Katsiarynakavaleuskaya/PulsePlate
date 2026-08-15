@@ -336,7 +336,9 @@ class CoachingGoalAuthoritySnapshotV1(BaseModel):
             return "goal_paused"
         if self.status == "withdrawn":
             return "goal_withdrawn"
-        return "goal_superseded"
+        if self.status == "superseded":
+            return "goal_superseded"
+        raise ValueError("unexpected goal status has no no_intervention mapping")
 
 
 class UserCoachingStateV1(BaseModel):

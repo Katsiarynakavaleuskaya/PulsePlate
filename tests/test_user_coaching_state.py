@@ -907,6 +907,13 @@ def test_goal_authority_is_frozen_extra_forbid_and_derived_only() -> None:
         setattr(goal, "status", "paused")
 
 
+def test_goal_authority_unknown_status_reason_fails_closed() -> None:
+    forged = CoachingGoalAuthoritySnapshotV1().model_copy(update={"status": "archived"})
+
+    with pytest.raises(ValueError, match="unexpected goal status"):
+        _ = forged.no_intervention_reason
+
+
 def test_goal_authority_controls_scenario_without_changing_observed_urgency() -> None:
     base = {
         "user_id": 91_014,
