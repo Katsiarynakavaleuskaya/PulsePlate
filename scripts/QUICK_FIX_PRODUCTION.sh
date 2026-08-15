@@ -207,11 +207,11 @@ while IFS=$'\t' read -r build_key build_value _; do
         break
     fi
 done <<< "$CADDY_BUILD_INFO"
-if [ "$CADDY_GO_VERSION" != "go1.26.5" ]; then
-    echo "❌ Expected Caddy built with Go 1.26.5, got: ${CADDY_GO_VERSION:-missing}"
+if [ "$CADDY_GO_VERSION" != "go1.26.6" ]; then
+    echo "❌ Expected Caddy built with Go 1.26.6, got: ${CADDY_GO_VERSION:-missing}"
     exit 1
 fi
-echo "✅ Caddy runtime Go toolchain: go1.26.5"
+echo "✅ Caddy runtime Go toolchain: go1.26.6"
 echo ""
 
 # Check status
@@ -271,7 +271,7 @@ echo "Quick Fix Complete"
 echo "=========================================="
 echo ""
 echo "Expected results:"
-echo "  - Caddy image: PulsePlate Caddy 2.11.4 rebuilt with Go 1.26.5"
+echo "  - Caddy image: PulsePlate Caddy 2.11.4 rebuilt with Go 1.26.6"
 echo "  - APP_ENV: production"
 echo "  - ENVIRONMENT: production"
 echo "  - Readiness endpoint: environment='production'"

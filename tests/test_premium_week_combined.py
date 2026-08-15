@@ -126,21 +126,9 @@ class TestPremiumWeekCombined:
             json=invalid_payload,
             headers={"X-API-Key": "test_key"},
         )
-        assert response.status_code in [400, 422, 403]
-        # Check error message content
-        if response.status_code in [400, 422]:
-            data = response.json()
-            # FastAPI returns 'detail' for validation errors
-            assert "detail" in data, f"Expected 'detail' in response, got {data}"
-            error_text = str(data["detail"])
-            # Check for missing required fields in error message
-            assert (
-                "height_cm" in error_text or "weight_kg" in error_text
-            ), f"Expected missing field error for 'height_cm' or 'weight_kg', got: {error_text}"
-        elif response.status_code == 403:
-            # Optionally check for forbidden error message
-            data = response.json()
-            assert "detail" in data, f"Expected 'detail' in response, got {data}"
+        assert response.status_code == 422, response.text
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
     def test_premium_week_endpoint_invalid_api_key(self, premium_client):
         """Test premium week endpoint with invalid API key."""

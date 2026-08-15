@@ -173,11 +173,9 @@ class TestPremiumWeekEndpointSimple96:
                 headers={"X-API-Key": "test_api_key"},
             )
 
-            assert response.status_code == 422  # Pydantic validation error
-            # Check that the error is about missing required fields
-            detail = response.json()["detail"]
-            assert any("height_cm" in str(error) for error in detail)
-            assert any("weight_kg" in str(error) for error in detail)
+            assert response.status_code == 422, response.text
+            assert response.headers["content-type"].startswith("application/json")
+            assert response.json() == {"detail": "Invalid weekly plan request payload"}
 
     def test_generate_week_plan_profile_payload_legacy_alias(self) -> None:
         """Test legacy premium week alias with a profile-derived payload."""

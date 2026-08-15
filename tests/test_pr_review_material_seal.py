@@ -5120,11 +5120,14 @@ def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() ->
 def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    previous_base = BASE_SHA
+    previous_merge_base = "5" * 40
     next_base = "6" * 40
     next_head = "7" * 40
+    next_merge_base = "8" * 40
     old_seal = _seal(
         build_security_outage_override_receipt(
-            base_revision=BASE_SHA,
+            base_revision=previous_merge_base,
             head_revision=HEAD_SHA,
             material_digest=DIGEST,
             override_reference="https://github.com/owner/repo/pull/42#issuecomment-1",
@@ -5134,10 +5137,16 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             operator_association="OWNER",
         )
     )
+    old_seal["material"].update(
+        {
+            "base_ref_oid": previous_base,
+            "merge_base_sha": previous_merge_base,
+        }
+    )
     next_digest = "sha256:" + "c" * 64
     new_seal = _seal(
         build_security_outage_override_receipt(
-            base_revision=next_base,
+            base_revision=next_merge_base,
             head_revision=next_head,
             material_digest=next_digest,
             override_reference="https://github.com/owner/repo/pull/42#issuecomment-2",
@@ -5154,7 +5163,7 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             "base_ref_oid": next_base,
             "digest": next_digest,
             "material_head_sha": next_head,
-            "merge_base_sha": next_base,
+            "merge_base_sha": next_merge_base,
         }
     )
     state = {
@@ -5166,17 +5175,23 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
     existing = closeout_module._render_mapping(state, old_seal)
     replacement = closeout_module._render_mapping(state, new_seal)
     merge_bases = {
-        (BASE_SHA, next_base): BASE_SHA,
+        (previous_base, next_base): previous_base,
+        (previous_merge_base, next_merge_base): previous_merge_base,
         (HEAD_SHA, next_head): HEAD_SHA,
     }
+
+    merge_base_calls: list[tuple[str, str]] = []
+
+    def fake_git(command: str, left: str, right: str) -> str:
+        if command != "merge-base":
+            pytest.fail(f"unexpected git command: {command}")
+        merge_base_calls.append((left, right))
+        return merge_bases[(left, right)]
+
     monkeypatch.setattr(
         closeout_module,
         "_git",
-        lambda command, left, right: (
-            merge_bases[(left, right)]
-            if command == "merge-base"
-            else pytest.fail(f"unexpected git command: {command}")
-        ),
+        fake_git,
     )
 
     assert (
@@ -5189,8 +5204,13 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
         )
         == HEAD_SHA
     )
+    assert merge_base_calls == [
+        (previous_base, next_base),
+        (previous_merge_base, next_merge_base),
+        (HEAD_SHA, next_head),
+    ]
 
-    merge_bases[(BASE_SHA, next_base)] = OUTSIDE_SHA
+    merge_bases[(previous_base, next_base)] = OUTSIDE_SHA
     with pytest.raises(
         closeout_module.CloseoutError,
         match="without a proven fast-forward",
@@ -5203,7 +5223,21 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
             expected_freeze=new_seal["material"],
         )
 
-    merge_bases[(BASE_SHA, next_base)] = BASE_SHA
+    merge_bases[(previous_base, next_base)] = previous_base
+    merge_bases[(previous_merge_base, next_merge_base)] = OUTSIDE_SHA
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+
+    merge_bases[(previous_merge_base, next_merge_base)] = previous_merge_base
     merge_bases[(HEAD_SHA, next_head)] = OUTSIDE_SHA
     with pytest.raises(
         closeout_module.CloseoutError,
@@ -5218,35 +5252,181 @@ def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
         )
 
     merge_bases[(HEAD_SHA, next_head)] = HEAD_SHA
-    old_seal["material"]["base_ref_oid"] = FIX_SHA
-    previous_identity_mismatch = closeout_module._render_mapping(state, old_seal)
-    with pytest.raises(
-        closeout_module.CloseoutError,
-        match="without a proven fast-forward",
-    ):
-        closeout_module._validate_reseal_transition(
-            previous_identity_mismatch,
-            replacement,
-            repository="owner/repo",
-            pr_number=42,
-            expected_freeze=new_seal["material"],
-        )
 
-    old_seal["material"]["base_ref_oid"] = BASE_SHA
-    new_seal["material"]["merge_base_sha"] = BASE_SHA
-    new_seal["codex_security"]["base_revision"] = BASE_SHA
-    next_identity_mismatch = closeout_module._render_mapping(state, new_seal)
+
+def test_closeout_git_disables_replacements_and_inherited_git_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def run(args: list[str], **kwargs: Any) -> SimpleNamespace:
+        calls.append((args, kwargs["env"]))
+        if args[1:] == ["rev-parse", "--git-path", "info/grafts"]:
+            return SimpleNamespace(returncode=0, stdout=".git/info/grafts\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="result\n", stderr="")
+
+    monkeypatch.setenv("GIT_DIR", "/attacker/git-dir")
+    monkeypatch.setenv("GIT_OBJECT_DIRECTORY", "/attacker/objects")
+    monkeypatch.setenv("GIT_ALTERNATE_OBJECT_DIRECTORIES", "/attacker/alternate")
+    monkeypatch.setenv("GIT_REPLACE_REF_BASE", "refs/attacker/")
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert closeout_module._git("merge-base", BASE_SHA, HEAD_SHA) == "result"
+    assert [args[1:] for args, _env in calls] == [
+        ["rev-parse", "--git-path", "info/grafts"],
+        ["merge-base", BASE_SHA, HEAD_SHA],
+    ]
+    for _args, env in calls:
+        assert all(
+            key
+            in {
+                "GIT_CONFIG_GLOBAL",
+                "GIT_CONFIG_NOSYSTEM",
+                "GIT_NO_REPLACE_OBJECTS",
+                "GIT_OPTIONAL_LOCKS",
+                "GIT_TERMINAL_PROMPT",
+            }
+            for key in env
+            if key.startswith("GIT_")
+        )
+        assert env["GIT_CONFIG_GLOBAL"] == os.devnull
+        assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+        assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
+        assert env["GIT_OPTIONAL_LOCKS"] == "0"
+        assert env["GIT_TERMINAL_PROMPT"] == "0"
+        assert env["LC_ALL"] == "C"
+
+
+@pytest.mark.parametrize("graft_kind", ["file", "symlink"])
+def test_closeout_git_rejects_active_grafts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    graft_kind: str,
+) -> None:
+    graft_path = tmp_path / "git-grafts"
+    if graft_kind == "file":
+        graft_path.write_text(f"{HEAD_SHA} {BASE_SHA}\n", encoding="utf-8")
+    else:
+        graft_path.symlink_to(tmp_path / "missing-graft-target")
+
+    calls = 0
+
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=0, stdout=f"{graft_path}\n", stderr="")
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(closeout_module.CloseoutError, match="legacy Git grafts"):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "expected"),
+    [
+        (1, "", "git graft-path lookup failed"),
+        (0, "", "git graft path is malformed"),
+        (0, ".git/info/grafts\nsecond-path\n", "git graft path is malformed"),
+    ],
+    ids=["lookup-failed", "empty-path", "multiline-path"],
+)
+def test_closeout_git_rejects_invalid_graft_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    stdout: str,
+    expected: str,
+) -> None:
+    calls = 0
+
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=returncode, stdout=stdout, stderr="diagnostic")
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    with pytest.raises(closeout_module.CloseoutError, match=expected):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("method", "error"),
+    [
+        ("exists", OSError("unavailable")),
+        ("is_symlink", ValueError("malformed")),
+    ],
+    ids=["exists-os-error", "symlink-value-error"],
+)
+def test_closeout_git_converts_graft_path_inspection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    error: BaseException,
+) -> None:
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=0, stdout=".git/info/grafts\n", stderr="")
+
+    def raise_error(_path: Path) -> bool:
+        raise error
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+    if method == "exists":
+        monkeypatch.setattr(Path, "exists", raise_error)
+    else:
+        monkeypatch.setattr(Path, "exists", lambda _path: False)
+        monkeypatch.setattr(Path, "is_symlink", raise_error)
+
     with pytest.raises(
         closeout_module.CloseoutError,
-        match="without a proven fast-forward",
+        match="git graft path could not be inspected",
     ):
-        closeout_module._validate_reseal_transition(
-            existing,
-            next_identity_mismatch,
-            repository="owner/repo",
-            pr_number=42,
-            expected_freeze=new_seal["material"],
-        )
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
+
+
+@pytest.mark.parametrize("stage", ["graft_lookup", "git_command"])
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("unavailable"),
+        subprocess.TimeoutExpired(cmd=["git"], timeout=30),
+        UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid"),
+    ],
+    ids=["os-error", "timeout", "decode-error"],
+)
+def test_closeout_git_converts_execution_uncertainty_to_closeout_error(
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+    error: BaseException,
+) -> None:
+    calls = 0
+
+    def run(args: list[str], **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        if stage == "graft_lookup" or calls == 2:
+            raise error
+        assert args[1:] == ["rev-parse", "--git-path", "info/grafts"]
+        return SimpleNamespace(returncode=0, stdout=".git/info/grafts\n", stderr="")
+
+    monkeypatch.setattr(closeout_module, "_git_path", lambda: "/controlled/git")
+    monkeypatch.setattr(subprocess, "run", run)
+
+    expected = (
+        "git graft-path lookup could not execute"
+        if stage == "graft_lookup"
+        else "git merge-base .* could not execute"
+    )
+    with pytest.raises(closeout_module.CloseoutError, match=expected):
+        closeout_module._git("merge-base", BASE_SHA, HEAD_SHA)
 
 
 def test_embedded_seal_rejects_duplicate_keys() -> None:
@@ -6853,6 +7033,48 @@ def test_owner_stale_seal_fixed_rejects_same_root_fixed_mapping(
     assert covered == set()
 
 
+def test_owner_stale_seal_fixed_rejects_case_variant_same_root_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping_url = "https://github.com/OWNER/REPO/pull/42#discussion_r700"
+    covered, _ = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={mapping_url: "a" * 40},
+    )
+
+    assert covered == set()
+
+
+def test_owner_stale_seal_fixed_ignores_url_only_mapping_entry_for_legacy_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = "https://github.com/owner/repo/pull/42#discussion_r700"
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={url: ""},
+    )
+
+    assert covered == {graph["url"]}
+
+
+def test_owner_stale_seal_fixed_ignores_case_variant_url_only_mapping_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping_url = "https://github.com/OWNER/REPO/pull/42#discussion_r700"
+    covered, graph = _stale_seal_reply_coverage(
+        tmp_path,
+        monkeypatch,
+        mapping_entries={mapping_url: ""},
+    )
+
+    assert covered == {graph["url"]}
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -7637,6 +7859,13 @@ def _owner_unavailable_reply(review_ref: str) -> str:
     )
 
 
+def _owner_provider_evidence_unavailable_reply() -> str:
+    return (
+        "OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; "
+        "authenticated live PR state is authoritative."
+    )
+
+
 def _owner_only_empty_mapping_coverage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7647,29 +7876,41 @@ def _owner_only_empty_mapping_coverage(
     root_author: str = "chatgpt-codex-connector",
     original_commit: str = "live",
     reply_body: str | None = None,
+    reply_format: str = "legacy",
     reply_association: str = "OWNER",
     reply_count: int = 1,
     reply_created_at: str = "2026-08-11T11:00:00Z",
     root_body_variant: str = "valid",
+    root_body_override: str | None = None,
     ref_resolution: str = "unavailable",
     mapping_path: str = "canonical",
     successor_shape: str = "direct",
+    successor_subject: str = "mapping closeout",
+    mapping_seal_shape: str = "valid",
     material_digest_matches: bool = True,
     mapping_entries: dict[str, str] | None = None,
     fingerprint_root: str | None = None,
     forbid_generic: bool = True,
     comment_path_matches: bool = True,
+    comment_path_override: str | None = None,
     selected_ref_source: str = "review",
     candidate_indexes: frozenset[int] | None = None,
     repository_arg: str = "owner/repo",
     snapshot_repository: str = "owner/repo",
     root_repository: str = "owner/repo",
     additional_owner_reply_body: str | None = None,
+    additional_non_owner_reply_body: str | None = None,
+    rest_identity_variant: str = "valid",
     classified_values: list[str] | None = None,
+    forbid_classifier: bool = False,
+    material_head_in_snapshot: bool = True,
+    captured_threads: list[ReviewThreadEvidence] | None = None,
 ) -> tuple[set[str], list[str]]:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-q")
+    monkeypatch.setattr(evidence_module, "_REPO_ROOT", repo)
+    (repo / "AGENTS.md").write_text("test scope\n", encoding="utf-8")
     (repo / "README.md").write_text("base\n", encoding="utf-8")
     base_sha = _commit(repo, "base")
     source = repo / "src" / "policy.py"
@@ -7682,24 +7923,56 @@ def _owner_only_empty_mapping_coverage(
         head_ref_oid=material_head_sha,
         pr_number=42,
     )
+    valid_mapping = _mapping_artifact_with_seal(_provider_no_claim_seal_for_manifest(manifest))
+    if mapping_seal_shape == "malformed":
+        mapping_text = "# PR 42 — Review Governance\n\n## Review Material Seal\n- malformed\n"
+    elif mapping_seal_shape == "stale":
+        stale_manifest = compute_material_manifest(
+            repo,
+            base_ref_oid=base_sha,
+            head_ref_oid=base_sha,
+            pr_number=42,
+        )
+        mapping_text = _mapping_artifact_with_seal(
+            _provider_no_claim_seal_for_manifest(stale_manifest)
+        )
+    elif mapping_seal_shape == "valid":
+        mapping_text = valid_mapping
+    else:
+        raise ValueError("unsupported mapping_seal_shape")
     if successor_shape == "two-successors":
         mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
         mapping.parent.mkdir(parents=True)
-        mapping.write_text("first closeout\n", encoding="utf-8")
+        mapping.write_text(mapping_text, encoding="utf-8")
         _commit(repo, "first mapping closeout")
-        mapping.write_text("second closeout\n", encoding="utf-8")
+        mapping.write_text(mapping_text + "\n", encoding="utf-8")
     elif mapping_path == "wrong":
         mapping = repo / "docs" / "review" / "PR_41_FIXED_MAPPING.md"
         mapping.parent.mkdir(parents=True)
-        mapping.write_text("wrong closeout\n", encoding="utf-8")
+        mapping.write_text(mapping_text, encoding="utf-8")
+    elif successor_shape == "empty":
+        mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
     else:
         mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
         mapping.parent.mkdir(parents=True)
-        mapping.write_text("closeout\n", encoding="utf-8")
-    live_head_sha = _commit(repo, "mapping closeout")
+        mapping.write_text(mapping_text, encoding="utf-8")
+    if successor_shape == "material-changing":
+        source.write_text("ENFORCED = False\n", encoding="utf-8")
+    live_head_sha = _commit(
+        repo,
+        successor_subject,
+        allow_empty=(successor_shape == "empty"),
+    )
     sealed_head_sha = base_sha if successor_shape == "non-direct" else material_head_sha
     selected_ref = material_head_sha if selected_ref_source == "pr-commit" else "6" * 40
-    exact_reply = _owner_unavailable_reply(selected_ref) if reply_body is None else reply_body
+    if reply_body is not None:
+        exact_reply = reply_body
+    elif reply_format == "generic":
+        exact_reply = _owner_provider_evidence_unavailable_reply()
+    elif reply_format == "legacy":
+        exact_reply = _owner_unavailable_reply(selected_ref)
+    else:
+        raise ValueError("unsupported reply_format")
     root_body = (
         "Commit ancestry finding on docs/review/PR_42_FIXED_MAPPING.md: "
         f"sealed material {sealed_head_sha}; reviewer execution ref {selected_ref} "
@@ -7727,13 +8000,22 @@ def _owner_only_empty_mapping_coverage(
         root_body = root_body.replace(sealed_head_sha, f"a{sealed_head_sha}", 1)
     elif root_body_variant == "ref-boundary":
         root_body = root_body.replace(selected_ref, f"{selected_ref}a", 1)
+    if root_body_override is not None:
+        root_body = root_body_override
 
     snapshot = PrSnapshot(
         repository=snapshot_repository,
         pr_number=42,
         base_sha=base_sha,
         head_sha=live_head_sha,
-        commits=tuple(PrCommitEvidence(sha, None) for sha in (material_head_sha, live_head_sha)),
+        commits=tuple(
+            PrCommitEvidence(sha, None)
+            for sha in (
+                (material_head_sha, live_head_sha)
+                if material_head_in_snapshot
+                else (live_head_sha,)
+            )
+        ),
     )
     root_urls = tuple(
         f"https://github.com/{root_repository}/pull/42#discussion_r{100 + index}"
@@ -7774,7 +8056,26 @@ def _owner_only_empty_mapping_coverage(
             if additional_owner_reply_body is not None
             else ()
         )
-        comments = (root, *replies, *additional_owner_replies)
+        additional_non_owner_replies = (
+            (
+                ReviewCommentEvidence(
+                    url=f"{root_url}_additional_non_owner_reply",
+                    body=additional_non_owner_reply_body,
+                    created_at="2026-08-11T12:00:00Z",
+                    author_login="follow-up-reviewer",
+                    author_association="CONTRIBUTOR",
+                    original_commit_sha=live_head_sha,
+                ),
+            )
+            if additional_non_owner_reply_body is not None
+            else ()
+        )
+        comments = (
+            root,
+            *replies,
+            *additional_owner_replies,
+            *additional_non_owner_replies,
+        )
         if not root_is_first:
             sibling = ReviewCommentEvidence(
                 url=f"{root_url}_earlier",
@@ -7784,7 +8085,13 @@ def _owner_only_empty_mapping_coverage(
                 author_association="NONE",
                 original_commit_sha=live_head_sha,
             )
-            comments = (sibling, root, *replies, *additional_owner_replies)
+            comments = (
+                sibling,
+                root,
+                *replies,
+                *additional_owner_replies,
+                *additional_non_owner_replies,
+            )
         threads.append(
             ReviewThreadEvidence(
                 f"owner-seed-{index}",
@@ -7834,14 +8141,73 @@ def _owner_only_empty_mapping_coverage(
     def request_json(url: str, **_kwargs: Any) -> Any:
         api_calls.append(url)
         if "/pulls/comments/" in url:
-            return {
+            if rest_identity_variant == "api-unknown":
+                raise GitHubHttpError(503)
+            if rest_identity_variant == "malformed-response":
+                return []
+            comment_index = int(url.rsplit("/", 1)[-1]) - 100
+            response = {
+                "id": comment_index + 100,
                 "html_url": root_urls[int(url.rsplit("/", 1)[-1]) - 100],
                 "path": (
-                    "docs/review/PR_42_FIXED_MAPPING.md"
-                    if comment_path_matches
-                    else "docs/review/PR_41_FIXED_MAPPING.md"
+                    comment_path_override
+                    if comment_path_override is not None
+                    else (
+                        "docs/review/PR_42_FIXED_MAPPING.md"
+                        if comment_path_matches
+                        else "docs/review/PR_41_FIXED_MAPPING.md"
+                    )
                 ),
+                "body": root_body,
+                "created_at": "2026-08-11T10:00:00Z",
+                "updated_at": "2026-08-11T10:00:00Z",
+                "original_commit_id": (
+                    live_head_sha if original_commit == "live" else material_head_sha
+                ),
+                "pull_request_url": (
+                    f"https://api.github.com/repos/{snapshot_repository}/pulls/42"
+                ),
+                "user": {
+                    "id": 199_175_422,
+                    "login": "chatgpt-codex-connector[bot]",
+                    "type": "Bot",
+                },
             }
+            if rest_identity_variant == "wrong-body":
+                response["body"] = "different provider evidence"
+            elif rest_identity_variant == "wrong-created-at":
+                response["created_at"] = "2026-08-11T10:00:01Z"
+            elif rest_identity_variant == "wrong-updated-at":
+                response["updated_at"] = "2026-08-11T10:00:01Z"
+            elif rest_identity_variant == "wrong-original-commit":
+                response["original_commit_id"] = material_head_sha
+            elif rest_identity_variant == "wrong-pull":
+                response["pull_request_url"] = (
+                    f"https://api.github.com/repos/{snapshot_repository}/pulls/41"
+                )
+            elif rest_identity_variant == "wrong-id":
+                response["id"] = 999
+            elif rest_identity_variant == "wrong-user-login":
+                response["user"]["login"] = "other-reviewer[bot]"
+            elif rest_identity_variant == "wrong-user-type":
+                response["user"]["type"] = "User"
+            elif rest_identity_variant == "wrong-user-id":
+                response["user"]["id"] = 1
+            elif rest_identity_variant == "missing-updated-at":
+                del response["updated_at"]
+            elif rest_identity_variant == "missing-user":
+                del response["user"]
+            elif rest_identity_variant == "user-not-object":
+                response["user"] = "chatgpt-codex-connector[bot]"
+            elif rest_identity_variant == "missing-user-login":
+                del response["user"]["login"]
+            elif rest_identity_variant == "missing-user-type":
+                del response["user"]["type"]
+            elif rest_identity_variant == "missing-user-id":
+                del response["user"]["id"]
+            elif rest_identity_variant != "valid":
+                raise ValueError("unsupported rest_identity_variant")
+            return response
         if url.endswith(f"/commits/{selected_ref}"):
             if ref_resolution == "unavailable":
                 raise GitHubHttpError(404)
@@ -7895,9 +8261,13 @@ def _owner_only_empty_mapping_coverage(
             )
 
         monkeypatch.setattr(identity_module, "classify_commit_ref", tracked_classifier)
+    if forbid_classifier:
+        monkeypatch.setattr(identity_module, "classify_commit_ref", forbidden_generic)
     if forbid_generic:
         monkeypatch.setattr(identity_module, "is_ancestor", forbidden_generic)
         monkeypatch.setattr(evidence_module, "review_finding_sha_candidates", forbidden_generic)
+    if captured_threads is not None:
+        captured_threads.extend(threads)
     covered = validated_duplicate_reply_urls(
         candidate_urls={
             root_urls[index]
@@ -7933,6 +8303,254 @@ def test_owner_only_empty_mapping_accepts_exact_sanitized_finding(
     assert any(call.endswith("/commits/" + "6" * 40) for call in api_calls)
 
 
+@pytest.mark.parametrize(
+    "root_body",
+    [
+        "Provider execution ref 4f811b1a is unavailable.",
+        "Provider execution ref " + "4" * 40 + " is unavailable.",
+        "Synthetic merge evidence refs/pull/42/merge is unavailable.",
+        "Opaque provider token result:codex:unaddressable is unavailable.",
+        "The provider supplied no repository-addressable evidence ref.",
+        "Provider-only evidence unavailable.",
+    ],
+    ids=("short-sha", "full-sha", "synthetic-ref", "opaque-token", "missing-ref", "no-ref"),
+)
+def test_owner_provider_evidence_generic_reply_is_prose_and_ref_agnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    root_body: str,
+) -> None:
+    covered, api_calls = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override=root_body,
+        forbid_classifier=True,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+    assert any("/pulls/comments/100" in call for call in api_calls)
+    assert not any("/commits/" in call for call in api_calls)
+
+
+def test_owner_provider_evidence_generic_reply_covers_each_eligible_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_count=3,
+        root_body_override="Provider-only evidence unavailable.",
+        forbid_classifier=True,
+    )
+
+    assert covered == {
+        "https://github.com/owner/repo/pull/42#discussion_r100",
+        "https://github.com/owner/repo/pull/42#discussion_r101",
+        "https://github.com/owner/repo/pull/42#discussion_r102",
+    }
+
+
+def test_owner_provider_evidence_generic_reply_allows_non_owner_discussion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override="Provider-only evidence unavailable.",
+        additional_non_owner_reply_body="Follow-up context without OWNER authority.",
+        forbid_classifier=True,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
+
+
+def test_owner_provider_evidence_fixture_preserves_non_owner_reply_after_earlier_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_threads: list[ReviewThreadEvidence] = []
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override="Provider-only evidence unavailable.",
+        root_is_first=False,
+        additional_non_owner_reply_body="Follow-up context without OWNER authority.",
+        forbid_classifier=True,
+        captured_threads=captured_threads,
+    )
+
+    assert covered == set()
+    assert [comment.body for comment in captured_threads[0].comments] == [
+        "Earlier thread root",
+        "Provider-only evidence unavailable.",
+        _owner_provider_evidence_unavailable_reply(),
+        "Follow-up context without OWNER authority.",
+    ]
+
+
+@pytest.mark.parametrize("reply_format", ["generic", "legacy"])
+def test_owner_unavailable_evidence_reply_requires_material_head_in_pr_graph(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reply_format: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format=reply_format,
+        material_head_in_snapshot=False,
+        forbid_classifier=reply_format == "generic",
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        " " + _owner_provider_evidence_unavailable_reply(),
+        _owner_provider_evidence_unavailable_reply() + " ",
+        _owner_provider_evidence_unavailable_reply() + "\n",
+        _owner_provider_evidence_unavailable_reply() + " Extra.",
+        "`" + _owner_provider_evidence_unavailable_reply() + "`",
+        _owner_provider_evidence_unavailable_reply().replace("OWNER", "Owner"),
+    ],
+    ids=("leading-space", "trailing-space", "newline", "extra", "markdown", "case"),
+)
+def test_owner_provider_evidence_generic_reply_is_byte_exact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    body: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        reply_body=body,
+        root_body_override="Provider-only evidence unavailable.",
+        forbid_classifier=True,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"reply_association": "MEMBER"},
+        {"reply_count": 0},
+        {"reply_count": 2},
+        {"reply_created_at": "2026-08-11T09:00:00Z"},
+        {"root_resolved": False},
+        {"root_is_first": False},
+        {"root_author": "other-reviewer"},
+        {"root_repository": "other/repo"},
+        {"original_commit": "material"},
+        {"material_digest_matches": False},
+        {"successor_shape": "non-direct"},
+        {"successor_shape": "two-successors"},
+        {"successor_shape": "empty"},
+        {"successor_shape": "material-changing"},
+        {"successor_subject": "trigger ci"},
+        {"mapping_path": "wrong"},
+        {"comment_path_matches": False},
+        {"comment_path_override": "scripts/orchestration/pr_review_evidence.py"},
+        {"mapping_seal_shape": "malformed"},
+        {"mapping_seal_shape": "stale"},
+        {"rest_identity_variant": "wrong-body"},
+        {"rest_identity_variant": "wrong-created-at"},
+        {"rest_identity_variant": "wrong-updated-at"},
+        {"rest_identity_variant": "wrong-original-commit"},
+        {"rest_identity_variant": "wrong-pull"},
+        {"rest_identity_variant": "wrong-id"},
+        {"rest_identity_variant": "wrong-user-login"},
+        {"rest_identity_variant": "wrong-user-type"},
+        {"rest_identity_variant": "wrong-user-id"},
+    ],
+    ids=(
+        "member",
+        "zero-replies",
+        "two-replies",
+        "reply-before-root",
+        "unresolved",
+        "not-thread-root",
+        "wrong-root-author",
+        "wrong-root-repository",
+        "historical-stale-seal-root",
+        "wrong-caller-digest",
+        "non-direct",
+        "multiple-successors",
+        "empty-successor",
+        "material-changing-successor",
+        "trigger-only-successor",
+        "wrong-mapping-path",
+        "wrong-rest-path",
+        "material-code-path",
+        "malformed-current-seal",
+        "stale-current-seal",
+        "rest-body-mismatch",
+        "rest-timestamp-mismatch",
+        "rest-updated-at-mismatch",
+        "rest-original-commit-mismatch",
+        "rest-pr-mismatch",
+        "rest-comment-id-mismatch",
+        "rest-user-login-mismatch",
+        "rest-user-type-mismatch",
+        "rest-user-id-mismatch",
+    ),
+)
+def test_owner_provider_evidence_generic_reply_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict[str, Any],
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_body_override="Provider-only evidence unavailable.",
+        forbid_classifier=True,
+        **kwargs,
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "rest_identity_variant",
+    (
+        "api-unknown",
+        "malformed-response",
+        "missing-updated-at",
+        "missing-user",
+        "user-not-object",
+        "missing-user-login",
+        "missing-user-type",
+        "missing-user-id",
+    ),
+)
+def test_owner_provider_evidence_generic_reply_keeps_api_uncertainty_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    rest_identity_variant: str,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        _owner_only_empty_mapping_coverage(
+            tmp_path,
+            monkeypatch,
+            reply_format="generic",
+            root_body_override="Provider-only evidence unavailable.",
+            rest_identity_variant=rest_identity_variant,
+            forbid_classifier=True,
+        )
+
+
 def test_owner_only_empty_mapping_accepts_exact_unavailable_422(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7959,14 +8577,49 @@ def test_owner_only_accepts_unrelated_fixed_mapping_entries(
     assert covered == {"https://github.com/owner/repo/pull/42#discussion_r100"}
 
 
+@pytest.mark.parametrize("reply_format", ("legacy", "generic"))
+@pytest.mark.parametrize(
+    "mapped_url",
+    (
+        "https://github.com/owner/repo/pull/42#discussion_r100",
+        "https://github.com/OWNER/REPO/pull/42#discussion_r100",
+    ),
+    ids=("exact-url", "case-variant-repository"),
+)
 def test_owner_only_rejects_root_with_its_own_fixed_mapping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    reply_format: str,
+    mapped_url: str,
 ) -> None:
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
-        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": FIX_SHA},
+        reply_format=reply_format,
+        mapping_entries={mapped_url: FIX_SHA},
+    )
+
+    assert covered == set()
+
+
+@pytest.mark.parametrize(
+    "mapped_url",
+    (
+        "https://github.com/owner/repo/pull/42#discussion_r100",
+        "https://github.com/OWNER/REPO/pull/42#discussion_r100",
+    ),
+    ids=("exact-url", "case-variant-repository"),
+)
+def test_owner_provider_evidence_generic_reply_rejects_same_root_url_only_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mapped_url: str,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        mapping_entries={mapped_url: ""},
     )
 
     assert covered == set()
@@ -7988,6 +8641,31 @@ def test_owner_only_applies_fingerprint_exclusion_per_root(
     covered, _ = _owner_only_empty_mapping_coverage(
         tmp_path,
         monkeypatch,
+        fingerprint_root=fingerprint_root,
+        root_body_variant="real-2265",
+        forbid_generic=False,
+    )
+
+    assert covered == expected
+
+
+@pytest.mark.parametrize(
+    ("fingerprint_root", "expected"),
+    [
+        ("unrelated", {"https://github.com/owner/repo/pull/42#discussion_r100"}),
+        ("same", set()),
+    ],
+)
+def test_owner_provider_evidence_generic_reply_applies_disposition_exclusion_per_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fingerprint_root: str,
+    expected: set[str],
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
         fingerprint_root=fingerprint_root,
         root_body_variant="real-2265",
         forbid_generic=False,
@@ -8036,6 +8714,37 @@ def test_owner_only_empty_mapping_counts_root_hidden_by_url_only_disposition_fil
     )
 
     assert covered == set()
+
+
+def test_owner_only_legacy_singleton_counts_url_only_mapped_eligible_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        root_count=2,
+        candidate_indexes=frozenset({1}),
+        mapping_entries={"https://github.com/owner/repo/pull/42#discussion_r100": ""},
+    )
+
+    assert covered == set()
+
+
+def test_owner_provider_evidence_generic_reply_excludes_only_mapped_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    covered, _ = _owner_only_empty_mapping_coverage(
+        tmp_path,
+        monkeypatch,
+        reply_format="generic",
+        root_count=2,
+        mapping_entries={"https://github.com/OWNER/REPO/pull/42#discussion_r100": ""},
+        forbid_classifier=True,
+    )
+
+    assert covered == {"https://github.com/owner/repo/pull/42#discussion_r101"}
 
 
 def test_owner_only_empty_mapping_rejects_additional_malformed_owner_reply(

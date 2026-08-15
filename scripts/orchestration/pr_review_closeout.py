@@ -181,16 +181,62 @@ def _git_path() -> str:
         raise CloseoutError("git executable could not be resolved") from exc
 
 
-def _git(*args: str) -> str:
-    result = subprocess.run(  # nosec B603: argv starts with resolved git and fixed subcommands (remove-by: 2026-09-30, ref: PR-governance-material-seal)
-        [_git_path(), *args],
-        cwd=REPO_ROOT,
-        env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"},
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
+def _git_environment() -> dict[str, str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+        }
     )
+    return env
+
+
+def _git(*args: str) -> str:
+    git = _git_path()
+    env = _git_environment()
+    try:
+        graft_lookup = subprocess.run(  # nosec B603: argv starts with resolved git and fixed subcommands (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+            [git, "rev-parse", "--git-path", "info/grafts"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
+        raise CloseoutError("git graft-path lookup could not execute") from exc
+    if graft_lookup.returncode != 0:
+        raise CloseoutError("git graft-path lookup failed")
+    rendered_graft_path = graft_lookup.stdout.strip()
+    if not rendered_graft_path or "\n" in rendered_graft_path or "\r" in rendered_graft_path:
+        raise CloseoutError("git graft path is malformed")
+    graft_path = Path(rendered_graft_path)
+    if not graft_path.is_absolute():
+        graft_path = REPO_ROOT / graft_path
+    try:
+        active_graft = graft_path.exists() or graft_path.is_symlink()
+    except (OSError, ValueError) as exc:
+        raise CloseoutError("git graft path could not be inspected") from exc
+    if active_graft:
+        raise CloseoutError("legacy Git grafts are forbidden for closeout evidence")
+    try:
+        result = subprocess.run(  # nosec B603: argv starts with resolved git and fixed subcommands (remove-by: 2026-09-30, ref: PR-governance-material-seal)
+            [git, *args],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
+        raise CloseoutError(f"git {' '.join(args[:2])} could not execute") from exc
     if result.returncode != 0:
         raise CloseoutError(f"git {' '.join(args[:2])} failed: {result.stderr.strip()}")
     return result.stdout.strip()
@@ -554,14 +600,13 @@ def _validate_reseal_transition(
         previous_head = str(existing_material["material_head_sha"])
         next_head = str(expected_freeze["material_head_sha"])
         if (
-            previous_base != previous_merge_base
-            or next_base != next_merge_base
-            or _git("merge-base", previous_base, next_base) != previous_base
+            _git("merge-base", previous_base, next_base) != previous_base
+            or _git("merge-base", previous_merge_base, next_merge_base) != previous_merge_base
             or _git("merge-base", previous_head, next_head) != previous_head
         ):
             raise CloseoutError(
                 "existing canonical mapping base changed without a proven "
-                "fast-forward base/material-head advance"
+                "fast-forward base/merge-base/material-head advance"
             )
     missing_blocks = sorted(
         _mapping_proof_blocks(existing_markdown) - _mapping_proof_blocks(replacement_markdown)

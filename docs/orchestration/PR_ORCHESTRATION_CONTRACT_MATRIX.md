@@ -318,7 +318,7 @@ Evidence:
 
 ### Reply-only disposition exceptions
 
-The closed reply-only validator has four mutually exclusive paths. Existing
+The closed reply-only validator has five mutually exclusive paths. Existing
 canonical fingerprint records retain their current later-duplicate semantics.
 The recordless path covers only the first currently visible trusted Codex/App
 `unavailable_review_ref_ancestry` seed on the exact live direct single
@@ -378,7 +378,50 @@ or the wait window. A canonical fingerprint record or FIXED mapping for the
 same root keeps this owner-only branch inactive and preserves the existing paths
 unchanged.
 
-The fourth path is an owner-only historical stale-seal `FIXED` class. It is
+The fourth path is the recommended owner-only class for unavailable or
+synthetic provider-only evidence on the canonical mapping. It has one exact
+reply and no provider identifier:
+
+`OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; authenticated live PR state is authoritative.`
+
+The thread must contain exactly one later GraphQL-authenticated `OWNER`
+comment; that sole OWNER comment must be byte-equal to that line. Other
+non-OWNER discussion does not silently acquire disposition authority. The human
+OWNER must first read the complete root and confirm that it contains no
+independent actionable finding beyond provider-only evidence that is unavailable
+or synthetic. *Unavailable* means that evidence is
+not repository-addressable evidence usable by the authenticated live PR
+validator; it never labels a material, security, code, workflow, dependency, or
+runtime defect as unavailable. Automation neither parses the root prose nor
+extracts, lexes, or classifies a SHA, ref, URL, token, or fingerprint for this
+class.
+
+Eligibility is structural and fail-closed: the resolved root is the first
+comment, is authored by `chatgpt-codex-connector`, targets the canonical
+current-PR mapping path, and has `originalCommit` equal to the exact live head.
+REST and GraphQL cross-bind the same authenticated repository, PR, numeric
+comment ID, URL, canonical path, byte-identical body, timestamp with
+`updated_at == created_at`, trusted connector REST user id/login/type, and
+`originalCommit`. The live head is the sole direct non-empty non-trigger
+mapping-only successor of the sealed material head; both projections preserve
+the caller-bound digest; and the embedded provider-neutral current seal passes
+the ordinary strict base, merge-base, material-head, digest, and self-review
+checks. A same-root canonical fingerprint or ordinary mapping disposition makes
+the root ineligible. Comments on any material path are ineligible. Unlike the
+legacy full-ref class, each eligible root is evaluated independently, so two or
+more roots may each be covered by their own exact OWNER reply. Any repository,
+API, Git, identity, path, seal, digest, timestamp, or topology uncertainty leaves
+that root blocking.
+
+This reply is a human NOT-A-BUG disposition for provider-only evidence. It is
+not review, approval, provider output, a scan, PASS, a no-findings claim, merge
+authority, or a bypass of current seal, CI, security, diff coverage, mapping,
+unresolved threads, bot actionables, ancestry, or the review wait window. The
+legacy full-40 ref reply remains readable and valid only for compatibility with
+already-open historical threads, uses the same strict REST connector and
+unedited-root binding, and is not the recommended authoring format.
+
+The fifth path is an owner-only historical stale-seal `FIXED` class. It is
 available only when the candidate thread is resolved; its root is the first
 comment, has authenticated login exactly `chatgpt-codex-connector`, targets the
 canonical current-PR mapping artifact, has `originalCommit=S`, and has neither a

@@ -209,6 +209,27 @@
   against an uncooperative same-UID process between checks. Descriptor-relative
   hostile-process hardening requires a separate reviewed portability and threat-
   model lane.
+- The same terminal-outcome CLI may project one validated canonical
+  `terminal_outcome.json` into its single sibling `evidence_events.json` only
+  through `project-evidence --outcome ... --produced-at <RFC3339-UTC>`, and may
+  validate it read-only through `validate-evidence-projection --outcome ...`.
+  The destination is fixed; public output-root/output/events overrides are
+  forbidden. The timestamp must be explicit, use a known UTC offset, and use
+  the RFC3339 profile supported by the existing evidence-event contract;
+  leap-second representations (`time-second=60`) fail closed. Accepted offsets
+  are normalized to `Z`; fractional seconds drop insignificant trailing zeros
+  and are omitted when all digits are zero. The timestamp is projection time
+  only; clocks and filesystem times are not evidence. The
+  output is one atomic no-replace, mode-`0600`, three-row control-plane
+  normalization bundle using the existing `item_metadata`, `gate_metric`, and
+  `gate_decision` event types. It is not three lifecycle events, telemetry,
+  Evidence Graph admission, or a replacement for the single `pr_terminal`
+  telemetry event. Identical replay is zero-write; different canonical bytes,
+  malformed/oversized/hardlinked/symlinked files, non-regular files, and input
+  identity changes fail closed without overwrite, deletion, or repair. The
+  commands must not serialize local paths or the external experimental lane id,
+  perform historical backfill, consume Pilot 4 adaptive evidence, or add
+  provider/network/GitHub/DB/product-runtime/promotion/merge authority.
 - PR-5 creative-code review-disposition artifacts stay local under
   `artifacts/orchestration/creative_code/review_disposition/`. The
   `creative_code_review_disposition.py` CLI may only read sanitized

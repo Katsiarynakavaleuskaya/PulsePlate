@@ -154,6 +154,18 @@ explicit terminal-outcomes input it emits a v2 mixed rollup:
 Separate persisted review and post-merge events are forbidden because their
 independent countability would duplicate the terminal semantic carrier.
 
+The sibling terminal-outcome `evidence_events.json` control-plane projection is
+not creative-code telemetry. It is one fixed, non-authoritative normalization
+bundle containing three existing Evidence Eval event types in one JSON array.
+Its rows do not increment telemetry counts, enter telemetry rollups, replace or
+repair telemetry artifacts, or replace the exactly-one `pr_terminal`
+projection above. The evidence adapter neither reads nor writes telemetry, and
+there is no shared `3+1` transaction, replay identity, or lifecycle cardinality
+between its three-row bundle and the single telemetry event. A projection
+status of `valid`, `degraded`, or `deferred` is evidence classification only;
+it is not telemetry truth, review disposition, readiness, promotion, or merge
+authority.
+
 The creative-code sidecar is intentionally separate from
 `telemetry_rollup.py` agent reliability scoring. It is funnel measurement, not
 automatic routing truth.

@@ -4027,7 +4027,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.github/workflows/cd.yml`
     - `docs/deploy/STAGING.md`
   - DoD:
-    - PulsePlate Caddy reports v2.11.4 built with Go 1.26.5 and preserves standard modules
+    - PulsePlate Caddy reports v2.11.4 built with Go 1.26.6 and preserves standard modules
     - Final hardened Caddy image has no HIGH/CRITICAL Trivy findings without suppressions
     - Backend and Caddy each have distinct provenance, SBOM, verification, and exact-digest scan evidence
     - Staging Compose and deploy script reject floating/tag-only image references

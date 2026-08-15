@@ -20,8 +20,8 @@ TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c
 TRIVY_VERSION = "v0.72.0"
 
 GO_BUILDER = (
-    "golang:1.26.5-alpine3.23@"
-    "sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc"
+    "golang:1.26.6-alpine3.23@"
+    "sha256:5978cc992ad5ef96a7469713c8af849c1433824761ce3be2c56381403cd8d9a3"
 )
 CADDY_BASE = (
     "caddy:2.11.4-alpine@" "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
@@ -63,15 +63,36 @@ def _step_index(steps: list[dict[str, object]], name: str) -> int:
     return steps.index(_named_step(steps, name))
 
 
-def test_frontend_workflow_self_triggers_caddy_contract_on_pull_requests() -> None:
+def test_frontend_workflow_routes_quick_fix_through_caddy_contract() -> None:
     workflow = _workflow(FRONTEND_WORKFLOW)
     triggers = workflow.get("on", workflow.get(True))
     assert isinstance(triggers, dict)
+    quick_fix = "scripts/QUICK_FIX_PRODUCTION.sh"
+
     pull_request = triggers.get("pull_request")
     assert isinstance(pull_request, dict)
-    paths = pull_request.get("paths")
-    assert isinstance(paths, list)
-    assert ".github/workflows/frontend-ci.yml" in paths
+    pull_request_paths = pull_request.get("paths")
+    assert isinstance(pull_request_paths, list)
+    assert ".github/workflows/frontend-ci.yml" in pull_request_paths
+    assert quick_fix in pull_request_paths
+
+    push = triggers.get("push")
+    assert isinstance(push, dict)
+    push_paths = push.get("paths")
+    assert isinstance(push_paths, list)
+    assert quick_fix in push_paths
+
+    changes = _job(workflow, "changes")
+    filter_step = _named_step(_steps(changes), "Detect Caddy contract changes")
+    filter_with = filter_step.get("with")
+    assert isinstance(filter_with, dict)
+    filters_text = filter_with.get("filters")
+    assert isinstance(filters_text, str)
+    filters = yaml.safe_load(filters_text)
+    assert isinstance(filters, dict)
+    caddy_paths = filters.get("caddy")
+    assert isinstance(caddy_paths, list)
+    assert quick_fix in caddy_paths
 
 
 def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
@@ -485,16 +506,16 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
     assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
-    assert 'CADDY_GO_VERSION" != "go1.26.5"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.6"' in text
     assert "*v2.11.4*" not in text
-    assert "*go1.26.5*" not in text
+    assert "*go1.26.6*" not in text
 
 
 @pytest.mark.parametrize(
     ("caddy_version", "build_info", "expected_error"),
     (
-        ("v2.11.40 h1:test", "go\tgo1.26.5\n", "Expected Caddy v2.11.4"),
-        ("v2.11.4 h1:test", "go\tgo1.26.50\n", "Expected Caddy built with Go 1.26.5"),
+        ("v2.11.40 h1:test", "go\tgo1.26.6\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.60\n", "Expected Caddy built with Go 1.26.6"),
     ),
 )
 def test_production_quick_fix_rejects_inexact_caddy_identity(
@@ -518,7 +539,7 @@ def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) 
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         curl_exit=22,
     )
 
@@ -533,7 +554,7 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
@@ -564,7 +585,7 @@ def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         extra_env=f"{duplicate_line}\n",
     )
 
@@ -585,7 +606,7 @@ def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         create_env=False,
     )
 
@@ -599,7 +620,7 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
     )
 
     env_path = tmp_path / "production" / ".env"
@@ -637,7 +658,7 @@ def test_production_quick_fix_normalizes_managed_flag_cleanup(
     completed = _run_production_quick_fix(
         tmp_path,
         caddy_version="v2.11.4 h1:test",
-        go_version="go1.26.5",
+        go_version="go1.26.6",
         extra_env=f"{legacy_line}\n",
     )
 

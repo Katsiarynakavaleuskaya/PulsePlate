@@ -899,11 +899,27 @@ Classify the new review item before choosing the recovery path:
    flow.
 8. Do not wait for an unrelated `main` advance, enumerate reviewer execution
    refs, force-push history, or use generic operator approval to bypass the hard
-   disposition gate. The only owner responses recognized for a root without its
-   own canonical fingerprint or FIXED mapping are the two closed per-root
-   classes defined in this step and in step 9; unrelated canonical records may
-   coexist. For the
-   unavailable-ref NOT-A-BUG class, after an explicit human decision,
+   disposition gate. The recommended general owner response for a root without
+   its own canonical mapping/fingerprint is the exact line
+   `OWNER NOT-A-BUG: provider-only evidence in this root is unavailable; authenticated live PR state is authoritative.`
+   Use it only after the human OWNER reads the complete root and confirms that
+   no independent actionable exists beyond unavailable or synthetic
+   provider-only evidence. *Unavailable* means not repository-addressable
+   evidence usable by the authenticated live PR validator; it never means that
+   a real material, security, code, workflow, dependency, or runtime defect is
+   unavailable. The validator does not parse prose, lex SHAs, or classify refs
+   for this class. It authenticates and cross-binds repository, PR, root ID,
+   URL, canonical path, body, timestamp with `updated_at == created_at`, trusted
+   connector REST user id/login/type, live-head `originalCommit`, the sole
+   direct non-empty non-trigger mapping-only topology, same material digest, and
+   the strict current provider-neutral seal. Each eligible root is independent;
+   multiple roots may each have one exact OWNER reply. Material-path comments,
+   same-root canonical dispositions, and any API/Git/seal/identity uncertainty
+   remain blocking. The reply grants no review, provider output, approval,
+   scan, PASS, no-findings claim, merge authority, or gate bypass.
+   For compatibility with already-open historical threads only, the legacy
+   unavailable-ref NOT-A-BUG class remains valid under the same strict REST
+   connector/unedited-root binding. After an explicit human decision,
    one exact GraphQL-`OWNER` reply may say
    `OWNER NOT-A-BUG: ignore unavailable reviewer ref <full-40-sha>; authenticated live PR graph is authoritative.`
    It applies only to one resolved connector root on the canonical mapping file
@@ -915,7 +931,7 @@ Classify the new review item before choosing the recovery path:
    the whole root and confirm it has no independent actionable finding beyond
    the unavailable-ref ancestry claim; otherwise ordinary disposition applies.
    The selected ref must be definitively unavailable; unknown
-   or real refs and multiple eligible roots remain blocking. Count every live
+   or real refs and multiple legacy-eligible roots remain blocking. Count every live
    thread root before URL-only disposition filtering, and bind authenticated
    evidence to the case-insensitively equal snapshot repository. The validator
    never posts the reply or sends the unavailable ref to ancestry. The exact
