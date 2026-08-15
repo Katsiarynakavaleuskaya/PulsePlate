@@ -54,6 +54,14 @@ SUPPORTED_IMPORT_MATRIX = (
     ),
 )
 
+_ROUTE_SELECTION_ENV_NAMES = (
+    "BUSINESS_MODULE_ENABLED",
+    "ENABLE_TEST_ROUTES",
+    "FEATURE_BMI_PRO_ENABLED",
+    "FEATURE_PREMIUM_WEEK_ENABLED",
+    "VIP_MODULE_ENABLED",
+)
+
 
 def _run_import_scenario(imports: str) -> dict[str, Any]:
     scenario = textwrap.dedent(f"""
@@ -140,12 +148,7 @@ def _run_import_scenario(imports: str) -> dict[str, Any]:
             "TESTING": "true",
         }
     )
-    for inherited_name in (
-        "BUSINESS_MODULE_ENABLED",
-        "ENABLE_TEST_ROUTES",
-        "FEATURE_BMI_PRO_ENABLED",
-        "VIP_MODULE_ENABLED",
-    ):
+    for inherited_name in _ROUTE_SELECTION_ENV_NAMES:
         env.pop(inherited_name, None)
     result = subprocess.run(
         [sys.executable, "-c", scenario],
@@ -160,6 +163,28 @@ def _run_import_scenario(imports: str) -> dict[str, Any]:
     )
     payload: dict[str, Any] = json.loads(result_line.removeprefix("OWNERSHIP_RESULT="))
     return payload
+
+
+def test_import_scenario_scrubs_route_selection_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_env: dict[str, str] = {}
+    for name in _ROUTE_SELECTION_ENV_NAMES:
+        monkeypatch.setenv(name, "true")
+
+    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured_env.update(kwargs["env"])
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout="OWNERSHIP_RESULT={}\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert _run_import_scenario("pass") == {}
+    assert set(_ROUTE_SELECTION_ENV_NAMES).isdisjoint(captured_env)
 
 
 def test_fastapi_constructor_has_one_bounded_production_owner() -> None:

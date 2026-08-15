@@ -406,6 +406,32 @@ def test_application_instance_ownership_requires_canonical_facade_return_path() 
 
 
 @pytest.mark.parametrize(
+    "replacement",
+    [
+        "async def __getattr__(name):",
+        "def __getattr__(name):\n    yield name",
+        "@staticmethod\ndef __getattr__(name):",
+        "def __getattr__(attribute):",
+        "def __getattr__(name=None):",
+        "def __getattr__(*names):",
+    ],
+    ids=["async", "generator", "decorated", "wrong-name", "default", "variadic"],
+)
+def test_application_instance_ownership_requires_plain_facade_getter(
+    replacement: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/__init__.py"] = app_sources["app/__init__.py"].replace(
+        "def __getattr__(name):",
+        replacement,
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/__init__.py: app facade branch must return the canonical application" in errors
+
+
+@pytest.mark.parametrize(
     "mutation",
     [
         ("    from app.main import ensure_canonical_app_bootstrap\n\n"),

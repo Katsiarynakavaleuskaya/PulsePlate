@@ -10772,10 +10772,10 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   S := module/function/class/comprehension frames plus global/nonlocal outward lookup
 #   R := runtime load resolved through S to I
 #   A := closed type-expression annotation load | exact constructor call | FastAPI.openapi
-#   B := synchronous non-generator canonical factory, downward-only constructor dependencies,
-#        target-only composition, one ordered facade transition, exact lexical protected-module
-#        acquisition with all simple-name chain targets, reserved private factory capability,
-#        and exact compatibility re-exports
+#   B := exact plain authority callables, downward-only constructor dependencies, target-only
+#        composition, one ordered facade transition, exact lexical protected-module acquisition
+#        with all simple-name chain targets, reserved private factory capability, and exact
+#        compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
 #   N := scope-local protected module/namespace bindings, finite builtin/bound
 #        attribute mutators, one-hop aliases, and reloads
@@ -12076,10 +12076,23 @@ def _has_exact_compatibility_reexport(
     return False
 
 
-def _is_synchronous_nongenerator_function(node: ast.AST) -> bool:
-    """Classify one function body without borrowing yields from nested scopes."""
+def _has_exact_synchronous_function_shape(
+    node: ast.AST,
+    parameter_names: tuple[str, ...],
+) -> bool:
+    """Require one plain function without borrowing yields from nested scopes."""
 
-    if not isinstance(node, ast.FunctionDef):
+    if (
+        not isinstance(node, ast.FunctionDef)
+        or node.decorator_list
+        or node.args.posonlyargs
+        or tuple(argument.arg for argument in node.args.args) != parameter_names
+        or node.args.vararg is not None
+        or node.args.kwonlyargs
+        or node.args.kwarg is not None
+        or node.args.defaults
+        or node.args.kw_defaults
+    ):
         return False
 
     class YieldFinder(ast.NodeVisitor):
@@ -12156,7 +12169,11 @@ def _facade_returns_canonical_app(tree: ast.Module) -> bool:
         return False
 
     bootstrap = bootstrap_functions[0]
-    if not isinstance(bootstrap, ast.FunctionDef):
+    getter = getattr_functions[0]
+    if not _has_exact_synchronous_function_shape(
+        bootstrap,
+        (),
+    ) or not _has_exact_synchronous_function_shape(getter, ("name",)):
         return False
     statements = list(bootstrap.body)
     if (
@@ -12219,7 +12236,9 @@ def _facade_returns_canonical_app(tree: ast.Module) -> bool:
     ):
         return False
 
-    for statement in getattr_functions[0].body:
+    if not isinstance(getter, ast.FunctionDef):
+        return False
+    for statement in getter.body:
         if not isinstance(statement, ast.If):
             continue
         app_branch = (
@@ -12297,15 +12316,7 @@ def _main_bootstrap_composes_only_target(tree: ast.Module) -> bool:
     if len(functions) != 1 or not isinstance(functions[0], ast.FunctionDef):
         return False
     function = functions[0]
-    parameters = [*function.args.posonlyargs, *function.args.args]
-    if (
-        len(parameters) != 1
-        or parameters[0].arg != "target_app"
-        or function.args.vararg is not None
-        or function.args.kwonlyargs
-        or function.args.kwarg is not None
-        or function.args.defaults
-    ):
+    if not _has_exact_synchronous_function_shape(function, ("target_app",)):
         return False
     returns = [node for node in ast.walk(function) if isinstance(node, ast.Return)]
     if not (
@@ -12437,7 +12448,7 @@ def validate_application_instance_ownership(
             f"{CANONICAL_APPLICATION}: exactly one _create_fastapi_application definition "
             "is required"
         )
-    elif not _is_synchronous_nongenerator_function(factories[0]):
+    elif not _has_exact_synchronous_function_shape(factories[0], ("metadata",)):
         errors.append(
             f"{CANONICAL_APPLICATION}: _create_fastapi_application must be a synchronous "
             "non-generator function"
