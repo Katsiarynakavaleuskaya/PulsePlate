@@ -739,31 +739,52 @@ def validate_creative_code_lifecycle_transition_analytics(
             "minimum represented lifecycle node accounting exceeds the represented corpus."
         )
 
-    continuation_sources_by_stage = {
+    observed_continuation_sources_by_stage = {
         stage: sum(
             incoming_by_stage_status[(stage, status)] for status in CONTINUATION_STATUSES[stage]
         )
-        + unobserved_predecessors[stage]
         for stage in STAGES[1:-1]
     }
-    patch_required_sources = unobserved_successors["patch_evaluation"] + int(
-        outgoing_by_stage["patch_evaluation"] > 0
+    patch_observed_sources = observed_continuation_sources_by_stage["patch_evaluation"]
+    patch_missing_predecessors = unobserved_predecessors["patch_evaluation"]
+    patch_observed_successors = outgoing_by_stage["patch_evaluation"]
+    patch_missing_successors = unobserved_successors["patch_evaluation"]
+    patch_minimum_sources = max(
+        patch_observed_sources,
+        patch_missing_successors + int(patch_observed_successors > 0),
     )
-    if patch_required_sources > continuation_sources_by_stage["patch_evaluation"]:
+    patch_maximum_sources = min(
+        patch_observed_sources + patch_missing_predecessors,
+        patch_missing_successors + patch_observed_successors,
+    )
+    if patch_minimum_sources > patch_maximum_sources:
         raise CreativeCodeLifecycleTransitionAnalyticsError(
-            "patch continuation accounting exceeds represented accepted patch sources."
+            "patch continuation accounting is not representable."
         )
     for stage in (
         "promotion_plan",
         "promotion_validation",
         "promotion_approval",
-        "pr_open",
     ):
-        required_sources = outgoing_by_stage[stage] + unobserved_successors[stage]
-        if required_sources > continuation_sources_by_stage[stage]:
+        continuation_outcomes = outgoing_by_stage[stage] + unobserved_successors[stage]
+        represented_sources = (
+            observed_continuation_sources_by_stage[stage] + unobserved_predecessors[stage]
+        )
+        if continuation_outcomes != represented_sources:
             raise CreativeCodeLifecycleTransitionAnalyticsError(
-                "one-to-one continuation accounting exceeds represented source events."
+                "one-to-one continuation accounting is not representable."
             )
+
+    opened_pr_sources = observed_continuation_sources_by_stage["pr_open"]
+    pr_open_continuation_outcomes = outgoing_by_stage["pr_open"] + unobserved_successors["pr_open"]
+    if not (
+        opened_pr_sources
+        <= pr_open_continuation_outcomes
+        <= opened_pr_sources + unobserved_predecessors["pr_open"]
+    ):
+        raise CreativeCodeLifecycleTransitionAnalyticsError(
+            "pr_open continuation accounting is not representable."
+        )
 
     if unobserved_predecessors["specification"] != 0:
         raise CreativeCodeLifecycleTransitionAnalyticsError(

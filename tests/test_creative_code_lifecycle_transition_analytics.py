@@ -806,8 +806,17 @@ def test_reidentified_disjoint_edges_cannot_hide_sources_in_unrelated_events() -
         validate_creative_code_lifecycle_transition_analytics(forged)
 
 
-@pytest.mark.parametrize("stage", ["promotion_plan", "pr_open"])
-def test_reidentified_one_to_one_edges_require_distinct_represented_sources(stage: str) -> None:
+@pytest.mark.parametrize(
+    ("stage", "message"),
+    [
+        ("promotion_plan", "one-to-one continuation accounting is not representable"),
+        ("pr_open", "pr_open continuation accounting is not representable"),
+    ],
+)
+def test_reidentified_one_to_one_edges_require_distinct_represented_sources(
+    stage: str,
+    message: str,
+) -> None:
     if stage == "promotion_plan":
         promotion_a = "promotion-one-to-one-plan-a"
         promotion_b = "promotion-one-to-one-plan-b"
@@ -853,7 +862,173 @@ def test_reidentified_one_to_one_edges_require_distinct_represented_sources(stag
 
     with pytest.raises(
         CreativeCodeLifecycleTransitionAnalyticsError,
-        match="one-to-one continuation accounting exceeds",
+        match=message,
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
+@pytest.mark.parametrize(
+    "stage",
+    ["promotion_plan", "promotion_validation", "promotion_approval"],
+)
+def test_reidentified_isolated_one_to_one_stage_requires_its_missing_successor(
+    stage: str,
+) -> None:
+    promotion_id = f"promotion-isolated-{stage}"
+    if stage == "promotion_plan":
+        event = _legacy_event(
+            stage,
+            status="accepted",
+            source_bundle_id="bundle-isolated-plan",
+            selected_variant_id="variant-isolated-plan",
+            request_id="request-isolated-plan",
+            result_id="result-isolated-plan",
+            promotion_id=promotion_id,
+        )
+    else:
+        event = _legacy_event(stage, status="accepted", promotion_id=promotion_id)
+
+    artifact = _analytics([event])
+    assert artifact["lineage_accounting"]["unobserved_predecessors_by_stage"][stage] == 1
+    assert artifact["lineage_accounting"]["unobserved_successors_by_stage"][stage] == 1
+    assert validate_creative_code_lifecycle_transition_analytics(artifact) == artifact
+
+    forged = copy.deepcopy(artifact)
+    corpus = copy.deepcopy(forged["corpus"])
+    forged["lineage_accounting"]["unobserved_successors_by_stage"][stage] = 0
+    _reidentify_artifact(forged)
+    assert forged["corpus"] == corpus
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="one-to-one continuation accounting is not representable",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
+def test_reidentified_observed_accepted_patch_requires_one_missing_successor() -> None:
+    specification = _legacy_event(
+        "specification",
+        status="accepted",
+        source_packet_id="packet-patch-undercount",
+        source_bundle_id="bundle-patch-undercount",
+        selected_variant_id="variant-patch-undercount",
+    )
+    patch = _legacy_event(
+        "patch_evaluation",
+        status="accepted",
+        source_bundle_id="bundle-patch-undercount",
+        selected_variant_id="variant-patch-undercount",
+        request_id="request-patch-undercount",
+        result_id="result-patch-undercount",
+    )
+    artifact = _analytics([specification, patch])
+    assert artifact["lineage_accounting"]["unobserved_successors_by_stage"]["patch_evaluation"] == 1
+    assert validate_creative_code_lifecycle_transition_analytics(artifact) == artifact
+
+    forged = copy.deepcopy(artifact)
+    corpus = copy.deepcopy(forged["corpus"])
+    forged["lineage_accounting"]["unobserved_successors_by_stage"]["patch_evaluation"] = 0
+    _reidentify_artifact(forged)
+    assert forged["corpus"] == corpus
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="patch continuation accounting is not representable",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
+@pytest.mark.parametrize(("status", "missing_successor"), [("accepted", 1), ("rejected", 0)])
+def test_orphan_patch_preserves_status_specific_missing_successor_semantics(
+    status: str,
+    missing_successor: int,
+) -> None:
+    patch = _legacy_event(
+        "patch_evaluation",
+        status=status,
+        source_bundle_id=f"bundle-orphan-patch-{status}",
+        selected_variant_id=f"variant-orphan-patch-{status}",
+        request_id=f"request-orphan-patch-{status}",
+        result_id=f"result-orphan-patch-{status}",
+    )
+    artifact = _analytics([patch])
+
+    assert (
+        artifact["lineage_accounting"]["unobserved_predecessors_by_stage"]["patch_evaluation"] == 1
+    )
+    assert (
+        artifact["lineage_accounting"]["unobserved_successors_by_stage"]["patch_evaluation"]
+        == missing_successor
+    )
+    assert validate_creative_code_lifecycle_transition_analytics(artifact) == artifact
+
+
+def test_reidentified_known_open_pr_requires_one_continuation_outcome() -> None:
+    promotion_id = "promotion-known-open-undercount"
+    approval = _legacy_event("promotion_approval", status="accepted", promotion_id=promotion_id)
+    opened = _legacy_event(
+        "pr_open",
+        status="opened",
+        result_id="result-known-open-undercount",
+        promotion_id=promotion_id,
+    )
+    artifact = _analytics([approval, opened])
+    assert artifact["lineage_accounting"]["unobserved_predecessors_by_stage"]["pr_open"] == 0
+    assert artifact["lineage_accounting"]["unobserved_successors_by_stage"]["pr_open"] == 1
+    assert validate_creative_code_lifecycle_transition_analytics(artifact) == artifact
+
+    forged = copy.deepcopy(artifact)
+    corpus = copy.deepcopy(forged["corpus"])
+    forged["lineage_accounting"]["unobserved_successors_by_stage"]["pr_open"] = 0
+    _reidentify_artifact(forged)
+    assert forged["corpus"] == corpus
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="pr_open continuation accounting is not representable",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
+@pytest.mark.parametrize(("status", "missing_successor"), [("blocked", 0), ("opened", 1)])
+def test_orphan_pr_open_preserves_status_specific_missing_successor_semantics(
+    status: str,
+    missing_successor: int,
+) -> None:
+    opened_or_blocked = _legacy_event(
+        "pr_open",
+        status=status,
+        result_id=f"result-orphan-pr-{status}",
+        promotion_id=f"promotion-orphan-pr-{status}",
+    )
+    artifact = _analytics([opened_or_blocked])
+
+    assert artifact["lineage_accounting"]["unobserved_predecessors_by_stage"]["pr_open"] == 1
+    assert (
+        artifact["lineage_accounting"]["unobserved_successors_by_stage"]["pr_open"]
+        == missing_successor
+    )
+    assert validate_creative_code_lifecycle_transition_analytics(artifact) == artifact
+
+
+def test_reidentified_orphan_open_pr_rejects_successor_overflow() -> None:
+    opened = _legacy_event(
+        "pr_open",
+        status="opened",
+        result_id="result-orphan-pr-overflow",
+        promotion_id="promotion-orphan-pr-overflow",
+    )
+    artifact = _analytics([opened])
+    forged = copy.deepcopy(artifact)
+    corpus = copy.deepcopy(forged["corpus"])
+    forged["lineage_accounting"]["unobserved_successors_by_stage"]["pr_open"] = 2
+    _reidentify_artifact(forged)
+    assert forged["corpus"] == corpus
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="pr_open continuation accounting is not representable",
     ):
         validate_creative_code_lifecycle_transition_analytics(forged)
 
