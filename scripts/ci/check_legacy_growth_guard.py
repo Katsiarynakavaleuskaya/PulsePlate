@@ -10772,9 +10772,11 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   S := module/function/class/comprehension frames plus global/nonlocal outward lookup
 #   R := runtime load resolved through S to I
 #   A := closed type-expression annotation load | exact constructor call | FastAPI.openapi
-#   B := exact canonical factory/app bindings and exact compatibility re-exports
+#   B := exact canonical factory/app bindings, reserved private factory capability,
+#        and exact compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
-#   N := scope-local protected module/namespace bindings, one-hop mutations, and reloads
+#   N := scope-local protected module/namespace bindings, finite builtin/bound
+#        attribute mutators, one-hop aliases, and reloads
 #
 # A runtime R outside A is rejected at the capability boundary. This closes direct
 # calls, aliases, containers, subclasses, and default/decorator escapes as one class;
@@ -10787,6 +10789,39 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 FASTAPI_OWNERSHIP_GRAMMAR_G = ("I", "S", "R", "A", "B", "L", "N")
 OPEN_WORLD_STOP = "reject recognized capability escape; do not model open-world Python"
 _PROTECTED_APP_MODULES = frozenset({"app", "app.main", "app.bootstrap.application", "legacy_app"})
+_PRIVATE_APPLICATION_FACTORY = "_create_fastapi_application"
+_ATTRIBUTE_MUTATORS = frozenset({"delattr", "setattr"})
+_BOUND_ATTRIBUTE_MUTATORS = {
+    "__delattr__": "delattr",
+    "__setattr__": "setattr",
+}
+
+
+def _references_private_application_factory(tree: ast.Module) -> bool:
+    """Reserve the exact production factory capability to its canonical owner."""
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == _PRIVATE_APPLICATION_FACTORY:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr == _PRIVATE_APPLICATION_FACTORY:
+            return True
+        if isinstance(node, ast.arg) and node.arg == _PRIVATE_APPLICATION_FACTORY:
+            return True
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and (
+            node.name == _PRIVATE_APPLICATION_FACTORY
+        ):
+            return True
+        if isinstance(node, ast.alias) and (
+            node.name == _PRIVATE_APPLICATION_FACTORY or node.asname == _PRIVATE_APPLICATION_FACTORY
+        ):
+            return True
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and (
+            _PRIVATE_APPLICATION_FACTORY in node.names
+        ):
+            return True
+        if isinstance(node, ast.Constant) and node.value == _PRIVATE_APPLICATION_FACTORY:
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -11584,6 +11619,8 @@ def _module_app_mutation(
     namespace_frames: dict[int, set[str]] = {}
     importlib_frames: dict[int, set[str]] = {}
     reload_frames: dict[int, set[str]] = {}
+    builtins_frames: dict[int, set[str]] = {}
+    attribute_mutator_frames: dict[int, dict[str, str]] = {}
     for scope in sorted(scopes, key=depth):
         scope_id = id(scope)
         parent = lookup_parent(scope)
@@ -11612,6 +11649,20 @@ def _module_app_mutation(
             if parent is not None
             else set()
         )
+        builtins_names = (
+            {name for name in builtins_frames[id(parent)] if name not in names}
+            if parent is not None
+            else set()
+        )
+        attribute_mutators = (
+            {
+                name: operation
+                for name, operation in attribute_mutator_frames[id(parent)].items()
+                if name not in names
+            }
+            if parent is not None
+            else {name: name for name in _ATTRIBUTE_MUTATORS if name not in names}
+        )
         assignments: list[tuple[str, ast.AST]] = []
         for node in nodes_by_scope[scope_id]:
             if isinstance(node, ast.Import):
@@ -11621,6 +11672,8 @@ def _module_app_mutation(
                         modules[bound] = alias.name if alias.asname else bound
                     elif alias.name == "importlib":
                         importlib_names.add(alias.asname or "importlib")
+                    elif alias.name == "builtins":
+                        builtins_names.add(alias.asname or "builtins")
             elif isinstance(node, ast.ImportFrom):
                 for alias in node.names:
                     reference = _import_reference(node, alias)
@@ -11628,6 +11681,8 @@ def _module_app_mutation(
                         modules[alias.asname or alias.name] = reference
                     elif reference == "importlib.reload":
                         reload_names.add(alias.asname or alias.name)
+                    elif reference in {"builtins.delattr", "builtins.setattr"}:
+                        attribute_mutators[alias.asname or alias.name] = alias.name
             elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
                 simple = _simple_assignment(node)
                 if simple is None:
@@ -11638,6 +11693,12 @@ def _module_app_mutation(
                     modules[name] = imported
                 else:
                     assignments.append((name, value))
+        builtins_sources = frozenset(builtins_names)
+        builtins_names.update(
+            name
+            for name, value in assignments
+            if isinstance(value, ast.Name) and value.id in builtins_sources
+        )
         modules.update(
             {
                 name: modules[value.id]
@@ -11672,10 +11733,23 @@ def _module_app_mutation(
                 and value.value.id in importlib_names
             )
         )
+        attribute_mutator_sources = dict(attribute_mutators)
+        for name, value in assignments:
+            if isinstance(value, ast.Name) and value.id in attribute_mutator_sources:
+                attribute_mutators[name] = attribute_mutator_sources[value.id]
+            elif (
+                isinstance(value, ast.Attribute)
+                and value.attr in _ATTRIBUTE_MUTATORS
+                and isinstance(value.value, ast.Name)
+                and value.value.id in builtins_names
+            ):
+                attribute_mutators[name] = value.attr
         module_frames[scope_id] = modules
         namespace_frames[scope_id] = namespaces
         importlib_frames[scope_id] = importlib_names
         reload_frames[scope_id] = reload_names
+        builtins_frames[scope_id] = builtins_names
+        attribute_mutator_frames[scope_id] = attribute_mutators
 
     for node in ast.walk(tree):
         scope_id = id(containing_scope(node))
@@ -11683,6 +11757,8 @@ def _module_app_mutation(
         namespaces = namespace_frames[scope_id]
         importlib_names = importlib_frames[scope_id]
         reload_names = reload_frames[scope_id]
+        builtins_names = builtins_frames[scope_id]
+        attribute_mutators = attribute_mutator_frames[scope_id]
 
         def namespace(candidate: ast.AST) -> bool:
             return (
@@ -11737,18 +11813,43 @@ def _module_app_mutation(
             )
             if (direct_reload or module_reload) and protected(node.args[0], modules):
                 return True
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "setattr"
-            and len(node.args) >= 2
-            and (protected(node.args[0], modules) or namespace(node.args[0]))
-        ):
-            attribute = _static_string(node.args[1])
-            if attribute == "app" or (
-                attribute is None and not direct_current_namespace(node.args[0])
+        if isinstance(node, ast.Call):
+            operation: str | None = None
+            target: ast.AST | None = None
+            attribute_node: ast.AST | None = None
+            if isinstance(node.func, ast.Name):
+                operation = attribute_mutators.get(node.func.id)
+                minimum_arguments = 2 if operation == "delattr" else 3
+                if operation is not None and len(node.args) >= minimum_arguments:
+                    target = node.args[0]
+                    attribute_node = node.args[1]
+            elif isinstance(node.func, ast.Attribute):
+                if (
+                    node.func.attr in _ATTRIBUTE_MUTATORS
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in builtins_names
+                ):
+                    operation = node.func.attr
+                    minimum_arguments = 2 if operation == "delattr" else 3
+                    if len(node.args) >= minimum_arguments:
+                        target = node.args[0]
+                        attribute_node = node.args[1]
+                elif node.func.attr in _BOUND_ATTRIBUTE_MUTATORS:
+                    operation = _BOUND_ATTRIBUTE_MUTATORS[node.func.attr]
+                    minimum_arguments = 1 if operation == "delattr" else 2
+                    if len(node.args) >= minimum_arguments and (
+                        protected(node.func.value, modules) or namespace(node.func.value)
+                    ):
+                        target = node.func.value
+                        attribute_node = node.args[0]
+            if (
+                target is not None
+                and attribute_node is not None
+                and (protected(target, modules) or namespace(target))
             ):
-                return True
+                attribute = _static_string(attribute_node)
+                if attribute in {None, "app"}:
+                    return True
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -12216,6 +12317,11 @@ def validate_application_instance_ownership(
         errors.append(f"{LEGACY_APP}: app must be an exact canonical compatibility import")
 
     for filename, tree in trees.items():
+        if filename != CANONICAL_APPLICATION and _references_private_application_factory(tree):
+            errors.append(
+                f"{filename}: private application factory capability is forbidden outside "
+                f"{CANONICAL_APPLICATION}"
+            )
         if filename not in {CANONICAL_APPLICATION, CANONICAL_MAIN, LEGACY_APP}:
             for line, _kind in _module_binding_events(tree, "app"):
                 errors.append(f"{filename}:{line}: module app binding is forbidden")

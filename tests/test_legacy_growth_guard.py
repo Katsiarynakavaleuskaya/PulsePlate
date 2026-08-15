@@ -565,6 +565,157 @@ def test_application_instance_ownership_rejects_deleted_app_authority(
 @pytest.mark.parametrize(
     "mutation",
     [
+        'delattr(owner, "app")',
+        'from builtins import delattr as remove\nremove(owner, "app")',
+        'import builtins as runtime\nruntime.delattr(owner, "app")',
+        'remove = delattr\nremove(owner, "app")',
+        'owner.__delattr__("app")',
+        'from builtins import setattr as replace\nreplace(owner, "app", object())',
+        'import builtins as runtime\nruntime.setattr(owner, "app", object())',
+        'replace = setattr\nreplace(owner, "app", object())',
+        'owner.__setattr__("app", object())',
+    ],
+    ids=[
+        "direct-delattr",
+        "from-builtins-delattr",
+        "module-delattr",
+        "one-hop-delattr",
+        "bound-dunder-delattr",
+        "from-builtins-setattr",
+        "module-setattr",
+        "one-hop-setattr",
+        "bound-dunder-setattr",
+    ],
+)
+def test_application_instance_ownership_rejects_attribute_mutator_authority_calls(
+    mutation: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = "import app.bootstrap.application as owner\n" f"{mutation}\n"
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/other.py: module app authority mutation is forbidden" in errors
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            def delattr(target, name):
+                return None
+
+            delattr(owner, "app")
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            def mutate(setattr):
+                setattr(owner, "app", object())
+
+            mutate(lambda *args: None)
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            class Helper:
+                def delattr(self, target, name):
+                    return None
+
+            builtins = Helper()
+            builtins.delattr(owner, "app")
+            """),
+        textwrap.dedent("""
+            class Box:
+                pass
+
+            box = Box()
+            box.__delattr__("value")
+            box.__setattr__("value", object())
+            """),
+    ],
+    ids=["shadowed-delattr", "parameter-setattr", "shadowed-builtins", "foreign-dunders"],
+)
+def test_application_instance_ownership_allows_shadowed_or_foreign_attribute_mutators(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        textwrap.dedent("""
+            from app.bootstrap.application import (
+                APPLICATION_METADATA,
+                _create_fastapi_application,
+            )
+
+            rogue = _create_fastapi_application(APPLICATION_METADATA)
+            """),
+        textwrap.dedent("""
+            from app.bootstrap.application import (
+                APPLICATION_METADATA,
+                _create_fastapi_application as create_app,
+            )
+
+            rogue = create_app(APPLICATION_METADATA)
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            rogue = owner._create_fastapi_application(owner.APPLICATION_METADATA)
+            """),
+        textwrap.dedent("""
+            from app.bootstrap import application as owner
+
+            create_app = getattr(owner, "_create_fastapi_application")
+            rogue = create_app(owner.APPLICATION_METADATA)
+            """),
+        textwrap.dedent("""
+            import app.bootstrap.application as owner
+
+            create_app = vars(owner)["_create_fastapi_application"]
+            rogue = create_app(owner.APPLICATION_METADATA)
+            """),
+    ],
+    ids=["direct-import", "aliased-import", "module-attribute", "getattr", "namespace"],
+)
+def test_application_instance_ownership_rejects_private_factory_capability_outside_owner(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/other.py: private application factory capability is forbidden outside "
+        "app/bootstrap/application.py"
+    ) in errors
+
+
+def test_application_instance_ownership_allows_neighboring_nonfactory_names() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = textwrap.dedent("""
+        def _create_fastapi_application_for_tests(metadata):
+            return object()
+
+        factory_name = "_create_fastapi_application_for_tests"
+        value = _create_fastapi_application_for_tests(factory_name)
+        """)
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
         "owner.app, marker = object(), None",
         "[owner.app, *rest] = values",
         "for owner.app in values:\n    pass",
