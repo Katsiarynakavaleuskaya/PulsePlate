@@ -1633,6 +1633,18 @@ def test_application_instance_ownership_requires_main_bootstrap_call() -> None:
     ) in errors
 
 
+def test_application_instance_ownership_requires_main_app_import_at_module_scope() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] = app_sources["app/main.py"].replace(
+        "from app.bootstrap.application import app",
+        "if False:\n    from app.bootstrap.application import app",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: app must be an exact canonical compatibility import" in errors
+
+
 @pytest.mark.parametrize(
     "source",
     [
@@ -1698,6 +1710,90 @@ def test_application_instance_ownership_requires_target_only_main_composition(
     errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
 
     assert "app/main.py: canonical bootstrap composition must use only target_app" in errors
+
+
+def test_application_instance_ownership_requires_bootstrap_return_after_composition() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/main.py"] = app_sources["app/main.py"].replace(
+        "return target_app",
+        "return target_app\n    target_app.state.composed = True",
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert "app/main.py: canonical bootstrap composition must use only target_app" in errors
+
+
+@pytest.mark.parametrize(
+    ("owner", "attribute"),
+    [
+        ("logging", "basicConfig"),
+        ("dotenv", "load_dotenv"),
+        ("os", "getenv"),
+    ],
+)
+@pytest.mark.parametrize("mutation", ["attribute", "namespace"])
+def test_application_instance_ownership_rejects_canonical_call_owner_mutation(
+    owner: str,
+    attribute: str,
+    mutation: str,
+) -> None:
+    legacy_source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    app_sources = {
+        path.relative_to(REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
+        for path in (REPO_ROOT / "app").rglob("*.py")
+    }
+    statement = (
+        f"{owner}.{attribute} = object"
+        if mutation == "attribute"
+        else f'{owner}.__dict__["{attribute}"] = object'
+    )
+    source = app_sources["app/bootstrap/application.py"]
+    app_sources["app/bootstrap/application.py"] = source.replace(
+        f"import {owner}\n",
+        f"import {owner}\n\n{statement}\n",
+        1,
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/bootstrap/application.py: canonical call owners must retain exact import bindings"
+        in errors
+    )
+
+
+@pytest.mark.parametrize("owner", ["logging", "dotenv", "os"])
+def test_application_instance_ownership_requires_module_scope_call_owner_import(
+    owner: str,
+) -> None:
+    legacy_source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    app_sources = {
+        path.relative_to(REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
+        for path in (REPO_ROOT / "app").rglob("*.py")
+    }
+    source = app_sources["app/bootstrap/application.py"]
+    app_sources["app/bootstrap/application.py"] = source.replace(
+        f"import {owner}\n",
+        f"if False:\n    import {owner}\n",
+        1,
+    )
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert (
+        "app/bootstrap/application.py: canonical call owners must retain exact import bindings"
+        in errors
+    )
+
+
+def test_application_instance_ownership_allows_foreign_call_owner_mutation() -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources[
+        "app/bootstrap/application.py"
+    ] += "\nimport metrics\nmetrics.basicConfig = object\n"
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
 
 
 def test_application_instance_ownership_rejects_metadata_factory_rebinding() -> None:

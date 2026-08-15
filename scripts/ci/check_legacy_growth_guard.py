@@ -10773,9 +10773,9 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
 #   R := runtime load resolved through S to I
 #   A := closed type-expression annotation load | exact constructor call | FastAPI.openapi
 #   B := exact plain authority callables, downward-only constructor dependencies, target-only
-#        composition, one ordered facade transition, exact lexical protected-module acquisition
-#        with all simple-name chain targets, reserved private factory capability, and exact
-#        compatibility re-exports
+#        composition with a final direct return, one ordered facade transition, exact lexical
+#        protected-module acquisition with all simple-name chain targets, immutable exact call
+#        owners, reserved private factory capability, and exact compatibility re-exports
 #   L := static-literal importlib.import_module via exact module/direct import aliases
 #   N := scope-local protected module/namespace bindings, finite builtin/bound
 #        attribute mutators, one-hop aliases, and reloads
@@ -11392,6 +11392,11 @@ _CANONICAL_APPLICATION_CALLS = frozenset(
         "os.getenv",
     }
 )
+_CANONICAL_APPLICATION_MODULE_CALL_OWNERS = {
+    "dotenv": frozenset({"load_dotenv"}),
+    "logging": frozenset({"basicConfig"}),
+    "os": frozenset({"getenv"}),
+}
 
 
 def _canonical_application_has_closed_call_grammar(tree: ast.Module) -> bool:
@@ -12030,6 +12035,59 @@ def _has_single_exact_import_binding(
     )
 
 
+def _has_single_exact_module_import_binding(
+    tree: ast.Module,
+    *,
+    module: str,
+    bound: str,
+) -> bool:
+    direct_import = any(
+        isinstance(statement, ast.Import)
+        and any(
+            alias.name == module and (alias.asname or alias.name.split(".", 1)[0]) == bound
+            for alias in statement.names
+        )
+        for statement in tree.body
+    )
+    events = _module_binding_events(tree, bound)
+    return direct_import and len(events) == 1 and events[0][1] == module
+
+
+def _canonical_application_call_owners_are_stable(tree: ast.Module) -> bool:
+    """Bind each used allowlisted module call to one immutable direct import."""
+
+    call_names = {
+        name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and (name := _exact_dotted_name(node.func)) is not None
+    }
+    for owner, attributes in _CANONICAL_APPLICATION_MODULE_CALL_OWNERS.items():
+        used_attributes = {
+            attribute for attribute in attributes if f"{owner}.{attribute}" in call_names
+        }
+        if not used_attributes:
+            continue
+        if not _has_single_exact_module_import_binding(tree, module=owner, bound=owner):
+            return False
+        protected_references = {f"{owner}.{attribute}" for attribute in used_attributes}
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.ctx, (ast.Store, ast.Del))
+                and _exact_dotted_name(node) in protected_references
+            ):
+                return False
+            if (
+                isinstance(node, ast.Subscript)
+                and isinstance(node.ctx, (ast.Store, ast.Del))
+                and _exact_dotted_name(node.value) == f"{owner}.__dict__"
+            ):
+                key = _static_string(node.slice)
+                if key is None or key in used_attributes:
+                    return False
+    return True
+
+
 def _has_exact_compatibility_reexport(
     tree: ast.Module,
     *,
@@ -12323,6 +12381,7 @@ def _main_bootstrap_composes_only_target(tree: ast.Module) -> bool:
         len(returns) == 1
         and isinstance(returns[0].value, ast.Name)
         and returns[0].value.id == "target_app"
+        and function.body[-1] is returns[0]
     ):
         return False
 
@@ -12426,6 +12485,10 @@ def validate_application_instance_ownership(
     if not _canonical_application_has_closed_call_grammar(canonical_tree):
         errors.append(
             f"{CANONICAL_APPLICATION}: calls must match the closed canonical application grammar"
+        )
+    if not _canonical_application_call_owners_are_stable(canonical_tree):
+        errors.append(
+            f"{CANONICAL_APPLICATION}: canonical call owners must retain exact import bindings"
         )
     if _imports_forbidden_runtime_owner(
         canonical_tree,
@@ -12571,8 +12634,12 @@ def validate_application_instance_ownership(
             "_create_fastapi_application"
         )
 
-    main_events = _module_binding_events(trees[CANONICAL_MAIN], "app")
-    if len(main_events) != 1 or main_events[0][1] != "app.bootstrap.application.app":
+    if not _has_single_exact_import_binding(
+        trees[CANONICAL_MAIN],
+        module="app.bootstrap.application",
+        imported="app",
+        bound="app",
+    ):
         errors.append(f"{CANONICAL_MAIN}: app must be an exact canonical compatibility import")
     if not _has_exact_compatibility_reexport(
         trees[LEGACY_APP],
