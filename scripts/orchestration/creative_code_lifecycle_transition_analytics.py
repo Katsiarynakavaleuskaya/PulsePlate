@@ -454,17 +454,11 @@ def _write_staging(parent: Path, content: bytes) -> Path:
                 os.close(descriptor_to_close)
     except CreativeCodeLifecycleTransitionAnalyticsIOError:
         if staging is not None:
-            try:
-                staging.unlink()
-            except FileNotFoundError:
-                pass
+            _cleanup_staging(staging)
         raise
     except OSError as exc:
         if staging is not None:
-            try:
-                staging.unlink()
-            except FileNotFoundError:
-                pass
+            _cleanup_staging(staging)
         raise CreativeCodeLifecycleTransitionAnalyticsIOError(
             "analytics_staging_write_failed"
         ) from exc

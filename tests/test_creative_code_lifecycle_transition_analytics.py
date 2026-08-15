@@ -1978,6 +1978,93 @@ def test_staging_descriptor_close_failure_is_bounded_and_cleans_this_attempt(
     assert not list(analytics_root.rglob("*.staging"))
 
 
+@pytest.mark.parametrize("failure", ["write", "close"])
+def test_cli_staging_cleanup_failure_is_bounded_and_preserves_private_residue(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    telemetry_root, analytics_root = _configure_snapshot(monkeypatch, tmp_path, _full_chain())
+    source_paths = (
+        telemetry_root / cli.EVENTS_FILE,
+        telemetry_root / cli.ROLLUP_FILE,
+    )
+
+    def file_state(path: Path) -> tuple[bytes, int, int, int, int, int, int]:
+        info = path.stat()
+        return (
+            path.read_bytes(),
+            info.st_ino,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+            info.st_mode,
+            info.st_nlink,
+        )
+
+    source_before = {path: file_state(path) for path in source_paths}
+    original_mkstemp = cli.tempfile.mkstemp
+    original_write = cli.os.write
+    original_close = cli.os.close
+    original_unlink = Path.unlink
+    staging_descriptor: dict[str, int] = {}
+
+    def tracked_mkstemp(*args: Any, **kwargs: Any) -> tuple[int, str]:
+        descriptor, path = original_mkstemp(*args, **kwargs)
+        staging_descriptor["value"] = descriptor
+        return descriptor, path
+
+    def fail_staging_unlink(path: Path, *args: Any, **kwargs: Any) -> None:
+        if path.name.endswith(".staging"):
+            raise OSError(errno.EIO, "injected staging cleanup failure")
+        original_unlink(path, *args, **kwargs)
+
+    with monkeypatch.context() as faults:
+        faults.setattr(cli.tempfile, "mkstemp", tracked_mkstemp)
+        faults.setattr(Path, "unlink", fail_staging_unlink)
+        if failure == "write":
+
+            def fail_staging_write(descriptor: int, content: bytes) -> int:
+                if descriptor == staging_descriptor.get("value"):
+                    raise OSError(errno.EIO, "injected staging write failure")
+                return original_write(descriptor, content)
+
+            faults.setattr(cli.os, "write", fail_staging_write)
+        else:
+
+            def fail_staging_close(descriptor: int) -> None:
+                original_close(descriptor)
+                if descriptor == staging_descriptor.get("value"):
+                    raise OSError(errno.EIO, "injected staging close failure")
+
+            faults.setattr(cli.os, "close", fail_staging_close)
+
+        assert cli.main(["build", "--telemetry-dir", str(telemetry_root)]) == 1
+        output = capsys.readouterr().out
+        assert output == "FAIL: analytics_staging_cleanup_failed\n"
+        assert str(tmp_path) not in output
+        assert "injected" not in output
+
+    residues = list(analytics_root.rglob("*.staging"))
+    assert len(residues) == 1
+    residue = residues[0]
+    residue_info = residue.stat()
+    assert stat.S_ISREG(residue_info.st_mode)
+    assert stat.S_IMODE(residue_info.st_mode) == 0o600
+    assert residue_info.st_nlink == 1
+    assert not list(analytics_root.rglob(cli.ANALYTICS_FILE))
+    residue_before = file_state(residue)
+    assert {path: file_state(path) for path in source_paths} == source_before
+
+    assert cli.main(["build", "--telemetry-dir", str(telemetry_root)]) == 1
+    assert capsys.readouterr().out == "FAIL: analytics_namespace_ambiguous\n"
+    assert not list(analytics_root.rglob(cli.ANALYTICS_FILE))
+    assert list(analytics_root.rglob("*.staging")) == [residue]
+    assert file_state(residue) == residue_before
+    assert {path: file_state(path) for path in source_paths} == source_before
+
+
 @pytest.mark.parametrize("failure", ["create", "read", "not_directory", "existing_not_directory"])
 def test_output_root_failures_are_explicit(
     monkeypatch: pytest.MonkeyPatch,
