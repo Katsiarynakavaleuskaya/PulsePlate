@@ -9850,7 +9850,128 @@
             "application/json": {
               "schema": {
                 "additionalProperties": true,
-                "title": "Payload",
+                "description": "RU: Запрос на создание недельного плана питания.\nEN: Request for creating a weekly meal plan.",
+                "properties": {
+                  "activity": {
+                    "description": "Activity level",
+                    "enum": [
+                      "sedentary",
+                      "light",
+                      "moderate",
+                      "active",
+                      "very_active"
+                    ],
+                    "title": "Activity",
+                    "type": "string"
+                  },
+                  "age": {
+                    "description": "Age in years",
+                    "maximum": 120.0,
+                    "minimum": 1.0,
+                    "title": "Age",
+                    "type": "integer"
+                  },
+                  "calories": {
+                    "anyOf": [
+                      {
+                        "maximum": 10000.0,
+                        "minimum": 100.0,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Daily calories target",
+                    "title": "Calories"
+                  },
+                  "constraints": {
+                    "additionalProperties": true,
+                    "description": "Dietary constraints",
+                    "title": "Constraints",
+                    "type": "object"
+                  },
+                  "goal": {
+                    "description": "Nutrition goal",
+                    "enum": [
+                      "loss",
+                      "maintain",
+                      "gain"
+                    ],
+                    "title": "Goal",
+                    "type": "string"
+                  },
+                  "goals": {
+                    "additionalProperties": true,
+                    "description": "Nutrition goals",
+                    "title": "Goals",
+                    "type": "object"
+                  },
+                  "height_cm": {
+                    "description": "Height in centimeters",
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 300.0,
+                    "title": "Height Cm",
+                    "type": "number"
+                  },
+                  "preferences": {
+                    "additionalProperties": true,
+                    "description": "User preferences",
+                    "title": "Preferences",
+                    "type": "object"
+                  },
+                  "protein": {
+                    "anyOf": [
+                      {
+                        "maximum": 500.0,
+                        "minimum": 0.0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Daily protein target (g)",
+                    "title": "Protein"
+                  },
+                  "sex": {
+                    "description": "Gender (male/female)",
+                    "enum": [
+                      "female",
+                      "male"
+                    ],
+                    "title": "Sex",
+                    "type": "string"
+                  },
+                  "user_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "User identifier",
+                    "title": "User Id"
+                  },
+                  "weight_kg": {
+                    "description": "Weight in kilograms",
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 500.0,
+                    "title": "Weight Kg",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "sex",
+                  "age",
+                  "height_cm",
+                  "weight_kg",
+                  "activity",
+                  "goal"
+                ],
+                "title": "WeeklyPlanRequest",
                 "type": "object"
               }
             }

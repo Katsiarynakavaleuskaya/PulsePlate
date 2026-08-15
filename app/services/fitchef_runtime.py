@@ -6,7 +6,9 @@ import asyncio
 import hashlib
 import inspect
 import logging
+import math
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, Literal, Protocol, TypeVar, cast
 
@@ -79,6 +81,82 @@ CBT_POLICY_ALLOWLIST = {
 }
 WeeklyPlanBuilder = Callable[..., Any]
 ShoppingFollowupBuilder = Callable[..., ShoppingListDTO]
+
+CORE_WEEKLY_PROFILE_FIELDS: tuple[str, ...] = (
+    "sex",
+    "age",
+    "height_cm",
+    "weight_kg",
+    "activity",
+    "goal",
+)
+
+
+class WeeklyProfileInputError(ValueError):
+    """Deterministic, value-free weekly profile admission error."""
+
+    def __init__(
+        self,
+        *,
+        missing_fields: tuple[str, ...] = (),
+        invalid_fields: tuple[str, ...] = (),
+    ) -> None:
+        self.missing_fields = missing_fields
+        self.invalid_fields = invalid_fields
+        super().__init__(f"missing_fields={missing_fields!r}; invalid_fields={invalid_fields!r}")
+
+    def __repr__(self) -> str:
+        return (
+            "WeeklyProfileInputError("
+            f"missing_fields={self.missing_fields!r}, "
+            f"invalid_fields={self.invalid_fields!r})"
+        )
+
+
+def _is_valid_weekly_profile_field(field: str, value: object) -> bool:
+    """Apply the explicit native-value contract for one core profile field."""
+
+    if field == "sex":
+        return type(value) is str and value in {"female", "male"}
+    if field == "age":
+        return type(value) is int and 1 <= value <= 120
+    if field == "height_cm":
+        if type(value) is int:
+            return 0 < value <= 300
+        return type(value) is float and math.isfinite(value) and 0 < value <= 300
+    if field == "weight_kg":
+        if type(value) is int:
+            return 0 < value <= 500
+        return type(value) is float and math.isfinite(value) and 0 < value <= 500
+    if field == "activity":
+        return type(value) is str and value in {
+            "sedentary",
+            "light",
+            "moderate",
+            "active",
+            "very_active",
+        }
+    if field == "goal":
+        return type(value) is str and value in {"loss", "maintain", "gain"}
+    return False
+
+
+def _require_weekly_profile_input(request_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a stable checked snapshot of the authoritative top-level profile input."""
+
+    snapshot = dict(request_data)
+    missing_fields = tuple(field for field in CORE_WEEKLY_PROFILE_FIELDS if field not in snapshot)
+    invalid_fields = tuple(
+        field
+        for field in CORE_WEEKLY_PROFILE_FIELDS
+        if field in snapshot and not _is_valid_weekly_profile_field(field, snapshot[field])
+    )
+    if missing_fields or invalid_fields:
+        raise WeeklyProfileInputError(
+            missing_fields=missing_fields,
+            invalid_fields=invalid_fields,
+        )
+    return snapshot
 
 
 class _StructuredDraft(Protocol):
@@ -252,7 +330,7 @@ def _sha256_hex(value: str) -> str:
 
 
 def _build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
-    """Create UserProfile with legacy-safe defaults. / Собрать UserProfile с совместимыми fallback."""
+    """Create UserProfile from an already-checked weekly profile snapshot."""
 
     from core.targets import UserProfile
 
@@ -264,39 +342,16 @@ def _build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
     if isinstance(medical_conditions, list):
         medical_conditions = set(medical_conditions)
 
-    age_raw = profile_data.get("age")
-    try:
-        age_val: int = 30 if age_raw is None else int(age_raw)
-    except (TypeError, ValueError):
-        age_val = 30
-
-    height_raw = profile_data.get("height_cm")
-    try:
-        height_val: float = 175.0 if height_raw is None else float(height_raw)
-    except (TypeError, ValueError):
-        height_val = 175.0
-
-    weight_raw = profile_data.get("weight_kg")
-    try:
-        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
-    except (TypeError, ValueError):
-        weight_val = 70.0
-
-    sex_raw = profile_data.get("sex")
-    sex_value: Literal["male", "female"] = "male"
-    if sex_raw in {"male", "female"}:
-        sex_value = cast(Literal["male", "female"], sex_raw)
-
     profile = UserProfile(
-        sex=sex_value,
-        age=age_val,
-        height_cm=height_val,
-        weight_kg=weight_val,
+        sex=cast(Literal["male", "female"], profile_data["sex"]),
+        age=cast(int, profile_data["age"]),
+        height_cm=cast(float, profile_data["height_cm"]),
+        weight_kg=cast(float, profile_data["weight_kg"]),
         activity=cast(
             Literal["sedentary", "light", "moderate", "active", "very_active"],
-            profile_data.get("activity") or "moderate",
+            profile_data["activity"],
         ),
-        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
+        goal=cast(Literal["loss", "maintain", "gain"], profile_data["goal"]),
         deficit_pct=profile_data.get("deficit_pct"),
         surplus_pct=profile_data.get("surplus_pct"),
         bodyfat=profile_data.get("bodyfat"),
@@ -312,10 +367,11 @@ def _build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
     return profile
 
 
-def build_weekly_user_profile(profile_data: dict[str, Any]) -> Any:
+def build_weekly_user_profile(profile_data: Mapping[str, Any]) -> Any:
     """Public profile helper for weekly runtime. / Публичный helper профиля для weekly runtime."""
 
-    profile = _build_weekly_user_profile(profile_data)
+    checked_profile_data = _require_weekly_profile_input(profile_data)
+    profile = _build_weekly_user_profile(checked_profile_data)
     return profile
 
 
@@ -1084,13 +1140,14 @@ async def run_weekly_plan_task(
 ) -> FitChefWeeklyPlanResult:
     """Run weekly-plan orchestration. / Выполнить оркестрацию weekly-plan."""
 
+    request_data = _require_weekly_profile_input(task.input.request_data)
     if menu_builder is None:
         result = FitChefWeeklyPlanResult(menu={"mode": "echo"})
         return result
 
     menu_payload = await run_in_threadpool(
         _run_weekly_menu_builder,
-        task.input.request_data,
+        request_data,
         menu_builder,
     )
     result = FitChefWeeklyPlanResult(menu=menu_payload)

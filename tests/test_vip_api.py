@@ -6,10 +6,45 @@ RU: Тесты для VIP API эндпоинтов
 EN: Tests for VIP API endpoints
 """
 
+from __future__ import annotations
+
+from typing import Any, cast
+
 import pytest
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from app.services import fitchef_runtime
 from tests._route_patch import find_route_endpoint, patch_endpoint_global
+
+_CORE_WEEKLY_PROFILE_FIELDS = ("sex", "age", "height_cm", "weight_kg", "activity", "goal")
+_INVALID_WEEKLY_PAYLOAD = {"detail": "Invalid weekly plan request payload"}
+
+
+def _valid_weekly_profile_payload() -> dict[str, Any]:
+    return {
+        "sex": "female",
+        "age": 29,
+        "height_cm": 168.0,
+        "weight_kg": 58.0,
+        "activity": "active",
+        "goal": "maintain",
+    }
+
+
+def test_vip_weekly_plan_openapi_publishes_required_profile_contract(
+    client: TestClient,
+) -> None:
+    """OpenAPI mirrors the six-field schema without moving validation before auth."""
+
+    schema = cast(FastAPI, client.app).openapi()
+    request_schema = schema["paths"]["/api/v1/vip/menu/weekly/plan"]["post"]["requestBody"][
+        "content"
+    ]["application/json"]["schema"]
+
+    assert request_schema["required"] == list(_CORE_WEEKLY_PROFILE_FIELDS)
+    assert set(request_schema["properties"]) >= set(_CORE_WEEKLY_PROFILE_FIELDS)
+    assert request_schema["additionalProperties"] is True
 
 
 def test_vip_health(client: TestClient, vip_headers: dict[str, str]) -> None:
@@ -25,7 +60,11 @@ def test_vip_health(client: TestClient, vip_headers: dict[str, str]) -> None:
 def test_deprecated_weekly_plan_handles_dict_plan(
     monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
 ) -> None:
+    captured: dict[str, object] = {"builder_calls": 0}
+
     def fake_make_weekly_menu(*, profile: object) -> dict[str, object]:
+        captured["builder_calls"] = int(captured["builder_calls"]) + 1
+        captured["profile"] = profile
         return {
             "week_start": "2026-01-01",
             "daily_menus": [],
@@ -64,6 +103,345 @@ def test_deprecated_weekly_plan_handles_dict_plan(
     assert data["status"] == "success"
     assert data["data"]["week_start"] == "2026-01-01"
     assert data["data"]["daily_menus"] == []
+    profile = captured["profile"]
+    assert captured["builder_calls"] == 1
+    assert getattr(profile, "sex") == payload["sex"]
+    assert getattr(profile, "age") == payload["age"]
+    assert getattr(profile, "height_cm") == payload["height_cm"]
+    assert getattr(profile, "weight_kg") == payload["weight_kg"]
+    assert getattr(profile, "activity") == payload["activity"]
+    assert getattr(profile, "goal") == payload["goal"]
+
+
+@pytest.mark.parametrize("missing_field", _CORE_WEEKLY_PROFILE_FIELDS)
+@pytest.mark.parametrize(
+    "supplements",
+    (
+        {},
+        {"calories": 2100},
+        {"protein": 120.0},
+        {"calories": 2100, "protein": 120.0},
+        {"protein_g": 121.0},
+        {"calories": 2100, "protein_g": 121.0},
+    ),
+    ids=(
+        "none",
+        "calories",
+        "protein",
+        "calories-and-protein",
+        "protein-g",
+        "calories-and-protein-g",
+    ),
+)
+def test_vip_weekly_plan_rejects_each_missing_core_field_before_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+    missing_field: str,
+    supplements: dict[str, Any],
+) -> None:
+    runtime_calls = 0
+
+    async def unexpected_runtime_call(*args: object, **kwargs: object) -> object:
+        nonlocal runtime_calls
+        runtime_calls += 1
+        raise AssertionError("runtime must not run for an incomplete schema payload")
+
+    monkeypatch.setattr(
+        fitchef_runtime,
+        "run_weekly_plan_task",
+        unexpected_runtime_call,
+    )
+    payload = {**_valid_weekly_profile_payload(), **supplements}
+    del payload[missing_field]
+
+    response = client.post(
+        "/api/v1/vip/menu/weekly/plan",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    assert response.json() == _INVALID_WEEKLY_PAYLOAD
+    assert runtime_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("sex", None),
+        ("sex", ""),
+        ("sex", "unknown"),
+        ("age", None),
+        *((field, value) for field in ("age", "height_cm", "weight_kg") for value in (True, False)),
+        ("age", 0),
+        ("age", 121),
+        ("height_cm", None),
+        ("height_cm", 0),
+        ("height_cm", 301),
+        ("weight_kg", None),
+        ("weight_kg", 0),
+        ("weight_kg", 501),
+        ("activity", None),
+        ("activity", ""),
+        ("activity", "unknown"),
+        ("goal", None),
+        ("goal", ""),
+        ("goal", "unknown"),
+    ),
+)
+def test_vip_weekly_plan_rejects_invalid_http_profile_values_before_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+    field: str,
+    value: object,
+) -> None:
+    runtime_calls = 0
+
+    async def unexpected_runtime_call(*args: object, **kwargs: object) -> object:
+        nonlocal runtime_calls
+        runtime_calls += 1
+        raise AssertionError("runtime must not run for an invalid schema payload")
+
+    monkeypatch.setattr(
+        fitchef_runtime,
+        "run_weekly_plan_task",
+        unexpected_runtime_call,
+    )
+    payload = _valid_weekly_profile_payload()
+    payload[field] = value
+
+    response = client.post(
+        "/api/v1/vip/menu/weekly/plan",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    assert response.json() == _INVALID_WEEKLY_PAYLOAD
+    assert runtime_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("age", "height_cm", "weight_kg", "expected_age", "expected_height", "expected_weight"),
+    (
+        ("31", "171.5", "64", 31, 171.5, 64.0),
+        (31.0, 171, 64.0, 31, 171.0, 64.0),
+    ),
+    ids=("numeric-strings", "integer-valued-numbers"),
+)
+def test_vip_weekly_plan_normalizes_http_numbers_and_calls_builder_once(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+    age: object,
+    height_cm: object,
+    weight_kg: object,
+    expected_age: int,
+    expected_height: float,
+    expected_weight: float,
+) -> None:
+    captured: dict[str, object] = {"builder_calls": 0}
+
+    def fake_menu_builder(profile: object) -> dict[str, object]:
+        captured["builder_calls"] = int(captured["builder_calls"]) + 1
+        captured["profile"] = profile
+        return {"days": []}
+
+    canonical_endpoint = find_route_endpoint(
+        app=client.app,
+        path="/api/v1/vip/menu/weekly/plan",
+        method="POST",
+    )
+    patch_endpoint_global(
+        monkeypatch=monkeypatch,
+        endpoint=canonical_endpoint,
+        name="make_weekly_menu",
+        value=fake_menu_builder,
+    )
+    payload = {
+        **_valid_weekly_profile_payload(),
+        "age": age,
+        "height_cm": height_cm,
+        "weight_kg": weight_kg,
+    }
+
+    response = client.post(
+        "/api/v1/vip/menu/weekly/plan",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    profile = captured["profile"]
+    assert captured["builder_calls"] == 1
+    assert getattr(profile, "age") == expected_age
+    assert getattr(profile, "height_cm") == expected_height
+    assert getattr(profile, "weight_kg") == expected_weight
+
+
+def test_vip_weekly_plan_keeps_protein_and_protein_g_supplemental(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    captured: dict[str, object] = {"builder_calls": 0}
+
+    def fake_menu_builder(profile: object) -> dict[str, object]:
+        captured["builder_calls"] = int(captured["builder_calls"]) + 1
+        captured["profile"] = profile
+        return {"days": []}
+
+    canonical_endpoint = find_route_endpoint(
+        app=client.app,
+        path="/api/v1/vip/menu/weekly/plan",
+        method="POST",
+    )
+    patch_endpoint_global(
+        monkeypatch=monkeypatch,
+        endpoint=canonical_endpoint,
+        name="make_weekly_menu",
+        value=fake_menu_builder,
+    )
+    payload = {
+        **_valid_weekly_profile_payload(),
+        "protein": 120.0,
+        "protein_g": 121.0,
+    }
+
+    response = client.post(
+        "/api/v1/vip/menu/weekly/plan",
+        json=payload,
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    response_data = response.json()
+    assert response_data["echo"]["protein"] == 120.0
+    assert response_data["echo"]["protein_g"] == 121.0
+    assert captured["builder_calls"] == 1
+    profile = captured["profile"]
+    assert getattr(profile, "sex") == payload["sex"]
+    assert getattr(profile, "goal") == payload["goal"]
+    assert not hasattr(profile, "protein")
+    assert not hasattr(profile, "protein_g")
+
+
+def test_vip_weekly_plan_maps_runtime_profile_error_to_static_422(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    async def rejecting_runtime(*args: object, **kwargs: object) -> object:
+        raise fitchef_runtime.WeeklyProfileInputError(invalid_fields=("age",))
+
+    monkeypatch.setattr(fitchef_runtime, "run_weekly_plan_task", rejecting_runtime)
+
+    response = client.post(
+        "/api/v1/vip/menu/weekly/plan",
+        json=_valid_weekly_profile_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    response_data = response.json()
+    assert response_data == _INVALID_WEEKLY_PAYLOAD
+    assert response_data.get("status") is None
+
+
+def test_deprecated_weekly_plan_parses_malformed_json_before_auth(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/vip/weekly-plan",
+        content=b"{",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    assert response.json() == {"detail": "Invalid JSON payload"}
+
+
+def test_deprecated_weekly_plan_auth_precedes_profile_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+
+    response = client.post("/api/v1/vip/weekly-plan", json={})
+
+    assert response.status_code == 403, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+
+
+def test_deprecated_weekly_plan_rejects_omitted_goal_before_builder(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    builder_calls = 0
+
+    def unexpected_builder(*args: object, **kwargs: object) -> object:
+        nonlocal builder_calls
+        builder_calls += 1
+        raise AssertionError("builder must not run for incomplete input")
+
+    deprecated_endpoint = find_route_endpoint(
+        app=client.app,
+        path="/api/v1/vip/weekly-plan",
+        method="POST",
+    )
+    patch_endpoint_global(
+        monkeypatch=monkeypatch,
+        endpoint=deprecated_endpoint,
+        name="make_weekly_menu",
+        value=unexpected_builder,
+    )
+    payload = _valid_weekly_profile_payload()
+    del payload["goal"]
+
+    response = client.post("/api/v1/vip/weekly-plan", json=payload, headers=vip_headers)
+
+    assert response.status_code == 422, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    assert response.json() == _INVALID_WEEKLY_PAYLOAD
+    assert builder_calls == 0
+
+
+def test_deprecated_weekly_plan_preserves_builder_http_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    def rejecting_builder(*, profile: object) -> object:
+        raise HTTPException(status_code=409, detail="weekly plan conflict")
+
+    deprecated_endpoint = find_route_endpoint(
+        app=client.app,
+        path="/api/v1/vip/weekly-plan",
+        method="POST",
+    )
+    patch_endpoint_global(
+        monkeypatch=monkeypatch,
+        endpoint=deprecated_endpoint,
+        name="make_weekly_menu",
+        value=rejecting_builder,
+    )
+
+    response = client.post(
+        "/api/v1/vip/weekly-plan",
+        json=_valid_weekly_profile_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    assert response.json() == {"detail": "weekly plan conflict"}
 
 
 def test_vip_weekly_plan_echo(
