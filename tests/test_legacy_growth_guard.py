@@ -446,6 +446,47 @@ def test_application_instance_ownership_rejects_import_module_constructor(
 
 
 @pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "import fastapi.routing\nrogue = fastapi.FastAPI()\n",
+            "constructor is forbidden outside",
+        ),
+        (
+            "import importlib.util\n" 'rogue = importlib.import_module("fastapi").FastAPI()\n',
+            "dynamic FastAPI capability acquisition",
+        ),
+    ],
+)
+def test_application_instance_ownership_rejects_unaliased_dotted_capability_import(
+    source: str,
+    expected: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    errors = legacy_guard.validate_application_instance_ownership(legacy_source, app_sources)
+
+    assert any("app/other.py" in error and expected in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import fastapi.routing as routing\nvalue = routing.APIRoute\n",
+        'import importlib.util as util\nvalue = util.find_spec("fastapi")\n',
+    ],
+)
+def test_application_instance_ownership_allows_aliased_dotted_noncapability_import(
+    source: str,
+) -> None:
+    legacy_source, app_sources = _application_instance_ownership_sources()
+    app_sources["app/other.py"] = source
+
+    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
+
+
+@pytest.mark.parametrize(
     "constructor_source",
     [
         "import fastapi as f\nm = f\nrogue = m.FastAPI()\n",

@@ -10001,7 +10001,6 @@ def _is_facade_module_name(module_name: str) -> bool:
 
 def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
     _references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
-    static_string_bindings = _collect_static_string_bindings(tree)
     reference_snapshots, string_snapshots, _call_results = _collect_lexical_binding_snapshots(
         tree,
         initial_references={
@@ -10913,7 +10912,10 @@ def _scope_bindings(
         def visit_Import(self, node: ast.Import) -> None:
             for alias in node.names:
                 bound = alias.asname or alias.name.split(".", 1)[0]
-                if alias.name in {"fastapi", "fastapi.applications"}:
+                binds_fastapi_root = (
+                    alias.asname is None and alias.name.split(".", 1)[0] == "fastapi"
+                )
+                if alias.name in {"fastapi", "fastapi.applications"} or binds_fastapi_root:
                     modules.add(bound)
                     if kind == "class":
                         captured_import_lines.add(node.lineno)
@@ -11324,7 +11326,7 @@ _CANONICAL_APPLICATION_CALLS = frozenset(
 
 def _canonical_application_has_closed_call_grammar(tree: ast.Module) -> bool:
     return all(
-        (name := _exact_dotted_name(node.func)) in _CANONICAL_APPLICATION_CALLS
+        _exact_dotted_name(node.func) in _CANONICAL_APPLICATION_CALLS
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
     )
