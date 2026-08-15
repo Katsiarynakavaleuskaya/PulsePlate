@@ -200,12 +200,7 @@ def test_week_plan_missing_data(
 
     assert response.status_code == 422, response.text
     assert response.headers["content-type"].startswith("application/json")
-    detail = response.json()["detail"]
-    assert isinstance(detail, list)
-    assert len(detail) == 1
-    assert detail[0]["loc"] == ["body"]
-    assert detail[0]["type"] == "value_error"
-    assert "Either 'targets' must be provided" in detail[0]["msg"]
+    assert response.json() == {"detail": "Invalid weekly plan request payload"}
     getter.assert_not_called()
 
 
