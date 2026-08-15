@@ -79,12 +79,15 @@ DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 override PULSEPLATE_LOCK_PROFILES_RAW := $(value LOCK_PROFILES)
 override PULSEPLATE_LOCK_UPGRADES_RAW := $(value UPGRADE_PACKAGES)
 override PULSEPLATE_LOCK_GRAPH_CHANGES_RAW := $(value GRAPH_CHANGE_PACKAGES)
+override PULSEPLATE_LOCK_GRAPH_ADMISSION_RAW := $(value GRAPH_CHANGE_ADMISSION)
 export PULSEPLATE_LOCK_PROFILES_RAW
 export PULSEPLATE_LOCK_UPGRADES_RAW
 export PULSEPLATE_LOCK_GRAPH_CHANGES_RAW
+export PULSEPLATE_LOCK_GRAPH_ADMISSION_RAW
 unexport LOCK_PROFILES
 unexport UPGRADE_PACKAGES
 unexport GRAPH_CHANGE_PACKAGES
+unexport GRAPH_CHANGE_ADMISSION
 
 ## Compile selected Python locks through the approved private proxy
 requirements-locks: ensure-python-proxy ## Compile seeded registry locks (set LOCK_PROFILES; optional exact UPGRADE_PACKAGES)
