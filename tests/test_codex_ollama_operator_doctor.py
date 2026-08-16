@@ -140,6 +140,31 @@ def test_missing_binaries_are_actionable(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "Codex CLI" in codex_check.fix
 
 
+def test_binary_checks_normalize_relative_which_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: f"bin/{name}")
+    monkeypatch.setattr(
+        doctor,
+        "_run_version",
+        lambda binary, args: (observed.append((binary, list(args))) or (0, "codex 1.0.0")),
+    )
+
+    ollama_check, ollama_binary, _ = doctor._check_ollama_binary()
+    codex_check = doctor._check_codex_binary()
+
+    assert ollama_check.ok is True
+    assert ollama_binary is not None
+    assert Path(ollama_binary).is_absolute()
+    assert ollama_binary.endswith("/bin/ollama")
+    assert codex_check.ok is True
+    assert len(observed) == 1
+    assert Path(observed[0][0]).is_absolute()
+    assert observed[0][0].endswith("/bin/codex")
+    assert observed[0][1] == ["--version"]
+
+
 def test_rejects_non_local_ollama_url() -> None:
     result = doctor._check_ollama_server("https://example.com", timeout_s=0.01)
 
@@ -169,6 +194,33 @@ def test_rejects_credentialed_ollama_url_without_echo(
     assert result.detail == "Ollama URL must not include credentials."
     assert credential_sentinel not in result.detail
     assert credential_sentinel not in result.fix
+    assert opened_urls == []
+
+
+@pytest.mark.parametrize(
+    "sensitive_url",
+    [
+        "http://user:credential-sentinel\uff20localhost:11434",
+        "http://localhost:credential-sentinel",
+    ],
+)
+def test_rejects_malformed_sensitive_ollama_url_without_echo(
+    monkeypatch: pytest.MonkeyPatch,
+    sensitive_url: str,
+) -> None:
+    opened_urls: list[str] = []
+    monkeypatch.setattr(
+        doctor,
+        "_open_no_redirect",
+        lambda url, timeout_s: opened_urls.append(url),
+    )
+
+    result = doctor._check_ollama_server(sensitive_url, timeout_s=0.01)
+
+    assert result.ok is False
+    assert result.detail == "Malformed Ollama URL."
+    assert "credential-sentinel" not in result.detail
+    assert "credential-sentinel" not in result.fix
     assert opened_urls == []
 
 
@@ -232,6 +284,36 @@ def test_successful_server_check_uses_local_version_endpoint(
     assert "0.13.3" in result.detail
 
 
+def test_local_server_opener_disables_environment_proxies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, Any] = {}
+    response = object()
+
+    class _Opener:
+        def open(self, url: str, *, timeout: float) -> object:
+            observed["url"] = url
+            observed["timeout"] = timeout
+            return response
+
+    def _build_opener(*handlers: object) -> _Opener:
+        observed["handlers"] = handlers
+        return _Opener()
+
+    monkeypatch.setattr(doctor, "build_opener", _build_opener)
+
+    result = doctor._open_no_redirect("http://localhost:11434/api/version", 0.5)
+
+    assert result is response
+    handlers = observed["handlers"]
+    assert len(handlers) == 2
+    assert isinstance(handlers[0], doctor.ProxyHandler)
+    assert handlers[0].proxies == {}
+    assert handlers[1] is doctor._NoRedirectHandler
+    assert observed["url"] == "http://localhost:11434/api/version"
+    assert observed["timeout"] == 0.5
+
+
 def test_stale_running_ollama_server_fails_profile_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -279,6 +361,15 @@ def test_unparseable_ollama_server_version_fails_closed(
     assert "no parseable server version" in result.detail
 
 
+@pytest.mark.parametrize("raw_body", [b"[]", b"null", b'"0.24.0"', b"42", b"true"])
+def test_server_version_rejects_non_object_json(raw_body: bytes) -> None:
+    class _Response:
+        def read(self) -> bytes:
+            return raw_body
+
+    assert doctor._read_ollama_server_version(_Response()) is None
+
+
 def test_http_error_reports_status_instead_of_unreachable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -324,6 +415,12 @@ def test_timeout_must_be_positive() -> None:
 
     with pytest.raises(SystemExit):
         doctor.main(["--timeout", "0"])
+
+
+@pytest.mark.parametrize("raw_timeout", ["nan", "inf", "-inf"])
+def test_timeout_must_be_finite(raw_timeout: str) -> None:
+    with pytest.raises(SystemExit):
+        doctor.main(["--timeout", raw_timeout])
 
 
 def test_main_json_reports_host_write_guard(monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
