@@ -14,9 +14,10 @@ from typing import Any, Callable, cast
 import legacy_app as _legacy_module
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute, APIWebSocketRoute
 from settings import get_runtime_env_name
 
-from legacy_app import app as _legacy_app  # re-export existing FastAPI instance
+from app.bootstrap.application import app
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
@@ -26,6 +27,7 @@ from app.bootstrap.direct_api_root import (
     serve_legacy_bmi_calculator_web,
 )
 from app.bootstrap.http_stack import register_http_middleware_stack
+from app.bootstrap.lifespan import application_lifespan
 from app.bootstrap.openapi import (
     apply_public_openapi_input_policy,
     install_canonical_openapi_builder,
@@ -43,7 +45,7 @@ from app.effective_routes import (
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
 from app.middleware.api_tiers import get_current_user, require_pro_tier, require_vip_tier
 from app.routers.creative_research_internal import router as creative_research_internal_router
-from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
+from app.routers.paywall_analytics import router as paywall_analytics_router
 import app.routers.realtime_ws as realtime_ws
 from app.routers.admin_operations import (
     ADMIN_OPERATION_ROUTE_SPECS,
@@ -132,7 +134,6 @@ from app.utils.feature_flags import is_business_module_enabled, is_vip_module_en
 
 logger = logging.getLogger(__name__)
 
-app: FastAPI = _legacy_app
 VIP_MODULE_ENABLED: bool = False
 vip_router: APIRouter | None = None
 pro_router: APIRouter | None = None
@@ -553,18 +554,25 @@ def _route_has_endpoint(
 ) -> bool:
     """True when ``path``+``method`` is already bound to the expected callable.
 
+    An empty method checks path ownership for the websocket family.
     RU: Не считаем «маршрут есть», если на пути висит чужой handler (контракт другой).
     EN: Path/method alone is insufficient — wrong handler means wrong contract.
     """
     method_name = method.upper()
+    carrier = APIRoute if method_name else APIWebSocketRoute
+    owners: list[object | None] = []
     for route in _effective_app_routes(target_app):
+        carrier_route = getattr(route, "original_route", route)
         if route_path(route) != path:
             continue
-        if method_name not in route_methods(route):
+        if method_name and method_name not in route_methods(carrier_route):
             continue
-        if route_endpoint(route) is endpoint:
-            return True
-    return False
+        owners.append(route_endpoint(carrier_route) if isinstance(carrier_route, carrier) else None)
+    if endpoint is not None and len(owners) == 1 and owners[0] is endpoint:
+        return True
+    if endpoint is not None and not owners:
+        return False
+    raise RuntimeError(f"Duplicate {path} route detected with a different or repeated owner.")
 
 
 def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
@@ -1140,20 +1148,53 @@ def _register_bmi_routes(target_app: FastAPI) -> None:
 
 
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
-    """Apply canonical additive bootstrap to the provided FastAPI instance.
-
-    RU: Используется и при первичном импорте `app.main`, и когда `app.app`
-    должен перевести facade на новый `legacy_app.app` без потери additive routes.
-    EN: Used both on initial `app.main` import and when `app.app` must rehydrate
-    a replaced `legacy_app.app` without losing additive routes.
-    """
-    global app
-
-    validate_openapi_builder_state(target_app)
-    register_http_middleware_stack(target_app)
+    """Compose the supplied app without rebinding the canonical singleton."""
     app = target_app
+    validate_openapi_builder_state(target_app)
+    source_routes = []
+    for path, router in (
+        (_FEEDBACK_ROUTE_PATH, feedback_router),
+        (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
+        (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
+        (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
+        (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
+    ):
+        candidates = tuple(iter_effective_route_candidates(router.routes))
+        if (
+            len(candidates) != 1
+            or not isinstance(
+                route := getattr(candidates[0], "original_route", candidates[0]), APIRoute
+            )
+            or route_path(candidates[0]) != path
+            or route_methods(route) != {"POST"}
+            or route_endpoint(route) is None
+        ):
+            raise RuntimeError(f"Invalid canonical HTTP source route for POST {path}.")
+        source_routes.append((path, "POST", route_endpoint(route)))
+    bespoke_routes = (
+        ("/", "GET", serve_direct_api_root_probe),
+        (LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web),
+        (SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap),
+        *source_routes,
+    )
+    route_exists = {
+        path: _route_has_endpoint(app, path, method, endpoint)
+        for path, method, endpoint in bespoke_routes
+    }
+    ws_source = {route_path(route): route for route in realtime_ws.router.routes}
+    ws_valid = not ws_source or len(realtime_ws.router.routes) == len(_WS_ROUTE_PATHS)
+    ws_endpoints = tuple(route_endpoint(ws_source.get(p)) for p in _WS_ROUTE_PATHS)
+    ws_endpoints = ws_endpoints if ws_source else (realtime_ws.ws_pro, realtime_ws.ws_root)
+    ws_owner = cast(FastAPI, realtime_ws.router) if ws_source else app
+    websocket_exists = []
+    for path, endpoint in zip(_WS_ROUTE_PATHS, ws_endpoints, strict=True):
+        _route_has_endpoint(ws_owner, path, "", endpoint)
+        websocket_exists.append(_route_has_endpoint(app, path, "", endpoint))
+    if not ws_valid or (any(websocket_exists) and not all(websocket_exists)):
+        raise RuntimeError("Incomplete canonical websocket route family.")
+    register_http_middleware_stack(target_app)
 
-    if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
+    if not route_exists["/"]:
         target_app.add_api_route(
             "/",
             serve_direct_api_root_probe,
@@ -1161,9 +1202,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             include_in_schema=False,
             response_model=DirectApiRootProbe,
         )
-    if not _route_has_endpoint(
-        target_app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web
-    ):
+    if not route_exists[LEGACY_BMI_WEB_ROUTE]:
         target_app.add_api_route(
             LEGACY_BMI_WEB_ROUTE,
             serve_legacy_bmi_calculator_web,
@@ -1171,7 +1210,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             include_in_schema=False,
             response_class=HTMLResponse,
         )
-    if not _route_has_endpoint(target_app, SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap):
+    if not route_exists[SITEMAP_ROUTE_PATH]:
         target_app.add_api_route(
             SITEMAP_ROUTE_PATH,
             serve_public_sitemap,
@@ -1183,13 +1222,10 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_recipe_nutrition_reference_routers_if_needed(app)
     _include_nutrition_state_routers_if_needed(app)
 
-    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
-    if not ws_paths_present:
+    if ws_source and not any(websocket_exists):
         app.include_router(realtime_ws.router)
-    elif ws_paths_present != set(_WS_ROUTE_PATHS):
-        _assert_no_duplicate_ws_route(app)
 
-    if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
+    if not route_exists[_FEEDBACK_ROUTE_PATH]:
         app.include_router(feedback_router)
 
     _include_health_router_if_needed(app)
@@ -1214,26 +1250,16 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     register_billing_routes(app)
 
-    if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
+    if not route_exists[_CBT_INSIGHT_ROUTE_PATH]:
         app.include_router(cbt_insight_router)
 
-    if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
+    if not route_exists[_FITCHEF_STRUCTURED_ROUTE_PATH]:
         app.include_router(fitchef_structured_router)
 
-    if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
+    if not route_exists[_CREATIVE_RESEARCH_PILOT_ROUTE_PATH]:
         app.include_router(creative_research_internal_router)
 
-    if not _route_has_endpoint(
-        app,
-        _PAYWALL_EVENTS_ROUTE_PATH,
-        "POST",
-        ingest_paywall_event,
-    ):
-        if _has_route(app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
-            raise RuntimeError(
-                "Duplicate /api/v1/internal/paywall/events route detected with a different "
-                "handler."
-            )
+    if not route_exists[_PAYWALL_EVENTS_ROUTE_PATH]:
         app.include_router(paywall_analytics_router)
 
     apply_public_openapi_input_policy(app)
@@ -1250,6 +1276,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         and vars(app_package).get("metrics") is metrics_module
     ):
         delattr(app_package, "metrics")
+    app.router.lifespan_context = application_lifespan
     return app
 
 

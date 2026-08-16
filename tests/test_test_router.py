@@ -1,69 +1,112 @@
 """Tests for the test router endpoints."""
 
-import importlib
+import json
 import os
+import subprocess
 import sys
+import textwrap
 from datetime import datetime
-from types import ModuleType
+from functools import cache
+from typing import Any
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from app.effective_routes import iter_effective_route_candidates, route_path
-import settings as app_settings
-
-
-def _import_or_reload_module(name: str) -> ModuleType:
-    module = sys.modules.get(name)
-    if module is not None:
-        return importlib.reload(module)
-
-    parent_name, _, child_name = name.rpartition(".")
-    if parent_name and child_name:
-        parent_module = importlib.import_module(parent_name)
-        stale_child = getattr(parent_module, child_name, None)
-        if getattr(stale_child, "__name__", None) == name:
-            delattr(parent_module, child_name)
-
-    return importlib.import_module(name)
+_Scenario = tuple[str, str, str]
+_REQUESTS = {
+    "rate-limit": ["POST", "/api/v1/test/rate-limit", None, {}],
+    "health": ["GET", "/api/v1/test/health", None, {}],
+    "echo": [
+        "POST",
+        "/api/v1/test/echo",
+        {"test_key": "test_value", "nested": {"key": "value"}, "array": [1, 2, 3]},
+        {},
+    ],
+    "cf-ray": ["POST", "/api/v1/test/rate-limit", None, {"cf-ray": "test-cf-ray-123"}],
+    "request-id": ["POST", "/api/v1/test/rate-limit", None, {"x-request-id": "test-request-456"}],
+}
 
 
-def _has_test_routes(app: FastAPI) -> bool:
-    return any(
-        route_path(route).startswith("/api/v1/test/")
-        for route in iter_effective_route_candidates(getattr(app, "routes", []))
+@cache
+def _run_fresh_scenario(scenario_key: _Scenario) -> dict[str, dict[str, Any]]:
+    """Boot once and exercise every endpoint for one environment scenario."""
+
+    scenario = textwrap.dedent("""
+        import json, sys
+        from fastapi.testclient import TestClient
+        from app.main import app
+        client = TestClient(app)
+        results = {}
+        for name, (method, path, body, headers) in json.loads(sys.argv[1]).items():
+            response = client.request(method, path, json=body, headers=headers)
+            results[name] = {
+                "status_code": response.status_code,
+                "body": response.json(),
+                "headers": dict(response.headers),
+            }
+        print("TEST_ROUTER_RESULT=" + json.dumps(results, sort_keys=True))
+    """)
+    environment, app_env, enabled = scenario_key
+    env = os.environ.copy()
+    for name in ("APP_ENV", "ENVIRONMENT", "ENABLE_TEST_ROUTES"):
+        env.pop(name, None)
+    if environment:
+        env["ENVIRONMENT"] = environment
+    if app_env:
+        env["APP_ENV"] = app_env
+    if enabled:
+        env["ENABLE_TEST_ROUTES"] = enabled
+    env["PRIVATE_EXPORTS_ENABLED"] = "false"
+    completed = subprocess.run(
+        [sys.executable, "-c", scenario, json.dumps(_REQUESTS)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    result_line = next(
+        line for line in completed.stdout.splitlines() if line.startswith("TEST_ROUTER_RESULT=")
+    )
+    result: dict[str, dict[str, Any]] = json.loads(result_line.removeprefix("TEST_ROUTER_RESULT="))
+    return result
+
+
+def _import_fresh_app() -> _Scenario:
+    return (
+        os.getenv("ENVIRONMENT", ""),
+        os.getenv("APP_ENV", ""),
+        os.getenv("ENABLE_TEST_ROUTES", ""),
     )
 
 
-def _import_fresh_app() -> FastAPI:
-    """Import FastAPI app after ensuring env-based wiring is re-evaluated.
+class _Response:
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.status_code = payload["status_code"]
+        self.headers = payload["headers"]
+        self._body = payload["body"]
 
-    RU: Перезагружаем legacy_app и canonical bootstrap после изменения env.
-    EN: Reload legacy_app and canonical bootstrap after env changes.
-    """
-    # IMPORTANT:
-    # `app.main` decides whether to include the test router during canonical bootstrap.
-    # In CI, it may already be imported under a different APP_ENV/ENABLE_TEST_ROUTES state.
-    # Reloading re-reads env and re-wires routers without mutating sys.modules.
-    _import_or_reload_module("legacy_app")
-    app_main = _import_or_reload_module("app.main")
+    def json(self) -> Any:
+        return self._body
 
-    app = app_main.app  # canonical app instance after env-driven wiring
 
-    # Fail fast with a clear message if staging claims test routes should exist but doesn't.
-    runtime_env = app_settings.get_runtime_env_name()
-    if runtime_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
-        has_test_routes = _has_test_routes(app)
-        assert has_test_routes, (
-            "Test router routes are missing after legacy_app reload. "
-            "runtime_env="
-            f"{runtime_env}, APP_ENV={os.getenv('APP_ENV')}, "
-            f"ENVIRONMENT={os.getenv('ENVIRONMENT')}, "
-            f"ENABLE_TEST_ROUTES={os.getenv('ENABLE_TEST_ROUTES')}"
-        )
+class _FreshProcessClient:
+    def __init__(self, scenario_key: _Scenario) -> None:
+        self._responses = _run_fresh_scenario(scenario_key)
 
-    return app
+    def post(
+        self, path: str, *, json: object | None = None, headers: dict[str, str] | None = None
+    ) -> _Response:
+        del json
+        key = "echo" if path.endswith("/echo") else "rate-limit"
+        if headers and "cf-ray" in headers:
+            key = "cf-ray"
+        elif headers and "x-request-id" in headers:
+            key = "request-id"
+        return _Response(self._responses[key])
+
+    def get(self, path: str) -> _Response:
+        assert path.endswith("/health")
+        return _Response(self._responses["health"])
 
 
 @pytest.fixture
@@ -104,7 +147,7 @@ def test_rate_limit_endpoint(mock_env_staging):
     """Test the rate limit endpoint returns expected response."""
     app = _import_fresh_app()
 
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     response = client.post("/api/v1/test/rate-limit")
 
@@ -129,7 +172,7 @@ def test_health_endpoint(mock_env_staging):
     """Test the health check endpoint."""
     app = _import_fresh_app()
 
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     response = client.get("/api/v1/test/health")
 
@@ -148,7 +191,7 @@ def test_echo_endpoint(mock_env_staging):
     """Test the echo endpoint returns sent data."""
     app = _import_fresh_app()
 
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     test_data = {"test_key": "test_value", "nested": {"key": "value"}, "array": [1, 2, 3]}
 
@@ -173,7 +216,7 @@ def test_rate_limit_with_cf_ray_header(mock_env_staging):
     """Test rate limit endpoint captures Cloudflare ray ID."""
     app = _import_fresh_app()
 
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     cf_ray_id = "test-cf-ray-123"
     response = client.post("/api/v1/test/rate-limit", headers={"cf-ray": cf_ray_id})
@@ -187,7 +230,7 @@ def test_rate_limit_with_request_id_header(mock_env_staging):
     """Test rate limit endpoint captures generic request ID."""
     app = _import_fresh_app()
 
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     request_id = "test-request-456"
     response = client.post("/api/v1/test/rate-limit", headers={"x-request-id": request_id})
@@ -201,7 +244,7 @@ def test_test_router_not_available_in_production(mock_env_production):
     """Test that test endpoints are not available in production."""
     app = _import_fresh_app()
 
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     # Test endpoints should return 404 in production
     response = client.post("/api/v1/test/rate-limit")
@@ -217,7 +260,7 @@ def test_test_router_not_available_in_production(mock_env_production):
 def test_test_router_not_available_in_staging_by_default(mock_env_staging_disabled):
     """Test that test endpoints are not available in staging unless explicitly enabled."""
     app = _import_fresh_app()
-    client = TestClient(app)
+    client = _FreshProcessClient(app)
 
     response = client.get("/api/v1/test/health")
     assert response.status_code == 404

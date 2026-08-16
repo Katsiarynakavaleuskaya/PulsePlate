@@ -51,14 +51,14 @@ class TestAppImport:
         assert additive_paths.issubset(package_paths)
         assert additive_paths.issubset(main_paths)
 
-    def test_app_package_keeps_legacy_app_identity(self) -> None:
-        """The package shim must preserve the underlying legacy FastAPI object."""
+    def test_app_package_keeps_normal_canonical_identity(self) -> None:
+        """Normal imports expose one canonical object through every facade."""
+        from app.bootstrap.application import app as canonical_app
         from app.main import app as main_app
 
         legacy_module = importlib.import_module("legacy_app")
 
-        assert app.app is legacy_module.app
-        assert app.app is main_app
+        assert app.app is canonical_app is main_app is legacy_module.app
 
     def test_app_package_rehydrates_bootstrap_after_legacy_app_swap(
         self,
@@ -68,16 +68,15 @@ class TestAppImport:
         main_module = resolve_module("app.main")
         legacy_module = resolve_module("legacy_app")
 
-        original_main_app = main_module.app
+        canonical_app = main_module.app
         replacement_app = FastAPI()
-        monkeypatch.setattr(main_module, "app", original_main_app)
         monkeypatch.setattr(legacy_module, "app", replacement_app)
 
         package_app = app.app
         route_paths = _route_paths(package_app)
 
         assert package_app is replacement_app
-        assert main_module.app is replacement_app
+        assert main_module.app is canonical_app
         assert "/api/v1/billing/apple/verify-receipt" in route_paths
         assert "/api/v1/feedback/rag" in route_paths
         assert "/api/v1/pro/cbt/insight" in route_paths

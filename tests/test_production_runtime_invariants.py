@@ -6,11 +6,12 @@ import asyncio
 import ast
 from pathlib import Path
 import re
+import runpy
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -590,6 +591,31 @@ def test_wire_rate_limiting_rejects_unavailable_or_invalid_final_components(
 
     with pytest.raises(RuntimeError, match="wiring validation failed"):
         rate_limit.wire_rate_limiting(FastAPI())
+
+
+def test_application_local_dotenv_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr("settings.get_runtime_env_name", lambda: "local")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr("dotenv.load_dotenv", lambda: calls.append("load"))
+    namespace = runpy.run_path("app/bootstrap/application.py", run_name="__pp_local__")
+    assert (namespace["RUNTIME_ENV"], calls) == ("local", ["load"])
+
+
+def test_bootstrap_rejects_extra_ws_member(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.main as app_main
+
+    source = APIRouter()
+    source.add_api_websocket_route(app_main._WS_ROUTE_PATHS[0], app_main.realtime_ws.ws_pro)
+    source.add_api_websocket_route(app_main._WS_ROUTE_PATHS[1], app_main.realtime_ws.ws_root)
+    source.add_api_websocket_route("/unexpected-ws", lambda _: None)
+    monkeypatch.setattr(app_main.realtime_ws, "router", source)
+    target = FastAPI()
+    before = (tuple(target.routes), tuple(target.user_middleware))
+    with pytest.raises(RuntimeError, match=r"^Incomplete canonical websocket route family\.$"):
+        app_main.ensure_canonical_app_bootstrap(target)
+    assert (tuple(target.routes), tuple(target.user_middleware)) == before
 
 
 def test_canonical_http_stack_owns_rate_limiting_call_site() -> None:

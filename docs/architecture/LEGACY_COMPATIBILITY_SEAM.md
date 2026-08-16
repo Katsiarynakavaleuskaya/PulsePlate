@@ -16,14 +16,17 @@ weekly-plan downstream error boundary documented below.
 
 ## Context
 
-`legacy_app.py` is still the runtime compatibility base for the FastAPI app.
-`app/main.py` imports `legacy_app.app`, applies canonical additive bootstrap, and
-owns new canonical route registration. This is a transitional seam, not the
-desired final architecture.
+`app/bootstrap/application.py` constructs the sole production FastAPI singleton.
+`app/main.py` imports it directly and owns additive composition; deployment
+remains `app.main:app`. `legacy_app.py` is a transitional compatibility facade
+that re-exports the same app, runtime environment, metadata, and lifespan.
+Normal imports therefore share one app. A deliberate test-only reassignment of
+`legacy_app.app` may flow through the retained package facade, but cannot rebind
+the bootstrap or `app.main` singleton.
 
 Application startup/shutdown behavior is canonically owned by
-`app/bootstrap/lifespan.py`. `legacy_app.py` only passes that context manager to
-its existing `FastAPI(...)` instance until app-factory ownership is inverted.
+`app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
+context manager to its constructor and `legacy_app.py` only re-exports it.
 Food-search clients and the process-wide strategy adapter are acquired and
 released inside that lifespan; additive route bootstrap must not create shared
 runtime resources or wrap `app.router.lifespan_context`.
@@ -36,9 +39,8 @@ warning state would break FastAPI dependency identity.
 
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
-factory at `app/application_metadata.py:113`. `legacy_app.py:504` consumes that
-immutable source while it remains the sole FastAPI-instance constructor and
-temporarily exposes the same compatibility metadata values.
+factory at `app/application_metadata.py:113`. The application bootstrap builds
+one immutable value and `legacy_app.py` aliases it for compatibility.
 
 Public OpenAPI visibility, component pruning, builder ownership, and cache
 reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
@@ -108,6 +110,9 @@ The current policy is compatibility first:
 Freeze `legacy_app.py` as a compatibility seam. It may shrink or delegate more
 thinly over time, but it must not grow new product behavior.
 
+`PR-TBD-APP-FACTORY` owns only this inversion. BMI/PRO/VIP alias retirement and
+final legacy deletion remain separate ordered lanes.
+
 Allowed in `legacy_app.py`:
 
 - existing compatibility aliases and response shaping;
@@ -130,7 +135,8 @@ Forbidden in `legacy_app.py`:
 | Surface | Owner | Rule |
 | --- | --- | --- |
 | Existing legacy compatibility aliases | `legacy_app.py` | Runtime compatibility only; no growth. |
-| Canonical app bootstrap | `app/main.py` | Additive, idempotent registration over the compatibility base. |
+| FastAPI construction | `app/bootstrap/application.py` | Sole production constructor; no routes, middleware, OpenAPI, or resources. |
+| Canonical app composition | `app/main.py` | Additive, idempotent registration on the supplied app; never rebind the singleton. |
 | New route implementations | `app/routers/` | Canonical route families own new behavior. |
 | Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
