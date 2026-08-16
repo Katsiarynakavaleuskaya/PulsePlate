@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 import errno
 import json
+import math
 import os
 from pathlib import Path
 import stat
@@ -228,6 +229,18 @@ def _reject_nonfinite(_: str) -> None:
     raise CreativeCodeLifecycleTransitionAnalyticsIOError("telemetry_json_nonfinite_number")
 
 
+def _parse_finite_float(lexeme: str) -> float:
+    try:
+        value = float(lexeme)
+    except (OverflowError, ValueError) as exc:
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+            "telemetry_json_nonfinite_number"
+        ) from exc
+    if not math.isfinite(value):
+        raise CreativeCodeLifecycleTransitionAnalyticsIOError("telemetry_json_nonfinite_number")
+    return value
+
+
 def _decode_json(raw: bytes, *, label: str) -> Any:
     if raw.startswith(b"\xef\xbb\xbf"):
         raise CreativeCodeLifecycleTransitionAnalyticsIOError(f"{label}_bom_rejected")
@@ -240,6 +253,7 @@ def _decode_json(raw: bytes, *, label: str) -> Any:
             text,
             object_pairs_hook=_duplicate_key_hook,
             parse_constant=_reject_nonfinite,
+            parse_float=_parse_finite_float,
         )
     except CreativeCodeLifecycleTransitionAnalyticsIOError:
         raise

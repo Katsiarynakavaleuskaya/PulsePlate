@@ -1657,6 +1657,7 @@ def test_cli_rejects_symlinked_directory_components(
         (b"\xef\xbb\xbf{}\n", "bom"),
         (b"\xff\n", "invalid_utf8"),
         (b'{"x":NaN}\n', "nonfinite"),
+        (b'{"x":1e999}\n', "nonfinite"),
         (b'{"x":1,"x":2}\n', "duplicate"),
         (b"{} trailing\n", "malformed"),
         (b"{\n", "malformed"),
