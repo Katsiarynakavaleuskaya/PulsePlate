@@ -1609,6 +1609,23 @@ def test_cli_rejects_symlink_hardlink_and_outside_inputs(
 
 
 @pytest.mark.parametrize("filename", [cli.EVENTS_FILE, cli.ROLLUP_FILE])
+def test_cli_rejects_missing_fixed_source_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    telemetry_root, analytics_root = _configure_snapshot(monkeypatch, tmp_path, _full_chain())
+    (telemetry_root / filename).unlink()
+    expected = (
+        "telemetry_events_missing" if filename == cli.EVENTS_FILE else "telemetry_rollup_missing"
+    )
+
+    with pytest.raises(cli.CreativeCodeLifecycleTransitionAnalyticsIOError, match=expected):
+        cli.build_from_snapshot(telemetry_dir=telemetry_root)
+    assert not analytics_root.exists()
+
+
+@pytest.mark.parametrize("filename", [cli.EVENTS_FILE, cli.ROLLUP_FILE])
 def test_cli_rejects_nonregular_source_inputs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1677,6 +1694,10 @@ def test_cli_strict_jsonl_parser_rejects_unsafe_encodings(
     (telemetry_root / cli.EVENTS_FILE).write_bytes(payload)
     with pytest.raises(cli.CreativeCodeLifecycleTransitionAnalyticsIOError, match=message):
         cli.build_from_snapshot(telemetry_dir=telemetry_root)
+
+
+def test_finite_json_float_parser_accepts_representable_value() -> None:
+    assert cli._parse_finite_float("1.25") == 1.25
 
 
 def test_cli_jsonl_lone_carriage_return_is_not_an_event_separator(
