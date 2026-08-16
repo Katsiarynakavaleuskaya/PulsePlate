@@ -2,6 +2,8 @@
 Final VIP coverage tests to achieve 97% coverage with proper isolation.
 """
 
+import runpy
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,13 +13,24 @@ from tests._helpers.vip_contracts import assert_json_response_payload
 class TestVIPCoverage97Final:
     """Test class to achieve 97% coverage for VIP router with proper isolation."""
 
-    def test_vip_import_fallback_coverage_lines_54_73(self) -> None:
+    def test_vip_import_fallback_coverage_lines_54_73(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test VIP import fallback coverage for lines 54-73."""
-        # Test that VIP module imports successfully and functions are available
+        import core.auto_repair as auto_repair
         from app.routers import vip
 
-        # Verify that VIP functions are available (not None)
-        assert vip.make_weekly_menu is not None
+        assert vip.__file__ is not None
+        monkeypatch.delattr(auto_repair, "RepairStatus")
+
+        fallback_namespace = runpy.run_path(
+            vip.__file__,
+            run_name="test_vip_optional_core_fallback",
+        )
+
+        assert fallback_namespace["RepairStatus"] is None
+        assert fallback_namespace["make_weekly_menu"] is None
 
     def test_vip_safe_call_with_adapter_missing(self) -> None:
         """Test VIP _safe_call_with_adapter with unknown function name returns error dict."""
