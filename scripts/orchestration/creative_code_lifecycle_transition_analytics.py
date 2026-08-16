@@ -262,15 +262,19 @@ def _load_snapshot(
         maximum=MAX_ROLLUP_BYTES,
     )
 
-    if events_raw and not events_raw.endswith(b"\n"):
-        raise CreativeCodeLifecycleTransitionAnalyticsIOError(
-            "telemetry_events_missing_final_newline"
-        )
-    event_lines = events_raw.splitlines()
-    if len(event_lines) > MAX_EVENT_LINES:
+    if events_raw:
+        if not events_raw.endswith(b"\n"):
+            raise CreativeCodeLifecycleTransitionAnalyticsIOError(
+                "telemetry_events_missing_final_newline"
+            )
+        raw_event_lines = events_raw[:-1].split(b"\n")
+    else:
+        raw_event_lines = []
+    if len(raw_event_lines) > MAX_EVENT_LINES:
         raise CreativeCodeLifecycleTransitionAnalyticsIOError("telemetry_events_too_many_lines")
     events: list[dict[str, Any]] = []
-    for index, line in enumerate(event_lines):
+    for raw_line in raw_event_lines:
+        line = raw_line[:-1] if raw_line.endswith(b"\r") else raw_line
         if not line:
             raise CreativeCodeLifecycleTransitionAnalyticsIOError("telemetry_events_blank_line")
         if len(line) > MAX_EVENT_LINE_BYTES:

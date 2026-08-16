@@ -1678,6 +1678,95 @@ def test_cli_strict_jsonl_parser_rejects_unsafe_encodings(
         cli.build_from_snapshot(telemetry_dir=telemetry_root)
 
 
+def test_cli_jsonl_lone_carriage_return_is_not_an_event_separator(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    events = _full_chain()[:2]
+    telemetry_root, analytics_root = _configure_snapshot(monkeypatch, tmp_path, events)
+    events_path = telemetry_root / cli.EVENTS_FILE
+    rollup_path = telemetry_root / cli.ROLLUP_FILE
+    event_bytes = [json.dumps(event, sort_keys=True).encode("utf-8") for event in events]
+    events_path.write_bytes(event_bytes[0] + b"\r" + event_bytes[1] + b"\n")
+
+    def file_state(path: Path) -> tuple[bytes, int, int, int, int, int, int]:
+        info = path.stat()
+        return (
+            path.read_bytes(),
+            info.st_ino,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+            info.st_mode,
+            info.st_nlink,
+        )
+
+    source_before = {
+        events_path: file_state(events_path),
+        rollup_path: file_state(rollup_path),
+    }
+    with pytest.raises(
+        cli.CreativeCodeLifecycleTransitionAnalyticsIOError,
+        match="telemetry_event_malformed",
+    ):
+        cli.build_from_snapshot(telemetry_dir=telemetry_root)
+
+    assert not analytics_root.exists()
+    assert {
+        events_path: file_state(events_path),
+        rollup_path: file_state(rollup_path),
+    } == source_before
+
+
+def test_cli_crlf_snapshot_normalizes_to_the_same_artifact_as_lf(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    telemetry_root, _ = _configure_snapshot(monkeypatch, tmp_path, _full_chain())
+    path, replayed, lf_artifact = cli.build_from_snapshot(telemetry_dir=telemetry_root)
+    assert replayed is False
+    winner_before = path.stat()
+
+    events_path = telemetry_root / cli.EVENTS_FILE
+    events_path.write_bytes(events_path.read_bytes().replace(b"\n", b"\r\n"))
+    replay_path, replayed, crlf_artifact = cli.build_from_snapshot(telemetry_dir=telemetry_root)
+    winner_after = replay_path.stat()
+
+    assert replayed is True
+    assert replay_path == path
+    assert crlf_artifact == lf_artifact
+    assert canonical_analytics_bytes(crlf_artifact) == canonical_analytics_bytes(lf_artifact)
+    assert (
+        winner_after.st_ino,
+        winner_after.st_size,
+        winner_after.st_mtime_ns,
+        winner_after.st_ctime_ns,
+    ) == (
+        winner_before.st_ino,
+        winner_before.st_size,
+        winner_before.st_mtime_ns,
+        winner_before.st_ctime_ns,
+    )
+
+
+def test_cli_crlf_line_limit_counts_only_json_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    event = _full_chain()[0]
+    telemetry_root, _ = _configure_snapshot(monkeypatch, tmp_path, [event])
+    compact = json.dumps(event, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    assert len(compact) < cli.MAX_EVENT_LINE_BYTES
+    line = compact + (b" " * (cli.MAX_EVENT_LINE_BYTES - len(compact)))
+    assert len(line) == cli.MAX_EVENT_LINE_BYTES
+    (telemetry_root / cli.EVENTS_FILE).write_bytes(line + b"\r\n")
+
+    _, replayed, artifact = cli.build_from_snapshot(telemetry_dir=telemetry_root)
+
+    assert replayed is False
+    assert artifact == _analytics([event])
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
