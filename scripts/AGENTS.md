@@ -419,3 +419,9 @@ writers, update the focused guards in
 `tests/guards/test_security_devtooling_regression_guards.py`. Optional
 RAG/vector dependency profiles must be covered consistently by pip-audit,
 Python dependency submission, and CI risk-profile routing.
+
+The standalone invariant-family episode evidence writer must keep one private,
+fail-closed kernel no-replace publisher for its two fixed-root/private-mode
+bundle shapes. Its focused security/dev-tooling guard is mandatory; arbitrary
+path selection, overwrite, repair, delete, or a second publication bypass is
+forbidden.
