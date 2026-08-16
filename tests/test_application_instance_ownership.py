@@ -12,18 +12,12 @@ import textwrap
 from typing import Any
 
 import pytest
+from starlette.routing import Route
 
-_CANONICAL_OWNER = Path("app/bootstrap/application.py")
 _MIRRORS = (
-    "VIP_MODULE_ENABLED",
-    "vip_router",
-    "pro_router",
-    "premium_week_router",
-    "FEATURE_BMI_PRO_ENABLED",
-    "bmi_router",
-    "bmi_pro_router",
-    "bmi_pro_legacy_alias_router",
-)
+    "VIP_MODULE_ENABLED vip_router pro_router premium_week_router "
+    "FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router"
+).split()
 _IMPORT_SCENARIOS = (
     "from app.bootstrap import application as canonical; import app.main as main; "
     "import legacy_app; import app as package",
@@ -61,7 +55,7 @@ def test_one_direct_constructor_belongs_to_the_canonical_owner() -> None:
         if isinstance(node, ast.Call) and _is_direct_fastapi_call(node)
     ]
 
-    assert calls == [_CANONICAL_OWNER]
+    assert calls == [Path("app/bootstrap/application.py")]
     assert not any(
         isinstance(node, ast.ImportFrom)
         and node.module == "legacy_app"
@@ -146,7 +140,7 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
 
 
 @pytest.mark.parametrize(("path", "method"), _HTTP_CONTRACTS)
-@pytest.mark.parametrize("owners", ("f", "cc", "ff", "cf", "fc"))
+@pytest.mark.parametrize("owners", ("f", "cc", "ff", "cf", "fc", "r"))
 def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: str) -> None:
     import app.main as main
     from fastapi import FastAPI
@@ -154,6 +148,9 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
     target = FastAPI()
     canonical = main.route_endpoint_for_path_method(main.app.routes, path, method)
     for owner in owners:
+        if owner == "r":
+            target.routes.append(Route(path, canonical, methods=[method]))
+            continue
         endpoint = canonical if owner == "c" else (lambda: None)
         target.add_api_route(path, endpoint, methods=[method])
     before = (tuple(target.routes), tuple(target.user_middleware))
@@ -162,26 +159,29 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
     assert (tuple(target.routes), tuple(target.user_middleware)) == before
 
 
-@pytest.mark.parametrize("state", ("c|", "f|f", "c|f", "cc|", "h|"))
-def test_websocket_owner_states_fail_closed(state: str) -> None:
+@pytest.mark.parametrize("s", "c. .c ff cf fc d. .d h. .h rr rc cr r. .r".split())
+def test_websocket_owner_states_fail_closed(s: str) -> None:
     import app.main as main
     from fastapi import FastAPI
 
     target = FastAPI()
     canonical = (main.realtime_ws.ws_pro, main.realtime_ws.ws_root)
-    for index, owners in enumerate(state.split("|")):
+    for index, owner in enumerate(s):
+        owners = "cc" if owner == "d" else owner.strip(".")
         for owner in owners:
             path = main._WS_ROUTE_PATHS[index]
-            if owner == "h":
+            if owner == "r":
+                target.routes.append(Route(path, canonical[index], methods=["GET"]))
+            elif owner == "h":
                 target.add_api_route(path, lambda: None, methods=["GET"])
             else:
                 target.add_api_websocket_route(
                     path, canonical[index] if owner == "c" else lambda _: None
                 )
-    before = tuple(target.routes)
+    before = (tuple(target.routes), tuple(target.user_middleware))
     with pytest.raises(RuntimeError):
         main.ensure_canonical_app_bootstrap(target)
-    assert tuple(target.routes) == before
+    assert (tuple(target.routes), tuple(target.user_middleware)) == before
 
 
 def test_test_owned_composition_and_legacy_alias_do_not_rebind_canonical(

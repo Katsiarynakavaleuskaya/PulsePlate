@@ -14,6 +14,7 @@ from typing import Any, Callable, cast
 import legacy_app as _legacy_module
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute, APIWebSocketRoute
 from settings import get_runtime_env_name
 
 from app.bootstrap.application import app
@@ -559,13 +560,15 @@ def _route_has_endpoint(
     EN: Path/method alone is insufficient — wrong handler means wrong contract.
     """
     method_name = method.upper()
+    carrier = APIRoute if method_name else APIWebSocketRoute
     owners: list[object | None] = []
     for route in _effective_app_routes(target_app):
         if route_path(route) != path:
             continue
         if method_name and method_name not in route_methods(route):
             continue
-        owners.append(route_endpoint(route))
+        carrier_route = getattr(route, "original_route", route)
+        owners.append(route_endpoint(route) if isinstance(carrier_route, carrier) else None)
     if endpoint is not None and len(owners) == 1 and owners[0] is endpoint:
         return True
     if endpoint is not None and not owners:
