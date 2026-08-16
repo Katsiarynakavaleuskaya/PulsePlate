@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from subprocess import CompletedProcess, TimeoutExpired
 from typing import Any
@@ -144,12 +145,16 @@ def test_binary_checks_normalize_relative_which_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     observed: list[tuple[str, list[str]]] = []
-    monkeypatch.setattr(doctor.shutil, "which", lambda name: f"bin/{name}")
-    monkeypatch.setattr(
-        doctor,
-        "_run_version",
-        lambda binary, args: (observed.append((binary, list(args))) or (0, "codex 1.0.0")),
-    )
+
+    def _relative_which(name: str) -> str:
+        return f"bin/{name}"
+
+    def _record_version(binary: str, args: Sequence[str]) -> tuple[int, str]:
+        observed.append((binary, list(args)))
+        return 0, "codex 1.0.0"
+
+    monkeypatch.setattr(doctor.shutil, "which", _relative_which)
+    monkeypatch.setattr(doctor, "_run_version", _record_version)
 
     ollama_check, ollama_binary, _ = doctor._check_ollama_binary()
     codex_check = doctor._check_codex_binary()
@@ -209,11 +214,11 @@ def test_rejects_malformed_sensitive_ollama_url_without_echo(
     sensitive_url: str,
 ) -> None:
     opened_urls: list[str] = []
-    monkeypatch.setattr(
-        doctor,
-        "_open_no_redirect",
-        lambda url, timeout_s: opened_urls.append(url),
-    )
+
+    def _record_open(url: str, timeout_s: float) -> None:
+        opened_urls.append(url)
+
+    monkeypatch.setattr(doctor, "_open_no_redirect", _record_open)
 
     result = doctor._check_ollama_server(sensitive_url, timeout_s=0.01)
 
