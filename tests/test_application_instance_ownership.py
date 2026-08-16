@@ -20,7 +20,8 @@ import legacy_app; from app.bootstrap import application as canonical; import ap
 import app as package; package.app; from app.bootstrap import application as canonical; import app.main as main; import legacy_app""".splitlines()
 _HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
 _HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
-_WS_STATES = "c. .c ff cf fc d. .d h. .h rr rc cr r. .r C. .C DC CD RC CR RR".split()
+_WS_EXTRA_PATHS = {"w": "/unexpected-ws", "h": "/unexpected-http"}
+_WS_STATES = "c. .c ff cf fc d. .d h. .h rr rc cr r. .r C. .C DC CD RC CR RR CCw CCh".split()
 
 
 def _is_direct_fastapi_call(call: ast.Call) -> bool:
@@ -153,21 +154,19 @@ def test_websocket_owner_states_fail_closed(s: str, monkeypatch: pytest.MonkeyPa
 
     target = FastAPI()
     canonical = (main.realtime_ws.ws_pro, main.realtime_ws.ws_root)
-    source = s != s.lower()
-    owner_app = APIRouter() if source else target
+    owner_app = APIRouter() if s != s.lower() else target
     for index, owner in enumerate(s.lower()):
         owners = "cc" if owner == "d" else owner.strip(".")
         for owner in owners:
-            path = main._WS_ROUTE_PATHS[index]
+            path = main._WS_ROUTE_PATHS[index] if index < 2 else _WS_EXTRA_PATHS[owner]
             if owner == "r":
                 owner_app.routes.append(Route(path, canonical[index], methods=["GET"]))
             elif owner == "h":
                 owner_app.add_api_route(path, lambda: None, methods=["GET"])
             else:
-                owner_app.add_api_websocket_route(
-                    path, canonical[index] if owner == "c" else lambda _: None
-                )
-    if source:
+                endpoint = canonical[index] if owner == "c" else lambda _: None
+                owner_app.add_api_websocket_route(path, endpoint)
+    if owner_app is not target:
         monkeypatch.setattr(main.realtime_ws, "router", owner_app)
     before = (tuple(target.routes), tuple(target.user_middleware))
     with pytest.raises(RuntimeError):
