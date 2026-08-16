@@ -15,9 +15,13 @@ from sqlalchemy.orm import Session
 from app.models import NutritionEvent
 from app.schemas.user_coaching_state import (
     AdherenceSnapshot,
+    CoachingGoalAuthoritySnapshotV1,
+    CoachingGoalDataStatus,
+    CoachingGoalStatus,
     FitChefCoachingScenario,
     MarkovCoachingOrchestrationResultV1,
     MarkovCoachingOrchestrationTraceV1,
+    NoInterventionReason,
     PromptSafeMarkovTransitionContext,
     RecentBehaviorSnapshot,
     UserCoachingStateV1,
@@ -28,6 +32,7 @@ from app.services.coaching_markov_orchestration_adapter import (
     build_markov_coaching_orchestration_result,
     to_prompt_safe_markov_orchestration_context,
 )
+from app.services.coaching_transition_planner import build_markov_coaching_transition_plan
 from core.bayes.adherence_model import AdherenceState
 from core.bayes.adherence_service import DEFAULT_ANALYZER_KEY
 from core.models import AnalyzerStateModel, User
@@ -41,6 +46,23 @@ ALL_SCENARIOS: tuple[FitChefCoachingScenario, ...] = (
     "distortion_simulator",
     "identity_loop_mapper",
 )
+
+
+def _goal(
+    status: CoachingGoalStatus = "active",
+    *,
+    data_status: CoachingGoalDataStatus | None = None,
+) -> CoachingGoalAuthoritySnapshotV1:
+    if status == "unavailable":
+        return CoachingGoalAuthoritySnapshotV1(data_status=data_status or "unavailable")
+    return CoachingGoalAuthoritySnapshotV1(
+        status=status,
+        source="user_confirmed",
+        data_status="confirmed",
+        goal_ref="goal:adapter-fixture",
+        goal_version_ref="goal-version:1",
+        superseded_by_ref="goal-version:2" if status == "superseded" else None,
+    )
 
 
 def _reset_subjects(session: Session, *user_ids: int) -> None:
@@ -128,15 +150,53 @@ def _state(
     user_id: int = 93_100,
     adherence: AdherenceSnapshot | None = None,
     recent_behavior: RecentBehaviorSnapshot | None = None,
+    goal: CoachingGoalAuthoritySnapshotV1 | None = None,
     available_scenarios: tuple[FitChefCoachingScenario, ...] = ALL_SCENARIOS,
 ) -> UserCoachingStateV1:
     return UserCoachingStateV1(
         user_id=user_id,
         assembled_at=FIXED_NOW,
+        goal=goal if goal is not None else _goal(),
         adherence=adherence or AdherenceSnapshot(),
         recent_behavior=recent_behavior or RecentBehaviorSnapshot(),
         available_scenarios=available_scenarios,
     )
+
+
+def _install_active_goal_builder(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_builder = adapter_module.build_user_coaching_state
+
+    def _build_with_active_goal(
+        *,
+        user_id: int,
+        session: Session,
+        analyzer_key: str = DEFAULT_ANALYZER_KEY,
+    ) -> UserCoachingStateV1:
+        state = original_builder(
+            user_id=user_id,
+            session=session,
+            analyzer_key=analyzer_key,
+        )
+        payload = state.model_dump(mode="python")
+        payload["goal"] = _goal()
+        return UserCoachingStateV1.model_validate(payload)
+
+    monkeypatch.setattr(adapter_module, "build_user_coaching_state", _build_with_active_goal)
+
+
+def _install_static_state_builder(
+    monkeypatch: pytest.MonkeyPatch,
+    state: UserCoachingStateV1,
+) -> None:
+    def _build_static_state(
+        user_id: int,
+        session: Session,
+        analyzer_key: str = DEFAULT_ANALYZER_KEY,
+    ) -> UserCoachingStateV1:
+        del user_id, session, analyzer_key
+        return state
+
+    monkeypatch.setattr(adapter_module, "build_user_coaching_state", _build_static_state)
 
 
 def _safe_json(result: MarkovCoachingOrchestrationResultV1) -> str:
@@ -185,7 +245,7 @@ def test_orchestration_schemas_are_frozen_strict_and_validate_trace_plan_consist
         )
 
 
-def test_default_cold_start_chain_returns_ready_prompt_safe_context(
+def test_default_cold_start_chain_returns_deliberate_no_intervention(
     configure_sqlite_database: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -195,21 +255,65 @@ def test_default_cold_start_chain_returns_ready_prompt_safe_context(
         _reset_subjects(session, user_id)
 
     with configure_sqlite_database.session_scope() as session:
+        before_events = _event_count(session, user_id)
+        before_analyzers = _analyzer_count(session, user_id)
         result = build_markov_coaching_orchestration_result(user_id=user_id, session=session)
         repeated = build_markov_coaching_orchestration_result(user_id=user_id, session=session)
+        after_events = _event_count(session, user_id)
+        after_analyzers = _analyzer_count(session, user_id)
+        assert not session.new
+        assert not session.dirty
+        assert not session.deleted
 
     assert result.coaching_state.user_id == user_id
-    assert result.transition_plan is not None
-    assert result.transition_plan.transition_state == "cold_start_default"
-    assert result.prompt_safe_context is not None
-    assert result.prompt_safe_context.recommended_scenario == "mascot_insight"
-    assert result.decision_trace.decision_status == "ready"
+    assert before_events == after_events == 0
+    assert before_analyzers == after_analyzers == 0
+    assert result.coaching_state.goal == CoachingGoalAuthoritySnapshotV1()
+    assert result.transition_plan is None
+    assert result.prompt_safe_context is None
+    assert result.decision_trace.decision_status == "no_intervention"
+    assert result.decision_trace.no_intervention_reason == "goal_unavailable"
+    assert result.decision_trace.planner_version is None
+    assert result.decision_trace.transition_state is None
+    assert result.decision_trace.recommended_scenario is None
+    assert result.decision_trace.confidence == 0.0
+    assert result.decision_trace.ranked_scenario_count == 0
+    assert result.decision_trace.available_scenario_count == 0
+    assert result.decision_trace.state_degraded is False
+    assert result.decision_trace.planner_degraded is False
     assert result.decision_trace.degrade_reasons == ()
     assert result.decision_trace == repeated.decision_trace
 
     safe_json = _safe_json(result)
     for forbidden in ("user_id", str(user_id), "assembled_at", "last_", "alpha", "beta"):
         assert forbidden not in safe_json
+
+
+def test_active_cold_start_preserves_existing_ready_policy(
+    configure_sqlite_database: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = _state(user_id=93_009)
+    _install_static_state_builder(monkeypatch, state)
+
+    with configure_sqlite_database.session_scope() as session:
+        result = build_markov_coaching_orchestration_result(
+            user_id=state.user_id,
+            session=session,
+        )
+
+    expected_plan = build_markov_coaching_transition_plan(state)
+    assert result.transition_plan is not None
+    assert result.transition_plan == expected_plan
+    assert result.transition_plan.transition_state == "cold_start_default"
+    assert result.transition_plan.recommended_scenario == "mascot_insight"
+    assert result.prompt_safe_context is not None
+    assert result.prompt_safe_context.recommended_scenario == "mascot_insight"
+    assert result.decision_trace.decision_status == "ready"
+    assert result.decision_trace.no_intervention_reason is None
+    assert result.decision_trace.degrade_reasons == ()
+    assert "goal" not in result.prompt_safe_context.model_dump(mode="json")
+    assert "goal:adapter-fixture" not in _safe_json(result)
 
 
 def test_slip_and_day_close_rows_flow_through_builder_planner_and_adapter(
@@ -219,6 +323,7 @@ def test_slip_and_day_close_rows_flow_through_builder_planner_and_adapter(
     slip_user_id = 93_002
     day_close_user_id = 93_003
     monkeypatch.setattr(builder_module, "_now_utc", lambda: FIXED_NOW)
+    _install_active_goal_builder(monkeypatch)
 
     with configure_sqlite_database.session_scope() as session:
         _reset_subjects(session, slip_user_id, day_close_user_id)
@@ -249,6 +354,17 @@ def test_slip_and_day_close_rows_flow_through_builder_planner_and_adapter(
     with configure_sqlite_database.session_scope() as session:
         before_events = _event_count(session, slip_user_id)
         before_analyzers = _analyzer_count(session, slip_user_id)
+        before_analyzer = session.scalar(
+            select(AnalyzerStateModel).where(
+                AnalyzerStateModel.user_id == slip_user_id,
+                AnalyzerStateModel.analyzer_key == DEFAULT_ANALYZER_KEY,
+            )
+        )
+        assert before_analyzer is not None
+        before_analyzer_snapshot = (
+            before_analyzer.state_version,
+            dict(before_analyzer.payload),
+        )
         slip_result = build_markov_coaching_orchestration_result(
             user_id=slip_user_id,
             session=session,
@@ -259,9 +375,24 @@ def test_slip_and_day_close_rows_flow_through_builder_planner_and_adapter(
         )
         after_events = _event_count(session, slip_user_id)
         after_analyzers = _analyzer_count(session, slip_user_id)
+        after_analyzer = session.scalar(
+            select(AnalyzerStateModel).where(
+                AnalyzerStateModel.user_id == slip_user_id,
+                AnalyzerStateModel.analyzer_key == DEFAULT_ANALYZER_KEY,
+            )
+        )
+        assert after_analyzer is not None
+        after_analyzer_snapshot = (
+            after_analyzer.state_version,
+            dict(after_analyzer.payload),
+        )
+        assert not session.new
+        assert not session.dirty
+        assert not session.deleted
 
     assert before_events == after_events == 1
     assert before_analyzers == after_analyzers == 1
+    assert before_analyzer_snapshot == after_analyzer_snapshot
     assert slip_result.transition_plan is not None
     assert slip_result.transition_plan.transition_state == "slip_support_needed"
     assert slip_result.transition_plan.recommended_scenario == "mascot_insight"
@@ -300,6 +431,11 @@ def test_shadow_disabled_prevents_planner_and_prompt_safe_projection(
         "build_markov_coaching_transition_plan",
         _unexpected_planner_call,
     )
+    monkeypatch.setattr(
+        adapter_module,
+        "to_prompt_safe_markov_context",
+        _unexpected_planner_call,
+    )
     with configure_sqlite_database.session_scope() as session:
         _reset_subjects(session, user_id)
     with configure_sqlite_database.session_scope() as session:
@@ -313,7 +449,217 @@ def test_shadow_disabled_prevents_planner_and_prompt_safe_projection(
     assert result.prompt_safe_context is None
     assert to_prompt_safe_markov_orchestration_context(result) is None
     assert result.decision_trace.decision_status == "shadow_disabled"
+    assert result.decision_trace.no_intervention_reason is None
     assert result.decision_trace.degrade_reasons == ("feature_gate_disabled",)
+
+
+@pytest.mark.parametrize(
+    ("goal", "expected_reason"),
+    [
+        (_goal("unavailable"), "goal_unavailable"),
+        (
+            _goal("unavailable", data_status="invalid_degraded"),
+            "goal_invalid_degraded",
+        ),
+        (_goal("paused"), "goal_paused"),
+        (_goal("withdrawn"), "goal_withdrawn"),
+        (_goal("superseded"), "goal_superseded"),
+    ],
+)
+def test_non_active_goal_prevents_planner_and_projection_calls(
+    configure_sqlite_database: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    goal: CoachingGoalAuthoritySnapshotV1,
+    expected_reason: NoInterventionReason,
+) -> None:
+    state = _state(goal=goal)
+    calls = {"planner": 0, "projection": 0}
+
+    def _unexpected_planner(*args: object, **kwargs: object) -> None:
+        calls["planner"] += 1
+        raise AssertionError("planner must not run without active goal authority")
+
+    def _unexpected_projection(*args: object, **kwargs: object) -> None:
+        calls["projection"] += 1
+        raise AssertionError("projection must not run without active goal authority")
+
+    _install_static_state_builder(monkeypatch, state)
+    monkeypatch.setattr(
+        adapter_module,
+        "build_markov_coaching_transition_plan",
+        _unexpected_planner,
+    )
+    monkeypatch.setattr(
+        adapter_module,
+        "to_prompt_safe_markov_context",
+        _unexpected_projection,
+    )
+
+    with configure_sqlite_database.session_scope() as session:
+        result = build_markov_coaching_orchestration_result(
+            user_id=state.user_id,
+            session=session,
+        )
+
+    assert calls == {"planner": 0, "projection": 0}
+    assert result.transition_plan is None
+    assert result.prompt_safe_context is None
+    assert to_prompt_safe_markov_orchestration_context(result) is None
+    assert result.decision_trace.decision_status == "no_intervention"
+    assert result.decision_trace.no_intervention_reason == expected_reason
+    assert result.decision_trace.planner_version is None
+    assert result.decision_trace.transition_state is None
+    assert result.decision_trace.recommended_scenario is None
+    assert result.decision_trace.confidence == 0.0
+    assert result.decision_trace.ranked_scenario_count == 0
+    assert result.decision_trace.available_scenario_count == 0
+    assert result.decision_trace.state_degraded is False
+    assert result.decision_trace.planner_degraded is False
+    assert result.decision_trace.degrade_reasons == ()
+
+
+@pytest.mark.parametrize(
+    "invalid_update",
+    [
+        {"goal_ref": []},
+        {"superseded_by_ref": "goal-version:2"},
+        {"supersedes_ref": "goal-version:1"},
+        {"correction_ref": "raw goal prose"},
+        {"snapshot_version": "coaching_goal_authority_v2"},
+    ],
+)
+def test_forged_active_goal_never_calls_planner_or_projection(
+    configure_sqlite_database: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_update: dict[str, object],
+) -> None:
+    state = _state()
+    forged_goal = state.goal.model_copy(update=invalid_update)
+    forged_state = state.model_copy(update={"goal": forged_goal})
+    calls = {"planner": 0, "projection": 0}
+
+    def _unexpected_planner(*args: object, **kwargs: object) -> None:
+        calls["planner"] += 1
+        raise AssertionError("planner must not run with invalid goal refs")
+
+    def _unexpected_projection(*args: object, **kwargs: object) -> None:
+        calls["projection"] += 1
+        raise AssertionError("projection must not run with invalid goal refs")
+
+    _install_static_state_builder(monkeypatch, forged_state)
+    monkeypatch.setattr(
+        adapter_module,
+        "build_markov_coaching_transition_plan",
+        _unexpected_planner,
+    )
+    monkeypatch.setattr(
+        adapter_module,
+        "to_prompt_safe_markov_context",
+        _unexpected_projection,
+    )
+
+    with configure_sqlite_database.session_scope() as session:
+        with pytest.raises(ValueError, match="no valid no_intervention mapping"):
+            build_markov_coaching_orchestration_result(
+                user_id=forged_state.user_id,
+                session=session,
+            )
+
+    assert calls == {"planner": 0, "projection": 0}
+
+
+@pytest.mark.parametrize(
+    "trace_payload",
+    [
+        {"decision_status": "no_intervention"},
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "planner_version": "markov_transition_v1",
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "transition_state": "cold_start_default",
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "recommended_scenario": "mascot_insight",
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "confidence": 0.1,
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "ranked_scenario_count": 1,
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "available_scenario_count": 1,
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "state_degraded": True,
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "planner_degraded": True,
+        },
+        {
+            "decision_status": "no_intervention",
+            "no_intervention_reason": "goal_unavailable",
+            "degrade_reasons": ("planner_unavailable",),
+        },
+        {
+            "decision_status": "shadow_disabled",
+            "no_intervention_reason": "goal_unavailable",
+        },
+    ],
+)
+def test_trace_rejects_forged_no_intervention_shapes(
+    trace_payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        MarkovCoachingOrchestrationTraceV1.model_validate(trace_payload)
+
+
+def test_result_cross_binds_no_intervention_reason_and_goal_authority() -> None:
+    unavailable_state = _state(goal=_goal("unavailable"))
+    valid_trace = MarkovCoachingOrchestrationTraceV1(
+        decision_status="no_intervention",
+        no_intervention_reason="goal_unavailable",
+    )
+    valid_result = MarkovCoachingOrchestrationResultV1(
+        coaching_state=unavailable_state,
+        decision_trace=valid_trace,
+    )
+    assert valid_result.decision_trace.no_intervention_reason == "goal_unavailable"
+
+    with pytest.raises(ValidationError, match="reason must match coaching goal"):
+        MarkovCoachingOrchestrationResultV1(
+            coaching_state=unavailable_state,
+            decision_trace=MarkovCoachingOrchestrationTraceV1(
+                decision_status="no_intervention",
+                no_intervention_reason="goal_paused",
+            ),
+        )
+    with pytest.raises(ValidationError, match="requires a non-active goal"):
+        MarkovCoachingOrchestrationResultV1(
+            coaching_state=_state(goal=_goal()),
+            decision_trace=valid_trace,
+        )
+    with pytest.raises(ValidationError, match="planner decisions require active"):
+        MarkovCoachingOrchestrationResultV1(
+            coaching_state=unavailable_state,
+            decision_trace=MarkovCoachingOrchestrationTraceV1(decision_status="no_recommendation"),
+        )
 
 
 def test_empty_allowed_scenarios_returns_no_recommendation_status(
@@ -322,6 +668,7 @@ def test_empty_allowed_scenarios_returns_no_recommendation_status(
 ) -> None:
     user_id = 93_005
     monkeypatch.setattr(builder_module, "_now_utc", lambda: FIXED_NOW)
+    _install_active_goal_builder(monkeypatch)
     with configure_sqlite_database.session_scope() as session:
         _reset_subjects(session, user_id)
 
@@ -361,11 +708,7 @@ def test_ready_status_uses_existing_prompt_safe_markov_projection(
             scanned_event_count=2,
         ),
     )
-    monkeypatch.setattr(
-        adapter_module,
-        "build_user_coaching_state",
-        lambda **_: ready_state,
-    )
+    _install_static_state_builder(monkeypatch, ready_state)
 
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(
@@ -481,11 +824,7 @@ def test_degraded_state_and_recent_behavior_reasons_are_deterministic(
             events_capped=True,
         ),
     )
-    monkeypatch.setattr(
-        adapter_module,
-        "build_user_coaching_state",
-        lambda **_: degraded_state,
-    )
+    _install_static_state_builder(monkeypatch, degraded_state)
 
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(
@@ -510,6 +849,7 @@ def test_prompt_safe_adapter_projection_excludes_identifiers_timestamps_and_clai
     user_id = 93_006
     other_user_id = 93_007
     monkeypatch.setattr(builder_module, "_now_utc", lambda: FIXED_NOW)
+    _install_active_goal_builder(monkeypatch)
     with configure_sqlite_database.session_scope() as session:
         _reset_subjects(session, user_id, other_user_id)
         session.add(
@@ -539,6 +879,7 @@ def test_prompt_safe_adapter_projection_excludes_identifiers_timestamps_and_clai
     with configure_sqlite_database.session_scope() as session:
         result = build_markov_coaching_orchestration_result(user_id=user_id, session=session)
 
+    assert result.prompt_safe_context is not None
     safe_json = _safe_json(result).lower()
     for forbidden in (
         "user_id",
@@ -572,6 +913,7 @@ def test_planner_fail_closed_trace_does_not_include_raw_exception_text(
 ) -> None:
     user_id = 93_008
     monkeypatch.setattr(builder_module, "_now_utc", lambda: FIXED_NOW)
+    _install_active_goal_builder(monkeypatch)
 
     def _broken_planner(*args: object, **kwargs: object) -> None:
         raise ValueError("raw planner exception with ada@example.com and key-like-marker")

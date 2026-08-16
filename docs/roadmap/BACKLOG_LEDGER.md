@@ -24,6 +24,38 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-canonical-coaching-goal-source"></a>
+- [ ] P1: Implement the canonical backend source for coaching goal authority
+  - Owner: Human Product Owner to assign a dedicated backend plus web/iOS lane
+  - Priority: P1 (goal authority / consent / coaching trust)
+  - Target PR: Unassigned; set only when the Human Product Owner opens the live-integration lane
+  - Status: Deferred live-integration follow-up; non-blocking for the narrow E1-02 internal contract
+  - Area: backend goal ownership / authorization / web / iOS / shadow coaching
+  - Reason (EN): E1-02 defines only the internal lifecycle and deterministic
+    `no_intervention` boundary. A separate canonical producer must establish
+    who owns goal truth and how an active goal version becomes demonstrably
+    user-confirmed, current, correctable, and revocable before shadow coaching
+    can consume live authority. Neither request-scoped goal prose,
+    `WeeklyPlan.plan_data`, `safe_goal`, behavioral inference, model output, nor
+    engagement policy may be promoted into that source implicitly.
+  - Links:
+    - `app/schemas/user_coaching_state.py`
+    - `app/services/coaching_state_builder.py`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+  - DoD:
+    - backend ownership and the canonical read contract are explicit, with
+      object-level authorization (BOLA) tests and no cross-user disclosure
+    - consent provenance, persistence and request binding, currentness, and
+      correction semantics are explicit and tested
+    - versioning covers predecessor/successor integrity plus deterministic
+      pause, withdrawal, and supersession behavior
+    - web and iOS distinguish unset, unconfirmed, active, paused, withdrawn,
+      and superseded states and require explicit confirmation where applicable
+    - privacy, auditability, rollback, and stale-version rejection are covered
+      without moving authority truth into either client
+    - this item blocks claims of live active-goal integration, but does not
+      block the narrow source-free E1-02 internal lifecycle contract
+
 <a id="ledger-p1-weekly-profile-client-confirmation"></a>
 - [ ] P1: Require explicit web and iOS confirmation for profile-driven weekly plans
   - Owner: Human Product Owner to assign a separate web/iOS client lane
