@@ -1175,10 +1175,14 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         path: _route_has_endpoint(app, path, method, endpoint)
         for path, method, endpoint in bespoke_routes
     }
-    websocket_exists = (
-        _route_has_endpoint(app, _WS_ROUTE_PATHS[0], "", realtime_ws.ws_pro),
-        _route_has_endpoint(app, _WS_ROUTE_PATHS[1], "", realtime_ws.ws_root),
-    )
+    ws_source = {route_path(route): route for route in realtime_ws.router.routes}
+    ws_endpoints = tuple(route_endpoint(ws_source.get(p)) for p in _WS_ROUTE_PATHS)
+    ws_endpoints = ws_endpoints if ws_source else (realtime_ws.ws_pro, realtime_ws.ws_root)
+    ws_owner = cast(FastAPI, realtime_ws.router) if ws_source else app
+    websocket_exists = []
+    for path, endpoint in zip(_WS_ROUTE_PATHS, ws_endpoints, strict=True):
+        _route_has_endpoint(ws_owner, path, "", endpoint)
+        websocket_exists.append(_route_has_endpoint(app, path, "", endpoint))
     if any(websocket_exists) and not all(websocket_exists):
         raise RuntimeError("Incomplete canonical websocket route family.")
     register_http_middleware_stack(app)

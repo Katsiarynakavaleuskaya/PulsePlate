@@ -15,25 +15,12 @@ import pytest
 from starlette.routing import Route
 
 _MIRRORS = "VIP_MODULE_ENABLED vip_router pro_router premium_week_router FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router".split()
-_IMPORT_SCENARIOS = (
-    "from app.bootstrap import application as canonical; import app.main as main; "
-    "import legacy_app; import app as package",
-    "import legacy_app; from app.bootstrap import application as canonical; "
-    "import app.main as main; import app as package",
-    "import app as package; package.app; "
-    "from app.bootstrap import application as canonical; import app.main as main; "
-    "import legacy_app",
-)
-_HTTP_CONTRACTS = (
-    ("/", "GET"),
-    ("/legacy/bmi-calculator", "GET"),
-    ("/sitemap.xml", "GET"),
-    ("/api/v1/feedback/rag", "POST"),
-    ("/api/v1/pro/cbt/insight", "POST"),
-    ("/api/v1/pro/fitchef/explain", "POST"),
-    ("/api/v1/internal/creative-research/pilot", "POST"),
-    ("/api/v1/internal/paywall/events", "POST"),
-)
+_IMPORT_SCENARIOS = """from app.bootstrap import application as canonical; import app.main as main; import legacy_app; import app as package
+import legacy_app; from app.bootstrap import application as canonical; import app.main as main; import app as package
+import app as package; package.app; from app.bootstrap import application as canonical; import app.main as main; import legacy_app""".splitlines()
+_HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
+_HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
+_WS_STATES = "c. .c ff cf fc d. .d h. .h rr rc cr r. .r C. .C DC CD RC CR RR".split()
 
 
 def _is_direct_fastapi_call(call: ast.Call) -> bool:
@@ -159,25 +146,29 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
     assert (tuple(target.routes), tuple(target.user_middleware)) == before
 
 
-@pytest.mark.parametrize("s", "c. .c ff cf fc d. .d h. .h rr rc cr r. .r".split())
-def test_websocket_owner_states_fail_closed(s: str) -> None:
+@pytest.mark.parametrize("s", _WS_STATES)
+def test_websocket_owner_states_fail_closed(s: str, monkeypatch: pytest.MonkeyPatch) -> None:
     import app.main as main
-    from fastapi import FastAPI
+    from fastapi import APIRouter, FastAPI
 
     target = FastAPI()
     canonical = (main.realtime_ws.ws_pro, main.realtime_ws.ws_root)
-    for index, owner in enumerate(s):
+    source = s != s.lower()
+    owner_app = APIRouter() if source else target
+    for index, owner in enumerate(s.lower()):
         owners = "cc" if owner == "d" else owner.strip(".")
         for owner in owners:
             path = main._WS_ROUTE_PATHS[index]
             if owner == "r":
-                target.routes.append(Route(path, canonical[index], methods=["GET"]))
+                owner_app.routes.append(Route(path, canonical[index], methods=["GET"]))
             elif owner == "h":
-                target.add_api_route(path, lambda: None, methods=["GET"])
+                owner_app.add_api_route(path, lambda: None, methods=["GET"])
             else:
-                target.add_api_websocket_route(
+                owner_app.add_api_websocket_route(
                     path, canonical[index] if owner == "c" else lambda _: None
                 )
+    if source:
+        monkeypatch.setattr(main.realtime_ws, "router", owner_app)
     before = (tuple(target.routes), tuple(target.user_middleware))
     with pytest.raises(RuntimeError):
         main.ensure_canonical_app_bootstrap(target)
@@ -194,6 +185,7 @@ def test_test_owned_composition_and_legacy_alias_do_not_rebind_canonical(
 
     test_owned = application._create_fastapi_application(application.APPLICATION_METADATA)
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
+    monkeypatch.setattr(main.realtime_ws, "router", main.APIRouter())
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
     assert application.app is main.app
     monkeypatch.setattr(legacy_app, "app", test_owned)
