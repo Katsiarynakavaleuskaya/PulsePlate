@@ -1215,7 +1215,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_recipe_nutrition_reference_routers_if_needed(app)
     _include_nutrition_state_routers_if_needed(app)
 
-    if not any(websocket_exists):
+    if ws_source and not any(websocket_exists):
         app.include_router(realtime_ws.router)
 
     if not route_exists[_FEEDBACK_ROUTE_PATH]:

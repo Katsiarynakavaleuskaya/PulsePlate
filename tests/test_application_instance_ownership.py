@@ -184,9 +184,11 @@ def test_test_owned_composition_and_legacy_alias_do_not_rebind_canonical(
     from app.bootstrap import application
 
     test_owned = application._create_fastapi_application(application.APPLICATION_METADATA)
-    assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
     monkeypatch.setattr(main.realtime_ws, "router", main.APIRouter())
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
+    composed = (tuple(test_owned.routes), tuple(test_owned.user_middleware))
+    assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
+    assert (tuple(test_owned.routes), tuple(test_owned.user_middleware)) == composed
     assert application.app is main.app
     monkeypatch.setattr(legacy_app, "app", test_owned)
     assert app.app is test_owned
