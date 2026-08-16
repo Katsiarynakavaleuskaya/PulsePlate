@@ -248,9 +248,12 @@ class TestVIPCoverage97Final:
     def test_vip_auto_repair_weekly_coverage_lines_530(
         self,
         client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
         vip_headers: dict[str, str],
     ) -> None:
         """Test VIP auto-repair weekly coverage for lines 530."""
+        monkeypatch.setattr("app.routers.vip.auto_repair_week_plan", None)
+
         # Test auto-repair weekly endpoint
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
@@ -259,7 +262,7 @@ class TestVIPCoverage97Final:
         )
         assert response.status_code == 200
         data = assert_json_response_payload(response)
-        assert data["status"] == "error"  # Returns error when auto_repair_menu is None
+        assert data["status"] == "error"  # Fallback when auto_repair_week_plan is unavailable
         assert "repair_result" in data
 
     def test_vip_auto_repair_suggestions_coverage_lines_589(
