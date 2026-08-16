@@ -300,7 +300,11 @@ def test_policy_closes_authority_transport_and_public_verbs() -> None:
     assert tuple(enums["episode_observation_statuses"]) == (episode.EPISODE_OBSERVATION_STATUSES)
     assert tuple(enums["ratio_statuses"]) == episode.RATIO_STATUSES
     contract_text = CONTRACT.read_text(encoding="utf-8")
-    assert "post_merge_regression" not in enums
+    enum_values: list[object] = []
+    for values in enums.values():
+        assert isinstance(values, list)
+        enum_values.extend(values)
+    assert "post_merge_regression" not in enum_values
     assert "automatic L3" in contract_text
 
 
@@ -388,6 +392,7 @@ def test_extreme_json_nesting_has_stable_public_and_stored_error_classes() -> No
         input=raw,
         check=False,
         capture_output=True,
+        timeout=60,
     )
     assert completed.returncode == 1
     assert completed.stdout == b""
@@ -506,6 +511,10 @@ def test_enrollment_normalizes_order_and_rejects_closed_schema_violations() -> N
         "C:\\Windows",
         "https://example.invalid",
         "token_value",
+        "GITHUB_TOKEN",
+        "API_KEY",
+        "Authorization",
+        "gItHuB_tOkEn",
         "ghs_secretlikevalue123456",
         "AIza_shape",
         "AKIA_shape",
@@ -1736,6 +1745,7 @@ def test_cli_diagnostics_do_not_echo_input_path_prose_or_traceback() -> None:
         input=submitted,
         check=False,
         capture_output=True,
+        timeout=60,
     )
     assert completed.returncode == 1
     assert completed.stdout == b""
@@ -1778,10 +1788,14 @@ def test_stdout_and_stderr_bounds_cover_exact_maximum_and_plus_one(
     }
     rendered_ack = episode._canonical_json_bytes(ack, trailing_lf=True)
     writes: list[bytes] = []
+    original_write = os.write
+    captured_descriptor = sys.stdout.fileno()
 
-    def capture_write(_descriptor: int, data: bytes) -> int:
-        writes.append(bytes(data))
-        return len(data)
+    def capture_write(descriptor: int, data: bytes) -> int:
+        if descriptor == captured_descriptor:
+            writes.append(bytes(data))
+            return len(data)
+        return original_write(descriptor, data)
 
     monkeypatch.setattr(episode.os, "write", capture_write)
     monkeypatch.setattr(episode, "MAX_STDOUT_BYTES", len(rendered_ack))
@@ -1795,6 +1809,7 @@ def test_stdout_and_stderr_bounds_cover_exact_maximum_and_plus_one(
     assert writes == []
 
     rendered_error = b"E_SCHEMA\n"
+    captured_descriptor = sys.stderr.fileno()
     monkeypatch.setattr(episode, "MAX_STDERR_BYTES", len(rendered_error))
     episode._write_error("E_SCHEMA")
     assert writes == [rendered_error]
