@@ -14,10 +14,7 @@ from typing import Any
 import pytest
 from starlette.routing import Route
 
-_MIRRORS = (
-    "VIP_MODULE_ENABLED vip_router pro_router premium_week_router "
-    "FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router"
-).split()
+_MIRRORS = "VIP_MODULE_ENABLED vip_router pro_router premium_week_router FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router".split()
 _IMPORT_SCENARIOS = (
     "from app.bootstrap import application as canonical; import app.main as main; "
     "import legacy_app; import app as package",
@@ -140,18 +137,21 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
 
 
 @pytest.mark.parametrize(("path", "method"), _HTTP_CONTRACTS)
-@pytest.mark.parametrize("owners", ("f", "cc", "ff", "cf", "fc", "r"))
+@pytest.mark.parametrize("owners", ("f", "cc", "ff", "cf", "fc", "r", "i"))
 def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: str) -> None:
     import app.main as main
-    from fastapi import FastAPI
+    from fastapi import APIRouter, FastAPI
 
     target = FastAPI()
-    canonical = main.route_endpoint_for_path_method(main.app.routes, path, method)
+    fn = main.route_endpoint_for_path_method(main.app.routes, path, method)
     for owner in owners:
-        if owner == "r":
-            target.routes.append(Route(path, canonical, methods=[method]))
+        if owner == "i":
+            target.include_router(APIRouter(routes=[Route(path, fn, methods=[method])]))
             continue
-        endpoint = canonical if owner == "c" else (lambda: None)
+        if owner == "r":
+            target.routes.append(Route(path, fn, methods=[method]))
+            continue
+        endpoint = fn if owner == "c" else (lambda: None)
         target.add_api_route(path, endpoint, methods=[method])
     before = (tuple(target.routes), tuple(target.user_middleware))
     with pytest.raises(RuntimeError, match="Duplicate"):

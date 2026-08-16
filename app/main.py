@@ -563,12 +563,12 @@ def _route_has_endpoint(
     carrier = APIRoute if method_name else APIWebSocketRoute
     owners: list[object | None] = []
     for route in _effective_app_routes(target_app):
+        carrier_route = getattr(route, "original_route", route)
         if route_path(route) != path:
             continue
-        if method_name and method_name not in route_methods(route):
+        if method_name and method_name not in route_methods(carrier_route):
             continue
-        carrier_route = getattr(route, "original_route", route)
-        owners.append(route_endpoint(route) if isinstance(carrier_route, carrier) else None)
+        owners.append(route_endpoint(carrier_route) if isinstance(carrier_route, carrier) else None)
     if endpoint is not None and len(owners) == 1 and owners[0] is endpoint:
         return True
     if endpoint is not None and not owners:
