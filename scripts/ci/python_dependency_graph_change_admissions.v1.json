@@ -1,0 +1,60 @@
+{
+  "schema": "pulseplate-python-dependency-graph-change-admission.v1",
+  "record": {
+    "admission_id": "observability-refresh-2026-08-15",
+    "profile_universe": [
+      "runtime",
+      "docker-runtime",
+      "ci-lite",
+      "aggregate"
+    ],
+    "allowed_transactions": [
+      [
+        "runtime"
+      ],
+      [
+        "docker-runtime",
+        "ci-lite",
+        "aggregate"
+      ]
+    ],
+    "upgrades": {
+      "opentelemetry-api": "1.44.0",
+      "opentelemetry-sdk": "1.44.0",
+      "opentelemetry-exporter-otlp-proto-http": "1.44.0",
+      "opentelemetry-exporter-otlp-proto-common": "1.44.0",
+      "opentelemetry-proto": "1.44.0",
+      "opentelemetry-semantic-conventions": "0.65b0",
+      "prometheus-client": "0.25.0"
+    },
+    "graph_change": {
+      "removals": [
+        "importlib-metadata",
+        "zipp"
+      ],
+      "additions": []
+    },
+    "baselines": {
+      "runtime": {
+        "lockfile": "requirements.txt",
+        "sha256_bytes": [141, 126, 91, 111, 158, 21, 52, 76, 160, 49, 6, 4, 7, 230, 146, 138, 87, 238, 130, 226, 161, 253, 202, 174, 213, 243, 19, 125, 225, 166, 29, 239]
+      },
+      "docker-runtime": {
+        "lockfile": "requirements-docker-runtime.txt",
+        "sha256_bytes": [59, 38, 53, 23, 184, 25, 61, 218, 43, 87, 187, 234, 98, 251, 188, 246, 35, 125, 210, 179, 92, 163, 190, 127, 137, 125, 56, 10, 160, 65, 52, 103]
+      },
+      "ci-lite": {
+        "lockfile": "requirements-ci-lite.txt",
+        "sha256_bytes": [189, 246, 145, 227, 105, 28, 230, 69, 13, 47, 79, 44, 56, 157, 128, 46, 71, 108, 151, 18, 211, 170, 217, 239, 41, 51, 233, 52, 173, 242, 157, 12]
+      },
+      "aggregate": {
+        "lockfile": "requirements-lock.txt",
+        "sha256_bytes": [244, 143, 153, 72, 179, 146, 24, 121, 121, 54, 254, 206, 91, 178, 78, 164, 160, 170, 201, 176, 72, 32, 47, 246, 128, 115, 29, 118, 185, 254, 15, 44]
+      }
+    },
+    "runtime_target_observation": {
+      "lockfile": "requirements.txt",
+      "sha256_bytes": [179, 176, 233, 22, 182, 160, 238, 65, 212, 52, 20, 88, 227, 94, 64, 91, 165, 23, 49, 56, 110, 213, 83, 248, 169, 64, 233, 7, 160, 250, 222, 35]
+    }
+  }
+}

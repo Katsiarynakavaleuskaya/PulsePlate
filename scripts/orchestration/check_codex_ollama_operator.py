@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import os
 import re
 import shutil
-import subprocess  # nosec B404: required for bounded local CLI version checks (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+import subprocess  # nosec B404: required for bounded local CLI version checks (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 import sys
 from dataclasses import asdict, dataclass
 from typing import Any, ContextManager, Sequence, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlunparse
-from urllib.request import HTTPRedirectHandler, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler, build_opener
 
 MIN_OLLAMA_CODEX_CLI_VERSION = (0, 15, 0)
 MIN_OLLAMA_CODEX_APP_VERSION = (0, 24, 0)
@@ -66,12 +68,13 @@ def _format_version(version: tuple[int, int, int]) -> str:
 
 def _run_version(binary: str, args: Sequence[str]) -> tuple[int, str]:
     try:
-        completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+        completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             [binary, *args],
             text=True,
             capture_output=True,
             check=False,
             timeout=10,
+            shell=False,
         )
     except subprocess.TimeoutExpired as exc:
         command = " ".join(str(part) for part in exc.cmd)
@@ -93,6 +96,7 @@ def _check_ollama_binary() -> tuple[CheckResult, str | None, str]:
             None,
             "",
         )
+    binary = os.path.abspath(binary)
     return (
         CheckResult(
             name="ollama-binary",
@@ -198,10 +202,13 @@ def _normalize_ollama_root_url(raw_url: str) -> tuple[bool, str, str]:
     try:
         parsed = urlparse(raw_url)
         hostname = parsed.hostname
-    except ValueError as exc:
-        return False, "", f"Malformed Ollama URL: {exc}"
+        _ = parsed.port
+    except ValueError:
+        return False, "", "Malformed Ollama URL."
     if parsed.scheme not in {"http", "https"}:
         return False, "", "Ollama URL must use http or https."
+    if parsed.username is not None or parsed.password is not None:
+        return False, "", "Ollama URL must not include credentials."
     if hostname not in LOCAL_OLLAMA_HOSTS:
         return False, "", "Ollama URL must be localhost, 127.0.0.1, or ::1 for this doctor."
     if parsed.query or parsed.fragment:
@@ -223,7 +230,7 @@ class _NoRedirectHandler(HTTPRedirectHandler):
 
 
 def _open_no_redirect(url: str, timeout_s: float) -> ContextManager[Any]:
-    opener = build_opener(_NoRedirectHandler)
+    opener = build_opener(ProxyHandler({}), _NoRedirectHandler)
     return cast(ContextManager[Any], opener.open(url, timeout=timeout_s))
 
 
@@ -237,6 +244,8 @@ def _read_ollama_server_version(response: Any) -> tuple[int, int, int] | None:
         payload = json.loads(raw_text)
     except json.JSONDecodeError:
         return None
+    if not isinstance(payload, dict):
+        return None
     version = payload.get("version")
     if not isinstance(version, str):
         return None
@@ -248,6 +257,8 @@ def _positive_timeout(raw_value: str) -> float:
         timeout_s = float(raw_value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError("timeout must be a number of seconds") from exc
+    if not math.isfinite(timeout_s):
+        raise argparse.ArgumentTypeError("timeout must be finite")
     if timeout_s <= 0:
         raise argparse.ArgumentTypeError("timeout must be greater than 0 seconds")
     return timeout_s
@@ -266,7 +277,7 @@ def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
     try:
         with _open_no_redirect(
             version_url, timeout_s
-        ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+        ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             status = getattr(response, "status", 200)
             server_version = _read_ollama_server_version(response)
     except HTTPError as exc:
@@ -332,6 +343,7 @@ def _check_codex_binary() -> CheckResult:
             detail="codex executable was not found on PATH.",
             fix="Install Codex CLI, then rerun this doctor.",
         )
+    binary = os.path.abspath(binary)
     returncode, output = _run_version(binary, ["--version"])
     if returncode != 0:
         return CheckResult(

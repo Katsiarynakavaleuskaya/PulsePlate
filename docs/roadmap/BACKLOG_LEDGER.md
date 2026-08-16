@@ -24,6 +24,38 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-canonical-coaching-goal-source"></a>
+- [ ] P1: Implement the canonical backend source for coaching goal authority
+  - Owner: Human Product Owner to assign a dedicated backend plus web/iOS lane
+  - Priority: P1 (goal authority / consent / coaching trust)
+  - Target PR: Unassigned; set only when the Human Product Owner opens the live-integration lane
+  - Status: Deferred live-integration follow-up; non-blocking for the narrow E1-02 internal contract
+  - Area: backend goal ownership / authorization / web / iOS / shadow coaching
+  - Reason (EN): E1-02 defines only the internal lifecycle and deterministic
+    `no_intervention` boundary. A separate canonical producer must establish
+    who owns goal truth and how an active goal version becomes demonstrably
+    user-confirmed, current, correctable, and revocable before shadow coaching
+    can consume live authority. Neither request-scoped goal prose,
+    `WeeklyPlan.plan_data`, `safe_goal`, behavioral inference, model output, nor
+    engagement policy may be promoted into that source implicitly.
+  - Links:
+    - `app/schemas/user_coaching_state.py`
+    - `app/services/coaching_state_builder.py`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+  - DoD:
+    - backend ownership and the canonical read contract are explicit, with
+      object-level authorization (BOLA) tests and no cross-user disclosure
+    - consent provenance, persistence and request binding, currentness, and
+      correction semantics are explicit and tested
+    - versioning covers predecessor/successor integrity plus deterministic
+      pause, withdrawal, and supersession behavior
+    - web and iOS distinguish unset, unconfirmed, active, paused, withdrawn,
+      and superseded states and require explicit confirmation where applicable
+    - privacy, auditability, rollback, and stale-version rejection are covered
+      without moving authority truth into either client
+    - this item blocks claims of live active-goal integration, but does not
+      block the narrow source-free E1-02 internal lifecycle contract
+
 <a id="ledger-p1-weekly-profile-client-confirmation"></a>
 - [ ] P1: Require explicit web and iOS confirmation for profile-driven weekly plans
   - Owner: Human Product Owner to assign a separate web/iOS client lane
@@ -11248,22 +11280,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Deterministic invariant-family relations shadow lane (L1/L2/L3 umbrella)
   - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
   - Priority: P1 (review determinism with closed authority)
-  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 target branch `codex/repeated-invariant-family-abstraction-review-v1`; L3 requires a separate reviewed target PR
-  - Status: L1 merged; bounded L2 consumer implementation in progress; L3 remains closed and is not authorized by L1 or L2
+  - Target PR: L1 PR #2252 (`codex/review-invariant-relations-shadow-v1-r2`), superseding PR #2250; L2 PR #2272 (`codex/repeated-invariant-family-abstraction-review-v1`); L2-EVAL v1 target branch `codex/euler-l2-eval-v1`; L3 requires a separate reviewed target PR
+  - Status: L1 and bounded L2 are merged; L2-EVAL v1 is the next prospective descriptive evidence stage; collection begins only after its implementation PR merges; L3 remains closed and is not authorized by L1, L2, or L2-EVAL
   - Reason (EN): Explicit invariant-family memberships need one bounded, replayable set-relation projection so agents can compare a finite snapshot without inferring from prose or creating another graph, ontology, learning loop, review oracle, or merge authority.
   - Links:
     - `docs/orchestration/contracts/REVIEW_INVARIANT_FAMILY_RELATIONS_SHADOW_CONTRACT.md`
     - `docs/orchestration/contracts/REPEATED_INVARIANT_FAMILY_ABSTRACTION_REVIEW_CONTRACT.md`
     - `docs/orchestration/contracts/review_invariant_family_relations.v1.schema.json`
+    - `docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md`
     - `scripts/orchestration/review_invariant_family_relations.py`
+    - `scripts/orchestration/invariant_family_review_episode.py`
     - `tests/test_review_invariant_family_relations.py`
+    - `tests/test_invariant_family_review_episode.py`
   - DoD:
     - L1 accepts only the closed snapshot/relations `oneOf`, normalizes explicit finite memberships, emits every canonical pair partition plus separate unknown findings, and fully validates deterministic replay with domain-separated fingerprints
     - L1 enforces input, output, diagnostic, finding, family, membership, pair, derived-reference, ID, strict-JSON, and const-false authority bounds through executable focused tests
     - L1 remains stdin/stdout only and adds no filesystem, environment, network, provider, subprocess, runtime, workflow, public API, mapping, learning, KPP, oracle, routing, review, promotion, or merge admission
     - L2 may be scoped only by a later reviewed packet that names a consumer, proves finite input ownership, and preserves L1 as a non-authoritative derived view
     - L2 consumes canonical L1 output only through the explicit post-open `task_bootstrap.py` input, triggers only on explicit family cardinality at least two, and emits no parser, semantic/causal inference, implementation-owner, review-disposition, mapping, or merge authority
-    - L3 may be scoped only by a later reviewed packet with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; L1 output alone cannot open that gate
+    - L2-EVAL v1 prospectively retains one immutable enrollment and at most one immutable terminal receipt per repository/PR episode, validates a non-persisted joint-pass baseline, measures only explicit `C_f - J_f`, and emits deterministic descriptive cohort reports with every downstream authority grant false
+    - No synthetic primary episode or empirical 5/10 cohort exists at implementation time; real qualifying PRs accrue only after L2-EVAL merges, and its interim/target-count labels are not effectiveness or L3 decisions
+    - L3 may be scoped only by a later reviewed packet after a separate future human evidence decision, with measurable benefit, rollback, observability, and independent runtime/security/admission contracts; no L1, L2, L2-EVAL receipt, accrual label, or report opens that gate automatically
 
 <a id="ledger-p1-agent-experimentation-lane"></a>
 - [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
@@ -11536,8 +11573,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot` -> terminal outcome envelope `codex/creative-code-terminal-outcome-envelope-v1`
-  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope is the active intermediate control-plane continuation after `pr_open`: one validated PR-3 lineage, one immutable `merged | closed_unmerged` carrier, and one v2 `pr_terminal` telemetry projection without product code, GitHub/provider/runtime, or merge authority.
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot` -> terminal outcome envelope `codex/creative-code-terminal-outcome-envelope-v1` -> terminal Evidence Eval projection `#2284` -> lifecycle transition analytics `codex/creative-lifecycle-transition-analytics-v1`
+  - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, promotion-integrity, and adaptive planning slices remain canonical. The terminal outcome envelope and PR `#2284` three-row Evidence Eval normalization projection are merged continuations after `pr_open`. The active next slice is deterministic lifecycle transition analytics over an exact mixed v2 telemetry snapshot; it remains aggregate-only and has no product code, GitHub/provider/runtime, routing/learning, or merge authority.
+  - Carryover: PR `#2284` merged the sibling terminal Evidence Eval projection, but this ledger still described `three-event projection` as absent. This lane reconciles that stale description while preserving the triplet as one indivisible evidence bundle outside lifecycle transition counts.
+  - Deterministic creative-code lifecycle transition analytics v1:
+    - Priority: P1
+    - Owner: @katsiaryna_kavaleuskaya
+    - Target PR: `codex/creative-lifecycle-transition-analytics-v1`
+    - Reason (EN): Existing v1/v2 telemetry has typed candidate and promotion lineage but no deterministic aggregate view of observed adjacent lifecycle transitions or explicitly unobserved neighbors. The slice must add that descriptive view without turning Evidence Eval rows, order, timestamps, paths, or missing artifacts into lifecycle truth.
+    - Links:
+      - `scripts/orchestration/creative_code_lifecycle_transition_analytics_contract.py`
+      - `scripts/orchestration/creative_code_lifecycle_transition_analytics.py`
+      - `docs/orchestration/contracts/creative_code_lifecycle_transition_analytics.v1.schema.json`
+      - `tests/test_creative_code_lifecycle_transition_analytics.py`
+    - DoD: one exact validated mixed v2 snapshot deterministically yields aggregate adjacent-transition counts, complete/incomplete terminal-lineage accounting, and fixed cycle histograms; ambiguous/incompatible/stale input fails closed; output retains no raw lineage; mode-`0600` atomic no-replace publication, byte-identical replay, read-only validation, focused tests, and normal PR governance pass; no backfill or runtime/routing/learning/merge authority is added.
   - Carryover: PR `#2224` (`codex/creative-budget-promotion-fixture`; follow-up to PR `#2218`) restores changed-line parity only in `tests/test_creative_code_pr_promotion.py` and `tests/test_creative_code_artifact_inventory.py`; no production, schema, workflow, provider, OCW, R3, or product-behavior change.
   - Carryover remediation:
     - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
@@ -11589,6 +11638,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/creative_code_telemetry_rollup.v2.schema.json`
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
+    - `docs/orchestration/contracts/creative_code_lifecycle_transition_analytics.v1.schema.json`
     - `docs/orchestration/contracts/creative_hypothesis_specification_bridge.v1.schema.json`
     - `docs/orchestration/contracts/creative_hypothesis_specification_bridge.v2.schema.json`
     - `docs/orchestration/contracts/creative_protocol_context_map.v2.schema.json`
@@ -11624,6 +11674,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/creative_code_telemetry.py`
     - `scripts/orchestration/creative_code_terminal_outcome_contract.py`
     - `scripts/orchestration/creative_code_terminal_outcome.py`
+    - `scripts/orchestration/creative_code_lifecycle_transition_analytics_contract.py`
+    - `scripts/orchestration/creative_code_lifecycle_transition_analytics.py`
     - `scripts/orchestration/creative_code_review_disposition_contract.py`
     - `scripts/orchestration/creative_code_review_disposition.py`
     - `scripts/orchestration/creative_code_applied_candidate_pr6.py`
@@ -11641,6 +11693,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_creative_code_pr_promotion.py`
     - `tests/test_creative_code_telemetry.py`
     - `tests/test_creative_code_terminal_outcome.py`
+    - `tests/test_creative_code_lifecycle_transition_analytics.py`
     - `tests/test_creative_code_review_disposition.py`
     - `tests/test_creative_code_applied_candidate_pr6.py`
     - `tests/test_creative_code_private_pilot_loop.py`
@@ -11653,7 +11706,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces with exact PR-1 bundle fingerprint binding, exact `origin/main` base SHA, human admission, fixed Codex CLI argv/env, strict patch policy validation, direct Experiment Runner candidate-mode evaluation, and sanitized result metadata.
     - PR-3: allow human-approved non-draft PR creation from one accepted PR-2 patch through separate plan, isolated validation, TTY approval, promotion checkout, new `experiment/*` branch, GitHub readback, and local sanitized receipt; no real promoted candidate PR is opened during PR-3 tooling implementation.
     - PR-4: add local candidate evaluation telemetry and rejection taxonomy over sanitized PR-1/PR-2/PR-3 artifacts; no public GitHub App backend, Slack beta, live review ingestion, review-thread resolution, fixed-mapping automation, or new mutation authority.
-    - Terminal outcome envelope: validate one PR-3 plan/open receipt plus one closed sanitized terminal observation, publish one immutable local outcome, and project it into exactly one v2 `pr_terminal` event. Preserve v1 schemas/identities and default collection; no third terminal state, three-event projection, raw review/parser intake, GitHub/network/provider/runtime/Evidence Graph call, workflow, semantic cache, or merge authority.
+    - Terminal outcome envelope: validate one PR-3 plan/open receipt plus one closed sanitized terminal observation, publish one immutable local outcome, and project it into exactly one v2 `pr_terminal` event. Preserve v1 schemas/identities and default collection; no third terminal state, raw review/parser intake, GitHub/network/provider/runtime/Evidence Graph call, workflow, semantic cache, or merge authority.
+    - Terminal Evidence Eval projection: merged in PR `#2284`; project one terminal outcome into exactly one sibling three-row normalization bundle using existing Evidence Eval event types. The bundle is not telemetry, not three lifecycle transitions, and grants no admission, provider, runtime, promotion, or merge authority.
+    - Lifecycle transition analytics: consume one exact mixed v2 telemetry snapshot, join only the closed six adjacent edges with typed lineage, emit aggregate/fingerprint-only counts and histograms, and fail closed on ambiguity, stale rollup, source drift, or divergent replay; no candidate taxonomy, backfill, duration, causal claim, learned policy, auto-routing, auto-retry, Evidence Graph, provider/network/DB, runtime, or merge authority.
     - PR-5: add local read-only review-disposition integration through `CreativeCodeReviewFeedbackRecord`, `CreativeCodeReviewDispositionPacket`, and `CreativeCodeRepairLaunchPacket`; only `create_pr1_specification=true` may be prepared for later human review, while patch generation, branch writes, PR creation, review-thread resolution, fixed-mapping edits, merge authority, runtime changes, Slack/GitHub App authority, and readiness claims remain forbidden.
     - PR-6: run the first governed applied creative-code candidate through normal PR governance, starting from a local run-plan wrapper that validates the PR-5 launch packet, binds the target surface exactly to `docs/prompts/cv/program.md`, and then keeps the generated candidate mutation surface to that prompt/program document.
     - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App read-only capability report, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.

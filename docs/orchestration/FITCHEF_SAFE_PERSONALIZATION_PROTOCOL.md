@@ -158,3 +158,23 @@ Across 3-5 turns, FitChef should preserve:
 - non-judgment
 - practical next-step continuity
 - safe degradation when personalization context is weak
+
+---
+
+## 9. Shadow-coaching goal authority
+
+Request-scoped `current goal` remains valid framing context for the response being handled. It is not, by itself, a versioned authorization for shadow coaching to select an intervention scenario. `safe_goal`, behavioral observations, profile fields, model output, and engagement policy likewise do not create that authority.
+
+The internal E1-02 contract represents goal authority as a separate lifecycle snapshot. Only a validated `active` snapshot with `source=user_confirmed`, `data_status=confirmed`, and opaque goal/version references can authorize the existing deterministic planner. In this contract, `user_confirmed` is a label reserved for a future trusted backend producer. The label does not prove that E1-02 implements backend ownership, BOLA protection, consent collection, request binding, currentness, persistence, or web/iOS confirmation.
+
+Every other lifecycle state produces deterministic `no_intervention`:
+
+- `unavailable` means that no usable authority evidence is available to this internal path; it does not mean the user has no goal.
+- `invalid_degraded` authority data also abstains, but the abstention is not recast as planner or state degradation.
+- `paused`, `withdrawn`, and `superseded` goals are known but intentionally non-authoritative.
+- `no_intervention` is neither an error, a claim that no scenarios exist, nor a medical or motivational judgment.
+- zero ranked and available scenario counts on this result mean the planner was not evaluated, not that the scenario catalog is empty.
+
+Prompt-safe projection exposes only lifecycle categories and a recomputed authority boolean. Goal/version/correction/supersession references, goal text, identity, events, and timestamps remain internal. The opaque-reference grammar `[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}` establishes bounded ASCII shape only; it gives a reference no semantics or authority and remains a trusted-producer contract.
+
+E1-02 does not load a live goal source. Until the separate canonical goal-source lane is implemented and validated, the builder deliberately returns `unavailable`, and claims of live active-goal integration are forbidden.

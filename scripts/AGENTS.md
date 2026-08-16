@@ -230,6 +230,25 @@
   commands must not serialize local paths or the external experimental lane id,
   perform historical backfill, consume Pilot 4 adaptive evidence, or add
   provider/network/GitHub/DB/product-runtime/promotion/merge authority.
+- Creative-code lifecycle transition analytics stay local under
+  `artifacts/orchestration/creative_code/lifecycle_transition_analytics/<analytics-id>/`.
+  `creative_code_lifecycle_transition_analytics.py` may read only the fixed
+  telemetry JSONL and mixed v2 rollup names under the fixed telemetry root,
+  rebuild and exactly compare the rollup, join only the closed seven-stage graph
+  through typed adjacent lineage, and emit one aggregate-only `analytics.json`.
+  Missing adjacent events must be counted as unobserved neighbors and never as
+  inferred skip edges; rejected patches and blocked PR opens are stop branches
+  for successor accounting. JSONL order, timestamps, paths, filesystem metadata,
+  and the sibling three-row Evidence Eval bundle are not lifecycle joins. Output
+  must not serialize event/source/candidate/promotion IDs, PR numbers, SHAs,
+  paths, timestamps, review text, patches, prompts, command, provider, or oracle
+  payloads. Publication is fixed-root, mode-`0600`, atomic no-replace; identical
+  replay is zero-write and validation is read-only. Malformed, oversized,
+  symlinked, or hardlinked inputs, source identity drift, ambiguous joins, stale
+  rollups, non-canonical profiles, or divergent winners fail closed without
+  overwrite, deletion, or repair. This descriptive artifact grants no routing,
+  retry, promotion, review, mapping, merge, learning, Evidence Graph,
+  provider/network/DB, or product-runtime authority.
 - PR-5 creative-code review-disposition artifacts stay local under
   `artifacts/orchestration/creative_code/review_disposition/`. The
   `creative_code_review_disposition.py` CLI may only read sanitized
@@ -400,3 +419,9 @@ writers, update the focused guards in
 `tests/guards/test_security_devtooling_regression_guards.py`. Optional
 RAG/vector dependency profiles must be covered consistently by pip-audit,
 Python dependency submission, and CI risk-profile routing.
+
+The standalone invariant-family episode evidence writer must keep one private,
+fail-closed kernel no-replace publisher for its two fixed-root/private-mode
+bundle shapes. Its focused security/dev-tooling guard is mandatory; arbitrary
+path selection, overwrite, repair, delete, or a second publication bypass is
+forbidden.

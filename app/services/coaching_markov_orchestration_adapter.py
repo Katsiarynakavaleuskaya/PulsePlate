@@ -134,6 +134,19 @@ def _build_trace(
     )
 
 
+def _build_no_intervention_trace(
+    *, state: UserCoachingStateV1
+) -> MarkovCoachingOrchestrationTraceV1:
+    reason = state.goal.no_intervention_reason
+    if reason is None:
+        raise ValueError("no_intervention trace requires a non-active goal")
+    return MarkovCoachingOrchestrationTraceV1(
+        decision_status="no_intervention",
+        no_intervention_reason=reason,
+        safety_labels=MARKOV_TRANSITION_SAFETY_LABELS,
+    )
+
+
 def build_markov_coaching_orchestration_result(
     user_id: int,
     session: Session,
@@ -150,6 +163,15 @@ def build_markov_coaching_orchestration_result(
     )
     if not shadow_enabled:
         trace = _build_trace(state=state, shadow_enabled=False, plan=None)
+        return MarkovCoachingOrchestrationResultV1(
+            coaching_state=state,
+            transition_plan=None,
+            prompt_safe_context=None,
+            decision_trace=trace,
+        )
+
+    if not state.goal.has_active_authority:
+        trace = _build_no_intervention_trace(state=state)
         return MarkovCoachingOrchestrationResultV1(
             coaching_state=state,
             transition_plan=None,
@@ -194,6 +216,7 @@ def to_prompt_safe_markov_orchestration_context(
     )
     if safe_result.decision_trace.decision_status in {
         "shadow_disabled",
+        "no_intervention",
         "no_recommendation",
     }:
         return None

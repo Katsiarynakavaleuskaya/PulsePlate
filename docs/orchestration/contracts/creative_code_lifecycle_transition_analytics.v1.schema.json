@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.dev/contracts/creative_code_lifecycle_transition_analytics.v1.schema.json",
+  "title": "CreativeCodeLifecycleTransitionAnalyticsV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "analytics_id",
+    "idempotency_key",
+    "corpus",
+    "transition_counts",
+    "lineage_accounting",
+    "cycle_histograms",
+    "authority",
+    "caveats",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "creative_code_lifecycle_transition_analytics"},
+    "policy_version": {"const": "creative-code-lifecycle-transition-analytics-v1"},
+    "analytics_id": {
+      "type": "string",
+      "pattern": "^evidence:creative_code_lifecycle_transition_analytics:control_plane:1\\.0:[a-f0-9]{24}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^idem:[a-f0-9]{64}$"
+    },
+    "corpus": {"$ref": "#/$defs/corpus"},
+    "transition_counts": {
+      "description": "Each aggregate row counts valid adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot; permitted fanout creates multiple observed pairs.",
+      "type": "array",
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/transition_count"}
+    },
+    "lineage_accounting": {"$ref": "#/$defs/lineage_accounting"},
+    "cycle_histograms": {"$ref": "#/$defs/cycle_histograms"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "caveats": {
+      "const": [
+        "aggregate_only",
+        "descriptive_only",
+        "local_only",
+        "not_learning_or_routing_authority",
+        "not_merge_readiness_evidence",
+        "terminal_cohort_may_be_partial"
+      ]
+    },
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "bounded_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "positive_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000000
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "events_fingerprint",
+        "rollup_fingerprint",
+        "event_count",
+        "legacy_event_count",
+        "terminal_event_count",
+        "terminal_cohort_observed"
+      ],
+      "properties": {
+        "events_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "rollup_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "event_count": {"$ref": "#/$defs/event_count"},
+        "legacy_event_count": {"$ref": "#/$defs/event_count"},
+        "terminal_event_count": {"$ref": "#/$defs/event_count"},
+        "terminal_cohort_observed": {"type": "boolean"}
+      }
+    },
+    "transition_count": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "specification"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "patch_evaluation"},
+            "to_status": {"const": "accepted"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "specification"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "patch_evaluation"},
+            "to_status": {"const": "rejected"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "patch_evaluation"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "promotion_plan"},
+            "to_status": {"const": "accepted"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "promotion_plan"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "promotion_validation"},
+            "to_status": {"const": "accepted"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "promotion_validation"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "promotion_approval"},
+            "to_status": {"const": "accepted"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "promotion_approval"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "pr_open"},
+            "to_status": {"const": "blocked"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "promotion_approval"},
+            "from_status": {"const": "accepted"},
+            "to_stage": {"const": "pr_open"},
+            "to_status": {"const": "opened"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "pr_open"},
+            "from_status": {"const": "opened"},
+            "to_stage": {"const": "pr_terminal"},
+            "to_status": {"const": "closed_unmerged"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_stage", "from_status", "to_stage", "to_status", "count"],
+          "properties": {
+            "from_stage": {"const": "pr_open"},
+            "from_status": {"const": "opened"},
+            "to_stage": {"const": "pr_terminal"},
+            "to_status": {"const": "merged"},
+            "count": {"$ref": "#/$defs/positive_count"}
+          }
+        }
+      ]
+    },
+    "stage_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specification",
+        "patch_evaluation",
+        "promotion_plan",
+        "promotion_validation",
+        "promotion_approval",
+        "pr_open",
+        "pr_terminal"
+      ],
+      "properties": {
+        "specification": {"$ref": "#/$defs/bounded_count"},
+        "patch_evaluation": {"$ref": "#/$defs/bounded_count"},
+        "promotion_plan": {"$ref": "#/$defs/bounded_count"},
+        "promotion_validation": {"$ref": "#/$defs/bounded_count"},
+        "promotion_approval": {"$ref": "#/$defs/bounded_count"},
+        "pr_open": {"$ref": "#/$defs/bounded_count"},
+        "pr_terminal": {"$ref": "#/$defs/bounded_count"}
+      }
+    },
+    "lineage_accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed_transition_count",
+        "complete_terminal_lineage_count",
+        "incomplete_terminal_lineage_count",
+        "unobserved_predecessors_by_stage",
+        "unobserved_successors_by_stage"
+      ],
+      "properties": {
+        "observed_transition_count": {
+          "description": "Number of valid adjacent event pairs joined by exact typed lineage with both events present in the frozen telemetry snapshot; permitted fanout creates multiple observed pairs.",
+          "$ref": "#/$defs/bounded_count"
+        },
+        "complete_terminal_lineage_count": {
+          "description": "Count of terminal events uniquely linked through every lifecycle stage within the frozen telemetry snapshot only; this is not operational completeness, PR readiness, or lifecycle success.",
+          "$ref": "#/$defs/bounded_count"
+        },
+        "incomplete_terminal_lineage_count": {
+          "description": "Count of terminal events not uniquely linked through every lifecycle stage within the frozen telemetry snapshot; this is snapshot-local incompleteness, not proof of operational incompleteness, PR unreadiness, or lifecycle failure.",
+          "$ref": "#/$defs/bounded_count"
+        },
+        "unobserved_predecessors_by_stage": {
+          "description": "Counts destination events for which no unique valid predecessor is present in the frozen telemetry snapshot; an ambiguous predecessor fails the build, and absence is snapshot-local, not proof that the transition did not occur.",
+          "$ref": "#/$defs/stage_counts"
+        },
+        "unobserved_successors_by_stage": {
+          "description": "Counts continuation-eligible source events for which zero valid successors are present in the frozen telemetry snapshot; one or more valid successors are observed, including permitted fanout, and absence is snapshot-local, not proof that the transition did not occur.",
+          "$ref": "#/$defs/stage_counts"
+        }
+      }
+    },
+    "histogram": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3_or_more"],
+      "properties": {
+        "0": {"$ref": "#/$defs/bounded_count"},
+        "1": {"$ref": "#/$defs/bounded_count"},
+        "2": {"$ref": "#/$defs/bounded_count"},
+        "3_or_more": {"$ref": "#/$defs/bounded_count"}
+      }
+    },
+    "cycle_histograms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_cycles", "repair_cycles", "validation_attempts"],
+      "properties": {
+        "review_cycles": {"$ref": "#/$defs/histogram"},
+        "repair_cycles": {"$ref": "#/$defs/histogram"},
+        "validation_attempts": {"$ref": "#/$defs/histogram"}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only_telemetry",
+        "writes_repo",
+        "opens_pr",
+        "resolves_threads",
+        "claims_merge_readiness",
+        "merges",
+        "calls_network",
+        "calls_runtime",
+        "modifies_github_app",
+        "modifies_slack"
+      ],
+      "properties": {
+        "read_only_telemetry": {"const": true},
+        "writes_repo": {"const": false},
+        "opens_pr": {"const": false},
+        "resolves_threads": {"const": false},
+        "claims_merge_readiness": {"const": false},
+        "merges": {"const": false},
+        "calls_network": {"const": false},
+        "calls_runtime": {"const": false},
+        "modifies_github_app": {"const": false},
+        "modifies_slack": {"const": false}
+      }
+    }
+  }
+}
