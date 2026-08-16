@@ -210,9 +210,9 @@ Evidence: Structural correction restored the legacy guard and restoration-only p
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2278#discussion_r3789214983 -> 15baff2aa745450aba7c3e098b95c8234fba3650
 
 Disposition: FIXED
-Commit: 34ebbc6c49b3820cfdda8ef6fa889f352b8c1b69
-Evidence: Commit 34ebbc6c49b3820cfdda8ef6fa889f352b8c1b69 added exact facade-authority callable binding coverage in scripts/ci/check_legacy_growth_guard.py and tests/test_legacy_growth_guard.py before the later bounded structural rewrite; the commit is reachable and non-trigger.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2278#discussion_r3789261968 -> 34ebbc6c49b3820cfdda8ef6fa889f352b8c1b69
+Commit: 15baff2aa745450aba7c3e098b95c8234fba3650
+Evidence: Structural correction restored the legacy guard and restoration-only paths to the admitted carrier baseline and replaced the open-ended pseudo-interpreter with the finite direct-call oracle in tests/test_application_instance_ownership.py; exact-head technical CI run 31969998116 passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2278#discussion_r3789261968 -> 15baff2aa745450aba7c3e098b95c8234fba3650
 
 Disposition: FIXED
 Commit: 15baff2aa745450aba7c3e098b95c8234fba3650
