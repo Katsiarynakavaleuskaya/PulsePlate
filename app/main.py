@@ -1186,7 +1186,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         websocket_exists.append(_route_has_endpoint(app, path, "", endpoint))
     if not ws_valid or (any(websocket_exists) and not all(websocket_exists)):
         raise RuntimeError("Incomplete canonical websocket route family.")
-    register_http_middleware_stack(app)
+    register_http_middleware_stack(target_app)
 
     if not route_exists["/"]:
         app.add_api_route(
