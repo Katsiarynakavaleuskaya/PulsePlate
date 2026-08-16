@@ -38,7 +38,6 @@ from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_site
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_endpoint,
-    route_endpoint_for_path_method,
     route_include_in_schema,
     route_methods,
     route_path,
@@ -1149,27 +1148,34 @@ def _register_bmi_routes(target_app: FastAPI) -> None:
 
 
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
-    """Apply canonical additive bootstrap to the provided FastAPI instance.
-
-    The supplied object is composed in place. This function never rebinds the
-    module-level canonical singleton.
-    """
+    """Compose the supplied app without rebinding the canonical singleton."""
     app = target_app
-    validate_openapi_builder_state(app)
+    validate_openapi_builder_state(target_app)
+    source_routes = []
+    for path, router in (
+        (_FEEDBACK_ROUTE_PATH, feedback_router),
+        (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
+        (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
+        (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
+        (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
+    ):
+        candidates = tuple(iter_effective_route_candidates(router.routes))
+        if (
+            len(candidates) != 1
+            or not isinstance(
+                route := getattr(candidates[0], "original_route", candidates[0]), APIRoute
+            )
+            or route_path(candidates[0]) != path
+            or route_methods(route) != {"POST"}
+            or route_endpoint(route) is None
+        ):
+            raise RuntimeError(f"Invalid canonical HTTP source route for POST {path}.")
+        source_routes.append((path, "POST", route_endpoint(route)))
     bespoke_routes = (
         ("/", "GET", serve_direct_api_root_probe),
         (LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web),
         (SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap),
-        *(
-            (path, "POST", route_endpoint_for_path_method(router.routes, path, "POST"))
-            for path, router in (
-                (_FEEDBACK_ROUTE_PATH, feedback_router),
-                (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
-                (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
-                (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
-                (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
-            )
-        ),
+        *source_routes,
     )
     route_exists = {
         path: _route_has_endpoint(app, path, method, endpoint)
@@ -1189,7 +1195,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     register_http_middleware_stack(target_app)
 
     if not route_exists["/"]:
-        app.add_api_route(
+        target_app.add_api_route(
             "/",
             serve_direct_api_root_probe,
             methods=["GET"],
@@ -1197,7 +1203,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             response_model=DirectApiRootProbe,
         )
     if not route_exists[LEGACY_BMI_WEB_ROUTE]:
-        app.add_api_route(
+        target_app.add_api_route(
             LEGACY_BMI_WEB_ROUTE,
             serve_legacy_bmi_calculator_web,
             methods=["GET"],
@@ -1205,7 +1211,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             response_class=HTMLResponse,
         )
     if not route_exists[SITEMAP_ROUTE_PATH]:
-        app.add_api_route(
+        target_app.add_api_route(
             SITEMAP_ROUTE_PATH,
             serve_public_sitemap,
             methods=["GET"],
