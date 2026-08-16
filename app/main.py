@@ -37,6 +37,7 @@ from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_site
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_endpoint,
+    route_endpoint_for_path_method,
     route_include_in_schema,
     route_methods,
     route_path,
@@ -565,6 +566,24 @@ def _route_has_endpoint(
         if route_endpoint(route) is endpoint:
             return True
     return False
+
+
+def _bespoke_route_exists(
+    target_app: FastAPI, path: str, method: str | None, endpoint: object | None
+) -> bool:
+    """Return exact single-owner presence for the finite bespoke route class."""
+    method_name = method.upper() if method else None
+    owners = [
+        route_endpoint(route)
+        for route in _effective_app_routes(target_app)
+        if route_path(route) == path
+        and (method_name is None or method_name in route_methods(route))
+    ]
+    if endpoint is not None and len(owners) == 1 and owners[0] is endpoint:
+        return True
+    if endpoint is not None and not owners:
+        return False
+    raise RuntimeError(f"Duplicate {path} route detected with a different or repeated owner.")
 
 
 def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
@@ -1147,9 +1166,33 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """
     app = target_app
     validate_openapi_builder_state(app)
+    bespoke_routes = (
+        ("/", "GET", serve_direct_api_root_probe),
+        (LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web),
+        (SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap),
+        *(
+            (path, "POST", route_endpoint_for_path_method(router.routes, path, "POST"))
+            for path, router in (
+                (_FEEDBACK_ROUTE_PATH, feedback_router),
+                (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
+                (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
+                (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
+            )
+        ),
+    )
+    route_exists = {
+        path: _bespoke_route_exists(app, path, method, endpoint)
+        for path, method, endpoint in bespoke_routes
+    }
+    websocket_exists = (
+        _bespoke_route_exists(app, _WS_ROUTE_PATHS[0], None, realtime_ws.ws_pro),
+        _bespoke_route_exists(app, _WS_ROUTE_PATHS[1], None, realtime_ws.ws_root),
+    )
+    if any(websocket_exists) and not all(websocket_exists):
+        raise RuntimeError("Incomplete canonical websocket route family.")
     register_http_middleware_stack(app)
 
-    if not _route_has_endpoint(app, "/", "GET", serve_direct_api_root_probe):
+    if not route_exists["/"]:
         app.add_api_route(
             "/",
             serve_direct_api_root_probe,
@@ -1157,7 +1200,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             include_in_schema=False,
             response_model=DirectApiRootProbe,
         )
-    if not _route_has_endpoint(app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web):
+    if not route_exists[LEGACY_BMI_WEB_ROUTE]:
         app.add_api_route(
             LEGACY_BMI_WEB_ROUTE,
             serve_legacy_bmi_calculator_web,
@@ -1165,7 +1208,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             include_in_schema=False,
             response_class=HTMLResponse,
         )
-    if not _route_has_endpoint(app, SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap):
+    if not route_exists[SITEMAP_ROUTE_PATH]:
         app.add_api_route(
             SITEMAP_ROUTE_PATH,
             serve_public_sitemap,
@@ -1177,13 +1220,10 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_recipe_nutrition_reference_routers_if_needed(app)
     _include_nutrition_state_routers_if_needed(app)
 
-    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
-    if not ws_paths_present:
+    if not any(websocket_exists):
         app.include_router(realtime_ws.router)
-    elif ws_paths_present != set(_WS_ROUTE_PATHS):
-        _assert_no_duplicate_ws_route(app)
 
-    if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
+    if not route_exists[_FEEDBACK_ROUTE_PATH]:
         app.include_router(feedback_router)
 
     _include_health_router_if_needed(app)
@@ -1208,13 +1248,13 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
 
     register_billing_routes(app)
 
-    if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
+    if not route_exists[_CBT_INSIGHT_ROUTE_PATH]:
         app.include_router(cbt_insight_router)
 
-    if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
+    if not route_exists[_FITCHEF_STRUCTURED_ROUTE_PATH]:
         app.include_router(fitchef_structured_router)
 
-    if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
+    if not route_exists[_CREATIVE_RESEARCH_PILOT_ROUTE_PATH]:
         app.include_router(creative_research_internal_router)
 
     if not _route_has_endpoint(

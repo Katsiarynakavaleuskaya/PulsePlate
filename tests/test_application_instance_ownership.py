@@ -33,36 +33,32 @@ _IMPORT_SCENARIOS = (
     "from app.bootstrap import application as canonical; import app.main as main; "
     "import legacy_app",
 )
+_HTTP_CONTRACTS = (
+    ("/", "GET"),
+    ("/legacy/bmi-calculator", "GET"),
+    ("/sitemap.xml", "GET"),
+    ("/api/v1/feedback/rag", "POST"),
+    ("/api/v1/pro/cbt/insight", "POST"),
+    ("/api/v1/pro/fitchef/explain", "POST"),
+    ("/api/v1/internal/creative-research/pilot", "POST"),
+)
 
 
 def _is_direct_fastapi_call(call: ast.Call) -> bool:
-    function = call.func
-    if isinstance(function, ast.Name):
-        return function.id == "FastAPI"
-    if not isinstance(function, ast.Attribute) or function.attr != "FastAPI":
-        return False
-    if isinstance(function.value, ast.Name):
-        return function.value.id == "fastapi"
-    return (
-        isinstance(function.value, ast.Attribute)
-        and function.value.attr == "applications"
-        and isinstance(function.value.value, ast.Name)
-        and function.value.value.id == "fastapi"
-    )
+    return ast.unparse(call.func) in {"FastAPI", "fastapi.FastAPI", "fastapi.applications.FastAPI"}
 
 
 def test_one_direct_constructor_belongs_to_the_canonical_owner() -> None:
     sources = [Path("legacy_app.py"), *sorted(Path("app").rglob("*.py"))]
-    calls: list[Path] = []
-    trees: dict[Path, ast.Module] = {}
-    for path in sources:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        trees[path] = tree
-        calls.extend(
-            path
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and _is_direct_fastapi_call(node)
-        )
+    trees = {
+        path: ast.parse(path.read_text(encoding="utf-8"), filename=str(path)) for path in sources
+    }
+    calls = [
+        path
+        for path, tree in trees.items()
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _is_direct_fastapi_call(node)
+    ]
 
     assert calls == [_CANONICAL_OWNER]
     assert not any(
@@ -101,81 +97,99 @@ def test_runtime_identity_lifespan_and_private_constructor_isolation() -> None:
     )
 
 
-def _run_import_scenario(imports: str) -> dict[str, Any]:
+def _run_import_scenario(imports: str) -> list[Any]:
     scenario = textwrap.dedent(f"""
-        import hashlib
-        import json
+        import hashlib, json
         {imports}
         from app.bootstrap.http_stack import _owned_middleware_projection
         from app.bootstrap.lifespan import application_lifespan
-        from app.effective_routes import (
-            iter_effective_route_candidates, route_endpoint,
-            route_include_in_schema, route_methods, route_path,
-        )
+        from app.effective_routes import iter_effective_route_candidates, route_endpoint, route_include_in_schema, route_methods, route_path
 
-        def routes(target):
-            result = []
-            for route in iter_effective_route_candidates(target.routes):
-                endpoint = route_endpoint(route)
-                result.append([
-                    route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"],
-                    f"{{getattr(endpoint, '__module__', '')}}.{{getattr(endpoint, '__qualname__', '')}}",
-                    route_include_in_schema(route),
-                ])
-            return result
-
-        def mirror(value):
-            if value is None or isinstance(value, (bool, int, str)):
-                return value
-            return routes(value)
+        def routes(target): return [[route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"], f"{{route_endpoint(route).__module__}}.{{route_endpoint(route).__qualname__}}", route_include_in_schema(route)] for route in iter_effective_route_candidates(target.routes)]
+        def mirror(value): return value if value is None or isinstance(value, (bool, int, str)) else routes(value)
 
         assert canonical.app is main.app is legacy_app.app is package.app
         assert canonical.app.router.lifespan_context is application_lifespan
         def snapshot():
-            return {{
-                "routes": routes(canonical.app),
-                "middleware": list(_owned_middleware_projection(canonical.app)),
-                "openapi": hashlib.sha256(json.dumps(
-                    canonical.app.openapi(), sort_keys=True, separators=(",", ":")
-                ).encode()).hexdigest(),
-                "mirrors": {{name: mirror(getattr(main, name)) for name in {list(_MIRRORS)!r}}},
-            }}
+            schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":"))
+            return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest(), {{name: mirror(getattr(main, name)) for name in {list(_MIRRORS)!r}}}]
 
         before = snapshot()
         assert all(getattr(main, name) is getattr(legacy_app, name) for name in {list(_MIRRORS)!r})
         assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app
-        after = snapshot()
-        assert after == before
-        print("OWNERSHIP_RESULT=" + json.dumps(after, sort_keys=True))
+        assert snapshot() == before
+        print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
     """)
     env = os.environ.copy()
     env.update({"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"})
-    for name in (
-        "BUSINESS_MODULE_ENABLED",
-        "ENABLE_TEST_ROUTES",
-        "FEATURE_BMI_PRO_ENABLED",
-        "FEATURE_PREMIUM_WEEK_ENABLED",
-        "VIP_MODULE_ENABLED",
-    ):
+    for (
+        name
+    ) in "BUSINESS_MODULE_ENABLED ENABLE_TEST_ROUTES FEATURE_BMI_PRO_ENABLED FEATURE_PREMIUM_WEEK_ENABLED VIP_MODULE_ENABLED".split():
         env.pop(name, None)
     completed = subprocess.run(
         [sys.executable, "-c", scenario],
         capture_output=True,
         text=True,
-        check=False,
         env=env,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     result_line = next(
-        line for line in completed.stdout.splitlines() if line.startswith("OWNERSHIP_RESULT=")
+        line for line in completed.stdout.splitlines() if "OWNERSHIP_RESULT=" in line
     )
-    result: dict[str, Any] = json.loads(result_line.removeprefix("OWNERSHIP_RESULT="))
-    return result
+    return json.loads(result_line.removeprefix("OWNERSHIP_RESULT="))
 
 
 def test_fresh_import_orders_have_relative_runtime_parity() -> None:
     results = [_run_import_scenario(imports) for imports in _IMPORT_SCENARIOS]
     assert results[1:] == results[:1] * (len(results) - 1)
+
+
+@pytest.mark.parametrize(
+    ("path", "method", "owners"),
+    [
+        (path, method, owners)
+        for path, method in _HTTP_CONTRACTS
+        for owners in ("f", "cc", "ff", "cf")
+    ],
+)
+def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: str) -> None:
+    import app.main as main
+    from fastapi import FastAPI
+
+    target = FastAPI()
+    canonical = main.route_endpoint_for_path_method(main.app.routes, path, method)
+    for owner in owners:
+        target.add_api_route(
+            path,
+            {"c": canonical, "f": lambda: None}[owner],
+            methods=[method],
+        )
+    before = tuple(target.routes)
+    with pytest.raises(RuntimeError, match="Duplicate"):
+        main.ensure_canonical_app_bootstrap(target)
+    assert tuple(target.routes) == before
+
+
+@pytest.mark.parametrize("state", ("c|", "f|f", "c|f", "cc|", "h|"))
+def test_websocket_owner_states_fail_closed(state: str) -> None:
+    import app.main as main
+    from fastapi import FastAPI
+
+    target = FastAPI()
+    canonical = (main.realtime_ws.ws_pro, main.realtime_ws.ws_root)
+    for index, owners in enumerate(state.split("|")):
+        for owner in owners:
+            path = main._WS_ROUTE_PATHS[index]
+            if owner == "h":
+                target.add_api_route(path, lambda: None, methods=["GET"])
+            else:
+                target.add_api_websocket_route(
+                    path, canonical[index] if owner == "c" else lambda _: None
+                )
+    before = tuple(target.routes)
+    with pytest.raises(RuntimeError):
+        main.ensure_canonical_app_bootstrap(target)
+    assert tuple(target.routes) == before
 
 
 def test_test_owned_composition_and_legacy_alias_do_not_rebind_canonical(
@@ -187,6 +201,7 @@ def test_test_owned_composition_and_legacy_alias_do_not_rebind_canonical(
     from app.bootstrap import application
 
     test_owned = application._create_fastapi_application(application.APPLICATION_METADATA)
+    assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
     assert application.app is main.app
     monkeypatch.setattr(legacy_app, "app", test_owned)
