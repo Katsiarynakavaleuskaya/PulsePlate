@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from subprocess import TimeoutExpired
+from subprocess import CompletedProcess, TimeoutExpired
 from typing import Any
 from urllib.error import HTTPError
 
@@ -40,6 +40,38 @@ def test_run_version_reports_cli_timeout(monkeypatch: pytest.MonkeyPatch) -> Non
     assert returncode == 124
     assert "timed out" in output
     assert "/usr/bin/ollama --version" in output
+
+
+def test_run_version_passes_expected_subprocess_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: dict[str, Any] = {}
+
+    def _record_run(*args: Any, **kwargs: Any) -> CompletedProcess[str]:
+        observed["args"] = args
+        observed["kwargs"] = kwargs
+        return CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout="ollama version is 0.24.0",
+            stderr="version probe warning",
+        )
+
+    monkeypatch.setattr(doctor.subprocess, "run", _record_run)
+
+    result = doctor._run_version("/usr/bin/ollama", ["--version"])
+
+    assert result == (0, "ollama version is 0.24.0\nversion probe warning")
+    assert observed == {
+        "args": (["/usr/bin/ollama", "--version"],),
+        "kwargs": {
+            "text": True,
+            "capture_output": True,
+            "check": False,
+            "timeout": 10,
+            "shell": False,
+        },
+    }
 
 
 def test_stale_ollama_version_reports_launch_fix(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,6 +146,30 @@ def test_rejects_non_local_ollama_url() -> None:
     assert result.ok is False
     assert "localhost" in result.detail
     assert "local" in result.fix
+
+
+def test_rejects_credentialed_ollama_url_without_echo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened_urls: list[str] = []
+    credential_sentinel = "credential-sentinel"
+
+    def _record_open(url: str, timeout_s: float) -> Any:
+        opened_urls.append(url)
+        raise AssertionError("credentialed URL must be rejected before opening")
+
+    monkeypatch.setattr(doctor, "_open_no_redirect", _record_open)
+
+    result = doctor._check_ollama_server(
+        f"http://user:{credential_sentinel}@localhost:11434",
+        timeout_s=0.01,
+    )
+
+    assert result.ok is False
+    assert result.detail == "Ollama URL must not include credentials."
+    assert credential_sentinel not in result.detail
+    assert credential_sentinel not in result.fix
+    assert opened_urls == []
 
 
 def test_rejects_unexpected_ollama_url_path() -> None:

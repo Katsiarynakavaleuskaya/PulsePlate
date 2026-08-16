@@ -12,7 +12,7 @@ import argparse
 import json
 import re
 import shutil
-import subprocess  # nosec B404: required for bounded local CLI version checks (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+import subprocess  # nosec B404: required for bounded local CLI version checks (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 import sys
 from dataclasses import asdict, dataclass
 from typing import Any, ContextManager, Sequence, cast
@@ -66,12 +66,13 @@ def _format_version(version: tuple[int, int, int]) -> str:
 
 def _run_version(binary: str, args: Sequence[str]) -> tuple[int, str]:
     try:
-        completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+        completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             [binary, *args],
             text=True,
             capture_output=True,
             check=False,
             timeout=10,
+            shell=False,
         )
     except subprocess.TimeoutExpired as exc:
         command = " ".join(str(part) for part in exc.cmd)
@@ -202,6 +203,8 @@ def _normalize_ollama_root_url(raw_url: str) -> tuple[bool, str, str]:
         return False, "", f"Malformed Ollama URL: {exc}"
     if parsed.scheme not in {"http", "https"}:
         return False, "", "Ollama URL must use http or https."
+    if parsed.username is not None or parsed.password is not None:
+        return False, "", "Ollama URL must not include credentials."
     if hostname not in LOCAL_OLLAMA_HOSTS:
         return False, "", "Ollama URL must be localhost, 127.0.0.1, or ::1 for this doctor."
     if parsed.query or parsed.fragment:
@@ -266,7 +269,7 @@ def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
     try:
         with _open_no_redirect(
             version_url, timeout_s
-        ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+        ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             status = getattr(response, "status", 200)
             server_version = _read_ollama_server_version(response)
     except HTTPError as exc:
