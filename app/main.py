@@ -45,7 +45,7 @@ from app.effective_routes import (
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
 from app.middleware.api_tiers import get_current_user, require_pro_tier, require_vip_tier
 from app.routers.creative_research_internal import router as creative_research_internal_router
-from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
+from app.routers.paywall_analytics import router as paywall_analytics_router
 import app.routers.realtime_ws as realtime_ws
 from app.routers.admin_operations import (
     ADMIN_OPERATION_ROUTE_SPECS,
@@ -554,31 +554,18 @@ def _route_has_endpoint(
 ) -> bool:
     """True when ``path``+``method`` is already bound to the expected callable.
 
+    An empty method checks path ownership for the websocket family.
     RU: Не считаем «маршрут есть», если на пути висит чужой handler (контракт другой).
     EN: Path/method alone is insufficient — wrong handler means wrong contract.
     """
     method_name = method.upper()
+    owners: list[object | None] = []
     for route in _effective_app_routes(target_app):
         if route_path(route) != path:
             continue
-        if method_name not in route_methods(route):
+        if method_name and method_name not in route_methods(route):
             continue
-        if route_endpoint(route) is endpoint:
-            return True
-    return False
-
-
-def _bespoke_route_exists(
-    target_app: FastAPI, path: str, method: str | None, endpoint: object | None
-) -> bool:
-    """Return exact single-owner presence for the finite bespoke route class."""
-    method_name = method.upper() if method else None
-    owners = [
-        route_endpoint(route)
-        for route in _effective_app_routes(target_app)
-        if route_path(route) == path
-        and (method_name is None or method_name in route_methods(route))
-    ]
+        owners.append(route_endpoint(route))
     if endpoint is not None and len(owners) == 1 and owners[0] is endpoint:
         return True
     if endpoint is not None and not owners:
@@ -1177,16 +1164,17 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
                 (_CBT_INSIGHT_ROUTE_PATH, cbt_insight_router),
                 (_FITCHEF_STRUCTURED_ROUTE_PATH, fitchef_structured_router),
                 (_CREATIVE_RESEARCH_PILOT_ROUTE_PATH, creative_research_internal_router),
+                (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
             )
         ),
     )
     route_exists = {
-        path: _bespoke_route_exists(app, path, method, endpoint)
+        path: _route_has_endpoint(app, path, method, endpoint)
         for path, method, endpoint in bespoke_routes
     }
     websocket_exists = (
-        _bespoke_route_exists(app, _WS_ROUTE_PATHS[0], None, realtime_ws.ws_pro),
-        _bespoke_route_exists(app, _WS_ROUTE_PATHS[1], None, realtime_ws.ws_root),
+        _route_has_endpoint(app, _WS_ROUTE_PATHS[0], "", realtime_ws.ws_pro),
+        _route_has_endpoint(app, _WS_ROUTE_PATHS[1], "", realtime_ws.ws_root),
     )
     if any(websocket_exists) and not all(websocket_exists):
         raise RuntimeError("Incomplete canonical websocket route family.")
@@ -1257,17 +1245,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     if not route_exists[_CREATIVE_RESEARCH_PILOT_ROUTE_PATH]:
         app.include_router(creative_research_internal_router)
 
-    if not _route_has_endpoint(
-        app,
-        _PAYWALL_EVENTS_ROUTE_PATH,
-        "POST",
-        ingest_paywall_event,
-    ):
-        if _has_route(app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
-            raise RuntimeError(
-                "Duplicate /api/v1/internal/paywall/events route detected with a different "
-                "handler."
-            )
+    if not route_exists[_PAYWALL_EVENTS_ROUTE_PATH]:
         app.include_router(paywall_analytics_router)
 
     apply_public_openapi_input_policy(app)

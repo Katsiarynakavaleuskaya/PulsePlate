@@ -41,6 +41,7 @@ _HTTP_CONTRACTS = (
     ("/api/v1/pro/cbt/insight", "POST"),
     ("/api/v1/pro/fitchef/explain", "POST"),
     ("/api/v1/internal/creative-research/pilot", "POST"),
+    ("/api/v1/internal/paywall/events", "POST"),
 )
 
 
@@ -144,14 +145,8 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
     assert results[1:] == results[:1] * (len(results) - 1)
 
 
-@pytest.mark.parametrize(
-    ("path", "method", "owners"),
-    [
-        (path, method, owners)
-        for path, method in _HTTP_CONTRACTS
-        for owners in ("f", "cc", "ff", "cf")
-    ],
-)
+@pytest.mark.parametrize(("path", "method"), _HTTP_CONTRACTS)
+@pytest.mark.parametrize("owners", ("f", "cc", "ff", "cf", "fc"))
 def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: str) -> None:
     import app.main as main
     from fastapi import FastAPI
@@ -159,15 +154,12 @@ def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: s
     target = FastAPI()
     canonical = main.route_endpoint_for_path_method(main.app.routes, path, method)
     for owner in owners:
-        target.add_api_route(
-            path,
-            {"c": canonical, "f": lambda: None}[owner],
-            methods=[method],
-        )
-    before = tuple(target.routes)
+        endpoint = canonical if owner == "c" else (lambda: None)
+        target.add_api_route(path, endpoint, methods=[method])
+    before = (tuple(target.routes), tuple(target.user_middleware))
     with pytest.raises(RuntimeError, match="Duplicate"):
         main.ensure_canonical_app_bootstrap(target)
-    assert tuple(target.routes) == before
+    assert (tuple(target.routes), tuple(target.user_middleware)) == before
 
 
 @pytest.mark.parametrize("state", ("c|", "f|f", "c|f", "cc|", "h|"))
