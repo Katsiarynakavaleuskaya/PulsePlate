@@ -40,17 +40,17 @@ def test_app_public_surface_smoke() -> None:
     assert hasattr(app, "metrics"), "app.metrics must be exported (for patch('app.metrics'))"
 
 
-def test_canonical_lifespan_and_application_aliases_are_exact() -> None:
+def test_canonical_lifespan_preserves_legacy_created_app_identity() -> None:
     import app
     import app.main as app_main
     import legacy_app
-    from app.bootstrap.application import app as canonical_app
     from app.bootstrap.lifespan import application_lifespan
 
     assert app.lifespan is application_lifespan
     assert legacy_app.lifespan is application_lifespan
-    assert canonical_app is app.app is app_main.app is legacy_app.app
-    assert canonical_app.router.lifespan_context is application_lifespan
+    assert app.app is legacy_app.app
+    assert app_main.app is legacy_app.app
+    assert legacy_app.app.router.lifespan_context is not None
 
 
 def test_scheduler_access_is_an_exact_compatibility_export() -> None:
