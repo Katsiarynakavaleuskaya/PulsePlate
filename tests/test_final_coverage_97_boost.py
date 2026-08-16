@@ -76,7 +76,6 @@ class TestAppInitCoverage:
         import app
         import app.main as app_main
         import legacy_app
-        from app.bootstrap.application import app as canonical_app
         from app.bootstrap.lifespan import application_lifespan
         from app.bootstrap.metrics import metrics_endpoint
         from app.routers.api_key import api_key_header, get_api_key, _get_api_key_dynamic
@@ -90,7 +89,7 @@ class TestAppInitCoverage:
         from core.utils import resolve_attr
 
         expected = {
-            "app": canonical_app,
+            "app": legacy_app.app,
             "resolve_attr": resolve_attr,
             "make_weekly_menu": make_weekly_menu,
             "build_nutrition_targets": build_nutrition_targets,
@@ -121,7 +120,7 @@ class TestAppInitCoverage:
         assert len(facade_names) == 20
         for name, canonical_object in expected.items():
             assert getattr(app, name) is canonical_object
-        assert app.app is canonical_app is app_main.app is legacy_app.app
+        assert app.app is app_main.app is legacy_app.app
         assert app.__all__ == [
             "app",
             "get_update_scheduler",
@@ -142,16 +141,9 @@ class TestAppInitCoverage:
     @pytest.mark.parametrize(
         "imports",
         (
-            "from app.bootstrap import application as canonical; "
-            "import app.main as app_main; import legacy_app; import app",
-            "import app.main as app_main; "
-            "from app.bootstrap import application as canonical; "
-            "import legacy_app; import app",
-            "import legacy_app; from app.bootstrap import application as canonical; "
-            "import app.main as app_main; import app",
-            "import app; package_app = app.app; "
-            "from app.bootstrap import application as canonical; "
-            "import app.main as app_main; import legacy_app",
+            "import app; import app.main as app_main; import legacy_app",
+            "import app.main as app_main; import app; import legacy_app",
+            "import legacy_app; import app; import app.main as app_main",
         ),
     )
     def test_supported_import_orders_share_one_fastapi_instance(self, imports: str) -> None:
@@ -160,7 +152,7 @@ class TestAppInitCoverage:
             {imports}
             from app.bootstrap.metrics import metrics_endpoint
 
-            assert app.app is canonical.app is app_main.app is legacy_app.app
+            assert app.app is app_main.app is legacy_app.app
             assert app.metrics is metrics_endpoint
             """)
         result = subprocess.run(

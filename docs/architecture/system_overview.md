@@ -25,14 +25,9 @@
 ## Canonical entrypoint
 
 - Runtime and OpenAPI generation use `app/main.py` as the canonical ASGI entrypoint (`uvicorn app.main:app`).
-- `app/bootstrap/application.py` is the sole production FastAPI constructor and
-  singleton authority; it owns environment, logging, metadata, and exact
-  lifespan wiring but no routes, middleware, OpenAPI installation, or resources
-  (`app/bootstrap/application.py:15-38`).
-- `app/main.py` imports that singleton and applies the existing ordered route,
-  middleware, and OpenAPI composition in place (`app/main.py:19`,
-  `app/main.py:1141-1250`). `legacy_app.py` re-exports the same object for
-  bounded compatibility only.
+- `app/bootstrap/application.py` constructs the sole production FastAPI
+  singleton; `app/main.py` imports and composes it. `legacy_app.py` only
+  re-exports the same object for compatibility.
 
 ## Routing map (source of truth)
 
@@ -48,15 +43,14 @@ flowchart LR
   end
 
   subgraph Backend
-    ENTRY[app/main.py (deployment + composition)]
-    FACTORY[app/bootstrap/application.py (sole constructor)]
-    INSTANCE[FastAPI singleton]
-    LEG[legacy_app.py (compat aliases)]
-    API[app/ (routers + bootstrap)]
-    CORE[core/ (domain engine)]
-    AI[core/ai/ (AI bounded-context seam)]
-    LLM[llm.py (provider factory)]
-    PROV[providers/ (LLM adapters)]
+    ENTRY[app/main.py (canonical entrypoint)]
+  FACTORY[app/bootstrap/application.py (constructor)]
+  LEG[legacy_app.py (compat aliases)]
+  API[app/ (routers + bootstrap)]
+  CORE[core/ (domain engine)]
+  AI[core/ai/ (AI bounded-context seam)]
+  LLM[llm.py (provider factory)]
+  PROV[providers/ (LLM adapters)]
   end
 
   DB[(DB)]
@@ -65,13 +59,12 @@ flowchart LR
   FE -->|HTTP (OpenAPI types)| ENTRY
   IOS -->|HTTP (thin client)| ENTRY
 
-  FACTORY -->|constructs once| INSTANCE
-  ENTRY -->|composes in place| INSTANCE
-  LEG -->|re-exports exact alias| INSTANCE
-  INSTANCE -->|dispatches registered routes| API
+  FACTORY -->|provides singleton| ENTRY
+  FACTORY -->|provides compatibility alias| LEG
+  ENTRY -->|applies ordered composition| API
 
   API -->|delegates business rules| CORE
-  API -->|insight application service| AI
+  LEG -->|/insight thin adapters| AI
   AI -->|lazy provider loading| LLM
   LLM --> PROV
 

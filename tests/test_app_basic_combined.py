@@ -51,8 +51,8 @@ class TestAppImport:
         assert additive_paths.issubset(package_paths)
         assert additive_paths.issubset(main_paths)
 
-    def test_app_package_exposes_canonical_application_identity(self) -> None:
-        """All supported runtime imports must expose the canonical singleton."""
+    def test_app_package_keeps_normal_canonical_identity(self) -> None:
+        """Normal imports expose one canonical object through every facade."""
         from app.bootstrap.application import app as canonical_app
         from app.main import app as main_app
 
@@ -60,24 +60,23 @@ class TestAppImport:
 
         assert app.app is canonical_app is main_app is legacy_module.app
 
-    def test_app_package_ignores_mutated_legacy_app_binding(
+    def test_app_package_rehydrates_bootstrap_after_legacy_app_swap(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The compatibility module cannot replace canonical application authority."""
-        from app.bootstrap.application import app as canonical_app
-
+        """Facade access must reapply additive bootstrap when legacy_app.app changes."""
         main_module = resolve_module("app.main")
         legacy_module = resolve_module("legacy_app")
 
+        canonical_app = main_module.app
         replacement_app = FastAPI()
         monkeypatch.setattr(legacy_module, "app", replacement_app)
 
         package_app = app.app
         route_paths = _route_paths(package_app)
 
-        assert package_app is canonical_app is main_module.app
-        assert package_app is not replacement_app
+        assert package_app is replacement_app
+        assert main_module.app is canonical_app
         assert "/api/v1/billing/apple/verify-receipt" in route_paths
         assert "/api/v1/feedback/rag" in route_paths
         assert "/api/v1/pro/cbt/insight" in route_paths

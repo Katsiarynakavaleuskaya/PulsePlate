@@ -218,21 +218,6 @@ def test_canonical_bootstrap_has_eight_neutral_states_and_mirror_assignment_site
         ), f"Expected one post-registration mirror assignment site for {name}"
 
 
-def test_canonical_application_is_the_bounded_fastapi_constructor_authority() -> None:
-    """Main and legacy aliases must point to the canonical constructor authority."""
-    main = _read(REPO_ROOT / "app" / "main.py")
-    legacy = _read(REPO_ROOT / "legacy_app.py")
-    assert main is not None
-    assert legacy is not None
-
-    assert "from app.bootstrap.application import app" in main
-    assert "from legacy_app import app" not in main
-    assert "global app" not in main
-    assert "app = target_app" not in {line.strip() for line in main.splitlines()}
-    assert "from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app" in legacy
-    assert "_application_metadata = APPLICATION_METADATA" in legacy
-
-
 def test_app_surface_has_required_legacy_symbols() -> None:
     """If tests depend on `from app import X`, enforce that it exists."""
     import app

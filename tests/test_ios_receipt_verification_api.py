@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
-import subprocess
-import sys
-import textwrap
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -801,32 +796,17 @@ def test_activation_state_detail_maps_manual_status_detail() -> None:
 
 
 def test_billing_module_reload_reinitializes_app_module_cache() -> None:
-    """Keep the reload probe isolated from the live canonical route table."""
-    repo_root = Path(__file__).resolve().parents[1]
-    scenario = textwrap.dedent("""
-        import importlib
+    import importlib
+    import app.routers.billing as billing_module
 
-        import app.routers.billing as billing_module
+    billing_module._APP_MODULE = object()
+    reloaded_module = importlib.reload(billing_module)
 
-
-        billing_module._APP_MODULE = object()
-        reloaded_module = importlib.reload(billing_module)
-
-        assert reloaded_module._APP_MODULE is None
-        """)
-
-    result = subprocess.run(
-        [sys.executable, "-c", scenario],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert reloaded_module._APP_MODULE is None
 
 
-def test_verify_apple_receipt_response_wraps_transport_error(
+@pytest.mark.asyncio
+async def test_verify_apple_receipt_response_wraps_transport_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.routers import billing
@@ -837,10 +817,8 @@ def test_verify_apple_receipt_response_wraps_transport_error(
         raise payments_activation.AppleVerifyTransportError()
 
     monkeypatch.setattr(payments_activation, "verify_apple_receipt", _raise_transport)
-    response = asyncio.run(
-        billing._verify_apple_receipt_response(
-            AppleReceiptVerificationRequest(receipt_data="receipt-data-validated-12345")
-        )
+    response = await billing._verify_apple_receipt_response(
+        AppleReceiptVerificationRequest(receipt_data="receipt-data-validated-12345")
     )
 
     assert isinstance(response, JSONResponse)

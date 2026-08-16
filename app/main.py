@@ -26,6 +26,7 @@ from app.bootstrap.direct_api_root import (
     serve_legacy_bmi_calculator_web,
 )
 from app.bootstrap.http_stack import register_http_middleware_stack
+from app.bootstrap.lifespan import application_lifespan
 from app.bootstrap.openapi import (
     apply_public_openapi_input_policy,
     install_canonical_openapi_builder,
@@ -1144,94 +1145,93 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     The supplied object is composed in place. This function never rebinds the
     module-level canonical singleton.
     """
-    validate_openapi_builder_state(target_app)
-    register_http_middleware_stack(target_app)
+    app = target_app
+    validate_openapi_builder_state(app)
+    register_http_middleware_stack(app)
 
-    if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
-        target_app.add_api_route(
+    if not _route_has_endpoint(app, "/", "GET", serve_direct_api_root_probe):
+        app.add_api_route(
             "/",
             serve_direct_api_root_probe,
             methods=["GET"],
             include_in_schema=False,
             response_model=DirectApiRootProbe,
         )
-    if not _route_has_endpoint(
-        target_app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web
-    ):
-        target_app.add_api_route(
+    if not _route_has_endpoint(app, LEGACY_BMI_WEB_ROUTE, "GET", serve_legacy_bmi_calculator_web):
+        app.add_api_route(
             LEGACY_BMI_WEB_ROUTE,
             serve_legacy_bmi_calculator_web,
             methods=["GET"],
             include_in_schema=False,
             response_class=HTMLResponse,
         )
-    if not _route_has_endpoint(target_app, SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap):
-        target_app.add_api_route(
+    if not _route_has_endpoint(app, SITEMAP_ROUTE_PATH, "GET", serve_public_sitemap):
+        app.add_api_route(
             SITEMAP_ROUTE_PATH,
             serve_public_sitemap,
             methods=["GET"],
             include_in_schema=False,
         )
-    _register_paid_tier_routes(target_app)
-    register_pro_contract_routes(target_app)
-    _include_recipe_nutrition_reference_routers_if_needed(target_app)
-    _include_nutrition_state_routers_if_needed(target_app)
+    _register_paid_tier_routes(app)
+    register_pro_contract_routes(app)
+    _include_recipe_nutrition_reference_routers_if_needed(app)
+    _include_nutrition_state_routers_if_needed(app)
 
-    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(target_app, path)}
+    ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
     if not ws_paths_present:
-        target_app.include_router(realtime_ws.router)
+        app.include_router(realtime_ws.router)
     elif ws_paths_present != set(_WS_ROUTE_PATHS):
-        _assert_no_duplicate_ws_route(target_app)
+        _assert_no_duplicate_ws_route(app)
 
-    if not _has_route(target_app, _FEEDBACK_ROUTE_PATH, "POST"):
-        target_app.include_router(feedback_router)
+    if not _has_route(app, _FEEDBACK_ROUTE_PATH, "POST"):
+        app.include_router(feedback_router)
 
-    _include_health_router_if_needed(target_app)
-    _include_legal_router_if_needed(target_app)
-    _include_favicon_router_if_needed(target_app)
-    _include_admin_operations_router_if_needed(target_app)
-    _register_bmi_routes(target_app)
-    _include_bmi_compat_router_if_needed(target_app)
-    _include_bodyfat_router_if_needed(target_app)
-    _include_business_router_if_enabled(target_app)
-    _include_food_catalog_routers_if_needed(target_app)
-    _include_users_router_if_needed(target_app)
-    _include_test_router_if_enabled(target_app)
-    _include_plan_export_routers_if_needed(target_app)
-    _include_shoplist_export_router_if_needed(target_app)
-    _include_legacy_premium_nutrition_router_if_needed(target_app)
-    _include_legacy_premium_weekly_plan_router_if_needed(target_app)
-    _include_legacy_insight_router_if_needed(target_app)
-    _include_shopping_list_routers_if_needed(target_app)
-    _include_restaurants_router_if_needed(target_app)
-    _include_restaurant_moderation_router_if_needed(target_app)
+    _include_health_router_if_needed(app)
+    _include_legal_router_if_needed(app)
+    _include_favicon_router_if_needed(app)
+    _include_admin_operations_router_if_needed(app)
+    _register_bmi_routes(app)
+    _include_bmi_compat_router_if_needed(app)
+    _include_bodyfat_router_if_needed(app)
+    _include_business_router_if_enabled(app)
+    _include_food_catalog_routers_if_needed(app)
+    _include_users_router_if_needed(app)
+    _include_test_router_if_enabled(app)
+    _include_plan_export_routers_if_needed(app)
+    _include_shoplist_export_router_if_needed(app)
+    _include_legacy_premium_nutrition_router_if_needed(app)
+    _include_legacy_premium_weekly_plan_router_if_needed(app)
+    _include_legacy_insight_router_if_needed(app)
+    _include_shopping_list_routers_if_needed(app)
+    _include_restaurants_router_if_needed(app)
+    _include_restaurant_moderation_router_if_needed(app)
 
-    register_billing_routes(target_app)
+    register_billing_routes(app)
 
-    if not _has_route(target_app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
-        target_app.include_router(cbt_insight_router)
+    if not _has_route(app, _CBT_INSIGHT_ROUTE_PATH, "POST"):
+        app.include_router(cbt_insight_router)
 
-    if not _has_route(target_app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
-        target_app.include_router(fitchef_structured_router)
+    if not _has_route(app, _FITCHEF_STRUCTURED_ROUTE_PATH, "POST"):
+        app.include_router(fitchef_structured_router)
 
-    if not _has_route(target_app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
-        target_app.include_router(creative_research_internal_router)
+    if not _has_route(app, _CREATIVE_RESEARCH_PILOT_ROUTE_PATH, "POST"):
+        app.include_router(creative_research_internal_router)
 
     if not _route_has_endpoint(
-        target_app,
+        app,
         _PAYWALL_EVENTS_ROUTE_PATH,
         "POST",
         ingest_paywall_event,
     ):
-        if _has_route(target_app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
+        if _has_route(app, _PAYWALL_EVENTS_ROUTE_PATH, "POST"):
             raise RuntimeError(
                 "Duplicate /api/v1/internal/paywall/events route detected with a different "
                 "handler."
             )
-        target_app.include_router(paywall_analytics_router)
+        app.include_router(paywall_analytics_router)
 
-    apply_public_openapi_input_policy(target_app)
-    install_canonical_openapi_builder(target_app)
+    apply_public_openapi_input_policy(app)
+    install_canonical_openapi_builder(app)
     # Importing canonical routers loads the ``app.metrics`` submodule, which
     # Python records on the package and which would shadow the reviewed facade
     # export. Remove only that package binding after bootstrap so the existing
@@ -1244,7 +1244,8 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         and vars(app_package).get("metrics") is metrics_module
     ):
         delattr(app_package, "metrics")
-    return target_app
+    app.router.lifespan_context = application_lifespan
+    return app
 
 
 ensure_canonical_app_bootstrap(app)

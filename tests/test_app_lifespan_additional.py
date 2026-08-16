@@ -4,8 +4,8 @@ import asyncio
 import pytest
 from unittest.mock import patch
 
+import app
 import core.db as core_db
-from app.bootstrap.application import app as canonical_app
 from app.bootstrap import startup_guards as bootstrap_guards
 from app.bootstrap.food_search import FoodSearchLifecycleLease
 from app.bootstrap.lifespan import LifespanHooks, _application_lifespan_with_hooks
@@ -43,7 +43,7 @@ def _run_lifespan_once(hooks: LifespanHooks | None = None) -> None:
 
     async def _runner() -> None:
         async with _application_lifespan_with_hooks(
-            canonical_app,
+            app.app,
             hooks=hooks or _guard_only_hooks(),
         ):
             pass
@@ -153,7 +153,7 @@ def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     monkeypatch.setattr(
         rate_limit,
         "_is_rate_limiting_wired_for_app",
-        lambda target_app: target_app is canonical_app,
+        lambda target_app: target_app is app.app,
     )
     monkeypatch.setattr(rate_limit, "_rate_limiting_enabled", lambda: True)
     if rate_limit.limiter is not None:

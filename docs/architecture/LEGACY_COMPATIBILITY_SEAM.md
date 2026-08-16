@@ -3,7 +3,7 @@
 Status: Accepted guardrail
 
 <!-- LEGACY_SEAM_STATUS: accepted_guardrail -->
-<!-- LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED: true -->
+<!-- LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED: false -->
 <!-- LEGACY_SEAM_OPENAPI_CHANGED: false -->
 <!-- LEGACY_SEAM_SEMANTIC_CACHE_SERVING: false -->
 <!-- LEGACY_SEAM_FOODDB_CUTOVER: false -->
@@ -16,26 +16,17 @@ weekly-plan downstream error boundary documented below.
 
 ## Context
 
-`app/bootstrap/application.py` is the sole production FastAPI constructor and
-runtime application authority. It resolves the runtime environment once, keeps
-the existing bounded local dotenv and root-logging behavior, builds one
-immutable metadata value, and constructs one singleton with the canonical
-lifespan (`app/bootstrap/application.py:15-38`). `app/main.py` imports that
-singleton directly and applies canonical additive composition without rebinding
-it (`app/main.py:19`, `app/main.py:1141-1250`). Deployment remains
-`app.main:app`.
-
-`legacy_app.py` remains a transitional compatibility seam, but it is no longer
-the application base or constructor. It re-exports the canonical app,
-environment, metadata, lifespan, and retained compatibility values
-(`legacy_app.py:27-39`, `legacy_app.py:377-396`). Reassigning
-`legacy_app.app` cannot replace the canonical singleton exposed by `app.main`
-or the finite `app` package facade (`app/__init__.py:62-104`).
+`app/bootstrap/application.py` constructs the sole production FastAPI singleton.
+`app/main.py` imports it directly and owns additive composition; deployment
+remains `app.main:app`. `legacy_app.py` is a transitional compatibility facade
+that re-exports the same app, runtime environment, metadata, and lifespan.
+Normal imports therefore share one app. A deliberate test-only reassignment of
+`legacy_app.app` may flow through the retained package facade, but cannot rebind
+the bootstrap or `app.main` singleton.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
-context manager to the sole production `FastAPI(...)` constructor;
-`legacy_app.py` only re-exports the alias.
+context manager to its constructor and `legacy_app.py` only re-exports it.
 Food-search clients and the process-wide strategy adapter are acquired and
 released inside that lifespan; additive route bootstrap must not create shared
 runtime resources or wrap `app.router.lifespan_context`.
@@ -49,9 +40,7 @@ warning state would break FastAPI dependency identity.
 Application metadata is canonically owned by
 `app/application_metadata.py:56` and constructed through the environment-aware
 factory at `app/application_metadata.py:113`. The application bootstrap builds
-that value once and gives each private test object fresh mutable constructor
-containers. `legacy_app.py` aliases the same metadata object and derives only
-its retained tags/description compatibility projections.
+one immutable value and `legacy_app.py` aliases it for compatibility.
 
 Public OpenAPI visibility, component pruning, builder ownership, and cache
 reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
@@ -121,10 +110,8 @@ The current policy is compatibility first:
 Freeze `legacy_app.py` as a compatibility seam. It may shrink or delegate more
 thinly over time, but it must not grow new product behavior.
 
-Product Owner sequencing is explicit: `PR-TBD-APP-FACTORY` owns only this
-bounded application-authority inversion. Retained BMI/PRO/VIP aliases and final
-`legacy_app.py` deletion remain separate later lanes; this change does not
-authorize either retirement.
+`PR-TBD-APP-FACTORY` owns only this inversion. BMI/PRO/VIP alias retirement and
+final legacy deletion remain separate ordered lanes.
 
 Allowed in `legacy_app.py`:
 
@@ -148,8 +135,8 @@ Forbidden in `legacy_app.py`:
 | Surface | Owner | Rule |
 | --- | --- | --- |
 | Existing legacy compatibility aliases | `legacy_app.py` | Runtime compatibility only; no growth. |
-| FastAPI construction and singleton | `app/bootstrap/application.py` | Sole production constructor; environment/logging/metadata/lifespan wiring only, with no routes, middleware, OpenAPI, or shared resources. |
-| Canonical route composition | `app/main.py` | Additive, idempotent composition of the supplied app; never rebind the canonical singleton. |
+| FastAPI construction | `app/bootstrap/application.py` | Sole production constructor; no routes, middleware, OpenAPI, or resources. |
+| Canonical app composition | `app/main.py` | Additive, idempotent registration on the supplied app; never rebind the singleton. |
 | New route implementations | `app/routers/` | Canonical route families own new behavior. |
 | Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
@@ -187,15 +174,11 @@ implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
 
-The same guard verifies bounded metadata and OpenAPI ownership plus the direct
-application-construction boundary. For constructor authority, its lexical check
-proves finite source-shape facts: there is exactly one direct syntactic
-`FastAPI(...)` call; it belongs to `app/bootstrap/application.py`; and the
-complete private factory body is exactly the metadata expansion plus canonical
-lifespan return. It does not resolve aliases or model Python control/data flow.
-Canonical/legacy alias identity, the direct `app.main` import, facade authority,
-import order, composition, routes, middleware, lifespan, and OpenAPI parity are
-behavioral contracts owned by the dedicated runtime tests.
+The same guard now verifies application-metadata/OpenAPI ownership: extracted
+functions cannot be redefined or rebound in legacy, `app/main.py` must import
+the canonical OpenAPI lifecycle directly, the package facade cannot install OpenAPI,
+and canonical modules cannot reverse-import the compatibility app. The check is
+bounded AST analysis and intentionally does not interpret arbitrary Python.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.
@@ -203,31 +186,28 @@ growth while later extraction PRs move routes behind canonical routers.
 ## Static Guard Threat Model
 
 The legacy growth guard is an architectural regression detector for trusted,
-reviewed repository source. Its application-instance check detects direct
-constructor duplication or relocation and exact canonical factory-shape drift.
+reviewed repository source. It detects explicit ownership violations, direct
+reverse imports and lookups, and bounded ordinary alias forms.
 
 It is not a Python sandbox, abstract interpreter, or proof against intentionally
-obfuscated source. Custom import hooks, unrecognized reflection, descriptor or
-metaclass behavior, closures, plugins, proxies, and general Python object/data
-flow remain open-world and subject to human review and repository security
-tooling. A second materially novel carrier stops this bounded grammar and
-requires a separately scoped redesign; it must not produce another parser
-exception.
+obfuscated source. Descriptor, metaclass, closure, arbitrary container or data-flow,
+`eval` / `exec`, and equivalent reflective constructions remain subject to human
+review and repository security tooling.
 
 Runtime contract tests, callable-identity tests, code review, targeted security
 review, and current-head CI remain authoritative.
 
 ## Exit Criteria
 
-The app-factory inversion is complete for `PR-TBD-APP-FACTORY`. Retire the
-remaining compatibility seam only when all are true:
+Retire this seam only when all are true:
 
-1. Remaining compatibility aliases are either removed or implemented as bounded
+1. `app/main.py` no longer depends on `legacy_app.app` as the runtime base.
+2. Remaining compatibility aliases are either removed or implemented as bounded
    canonical router shims.
-2. OpenAPI namespace guards stay deterministic after removal.
-3. Auth, billing, export, insight, food-data, and websocket contracts have route
+3. OpenAPI namespace guards stay deterministic after removal.
+4. Auth, billing, export, insight, food-data, and websocket contracts have route
    parity coverage for any moved surface.
-4. Backlog or PR governance records the final compatibility retirement evidence.
+5. Backlog or PR governance records the final compatibility retirement evidence.
 
 ## Validation
 

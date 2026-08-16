@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 import dotenv
 from fastapi import FastAPI
@@ -32,7 +33,8 @@ APPLICATION_METADATA = build_application_metadata(runtime_env=RUNTIME_ENV)
 def _create_fastapi_application(metadata: ApplicationMetadata) -> FastAPI:
     """Construct an independent FastAPI object from immutable metadata."""
 
-    return FastAPI(**metadata.to_fastapi_kwargs(), lifespan=application_lifespan)
+    application_kwargs: dict[str, Any] = metadata.to_fastapi_kwargs()
+    return FastAPI(**application_kwargs, lifespan=application_lifespan)
 
 
 app = _create_fastapi_application(APPLICATION_METADATA)

@@ -7106,13 +7106,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     `b611682cf4d09eac8b4a124aff07e91c57f83f59`, establishing canonical Insight
     schema, adapter, and application-service ownership. The bounded successor moves
     both hidden Insight routes off the legacy facade and onto the canonical adapter
-    seam. `PR-TBD-APP-FACTORY` is the current bounded lane: it moves sole
-    FastAPI construction and singleton authority to
-    `app/bootstrap/application.py` while preserving deployment, ordered route
-    inventory, OpenAPI, middleware, lifespan, and finite compatibility aliases.
-    Product Owner sequencing keeps retained BMI/PRO/VIP alias retirement and
-    final `legacy_app.py` deletion as separate later lanes; neither is authorized
-    by the app-factory inversion.
+    seam. `PR-TBD-APP-FACTORY` is the current bounded construction-ownership
+    inversion. Product Owner sequencing keeps BMI/PRO/VIP alias retirement and
+    final legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -7123,8 +7119,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - app/services/pro_nutrition_targets.py
     - app/services/pro_nutrition_plate.py
     - app/services/pro_nutrition_bmr.py
-    - app/bootstrap/application.py
-    - tests/test_application_instance_ownership.py
     - app/schemas/premium_contracts.py
     - core/nutrition_utils.py
     - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md
@@ -7134,9 +7128,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ All clients migrated to canonical endpoints
     - ✅ Legacy endpoint traffic < 1%
   - DoD:
-    - `PR-TBD-APP-FACTORY`: one canonical production constructor and singleton;
-      `app.main`, package facade, and legacy compatibility export share its
-      identity across the explicit supported fresh-process import matrix
     - All endpoints migrated to modular routers
     - All helpers moved to canonical modules
     - `legacy_app.py` deleted (or reduced to minimal compatibility shim)

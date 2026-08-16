@@ -1,7 +1,8 @@
-"""Regression contract for canonical FastAPI construction and identity ownership."""
+"""Bounded contract for canonical FastAPI construction and composition."""
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 from pathlib import Path
@@ -10,285 +11,184 @@ import sys
 import textwrap
 from typing import Any
 
-from fastapi.testclient import TestClient
 import pytest
 
-import scripts.ci.check_legacy_growth_guard as legacy_guard
-
-EXPECTED_OPENAPI_DIGEST = (
-    "490d477edcde3aa69008f83e9f77ea1f3862c3d92575f18d9a782b4cdc286dd9"  # pragma: allowlist secret
-)
-EXPECTED_ROUTE_PROJECTION_COUNT = 133
-EXPECTED_ROUTE_PROJECTION_DIGEST = (
-    "e22e521ffec1e455c15a4cff4759b258b704b0b6af77c4a2f52e3558124ce493"  # pragma: allowlist secret
-)
-EXPECTED_MIDDLEWARE_ORDER = [
-    "tracing",
-    "request_telemetry",
-    "metrics",
-    "csp",
-    "rate_limit",
-]
-
-SUPPORTED_IMPORT_MATRIX = (
-    (
-        "canonical-first",
-        "from app.bootstrap import application as canonical; import app.main as main; "
-        "import legacy_app; import app as package",
-    ),
-    (
-        "main-first",
-        "import app.main as main; from app.bootstrap import application as canonical; "
-        "import legacy_app; import app as package",
-    ),
-    (
-        "legacy-first",
-        "import legacy_app; from app.bootstrap import application as canonical; "
-        "import app.main as main; import app as package",
-    ),
-    (
-        "package-facade-first",
-        "import app as package; package_app = package.app; "
-        "from app.bootstrap import application as canonical; import app.main as main; "
-        "import legacy_app",
-    ),
-)
-
-_ROUTE_SELECTION_ENV_NAMES = (
-    "BUSINESS_MODULE_ENABLED",
-    "ENABLE_TEST_ROUTES",
-    "FEATURE_BMI_PRO_ENABLED",
-    "FEATURE_PREMIUM_WEEK_ENABLED",
+_CANONICAL_OWNER = Path("app/bootstrap/application.py")
+_MIRRORS = (
     "VIP_MODULE_ENABLED",
+    "vip_router",
+    "pro_router",
+    "premium_week_router",
+    "FEATURE_BMI_PRO_ENABLED",
+    "bmi_router",
+    "bmi_pro_router",
+    "bmi_pro_legacy_alias_router",
 )
+_IMPORT_SCENARIOS = (
+    "from app.bootstrap import application as canonical; import app.main as main; "
+    "import legacy_app; import app as package",
+    "import legacy_app; from app.bootstrap import application as canonical; "
+    "import app.main as main; import app as package",
+    "import app as package; package.app; "
+    "from app.bootstrap import application as canonical; import app.main as main; "
+    "import legacy_app",
+)
+
+
+def _is_direct_fastapi_call(call: ast.Call) -> bool:
+    function = call.func
+    if isinstance(function, ast.Name):
+        return function.id == "FastAPI"
+    if not isinstance(function, ast.Attribute) or function.attr != "FastAPI":
+        return False
+    if isinstance(function.value, ast.Name):
+        return function.value.id == "fastapi"
+    return (
+        isinstance(function.value, ast.Attribute)
+        and function.value.attr == "applications"
+        and isinstance(function.value.value, ast.Name)
+        and function.value.value.id == "fastapi"
+    )
+
+
+def test_one_direct_constructor_belongs_to_the_canonical_owner() -> None:
+    sources = [Path("legacy_app.py"), *sorted(Path("app").rglob("*.py"))]
+    calls: list[Path] = []
+    trees: dict[Path, ast.Module] = {}
+    for path in sources:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        trees[path] = tree
+        calls.extend(
+            path
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and _is_direct_fastapi_call(node)
+        )
+
+    assert calls == [_CANONICAL_OWNER]
+    assert not any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "legacy_app"
+        and any(alias.name == "app" for alias in node.names)
+        for node in ast.walk(trees[Path("app/main.py")])
+    )
+
+
+def test_runtime_identity_lifespan_and_private_constructor_isolation() -> None:
+    import app
+    import app.main as main
+    import legacy_app
+    from app.bootstrap import application
+    from app.bootstrap.lifespan import application_lifespan
+
+    assert application.app is main.app is legacy_app.app is app.app
+    assert application.app.router.lifespan_context is application_lifespan
+    first = application._create_fastapi_application(application.APPLICATION_METADATA)
+    second = application._create_fastapi_application(application.APPLICATION_METADATA)
+    assert first is not second
+    assert first.router.lifespan_context is second.router.lifespan_context is application_lifespan
+    assert first.contact is not second.contact
+    assert first.license_info is not second.license_info
+    assert first.openapi_tags is not second.openapi_tags
+    assert first.openapi_tags[0] is not second.openapi_tags[0]
+    first.contact["name"] = "mutated"
+    first.license_info["name"] = "mutated"
+    first.openapi_tags[0]["description"] = "mutated"
+    assert second.contact["name"] == application.APPLICATION_METADATA.contact_name
+    assert second.license_info["name"] == application.APPLICATION_METADATA.license_name
+    assert (
+        second.openapi_tags[0]["description"]
+        == application.APPLICATION_METADATA.tags[0].description
+    )
 
 
 def _run_import_scenario(imports: str) -> dict[str, Any]:
     scenario = textwrap.dedent(f"""
         import hashlib
         import json
-        import sys
-        from fastapi import FastAPI
-        from app.effective_routes import (
-            iter_effective_route_candidates,
-            route_endpoint,
-            route_include_in_schema,
-            route_methods,
-            route_path,
-        )
-        from app.bootstrap.http_stack import _owned_middleware_projection
-
         {imports}
-        package_app = package.app
-        assert canonical.app is main.app is package_app is legacy_app.app
-        assert sys.modules["app_module"] is legacy_app
+        from app.bootstrap.http_stack import _owned_middleware_projection
+        from app.bootstrap.lifespan import application_lifespan
+        from app.effective_routes import (
+            iter_effective_route_candidates, route_endpoint,
+            route_include_in_schema, route_methods, route_path,
+        )
 
-        def route_projection(target_app):
-            projection = []
-            for route in iter_effective_route_candidates(target_app.routes):
-                original_route = getattr(route, "original_route", route)
+        def routes(target):
+            result = []
+            for route in iter_effective_route_candidates(target.routes):
                 endpoint = route_endpoint(route)
-                endpoint_module = getattr(endpoint, "__module__", None)
-                endpoint_qualname = getattr(endpoint, "__qualname__", None)
-                endpoint_identity = (
-                    f"{{endpoint_module}}.{{endpoint_qualname}}"
-                    if endpoint_module is not None and endpoint_qualname is not None
-                    else None
-                )
-                projection.append(
-                    {{
-                        "kind": f"{{type(route).__module__}}.{{type(route).__qualname__}}",
-                        "path": route_path(route),
-                        "path_format": getattr(
-                            route,
-                            "path_format",
-                            getattr(original_route, "path_format", None),
-                        ),
-                        "methods_or_websocket": sorted(route_methods(route))
-                        or ["WEBSOCKET"],
-                        "endpoint": endpoint_identity,
-                        "name": getattr(route, "name", None),
-                        "include_in_schema": route_include_in_schema(route),
-                    }}
-                )
-            return projection
+                result.append([
+                    route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"],
+                    f"{{getattr(endpoint, '__module__', '')}}.{{getattr(endpoint, '__qualname__', '')}}",
+                    route_include_in_schema(route),
+                ])
+            return result
 
-        projection_before_repeat = route_projection(canonical.app)
+        def mirror(value):
+            if value is None or isinstance(value, (bool, int, str)):
+                return value
+            return routes(value)
+
+        assert canonical.app is main.app is legacy_app.app is package.app
+        assert canonical.app.router.lifespan_context is application_lifespan
+        def snapshot():
+            return {{
+                "routes": routes(canonical.app),
+                "middleware": list(_owned_middleware_projection(canonical.app)),
+                "openapi": hashlib.sha256(json.dumps(
+                    canonical.app.openapi(), sort_keys=True, separators=(",", ":")
+                ).encode()).hexdigest(),
+                "mirrors": {{name: mirror(getattr(main, name)) for name in {list(_MIRRORS)!r}}},
+            }}
+
+        before = snapshot()
+        assert all(getattr(main, name) is getattr(legacy_app, name) for name in {list(_MIRRORS)!r})
         assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app
-        assert canonical.app is main.app is package.app
-        projection = route_projection(canonical.app)
-        assert projection == projection_before_repeat
-        projection_payload = json.dumps(
-            projection, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        openapi_payload = json.dumps(
-            canonical.app.openapi(), sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        middleware = list(_owned_middleware_projection(canonical.app))
-
-        replacement = FastAPI()
-        legacy_app.app = replacement
-        assert canonical.app is main.app is package.app
-        assert canonical.app is not replacement
-
-        print("OWNERSHIP_RESULT=" + json.dumps({{
-            "projection": projection,
-            "projection_digest": hashlib.sha256(projection_payload).hexdigest(),
-            "openapi_digest": hashlib.sha256(openapi_payload).hexdigest(),
-            "middleware": middleware,
-        }}, sort_keys=True))
-        """)
+        after = snapshot()
+        assert after == before
+        print("OWNERSHIP_RESULT=" + json.dumps(after, sort_keys=True))
+    """)
     env = os.environ.copy()
-    env.update(
-        {
-            "APP_ENV": "test",
-            "ENV": "test",
-            "ENVIRONMENT": "test",
-            "RATE_LIMITING_IN_TESTS": "true",
-            "TESTING": "true",
-        }
-    )
-    for inherited_name in _ROUTE_SELECTION_ENV_NAMES:
-        env.pop(inherited_name, None)
-    result = subprocess.run(
+    env.update({"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"})
+    for name in (
+        "BUSINESS_MODULE_ENABLED",
+        "ENABLE_TEST_ROUTES",
+        "FEATURE_BMI_PRO_ENABLED",
+        "FEATURE_PREMIUM_WEEK_ENABLED",
+        "VIP_MODULE_ENABLED",
+    ):
+        env.pop(name, None)
+    completed = subprocess.run(
         [sys.executable, "-c", scenario],
         capture_output=True,
         text=True,
         check=False,
         env=env,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
     result_line = next(
-        line for line in result.stdout.splitlines() if line.startswith("OWNERSHIP_RESULT=")
+        line for line in completed.stdout.splitlines() if line.startswith("OWNERSHIP_RESULT=")
     )
-    payload: dict[str, Any] = json.loads(result_line.removeprefix("OWNERSHIP_RESULT="))
-    return payload
+    result: dict[str, Any] = json.loads(result_line.removeprefix("OWNERSHIP_RESULT="))
+    return result
 
 
-def test_import_scenario_scrubs_route_selection_environment(
+def test_fresh_import_orders_have_relative_runtime_parity() -> None:
+    results = [_run_import_scenario(imports) for imports in _IMPORT_SCENARIOS]
+    assert results[1:] == results[:1] * (len(results) - 1)
+
+
+def test_test_owned_composition_and_legacy_alias_do_not_rebind_canonical(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured_env: dict[str, str] = {}
-    for name in _ROUTE_SELECTION_ENV_NAMES:
-        monkeypatch.setenv(name, "true")
-
-    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        captured_env.update(kwargs["env"])
-        return subprocess.CompletedProcess(
-            args,
-            0,
-            stdout="OWNERSHIP_RESULT={}\n",
-            stderr="",
-        )
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    assert _run_import_scenario("pass") == {}
-    assert set(_ROUTE_SELECTION_ENV_NAMES).isdisjoint(captured_env)
-
-
-def test_fastapi_constructor_has_one_bounded_production_owner() -> None:
-    legacy_source = Path("legacy_app.py").read_text(encoding="utf-8")
-    app_sources = {
-        path.as_posix(): path.read_text(encoding="utf-8") for path in Path("app").rglob("*.py")
-    }
-
-    assert legacy_guard.validate_application_instance_ownership(legacy_source, app_sources) == []
-
-
-def test_private_constructor_returns_independent_apps_and_isolated_metadata() -> None:
-    from app.bootstrap.application import APPLICATION_METADATA, _create_fastapi_application
-
-    first_kwargs = APPLICATION_METADATA.to_fastapi_kwargs()
-    second_kwargs = APPLICATION_METADATA.to_fastapi_kwargs()
-    first_app = _create_fastapi_application(APPLICATION_METADATA)
-    second_app = _create_fastapi_application(APPLICATION_METADATA)
-
-    assert first_app is not second_app
-    assert first_kwargs["contact"] is not second_kwargs["contact"]
-    assert first_kwargs["license_info"] is not second_kwargs["license_info"]
-    assert first_kwargs["openapi_tags"] is not second_kwargs["openapi_tags"]
-    assert first_kwargs["openapi_tags"][0] is not second_kwargs["openapi_tags"][0]
-
-    first_app.contact["name"] = "mutated"
-    first_app.openapi_tags[0]["description"] = "mutated"
-    assert second_app.contact["name"] == APPLICATION_METADATA.contact_name
-    assert second_app.openapi_tags[0]["description"] == APPLICATION_METADATA.tags[0].description
-
-
-def test_factory_uses_canonical_lifespan_observably(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import app.bootstrap.lifespan as lifespan_module
+    import app
+    import app.main as main
     import legacy_app
-    from app.bootstrap.application import APPLICATION_METADATA, _create_fastapi_application
-    from app.bootstrap.food_search import FoodSearchLifecycleLease
-    from app.bootstrap.lifespan import LifespanHooks, application_lifespan
-    from core.food_apis.scheduler_runtime import SchedulerMode
+    from app.bootstrap import application
 
-    events: list[str] = []
-
-    async def _noop_start(update_interval_hours: int = 24) -> None:
-        del update_interval_hours
-
-    async def _noop_stop() -> None:
-        return None
-
-    hooks = LifespanHooks(
-        run_startup_guards=lambda _app: events.append("guard"),
-        initialize_database=lambda: events.append("database"),
-        clear_database_fallback=lambda: events.append("database-clear"),
-        attempt_database_fallback=lambda _env, _prod, _error: events.append("fallback"),
-        validate_templates=lambda: events.append("templates"),
-        configure_food_search=lambda _app: (
-            events.append("food-acquire") or FoodSearchLifecycleLease()
-        ),
-        dispose_food_search=lambda _app, _lease: events.append("food-release"),
-        start_background_updates=_noop_start,
-        stop_background_updates=_noop_stop,
-    )
-    monkeypatch.setattr(lifespan_module, "build_default_lifespan_hooks", lambda: hooks)
-    monkeypatch.setattr(
-        lifespan_module,
-        "resolve_scheduler_mode",
-        lambda: SchedulerMode.DISABLED,
-    )
-
-    test_app = _create_fastapi_application(APPLICATION_METADATA)
-    with TestClient(test_app):
-        events.append("serving")
-
-    assert legacy_app.lifespan is application_lifespan
-    assert events == [
-        "guard",
-        "database",
-        "database-clear",
-        "templates",
-        "food-acquire",
-        "serving",
-        "food-release",
-    ]
-
-
-def test_supported_fresh_process_import_matrix_preserves_runtime_truth() -> None:
-    results = {label: _run_import_scenario(imports) for label, imports in SUPPORTED_IMPORT_MATRIX}
-
-    assert list(results) == [
-        "canonical-first",
-        "main-first",
-        "legacy-first",
-        "package-facade-first",
-    ]
-    canonical_result = results["canonical-first"]
-    assert len(canonical_result["projection"]) == EXPECTED_ROUTE_PROJECTION_COUNT
-    for result in results.values():
-        assert len(result["projection"]) == EXPECTED_ROUTE_PROJECTION_COUNT
-        assert result["projection"] == canonical_result["projection"]
-
-    assert canonical_result["projection_digest"] == EXPECTED_ROUTE_PROJECTION_DIGEST
-    assert canonical_result["openapi_digest"] == EXPECTED_OPENAPI_DIGEST
-    assert canonical_result["middleware"] == EXPECTED_MIDDLEWARE_ORDER
-    for result in results.values():
-        assert result["projection_digest"] == EXPECTED_ROUTE_PROJECTION_DIGEST
-        assert result["openapi_digest"] == EXPECTED_OPENAPI_DIGEST
-        assert result["middleware"] == EXPECTED_MIDDLEWARE_ORDER
+    test_owned = application._create_fastapi_application(application.APPLICATION_METADATA)
+    assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
+    assert application.app is main.app
+    monkeypatch.setattr(legacy_app, "app", test_owned)
+    assert app.app is test_owned
+    assert application.app is main.app

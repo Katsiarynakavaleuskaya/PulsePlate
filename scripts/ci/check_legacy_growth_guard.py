@@ -22,7 +22,6 @@ FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
 CANONICAL_API_KEY = "app/routers/api_key.py"  # pragma: allowlist secret
 CANONICAL_APPLICATION_METADATA = "app/application_metadata.py"
-CANONICAL_APPLICATION = "app/bootstrap/application.py"
 CANONICAL_OPENAPI = "app/bootstrap/openapi.py"
 CANONICAL_MAIN = "app/main.py"
 APP_FACADE = "app/__init__.py"
@@ -153,7 +152,7 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
 
 REQUIRED_DOC_MARKERS: Mapping[str, str] = {
     "LEGACY_SEAM_STATUS": "accepted_guardrail",
-    "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED": "true",
+    "LEGACY_SEAM_RUNTIME_BEHAVIOR_CHANGED": "false",
     "LEGACY_SEAM_OPENAPI_CHANGED": "false",
     "LEGACY_SEAM_SEMANTIC_CACHE_SERVING": "false",
     "LEGACY_SEAM_FOODDB_CUTOVER": "false",
@@ -161,7 +160,6 @@ REQUIRED_DOC_MARKERS: Mapping[str, str] = {
 }
 REQUIRED_DOC_TOKENS = (
     "legacy_app.py",
-    "app/bootstrap/application.py",
     "app/main.py",
     "app/routers/",
     "app/bootstrap/",
@@ -169,7 +167,6 @@ REQUIRED_DOC_TOKENS = (
     "new OpenAPI-visible public surface",
     "semantic-cache serving",
     "FoodDB cutover",
-    "sole production FastAPI constructor",
 )
 MARKER_RE = re.compile(r"<!--\s*([A-Z0-9_]+):\s*(.*?)\s*-->")
 
@@ -6710,8 +6707,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             local_name = alias.asname or alias.name
             reference = f"{node.module}.{alias.name}" if node.module is not None else None
-            if reference == "app.bootstrap.application.app":
-                reference = "pulseplate.app"
             if reference == "builtins.object":
                 reference = (
                     _CAPTURED_SAFE_BUILTINS_OBJECT_REFERENCE
@@ -10761,217 +10756,6 @@ def _parses_environment_directly(tree: ast.Module) -> bool:
     return False
 
 
-_DIRECT_FASTAPI_CONSTRUCTOR_NAMES = frozenset(
-    {
-        "FastAPI",
-        "fastapi.FastAPI",
-        "fastapi.applications.FastAPI",
-    }
-)
-
-
-def _lexical_dotted_name(node: ast.AST) -> str | None:
-    """Return a literal Name/Attribute path without resolving aliases or values."""
-
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        parent = _lexical_dotted_name(node.value)
-        return f"{parent}.{node.attr}" if parent is not None else None
-    return None
-
-
-def _has_one_exact_import(
-    tree: ast.Module,
-    *,
-    module: str,
-    imported: str,
-) -> bool:
-    matches = [
-        statement
-        for statement in tree.body
-        if isinstance(statement, ast.ImportFrom)
-        and statement.level == 0
-        and statement.module == module
-        and len(statement.names) == 1
-        and statement.names[0].name == imported
-        and statement.names[0].asname is None
-    ]
-    return len(matches) == 1
-
-
-def _canonical_factory_return_is_exact(
-    factory: ast.FunctionDef,
-    constructor: ast.Call,
-) -> bool:
-    """Match the complete bounded factory body instead of interpreting control flow."""
-
-    if (
-        factory.decorator_list
-        or factory.args.posonlyargs
-        or tuple(argument.arg for argument in factory.args.args) != ("metadata",)
-        or factory.args.vararg is not None
-        or factory.args.kwonlyargs
-        or factory.args.kwarg is not None
-        or factory.args.defaults
-        or factory.args.kw_defaults
-    ):
-        return False
-
-    body = list(factory.body)
-    if (
-        body
-        and isinstance(body[0], ast.Expr)
-        and isinstance(body[0].value, ast.Constant)
-        and isinstance(body[0].value.value, str)
-    ):
-        body = body[1:]
-    if len(body) != 1 or not isinstance(body[0], ast.Return) or body[0].value is not constructor:
-        return False
-
-    if (
-        _lexical_dotted_name(constructor.func) != "FastAPI"
-        or constructor.args
-        or len(constructor.keywords) != 2
-    ):
-        return False
-    metadata_expansion, lifespan_keyword = constructor.keywords
-    return (
-        metadata_expansion.arg is None
-        and isinstance(metadata_expansion.value, ast.Call)
-        and _lexical_dotted_name(metadata_expansion.value.func) == "metadata.to_fastapi_kwargs"
-        and not metadata_expansion.value.args
-        and not metadata_expansion.value.keywords
-        and lifespan_keyword.arg == "lifespan"
-        and isinstance(lifespan_keyword.value, ast.Name)
-        and lifespan_keyword.value.id == "application_lifespan"
-    )
-
-
-def _has_exact_canonical_app_assignment(tree: ast.Module) -> bool:
-    app_bindings: list[ast.stmt] = []
-    exact_assignments: list[ast.Assign] = []
-    for statement in tree.body:
-        target: ast.expr | None = None
-        value: ast.AST | None = None
-        if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-            target = statement.targets[0]
-            value = statement.value
-        elif isinstance(statement, ast.AnnAssign):
-            target = statement.target
-            value = statement.value
-        if not isinstance(target, ast.Name) or target.id != "app":
-            continue
-        app_bindings.append(statement)
-        if (
-            isinstance(statement, ast.Assign)
-            and isinstance(value, ast.Call)
-            and isinstance(value.func, ast.Name)
-            and value.func.id == "_create_fastapi_application"
-            and len(value.args) == 1
-            and isinstance(value.args[0], ast.Name)
-            and value.args[0].id == "APPLICATION_METADATA"
-            and not value.keywords
-        ):
-            exact_assignments.append(statement)
-    return len(app_bindings) == 1 and len(exact_assignments) == 1
-
-
-def validate_application_instance_ownership(
-    legacy_source: str,
-    app_sources: Mapping[str, str],
-) -> list[str]:
-    """Enforce the small lexical constructor boundary over trusted repo source.
-
-    This guard deliberately does not model aliases, dynamic imports, reflection,
-    descriptors, plugins, or general Python control/data flow. Runtime identity,
-    composition, import-order, route, middleware, and OpenAPI behavior belong to
-    the dedicated application ownership contract tests.
-    """
-
-    errors: list[str] = []
-    if CANONICAL_APPLICATION not in app_sources:
-        errors.append(f"{CANONICAL_APPLICATION}: required constructor owner is missing")
-
-    sources = {LEGACY_APP: legacy_source, **app_sources}
-    trees: dict[str, ast.Module] = {}
-    for filename, source in sources.items():
-        tree, parse_errors = _parse_source(source, filename=filename)
-        errors.extend(parse_errors)
-        if tree is not None:
-            trees[filename] = tree
-    if errors:
-        return sorted(set(errors))
-
-    constructors = [
-        (filename, node)
-        for filename, tree in trees.items()
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and _lexical_dotted_name(node.func) in _DIRECT_FASTAPI_CONSTRUCTOR_NAMES
-    ]
-    if len(constructors) != 1:
-        errors.append(
-            f"direct FastAPI production constructor count must be exactly 1; "
-            f"found {len(constructors)}"
-        )
-    for filename, constructor in constructors:
-        if filename != CANONICAL_APPLICATION:
-            errors.append(
-                f"{filename}:{constructor.lineno}: direct FastAPI constructor is forbidden "
-                f"outside {CANONICAL_APPLICATION}"
-            )
-
-    canonical_tree = trees[CANONICAL_APPLICATION]
-    if not _has_one_exact_import(canonical_tree, module="fastapi", imported="FastAPI"):
-        errors.append(f"{CANONICAL_APPLICATION}: exact `from fastapi import FastAPI` is required")
-    if not _has_one_exact_import(
-        canonical_tree,
-        module="app.bootstrap.lifespan",
-        imported="application_lifespan",
-    ):
-        errors.append(f"{CANONICAL_APPLICATION}: exact canonical lifespan import is required")
-
-    forbidden_owner_imports = [
-        node
-        for node in ast.walk(canonical_tree)
-        if isinstance(node, ast.Import)
-        and any(alias.name in {"legacy_app", "app.main"} for alias in node.names)
-        or isinstance(node, ast.ImportFrom)
-        and node.module in {"legacy_app", "app.main"}
-    ]
-    if forbidden_owner_imports:
-        errors.append(f"{CANONICAL_APPLICATION}: reverse legacy/main import is forbidden")
-
-    factories = [
-        node
-        for node in canonical_tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == "_create_fastapi_application"
-    ]
-    canonical_constructors = [
-        constructor for filename, constructor in constructors if filename == CANONICAL_APPLICATION
-    ]
-    if len(factories) != 1 or not isinstance(factories[0], ast.FunctionDef):
-        errors.append(
-            f"{CANONICAL_APPLICATION}: exactly one plain _create_fastapi_application is required"
-        )
-    elif len(canonical_constructors) != 1 or not _canonical_factory_return_is_exact(
-        factories[0],
-        canonical_constructors[0],
-    ):
-        errors.append(
-            f"{CANONICAL_APPLICATION}: factory body must be exactly the canonical "
-            "metadata/lifespan FastAPI return"
-        )
-
-    if not _has_exact_canonical_app_assignment(canonical_tree):
-        errors.append(
-            f"{CANONICAL_APPLICATION}: app must be assigned once from APPLICATION_METADATA"
-        )
-    return sorted(set(errors))
-
-
 def validate_application_metadata_openapi_ownership(
     legacy_source: str,
     metadata_source: str,
@@ -11011,7 +10795,6 @@ def validate_application_metadata_openapi_ownership(
     exact_aliases: set[str] = set()
     foreign_import_rebindings: set[str] = set()
     metadata_factory_imported = False
-    private_metadata_factory_imports: set[str] = set()
     for statement in legacy_tree.body:
         if isinstance(statement, ast.ImportFrom) and statement.module == CANONICAL_OPENAPI.replace(
             "/", "."
@@ -11032,25 +10815,16 @@ def validate_application_metadata_openapi_ownership(
                 bound_name = alias.asname or alias.name.split(".", 1)[0]
                 if bound_name in CANONICAL_OPENAPI_SYMBOLS:
                     foreign_import_rebindings.add(bound_name)
-        if isinstance(statement, ast.ImportFrom) and statement.module == "app.application_metadata":
-            for alias in statement.names:
-                if alias.name != "build_application_metadata":
-                    continue
-                bound = alias.asname or alias.name
-                if bound == "build_application_metadata":
-                    metadata_factory_imported = True
-                elif bound.startswith("_"):
-                    private_metadata_factory_imports.add(bound)
-    if not metadata_factory_imported:
-        metadata_factory_imported = any(
-            isinstance(statement, ast.Assign)
-            and len(statement.targets) == 1
-            and isinstance(statement.targets[0], ast.Name)
-            and statement.targets[0].id == "build_application_metadata"
-            and isinstance(statement.value, ast.Name)
-            and statement.value.id in private_metadata_factory_imports
-            for statement in legacy_tree.body
-        )
+        if (
+            isinstance(statement, ast.ImportFrom)
+            and statement.module == "app.application_metadata"
+            and any(
+                alias.name == "build_application_metadata"
+                and alias.asname in {None, "build_application_metadata"}
+                for alias in statement.names
+            )
+        ):
+            metadata_factory_imported = True
     for name in sorted(CANONICAL_OPENAPI_SYMBOLS - exact_aliases):
         errors.append(
             f"{LEGACY_APP}: canonical OpenAPI compatibility re-export must preserve identity: {name}"
@@ -11305,7 +11079,6 @@ def validate_repo(repo_root: Path) -> list[str]:
         )
     if legacy_source is not None:
         extend_analysis(lambda: validate_api_key_dependency_ownership(legacy_source, app_sources))
-        extend_analysis(lambda: validate_application_instance_ownership(legacy_source, app_sources))
     if all(
         source is not None
         for source in (

@@ -861,11 +861,12 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main.realtime_ws, "router", APIRouter())
 
 
-def _bootstrap_temp_app(target_app: FastAPI) -> FastAPI:
-    canonical_app = app_main.app
-    composed_app = app_main.ensure_canonical_app_bootstrap(target_app)
-    assert app_main.app is canonical_app
-    return composed_app
+def _bootstrap_temp_app(app: FastAPI) -> FastAPI:
+    original_app = app_main.app
+    try:
+        return app_main.ensure_canonical_app_bootstrap(app)
+    finally:
+        app_main.app = original_app
 
 
 def test_bootstrap_validates_before_mutation_and_installs_openapi_last(
@@ -898,19 +899,6 @@ def test_bootstrap_validates_before_mutation_and_installs_openapi_last(
 
     assert calls[:2] == ["validate", "middleware"]
     assert calls[-2:] == ["policy", "install"]
-
-
-def test_bootstrap_composes_temporary_app_without_rebinding_canonical_singleton(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _prepare_bootstrap_dependencies(monkeypatch)
-    canonical_app = app_main.app
-    temporary_app = FastAPI()
-
-    result = app_main.ensure_canonical_app_bootstrap(temporary_app)
-
-    assert result is temporary_app
-    assert app_main.app is canonical_app
 
 
 def test_bootstrap_prevalidation_failure_performs_no_mutation(

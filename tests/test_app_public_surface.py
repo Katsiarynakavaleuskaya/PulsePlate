@@ -50,7 +50,7 @@ def test_canonical_lifespan_and_application_aliases_are_exact() -> None:
     assert app.lifespan is application_lifespan
     assert legacy_app.lifespan is application_lifespan
     assert canonical_app is app.app is app_main.app is legacy_app.app
-    assert canonical_app.router.lifespan_context is not None
+    assert canonical_app.router.lifespan_context is application_lifespan
 
 
 def test_scheduler_access_is_an_exact_compatibility_export() -> None:
