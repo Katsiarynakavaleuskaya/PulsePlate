@@ -257,7 +257,9 @@ def _positive_timeout(raw_value: str) -> float:
         timeout_s = float(raw_value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError("timeout must be a number of seconds") from exc
-    if not math.isfinite(timeout_s) or timeout_s <= 0:
+    if not math.isfinite(timeout_s):
+        raise argparse.ArgumentTypeError("timeout must be finite")
+    if timeout_s <= 0:
         raise argparse.ArgumentTypeError("timeout must be greater than 0 seconds")
     return timeout_s
 

@@ -410,17 +410,22 @@ def test_redirects_are_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "blocked" in result.detail
 
 
-def test_timeout_must_be_positive() -> None:
+def test_timeout_must_be_positive(capsys: pytest.CaptureFixture[str]) -> None:
     assert doctor._positive_timeout("0.5") == 0.5
 
     with pytest.raises(SystemExit):
         doctor.main(["--timeout", "0"])
+    assert "timeout must be greater than 0 seconds" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("raw_timeout", ["nan", "inf", "-inf"])
-def test_timeout_must_be_finite(raw_timeout: str) -> None:
+def test_timeout_must_be_finite(
+    raw_timeout: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     with pytest.raises(SystemExit):
-        doctor.main(["--timeout", raw_timeout])
+        doctor.main([f"--timeout={raw_timeout}"])
+    assert "timeout must be finite" in capsys.readouterr().err
 
 
 def test_main_json_reports_host_write_guard(monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
