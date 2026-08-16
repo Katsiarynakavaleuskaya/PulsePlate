@@ -11,7 +11,8 @@ import stat
 import subprocess
 import sys
 import tempfile
-from collections.abc import Mapping
+import threading
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -232,7 +233,7 @@ class _Anchor:
 
 
 @pytest.fixture
-def anchor(tmp_path: Path) -> _Anchor:
+def anchor(tmp_path: Path) -> Iterator[_Anchor]:
     value = _Anchor(tmp_path)
     try:
         yield value
@@ -279,9 +280,28 @@ def test_policy_closes_authority_transport_and_public_verbs() -> None:
     assert len(policy["authority_fields"]) == 16
     assert policy["transport_capability"] == "fixed_local_create_only"
     assert policy["cli"]["verbs"] == ["enroll", "terminal", "validate", "report"]
-    forbidden = CONTRACT.read_text(encoding="utf-8")
-    assert "post_merge_regression" not in _policy_block()["enums"]
-    assert "automatic L3" in forbidden
+    enums = policy["enums"]
+    assert isinstance(enums, dict)
+    assert enums["family_observation_statuses"] == [
+        "confirmed",
+        "unknown",
+        "non_comparable",
+    ]
+    assert enums["family_confirmed_reasons"] == ["same_scope_confirmed"]
+    assert enums["episode_observation_statuses"] == [
+        "observed",
+        "unknown",
+        "non_comparable",
+        "not_applicable",
+    ]
+    assert enums["ratio_statuses"] == ["defined", "not_applicable"]
+    assert tuple(enums["family_observation_statuses"]) == episode.FAMILY_OBSERVATION_STATUSES
+    assert tuple(enums["family_confirmed_reasons"]) == episode.FAMILY_CONFIRMED_REASONS
+    assert tuple(enums["episode_observation_statuses"]) == (episode.EPISODE_OBSERVATION_STATUSES)
+    assert tuple(enums["ratio_statuses"]) == episode.RATIO_STATUSES
+    contract_text = CONTRACT.read_text(encoding="utf-8")
+    assert "post_merge_regression" not in enums
+    assert "automatic L3" in contract_text
 
 
 def test_required_descriptor_flags_are_present_and_fail_closed(
@@ -349,6 +369,29 @@ def test_stdin_depth_node_and_scalar_limits_cover_exact_maximum_and_plus_one() -
     assert episode._strict_json_document(json.dumps(exact_scalar).encode("ascii")) == (exact_scalar)
     with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
         episode._strict_json_document(json.dumps(exact_scalar + "x").encode("ascii"))
+
+
+def test_extreme_json_nesting_has_stable_public_and_stored_error_classes() -> None:
+    raw = b"[" * 10_000 + b"0" + b"]" * 10_000
+    assert len(raw) < episode.MAX_STDIN_BYTES
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        episode._strict_json_document(raw)
+    with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+        episode._strict_stored_json(raw + b"\n", maximum_bytes=len(raw) + 1)
+
+    module = (
+        Path(__file__).resolve().parents[1]
+        / "scripts/orchestration/invariant_family_review_episode.py"
+    )
+    completed = subprocess.run(
+        [sys.executable, str(module), "enroll"],
+        input=raw,
+        check=False,
+        capture_output=True,
+    )
+    assert completed.returncode == 1
+    assert completed.stdout == b""
+    assert completed.stderr == b"E_LIMIT\n"
 
 
 @pytest.mark.parametrize("pull_request_number", [1, 2_147_483_647])
@@ -469,6 +512,8 @@ def test_enrollment_normalizes_order_and_rejects_closed_schema_violations() -> N
         "glpat-shape",
         "github_pat_shape",
         "sk-aaaaaaaaaaaa",
+        "xoxd-secretlike",
+        "xoxe-secretlike",
         "contains space",
         "unicodé",
     ],
@@ -523,6 +568,29 @@ def test_divergent_enrollment_preserves_first_receipt(anchor: _Anchor) -> None:
     with pytest.raises(episode.EpisodeError, match="E_REPLAY_DIVERGENT"):
         _run(anchor, "enroll", divergent)
     assert path.read_bytes() == before
+
+
+def test_exact_enrollment_replay_rejects_orphan_lane_entry(anchor: _Anchor) -> None:
+    document = _enrollment()
+    ack = _run(anchor, "enroll", document)
+    path = _receipt_path(anchor, "enrollments", ack["episode_digest"])
+    before = path.stat()
+    before_bytes = path.read_bytes()
+    lane = path.parent.parent
+    orphan = lane / ".stage-orphan"
+    orphan.mkdir(mode=0o700)
+
+    with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+        _run(anchor, "enroll", document)
+
+    after = path.stat()
+    assert path.read_bytes() == before_bytes
+    assert (after.st_ino, after.st_mtime_ns, after.st_ctime_ns) == (
+        before.st_ino,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    assert orphan.is_dir()
 
 
 def test_enrollment_rejects_preexisting_orphan_terminal_bundle(anchor: _Anchor) -> None:
@@ -637,6 +705,31 @@ def test_terminal_zero_is_observed_false_and_replay_is_immutable(anchor: _Anchor
     ] = False
     with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
         episode._validate_terminal_receipt(forged_terminal, enrollment_receipt)
+
+
+def test_exact_and_divergent_terminal_replays_preserve_first_receipt(
+    anchor: _Anchor,
+) -> None:
+    enrollment_ack = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrollment_ack)
+    baseline_ack = _run(anchor, "validate", baseline)
+    terminal = _terminal_available(enrollment_ack, baseline, baseline_ack)
+    _run(anchor, "terminal", terminal)
+    path = _receipt_path(anchor, "terminals", enrollment_ack["episode_digest"])
+    before = path.read_bytes()
+
+    divergent = copy.deepcopy(terminal)
+    divergent["terminal_material_head_sha"] = "e" * 40
+    with pytest.raises(episode.EpisodeError, match="E_REPLAY_DIVERGENT"):
+        _run(anchor, "terminal", divergent)
+    assert path.read_bytes() == before
+
+    orphan = path.parent.parent / ".stage-orphan"
+    orphan.mkdir(mode=0o700)
+    with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+        _run(anchor, "terminal", terminal)
+    assert path.read_bytes() == before
+    assert orphan.is_dir()
 
 
 def test_multi_trigger_precedence_keeps_complete_validated_terminal(anchor: _Anchor) -> None:
@@ -1171,6 +1264,41 @@ def test_partial_and_unexpected_bundles_are_not_missing(anchor: _Anchor) -> None
         _run(anchor, "report", _report_request())
 
 
+def test_wrong_depth_store_object_fails_closed(anchor: _Anchor) -> None:
+    ack = _run(anchor, "enroll", _enrollment())
+    terminal_bundle = (
+        anchor.path
+        / "artifacts/orchestration/review_invariant_family_episodes/terminals"
+        / str(ack["episode_digest"])
+    )
+    nested = terminal_bundle / "nested"
+    nested.mkdir(parents=True, mode=0o700)
+    nested_receipt = nested / "receipt.json"
+    nested_receipt.write_bytes(b"{}\n")
+    nested_receipt.chmod(0o600)
+    with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+        _run(anchor, "report", _report_request())
+
+
+def test_device_leaf_fails_closed(anchor: _Anchor, monkeypatch: pytest.MonkeyPatch) -> None:
+    device_fd = os.open(os.devnull, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        assert stat.S_ISCHR(os.fstat(device_fd).st_mode)
+        monkeypatch.setattr(
+            episode.os,
+            "open",
+            lambda *_args, **_kwargs: os.dup(device_fd),
+        )
+        with pytest.raises(episode.EpisodeError, match="E_STORE_UNSAFE"):
+            episode._read_stable_leaf(
+                anchor.fd,
+                "receipt.json",
+                maximum_bytes=episode.MAX_ENROLLMENT_RECEIPT_BYTES,
+            )
+    finally:
+        os.close(device_fd)
+
+
 @pytest.mark.parametrize("component", ["shared", "module_root", "lane", "bundle", "leaf"])
 def test_symlinks_fail_closed_at_every_store_level(anchor: _Anchor, component: str) -> None:
     target = anchor.path / "symlink-target"
@@ -1286,6 +1414,65 @@ def test_lock_contention_is_nonblocking_and_sanitized(anchor: _Anchor) -> None:
         os.close(root_fd)
 
 
+def test_cold_store_initialization_is_serialized_before_root_visibility(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_open_verified_directory = episode._open_verified_directory
+    root_visible = threading.Event()
+    release_creator = threading.Event()
+    creator_results: list[dict[str, object]] = []
+    creator_errors: list[Exception] = []
+
+    def pausing_open_verified_directory(
+        parent_fd: int,
+        name: str,
+        *,
+        create: bool,
+        exact_mode: bool,
+    ) -> tuple[int, bool]:
+        result: tuple[int, bool] = real_open_verified_directory(
+            parent_fd,
+            name,
+            create=create,
+            exact_mode=exact_mode,
+        )
+        if (
+            name == episode.STORE_COMPONENTS[-1]
+            and result[1]
+            and threading.current_thread().name == "store-creator"
+        ):
+            root_visible.set()
+            if not release_creator.wait(timeout=5):
+                raise AssertionError("creator release was not signaled")
+        return result
+
+    def create_store() -> None:
+        try:
+            creator_results.append(_run(anchor, "enroll", _enrollment()))
+        except Exception as error:
+            creator_errors.append(error)
+
+    monkeypatch.setattr(
+        episode,
+        "_open_verified_directory",
+        pausing_open_verified_directory,
+    )
+    creator = threading.Thread(target=create_store, name="store-creator")
+    creator.start()
+    try:
+        assert root_visible.wait(timeout=5)
+        with pytest.raises(episode.EpisodeError, match="E_LOCK_BUSY"):
+            _run(anchor, "enroll", _enrollment(18))
+    finally:
+        release_creator.set()
+        creator.join(timeout=5)
+
+    assert not creator.is_alive()
+    assert creator_errors == []
+    assert len(creator_results) == 1
+    assert _run(anchor, "enroll", _enrollment()) == creator_results[0]
+
+
 def test_short_write_fails_and_cleans_owned_stage(
     anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1307,12 +1494,12 @@ def test_file_fsync_failure_before_publish_leaves_no_canonical_bundle(
 ) -> None:
     _run(anchor, "enroll", _enrollment(301))
     real_fsync = episode.os.fsync
-    failed = False
+    file_fsync_failed = False
 
     def failing_fsync(descriptor: int) -> None:
-        nonlocal failed
-        if not failed:
-            failed = True
+        nonlocal file_fsync_failed
+        if stat.S_ISREG(os.fstat(descriptor).st_mode):
+            file_fsync_failed = True
             raise OSError("synthetic fsync failure")
         real_fsync(descriptor)
 
@@ -1321,6 +1508,7 @@ def test_file_fsync_failure_before_publish_leaves_no_canonical_bundle(
     expected_digest = episode._episode_digest(302)
     with pytest.raises(episode.EpisodeError, match="E_PUBLISH_FAILED"):
         _run(anchor, "enroll", document)
+    assert file_fsync_failed
     assert not _receipt_path(anchor, "enrollments", expected_digest).exists()
 
 
@@ -1329,21 +1517,28 @@ def test_parent_fsync_failure_after_rename_preserves_published_bundle(
 ) -> None:
     _run(anchor, "enroll", _enrollment(401))
     real_fsync = episode.os.fsync
-    call_count = 0
+    lane = anchor.path / "artifacts/orchestration/review_invariant_family_episodes/enrollments"
+    lane_metadata = lane.stat()
+    document = _enrollment(402)
+    expected_digest = episode._episode_digest(402)
+    published = _receipt_path(anchor, "enrollments", expected_digest)
+    parent_fsync_failed = False
 
-    def failing_fourth_fsync(descriptor: int) -> None:
-        nonlocal call_count
-        call_count += 1
-        if call_count == 4:
+    def failing_post_rename_parent_fsync(descriptor: int) -> None:
+        nonlocal parent_fsync_failed
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) == (
+            lane_metadata.st_dev,
+            lane_metadata.st_ino,
+        ) and published.is_file():
+            parent_fsync_failed = True
             raise OSError("synthetic parent fsync failure")
         real_fsync(descriptor)
 
-    monkeypatch.setattr(episode.os, "fsync", failing_fourth_fsync)
-    document = _enrollment(402)
-    expected_digest = episode._episode_digest(402)
+    monkeypatch.setattr(episode.os, "fsync", failing_post_rename_parent_fsync)
     with pytest.raises(episode.EpisodeError, match="E_PUBLISH_FAILED"):
         _run(anchor, "enroll", document)
-    published = _receipt_path(anchor, "enrollments", expected_digest)
+    assert parent_fsync_failed
     assert published.is_file()
     monkeypatch.setattr(episode.os, "fsync", real_fsync)
     assert _run(anchor, "enroll", document)["episode_digest"] == expected_digest
@@ -1408,6 +1603,53 @@ def test_identical_concurrent_winner_returns_state_independent_ack(
     assert collision_ack == replay_ack
     lane = anchor.path / "artifacts/orchestration/review_invariant_family_episodes/enrollments"
     assert all(not entry.name.startswith(".stage-") for entry in lane.iterdir())
+
+
+def test_divergent_concurrent_winner_is_preserved_and_loser_fails(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requested = _enrollment()
+    winner_document = _enrollment()
+    winner_document["material_head_sha"] = "e" * 40
+    winner_bytes = episode._canonical_json_bytes(
+        episode._build_enrollment_receipt(winner_document),
+        trailing_lf=True,
+    )
+
+    def publish_divergent_winner(lane_fd: int, _stage_name: str, final_name: str) -> None:
+        os.mkdir(final_name, 0o700, dir_fd=lane_fd)
+        final_fd = os.open(final_name, os.O_RDONLY | os.O_DIRECTORY, dir_fd=lane_fd)
+        try:
+            os.fchmod(final_fd, 0o700)
+            winner_fd = os.open(
+                "receipt.json",
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=final_fd,
+            )
+            try:
+                os.fchmod(winner_fd, 0o600)
+                offset = 0
+                while offset < len(winner_bytes):
+                    written = os.write(winner_fd, winner_bytes[offset:])
+                    assert written > 0
+                    offset += written
+            finally:
+                os.close(winner_fd)
+        finally:
+            os.close(final_fd)
+        raise OSError(errno.EEXIST, "synthetic divergent winner")
+
+    monkeypatch.setattr(
+        episode,
+        "_kernel_rename_noreplace",
+        publish_divergent_winner,
+    )
+    with pytest.raises(episode.EpisodeError, match="E_REPLAY_DIVERGENT"):
+        _run(anchor, "enroll", requested)
+    winner_path = _receipt_path(anchor, "enrollments", episode._episode_digest(17))
+    assert winner_path.read_bytes() == winner_bytes
+    assert all(not entry.name.startswith(".stage-") for entry in winner_path.parent.iterdir())
 
 
 @pytest.mark.parametrize("corruption", ["missing_markdown", "changed_markdown", "changed_json"])
@@ -1524,6 +1766,145 @@ def test_aggregate_receipt_scan_limit_is_shared_across_both_lanes(
         _run(anchor, "report", _report_request("2026-08-15T10:06:00Z"))
 
 
+def test_stdout_and_stderr_bounds_cover_exact_maximum_and_plus_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ack = {
+        "schema_version": "invariant_family_review_episode.ack.v1",
+        "status": "ok",
+        "operation": "enroll",
+        "episode_digest": "a" * 64,
+        "enrollment_receipt_digest": "b" * 64,
+    }
+    rendered_ack = episode._canonical_json_bytes(ack, trailing_lf=True)
+    writes: list[bytes] = []
+
+    def capture_write(_descriptor: int, data: bytes) -> int:
+        writes.append(bytes(data))
+        return len(data)
+
+    monkeypatch.setattr(episode.os, "write", capture_write)
+    monkeypatch.setattr(episode, "MAX_STDOUT_BYTES", len(rendered_ack))
+    episode._write_ack(ack)
+    assert b"".join(writes) == rendered_ack
+
+    writes.clear()
+    monkeypatch.setattr(episode, "MAX_STDOUT_BYTES", len(rendered_ack) - 1)
+    with pytest.raises(episode.EpisodeError, match="E_STDOUT"):
+        episode._write_ack(ack)
+    assert writes == []
+
+    rendered_error = b"E_SCHEMA\n"
+    monkeypatch.setattr(episode, "MAX_STDERR_BYTES", len(rendered_error))
+    episode._write_error("E_SCHEMA")
+    assert writes == [rendered_error]
+
+    writes.clear()
+    monkeypatch.setattr(episode, "MAX_STDERR_BYTES", len(rendered_error) - 1)
+    episode._write_error("E_SCHEMA")
+    assert writes == []
+
+
+def test_enrollment_receipt_publish_bound_accepts_exact_and_rejects_plus_one(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exact_document = _enrollment(801)
+    exact_bytes = episode._canonical_json_bytes(
+        episode._build_enrollment_receipt(exact_document),
+        trailing_lf=True,
+    )
+    monkeypatch.setattr(episode, "MAX_ENROLLMENT_RECEIPT_BYTES", len(exact_bytes))
+    _run(anchor, "enroll", exact_document)
+
+    oversized_document = _enrollment(802)
+    oversized_bytes = episode._canonical_json_bytes(
+        episode._build_enrollment_receipt(oversized_document),
+        trailing_lf=True,
+    )
+    monkeypatch.setattr(
+        episode,
+        "MAX_ENROLLMENT_RECEIPT_BYTES",
+        len(oversized_bytes) - 1,
+    )
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(anchor, "enroll", oversized_document)
+
+
+def test_terminal_receipt_publish_bound_accepts_exact_and_rejects_plus_one(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_enrollment = _run(anchor, "enroll", _enrollment(811))
+    first_baseline = _baseline(first_enrollment)
+    first_baseline_ack = _run(anchor, "validate", first_baseline)
+    first_terminal = _terminal_available(
+        first_enrollment,
+        first_baseline,
+        first_baseline_ack,
+    )
+    first_receipt = episode._build_terminal_receipt(
+        first_terminal,
+        episode._build_enrollment_receipt(_enrollment(811)),
+    )
+    first_bytes = episode._canonical_json_bytes(first_receipt, trailing_lf=True)
+    monkeypatch.setattr(episode, "MAX_TERMINAL_RECEIPT_BYTES", len(first_bytes))
+    _run(anchor, "terminal", first_terminal)
+
+    second_enrollment = _run(anchor, "enroll", _enrollment(812))
+    second_baseline = _baseline(second_enrollment)
+    second_baseline_ack = _run(anchor, "validate", second_baseline)
+    second_terminal = _terminal_available(
+        second_enrollment,
+        second_baseline,
+        second_baseline_ack,
+    )
+    second_receipt = episode._build_terminal_receipt(
+        second_terminal,
+        episode._build_enrollment_receipt(_enrollment(812)),
+    )
+    second_bytes = episode._canonical_json_bytes(second_receipt, trailing_lf=True)
+    monkeypatch.setattr(episode, "MAX_TERMINAL_RECEIPT_BYTES", len(second_bytes) - 1)
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(anchor, "terminal", second_terminal)
+
+
+def test_report_artifact_bounds_accept_exact_and_reject_plus_one(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrollment_ack = _run(anchor, "enroll", _enrollment())
+    baseline = _baseline(enrollment_ack)
+    baseline_ack = _run(anchor, "validate", baseline)
+    _run(anchor, "terminal", _terminal_available(enrollment_ack, baseline, baseline_ack))
+    with episode._StoreSession(anchor.fd, exclusive=False, create=False) as session:
+        enrollments, aggregate_bytes = episode._scan_enrollments(session)
+        terminals, _ = episode._scan_terminals(session, enrollments, aggregate_bytes)
+    _, report_json, markdown = episode._build_report_artifacts(
+        "2026-08-15T10:05:00Z",
+        enrollments,
+        terminals,
+    )
+    boundaries = (
+        ("MAX_REPORT_JSON_BYTES", len(report_json)),
+        ("MAX_REPORT_MARKDOWN_BYTES", len(markdown)),
+        ("MAX_REPORT_BUNDLE_BYTES", len(report_json) + len(markdown)),
+    )
+    for attribute, exact_size in boundaries:
+        with monkeypatch.context() as scoped:
+            scoped.setattr(episode, attribute, exact_size)
+            episode._build_report_artifacts(
+                "2026-08-15T10:05:00Z",
+                enrollments,
+                terminals,
+            )
+        with monkeypatch.context() as scoped:
+            scoped.setattr(episode, attribute, exact_size - 1)
+            with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+                episode._build_report_artifacts(
+                    "2026-08-15T10:05:00Z",
+                    enrollments,
+                    terminals,
+                )
+
+
 def test_report_generation_cap_allows_replay_but_rejects_new_generation(
     anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1584,6 +1965,107 @@ def test_capacity_bound_allows_exact_replay_but_rejects_new_bundle(
         _run(anchor, "enroll", _enrollment(18))
 
 
+def test_terminal_capacity_bound_allows_replay_but_rejects_new_bundle(
+    anchor: _Anchor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_enrollment = _run(anchor, "enroll", _enrollment(821))
+    first_baseline = _baseline(first_enrollment)
+    first_baseline_ack = _run(anchor, "validate", first_baseline)
+    first_terminal = _terminal_available(
+        first_enrollment,
+        first_baseline,
+        first_baseline_ack,
+    )
+    first_ack = _run(anchor, "terminal", first_terminal)
+
+    second_enrollment = _run(anchor, "enroll", _enrollment(822))
+    second_baseline = _baseline(second_enrollment)
+    second_baseline_ack = _run(anchor, "validate", second_baseline)
+    second_terminal = _terminal_available(
+        second_enrollment,
+        second_baseline,
+        second_baseline_ack,
+    )
+
+    monkeypatch.setattr(episode, "MAX_TERMINAL_BUNDLES", 1)
+    assert _run(anchor, "terminal", first_terminal) == first_ack
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        _run(anchor, "terminal", second_terminal)
+
+
+def test_joint_terminal_crosswalk_and_combined_membership_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enrollment = episode._build_enrollment_receipt(_enrollment())
+    baseline = _baseline(enrollment)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_IDENTITY_ROWS", 3)
+        normalized_baseline = episode._normalize_joint_pass_baseline(baseline, enrollment)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_IDENTITY_ROWS", 2)
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            episode._normalize_joint_pass_baseline(baseline, enrollment)
+
+    baseline_ack = {
+        "joint_pass_baseline_digest": episode._joint_pass_baseline_digest(normalized_baseline)
+    }
+    terminal = _terminal_available(enrollment, baseline, baseline_ack)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_IDENTITY_ROWS", 4)
+        scoped.setattr(episode, "MAX_FAMILY_MEMBERSHIP_REFS", 7)
+        episode._normalize_terminal_input(terminal, enrollment)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_IDENTITY_ROWS", 3)
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            episode._normalize_terminal_input(terminal, enrollment)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(episode, "MAX_FAMILY_MEMBERSHIP_REFS", 6)
+        with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+            episode._normalize_terminal_input(terminal, enrollment)
+
+
+def test_lane_scanner_stops_after_exact_maximum_plus_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Entry:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class CountedScandir:
+        def __init__(self, names: list[str]) -> None:
+            self.names = names
+            self.yielded = 0
+
+        def __enter__(self) -> CountedScandir:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def __iter__(self) -> CountedScandir:
+            return self
+
+        def __next__(self) -> Entry:
+            if self.yielded >= len(self.names):
+                raise StopIteration
+            name = self.names[self.yielded]
+            self.yielded += 1
+            return Entry(name)
+
+    exact_names = [f"{index:064x}" for index in range(3)]
+    exact_scan = CountedScandir(list(reversed(exact_names)))
+    monkeypatch.setattr(episode.os, "scandir", lambda _descriptor: exact_scan)
+    assert episode._scan_lane_names(123, 3) == exact_names
+    assert exact_scan.yielded == 3
+
+    overflow_scan = CountedScandir([f"{index:064x}" for index in range(5)])
+    monkeypatch.setattr(episode.os, "scandir", lambda _descriptor: overflow_scan)
+    with pytest.raises(episode.EpisodeError, match="E_LIMIT"):
+        episode._scan_lane_names(123, 3)
+    assert overflow_scan.yielded == 4
+
+
 @pytest.mark.parametrize("verb", ["amend", "reopen", "supersede", "repair", "delete", "list"])
 def test_unsupported_public_verbs_are_usage_errors(verb: str) -> None:
     with pytest.raises(episode.EpisodeError, match="E_USAGE"):
@@ -1632,28 +2114,40 @@ def test_wrong_owner_and_group_writable_module_root_fail_closed(
         _run(anchor, "report", _report_request())
 
 
-@pytest.mark.parametrize("failing_call", [2, 3])
+@pytest.mark.parametrize("failure_target", ["stage_directory", "lane_before_publish"])
 def test_stage_and_prepublication_parent_fsync_failures_leave_no_final(
     anchor: _Anchor,
     monkeypatch: pytest.MonkeyPatch,
-    failing_call: int,
+    failure_target: str,
 ) -> None:
     _run(anchor, "enroll", _enrollment(501))
     real_fsync = episode.os.fsync
-    call_count = 0
+    lane = anchor.path / "artifacts/orchestration/review_invariant_family_episodes/enrollments"
+    lane_metadata = lane.stat()
+    expected_digest = episode._episode_digest(502)
+    final_path = _receipt_path(anchor, "enrollments", expected_digest)
+    targeted_fsync_failed = False
 
     def failing_fsync(descriptor: int) -> None:
-        nonlocal call_count
-        call_count += 1
-        if call_count == failing_call:
+        nonlocal targeted_fsync_failed
+        metadata = os.fstat(descriptor)
+        is_lane = (metadata.st_dev, metadata.st_ino) == (
+            lane_metadata.st_dev,
+            lane_metadata.st_ino,
+        )
+        should_fail = (
+            failure_target == "stage_directory" and stat.S_ISDIR(metadata.st_mode) and not is_lane
+        ) or (failure_target == "lane_before_publish" and is_lane and not final_path.exists())
+        if should_fail:
+            targeted_fsync_failed = True
             raise OSError("synthetic fsync failure")
         real_fsync(descriptor)
 
     monkeypatch.setattr(episode.os, "fsync", failing_fsync)
-    expected_digest = episode._episode_digest(502)
     with pytest.raises(episode.EpisodeError, match="E_PUBLISH_FAILED"):
         _run(anchor, "enroll", _enrollment(502))
-    assert not _receipt_path(anchor, "enrollments", expected_digest).exists()
+    assert targeted_fsync_failed
+    assert not final_path.exists()
 
 
 def test_staging_name_attempts_stop_after_exact_bound(

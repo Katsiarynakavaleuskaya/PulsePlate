@@ -118,6 +118,28 @@ FAMILY_NON_COMPARABLE_REASONS = (
     "membership_disputed",
     "non_bijective_identity",
 )
+FAMILY_STATUS_CONFIRMED = "confirmed"
+FAMILY_STATUS_UNKNOWN = "unknown"
+FAMILY_STATUS_NON_COMPARABLE = "non_comparable"
+FAMILY_OBSERVATION_STATUSES = (
+    FAMILY_STATUS_CONFIRMED,
+    FAMILY_STATUS_UNKNOWN,
+    FAMILY_STATUS_NON_COMPARABLE,
+)
+FAMILY_CONFIRMED_REASONS = ("same_scope_confirmed",)
+EPISODE_STATUS_OBSERVED = "observed"
+EPISODE_STATUS_UNKNOWN = "unknown"
+EPISODE_STATUS_NON_COMPARABLE = "non_comparable"
+EPISODE_STATUS_NOT_APPLICABLE = "not_applicable"
+EPISODE_OBSERVATION_STATUSES = (
+    EPISODE_STATUS_OBSERVED,
+    EPISODE_STATUS_UNKNOWN,
+    EPISODE_STATUS_NON_COMPARABLE,
+    EPISODE_STATUS_NOT_APPLICABLE,
+)
+RATIO_STATUS_DEFINED = "defined"
+RATIO_STATUS_NOT_APPLICABLE = "not_applicable"
+RATIO_STATUSES = (RATIO_STATUS_DEFINED, RATIO_STATUS_NOT_APPLICABLE)
 EPISODE_OBSERVATION_REASONS = (
     "positive",
     "zero",
@@ -171,7 +193,7 @@ _FORBIDDEN_ID_PATTERN = (
     r"(?:access[_-]?key|aiza|ak[is]a|api[_-]?key|authorization|bearer|"
     r"client[_-]?secret|credential|gh[prous]_|github[_-]?pat|gitlab[_-]?pat|"
     r"glpat-|npm_|password|private[_-]?key|secret|sk-[A-Za-z0-9_-]{12,}|"
-    r"sk[_-]?(?:live|test|proj)|token|xapp-|xox[abccprst]-)"
+    r"sk[_-]?(?:live|test|proj)|token|xapp-|xox[abcdeprst]-)"
 )
 _FORBIDDEN_ID_RE = re.compile(_FORBIDDEN_ID_PATTERN, re.IGNORECASE | re.ASCII)
 _FULL_DIGEST_NAME_RE = re.compile(r"^[a-f0-9]{64}$", re.ASCII)
@@ -287,10 +309,14 @@ def _policy_source() -> dict[str, object]:
             "accrual_bands": list(ACCRUAL_BANDS),
             "episode_classes": list(EPISODE_CLASSES),
             "episode_observation_reasons": list(EPISODE_OBSERVATION_REASONS),
+            "episode_observation_statuses": list(EPISODE_OBSERVATION_STATUSES),
+            "family_confirmed_reasons": list(FAMILY_CONFIRMED_REASONS),
             "family_non_comparable_reasons": list(FAMILY_NON_COMPARABLE_REASONS),
+            "family_observation_statuses": list(FAMILY_OBSERVATION_STATUSES),
             "family_unknown_reasons": list(FAMILY_UNKNOWN_REASONS),
             "joint_pass_statuses": list(JOINT_PASS_STATUSES),
             "phases": list(PHASES),
+            "ratio_statuses": list(RATIO_STATUSES),
             "recommended_resolutions": list(RECOMMENDED_RESOLUTIONS),
             "terminal_states": list(TERMINAL_STATES),
         },
@@ -605,7 +631,10 @@ def _policy_source() -> dict[str, object]:
                 "reports": "reports/<report_digest>/{report.json,report.md}",
                 "terminals": "terminals/<episode_digest>/receipt.json",
             },
-            "lock": "module_root_flock_nonblocking_exclusive_publish_shared_validate",
+            "lock": (
+                "parent_initialization_flock_then_module_root_nonblocking_"
+                "exclusive_publish_shared_validate"
+            ),
             "no_replace": {
                 "darwin": "renameatx_np_RENAME_EXCL",
                 "linux": "renameat2_RENAME_NOREPLACE",
@@ -734,6 +763,8 @@ def _strict_json_document(raw: bytes) -> object:
         )
     except EpisodeError:
         raise
+    except RecursionError:
+        _fail("E_LIMIT")
     except (json.JSONDecodeError, UnicodeError, ValueError, OverflowError):
         _fail("E_JSON_INVALID")
     if _count_json_shape(value) > MAX_JSON_NODES:
@@ -1238,7 +1269,7 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
             "reason": _require_literal(raw_joint_pass["reason"], "not_completed_before_terminal"),
         }
         recurrence = {
-            "status": "not_applicable",
+            "status": EPISODE_STATUS_NOT_APPLICABLE,
             "reason": "not_completed_before_terminal",
         }
     elif status == "completed_baseline_unavailable":
@@ -1255,7 +1286,7 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
             "joint_pass_completed_at": joint_time,
         }
         recurrence = {
-            "status": "unknown",
+            "status": EPISODE_STATUS_UNKNOWN,
             "reason": "joint_pass_baseline_unavailable",
         }
     else:
@@ -1323,13 +1354,15 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
         )
         for raw_observation in raw_observations:
             observation = _require_object(raw_observation)
-            observation_status = observation.get("status")
+            observation_status = _require_enum(
+                observation.get("status"), FAMILY_OBSERVATION_STATUSES
+            )
             family_key = _require_id(observation.get("family_key"))
             if family_key in seen_keys or family_key not in baseline_families:
                 _fail("E_IDENTITY")
             seen_keys.add(family_key)
             baseline_family = baseline_families[family_key]
-            if observation_status == "confirmed":
+            if observation_status == FAMILY_STATUS_CONFIRMED:
                 _require_exact_keys(
                     observation,
                     frozenset(
@@ -1342,7 +1375,7 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
                         }
                     ),
                 )
-                reason = _require_literal(observation["reason"], "same_scope_confirmed")
+                reason = _require_enum(observation["reason"], FAMILY_CONFIRMED_REASONS)
                 terminal_members = _require_sorted_unique_ids(
                     observation["terminal_cumulative_identity_class_ids"],
                     minimum=2,
@@ -1368,7 +1401,7 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
                 combined_membership_refs += len(terminal_members)
                 observations.append(
                     {
-                        "status": "confirmed",
+                        "status": observation_status,
                         "reason": reason,
                         "family_key": family_key,
                         "joint_pass_family_id": baseline_family["joint_pass_family_id"],
@@ -1380,28 +1413,26 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
                         "post_joint_same_family_first_observed_count": len(difference),
                     }
                 )
-            elif observation_status == "unknown":
+            elif observation_status == FAMILY_STATUS_UNKNOWN:
                 _require_exact_keys(observation, frozenset({"status", "reason", "family_key"}))
                 observations.append(
                     {
-                        "status": "unknown",
+                        "status": observation_status,
                         "reason": _require_enum(observation["reason"], FAMILY_UNKNOWN_REASONS),
                         "family_key": family_key,
                     }
                 )
-            elif observation_status == "non_comparable":
+            elif observation_status == FAMILY_STATUS_NON_COMPARABLE:
                 _require_exact_keys(observation, frozenset({"status", "reason", "family_key"}))
                 observations.append(
                     {
-                        "status": "non_comparable",
+                        "status": observation_status,
                         "reason": _require_enum(
                             observation["reason"], FAMILY_NON_COMPARABLE_REASONS
                         ),
                         "family_key": family_key,
                     }
                 )
-            else:
-                _fail("E_SCHEMA")
         if seen_keys != set(baseline_families):
             _fail("E_IDENTITY")
         if combined_membership_refs > MAX_FAMILY_MEMBERSHIP_REFS:
@@ -1411,7 +1442,7 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
             _fail("E_IDENTITY")
         observations.sort(key=lambda item: cast(str, item["family_key"]))
         if joint_time == terminal_event_at and any(
-            observation["status"] == "confirmed"
+            observation["status"] == FAMILY_STATUS_CONFIRMED
             and cast(
                 int,
                 observation["post_joint_same_family_first_observed_count"],
@@ -1428,7 +1459,7 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
             "family_observations": observations,
         }
         if any(
-            observation["status"] == "confirmed"
+            observation["status"] == FAMILY_STATUS_CONFIRMED
             and cast(
                 int,
                 observation["post_joint_same_family_first_observed_count"],
@@ -1436,22 +1467,35 @@ def _normalize_terminal_input(value: object, enrollment: Mapping[str, object]) -
             > 0
             for observation in observations
         ):
-            recurrence = {"status": "observed", "reason": "positive", "value": True}
-        elif any(observation["status"] == "unknown" for observation in observations):
             recurrence = {
-                "status": "unknown",
+                "status": EPISODE_STATUS_OBSERVED,
+                "reason": "positive",
+                "value": True,
+            }
+        elif any(observation["status"] == FAMILY_STATUS_UNKNOWN for observation in observations):
+            recurrence = {
+                "status": EPISODE_STATUS_UNKNOWN,
                 "reason": "family_observation_unknown",
             }
-        elif any(observation["status"] == "non_comparable" for observation in observations):
+        elif any(
+            observation["status"] == FAMILY_STATUS_NON_COMPARABLE for observation in observations
+        ):
             recurrence = {
-                "status": "non_comparable",
+                "status": EPISODE_STATUS_NON_COMPARABLE,
                 "reason": "family_observation_non_comparable",
             }
         else:
-            recurrence = {"status": "observed", "reason": "zero", "value": False}
+            recurrence = {
+                "status": EPISODE_STATUS_OBSERVED,
+                "reason": "zero",
+                "value": False,
+            }
 
     if len(observed_digests) > 1:
-        recurrence = {"status": "non_comparable", "reason": "multi_trigger"}
+        recurrence = {
+            "status": EPISODE_STATUS_NON_COMPARABLE,
+            "reason": "multi_trigger",
+        }
     return {
         "schema_version": TERMINAL_INPUT_SCHEMA,
         "episode_digest": enrollment["episode_digest"],
@@ -1498,10 +1542,10 @@ def _terminal_input_from_receipt(receipt: Mapping[str, object]) -> dict[str, obj
         input_observations: list[dict[str, object]] = []
         for raw_observation in cast(list[dict[str, object]], joint["family_observations"]):
             observation_status = cast(str, raw_observation["status"])
-            if observation_status == "confirmed":
+            if observation_status == FAMILY_STATUS_CONFIRMED:
                 input_observations.append(
                     {
-                        "status": "confirmed",
+                        "status": FAMILY_STATUS_CONFIRMED,
                         "reason": raw_observation["reason"],
                         "family_key": raw_observation["family_key"],
                         "terminal_family_id": raw_observation["terminal_family_id"],
@@ -1576,9 +1620,9 @@ def _normalize_report_request(value: object) -> dict[str, object]:
 
 def _ratio(numerator: int, denominator: int) -> dict[str, object]:
     if denominator == 0:
-        return {"status": "not_applicable", "reason": "zero_denominator"}
+        return {"status": RATIO_STATUS_NOT_APPLICABLE, "reason": "zero_denominator"}
     return {
-        "status": "defined",
+        "status": RATIO_STATUS_DEFINED,
         "numerator": numerator,
         "denominator": denominator,
     }
@@ -1592,9 +1636,13 @@ def _status_counts(rows: list[dict[str, object]], *, primary: bool) -> dict[str,
         ),
         "positive_count": sum(row["observation_reason"] == "positive" for row in rows),
         "zero_count": sum(row["observation_reason"] == "zero" for row in rows),
-        "unknown_count": sum(row["observation_status"] == "unknown" for row in rows),
-        "non_comparable_count": sum(row["observation_status"] == "non_comparable" for row in rows),
-        "not_applicable_count": sum(row["observation_status"] == "not_applicable" for row in rows),
+        "unknown_count": sum(row["observation_status"] == EPISODE_STATUS_UNKNOWN for row in rows),
+        "non_comparable_count": sum(
+            row["observation_status"] == EPISODE_STATUS_NON_COMPARABLE for row in rows
+        ),
+        "not_applicable_count": sum(
+            row["observation_status"] == EPISODE_STATUS_NOT_APPLICABLE for row in rows
+        ),
     }
     if not primary:
         return counts
@@ -1773,25 +1821,35 @@ class _StoreSession:
             anchor_metadata = os.fstat(anchor_fd)
             _verify_directory_metadata(anchor_metadata, exact_mode=False)
             current_fd = anchor_fd
-            for index, component in enumerate(STORE_COMPONENTS):
-                is_module_root = index == len(STORE_COMPONENTS) - 1
+            for component in STORE_COMPONENTS[:-1]:
                 try:
-                    child_fd, created = _open_verified_directory(
+                    child_fd, _ = _open_verified_directory(
                         current_fd,
                         component,
                         create=create,
-                        exact_mode=is_module_root,
+                        exact_mode=False,
                     )
                 except FileNotFoundError:
                     _fail("E_DEPENDENCY")
                 self._fds.append(child_fd)
                 current_fd = child_fd
-                if is_module_root:
-                    self.root_fd = child_fd
-                    root_created = created
-            if self.root_fd < 0:
-                _fail("E_STORE_UNSAFE")
             lock_mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+            try:
+                fcntl.flock(current_fd, lock_mode | fcntl.LOCK_NB)
+            except BlockingIOError:
+                _fail("E_LOCK_BUSY")
+            except OSError:
+                _fail("E_STORE_UNSAFE")
+            try:
+                self.root_fd, root_created = _open_verified_directory(
+                    current_fd,
+                    STORE_COMPONENTS[-1],
+                    create=create,
+                    exact_mode=True,
+                )
+            except FileNotFoundError:
+                _fail("E_DEPENDENCY")
+            self._fds.append(self.root_fd)
             try:
                 fcntl.flock(self.root_fd, lock_mode | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -1836,14 +1894,16 @@ class _StoreSession:
         self.close()
 
 
-def _bounded_entries(directory_fd: int, maximum: int) -> list[str]:
+def _bounded_entries(
+    directory_fd: int, maximum: int, *, overflow_code: str = "E_LIMIT"
+) -> list[str]:
     entries: list[str] = []
     try:
         with os.scandir(directory_fd) as iterator:
             for entry in iterator:
                 entries.append(entry.name)
                 if len(entries) > maximum:
-                    _fail("E_LIMIT")
+                    _fail(overflow_code)
     except EpisodeError:
         raise
     except OSError:
@@ -1925,7 +1985,11 @@ def _read_exact_bundle(
         return None
     try:
         expected_names = BUNDLE_SHAPES[bundle_kind]
-        entries = _bounded_entries(bundle_fd, len(expected_names) + 1)
+        entries = _bounded_entries(
+            bundle_fd,
+            len(expected_names),
+            overflow_code="E_STORE_UNSAFE",
+        )
         if entries != sorted(expected_names):
             _fail("E_STORE_UNSAFE")
         result: dict[str, bytes] = {}
@@ -1959,6 +2023,8 @@ def _strict_stored_json(raw: bytes, *, maximum_bytes: int) -> object:
             parse_constant=_reject_non_integer_number,
         )
     except EpisodeError:
+        _fail("E_STORE_UNSAFE")
+    except RecursionError:
         _fail("E_STORE_UNSAFE")
     except (json.JSONDecodeError, ValueError, OverflowError):
         _fail("E_STORE_UNSAFE")
@@ -2029,9 +2095,7 @@ def _load_terminal(
 
 
 def _scan_lane_names(lane_fd: int, maximum: int) -> list[str]:
-    names = _bounded_entries(lane_fd, maximum + 1)
-    if len(names) > maximum:
-        _fail("E_LIMIT")
+    names = _bounded_entries(lane_fd, maximum)
     if any(_FULL_DIGEST_NAME_RE.fullmatch(name) is None for name in names):
         _fail("E_STORE_UNSAFE")
     return names
@@ -2065,7 +2129,11 @@ def _cleanup_owned_stage(
             or not stat.S_ISDIR(current.st_mode)
         ):
             _fail("E_PUBLISH_FAILED")
-        entries = _bounded_entries(stage_fd, len(created_files) + 1)
+        entries = _bounded_entries(
+            stage_fd,
+            len(created_files),
+            overflow_code="E_PUBLISH_FAILED",
+        )
         if entries != sorted(created_files):
             _fail("E_PUBLISH_FAILED")
         for name in sorted(created_files):
@@ -2153,6 +2221,12 @@ def _publish_bundle(
             }
         )
     )
+    maximum_bundles = (
+        MAX_ENROLLMENT_BUNDLES
+        if lane_name == "enrollments"
+        else MAX_TERMINAL_BUNDLES if lane_name == "terminals" else MAX_REPORT_GENERATIONS
+    )
+    names = _scan_lane_names(lane_fd, maximum_bundles)
     existing = _read_exact_bundle(
         lane_fd,
         digest,
@@ -2165,12 +2239,6 @@ def _publish_bundle(
             return
         _fail("E_REPLAY_DIVERGENT")
 
-    maximum_bundles = (
-        MAX_ENROLLMENT_BUNDLES
-        if lane_name == "enrollments"
-        else MAX_TERMINAL_BUNDLES if lane_name == "terminals" else MAX_REPORT_GENERATIONS
-    )
-    names = _scan_lane_names(lane_fd, maximum_bundles)
     if len(names) >= maximum_bundles:
         _fail("E_LIMIT")
 
@@ -2227,7 +2295,11 @@ def _publish_bundle(
             reopened = _read_stable_leaf(stage_fd, name, maximum_bytes=maximum_file_bytes[name])
             if reopened != data:
                 _fail("E_PUBLISH_FAILED")
-        if _bounded_entries(stage_fd, len(expected_names) + 1) != sorted(expected_names):
+        if _bounded_entries(
+            stage_fd,
+            len(expected_names),
+            overflow_code="E_PUBLISH_FAILED",
+        ) != sorted(expected_names):
             _fail("E_PUBLISH_FAILED")
         try:
             os.fsync(stage_fd)
@@ -2351,11 +2423,11 @@ def _observation_from_terminal(
     terminal: Mapping[str, object] | None,
 ) -> tuple[str, str]:
     if terminal is None:
-        return "unknown", "missing_terminal"
+        return EPISODE_STATUS_UNKNOWN, "missing_terminal"
     recurrence = cast(Mapping[str, object], terminal["recurrence"])
     status = cast(str, recurrence["status"])
     reason = cast(str, recurrence["reason"])
-    if status not in ("observed", "unknown", "non_comparable", "not_applicable"):
+    if status not in EPISODE_OBSERVATION_STATUSES:
         _fail("E_REPORT_MANIFEST")
     if reason not in EPISODE_OBSERVATION_REASONS:
         _fail("E_REPORT_MANIFEST")
@@ -2531,7 +2603,7 @@ def _validate_manifest_rows(
             _fail("E_REPORT_MANIFEST")
         terminal_digest_value = row["terminal_receipt_digest"]
         if terminal_digest_value == "missing_terminal":
-            expected_status, expected_reason = "unknown", "missing_terminal"
+            expected_status, expected_reason = EPISODE_STATUS_UNKNOWN, "missing_terminal"
             terminal_digest: str = "missing_terminal"
         else:
             terminal_digest = _require_digest(terminal_digest_value)
@@ -2541,7 +2613,7 @@ def _validate_manifest_rows(
             expected_status, expected_reason = _observation_from_terminal(terminal)
         status = _require_enum(
             row["observation_status"],
-            ("observed", "unknown", "non_comparable", "not_applicable"),
+            EPISODE_OBSERVATION_STATUSES,
         )
         reason = _require_enum(row["observation_reason"], EPISODE_OBSERVATION_REASONS)
         if (status, reason) != (expected_status, expected_reason):

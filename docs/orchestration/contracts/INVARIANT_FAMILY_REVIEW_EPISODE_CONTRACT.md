@@ -129,8 +129,10 @@ existing `artifacts/` parents must be owned directories with no group/world
 write. The module root, lane, staging, and bundle directories are exact `0700`;
 leaves are owned regular `0600` files with one link. Traversal and reads are
 descriptor-relative, no-follow, bounded, and metadata-stable. Cooperative
-writers use a nonblocking exclusive lock; `validate` uses a nonblocking shared
-lock. Unexpected entries, orphan stages, symlinks, special files, hardlinks,
+sessions first lock the fixed `artifacts/orchestration` parent while opening or
+creating the complete module-root namespace, then retain the module-root lock:
+writers use nonblocking exclusive locks and `validate` uses nonblocking shared
+locks. Unexpected entries, orphan stages, symlinks, special files, hardlinks,
 wrong ownership/modes, unstable reads, malformed bundles, and partial report
 pairs fail closed and remain untouched.
 
@@ -260,11 +262,25 @@ POLICY_PROJECTION_BEGIN
       "family_observation_non_comparable",
       "missing_terminal"
     ],
+    "episode_observation_statuses": [
+      "observed",
+      "unknown",
+      "non_comparable",
+      "not_applicable"
+    ],
+    "family_confirmed_reasons": [
+      "same_scope_confirmed"
+    ],
     "family_non_comparable_reasons": [
       "family_redefined",
       "family_missing",
       "membership_disputed",
       "non_bijective_identity"
+    ],
+    "family_observation_statuses": [
+      "confirmed",
+      "unknown",
+      "non_comparable"
     ],
     "family_unknown_reasons": [
       "joint_pass_baseline_unavailable",
@@ -280,6 +296,10 @@ POLICY_PROJECTION_BEGIN
       "trigger",
       "joint_pass",
       "terminal"
+    ],
+    "ratio_statuses": [
+      "defined",
+      "not_applicable"
     ],
     "recommended_resolutions": [
       "bounded_object_fix",
@@ -339,7 +359,7 @@ POLICY_PROJECTION_BEGIN
   "parser": {
     "commit_sha_pattern": "^[a-f0-9]{40}$",
     "credential_denylist_flags": "ASCII_IGNORECASE",
-    "credential_denylist_pattern": "(?:access[_-]?key|aiza|ak[is]a|api[_-]?key|authorization|bearer|client[_-]?secret|credential|gh[prous]_|github[_-]?pat|gitlab[_-]?pat|glpat-|npm_|password|private[_-]?key|secret|sk-[A-Za-z0-9_-]{12,}|sk[_-]?(?:live|test|proj)|token|xapp-|xox[abccprst]-)",
+    "credential_denylist_pattern": "(?:access[_-]?key|aiza|ak[is]a|api[_-]?key|authorization|bearer|client[_-]?secret|credential|gh[prous]_|github[_-]?pat|gitlab[_-]?pat|glpat-|npm_|password|private[_-]?key|secret|sk-[A-Za-z0-9_-]{12,}|sk[_-]?(?:live|test|proj)|token|xapp-|xox[abcdeprst]-)",
     "digest_pattern": "^[a-f0-9]{64}$",
     "duplicate_keys": "reject_at_every_depth",
     "id_ascii_bytes": 64,
@@ -657,7 +677,7 @@ POLICY_PROJECTION_BEGIN
       "reports": "reports/<report_digest>/{report.json,report.md}",
       "terminals": "terminals/<episode_digest>/receipt.json"
     },
-    "lock": "module_root_flock_nonblocking_exclusive_publish_shared_validate",
+    "lock": "parent_initialization_flock_then_module_root_nonblocking_exclusive_publish_shared_validate",
     "no_replace": {
       "darwin": "renameatx_np_RENAME_EXCL",
       "linux": "renameat2_RENAME_NOREPLACE",

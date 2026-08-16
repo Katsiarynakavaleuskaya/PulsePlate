@@ -12,6 +12,7 @@ These tests protect the narrow issue classes closed by PRs #1664-#1667:
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping
 import json
 import os
 from pathlib import Path
@@ -773,9 +774,7 @@ def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
 
 
 def _thaw_invariant_episode_policy(value: object) -> object:
-    if isinstance(value, dict):
-        return {key: _thaw_invariant_episode_policy(item) for key, item in value.items()}
-    if hasattr(value, "items"):
+    if isinstance(value, Mapping):
         return {key: _thaw_invariant_episode_policy(item) for key, item in value.items()}
     if isinstance(value, tuple):
         return [_thaw_invariant_episode_policy(item) for item in value]
@@ -879,16 +878,19 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
     completed = subprocess.run(
         [
             git_binary,
-            "ls-files",
-            "--cached",
-            "--others",
-            "--exclude-standard",
+            "grep",
+            "-I",
+            "-l",
             "-z",
+            "--fixed-strings",
+            "invariant_family_review_episode",
+            "--",
         ],
         cwd=REPO_ROOT,
-        check=True,
+        check=False,
         capture_output=True,
     )
+    assert completed.returncode in (0, 1)
     allowed = {
         "docs/orchestration/contracts/INVARIANT_FAMILY_REVIEW_EPISODE_CONTRACT.md",
         "docs/roadmap/BACKLOG_LEDGER.md",
@@ -906,15 +908,7 @@ def test_invariant_family_episode_remains_a_standalone_cli() -> None:
             relative.startswith("docs/review/PR_") and relative.endswith("_FIXED_MAPPING.md")
         ):
             continue
-        path = REPO_ROOT / relative
-        if not path.is_file() or path.stat().st_size > 4_194_304:
-            continue
-        try:
-            content = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        if "invariant_family_review_episode" in content:
-            consumers.append(relative)
+        consumers.append(relative)
     assert consumers == []
 
 
