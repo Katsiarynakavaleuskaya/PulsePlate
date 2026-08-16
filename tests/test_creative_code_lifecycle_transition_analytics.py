@@ -818,6 +818,43 @@ def test_reidentified_complete_lineage_requires_one_observed_accepted_specificat
         validate_creative_code_lifecycle_transition_analytics(forged)
 
 
+def test_reidentified_complete_lineage_requires_an_observed_opened_pr_edge() -> None:
+    events = _full_chain("blocked-root")[:-1]
+    events[-1] = _legacy_event(
+        "pr_open",
+        status="blocked",
+        result_id="result-blocked-root",
+        promotion_id="promotion-blocked-root",
+    )
+    events.extend(
+        [
+            _legacy_event(
+                "pr_open",
+                status="opened",
+                result_id="result-orphan-opened",
+                promotion_id="promotion-orphan-opened",
+            ),
+            _terminal_event("promotion-orphan-opened", number=2291),
+        ]
+    )
+    genuine = _analytics(events)
+    assert genuine["lineage_accounting"]["complete_terminal_lineage_count"] == 0
+    assert genuine["lineage_accounting"]["incomplete_terminal_lineage_count"] == 1
+
+    forged = copy.deepcopy(genuine)
+    original_corpus = copy.deepcopy(forged["corpus"])
+    forged["lineage_accounting"]["complete_terminal_lineage_count"] = 1
+    forged["lineage_accounting"]["incomplete_terminal_lineage_count"] = 0
+    _reidentify_artifact(forged)
+    assert forged["corpus"] == original_corpus
+
+    with pytest.raises(
+        CreativeCodeLifecycleTransitionAnalyticsError,
+        match="complete terminal lineage exceeds an observed required edge",
+    ):
+        validate_creative_code_lifecycle_transition_analytics(forged)
+
+
 def test_reidentified_one_event_corpus_cannot_claim_one_adjacent_transition() -> None:
     specification = _legacy_event(
         "specification",

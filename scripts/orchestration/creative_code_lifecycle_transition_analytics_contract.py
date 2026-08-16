@@ -85,12 +85,21 @@ ALLOWED_TRANSITIONS = frozenset(
         ("pr_open", "opened", "pr_terminal", "merged"),
     }
 )
-REQUIRED_COMPLETE_LINEAGE_EDGES = tuple(zip(STAGES[1:], STAGES[2:]))
 COMPLETE_LINEAGE_ROOT_TRANSITION = (
     "specification",
     "accepted",
     "patch_evaluation",
     "accepted",
+)
+REQUIRED_COMPLETE_LINEAGE_TRANSITION_GROUPS = (
+    (("patch_evaluation", "accepted", "promotion_plan", "accepted"),),
+    (("promotion_plan", "accepted", "promotion_validation", "accepted"),),
+    (("promotion_validation", "accepted", "promotion_approval", "accepted"),),
+    (("promotion_approval", "accepted", "pr_open", "opened"),),
+    (
+        ("pr_open", "opened", "pr_terminal", "closed_unmerged"),
+        ("pr_open", "opened", "pr_terminal", "merged"),
+    ),
 )
 CONTINUATION_STATUSES = {
     "specification": frozenset({"accepted"}),
@@ -681,15 +690,18 @@ def validate_creative_code_lifecycle_transition_analytics(
             "observed transition count is inconsistent."
         )
     transition_counts_by_edge: Counter[tuple[str, str]] = Counter()
+    transition_counts_by_profile: Counter[tuple[str, str, str, str]] = Counter()
     incoming_by_stage: Counter[str] = Counter()
     incoming_by_stage_status: Counter[tuple[str, str]] = Counter()
     outgoing_by_stage: Counter[str] = Counter()
     for row in transitions:
         from_stage = cast(str, row["from_stage"])
+        from_status = cast(str, row["from_status"])
         to_stage = cast(str, row["to_stage"])
         to_status = cast(str, row["to_status"])
         count = cast(int, row["count"])
         transition_counts_by_edge[(from_stage, to_stage)] += count
+        transition_counts_by_profile[(from_stage, from_status, to_stage, to_status)] += count
         incoming_by_stage[to_stage] += count
         incoming_by_stage_status[(to_stage, to_status)] += count
         outgoing_by_stage[from_stage] += count
@@ -712,8 +724,11 @@ def validate_creative_code_lifecycle_transition_analytics(
         raise CreativeCodeLifecycleTransitionAnalyticsError(
             "terminal predecessor accounting is inconsistent."
         )
-    for from_stage, to_stage in REQUIRED_COMPLETE_LINEAGE_EDGES:
-        if complete_terminal_lineage_count > transition_counts_by_edge[(from_stage, to_stage)]:
+    for transition_group in REQUIRED_COMPLETE_LINEAGE_TRANSITION_GROUPS:
+        observed_group_count = sum(
+            transition_counts_by_profile[transition] for transition in transition_group
+        )
+        if complete_terminal_lineage_count > observed_group_count:
             raise CreativeCodeLifecycleTransitionAnalyticsError(
                 "complete terminal lineage exceeds an observed required edge."
             )
