@@ -300,6 +300,7 @@ def test_policy_closes_authority_transport_and_public_verbs() -> None:
     assert tuple(enums["episode_observation_statuses"]) == (episode.EPISODE_OBSERVATION_STATUSES)
     assert tuple(enums["ratio_statuses"]) == episode.RATIO_STATUSES
     contract_text = CONTRACT.read_text(encoding="utf-8")
+    assert "post_merge_regression" not in enums
     enum_values: list[object] = []
     for values in enums.values():
         assert isinstance(values, list)
