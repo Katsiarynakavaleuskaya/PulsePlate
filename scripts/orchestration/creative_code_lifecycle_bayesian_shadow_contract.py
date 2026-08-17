@@ -124,6 +124,13 @@ SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$")
 ASSET_ID_RE = re.compile(r"^evidence:[A-Za-z0-9_.:-]+:control_plane:1\.0:[a-f0-9]{24}$")
 IDEMPOTENCY_RE = re.compile(r"^idem:[a-f0-9]{64}$")
 REPO_REF_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._:-]+$")
+RFC3339_RE = re.compile(
+    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})"
+    r"T(?P<time>[0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?P<fraction>\.[0-9]{1,6})?"
+    r"(?P<offset>Z|[+-][0-9]{2}:[0-9]{2})$",
+    re.ASCII,
+)
 
 
 class CreativeCodeLifecycleBayesianShadowError(ValueError):
@@ -211,28 +218,33 @@ def _repo_ref(value: Any, *, label: str, suffix: str = ".json") -> str:
 
 
 def normalize_rfc3339(value: Any, *, label: str) -> str:
-    if not isinstance(value, str) or not value or len(value) > 40:
-        raise CreativeCodeLifecycleBayesianShadowError(f"{label} must be RFC3339 with an offset")
-    if not (value.endswith("Z") or re.search(r"[+-]\d{2}:\d{2}$", value)):
-        raise CreativeCodeLifecycleBayesianShadowError(f"{label} must include an explicit offset")
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 40
+        or RFC3339_RE.fullmatch(value) is None
+        or value.endswith("-00:00")
+    ):
+        raise CreativeCodeLifecycleBayesianShadowError(
+            f"{label} must use strict extended ASCII RFC3339 with a known offset"
+        )
     try:
         parsed = datetime.fromisoformat(
             value.removesuffix("Z") + ("+00:00" if value.endswith("Z") else "")
         )
         offset = parsed.utcoffset()
+        if parsed.tzinfo is None or offset is None:
+            raise ValueError("missing offset")
+        normalized = parsed.astimezone(timezone.utc)
     except (OverflowError, ValueError) as exc:
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} must be valid RFC3339") from exc
-    if parsed.tzinfo is None or offset is None:
-        raise CreativeCodeLifecycleBayesianShadowError(f"{label} must include an explicit offset")
-    normalized = parsed.astimezone(timezone.utc)
-    text = normalized.isoformat(timespec="microseconds").replace("+00:00", "Z")
-    if ".000000Z" in text:
-        text = text.replace(".000000Z", "Z")
-    else:
-        text = text.replace("000Z", "Z").replace("00Z", "Z").replace("0Z", "Z")
-        if text.endswith(".Z"):
-            text = text[:-2] + "Z"
-    return text
+    text = (
+        f"{normalized.year:04d}-{normalized.month:02d}-{normalized.day:02d}"
+        f"T{normalized.hour:02d}:{normalized.minute:02d}:{normalized.second:02d}"
+    )
+    if normalized.microsecond:
+        text += f".{normalized.microsecond:06d}".rstrip("0")
+    return text + "Z"
 
 
 def _parse_canonical_time(value: Any, *, label: str) -> datetime:
@@ -529,7 +541,12 @@ def build_lifecycle_forecast(
     produced_at: str,
 ) -> dict[str, Any]:
     produced = normalize_rfc3339(produced_at, label="produced_at")
-    cutoff = datetime.fromisoformat(produced.removesuffix("Z") + "+00:00") + OBSERVATION_HORIZON
+    try:
+        cutoff = datetime.fromisoformat(produced.removesuffix("Z") + "+00:00") + OBSERVATION_HORIZON
+    except (OverflowError, ValueError) as exc:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            "observation cutoff cannot be represented"
+        ) from exc
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": FORECAST_ARTIFACT_TYPE,
@@ -1328,6 +1345,10 @@ def read_shadow_json(
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} identity changed") from exc
     if before != after_open or before != after or len(raw) != before.size:
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} identity changed")
+    return _parse_canonical_shadow_bytes(raw, label=label), before
+
+
+def _parse_canonical_shadow_bytes(raw: bytes, *, label: str) -> dict[str, Any]:
     if raw.startswith(b"\xef\xbb\xbf"):
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} BOM rejected")
     try:
@@ -1345,7 +1366,7 @@ def read_shadow_json(
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} must be object")
     if raw != canonical_shadow_bytes(payload):
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} must use canonical JSON bytes")
-    return payload, before
+    return payload
 
 
 def _duplicate_key_hook(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -1410,6 +1431,78 @@ def _read_existing_bytes(path: Path, *, shadow_root: Path, maximum: int) -> byte
     return canonical_shadow_bytes(payload)
 
 
+def _validate_publication_content(*, filename: str, forecast_id: str, content: bytes) -> None:
+    payload = _parse_canonical_shadow_bytes(content, label=f"published {filename}")
+    validators: dict[str, Callable[[Mapping[str, Any]], dict[str, Any]]] = {
+        FORECAST_FILENAME: validate_lifecycle_forecast,
+        START_FILENAME: validate_target_start,
+        SCORE_FILENAME: validate_lifecycle_forecast_score,
+    }
+    normalized = validators[filename](payload)
+    if canonical_shadow_bytes(normalized) != content:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            f"published {filename} must use validated canonical bytes"
+        )
+    if normalized["forecast_id"] != forecast_id:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            f"published {filename} forecast_id does not match namespace"
+        )
+
+
+def _prepare_shadow_namespace(
+    root: Path, *, forecast_id: str
+) -> tuple[Path, tuple[int, int] | None]:
+    namespace = _absolute_without_resolution(root / forecast_id)
+    owned_identity: tuple[int, int] | None = None
+    try:
+        namespace.mkdir(mode=0o700, parents=False, exist_ok=False)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            "shadow namespace create/read failed"
+        ) from exc
+    else:
+        try:
+            created = namespace.lstat()
+        except OSError as exc:
+            raise CreativeCodeLifecycleBayesianShadowError(
+                "shadow namespace identity changed"
+            ) from exc
+        owned_identity = (created.st_dev, created.st_ino)
+    try:
+        validated = _validate_private_directory(namespace, label="shadow namespace")
+    except CreativeCodeLifecycleBayesianShadowError:
+        _remove_owned_empty_namespace(
+            namespace,
+            owned_identity=owned_identity,
+            root=root,
+        )
+        raise
+    return validated, owned_identity
+
+
+def _remove_owned_empty_namespace(
+    namespace: Path,
+    *,
+    owned_identity: tuple[int, int] | None,
+    root: Path,
+) -> None:
+    if owned_identity is None:
+        return
+    try:
+        current = namespace.lstat()
+        if not stat.S_ISDIR(current.st_mode) or (current.st_dev, current.st_ino) != owned_identity:
+            return
+        namespace.rmdir()
+    except OSError:
+        return
+    try:
+        _fsync_directory(root)
+    except CreativeCodeLifecycleBayesianShadowError:
+        pass
+
+
 def publish_shadow_artifact(
     *,
     shadow_root: Path,
@@ -1425,27 +1518,35 @@ def publish_shadow_artifact(
         raise CreativeCodeLifecycleBayesianShadowError("unsupported shadow artifact filename")
     if len(content) > MAX_ARTIFACT_BYTES:
         raise CreativeCodeLifecycleBayesianShadowError("shadow artifact too large")
+    _validate_publication_content(
+        filename=filename,
+        forecast_id=forecast_id,
+        content=content,
+    )
     root = _ensure_private_directory(shadow_root, label="shadow root", parents=True)
-    namespace = _ensure_private_directory(
-        root / forecast_id, label="shadow namespace", parents=False
+    namespace, owned_namespace_identity = _prepare_shadow_namespace(
+        root,
+        forecast_id=forecast_id,
     )
     target = namespace / filename
-    if target.exists() or target.is_symlink():
-        existing = _read_existing_bytes(
-            target,
-            shadow_root=root,
-            maximum=MAX_ARTIFACT_BYTES,
-        )
-        if existing != content:
-            raise CreativeCodeLifecycleBayesianShadowError("divergent_replay")
-        recheck_sources()
-        return target, True
-    recheck_sources()
-    descriptor, name = tempfile.mkstemp(prefix=f".{filename}.", suffix=".tmp", dir=namespace)
-    staging = Path(name)
+    descriptor = -1
+    staging: Path | None = None
     installed = False
     installed_identity: tuple[int, int] | None = None
     try:
+        if target.exists() or target.is_symlink():
+            existing = _read_existing_bytes(
+                target,
+                shadow_root=root,
+                maximum=MAX_ARTIFACT_BYTES,
+            )
+            if existing != content:
+                raise CreativeCodeLifecycleBayesianShadowError("divergent_replay")
+            recheck_sources()
+            return target, True
+        recheck_sources()
+        descriptor, name = tempfile.mkstemp(prefix=f".{filename}.", suffix=".tmp", dir=namespace)
+        staging = Path(name)
         os.fchmod(descriptor, 0o600)
         written = 0
         while written < len(content):
@@ -1467,8 +1568,7 @@ def publish_shadow_artifact(
         try:
             os.link(staging, target, follow_symlinks=False)
             installed = True
-            target_info = target.lstat()
-            installed_identity = (target_info.st_dev, target_info.st_ino)
+            installed_identity = (info.st_dev, info.st_ino)
         except FileExistsError:
             existing = _read_existing_bytes(
                 target,
@@ -1491,9 +1591,17 @@ def publish_shadow_artifact(
                     "shadow no-replace publication failed"
                 ) from exc
         staging.unlink()
+        staging = None
         _fsync_directory(namespace)
         _fsync_directory(root)
         recheck_sources()
+        existing = _read_existing_bytes(
+            target,
+            shadow_root=root,
+            maximum=MAX_ARTIFACT_BYTES,
+        )
+        if existing != content:
+            raise CreativeCodeLifecycleBayesianShadowError("divergent_replay")
     except BaseException:
         if descriptor >= 0:
             try:
@@ -1507,18 +1615,17 @@ def publish_shadow_artifact(
                     target.unlink()
             except OSError:
                 pass
-        try:
-            staging.unlink()
-        except OSError:
-            pass
+        if staging is not None:
+            try:
+                staging.unlink()
+            except OSError:
+                pass
+        _remove_owned_empty_namespace(
+            namespace,
+            owned_identity=owned_namespace_identity,
+            root=root,
+        )
         raise
-    existing = _read_existing_bytes(
-        target,
-        shadow_root=root,
-        maximum=MAX_ARTIFACT_BYTES,
-    )
-    if existing != content:
-        raise CreativeCodeLifecycleBayesianShadowError("divergent_replay")
     return target, not installed
 
 

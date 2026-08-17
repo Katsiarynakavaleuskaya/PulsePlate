@@ -45,7 +45,11 @@ from scripts.orchestration.creative_code_patch_contract import CreativeCodePatch
 from scripts.orchestration.creative_code_patch_generation import (
     CreativeCodePatchGenerationError,
 )
-from scripts.orchestration.creative_code_patch_workspace import CreativeCodePatchWorkspaceError
+from scripts.orchestration.creative_code_patch_workspace import (
+    CreativeCodePatchWorkspaceError,
+    exclusive_patch_run_lock,
+    resolve_existing_run_dir,
+)
 from scripts.orchestration.creative_code_telemetry_contract import (
     CreativeCodeTelemetryContractError,
 )
@@ -193,40 +197,47 @@ def _load_forecast_sources(
 def build_forecast(
     *, telemetry_dir: Path, gate_path: Path, produced_at: str
 ) -> tuple[Path, bool, dict[str, Any]]:
-    resolved_gate, gate = _load_gate_before_generation(gate_path)
-    snapshot = analytics_cli.load_validated_snapshot_artifact(telemetry_dir=telemetry_dir)
-    gate_ref = _repo_ref(resolved_gate, label="generation gate")
-    telemetry_ref = _repo_ref(
-        telemetry_dir if telemetry_dir.is_absolute() else REPO_ROOT / telemetry_dir,
-        label="baseline telemetry directory",
-    )
-    forecast = build_lifecycle_forecast(
-        analytics=snapshot.analytics,
-        analytics_ref=_analytics_ref(snapshot),
-        telemetry_dir_ref=telemetry_ref,
-        gate=gate,
-        gate_ref=gate_ref,
-        produced_at=produced_at,
-    )
-    _require_target_absent(snapshot.events, forecast["target"])
+    initial_gate_path, initial_gate = _load_gate_before_generation(gate_path)
+    run_dir = resolve_existing_run_dir(cast(str, initial_gate["run_id"]))
+    with exclusive_patch_run_lock(run_dir, label="creative-code shadow forecast"):
+        resolved_gate, gate = _load_gate_before_generation(initial_gate_path)
+        if resolved_gate != initial_gate_path or gate != initial_gate:
+            raise CreativeCodeLifecycleBayesianShadowError(
+                "generation gate changed before forecast lock"
+            )
+        snapshot = analytics_cli.load_validated_snapshot_artifact(telemetry_dir=telemetry_dir)
+        gate_ref = _repo_ref(resolved_gate, label="generation gate")
+        telemetry_ref = _repo_ref(
+            telemetry_dir if telemetry_dir.is_absolute() else REPO_ROOT / telemetry_dir,
+            label="baseline telemetry directory",
+        )
+        forecast = build_lifecycle_forecast(
+            analytics=snapshot.analytics,
+            analytics_ref=_analytics_ref(snapshot),
+            telemetry_dir_ref=telemetry_ref,
+            gate=gate,
+            gate_ref=gate_ref,
+            produced_at=produced_at,
+        )
+        _require_target_absent(snapshot.events, forecast["target"])
 
-    def recheck() -> None:
-        current_gate_path, current_gate = _load_gate_before_generation(resolved_gate)
-        if current_gate_path != resolved_gate or current_gate != gate:
-            raise CreativeCodeLifecycleBayesianShadowError("generation gate changed")
-        current = analytics_cli.load_validated_snapshot_artifact(telemetry_dir=telemetry_dir)
-        if current != snapshot:
-            raise CreativeCodeLifecycleBayesianShadowError("baseline snapshot changed")
-        _require_target_absent(current.events, forecast["target"])
+        def recheck() -> None:
+            current_gate_path, current_gate = _load_gate_before_generation(resolved_gate)
+            if current_gate_path != resolved_gate or current_gate != gate:
+                raise CreativeCodeLifecycleBayesianShadowError("generation gate changed")
+            current = analytics_cli.load_validated_snapshot_artifact(telemetry_dir=telemetry_dir)
+            if current != snapshot:
+                raise CreativeCodeLifecycleBayesianShadowError("baseline snapshot changed")
+            _require_target_absent(current.events, forecast["target"])
 
-    path, replayed = publish_shadow_artifact(
-        shadow_root=BAYESIAN_SHADOW_ROOT,
-        forecast_id=forecast["forecast_id"],
-        filename=FORECAST_FILENAME,
-        content=canonical_shadow_bytes(forecast),
-        recheck_sources=recheck,
-    )
-    return path, replayed, forecast
+        path, replayed = publish_shadow_artifact(
+            shadow_root=BAYESIAN_SHADOW_ROOT,
+            forecast_id=forecast["forecast_id"],
+            filename=FORECAST_FILENAME,
+            content=canonical_shadow_bytes(forecast),
+            recheck_sources=recheck,
+        )
+        return path, replayed, forecast
 
 
 def validate_forecast_path(forecast_path: Path) -> dict[str, Any]:
@@ -286,6 +297,66 @@ def _require_baseline_subset(
     later_fingerprints = {_event_fingerprint(event) for event in later}
     if not baseline_fingerprints.issubset(later_fingerprints):
         raise CreativeCodeLifecycleBayesianShadowError("baseline_snapshot_drift")
+
+
+def _validated_generation_receipt_projection(
+    *,
+    gate_path: Path,
+    gate: Mapping[str, Any],
+    patch_rows: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    empty_projection = {
+        "generation_receipt_ref": None,
+        "generation_receipt_fingerprint": None,
+        "result_id": None,
+        "result_fingerprint": None,
+    }
+    if not patch_rows:
+        if receipt_path.exists() or receipt_path.is_symlink():
+            raise CreativeCodeLifecycleBayesianShadowError(
+                "generation receipt exists without target patch telemetry"
+            )
+        return empty_projection, None
+    try:
+        receipt_gate, receipt = cast(
+            tuple[dict[str, Any], dict[str, Any]],
+            generation_cli.load_validated_generation_receipt_context(
+                gate_path=gate_path,
+                receipt_path=receipt_path,
+            ),
+        )
+    except (
+        CreativeCodePatchGenerationError,
+        CreativeCodePatchContractError,
+        CreativeCodePatchWorkspaceError,
+    ) as exc:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            "validated canonical generation receipt is required for target patch telemetry"
+        ) from exc
+    if receipt_gate != gate:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            "validated generation receipt gate does not match forecast gate"
+        )
+    matching_rows = [
+        row
+        for row in patch_rows
+        if _candidate_ids(row).get("result_id") == receipt["result_id"]
+        and row.get("source_fingerprint") == receipt["result_fingerprint"]
+    ]
+    if len(matching_rows) != 1:
+        raise CreativeCodeLifecycleBayesianShadowError(
+            "exactly one target patch telemetry row must match generation receipt"
+        )
+    return (
+        {
+            "generation_receipt_ref": _repo_ref(receipt_path, label="generation receipt"),
+            "generation_receipt_fingerprint": fingerprint_payload(cast(Any, receipt)),
+            "result_id": receipt["result_id"],
+            "result_fingerprint": receipt["result_fingerprint"],
+        },
+        receipt,
+    )
 
 
 def _events_at_stage(
@@ -462,31 +533,11 @@ def score_forecast(
         target=forecast["target"],
     )
     patch_rows = [event for event in target_events if event.get("lane_stage") == "patch_evaluation"]
-    receipt: dict[str, Any] | None = None
-    receipt_ref: str | None = None
-    if len(patch_rows) == 1:
-        receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
-        _receipt_gate, receipt = cast(
-            tuple[dict[str, Any], dict[str, Any]],
-            generation_cli.load_validated_generation_receipt_context(
-                gate_path=gate_path,
-                receipt_path=receipt_path,
-            ),
-        )
-        receipt_ref = _repo_ref(receipt_path, label="generation receipt")
-        patch_event = patch_rows[0]
-        if receipt["result_id"] != _candidate_ids(patch_event).get("result_id") or receipt[
-            "result_fingerprint"
-        ] != patch_event.get("source_fingerprint"):
-            raise CreativeCodeLifecycleBayesianShadowError(
-                "target patch telemetry does not match generation receipt"
-            )
-    elif not patch_rows:
-        receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
-        if receipt_path.exists() or receipt_path.is_symlink():
-            raise CreativeCodeLifecycleBayesianShadowError(
-                "generation receipt exists without target patch telemetry"
-            )
+    receipt_projection, receipt = _validated_generation_receipt_projection(
+        gate_path=gate_path,
+        gate=gate,
+        patch_rows=patch_rows,
+    )
     analytics_ref = _analytics_ref(outcome_snapshot)
     telemetry_ref = _repo_ref(
         telemetry_dir if telemetry_dir.is_absolute() else REPO_ROOT / telemetry_dir,
@@ -501,12 +552,7 @@ def score_forecast(
         "rollup_fingerprint": outcome_snapshot.analytics["corpus"]["rollup_fingerprint"],
         "event_count": outcome_snapshot.analytics["corpus"]["event_count"],
         "target_event_fingerprints": sorted({_event_fingerprint(event) for event in target_events}),
-        "generation_receipt_ref": receipt_ref,
-        "generation_receipt_fingerprint": (
-            None if receipt is None else fingerprint_payload(cast(Any, receipt))
-        ),
-        "result_id": None if receipt is None else receipt["result_id"],
-        "result_fingerprint": None if receipt is None else receipt["result_fingerprint"],
+        **receipt_projection,
         "promotion_id": promotion_id,
     }
     score = build_lifecycle_forecast_score(
@@ -543,17 +589,15 @@ def score_forecast(
         )
         if current_outcome != outcome_snapshot:
             raise CreativeCodeLifecycleBayesianShadowError("outcome snapshot changed before score")
-        if receipt is not None:
-            _current_gate, current_receipt = (
-                generation_cli.load_validated_generation_receipt_context(
-                    gate_path=gate_path,
-                    receipt_path=gate_path.parent / generation_cli.RECEIPT_FILENAME,
-                )
+        current_projection, current_receipt = _validated_generation_receipt_projection(
+            gate_path=gate_path,
+            gate=gate,
+            patch_rows=patch_rows,
+        )
+        if current_projection != receipt_projection or current_receipt != receipt:
+            raise CreativeCodeLifecycleBayesianShadowError(
+                "generation receipt changed before score"
             )
-            if current_receipt != receipt:
-                raise CreativeCodeLifecycleBayesianShadowError(
-                    "generation receipt changed before score"
-                )
 
     path, replayed = publish_shadow_artifact(
         shadow_root=BAYESIAN_SHADOW_ROOT,
@@ -622,32 +666,11 @@ def validate_score_path(score_path: Path) -> dict[str, Any]:
         if score["observation"][key] != expected:
             raise CreativeCodeLifecycleBayesianShadowError(f"stored score {key} is stale")
     patch_rows = [event for event in target_events if event.get("lane_stage") == "patch_evaluation"]
-    if len(patch_rows) == 1:
-        receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
-        _receipt_gate, receipt = generation_cli.load_validated_generation_receipt_context(
-            gate_path=gate_path,
-            receipt_path=receipt_path,
-        )
-        patch_event = patch_rows[0]
-        receipt_expectations = {
-            "generation_receipt_ref": _repo_ref(receipt_path, label="generation receipt"),
-            "generation_receipt_fingerprint": fingerprint_payload(cast(Any, receipt)),
-            "result_id": receipt["result_id"],
-            "result_fingerprint": receipt["result_fingerprint"],
-        }
-        if receipt["result_id"] != _candidate_ids(patch_event).get("result_id") or receipt[
-            "result_fingerprint"
-        ] != patch_event.get("source_fingerprint"):
-            raise CreativeCodeLifecycleBayesianShadowError(
-                "target patch telemetry does not match generation receipt"
-            )
-    else:
-        receipt_expectations = {
-            "generation_receipt_ref": None,
-            "generation_receipt_fingerprint": None,
-            "result_id": None,
-            "result_fingerprint": None,
-        }
+    receipt_expectations, _receipt = _validated_generation_receipt_projection(
+        gate_path=gate_path,
+        gate=gate,
+        patch_rows=patch_rows,
+    )
     for key, expected in receipt_expectations.items():
         if score["observation"][key] != expected:
             raise CreativeCodeLifecycleBayesianShadowError(f"stored score {key} is stale")

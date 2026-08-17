@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import deepcopy
 import json
 from pathlib import Path
 import re
 import stat
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -29,6 +31,7 @@ from scripts.orchestration.creative_code_lifecycle_bayesian_shadow_contract impo
     build_lifecycle_forecast_score,
     build_target_start,
     canonical_shadow_bytes,
+    normalize_rfc3339,
     publish_shadow_artifact,
     publish_target_start_from_forecast,
     read_shadow_json,
@@ -322,6 +325,36 @@ def test_identity_and_time_tampering_fail_closed() -> None:
     assert forecast["baseline"]["analytics_fingerprint"] == fingerprint_payload(_analytics())
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-08-17 10:00:00Z",
+        "20260817T100000Z",
+        "2026-08-17T10:00:00,1Z",
+        "2026-08-17T10:00:00-00:00",
+        "2026-08-17T10:00:00.1234567Z",
+    ],
+)
+@pytest.mark.parametrize("label", ["produced_at", "started_at", "scored_at"])
+def test_shadow_timestamps_require_strict_extended_ascii_rfc3339(
+    value: str,
+    label: str,
+) -> None:
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="RFC3339"):
+        normalize_rfc3339(value, label=label)
+
+
+def test_shadow_timestamp_normalizes_known_offset_and_wraps_utc_or_cutoff_overflow() -> None:
+    assert (
+        normalize_rfc3339("2026-08-17T12:30:00.123400+02:30", label="produced_at")
+        == "2026-08-17T10:00:00.1234Z"
+    )
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="valid RFC3339"):
+        normalize_rfc3339("0001-01-01T00:00:00+14:00", label="produced_at")
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="cutoff"):
+        _forecast(produced_at="9999-12-31T23:59:59Z")
+
+
 def test_family_counts_keep_censoring_and_unmatched_rows_out_of_posterior() -> None:
     analytics = _analytics()
     analytics["transition_counts"] = [
@@ -527,6 +560,143 @@ def test_publication_rolls_back_installed_artifact_when_final_recheck_fails(
     assert not (root / forecast["forecast_id"] / "forecast.json").exists()
 
 
+@pytest.mark.parametrize(
+    ("filename", "content_factory"),
+    [
+        ("forecast.json", lambda forecast: b"{}\n"),
+        ("start.json", lambda forecast: canonical_shadow_bytes(forecast)),
+        ("score.json", lambda forecast: canonical_shadow_bytes(forecast)),
+        (
+            "forecast.json",
+            lambda forecast: (json.dumps(forecast, indent=2, sort_keys=True) + "\n").encode(),
+        ),
+    ],
+)
+def test_publisher_validates_matching_contract_and_canonical_bytes_before_root_creation(
+    tmp_path: Path,
+    filename: str,
+    content_factory: Any,
+) -> None:
+    forecast = _forecast()
+    root = tmp_path / "bayesian_shadow"
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError):
+        publish_shadow_artifact(
+            shadow_root=root,
+            forecast_id=forecast["forecast_id"],
+            filename=filename,
+            content=content_factory(forecast),
+            recheck_sources=lambda: None,
+        )
+    assert not root.exists()
+
+
+def test_publisher_rejects_content_forecast_id_mismatch_before_root_creation(
+    tmp_path: Path,
+) -> None:
+    forecast = _forecast()
+    root = tmp_path / "bayesian_shadow"
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="forecast_id"):
+        publish_shadow_artifact(
+            shadow_root=root,
+            forecast_id=(
+                "evidence:creative_code_lifecycle_bayesian_forecast:control_plane:1.0:" + "f" * 24
+            ),
+            filename="forecast.json",
+            content=canonical_shadow_bytes(forecast),
+            recheck_sources=lambda: None,
+        )
+    assert not root.exists()
+
+
+def test_failed_publication_removes_only_its_owned_empty_namespace(tmp_path: Path) -> None:
+    forecast = _forecast()
+    content = canonical_shadow_bytes(forecast)
+    root = tmp_path / "bayesian_shadow"
+    namespace = root / forecast["forecast_id"]
+
+    with pytest.raises(RuntimeError, match="source drift"):
+        publish_shadow_artifact(
+            shadow_root=root,
+            forecast_id=forecast["forecast_id"],
+            filename="forecast.json",
+            content=content,
+            recheck_sources=lambda: (_ for _ in ()).throw(RuntimeError("source drift")),
+        )
+    assert not namespace.exists()
+
+    namespace.mkdir(parents=True, mode=0o700)
+    root.chmod(0o700)
+    namespace.chmod(0o700)
+    original_identity = (namespace.stat().st_dev, namespace.stat().st_ino)
+    with pytest.raises(RuntimeError, match="source drift"):
+        publish_shadow_artifact(
+            shadow_root=root,
+            forecast_id=forecast["forecast_id"],
+            filename="forecast.json",
+            content=content,
+            recheck_sources=lambda: (_ for _ in ()).throw(RuntimeError("source drift")),
+        )
+    assert (namespace.stat().st_dev, namespace.stat().st_ino) == original_identity
+
+
+def test_final_readback_failure_rolls_back_only_the_installed_inode_and_owned_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    forecast = _forecast()
+    content = canonical_shadow_bytes(forecast)
+    root = tmp_path / "bayesian_shadow"
+    target = root / forecast["forecast_id"] / "forecast.json"
+
+    def fail_readback(*_args: Any, **_kwargs: Any) -> bytes:
+        raise CreativeCodeLifecycleBayesianShadowError("injected final readback failure")
+
+    monkeypatch.setattr(shadow_contract, "_read_existing_bytes", fail_readback)
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="final readback"):
+        publish_shadow_artifact(
+            shadow_root=root,
+            forecast_id=forecast["forecast_id"],
+            filename="forecast.json",
+            content=content,
+            recheck_sources=lambda: None,
+        )
+    assert not target.exists()
+    assert not target.parent.exists()
+
+
+def test_final_readback_rollback_preserves_a_concurrent_replacement_inode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    forecast = _forecast()
+    content = canonical_shadow_bytes(forecast)
+    root = tmp_path / "bayesian_shadow"
+    target = root / forecast["forecast_id"] / "forecast.json"
+    replacement_identity: tuple[int, int] | None = None
+
+    def replace_then_fail(path: Path, **_kwargs: Any) -> bytes:
+        nonlocal replacement_identity
+        path.unlink()
+        path.write_bytes(content)
+        path.chmod(0o600)
+        info = path.stat()
+        replacement_identity = (info.st_dev, info.st_ino)
+        raise CreativeCodeLifecycleBayesianShadowError("injected final readback failure")
+
+    monkeypatch.setattr(shadow_contract, "_read_existing_bytes", replace_then_fail)
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="final readback"):
+        publish_shadow_artifact(
+            shadow_root=root,
+            forecast_id=forecast["forecast_id"],
+            filename="forecast.json",
+            content=content,
+            recheck_sources=lambda: None,
+        )
+    assert replacement_identity is not None
+    current = target.stat()
+    assert (current.st_dev, current.st_ino) == replacement_identity
+
+
 def test_shadow_reader_rejects_noncanonical_symlink_and_hardlink_inputs(
     tmp_path: Path,
 ) -> None:
@@ -677,6 +847,163 @@ def test_duplicate_target_patch_or_plan_is_measurement_invalid() -> None:
         FAMILY_IDS[1]: "measurement_invalid",
         FAMILY_IDS[2]: "measurement_invalid",
     }
+
+
+def _receipt_result() -> dict[str, Any]:
+    return {
+        "result_id": ("evidence:creative_code_patch_result:control_plane:1.0:" + "c" * 24),
+        "result_fingerprint": "sha256:" + "d" * 64,
+    }
+
+
+def _patch_receipt_row(*, result_id: str, result_fingerprint: str) -> dict[str, Any]:
+    return {
+        "lane_stage": "patch_evaluation",
+        "candidate_ids": {"result_id": result_id},
+        "source_fingerprint": result_fingerprint,
+    }
+
+
+def test_nonempty_patch_rows_require_validated_generation_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    gate_path = tmp_path / "run-one" / "generation_gate.json"
+    gate_path.parent.mkdir()
+    receipt = _receipt_result()
+    rows = [
+        _patch_receipt_row(
+            result_id=receipt["result_id"],
+            result_fingerprint=receipt["result_fingerprint"],
+        ),
+        _patch_receipt_row(
+            result_id="conflicting-result",
+            result_fingerprint="sha256:" + "e" * 64,
+        ),
+    ]
+
+    def missing_receipt(**_kwargs: Any) -> Any:
+        raise generation_cli.CreativeCodePatchGenerationError("receipt missing")
+
+    monkeypatch.setattr(
+        generation_cli,
+        "load_validated_generation_receipt_context",
+        missing_receipt,
+    )
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="validated.*receipt"):
+        shadow_cli._validated_generation_receipt_projection(
+            gate_path=gate_path,
+            gate=_gate(),
+            patch_rows=rows,
+        )
+
+
+@pytest.mark.parametrize("matching_rows", [0, 2])
+def test_generation_receipt_requires_exactly_one_matching_patch_row(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    matching_rows: int,
+) -> None:
+    gate_path = tmp_path / "run-one" / "generation_gate.json"
+    gate_path.parent.mkdir()
+    receipt = _receipt_result()
+    rows = [
+        _patch_receipt_row(
+            result_id=receipt["result_id"],
+            result_fingerprint=receipt["result_fingerprint"],
+        )
+        for _index in range(matching_rows)
+    ]
+    if matching_rows == 0:
+        rows.append(
+            _patch_receipt_row(
+                result_id="conflicting-result",
+                result_fingerprint="sha256:" + "e" * 64,
+            )
+        )
+    monkeypatch.setattr(
+        generation_cli,
+        "load_validated_generation_receipt_context",
+        lambda **_kwargs: (_gate(), receipt),
+    )
+    monkeypatch.setattr(
+        shadow_cli,
+        "_repo_ref",
+        lambda _path, *, label: (
+            "artifacts/orchestration/creative_code/patch_generation/run-one/"
+            "generation_receipt.json"
+        ),
+    )
+
+    with pytest.raises(CreativeCodeLifecycleBayesianShadowError, match="exactly one"):
+        shadow_cli._validated_generation_receipt_projection(
+            gate_path=gate_path,
+            gate=_gate(),
+            patch_rows=rows,
+        )
+
+
+def test_conflicting_patch_row_retains_validated_generation_receipt_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    gate_path = tmp_path / "run-one" / "generation_gate.json"
+    gate_path.parent.mkdir()
+    gate = _gate()
+    receipt = _receipt_result()
+    rows = [
+        _patch_receipt_row(
+            result_id=receipt["result_id"],
+            result_fingerprint=receipt["result_fingerprint"],
+        ),
+        _patch_receipt_row(
+            result_id="conflicting-result",
+            result_fingerprint="sha256:" + "e" * 64,
+        ),
+    ]
+    receipt_ref = (
+        "artifacts/orchestration/creative_code/patch_generation/run-one/" "generation_receipt.json"
+    )
+    monkeypatch.setattr(
+        generation_cli,
+        "load_validated_generation_receipt_context",
+        lambda **_kwargs: (gate, receipt),
+    )
+    monkeypatch.setattr(
+        shadow_cli,
+        "_repo_ref",
+        lambda _path, *, label: receipt_ref,
+    )
+
+    projection, validated_receipt = shadow_cli._validated_generation_receipt_projection(
+        gate_path=gate_path,
+        gate=gate,
+        patch_rows=rows,
+    )
+
+    assert validated_receipt == receipt
+    assert projection == {
+        "generation_receipt_ref": receipt_ref,
+        "generation_receipt_fingerprint": fingerprint_payload(receipt),
+        "result_id": receipt["result_id"],
+        "result_fingerprint": receipt["result_fingerprint"],
+    }
+
+
+def test_zero_patch_rows_reject_existing_generation_receipt(tmp_path: Path) -> None:
+    gate_path = tmp_path / "run-one" / "generation_gate.json"
+    gate_path.parent.mkdir()
+    (gate_path.parent / generation_cli.RECEIPT_FILENAME).touch()
+
+    with pytest.raises(
+        CreativeCodeLifecycleBayesianShadowError,
+        match="receipt exists without target patch telemetry",
+    ):
+        shadow_cli._validated_generation_receipt_projection(
+            gate_path=gate_path,
+            gate=_gate(),
+            patch_rows=[],
+        )
 
 
 @pytest.mark.parametrize(
@@ -1090,7 +1417,86 @@ def _configure_public_shadow_cli(
 
     monkeypatch.setattr(shadow_cli, "_load_gate_before_generation", load_gate)
     monkeypatch.setattr(shadow_cli, "_load_gate_for_readback", load_gate)
+    monkeypatch.setattr(
+        shadow_cli,
+        "resolve_existing_run_dir",
+        lambda run_id: gate_path.parent.resolve(strict=True),
+    )
     return repo, telemetry_root, analytics_root, shadow_root, gate
+
+
+def test_build_forecast_holds_canonical_run_lock_across_sources_and_publication(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    gate = _gate()
+    resolved_gate = tmp_path / "generation_gate.json"
+    run_dir = tmp_path / "patch-run"
+    run_dir.mkdir()
+    snapshot = SimpleNamespace(analytics=_analytics(), events=())
+    lock_active = False
+    gate_checks: list[bool] = []
+    snapshot_checks: list[bool] = []
+
+    @contextmanager
+    def fake_lock(path: Path, *, label: str) -> Any:
+        nonlocal lock_active
+        assert path == run_dir
+        assert label == "creative-code shadow forecast"
+        assert lock_active is False
+        lock_active = True
+        try:
+            yield
+        finally:
+            lock_active = False
+
+    def load_gate(_path: Path) -> tuple[Path, dict[str, Any]]:
+        gate_checks.append(lock_active)
+        return resolved_gate, gate
+
+    def load_snapshot(*, telemetry_dir: Path) -> Any:
+        assert telemetry_dir == tmp_path / "telemetry"
+        snapshot_checks.append(lock_active)
+        assert lock_active is True
+        return snapshot
+
+    def publish(**kwargs: Any) -> tuple[Path, bool]:
+        assert lock_active is True
+        kwargs["recheck_sources"]()
+        return tmp_path / "forecast.json", False
+
+    monkeypatch.setattr(shadow_cli, "_load_gate_before_generation", load_gate)
+    monkeypatch.setattr(analytics_cli, "load_validated_snapshot_artifact", load_snapshot)
+    monkeypatch.setattr(
+        shadow_cli, "resolve_existing_run_dir", lambda run_id: run_dir, raising=False
+    )
+    monkeypatch.setattr(shadow_cli, "exclusive_patch_run_lock", fake_lock, raising=False)
+    monkeypatch.setattr(
+        shadow_cli,
+        "_analytics_ref",
+        lambda _snapshot: "artifacts/orchestration/creative_code/lifecycle_transition_analytics/one/analytics.json",
+    )
+    monkeypatch.setattr(
+        shadow_cli,
+        "_repo_ref",
+        lambda _path, *, label: (
+            "artifacts/orchestration/creative_code/patch_generation/run-one/generation_gate.json"
+            if label == "generation gate"
+            else "artifacts/orchestration/creative_code/telemetry/baseline-one"
+        ),
+    )
+    monkeypatch.setattr(shadow_cli, "publish_shadow_artifact", publish)
+
+    shadow_cli.build_forecast(
+        telemetry_dir=tmp_path / "telemetry",
+        gate_path=resolved_gate,
+        produced_at="2026-08-17T10:00:00Z",
+    )
+
+    assert gate_checks[0] is False
+    assert gate_checks[1:] and all(gate_checks[1:])
+    assert snapshot_checks and all(snapshot_checks)
+    assert lock_active is False
 
 
 def test_public_cli_frozen_snapshot_forecast_score_readback_and_subset_control(
