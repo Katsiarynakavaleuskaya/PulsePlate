@@ -433,8 +433,7 @@ class TestFitChefMascotRuntimeCoverage:
             lambda **kwargs: None,
         )
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_gate_failure_returns_503(self) -> None:
+    def test_runtime_rag_gate_failure_returns_503(self) -> None:
         """RAG gate failures must fail closed."""
 
         from app.services import fitchef_runtime
@@ -445,13 +444,12 @@ class TestFitChefMascotRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "rag_retrieval_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_builds_sources_and_confidence_from_rag_chunks(self) -> None:
+    def test_runtime_builds_sources_and_confidence_from_rag_chunks(self) -> None:
         """RAG chunks should populate source previews and confidence."""
 
         from app.services import fitchef_runtime
@@ -487,7 +485,7 @@ class TestFitChefMascotRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_mascot_insight_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert result.confidence == pytest.approx(0.91, 0.01)
         assert len(result.sources) == 1
@@ -495,8 +493,7 @@ class TestFitChefMascotRuntimeCoverage:
         assert "[EMAIL_REDACTED]" in result.sources[0].preview
         assert "source_content_redacted" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
+    def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
         """RAG retrieval failure should fall back with warning."""
 
         from app.services import fitchef_runtime
@@ -514,12 +511,11 @@ class TestFitChefMascotRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_mascot_insight_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert "rag_retrieval_failed" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
         """Missing transparency registry must fail before quota/provider."""
 
         from app.services import fitchef_runtime
@@ -534,13 +530,12 @@ class TestFitChefMascotRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
         """Incomplete transparency metadata must fail before quota/provider."""
 
         from app.services import fitchef_runtime
@@ -551,13 +546,12 @@ class TestFitChefMascotRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_incomplete"
 
-    @pytest.mark.asyncio
-    async def test_runtime_llm_gate_failure_returns_503(self) -> None:
+    def test_runtime_llm_gate_failure_returns_503(self) -> None:
         """LLM gate failures must fail before quota/provider use."""
 
         from app.services import fitchef_runtime
@@ -576,13 +570,12 @@ class TestFitChefMascotRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "llm_generation_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_empty_provider_response_returns_503(self) -> None:
+    def test_runtime_empty_provider_response_returns_503(self) -> None:
         """Empty provider output must fail closed."""
 
         from app.services import fitchef_runtime
@@ -601,13 +594,12 @@ class TestFitChefMascotRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_import_error_returns_503(self) -> None:
+    def test_runtime_import_error_returns_503(self) -> None:
         """ImportError from provider resolution must map to 503."""
 
         from app.services import fitchef_runtime
@@ -632,14 +624,13 @@ class TestFitChefMascotRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider not available"
         assert quota_calls["count"] == 0
 
-    @pytest.mark.asyncio
-    async def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
+    def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
         """Non-string provider payloads must map to stable empty-response 503."""
 
         from app.services import fitchef_runtime
@@ -658,13 +649,12 @@ class TestFitChefMascotRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_timeout_returns_504(self) -> None:
+    def test_runtime_timeout_returns_504(self) -> None:
         """Timeouts must map to 504."""
 
         from app.services import fitchef_runtime
@@ -683,13 +673,12 @@ class TestFitChefMascotRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 504
         assert exc_info.value.detail == "LLM provider call timed out"
 
-    @pytest.mark.asyncio
-    async def test_runtime_provider_failure_returns_503(self) -> None:
+    def test_runtime_provider_failure_returns_503(self) -> None:
         """Unexpected provider failures must map to 503."""
 
         from app.services import fitchef_runtime
@@ -708,7 +697,7 @@ class TestFitChefMascotRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_mascot_insight_task(self._task())
+            asyncio.run(fitchef_runtime.run_mascot_insight_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_mascot_unavailable"
@@ -1377,8 +1366,7 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == expected_detail
 
-    @pytest.mark.asyncio
-    async def test_runtime_builds_sources_and_confidence_from_rag_chunks(self) -> None:
+    def test_runtime_builds_sources_and_confidence_from_rag_chunks(self) -> None:
         """RAG chunks should populate source previews and confidence."""
 
         from app.services import fitchef_runtime
@@ -1411,7 +1399,7 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_weekly_reflection_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert result.confidence == pytest.approx(0.88, 0.01)
         assert result.scenario == "weekly_reflection"
@@ -1422,8 +1410,7 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         assert "[EMAIL_REDACTED]" in result.sources[0].preview
         assert "source_content_redacted" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_gate_failure_returns_503(self) -> None:
+    def test_runtime_rag_gate_failure_returns_503(self) -> None:
         """RAG gate failures must fail closed."""
 
         from app.services import fitchef_runtime
@@ -1434,13 +1421,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "rag_retrieval_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
+    def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
         """RAG retrieval failure should fall back with warning."""
 
         from app.services import fitchef_runtime
@@ -1458,12 +1444,11 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_weekly_reflection_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert "rag_retrieval_failed" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_tracks_sanitized_and_empty_rag_chunks(self) -> None:
+    def test_runtime_tracks_sanitized_and_empty_rag_chunks(self) -> None:
         """Sanitized chunks should add warnings and skip empty preview content."""
 
         from app.services import fitchef_runtime
@@ -1509,14 +1494,13 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_weekly_reflection_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert len(result.sources) == 1
         assert result.sources[0].preview == "keep sanitized source"
         assert "source_content_sanitized" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
         """Missing transparency registry must fail before quota/provider."""
 
         from app.services import fitchef_runtime
@@ -1531,13 +1515,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
         """Incomplete transparency metadata must fail before quota/provider."""
 
         from app.services import fitchef_runtime
@@ -1548,13 +1531,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_incomplete"
 
-    @pytest.mark.asyncio
-    async def test_runtime_llm_gate_failure_returns_503(self) -> None:
+    def test_runtime_llm_gate_failure_returns_503(self) -> None:
         """LLM gate failures must fail before quota/provider use."""
 
         from app.services import fitchef_runtime
@@ -1573,13 +1555,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "llm_generation_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_timeout_returns_504(self) -> None:
+    def test_runtime_timeout_returns_504(self) -> None:
         """Timeouts must map to 504."""
 
         from app.services import fitchef_runtime
@@ -1598,13 +1579,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 504
         assert exc_info.value.detail == "LLM provider call timed out"
 
-    @pytest.mark.asyncio
-    async def test_runtime_empty_provider_response_returns_503(self) -> None:
+    def test_runtime_empty_provider_response_returns_503(self) -> None:
         """Empty provider output must fail closed."""
 
         from app.services import fitchef_runtime
@@ -1623,13 +1603,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
+    def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
         """Non-string provider payloads must map to the stable empty-response 503."""
 
         from app.services import fitchef_runtime
@@ -1648,13 +1627,12 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_import_error_returns_503(self) -> None:
+    def test_runtime_import_error_returns_503(self) -> None:
         """ImportError from provider resolution must map to 503 without quota debit."""
 
         from app.services import fitchef_runtime
@@ -1679,14 +1657,13 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider not available"
         assert quota_calls["count"] == 0
 
-    @pytest.mark.asyncio
-    async def test_runtime_provider_failure_returns_503(self) -> None:
+    def test_runtime_provider_failure_returns_503(self) -> None:
         """Unexpected provider failures must map to 503."""
 
         from app.services import fitchef_runtime
@@ -1705,7 +1682,7 @@ class TestFitChefWeeklyReflectionRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_weekly_reflection_task(self._task())
+            asyncio.run(fitchef_runtime.run_weekly_reflection_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_weekly_reflection_unavailable"
@@ -2089,8 +2066,7 @@ class TestFitChefSlipSupportRuntimeCoverage:
             lambda **kwargs: None,
         )
 
-    @pytest.mark.asyncio
-    async def test_runtime_builds_sources_and_confidence_from_rag_chunks(self) -> None:
+    def test_runtime_builds_sources_and_confidence_from_rag_chunks(self) -> None:
         """RAG chunks should populate source previews and confidence."""
 
         from app.services import fitchef_runtime
@@ -2122,7 +2098,7 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_slip_support_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert result.confidence == pytest.approx(0.79, 0.01)
         assert result.scenario == "slip_support"
@@ -2131,8 +2107,7 @@ class TestFitChefSlipSupportRuntimeCoverage:
         assert "[EMAIL_REDACTED]" in result.sources[0].preview
         assert "source_content_redacted" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_gate_failure_returns_503(self) -> None:
+    def test_runtime_rag_gate_failure_returns_503(self) -> None:
         """RAG gate failures must fail closed."""
 
         from app.services import fitchef_runtime
@@ -2143,13 +2118,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "rag_retrieval_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
+    def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
         """RAG retrieval failure should fall back with warning."""
 
         from app.services import fitchef_runtime
@@ -2167,12 +2141,11 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_slip_support_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert "rag_retrieval_failed" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_tracks_sanitized_and_empty_rag_chunks(self) -> None:
+    def test_runtime_tracks_sanitized_and_empty_rag_chunks(self) -> None:
         """Sanitized chunks should add warnings and skip empty preview content."""
 
         from app.services import fitchef_runtime
@@ -2216,14 +2189,13 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_slip_support_task(self._task())
+        result = asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert len(result.sources) == 1
         assert result.sources[0].preview == "pause after the sanitized slip"
         assert "source_content_sanitized" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
         """Missing transparency registry must fail before quota/provider."""
 
         from app.services import fitchef_runtime
@@ -2238,13 +2210,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
         """Incomplete transparency metadata must fail before quota/provider."""
 
         from app.services import fitchef_runtime
@@ -2255,13 +2226,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_incomplete"
 
-    @pytest.mark.asyncio
-    async def test_runtime_llm_gate_failure_returns_503(self) -> None:
+    def test_runtime_llm_gate_failure_returns_503(self) -> None:
         """LLM gate failures must fail before quota/provider use."""
 
         from app.services import fitchef_runtime
@@ -2280,13 +2250,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "llm_generation_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_timeout_returns_504(self) -> None:
+    def test_runtime_timeout_returns_504(self) -> None:
         """Timeouts must map to 504."""
 
         from app.services import fitchef_runtime
@@ -2305,13 +2274,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 504
         assert exc_info.value.detail == "LLM provider call timed out"
 
-    @pytest.mark.asyncio
-    async def test_runtime_empty_provider_response_returns_503(self) -> None:
+    def test_runtime_empty_provider_response_returns_503(self) -> None:
         """Empty provider output must fail closed."""
 
         from app.services import fitchef_runtime
@@ -2330,13 +2298,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
+    def test_runtime_non_string_provider_payload_returns_stable_503(self) -> None:
         """Non-string provider payloads must map to the stable empty-response 503."""
 
         from app.services import fitchef_runtime
@@ -2355,13 +2322,12 @@ class TestFitChefSlipSupportRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_import_error_returns_503(self) -> None:
+    def test_runtime_import_error_returns_503(self) -> None:
         """ImportError from provider resolution must map to 503 without quota debit."""
 
         from app.services import fitchef_runtime
@@ -2386,14 +2352,13 @@ class TestFitChefSlipSupportRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider not available"
         assert quota_calls["count"] == 0
 
-    @pytest.mark.asyncio
-    async def test_runtime_provider_failure_returns_503(self) -> None:
+    def test_runtime_provider_failure_returns_503(self) -> None:
         """Unexpected provider failures must map to 503."""
 
         from app.services import fitchef_runtime
@@ -2412,7 +2377,7 @@ class TestFitChefSlipSupportRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_slip_support_task(self._task())
+            asyncio.run(fitchef_runtime.run_slip_support_task(self._task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_slip_support_unavailable"
@@ -2464,8 +2429,7 @@ class TestFitChefSlipSupportRuntimeCoverage:
         ),
     ],
 )
-@pytest.mark.asyncio
-async def test_fitchef_text_tasks_preserve_shared_audit_sequence(
+def test_fitchef_text_tasks_preserve_shared_audit_sequence(
     runner_name: str,
     task_factory,
     provider_text: str,
@@ -2507,7 +2471,7 @@ async def test_fitchef_text_tasks_preserve_shared_audit_sequence(
     monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
     runner = getattr(fitchef_runtime, runner_name)
-    await runner(task_factory())
+    asyncio.run(runner(task_factory()))
 
     assert audit_calls[:2] == [
         ("rag.retrieve", "corpus://fitchef-agent"),
@@ -2564,8 +2528,7 @@ async def test_fitchef_text_tasks_preserve_shared_audit_sequence(
         ),
     ],
 )
-@pytest.mark.asyncio
-async def test_fitchef_text_tasks_use_task_specific_draft_builder(
+def test_fitchef_text_tasks_use_task_specific_draft_builder(
     runner_name: str,
     task_factory,
     expected_message: str,
@@ -2639,7 +2602,7 @@ async def test_fitchef_text_tasks_use_task_specific_draft_builder(
     )
 
     runner = getattr(fitchef_runtime, runner_name)
-    result = await runner(task_factory())
+    result = asyncio.run(runner(task_factory()))
 
     assert result.message == expected_message
     assert draft_calls == expected_calls
@@ -2672,8 +2635,7 @@ class TestFitChefCoachInsightRuntimeCoverage:
             lambda *args, **kwargs: True,
         )
 
-    @pytest.mark.asyncio
-    async def test_runtime_sync_provider_returns_string(
+    def test_runtime_sync_provider_returns_string(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2692,13 +2654,12 @@ class TestFitChefCoachInsightRuntimeCoverage:
 
         monkeypatch.setattr("llm.get_provider", lambda: _SyncProvider())
 
-        result = await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+        result = asyncio.run(fitchef_runtime.run_coach_insight_task(_make_coach_insight_task()))
 
         assert result.insight == "Steady CBT support"
         assert result.quota_state == "consumed"
 
-    @pytest.mark.asyncio
-    async def test_runtime_async_provider_returns_string(
+    def test_runtime_async_provider_returns_string(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2717,13 +2678,12 @@ class TestFitChefCoachInsightRuntimeCoverage:
 
         monkeypatch.setattr("llm.get_provider", lambda: _AsyncProvider())
 
-        result = await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+        result = asyncio.run(fitchef_runtime.run_coach_insight_task(_make_coach_insight_task()))
 
         assert result.insight == "Async CBT support"
         assert result.quota_state == "consumed"
 
-    @pytest.mark.asyncio
-    async def test_runtime_sync_provider_returning_coroutine_returns_string(
+    def test_runtime_sync_provider_returning_coroutine_returns_string(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2745,13 +2705,12 @@ class TestFitChefCoachInsightRuntimeCoverage:
 
         monkeypatch.setattr("llm.get_provider", lambda: _CoroutineProvider())
 
-        result = await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+        result = asyncio.run(fitchef_runtime.run_coach_insight_task(_make_coach_insight_task()))
 
         assert result.insight == "Coroutine CBT support"
         assert result.quota_state == "consumed"
 
-    @pytest.mark.asyncio
-    async def test_runtime_non_string_provider_payload_fails_closed(
+    def test_runtime_non_string_provider_payload_fails_closed(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -2771,7 +2730,7 @@ class TestFitChefCoachInsightRuntimeCoverage:
         monkeypatch.setattr("llm.get_provider", lambda: _BadProvider())
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_coach_insight_task(_make_coach_insight_task())
+            asyncio.run(fitchef_runtime.run_coach_insight_task(_make_coach_insight_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "Failed to generate CBT insight"
