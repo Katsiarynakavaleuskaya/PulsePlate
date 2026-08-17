@@ -53,6 +53,17 @@ PR_CLOSEOUT_EFFECTS = frozenset(
 )
 
 
+def _mirrored_skill_files(mirrored_skill: Path) -> dict[Path, bytes]:
+    """Collect mirror bytes while excluding only the root source marker."""
+
+    root_marker = mirrored_skill / ".pulseplate_codex_skill_source"
+    return {
+        path.relative_to(mirrored_skill): path.read_bytes()
+        for path in mirrored_skill.rglob("*")
+        if path.is_file() and path != root_marker
+    }
+
+
 def _run_installer(
     home_root: Path,
     *args: str,
@@ -698,11 +709,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
                 for path in source_skill.rglob("*")
                 if path.is_file()
             }
-            mirrored_files = {
-                path.relative_to(mirrored_skill): path.read_bytes()
-                for path in mirrored_skill.rglob("*")
-                if path.is_file() and path.name != ".pulseplate_codex_skill_source"
-            }
+            mirrored_files = _mirrored_skill_files(mirrored_skill)
             assert mirrored_files == source_files
             if skill_name == "pulseplate-pr-closeout":
                 metadata = mirrored_skill / "agents" / "openai.yaml"
@@ -727,6 +734,26 @@ def test_pr_closeout_skill_has_one_closed_effect_vocabulary() -> None:
     }
 
     assert table_effects == PR_CLOSEOUT_EFFECTS
+
+
+def test_mirror_file_inventory_excludes_only_root_source_marker(tmp_path: Path) -> None:
+    """A nested marker-named file must remain visible to mirror comparison."""
+
+    mirrored_skill = tmp_path / "copied-skill"
+    nested = mirrored_skill / "nested"
+    nested.mkdir(parents=True)
+    (mirrored_skill / ".pulseplate_codex_skill_source").write_text(
+        "tools/codex_skills/copied-skill\n", encoding="utf-8"
+    )
+    (mirrored_skill / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    (nested / ".pulseplate_codex_skill_source").write_text(
+        "unexpected nested marker\n", encoding="utf-8"
+    )
+
+    assert _mirrored_skill_files(mirrored_skill) == {
+        Path("SKILL.md"): b"skill\n",
+        Path("nested/.pulseplate_codex_skill_source"): b"unexpected nested marker\n",
+    }
 
 
 @pytest.mark.parametrize(
@@ -755,7 +782,7 @@ def test_pr_closeout_skill_has_one_closed_effect_vocabulary() -> None:
         ),
         pytest.param(
             "If an effect is omitted, stale, already consumed, replayed, retargeted, "
-            "wildcarded, or not in the closed vocabulary, fail closed in `AUDIT`",
+            "wildcarded, or not in the closed vocabulary, fail closed in every mode",
             id="invalid-bundle-effects-fail-closed",
         ),
     ),

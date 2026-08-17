@@ -82,7 +82,7 @@ from this closed vocabulary:
 Check the matching effect instance immediately before its operation. Consume it
 after the single attempt, whether that attempt succeeds or fails. If an effect is
 omitted, stale, already consumed, replayed, retargeted, wildcarded, or not in the
-closed vocabulary, fail closed in `AUDIT`; do not run a subset, add an inferred
+closed vocabulary, fail closed in every mode; do not run a subset, add an inferred
 effect, or reuse authority against a refreshed head. A command or hook whose
 possible writes exceed its exact authorized paths is unreachable.
 
