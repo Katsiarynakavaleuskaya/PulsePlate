@@ -152,7 +152,7 @@ occupied exact shadow slot also blocks an unbound invocation.
 
 This ordering establishes only `local_dependency_order_only`. It is not an
 external timestamp, tamper-evident log, cryptographic preregistration, or a
-defence against same-UID deletion of all local evidence.
+defense against same-UID deletion of all local evidence.
 
 ## Outcome lineage and scoring
 

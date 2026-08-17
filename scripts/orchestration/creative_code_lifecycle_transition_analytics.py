@@ -68,7 +68,7 @@ class _SourceSeal:
 
 @dataclass(frozen=True)
 class ValidatedLifecycleTransitionSnapshot:
-    """Read-only exact snapshot material used by bounded local consumers."""
+    """Mutation-free load result; contained mappings are caller-local mutable values."""
 
     events: tuple[dict[str, Any], ...]
     rollup: dict[str, Any]
