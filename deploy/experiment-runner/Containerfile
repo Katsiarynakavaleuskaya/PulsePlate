@@ -133,7 +133,7 @@ RUN set -eu; \
     test "$(rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' util-linux-core)" = \
       'util-linux-core-2.40.2-18.el10'; \
     expected_rpm_package_count='129'; \
-    expected_rpm_inventory_sha256='bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2'; \
+    expected_rpm_inventory_sha256='156a9229:dcfa857f:0b093926:e669b54f:7bf8e0a9:1bc3b4b5:038f536d:4a0798fa'; \
     expected_rpm_inventory_sha256="$(printf '%s' "${expected_rpm_inventory_sha256}" | tr -d ':')"; \
     rpm_inventory="$(rpm -qa --qf '%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n' | LC_ALL=C sort)"; \
     test "$(printf '%s\n' "${rpm_inventory}" | wc -l | tr -d ' ')" = \

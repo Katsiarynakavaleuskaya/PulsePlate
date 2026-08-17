@@ -42,6 +42,30 @@ _EXPECTED_HTML_PARSER_SHA256 = (
     "4274e911:2adf3fa5:7c7f9afa:7c9b5c63:1456b18b:7403cc62:7cc5027d:02cdd2ae".replace(":", "")
 )
 _EXPECTED_CPYTHON_PATCH_COMMIT = "7933f4bf:7131aa41:40750f94:04f5de0a:a2969ced".replace(":", "")
+_EXPECTED_CURRENT_RUNNER_IMAGE = (
+    "sha256:e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b"
+)
+_EXPECTED_CURRENT_RUNNER_MANIFEST = (
+    "sha256:785245ef5562180f3be86f8129ad140bbb74d624b2e8da27534acfed4ec31911"
+)
+_EXPECTED_CURRENT_RUNNER_CONFIG = (
+    "sha256:c310b97f4b8c95faeb514b534212cc02f4ffe7e20ac113bcdba7ef928d6af5cd"
+)
+_HISTORICAL_AA9_RUNNER_IMAGE = (
+    "sha256:7fd5b16759d979c277f42fd3a982ba9620723a8049093b66ebfef7b5bbf389da"
+)
+_EXPECTED_CURRENT_TRIVY_DB_SHA256 = (
+    "444bb0ce:fab136b3:03ccfc45:8c4f86c4:a6b69201:722568d9:1204d90c:c0db78cf".replace(":", "")
+)
+_EXPECTED_CURRENT_TRIVY_REPORT_SHA256 = (
+    "6286a379:ae13716e:bac825df:3f91653b:d87e6efd:cb6e8f7d:aeceac12:886bf703".replace(":", "")
+)
+_EXPECTED_CURRENT_PYTHON_PROJECTION_SHA256 = (
+    "b4690ca8:af9ca4b3:20edca97:23ccbd9b:12c9ab9f:e18675c5:4d4df6c3:007d0ed5".replace(":", "")
+)
+_EXPECTED_CURRENT_PROBE_SHA256 = (
+    "d0be192e:5371f371:ee70cdbf:cb867e66:8fbd3415:052d12d4:1065f5f8:f5522db3".replace(":", "")
+)
 
 
 def _runner_containerfile_text() -> str:
@@ -199,7 +223,7 @@ def _clean_trivy_admission_report() -> dict[str, Any]:
                 "Target": "Python",
                 "Class": "lang-pkgs",
                 "Type": "python-pkg",
-                "Packages": _trivy_packages("python", 136),
+                "Packages": _trivy_packages("python", 134),
             },
         ],
     }
@@ -243,6 +267,8 @@ def _invalid_trivy_admission_report(case: str) -> Any:
         report["Results"][0]["Packages"].pop()
     elif case == "wrong_python_package_count":
         report["Results"][1]["Packages"].pop()
+    elif case == "stale_python_package_count":
+        report["Results"][1]["Packages"] = _trivy_packages("python", 136)
     elif case == "packages_not_list":
         report["Results"][0]["Packages"] = {}
     elif case == "package_not_object":
@@ -419,7 +445,7 @@ def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: 
         "trivy_os_family=redhat",
         "trivy_os_version=10.2",
         "trivy_os_package_count=129",
-        "trivy_python_package_count=136",
+        "trivy_python_package_count=134",
         "trivy_high_critical_findings=0",
     ]
 
@@ -445,6 +471,7 @@ def test_trivy_admission_report_requires_exact_os_and_python_coverage(tmp_path: 
         "missing_result_identity",
         "wrong_os_package_count",
         "wrong_python_package_count",
+        "stale_python_package_count",
         "packages_not_list",
         "package_not_object",
         "malformed_package",
@@ -548,7 +575,7 @@ def test_runner_containerfile_has_minimal_exact_package_contract() -> None:
         ),
         (
             "129",
-            "bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:" "7d737476:368a34b2",
+            "156a9229:dcfa857f:0b093926:e669b54f:7bf8e0a9:1bc3b4b5:" "038f536d:4a0798fa",
         ),
     ]
     assert containerfile.count("%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}") == 3
@@ -655,8 +682,8 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         '"git-core-2.52.0-1.el10.aarch64"',
         '"util-linux-core-2.40.2-18.el10.aarch64"',
         'expected_rpm_package_count="129"',
-        'expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:'
-        'f208ee11:69251070:7d737476:368a34b2"',
+        'expected_rpm_inventory_sha256="156a9229:dcfa857f:0b093926:e669b54f:'
+        '7bf8e0a9:1bc3b4b5:038f536d:4a0798fa"',
         "%{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}",
         '"runtime_contract=passed"',
         '"${TEE_BIN}" "${RUNNER_RUNTIME_REPORT}"',
@@ -681,7 +708,7 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
         'report.get("SchemaVersion") != 2',
         'report.get("ArtifactType") != "container_image"',
         "if os_package_counts[0] != 129:",
-        "if python_package_counts[0] != 136:",
+        "if python_package_counts[0] != 134:",
         'fail("selected_findings")',
         '"${TEE_BIN}" "${RUNNER_PROBE_STDOUT}"',
         "'runtime_contract_exit=0'",
@@ -725,12 +752,62 @@ def test_runner_admission_docs_require_exact_digest_bound_oci_scan() -> None:
     assert "`--vex=`" in security_note
     assert "## Sanitized command receipts" in security_note
     assert "`admission-exit-statuses.txt`" in security_note
-    assert "rpm_inventory_sha256=bf2426b194df76bf" in security_note
+    assert "rpm_inventory_sha256=156a9229dcfa857f" in security_note
     assert "trivy_os_package_count=129" in security_note
-    assert "trivy_python_package_count=136" in security_note
+    assert "if python_package_counts[0] != 136:" not in admission
+    assert "trivy_python_package_count=134" in security_note
     assert "trivy_high_critical_findings=0" in security_note
+    for digest in (
+        _EXPECTED_CURRENT_RUNNER_IMAGE,
+        _EXPECTED_CURRENT_RUNNER_MANIFEST,
+        _EXPECTED_CURRENT_RUNNER_CONFIG,
+    ):
+        assert digest in runbook
+        assert digest in security_note
+    assert "CVE-2026-69247" in security_note
+    assert "CVE-2026-69249" in security_note
+    for evidence_hash in (
+        _EXPECTED_CURRENT_TRIVY_DB_SHA256,
+        _EXPECTED_CURRENT_TRIVY_REPORT_SHA256,
+        _EXPECTED_CURRENT_PYTHON_PROJECTION_SHA256,
+        _EXPECTED_CURRENT_PROBE_SHA256,
+    ):
+        assert evidence_hash in security_note
     assert "Exit status: `1`" in security_note
     assert "explicitly not used as audit proof" in " ".join(security_note.split())
+
+
+def test_runner_admission_docs_reject_historical_aa9_image_as_current() -> None:
+    runbook = _runner_doc_text(_RUNNER_RUNBOOK)
+    security_note = _runner_doc_text(_RUNNER_SECURITY_NOTE)
+
+    current_runbook = runbook.split("The current `c731f121`", maxsplit=1)[1].split(
+        "The scan must consume",
+        maxsplit=1,
+    )[0]
+    historical_security = security_note.split(
+        "## Historical aa9 exact image re-admission (2026-08-17)",
+        maxsplit=1,
+    )[1].split("## Current c731 exact image re-admission (2026-08-17)", maxsplit=1)[0]
+    current_security = security_note.split(
+        "## Current c731 exact image re-admission (2026-08-17)",
+        maxsplit=1,
+    )[1].split("## Historical aa9 sanitized command receipts (2026-08-17)", maxsplit=1)[0]
+
+    assert _HISTORICAL_AA9_RUNNER_IMAGE in historical_security
+    assert _HISTORICAL_AA9_RUNNER_IMAGE not in current_runbook
+    assert _HISTORICAL_AA9_RUNNER_IMAGE not in current_security
+    assert _EXPECTED_CURRENT_RUNNER_IMAGE in current_runbook
+    assert _EXPECTED_CURRENT_RUNNER_IMAGE in current_security
+    assert "there are no added or removed distribution names" in " ".join(current_security.split())
+    for substitution in (
+        "alembic 1.18.4 -> 1.19.1",
+        "greenlet 3.3.2 -> 3.5.5",
+        "psycopg 3.3.3 -> 3.3.4",
+        "psycopg-binary 3.3.3 -> 3.3.4",
+        "SQLAlchemy 2.0.48 -> 2.0.52",
+    ):
+        assert substitution in current_security
 
 
 def test_runner_admission_docs_limit_candidate_rollback_scope() -> None:

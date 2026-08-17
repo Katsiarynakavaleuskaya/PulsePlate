@@ -338,9 +338,10 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Remediate Experiment Runner container HIGH/CRITICAL vulnerabilities
   - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)
   - Priority: P0 prerequisite for mandatory Experiment Runner oracle evidence
-  - Target PR: `codex/fix-experiment-runner-container-cves`
-  - Status: Implementation and exact-image admission complete locally; final
-    oracle, current-head PR, and merge evidence pending
+  - Target PR: `codex/repair-experiment-runner-apple-image-inventory`
+  - Status: In progress; current-base exact Apple-image re-admission is
+    complete locally; final oracle, current-head PR/CI, and merge evidence are
+    pending
   - Area: Experiment Runner / container security / supply chain
   - Reason (EN): The immutable bookworm runner baseline reports 61
     HIGH/CRITICAL occurrences across 27 unique vulnerability IDs. Mandatory
@@ -369,7 +370,7 @@ If it is not recorded here — it does not exist.
     `/dev/null` ignore file, unfixed findings included, and zero HIGH/CRITICAL
     OS or language-package findings; fail closed unless the report proves Trivy
     schema v2, the exact container/Red Hat 10.2 identity, one 129-package OS
-    result, and one 136-package Python result; verify exact RPM versions and the
+    result, and one 134-package Python result; verify exact RPM versions and the
     CPython patch inside the same digest; verify the complete 107/108/129
     package inventories over NEVRA, header SHA-256, payload digest, and payload
     digest algorithm; preserve sanitized runtime, probe, scanner, and

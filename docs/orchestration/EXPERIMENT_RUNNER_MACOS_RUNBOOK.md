@@ -247,13 +247,23 @@ Linux ARM64 musllinux wheel. The diagnostic build used the approved private
 index secret and did not fall back to public PyPI. Weakening the lock,
 `--only-binary` policy, or index boundary was not authorized.
 
-The current UBI recipe built through the canonical Apple dispatcher as image
-index
+The prior July UBI admission remains preserved at image index
 `sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70`.
+A same-database recheck now reports two HIGH `cryptography==48.0.1` findings,
+so that historical digest is not the current eligible runner.
+
+The prior `aa9ddb97` UBI re-admission remains preserved at image index
+`sha256:7fd5b16759d979c277f42fd3a982ba9620723a8049093b66ebfef7b5bbf389da`.
+It is historical evidence only and is not a fallback for the current source
+or dependency closure.
+
+The current `c731f121` UBI recipe built through the canonical Apple dispatcher
+as image index
+`sha256:e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b`.
 Its exact `linux/arm64` manifest is
-`sha256:c46d2bd8a174b6b10b9ed06c1c145eeb1ca131d326c67b4c72589ea84e6d1750`,
+`sha256:785245ef5562180f3be86f8129ad140bbb74d624b2e8da27534acfed4ec31911`,
 and its manifest-bound config/history is
-`sha256:b96621e97fd78527a93f9853970d1f17baffa46e8d188e5341899fc6a1efaa1d`.
+`sha256:c310b97f4b8c95faeb514b534212cc02f4ffe7e20ac113bcdba7ef928d6af5cd`.
 The scan must consume the exact OCI layout cryptographically traversed from
 that Apple image digest; a mutable tag, bare repository-context scan, or
 unverified PATH Trivy binary is not evidence. Download the official Trivy
@@ -542,7 +552,7 @@ test "$(rpm -q make)" = "make-4.4.1-9.el10.aarch64"
 test "$(rpm -q shadow-utils)" = "shadow-utils-4.15.0-11.el10.aarch64"
 test "$(rpm -q util-linux-core)" = "util-linux-core-2.40.2-18.el10.aarch64"
 expected_rpm_package_count="129"
-expected_rpm_inventory_sha256="bf2426b1:94df76bf:c9f26642:a23b7b94:f208ee11:69251070:7d737476:368a34b2"
+expected_rpm_inventory_sha256="156a9229:dcfa857f:0b093926:e669b54f:7bf8e0a9:1bc3b4b5:038f536d:4a0798fa"
 expected_rpm_inventory_sha256="$(printf "%s" "${expected_rpm_inventory_sha256}" | tr -d ":")"
 rpm_inventory="$(rpm -qa --qf "%{NAME}-%{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH} %{SHA256HEADER} %{PAYLOADDIGEST} %{PAYLOADDIGESTALGO}\n" | LC_ALL=C sort)"
 test "$(printf "%s\n" "${rpm_inventory}" | wc -l | tr -d " ")" = \
@@ -665,7 +675,7 @@ if len(python_package_counts) != 1:
     fail("python_coverage")
 if os_package_counts[0] != 129:
     fail("os_package_count")
-if python_package_counts[0] != 136:
+if python_package_counts[0] != 134:
     fail("python_package_count")
 if finding_count:
     fail("selected_findings")
@@ -677,7 +687,7 @@ print(
             "trivy_os_family=redhat",
             "trivy_os_version=10.2",
             "trivy_os_package_count=129",
-            "trivy_python_package_count=136",
+            "trivy_python_package_count=134",
             "trivy_high_critical_findings=0",
         )
     )
@@ -716,7 +726,7 @@ Both database acquisition and image scanning ignore ambient Trivy
 configuration, while the image scan explicitly clears external ignore-policy,
 ignore-status, and VEX inputs. The self-contained Python coverage guard then
 requires Trivy schema v2, a `container_image` artifact, exact Red Hat 10.2
-metadata, exactly one 129-package OS result, and exactly one 136-package Python
+metadata, exactly one 129-package OS result, and exactly one 134-package Python
 result before it accepts the absence of selected findings. The command writes
 sanitized runtime output, probe output, scanner JSON, and one success-only
 exit-status receipt beneath the digest-bound local evidence directory. Because
@@ -724,9 +734,10 @@ exit-status receipt beneath the digest-bound local evidence directory. Because
 hidden, and the all-zero status receipt is never written after a failed
 admission step.
 
-The admitted UBI image reported Red Hat 10.2 with 129 OS packages and 136
-packages in one Python dependency manifest. The unfiltered OS-and-language scan
-reported zero HIGH/CRITICAL findings with ambient Trivy configuration disabled,
+The current re-admitted UBI image reported Red Hat 10.2 with 129 OS packages
+and 134 packages in one Python dependency manifest. The unfiltered
+OS-and-language scan reported zero HIGH/CRITICAL findings with ambient Trivy
+configuration disabled,
 all external suppression inputs explicitly empty, `/dev/null` as the ignore
 file, and unfixed findings included. The strict Apple 1.1.0 probe passed every
 required network, mount, digest, cleanup, and non-root control for the same

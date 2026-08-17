@@ -1,8 +1,8 @@
 # Experiment Runner container CVE remediation
 
-**Status:** Exact image admitted locally; final oracle and current-head PR/merge evidence pending
+**Status:** Current-base exact image re-admitted locally; final oracle and current-head PR/merge evidence pending
 **Suppression expires:** N/A (no suppression added)
-**Last reviewed:** 2026-07-23
+**Last reviewed:** 2026-08-17
 
 ## Security decision
 
@@ -75,11 +75,14 @@ accepted build locks 107 packages in `python-runtime`, 108 in `builder`, and
 RPM now fails the build even if its package name and direct request remain
 unchanged.
 
-## Exact image evidence
+## Historical exact image evidence (2026-07-23)
 
 The canonical Apple dispatcher built:
 
 `pulseplate/experiment-runner:ubi-cve-review-fix@sha256:5b3abbad998dc1b23f9d99e72a8fde931558401b81a2aec8c5eeeff90b128a70`
+
+This is retained as the complete prior admission record, not as the current
+eligible image. Its original scan result below remains historical evidence.
 
 The admission chain verified:
 
@@ -105,14 +108,348 @@ The admission chain verified:
 - strict Apple Container 1.1.0 isolation with every required digest, network,
   mount, root-read-only, result-volume, and cleanup control true.
 
-The scan consumes only the manifest-bound OCI layout exported from that exact
-Apple image reference. Local artifacts remain gitignored and are evidence, not
-canonical repository files. Current-head CI and PR governance remain separate
-required signals. The final immutable-oracle review runs only after material
-freeze; its result is recorded in closeout evidence and is not back-written
-into this material security note.
+The same freshly downloaded Trivy 0.72.0 database used for the current
+re-admission was also applied to this exact historical OCI layout. Database
+schema `2` was updated at `2026-08-17T06:55:37.603156251Z`; its `trivy.db`
+SHA-256 was
+`444bb0cefab136b303ccfc458c4f86c4a6b69201722568d91204d90cc0db78cf`.
+The historical image still projected 136 Python packages, but the refreshed
+report (SHA-256
+`303ca24537fa079f3d18149e74dd0f986b2b05033205e720823d0cbeede0c80e`)
+now reports two HIGH findings in `cryptography==48.0.1`:
+
+- `CVE-2026-69247`, fixed in `50.0.0`;
+- `CVE-2026-69249`, fixed in `49.0.0`.
+
+That result is a fail-closed reason not to reuse the old digest. It does not
+rewrite or discard the original July receipt.
+
+## Historical aa9 exact image re-admission (2026-08-17)
+
+The canonical Apple dispatcher built the then-current `aa9ddb97` repository
+lock and the rebaselined final-stage RPM inventory as:
+
+`pulseplate/experiment-runner:inventory-refresh-aa9ddb97@sha256:7fd5b16759d979c277f42fd3a982ba9620723a8049093b66ebfef7b5bbf389da`
+
+The digest-bound OCI traversal verified:
+
+- top image index:
+  `sha256:7fd5b16759d979c277f42fd3a982ba9620723a8049093b66ebfef7b5bbf389da`;
+- exactly one `linux/arm64` manifest:
+  `sha256:5516d0172fe2810db681afd6a42006c89026ff034edf00891119ac5640abe759`;
+- manifest-bound config/history:
+  `sha256:d464ad9a67ccc553cf141bb88d14cc037ba862d6e71426358996785edd370d8d`;
+- five regular layer blobs, each verified against its descriptor size and
+  SHA-256:
+  - `sha256:58f664164ca85fb5b417ce6f6fffea1e66eaf780a7dedb2c483cdd5286d5ee2b`
+    (`33,053,422` bytes);
+  - `sha256:5a3a20a454b64d6fc36b0af64f0db4999e4f570a9ef29f1c800110739b6dd59a`
+    (`18,843,366` bytes);
+  - `sha256:2917935a83d987f74a954d19f8a313cf2558074fc2f09c8fbe9f5da380630769`
+    (`20,809,268` bytes);
+  - `sha256:f52a86905632f47ae608ee268431330471493068cf852c7885424dd301339e0d`
+    (`148,004,165` bytes);
+  - `sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1`
+    (`32` bytes).
+
+Config/history contained neither configured proxy-secret names nor any
+non-empty current secret value. Runtime remained UID/GID `65532:65532`, Python
+`3.13.14`, the checksum-pinned CPython parser patch, and the exact requested
+runtime tool versions.
+
+### Complete RPM inventory delta and provenance
+
+The exact old and new inventories both contain 129 rows. Of those, 127 full
+rows are byte-identical and 127 NEVRA identities are shared. There is no
+same-NEVRA header or payload mutation. The complete four-row delta is:
+
+```text
+-openssh-0:9.9p1-23.el10_2.aarch64 6b968c0f96817c905f452c37c5d75c79298eae0a9066df91c0a9c830e653b50d c92ddb49b63d0779eab294e41ed151e1a8b3cccea69d69f0f93d7baaff1487a4 8
+-openssh-clients-0:9.9p1-23.el10_2.aarch64 105fcd23e18730bc3dec02a36cb5ddb78776dc5d7431d9994c85556d34cf1687 b467e84963c7e075274ad40ac54a5581853f40a7bea98e5a637b05445485a32e 8
++openssh-0:9.9p1-25.el10_2.aarch64 daaf6c87cc989d9e8b7bac399b5c800eb814210d6f3567295c2955bb46883054 253f1ce45f3d87c669a83f95bf754b057b792d16e69be4921d2ccebb509edcc9 8
++openssh-clients-0:9.9p1-25.el10_2.aarch64 08cfffa1a014e730ccb3cca41cb636effe699012ca7aace4fff52f299e55de17 3c408d3af0bf935baa1908515fe181bf245a5cbceb443ce1d1ed81fd914dc695 8
+```
+
+Both old rows come from `openssh-9.9p1-23.el10_2.src.rpm`; both new rows come
+from `openssh-9.9p1-25.el10_2.src.rpm`. Every row names vendor `Red Hat, Inc.`,
+packager `Red Hat, Inc. <http://bugzilla.redhat.com/bugzilla>`, build host
+`konflux.redhat.com`, and RSA/SHA256 signature key
+`199e2f91fd431d51`. The installed `gpg-pubkey-fd431d51-4ae0493b` identifies
+that suffix as Red Hat release key 2, and all UBI repositories keep
+`gpgcheck = 1` with `RPM-GPG-KEY-redhat-release`.
+
+The base digest, checksum-pinned sources, EPEL key/release RPM, and four direct
+runner requests did not change. `git-core-2.52.0-1.el10.aarch64` requires
+`openssh-clients`, which in turn requires `openssh`; therefore both changed
+rows are transitive Red Hat closure, not direct requests. The resulting final
+inventory SHA-256 changed from
+`bf2426b194df76bfc9f26642a23b7b94f208ee11692510707d737476368a34b2`
+to
+`156a9229dcfa857f0b093926e669b54f7bf8e0a91bc3b4b5038f536d4a0798fa`.
+The `python-runtime` inventory remains exactly 107 rows with SHA-256
+`89d2a8bb1a6216d563f194d6c65b556dc5a1672c9b126afed5d1b6775a9c0125`;
+the `builder` inventory remains exactly 108 rows with SHA-256
+`877f449d91c786a5353d0f25d95423facc1cf06eb6e748c6c0be04f6ced7c26b`.
+
+### Historical aa9 Python closure and same-database scan
+
+The `aa9ddb97` locked Python closure contains 134 distributions. Relative to
+the July historical image, that already-merged lock raised 12 package versions
+(`cryptography`, `cyclonedx-python-lib`, `distlib`, the six OpenTelemetry
+packages, `pip-tools`, `pre-commit`, and `prometheus-client`) and no longer
+requires the `importlib-metadata` and `zipp` backports. No dependency file was
+changed by this re-admission.
+
+The normalized `importlib.metadata` runtime projection and Trivy's Python
+package projection each contain exactly 134 unique name/version identities.
+Both have SHA-256
+`c2e2b687d71be007a1986133b5d8dca040074e3359b4e12871659e329ac5fddb`,
+and their exact diff is empty. This proves that the 136-to-134 change was an
+actual `aa9ddb97` lock-closure change, not a Trivy parsing artifact.
+
+The official checksum-verified Trivy 0.72.0 macOS ARM64 asset has SHA-256
+`88f208680dc05da2b459e19b4f5aa2b4dc7c2117892ba4aab2ae63baba330016`.
+The same database used for both old and new comparisons has schema `2`,
+`UpdatedAt=2026-08-17T06:55:37.603156251Z`, `DownloadedAt=2026-08-17T11:49:34.13304Z`,
+metadata SHA-256
+`5241141b35a0c92af31ca55e03c1892db62e538ad6d3123cc9dfc1bfcf905eed`,
+and database SHA-256
+`444bb0cefab136b303ccfc458c4f86c4a6b69201722568d91204d90cc0db78cf`.
+The `aa9ddb97` exact-image report has SHA-256
+`8477aa59b2d70b552ce75cc81ec7ae98ca7a8bee4fa0ea4661db0035ac069e71`.
+It reports Red Hat 10.2, 129 OS packages, 134 Python packages, and zero
+HIGH/CRITICAL findings with the existing unsuppressed isolated scan policy.
+
+The first `aa9ddb97` image admission correctly stopped before the probe at
+`trivy_admission_report_invalid:python_package_count`, because its validator
+still required the historical count of 136. That negative report is retained
+with SHA-256
+`eab987248cb1f33f6b929e4243201487b870e2882a698c5750c9109494ce424e`.
+After synchronizing only the strict count assertion and adding an executable
+stale-136 rejection test, the complete runbook restarted from the beginning
+and passed.
+
+The strict Apple Container 1.1.0 artifact is bound to the exact image digest
+and has SHA-256
+`b8805cc968bbe405f8285ec93e360700d4a02e459e071792e9019df6aab5c343`.
+It reports `strict_isolation=true`, `linux_arm64`, no blocking reasons, and all
+runtime availability, guest-platform, digest, outer/inner DNS, host, direct-IP,
+source/input read-only, private-tmpfs, root-read-only, result-volume,
+unshare-without-broad-capabilities, and cleanup checks true.
+
+The scan consumed only the manifest-bound OCI layout exported from that exact
+historical Apple image reference. Local artifacts remain gitignored and are
+evidence, not canonical repository files.
+
+## Current c731 exact image re-admission (2026-08-17)
+
+After `main` advanced to `c731f12117e7da922134509ad47808614c0dfcca`, the
+canonical Apple dispatcher rebuilt the same pinned image recipe under a unique
+tag and returned this immutable reference:
+
+`pulseplate/experiment-runner:inventory-refresh-c731f121@sha256:e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b`
+
+That digest is distinct from both historical images above. The complete
+runbook was restarted from its first step against that exact reference. Its
+digest-bound OCI traversal verified:
+
+- top image index:
+  `sha256:e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b`;
+- exactly one `linux/arm64` manifest:
+  `sha256:785245ef5562180f3be86f8129ad140bbb74d624b2e8da27534acfed4ec31911`;
+- manifest-bound config/history:
+  `sha256:c310b97f4b8c95faeb514b534212cc02f4ffe7e20ac113bcdba7ef928d6af5cd`;
+- five regular layer blobs, each verified against its descriptor size and
+  SHA-256:
+  - `sha256:58f664164ca85fb5b417ce6f6fffea1e66eaf780a7dedb2c483cdd5286d5ee2b`
+    (`33,053,422` bytes);
+  - `sha256:5a3a20a454b64d6fc36b0af64f0db4999e4f570a9ef29f1c800110739b6dd59a`
+    (`18,843,366` bytes);
+  - `sha256:2917935a83d987f74a954d19f8a313cf2558074fc2f09c8fbe9f5da380630769`
+    (`20,809,268` bytes);
+  - `sha256:c279e4d7671ec177ba25360d8ed1e4da8b20a701164622c26962bf28223c5fd8`
+    (`148,065,658` bytes);
+  - `sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1`
+    (`32` bytes).
+
+The inspect receipt has SHA-256
+`ba8eb6d0b13e8470ad358da3cf8bf125fcf5d5b41473cbb8333a943687b0280f`.
+Config/history again contained neither configured proxy-secret names nor any
+non-empty current secret value. Runtime remained UID/GID `65532:65532`, Python
+`3.13.14`, the checksum-pinned CPython parser patch, and the exact requested
+runtime tool versions.
+
+### Current RPM and Python closure
+
+The pinned source, base digest, EPEL key/release checksums, direct RPM requests,
+and RPM formatter are unchanged from the historical aa9 re-admission. The
+fresh `c731f121` build reproduced the exact stage contracts: 107
+`python-runtime` rows with SHA-256
+`89d2a8bb1a6216d563f194d6c65b556dc5a1672c9b126afed5d1b6775a9c0125`,
+108 `builder` rows with SHA-256
+`877f449d91c786a5353d0f25d95423facc1cf06eb6e748c6c0be04f6ced7c26b`,
+and 129 final rows with SHA-256
+`156a9229dcfa857f0b093926e669b54f7bf8e0a91bc3b4b5038f536d4a0798fa`.
+The full RPM delta and Red Hat signature/provenance explanation in the
+historical aa9 section therefore remains the complete RPM rebaseline: there is
+no additional RPM row change on `c731f121`.
+
+The current normalized runtime and Trivy Python projections each contain 134
+unique name/version identities. Both have SHA-256
+`b4690ca8af9ca4b320edca9723ccbd9b12c9ab9fe18675c54d4df6c3007d0ed5`,
+and their exact diff is empty. Relative to the historical aa9 projection there
+are no added or removed distribution names and exactly these five version
+substitutions:
+
+```text
+alembic 1.18.4 -> 1.19.1
+greenlet 3.3.2 -> 3.5.5
+psycopg 3.3.3 -> 3.3.4
+psycopg-binary 3.3.3 -> 3.3.4
+SQLAlchemy 2.0.48 -> 2.0.52
+```
+
+The complete substitution projection has SHA-256
+`e54f3aa6a8c84448c868d758fa1775b25881802ce3f33be1fa92ce3e27f6a0a6`.
+This evidence is specific to the exact image, stage, architecture, source head,
+and admission time; it is not a universal dependency-safety claim.
+
+### Current same-database scan and strict probe
+
+The checksum-verified official Trivy 0.72.0 macOS ARM64 asset remained
+byte-identical with SHA-256
+`88f208680dc05da2b459e19b4f5aa2b4dc7c2117892ba4aab2ae63baba330016`.
+The refreshed database identity also remained byte-identical to the historical
+comparison: schema `2`,
+`UpdatedAt=2026-08-17T06:55:37.603156251Z`,
+`DownloadedAt=2026-08-17T11:49:34.13304Z`, metadata SHA-256
+`5241141b35a0c92af31ca55e03c1892db62e538ad6d3123cc9dfc1bfcf905eed`,
+and database SHA-256
+`444bb0cefab136b303ccfc458c4f86c4a6b69201722568d91204d90cc0db78cf`.
+Because that identity did not change, the retained same-database historical
+scan remains the valid comparison; no replacement scan of the July image was
+needed.
+
+The current exact-image report has SHA-256
+`6286a379ae13716ebac825df3f91653bd87e6efdcb6e8f7daeceac12886bf703`.
+It reports a container image, Red Hat 10.2, 129 OS packages, 134 Python
+packages, and zero HIGH/CRITICAL findings under the existing unsuppressed,
+isolated scan policy. The runtime contract output has SHA-256
+`d9a768cc34f94b9a93f49a8de761377f78d6ada7e2c3841041580288557cc7c6`.
+
+The strict Apple Container 1.1.0 artifact is bound to the current exact image
+digest and has SHA-256
+`d0be192e5371f371ee70cdbfcb867e668fbd3415052d12d41065f5f8f5522db3`.
+It reports `strict_isolation=true`, `linux_arm64`, no blocking reasons, and all
+required runtime availability, guest-platform, digest, outer/inner DNS, host,
+direct-IP, source/input read-only, private-tmpfs, root-read-only,
+result-volume, unshare-without-broad-capabilities, and cleanup checks true.
+
+The scan consumes only the manifest-bound OCI layout exported from this exact
+Apple image reference. Local artifacts under
+`artifacts/orchestration/security/runner-e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b/`
+remain gitignored evidence, not canonical repository files. Current-head CI
+and PR governance remain separate required signals. The final immutable-oracle
+review runs only after material freeze; its result is recorded in closeout
+evidence and is not back-written into this material security note.
 
 ## Sanitized command receipts
+
+The current canonical build command was:
+
+```bash
+python3 scripts/orchestration/experiment_runner_dispatch.py build-image \
+  --backend apple-container \
+  --tag pulseplate/experiment-runner:inventory-refresh-c731f121
+```
+
+Exit status: `0`. Sanitized dispatcher output:
+
+```json
+{"backend": "apple-container", "image": "pulseplate/experiment-runner:inventory-refresh-c731f121@sha256:e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b", "sanitized": "true"}
+```
+
+The complete runbook admission restarted from its first step and exited `0`.
+Its success-only receipt, SHA-256
+`441c3ce288cc1164e8df01e55eed5c244839b80a5c09b8feeb6ba75ca5d308c6`,
+is:
+
+```text
+trivy_checksum_exit=0
+image_inspect_exit=0
+oci_descriptor_validation_exit=0
+oci_layer_count=5
+config_history_validation_exit=0
+runtime_contract_exit=0
+trivy_exit=0
+trivy_artifact_type=container_image
+trivy_os_family=redhat
+trivy_os_version=10.2
+trivy_os_package_count=129
+trivy_python_package_count=134
+trivy_high_critical_findings=0
+apple_probe_exit=0
+```
+
+The retained runtime and strict-probe outputs are:
+
+```text
+uid_gid=65532:65532
+python_version=3.13.14
+rpm_package_count=129
+rpm_inventory_sha256=156a9229dcfa857f0b093926e669b54f7bf8e0a91bc3b4b5038f536d4a0798fa
+runtime_contract=passed
+{"artifact": "mac-strict-capability-e78a2453138295e2615343bdb4696272f4bee5054281a3ea5d25e52af51d014b.json", "strict_isolation": true}
+```
+
+## Historical aa9 sanitized command receipts (2026-08-17)
+
+The `aa9ddb97` canonical build command was:
+
+```bash
+python3 scripts/orchestration/experiment_runner_dispatch.py build-image \
+  --backend apple-container \
+  --tag pulseplate/experiment-runner:inventory-refresh-aa9ddb97
+```
+
+Exit status: `0`. Sanitized dispatcher output:
+
+```json
+{"backend": "apple-container", "image": "pulseplate/experiment-runner:inventory-refresh-aa9ddb97@sha256:7fd5b16759d979c277f42fd3a982ba9620723a8049093b66ebfef7b5bbf389da", "sanitized": "true"}
+```
+
+The restarted complete runbook admission exited `0`. Its success-only receipt
+is:
+
+```text
+trivy_checksum_exit=0
+image_inspect_exit=0
+oci_descriptor_validation_exit=0
+oci_layer_count=5
+config_history_validation_exit=0
+runtime_contract_exit=0
+trivy_exit=0
+trivy_artifact_type=container_image
+trivy_os_family=redhat
+trivy_os_version=10.2
+trivy_os_package_count=129
+trivy_python_package_count=134
+trivy_high_critical_findings=0
+apple_probe_exit=0
+```
+
+The retained runtime and strict-probe outputs are:
+
+```text
+uid_gid=65532:65532
+python_version=3.13.14
+rpm_package_count=129
+rpm_inventory_sha256=156a9229dcfa857f0b093926e669b54f7bf8e0a91bc3b4b5038f536d4a0798fa
+runtime_contract=passed
+{"artifact": "mac-strict-capability-7fd5b16759d979c277f42fd3a982ba9620723a8049093b66ebfef7b5bbf389da.json", "strict_isolation": true}
+```
+
+## Historical sanitized command receipts (2026-07-23)
 
 The admitted build command was:
 
@@ -221,26 +558,26 @@ complete, digest-bound build and admission receipt.
   inventory checks; `deploy/experiment-runner/Containerfile:75` preserves the
   private-index installer; and `deploy/experiment-runner/Containerfile:119`
   defines the exact non-root runtime package contract.
-- `tests/test_experiment_runner_dispatch.py:345` proves complete layer
-  verification; `tests/test_experiment_runner_dispatch.py:370` rejects
-  incomplete or changed blobs; `tests/test_experiment_runner_dispatch.py:409`
+- `tests/test_experiment_runner_dispatch.py:371` proves complete layer
+  verification; `tests/test_experiment_runner_dispatch.py:396` rejects
+  incomplete or changed blobs; `tests/test_experiment_runner_dispatch.py:435`
   proves the complete clean scanner report; and
-  `tests/test_experiment_runner_dispatch.py:457` rejects incomplete,
+  `tests/test_experiment_runner_dispatch.py:484` rejects incomplete,
   malformed, and non-zero-finding reports.
-- `tests/test_experiment_runner_dispatch.py:477` guards stage/base identity;
-  `tests/test_experiment_runner_dispatch.py:491` guards source and patch
-  verification; `tests/test_experiment_runner_dispatch.py:521` enumerates exact
-  packages and inventories; `tests/test_experiment_runner_dispatch.py:560`
+- `tests/test_experiment_runner_dispatch.py:504` guards stage/base identity;
+  `tests/test_experiment_runner_dispatch.py:518` guards source and patch
+  verification; `tests/test_experiment_runner_dispatch.py:548` enumerates exact
+  packages and inventories; `tests/test_experiment_runner_dispatch.py:587`
   rejects suppression and dependency-policy weakening; and
-  `tests/test_experiment_runner_dispatch.py:613` guards the complete executable
+  `tests/test_experiment_runner_dispatch.py:640` guards the complete executable
   runbook admission order.
 - `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:230` records the
   negative candidates; its executable digest-bound admission sequence starts
-  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:264`, its layer
-  verifier is at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:389`,
+  at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:273`, its layer
+  verifier is at `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:399`,
   and its fail-closed Trivy coverage call is at
-  `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:575`.
-- `docs/roadmap/BACKLOG_LEDGER.md:27` keeps the prerequisite open until its PR is
+  `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md:585`.
+- `docs/roadmap/BACKLOG_LEDGER.md:338` keeps the prerequisite open until its PR is
   merged; ledger closure remains a later docs-only action.
 
 ## Required validation and admission
@@ -259,7 +596,7 @@ Admission requires all of the following:
    ignore ambient configuration; all external ignore-policy, ignore-status,
    and VEX inputs are explicitly empty. The executable runbook Python guard
    must additionally prove the exact schema, artifact/OS identity, one
-   129-package Red Hat result, and one 136-package Python result before the
+   129-package Red Hat result, and one 134-package Python result before the
    zero-finding receipt is written.
 3. Exact Python/RPM/CPython patch and non-root assertions pass inside that same
    image, including the complete 107/108/129 package inventories over NEVRA,
