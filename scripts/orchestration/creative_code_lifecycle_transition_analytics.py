@@ -66,6 +66,15 @@ class _SourceSeal:
     identity: _FileIdentity
 
 
+@dataclass(frozen=True)
+class ValidatedLifecycleTransitionSnapshot:
+    """Read-only exact snapshot material used by bounded local consumers."""
+
+    events: tuple[dict[str, Any], ...]
+    rollup: dict[str, Any]
+    analytics: dict[str, Any]
+
+
 def _identity(info: os.stat_result) -> _FileIdentity:
     return _FileIdentity(
         device=info.st_dev,
@@ -678,7 +687,11 @@ def build_from_snapshot(
     return path, replayed, artifact
 
 
-def validate_snapshot_artifact(*, telemetry_dir: Path = TELEMETRY_ROOT) -> dict[str, Any]:
+def load_validated_snapshot_artifact(
+    *, telemetry_dir: Path = TELEMETRY_ROOT
+) -> ValidatedLifecycleTransitionSnapshot:
+    """Load exact events/rollup after byte-validating their analytics projection."""
+
     events, rollup, source_seals = _load_snapshot(telemetry_dir)
     expected: dict[str, Any] = build_creative_code_lifecycle_transition_analytics(
         events, telemetry_rollup=rollup
@@ -693,7 +706,17 @@ def validate_snapshot_artifact(*, telemetry_dir: Path = TELEMETRY_ROOT) -> dict[
         raise CreativeCodeLifecycleTransitionAnalyticsIOError("divergent_replay")
     for index, seal in enumerate(source_seals):
         _recheck_source(seal, label=f"telemetry_source_{index}")
-    return expected
+    return ValidatedLifecycleTransitionSnapshot(
+        events=tuple(events),
+        rollup=rollup,
+        analytics=expected,
+    )
+
+
+def validate_snapshot_artifact(*, telemetry_dir: Path = TELEMETRY_ROOT) -> dict[str, Any]:
+    """Preserve the existing mutation-free analytics validation interface."""
+
+    return load_validated_snapshot_artifact(telemetry_dir=telemetry_dir).analytics
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

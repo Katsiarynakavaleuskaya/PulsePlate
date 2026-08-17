@@ -465,6 +465,27 @@ fixed-mapping evidence, review-thread disposition evidence, merge-readiness
 evidence, product runtime truth, semantic-cache authority, Slack/GitHub
 authority, or PR-3 promotion authority.
 
+An optional shadow-only lifecycle binding may be attached to the canonical
+`generate-candidate` command after a clean gate exists. The paired
+`--shadow-forecast` and `--started-at` arguments require an exact validated
+forecast in the fixed `bayesian_shadow/<forecast-id>/` slot. The command writes
+immutable `start.json` under the existing cooperative run lock and rechecks the
+forecast/gate sources before its first ordinary generate call. The same lock is
+held through generation to serialize duplicate invocation, then released before
+the existing evaluation lock is taken. It does not pass forecast probabilities
+downstream or change any gate, receipt, builder, routing, retry, role,
+promotion, PR, review, or merge contract.
+
+Forecast/scoring reads exact validated lifecycle snapshots and exact target
+lineage, but remains local measurement infrastructure. Its chronology claim is
+only `local_dependency_order_only`; `calibration_state` is always
+`not_assessed`. The default collector does not include adaptive finalized
+specification artifacts, so a target patch may remain an
+`unobserved_predecessor` in aggregate analytics even though the exact gate
+proves the target's accepted-specification precondition. V1 does not synthesize
+or backfill that event. The full boundary is defined in
+`docs/orchestration/contracts/CREATIVE_CODE_LIFECYCLE_BAYESIAN_SHADOW_CONTRACT.md`.
+
 The packet, bundle, request, result, local `candidate.patch`, plan, validation,
 approval, receipt, applied-candidate run plan, and generated PR body may
 describe or contain an implementation candidate, but they are not:
