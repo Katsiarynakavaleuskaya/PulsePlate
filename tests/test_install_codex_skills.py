@@ -57,11 +57,14 @@ def _mirrored_skill_files(mirrored_skill: Path) -> dict[Path, bytes]:
     """Collect mirror bytes while excluding only the root source marker."""
 
     root_marker = mirrored_skill / ".pulseplate_codex_skill_source"
-    return {
-        path.relative_to(mirrored_skill): path.read_bytes()
-        for path in mirrored_skill.rglob("*")
-        if path.is_file() and path != root_marker
-    }
+    inventory: dict[Path, bytes] = {}
+    for path in mirrored_skill.rglob("*"):
+        if path == root_marker:
+            continue
+        assert not path.is_symlink(), f"mirror inventory rejects symlink: {path}"
+        if path.is_file():
+            inventory[path.relative_to(mirrored_skill)] = path.read_bytes()
+    return inventory
 
 
 def _run_installer(
@@ -754,6 +757,20 @@ def test_mirror_file_inventory_excludes_only_root_source_marker(tmp_path: Path) 
         Path("SKILL.md"): b"skill\n",
         Path("nested/.pulseplate_codex_skill_source"): b"unexpected nested marker\n",
     }
+
+
+def test_mirror_file_inventory_rejects_nested_symlink(tmp_path: Path) -> None:
+    """Mirror comparison must reject symlinks instead of following their targets."""
+
+    mirrored_skill = tmp_path / "copied-skill"
+    nested = mirrored_skill / "nested"
+    nested.mkdir(parents=True)
+    target = nested / "target.md"
+    target.write_text("same bytes\n", encoding="utf-8")
+    (nested / "SKILL.md").symlink_to(target.name)
+
+    with pytest.raises(AssertionError, match="mirror inventory rejects symlink"):
+        _mirrored_skill_files(mirrored_skill)
 
 
 @pytest.mark.parametrize(
