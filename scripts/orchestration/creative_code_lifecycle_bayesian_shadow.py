@@ -19,6 +19,7 @@ from scripts.orchestration.creative_code_lifecycle_bayesian_shadow_contract impo
     SCORE_FILENAME,
     START_FILENAME,
     CreativeCodeLifecycleBayesianShadowError,
+    ShadowSourceSeal,
     build_lifecycle_forecast,
     build_lifecycle_forecast_score,
     canonical_shadow_root,
@@ -151,7 +152,7 @@ def _load_forecast_sources(
     forecast_path: Path,
 ) -> tuple[
     dict[str, Any],
-    Any,
+    ShadowSourceSeal,
     Path,
     dict[str, Any],
     ValidatedLifecycleTransitionSnapshot,
@@ -248,7 +249,7 @@ def validate_forecast_path(forecast_path: Path) -> dict[str, Any]:
 
 def _load_start(
     *, forecast: Mapping[str, Any], forecast_path: Path, gate: Mapping[str, Any], gate_path: Path
-) -> tuple[dict[str, Any], Any, Path]:
+) -> tuple[dict[str, Any], ShadowSourceSeal, Path]:
     start_path = forecast_path.parent / START_FILENAME
     raw, seal = read_shadow_json(
         start_path,
@@ -719,7 +720,8 @@ def main(argv: list[str] | None = None) -> int:
                 produced_at=args.produced_at,
             )
             print(
-                f"{BUILD_SUCCESS} forecast_id={forecast['forecast_id']} replay={'identical' if replayed else 'new'}"
+                f"{BUILD_SUCCESS} forecast_id={forecast['forecast_id']} "
+                f"replay={'identical' if replayed else 'new'}"
             )
             print(_repo_ref(path, label="forecast"))
         elif args.command == "validate-forecast":
@@ -735,13 +737,16 @@ def main(argv: list[str] | None = None) -> int:
                 scored_at=args.scored_at,
             )
             print(
-                f"{SCORE_SUCCESS} score_id={score['score_id']} state={score['score_state']} replay={'identical' if replayed else 'new'}"
+                f"{SCORE_SUCCESS} score_id={score['score_id']} "
+                f"state={score['score_state']} "
+                f"replay={'identical' if replayed else 'new'}"
             )
             print(_repo_ref(path, label="score"))
         elif args.command == "validate-score":
             score = validate_score_path(args.score)
             print(
-                f"{VALIDATE_SCORE_SUCCESS} score_id={score['score_id']} state={score['score_state']}"
+                f"{VALIDATE_SCORE_SUCCESS} score_id={score['score_id']} "
+                f"state={score['score_state']}"
             )
         else:
             forecast = validate_forecast_path(args.forecast)

@@ -1521,17 +1521,13 @@ def test_public_cli_frozen_snapshot_forecast_score_readback_and_subset_control(
     _write_frozen_snapshot(baseline_dir, baseline_events)
     analytics_cli.build_from_snapshot(telemetry_dir=baseline_dir)
     gate_path = (
-        repo / gate["generation_gate_ref"]
-        if "generation_gate_ref" in gate
-        else (
-            repo
-            / "artifacts"
-            / "orchestration"
-            / "creative_code"
-            / "patch_generation"
-            / "run-one"
-            / "generation_gate.json"
-        )
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_generation"
+        / "run-one"
+        / "generation_gate.json"
     )
 
     assert (
