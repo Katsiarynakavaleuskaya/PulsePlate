@@ -1,0 +1,165 @@
+import ast
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import textwrap
+
+import pytest
+from fastapi import APIRouter, Depends, FastAPI
+from starlette.routing import Route
+import app
+import app.main as main
+from app.bootstrap import application
+from app.bootstrap.lifespan import application_lifespan
+from app.effective_routes import route_endpoint_for_path_method
+import legacy_app
+
+_MIRRORS = "VIP_MODULE_ENABLED vip_router pro_router premium_week_router FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router".split()
+_IMPORT_SCENARIOS = """from app.bootstrap import application as canonical; import app.main as main; import legacy_app; import app as package
+import legacy_app; from app.bootstrap import application as canonical; import app.main as main; import app as package
+import app as package; package.app; from app.bootstrap import application as canonical; import app.main as main; import legacy_app""".splitlines()
+_HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
+_HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
+_HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
+_OPTIONAL_ENV = "BUSINESS_MODULE_ENABLED ENABLE_TEST_ROUTES FEATURE_BMI_PRO_ENABLED FEATURE_PREMIUM_WEEK_ENABLED VIP_MODULE_ENABLED".split()
+_WS_EXTRA_PATHS = {"w": "/unexpected-ws", "h": "/unexpected-http"}
+_WS_STATES = "c. .c ff cf fc d. .d h. .h rr rc cr r. .r C. .C DC CD RC CR RR CCw CCh".split()
+_FASTAPI_CALLEES = {"FastAPI", "fastapi.FastAPI", "fastapi.applications.FastAPI"}
+
+
+def _assert_atomic_bootstrap_failure(target: FastAPI, match: str | None = None) -> None:
+    before = (tuple(target.routes), tuple(target.user_middleware))
+    with pytest.raises(RuntimeError, match=match):
+        main.ensure_canonical_app_bootstrap(target)
+    assert (tuple(target.routes), tuple(target.user_middleware)) == before
+
+
+def test_one_direct_constructor_belongs_to_the_canonical_owner() -> None:
+    sources = [Path("legacy_app.py"), *sorted(Path("app").rglob("*.py"))]
+    trees = {path: ast.parse(path.read_bytes(), filename=str(path)) for path in sources}
+    calls = [
+        path
+        for path, tree in trees.items()
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) in _FASTAPI_CALLEES
+    ]
+    assert calls == [Path("app/bootstrap/application.py")]
+    assert not any(
+        isinstance(node, ast.ImportFrom)
+        and node.module == "legacy_app"
+        and any(alias.name == "app" for alias in node.names)
+        for node in ast.walk(trees[Path("app/main.py")])
+    )
+
+
+def test_runtime_identity_lifespan_and_private_constructor_isolation() -> None:
+    assert application.app is main.app is legacy_app.app is app.app
+    assert application.app.router.lifespan_context is application_lifespan
+    metadata = application.APPLICATION_METADATA
+    first, second = (application._create_fastapi_application(metadata) for _ in range(2))
+    assert first is not second
+    assert first.router.lifespan_context is second.router.lifespan_context is application_lifespan
+    first.contact["name"] = first.license_info["name"] = "mutated"
+    first.openapi_tags[0]["description"] = "mutated"
+    assert second.contact["name"] == metadata.contact_name
+    assert second.license_info["name"] == metadata.license_name
+    assert second.openapi_tags[0]["description"] == metadata.tags[0].description
+
+
+def test_fresh_import_orders_have_relative_runtime_parity() -> None:
+    def run(imports: str) -> list[object]:
+        scenario = textwrap.dedent(f"""
+            import hashlib, json; {imports}
+            from app.bootstrap.http_stack import _owned_middleware_projection; from app.bootstrap.lifespan import application_lifespan; from app.effective_routes import iter_effective_route_candidates, route_endpoint, route_include_in_schema, route_methods, route_path
+            def routes(target): return [[route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"], f"{{route_endpoint(route).__module__}}.{{route_endpoint(route).__qualname__}}", route_include_in_schema(route)] for route in iter_effective_route_candidates(target.routes)]
+            def snapshot(): schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":")); return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest(), {{name: (value if value is None or isinstance(value, (bool, int, str)) else routes(value)) for name in {list(_MIRRORS)!r} for value in [getattr(main, name)]}}]
+            before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert canonical.app.router.lifespan_context is application_lifespan; assert all(getattr(main, name) is getattr(legacy_app, name) for name in {list(_MIRRORS)!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
+        """)
+        env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
+        for name in _OPTIONAL_ENV:
+            env.pop(name, None)
+        options = {"capture_output": True, "text": True, "env": env}
+        completed = subprocess.run([sys.executable, "-c", scenario], **options)
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        return json.loads(completed.stdout.rsplit("OWNERSHIP_RESULT=", 1)[-1])
+
+    results = [run(imports) for imports in _IMPORT_SCENARIOS]
+    assert results[1:] == results[:1] * (len(results) - 1)
+
+
+@pytest.mark.parametrize(("path", "method"), _HTTP_CONTRACTS)
+@pytest.mark.parametrize("owners", ("f", "cc", "ff", "cf", "fc", "r", "i"))
+def test_bespoke_http_owner_states_fail_closed(path: str, method: str, owners: str) -> None:
+    target, fn = FastAPI(), route_endpoint_for_path_method(main.app.routes, path, method)
+    for owner in owners:
+        if owner == "i":
+            target.include_router(APIRouter(routes=[Route(path, fn, methods=[method])]))
+        elif owner == "r":
+            target.routes.append(Route(path, fn, methods=[method]))
+        else:
+            endpoint = fn if owner == "c" else (lambda: None)
+            target.add_api_route(path, endpoint, methods=[method])
+    _assert_atomic_bootstrap_failure(target, "Duplicate")
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"include_in_schema": True},
+        {"status_code": 201},
+        {"response_model": dict[str, object]},
+        {"dependencies": [Depends(lambda: None)]},
+    ),
+)
+def test_direct_root_metadata_drift_fails_before_mutation(override: dict[str, object]) -> None:
+    target = FastAPI()
+    metadata = {"include_in_schema": False, "response_model": main.DirectApiRootProbe, **override}
+    target.add_api_route("/", main.serve_direct_api_root_probe, methods=["GET"], **metadata)
+    _assert_atomic_bootstrap_failure(target, "metadata drift")
+
+
+@pytest.mark.parametrize("source", _HTTP_SOURCES)
+@pytest.mark.parametrize("state", ("extra", "raw"))
+def test_source_guard(source: str, state: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    path_name, router_name = source.split(":")
+    path, current = getattr(main, path_name), getattr(main, router_name)
+    endpoint = route_endpoint_for_path_method(current.routes, path, "POST")
+    selected = APIRouter(routes=[Route(path, endpoint, methods=["POST"])] if state == "raw" else [])
+    if state == "extra":
+        selected.add_api_route(path, endpoint, methods=["POST"])
+        selected.add_api_route("/unexpected-source", lambda: None, methods=["GET"])
+    monkeypatch.setattr(main, router_name, selected)
+    _assert_atomic_bootstrap_failure(FastAPI(), "Invalid canonical HTTP source route")
+
+
+@pytest.mark.parametrize("s", _WS_STATES)
+def test_websocket_owner_states_fail_closed(s: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    target, canonical = FastAPI(), (main.realtime_ws.ws_pro, main.realtime_ws.ws_root)
+    owner_app = APIRouter() if s != s.lower() else target
+    for index, owner in enumerate(s.lower()):
+        owners = "cc" if owner == "d" else owner.strip(".")
+        for owner in owners:
+            path = main._WS_ROUTE_PATHS[index] if index < 2 else _WS_EXTRA_PATHS[owner]
+            if owner == "r":
+                owner_app.routes.append(Route(path, canonical[index], methods=["GET"]))
+            elif owner == "h":
+                owner_app.add_api_route(path, lambda: None, methods=["GET"])
+            else:
+                endpoint = canonical[index] if owner == "c" else lambda _: None
+                owner_app.add_api_websocket_route(path, endpoint)
+    if owner_app is not target:
+        monkeypatch.setattr(main.realtime_ws, "router", owner_app)
+    _assert_atomic_bootstrap_failure(target)
+
+
+def test_test_owned_app_does_not_rebind_canonical(monkeypatch: pytest.MonkeyPatch) -> None:
+    test_owned = application._create_fastapi_application(application.APPLICATION_METADATA)
+    monkeypatch.setattr(main.realtime_ws, "router", main.APIRouter())
+    assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
+    composed = (tuple(test_owned.routes), tuple(test_owned.user_middleware))
+    assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
+    assert (tuple(test_owned.routes), tuple(test_owned.user_middleware)) == composed
+    monkeypatch.setattr(legacy_app, "app", test_owned)
+    assert app.app is test_owned and application.app is main.app

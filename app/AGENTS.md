@@ -315,9 +315,8 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 ### Canonical application lifecycle ownership
 
 - Application startup/shutdown ownership belongs in `app/bootstrap/lifespan.py`.
-  Until app-factory inversion, `legacy_app.py` may only re-export the canonical
-  lifespan and pass it to `FastAPI(...)`; it must not implement lifecycle
-  behavior or mutate `app.router.lifespan_context`.
+  `app/bootstrap/application.py` passes that exact context manager to the sole
+  production `FastAPI(...)` constructor; `legacy_app.py` only re-exports it.
 - Shared clients and process-wide adapters must be acquired during lifespan
   startup, never additive route bootstrap or module import, and released with
   deterministic reverse-order cleanup after partial startup and cancellation.
@@ -327,6 +326,12 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Canonical lifecycle dependencies must be direct typed callables. Do not
   resolve them through `sys.modules`, caller frames, `app_module`, the `app`
   facade, or legacy monkeypatch precedence.
+- `app/bootstrap/application.py` owns construction, runtime-env setup, metadata,
+  and the singleton only. `app/main.py` composes a supplied app without rebinding
+  its canonical `app`; `legacy_app.py` remains a compatibility re-export.
+- `tests/test_application_instance_ownership.py` scans `legacy_app.py` and
+  `app/**/*.py` for only the three declared direct `FastAPI` call shapes. It is
+  not a Python interpreter; any novel semantic carrier requires rescope.
 - A lifespan-only PR must not also change FastAPI instance identity, OpenAPI
   policy, deployment entrypoints, or worker topology.
 
@@ -334,8 +339,8 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Application metadata belongs in `app/application_metadata.py`; keep its source
   values immutable and create fresh nested dict/list constructor inputs for each
-  FastAPI instance. Reuse `settings.get_runtime_env_name()` instead of parsing
-  `APP_ENV` or `ENVIRONMENT` again.
+  FastAPI instance. The application bootstrap resolves the runtime environment
+  and builds metadata once; compatibility modules alias that value.
 - Public-path filtering, schema-reference pruning, and the custom OpenAPI builder
   belong in `app/bootstrap/openapi.py`. `legacy_app.py` may temporarily re-export
   the exact canonical objects, but wrappers or rebinding are forbidden.
@@ -473,9 +478,11 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
-- `import app` is a finite PEP 562 facade: `app.app` MUST point to
-  `legacy_app.app`; only the explicit compatibility exports below may resolve
-  via `__getattr__`. Ordinary package globals and Python-created submodule
+- `import app` is a finite PEP 562 facade: in normal runtime `app.app`,
+  `legacy_app.app`, `app.main.app`, and the bootstrap singleton are identical.
+  A deliberate test-only `legacy_app.app` replacement may be returned by the
+  package facade, but cannot rebind canonical or `app.main` authority. Only the
+  explicit compatibility exports below may resolve via `__getattr__`. Ordinary package globals and Python-created submodule
   bindings are not compatibility exports. Names that are neither existing
   package attributes nor explicit compatibility exports must raise a
   facade-owned `AttributeError`; unknown-name lookup and `dir(app)` must not
@@ -579,8 +586,10 @@ python - <<'PY'
 import os
 os.environ["TESTING"] = "true"
 import app, legacy_app
-assert app.app is legacy_app.app
-print("OK: app.app is legacy_app.app")
+from app.bootstrap.application import app as canonical_app
+from app.main import app as main_app
+assert canonical_app is main_app is app.app is legacy_app.app
+print("OK: one canonical app across normal runtime facades")
 PY
 ```
 

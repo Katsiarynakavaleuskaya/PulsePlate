@@ -18,9 +18,12 @@ This is a **runtime truth** view (not a product wishlist).
 ## Canonical entrypoint chain
 
 - Runtime entrypoint: `uvicorn app.main:app` (`Dockerfile:102-105`)
-- `app/main.py` uses `legacy_app.app` as the FastAPI instance and applies bootstrap (`app/main.py:11-22`).
-- Most legacy route registration still happens in `legacy_app.py`; canonical bootstrap-owned
-  route families are registered from `app/main.py`.
+- `app/bootstrap/application.py` constructs the production singleton and owns
+  runtime-env, metadata, logging, and exact lifespan wiring only.
+- `app/main.py` imports that singleton directly and applies the existing ordered
+  route, middleware, and OpenAPI composition without rebinding it.
+- `legacy_app.py` re-exports the singleton and retains only bounded compatibility
+  values, including the eight paid/BMI mirrors written by `app/main.py`.
 
 ## Router registration: always-on vs conditional
 

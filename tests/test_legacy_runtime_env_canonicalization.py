@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
+import os
+import subprocess
 import sys
+import textwrap
 from types import ModuleType
 
-import dotenv
 import pytest
 from fastapi import HTTPException
-
-from app.effective_routes import iter_effective_route_candidates, route_path
 
 
 def _import_or_reload_module(name: str) -> ModuleType:
@@ -39,18 +40,79 @@ def _reload_legacy_app() -> ModuleType:
     return _import_or_reload_module("legacy_app")
 
 
-def _reload_canonical_main() -> ModuleType:
-    """Reload canonical bootstrap after env changes."""
+def _run_application_probe(
+    runtime_env: str,
+    *,
+    path_present: bool = True,
+    pytest_marker: bool = False,
+    include_main: bool = False,
+    enable_test_routes: bool = False,
+) -> dict[str, object]:
+    """Observe import-time ownership in one fresh interpreter."""
 
-    _import_or_reload_module("legacy_app")
-    return _import_or_reload_module("app.main")
-
-
-def _has_test_health_route(app_module: ModuleType) -> bool:
-    return any(
-        route_path(route) == "/api/v1/test/health"
-        for route in iter_effective_route_candidates(getattr(app_module.app, "routes", []))
+    main_probe = (
+        """
+        import app.main as app_main
+        from app.effective_routes import iter_effective_route_candidates, route_path
+        has_test_route = any(
+            route_path(route) == "/api/v1/test/health"
+            for route in iter_effective_route_candidates(app_main.app.routes)
+        )
+        """
+        if include_main
+        else "has_test_route = None"
     )
+    scenario = textwrap.dedent(f"""
+        import json
+        import logging
+        import dotenv
+        calls = []
+        dotenv.load_dotenv = lambda *args, **kwargs: calls.append("load")
+        from app.bootstrap import application
+        import legacy_app
+        {main_probe}
+        print("ENV_RESULT=" + json.dumps({{
+            "calls": len(calls),
+            "runtime_env": application.RUNTIME_ENV,
+            "legacy_env": legacy_app._app_env,
+            "metadata_alias": legacy_app._application_metadata is application.APPLICATION_METADATA,
+            "root_level": logging.getLevelName(logging.getLogger().level),
+            "has_test_route": has_test_route,
+        }}, sort_keys=True))
+    """)
+    env = os.environ.copy()
+    for name in (
+        "APP_ENV",
+        "DEBUG",
+        "ENABLE_DEBUG_ENDPOINT",
+        "ENABLE_TEST_ROUTES",
+        "ENV",
+        "ENVIRONMENT",
+        "PYTEST_CURRENT_TEST",
+    ):
+        env.pop(name, None)
+    env["ENVIRONMENT"] = runtime_env
+    env["PRIVATE_EXPORTS_ENABLED"] = "false"
+    if not path_present:
+        env.pop("PATH", None)
+    if pytest_marker:
+        env["PYTEST_CURRENT_TEST"] = "ownership-probe"
+    if enable_test_routes:
+        env["ENABLE_TEST_ROUTES"] = "1"
+
+    completed = subprocess.run(
+        [sys.executable, "-c", scenario],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    result_line = next(
+        line for line in completed.stdout.splitlines() if line.startswith("ENV_RESULT=")
+    )
+    result: dict[str, object] = json.loads(result_line.removeprefix("ENV_RESULT="))
+    return result
 
 
 @pytest.fixture(autouse=True)
@@ -75,30 +137,56 @@ def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-def test_legacy_app_skips_local_dotenv_in_env_production(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("runtime_env", "dotenv_calls", "root_level"),
+    (
+        ("local", 1, "INFO"),
+        ("dev", 1, "INFO"),
+        ("development", 1, "INFO"),
+        ("production", 0, "INFO"),
+        ("staging", 0, "INFO"),
+        ("test", 0, "DEBUG"),
+        ("testing", 0, "DEBUG"),
+        ("unknown", 0, "INFO"),
+    ),
+)
+def test_canonical_application_owns_environment_setup(
+    runtime_env: str, dotenv_calls: int, root_level: str
 ) -> None:
-    calls: list[str] = []
+    result = _run_application_probe(runtime_env)
+    assert result == {
+        "calls": dotenv_calls,
+        "runtime_env": runtime_env,
+        "legacy_env": runtime_env,
+        "metadata_alias": True,
+        "root_level": root_level,
+        "has_test_route": None,
+    }
 
-    monkeypatch.setenv("ENVIRONMENT", "production")
-    monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: calls.append("load"))
 
-    _reload_legacy_app()
-
-    assert calls == []
-
-
-def test_canonical_bootstrap_staging_test_router_respects_environment_flag(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("path_present", "pytest_marker"),
+    ((False, False), (True, True)),
+)
+def test_local_dotenv_gate_requires_path_and_non_pytest(
+    path_present: bool, pytest_marker: bool
 ) -> None:
-    monkeypatch.setenv("ENVIRONMENT", "staging")
+    assert (
+        _run_application_probe("local", path_present=path_present, pytest_marker=pytest_marker)[
+            "calls"
+        ]
+        == 0
+    )
 
-    app_module = _reload_canonical_main()
-    assert not _has_test_health_route(app_module)
 
-    monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
-    app_module = _reload_canonical_main()
-    assert _has_test_health_route(app_module)
+def test_canonical_bootstrap_staging_test_router_respects_environment_flag() -> None:
+    assert _run_application_probe("staging", include_main=True)["has_test_route"] is False
+    assert (
+        _run_application_probe("staging", include_main=True, enable_test_routes=True)[
+            "has_test_route"
+        ]
+        is True
+    )
 
 
 def test_debug_env_uses_environment_when_app_env_missing(

@@ -16,18 +16,17 @@ from typing import (
     List,
     Literal,
     Optional,
+    cast,
 )
 
-import dotenv
-from fastapi import APIRouter, Body, FastAPI, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import (
     BaseModel,
     ValidationError,
 )
-from settings import get_runtime_env_name
-
 from app.application_metadata import build_application_metadata
+from app.bootstrap.application import APPLICATION_METADATA, RUNTIME_ENV, app as _canonical_app
 from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
     _OPENAPI_ALLOWED_EXACT,
     _OPENAPI_ALLOWED_PREFIXES,
@@ -132,6 +131,9 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
+
+# Preserve the declared lexical legacy surface while re-exporting the exact canonical object.
+app = cast(Any, _canonical_app)
 
 _BMI_COMPAT_REEXPORTS = (
     MATPLOTLIB_AVAILABLE,
@@ -376,19 +378,9 @@ def stop_background_updates() -> None:
     return None
 
 
-# Only load the local .env automatically for explicit local/dev environments.
-_env_was_sanitized = "PATH" not in os.environ
-_app_env = get_runtime_env_name()
-_should_load_local_env = _app_env in {"local", "dev", "development"}
-if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRENT_TEST") is None:
-    dotenv.load_dotenv()
-
-
-# Set up logging
-# Configure logging - ensure pytest can capture logs
-# In test environment, use DEBUG level to capture all logs
-_log_level = logging.DEBUG if _app_env in {"test", "testing"} else logging.INFO
-logging.basicConfig(level=_log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# Canonical application bootstrap owns environment resolution, dotenv loading,
+# root logging configuration, metadata construction, and the FastAPI instance.
+_app_env = RUNTIME_ENV
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
 
@@ -402,24 +394,10 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
     return None
 
 
-# OpenAPI/Swagger metadata remains available here as compatibility values.
-_application_metadata = build_application_metadata(runtime_env=_app_env)
+# OpenAPI/Swagger metadata remains available here as exact compatibility values.
+_application_metadata = APPLICATION_METADATA
 tags_metadata = _application_metadata.openapi_tags_list()
 _api_description = _application_metadata.description
-
-app = FastAPI(
-    title=_application_metadata.title,
-    version=_application_metadata.version,
-    description=_application_metadata.description,
-    contact=_application_metadata.contact_dict(),
-    license_info=_application_metadata.license_info_dict(),
-    openapi_tags=tags_metadata,
-    lifespan=lifespan,
-)
-
-
-# Startup/shutdown behavior is owned by app.bootstrap.lifespan. This module
-# only passes the canonical context manager to the legacy-created FastAPI app.
 
 
 # (moved to top with other imports)

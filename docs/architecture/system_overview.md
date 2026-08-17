@@ -25,7 +25,9 @@
 ## Canonical entrypoint
 
 - Runtime and OpenAPI generation use `app/main.py` as the canonical ASGI entrypoint (`uvicorn app.main:app`).
-- `app/main.py` re-exports the FastAPI instance from `legacy_app.py` and applies bootstrap (metrics + contract routes).
+- `app/bootstrap/application.py` constructs the sole production FastAPI
+  singleton; `app/main.py` imports and composes it. `legacy_app.py` only
+  re-exports the same object for compatibility.
 
 ## Routing map (source of truth)
 
@@ -42,7 +44,8 @@ flowchart LR
 
   subgraph Backend
     ENTRY[app/main.py (canonical entrypoint)]
-  LEG[legacy_app.py (compat app instance)]
+  FACTORY[app/bootstrap/application.py (constructor)]
+  LEG[legacy_app.py (compat aliases)]
   API[app/ (routers + bootstrap)]
   CORE[core/ (domain engine)]
   AI[core/ai/ (AI bounded-context seam)]
@@ -56,8 +59,9 @@ flowchart LR
   FE -->|HTTP (OpenAPI types)| ENTRY
   IOS -->|HTTP (thin client)| ENTRY
 
-  ENTRY -->|re-exports app + applies bootstrap| LEG
-  LEG -->|include_router / route handlers| API
+  FACTORY -->|provides singleton| ENTRY
+  FACTORY -->|provides compatibility alias| LEG
+  ENTRY -->|applies ordered composition| API
 
   API -->|delegates business rules| CORE
   LEG -->|/insight thin adapters| AI
