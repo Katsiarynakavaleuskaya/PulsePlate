@@ -194,6 +194,9 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
         ),
     }
     assert "fitchef_structured_v1" in ai_notice_doc
+    assert "fitchef_weekly_reflection_clarification_v1" in ai_notice_doc
+    assert "/api/v1/insight/fitchef/weekly-reflection" in ai_notice_doc
+    assert "deterministic input-completeness guidance" in ai_notice_doc
     assert "/api/v1/pro/fitchef/explain" in ai_notice_doc
     assert "/api/v1/vip/fitchef/insight" in ai_notice_doc
 
