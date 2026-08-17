@@ -338,10 +338,10 @@ If it is not recorded here — it does not exist.
 - [ ] P0: Remediate Experiment Runner container HIGH/CRITICAL vulnerabilities
   - Owner: @katsiaryna_kavaleuskaya (Security / Orchestration)
   - Priority: P0 prerequisite for mandatory Experiment Runner oracle evidence
-  - Target PR: `codex/repair-experiment-runner-apple-image-inventory`
-  - Status: In progress; current-base exact Apple-image re-admission is
-    complete locally; final oracle, current-head PR/CI, and merge evidence are
-    pending
+  - Target PR: [PR #2300](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2300)
+  - Status: In progress; current-base exact Apple-image re-admission and
+    canonical oracle-only evidence are complete; post-open review, current-head
+    CI, mapping, and merge remain pending
   - Area: Experiment Runner / container security / supply chain
   - Reason (EN): The immutable bookworm runner baseline reports 61
     HIGH/CRITICAL occurrences across 27 unique vulnerability IDs. Mandatory
