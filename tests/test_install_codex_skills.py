@@ -620,12 +620,26 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         "pulseplate-monetization-gtm",
         "pulseplate-openapi-sync",
         "pulseplate-playwright-e2e",
+        "pulseplate-pr-closeout",
         "pulseplate-pr-review",
         "pulseplate-premortem-risk-review",
         "pulseplate-review-pattern-oracles",
         "pulseplate-web-launch-site",
         "pulseplate-workflow",
     )
+    copied_skills = {
+        "pulseplate-agent-learning-loop",
+        "pulseplate-pr-closeout",
+        "pulseplate-pr-review",
+        "pulseplate-review-pattern-oracles",
+    }
+    discovered_skills = {
+        path.name
+        for path in (REPO_ROOT / "tools" / "codex_skills").iterdir()
+        if path.is_dir() and path.joinpath("SKILL.md").is_file()
+    }
+
+    assert discovered_skills == set(expected_skills)
 
     for skill_name in expected_skills:
         mirrored_skill = REPO_ROOT / ".agents" / "skills" / skill_name
@@ -633,11 +647,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
 
         assert source_skill.is_dir(), f"{skill_name} source directory must exist"
         assert (source_skill / "SKILL.md").exists(), f"{skill_name} source must include SKILL.md"
-        if skill_name in {
-            "pulseplate-agent-learning-loop",
-            "pulseplate-pr-review",
-            "pulseplate-review-pattern-oracles",
-        }:
+        if skill_name in copied_skills:
             assert (
                 mirrored_skill.is_dir()
             ), f"{skill_name} mirror is required for PR-review workflow"
@@ -647,7 +657,24 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
             marker_parts = tuple(Path(marker.read_text(encoding="utf-8").strip()).parts)
             expected_parts = source_skill.relative_to(REPO_ROOT).parts
             assert marker_parts[-len(expected_parts) :] == expected_parts
-            assert (mirrored_skill / "SKILL.md").exists()
+            source_files = {
+                path.relative_to(source_skill): path.read_bytes()
+                for path in source_skill.rglob("*")
+                if path.is_file()
+            }
+            mirrored_files = {
+                path.relative_to(mirrored_skill): path.read_bytes()
+                for path in mirrored_skill.rglob("*")
+                if path.is_file() and path.name != ".pulseplate_codex_skill_source"
+            }
+            assert mirrored_files == source_files
+            if skill_name == "pulseplate-pr-closeout":
+                metadata = mirrored_skill / "agents" / "openai.yaml"
+                assert metadata.is_file()
+                assert 'display_name: "PulsePlate PR Closeout"' in metadata.read_text(
+                    encoding="utf-8"
+                )
+                assert "$pulseplate-pr-closeout" in metadata.read_text(encoding="utf-8")
         else:
             assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
             assert mirrored_skill.resolve() == source_skill

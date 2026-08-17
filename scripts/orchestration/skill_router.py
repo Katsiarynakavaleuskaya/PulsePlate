@@ -1120,6 +1120,39 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         ),
     ),
     SkillRule(
+        skill="pulseplate-pr-closeout",
+        category="repo-tracked",
+        rationale=(
+            "Explicit PulsePlate PR closeout work should use the fail-closed workflow "
+            "for mapping, exact-head evidence, authorized merge, and post-merge proof."
+        ),
+        min_score=2,
+        domain_weights={},
+        keywords=(
+            "pr closeout",
+            "pull request closeout",
+            "close out pr",
+            "close out the pr",
+            "audit fixed mapping",
+            "prepare fixed mapping",
+            "prepare the fixed mapping",
+            "close fixed mapping",
+            "finish the pr fixed mapping",
+            "mapping-only successor",
+            "review-thread disposition",
+            "review thread disposition",
+            "strict merge readiness",
+            "current-head merge readiness",
+            "exact-head ci",
+            "verify current head ci before merging pr",
+            "post-merge proof",
+            "selective pr lane cleanup",
+            "reseal pr",
+            "reseal this pr",
+            "clean up the merged pr lane",
+        ),
+    ),
+    SkillRule(
         skill="pulseplate-review-pattern-oracles",
         category="repo-tracked",
         rationale=(

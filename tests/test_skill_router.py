@@ -17,6 +17,7 @@ from scripts.orchestration.skill_router import (
     REQUESTED_AGENT_COMPANION_SKILL_BUNDLES,
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
+    SKILL_RULES,
     TASK_CLASSIFICATION_RULES,
     TIER4_DOC_PREFIX,
     _match_path_prefixes,
@@ -126,6 +127,67 @@ def test_skill_router_prefers_orchestration_docs_skills() -> None:
     assert "agents-md" in skills
     assert "pulseplate-gates" in skills
     assert "pulseplate-guards" in skills
+
+
+@pytest.mark.parametrize(
+    "goal",
+    (
+        "Audit this PulsePlate PR closeout before merge authorization",
+        "Prepare the fixed mapping for this PulsePlate pull request",
+        "Prove exact-head CI and strict merge readiness",
+        "Complete post-merge proof for the finished PR lane",
+        "Close out PR #123 by all repository rules",
+        "Finish the PR fixed-mapping and merge-readiness checks",
+        "Reseal this PR after the base moved",
+        "Verify current-head CI before merging PR #123",
+        "Clean up the merged PR lane and sync main",
+    ),
+)
+def test_skill_router_selects_pr_closeout_for_bounded_closeout_intent(goal: str) -> None:
+    decision = route_skills(
+        goal=goal,
+        task_class="QA",
+        candidate_paths=["docs/review/PR_999_FIXED_MAPPING.md"],
+        domain="qa",
+    )
+
+    assert "pulseplate-pr-closeout" in flatten_recommended_skills(decision)
+
+
+@pytest.mark.parametrize(
+    ("goal", "candidate_paths"),
+    (
+        ("Perform a code review for this pull request", ["app/main.py"]),
+        ("Review the PR documentation wording", ["docs/review/PR_999_FIXED_MAPPING.md"]),
+        ("Update orchestration documentation", ["scripts/orchestration/skill_router.py"]),
+    ),
+)
+def test_skill_router_does_not_overroute_generic_pr_or_paths(
+    goal: str, candidate_paths: list[str]
+) -> None:
+    decision = route_skills(
+        goal=goal,
+        task_class="QA",
+        candidate_paths=candidate_paths,
+        domain="qa",
+    )
+    skills = flatten_recommended_skills(decision)
+
+    assert "pulseplate-pr-closeout" not in skills
+    if "code review" in goal.lower():
+        assert "pulseplate-pr-review" in skills
+
+
+def test_pr_closeout_rule_stays_keyword_only_and_bounded() -> None:
+    rule = next(rule for rule in SKILL_RULES if rule.skill == "pulseplate-pr-closeout")
+
+    assert rule.min_score == 2
+    assert rule.domain_weights == {}
+    assert rule.path_prefixes == ()
+    assert "fixed mapping" not in rule.keywords
+    assert "merge readiness" not in rule.keywords
+    assert "merge" not in rule.keywords
+    assert "cleanup" not in rule.keywords
 
 
 def test_skill_router_applies_requested_agent_default_bundle() -> None:
