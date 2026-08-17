@@ -160,6 +160,18 @@ def test_skill_router_selects_pr_closeout_for_bounded_closeout_intent(goal: str)
         ("Perform a code review for this pull request", ["app/main.py"]),
         ("Review the PR documentation wording", ["docs/review/PR_999_FIXED_MAPPING.md"]),
         ("Update orchestration documentation", ["scripts/orchestration/skill_router.py"]),
+        (
+            "Close out the repository cleanup sprint and archive completed tasks",
+            ["docs/roadmap/BACKLOG_LEDGER.md"],
+        ),
+        (
+            "Complete sprint closeout and prepare the next task board",
+            ["docs/roadmap/ROADMAP.md"],
+        ),
+        (
+            "Finish task closure notes for the wellness research project",
+            ["docs/research/README.md"],
+        ),
     ),
 )
 def test_skill_router_does_not_overroute_generic_pr_or_paths(

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 
 import pytest
+import yaml
 
 from scripts import verify_codex_skills_install
 
@@ -15,6 +16,41 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER_PATH = REPO_ROOT / "scripts" / "install_codex_skills.sh"
 BASH_PATH = shutil.which("bash")
 CYBERSEC_FIXTURE_SKILL = "implementing-diamond-model-analysis"
+PR_CLOSEOUT_SKILL_PATH = (
+    REPO_ROOT / "tools" / "codex_skills" / "pulseplate-pr-closeout" / "SKILL.md"
+)
+PR_CLOSEOUT_METADATA = {
+    "interface": {
+        "display_name": "PulsePlate PR Closeout",
+        "short_description": "Govern PulsePlate PR closeout evidence",
+        "default_prompt": (
+            "Use $pulseplate-pr-closeout in audit-only mode by default. Treat every "
+            "mutation and merge as blocked unless a mutating mode is explicitly "
+            "selected and separate explicit human authorization binds each exact "
+            "effect in a fresh closed bundle."
+        ),
+    }
+}
+PR_CLOSEOUT_EFFECTS = frozenset(
+    {
+        "draft_init",
+        "draft_freeze",
+        "disposition_write",
+        "validation_write",
+        "mapping_write",
+        "pr_body_write",
+        "mapping_commit",
+        "push",
+        "thread_reply",
+        "thread_resolution",
+        "base_sync",
+        "merge",
+        "main_sync",
+        "branch_delete",
+        "worktree_delete",
+        "temporary_path_delete",
+    }
+)
 
 
 def _run_installer(
@@ -671,10 +707,65 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
             if skill_name == "pulseplate-pr-closeout":
                 metadata = mirrored_skill / "agents" / "openai.yaml"
                 assert metadata.is_file()
-                assert 'display_name: "PulsePlate PR Closeout"' in metadata.read_text(
-                    encoding="utf-8"
+                assert yaml.safe_load(metadata.read_text(encoding="utf-8")) == (
+                    PR_CLOSEOUT_METADATA
                 )
-                assert "$pulseplate-pr-closeout" in metadata.read_text(encoding="utf-8")
         else:
             assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
             assert mirrored_skill.resolve() == source_skill
+
+
+def test_pr_closeout_skill_has_one_closed_effect_vocabulary() -> None:
+    """The passive closeout skill should enumerate one finite mutation vocabulary."""
+
+    skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
+    authority_section = skill_text.split("## Require one closed effect bundle", 1)[1].split(
+        "## Admit the lane", 1
+    )[0]
+    table_effects = {
+        line.split("`")[1] for line in authority_section.splitlines() if line.startswith("| `")
+    }
+
+    assert table_effects == PR_CLOSEOUT_EFFECTS
+
+
+@pytest.mark.parametrize(
+    "required_clause",
+    (
+        pytest.param(
+            "`AUDIT` always has an empty effect-instance list and denies every "
+            "effect in the table.",
+            id="audit-denies-all-mutations",
+        ),
+        pytest.param(
+            "Interpret a pre-closeout `PASS` as procedural admission evidence only. "
+            "It is not user authorization for mapping write, mapping commit, push, "
+            "thread mutation, or merge",
+            id="pre-closeout-pass-is-not-authority",
+        ),
+        pytest.param(
+            "Without a fresh, post-readiness `merge` effect instance from a separate "
+            "human authority bundle, stop at `READY_FOR_AUTHORIZED_MERGE`.",
+            id="readiness-requires-fresh-merge-authority",
+        ),
+        pytest.param(
+            "A `merge` effect never implies `branch_delete`, `main_sync`, "
+            "`worktree_delete`, or `temporary_path_delete`.",
+            id="merge-does-not-authorize-deletion",
+        ),
+        pytest.param(
+            "If an effect is omitted, stale, already consumed, replayed, retargeted, "
+            "wildcarded, or not in the closed vocabulary, fail closed in `AUDIT`",
+            id="invalid-bundle-effects-fail-closed",
+        ),
+    ),
+)
+def test_pr_closeout_skill_authority_contract_is_fail_closed(required_clause: str) -> None:
+    """Static scenarios should retain the fail-closed human-authority boundary."""
+
+    skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
+    normalized_skill = " ".join(skill_text.split())
+    merge_command = skill_text.split("gh pr merge <N>", 1)[1].split("```", 1)[0]
+
+    assert required_clause in normalized_skill
+    assert "--delete-branch" not in merge_command
