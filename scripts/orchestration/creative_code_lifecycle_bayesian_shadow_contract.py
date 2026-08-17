@@ -1562,8 +1562,6 @@ def publish_shadow_artifact(
             or info.st_size != len(content)
         ):
             raise CreativeCodeLifecycleBayesianShadowError("shadow staging identity invalid")
-        os.close(descriptor)
-        descriptor = -1
         recheck_sources()
         try:
             os.link(staging, target, follow_symlinks=False)
@@ -1602,12 +1600,9 @@ def publish_shadow_artifact(
         )
         if existing != content:
             raise CreativeCodeLifecycleBayesianShadowError("divergent_replay")
+        os.close(descriptor)
+        descriptor = -1
     except BaseException:
-        if descriptor >= 0:
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
         if installed and installed_identity is not None:
             try:
                 current = target.lstat()
@@ -1618,6 +1613,15 @@ def publish_shadow_artifact(
         if staging is not None:
             try:
                 staging.unlink()
+            except OSError:
+                pass
+        # Keep the staging descriptor open through the target identity check.
+        # It pins our installed inode after the staging pathname is removed, so
+        # an unlink-and-replace winner cannot reuse that inode and be mistaken
+        # for the artifact this call installed.
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
             except OSError:
                 pass
         _remove_owned_empty_namespace(
