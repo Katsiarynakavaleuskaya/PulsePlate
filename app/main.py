@@ -554,7 +554,6 @@ def _route_has_endpoint(
 ) -> bool:
     """True when ``path``+``method`` is already bound to the expected callable.
 
-    An empty method checks path ownership for the websocket family.
     RU: Не считаем «маршрут есть», если на пути висит чужой handler (контракт другой).
     EN: Path/method alone is insufficient — wrong handler means wrong contract.
     """
@@ -567,8 +566,17 @@ def _route_has_endpoint(
             continue
         if method_name and method_name not in route_methods(carrier_route):
             continue
-        owners.append(route_endpoint(carrier_route) if isinstance(carrier_route, carrier) else None)
-    if endpoint is not None and len(owners) == 1 and owners[0] is endpoint:
+        owners.append(carrier_route if isinstance(carrier_route, carrier) else None)
+    owner = owners[0] if len(owners) == 1 else None
+    if endpoint is not None and owner is not None and route_endpoint(owner) is endpoint:
+        if path == "/" and isinstance(owner, APIRoute):
+            if (
+                owner.include_in_schema
+                or owner.status_code is not None
+                or owner.response_model is not DirectApiRootProbe
+                or owner.dependencies
+            ):
+                raise RuntimeError("Canonical GET / route metadata drift detected.")
         return True
     if endpoint is not None and not owners:
         return False
@@ -1148,7 +1156,7 @@ def _register_bmi_routes(target_app: FastAPI) -> None:
 
 
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
-    """Compose the supplied app without rebinding the canonical singleton."""
+    """Apply canonical additive bootstrap to the provided FastAPI instance."""
     app = target_app
     validate_openapi_builder_state(target_app)
     source_routes = []
@@ -1160,11 +1168,10 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
         (_PAYWALL_EVENTS_ROUTE_PATH, paywall_analytics_router),
     ):
         candidates = tuple(iter_effective_route_candidates(router.routes))
+        route = getattr(candidates[0], "original_route", candidates[0]) if candidates else None
         if (
             len(candidates) != 1
-            or not isinstance(
-                route := getattr(candidates[0], "original_route", candidates[0]), APIRoute
-            )
+            or not isinstance(route, APIRoute)
             or route_path(candidates[0]) != path
             or route_methods(route) != {"POST"}
             or route_endpoint(route) is None
