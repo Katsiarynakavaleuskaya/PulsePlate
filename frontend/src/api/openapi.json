@@ -1848,6 +1848,53 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FitChefClarificationV1": {
+        "additionalProperties": false,
+        "description": "Fixed request-scoped clarification contract for FitChef.",
+        "properties": {
+          "kind": {
+            "const": "missing_required_context",
+            "default": "missing_required_context",
+            "title": "Kind",
+            "type": "string"
+          },
+          "question_count": {
+            "const": 1,
+            "default": 1,
+            "title": "Question Count",
+            "type": "integer"
+          },
+          "question_id": {
+            "const": "weekly_reflection.current_goal",
+            "default": "weekly_reflection.current_goal",
+            "title": "Question Id",
+            "type": "string"
+          },
+          "requested_fields": {
+            "default": [
+              "goal"
+            ],
+            "maxItems": 1,
+            "minItems": 1,
+            "prefixItems": [
+              {
+                "const": "goal",
+                "type": "string"
+              }
+            ],
+            "title": "Requested Fields",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "fitchef_clarification.v1",
+            "default": "fitchef_clarification.v1",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "title": "FitChefClarificationV1",
+        "type": "object"
+      },
       "FitChefCoachingErrorResponse": {
         "description": "Standard JSON detail envelope for FitChef coaching errors.",
         "properties": {
@@ -2445,6 +2492,16 @@
             "title": "Action Items",
             "type": "array"
           },
+          "clarification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FitChefClarificationV1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "confidence": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -2462,6 +2519,15 @@
               "consumed"
             ],
             "title": "Quota State",
+            "type": "string"
+          },
+          "response_state": {
+            "default": "generated",
+            "enum": [
+              "generated",
+              "clarification_required"
+            ],
+            "title": "Response State",
             "type": "string"
           },
           "scenario": {
@@ -7311,7 +7377,7 @@
     },
     "/api/v1/insight/fitchef/weekly-reflection": {
       "post": {
-        "description": "Generate VIP-only weekly reflection coaching via the FitChef runtime.",
+        "description": "Generate a VIP reflection or return deterministic goal clarification.",
         "operationId": "fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post",
         "requestBody": {
           "content": {
@@ -7332,7 +7398,7 @@
                 }
               }
             },
-            "description": "FitChef weekly reflection generated"
+            "description": "FitChef weekly reflection generated or clarification required"
           },
           "400": {
             "content": {

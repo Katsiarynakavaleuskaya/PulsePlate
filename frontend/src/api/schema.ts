@@ -166,7 +166,7 @@ export interface paths {
         put?: never;
         /**
          * Fitchef Weekly Reflection
-         * @description Generate VIP-only weekly reflection coaching via the FitChef runtime.
+         * @description Generate a VIP reflection or return deterministic goal clarification.
          */
         post: operations["fitchef_weekly_reflection_api_v1_insight_fitchef_weekly_reflection_post"];
         delete?: never;
@@ -2494,6 +2494,45 @@ export interface components {
             status: string;
         };
         /**
+         * FitChefClarificationV1
+         * @description Fixed request-scoped clarification contract for FitChef.
+         */
+        FitChefClarificationV1: {
+            /**
+             * Kind
+             * @default missing_required_context
+             * @constant
+             */
+            kind: "missing_required_context";
+            /**
+             * Question Count
+             * @default 1
+             * @constant
+             */
+            question_count: 1;
+            /**
+             * Question Id
+             * @default weekly_reflection.current_goal
+             * @constant
+             */
+            question_id: "weekly_reflection.current_goal";
+            /**
+             * Requested Fields
+             * @default [
+             *       "goal"
+             *     ]
+             */
+            requested_fields: [
+                "goal"
+            ];
+            /**
+             * Schema Version
+             * @default fitchef_clarification.v1
+             * @constant
+             */
+            schema_version: "fitchef_clarification.v1";
+        };
+        /**
          * FitChefCoachingErrorResponse
          * @description Standard JSON detail envelope for FitChef coaching errors.
          */
@@ -2740,6 +2779,7 @@ export interface components {
         FitChefWeeklyReflectionResponse: {
             /** Action Items */
             action_items: string[];
+            clarification?: components["schemas"]["FitChefClarificationV1"] | null;
             /** Confidence */
             confidence: number;
             /** Message */
@@ -2749,6 +2789,12 @@ export interface components {
              * @enum {string}
              */
             quota_state: "not_consumed" | "consumed";
+            /**
+             * Response State
+             * @default generated
+             * @enum {string}
+             */
+            response_state: "generated" | "clarification_required";
             /**
              * Scenario
              * @constant
@@ -5222,7 +5268,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description FitChef weekly reflection generated */
+            /** @description FitChef weekly reflection generated or clarification required */
             200: {
                 headers: {
                     [name: string]: unknown;

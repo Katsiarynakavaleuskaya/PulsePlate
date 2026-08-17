@@ -162,8 +162,11 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     assert "nutrition_targets_and_weekly_plan" in registry
     assert "ai_generated_insight" in registry
     assert "fitchef_structured_v1" in registry
+    assert "fitchef_weekly_reflection_clarification_v1" in registry
     ai_generated_insight = registry["ai_generated_insight"]
     assert ai_generated_insight["analysis_kind"] == "automated AI-assisted analysis"
+    ai_generated_endpoints = cast(list[str], ai_generated_insight["endpoints"])
+    assert "/api/v1/insight/fitchef/weekly-reflection" in ai_generated_endpoints
     nutrition_surface = registry["nutrition_targets_and_weekly_plan"]
     nutrition_endpoints = cast(list[str], nutrition_surface["endpoints"])
     assert "/api/v1/pro/meal/weekly" in nutrition_endpoints
@@ -172,6 +175,24 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     assert fitchef_surface["analysis_kind"] == "automated AI-assisted wellness coaching structure"
     assert "/api/v1/pro/fitchef/explain" in fitchef_endpoints
     assert "/api/v1/vip/fitchef/insight" in fitchef_endpoints
+    clarification = registry["fitchef_weekly_reflection_clarification_v1"]
+    assert clarification == {
+        "surface_id": "fitchef_weekly_reflection_clarification_v1",
+        "title": "FitChef weekly reflection clarification",
+        "analysis_kind": "deterministic input-completeness guidance",
+        "endpoints": ("/api/v1/insight/fitchef/weekly-reflection",),
+        "inputs_used": ("presence of request-scoped goal",),
+        "notice": ("Asks one fixed question when required weekly-reflection context is missing."),
+        "boundary": "Wellness planning only; no diagnosis, therapy, or plan change.",
+        "emergency_use": ("Not for emergencies, crisis handling, or acute medical situations."),
+        "treatment_decision_use": (
+            "Does not provide treatment, medication, or clinical care guidance."
+        ),
+        "escalation": (
+            "Provide the missing current goal to continue; use qualified care pathways "
+            "for clinical needs."
+        ),
+    }
     assert "fitchef_structured_v1" in ai_notice_doc
     assert "/api/v1/pro/fitchef/explain" in ai_notice_doc
     assert "/api/v1/vip/fitchef/insight" in ai_notice_doc

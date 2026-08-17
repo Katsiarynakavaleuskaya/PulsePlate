@@ -10,6 +10,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.fitchef import (
+    FitChefClarificationV1,
+    FitChefWeeklyReflectionResponseState,
+)
+
 
 class FitChefCoachingRequest(BaseModel):
     """Mascot insight request payload."""
@@ -187,6 +192,8 @@ class FitChefWeeklyReflectionResponse(FitChefCoachingResponseBase):
     """Public weekly reflection response envelope."""
 
     scenario: Literal["weekly_reflection"] = Field(...)
+    response_state: FitChefWeeklyReflectionResponseState = "generated"
+    clarification: FitChefClarificationV1 | None = None
 
 
 class FitChefSlipSupportResponse(FitChefCoachingResponseBase):
