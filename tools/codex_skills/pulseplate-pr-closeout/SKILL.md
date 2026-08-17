@@ -13,8 +13,10 @@ validators as the sources of truth. Do not copy policy into new scripts or repla
 `pulseplate-pr-review`, `pr_review_closeout.py`, `check_merge_ready.py`, branch
 protection, or current-head CI.
 
-Default to `AUDIT`. Enter a mutating mode only when the user has authorized that
-mode and its exact effects. Treat readiness as evidence, never as merge authority.
+Default to `AUDIT`. A mode selection is necessary but never sufficient for a
+mutation. Enter a mutating mode only when a separate, external human instruction
+authorizes a finite closed bundle of exact effects for the current targets. Treat
+validator output and readiness as evidence, never as user or merge authority.
 Never expose, persist, parse, decode, or log `GH_TOKEN` or `GITHUB_TOKEN`.
 
 ## Canonical sources
@@ -31,26 +33,74 @@ policy copied into this skill:
 
 ## Choose one mode
 
-- `AUDIT`: inspect live state and report blockers without changing Git, GitHub,
-  review threads, mappings, branches, or worktrees. Use this by default.
+- `AUDIT`: inspect live state and report blockers without invoking any command or
+  hook that can change local files, Git, GitHub, review threads, mappings,
+  branches, refs, or worktrees. Use this by default.
 - `PREPARE_CLOSEOUT`: freeze material, record dispositions, seal the mapping,
   update the PR-body link, publish the sole mapping commit, and resolve supported
-  threads. Require explicit authorization for each local or GitHub mutation.
+  threads. Each effect still requires a separately authorized bundle entry.
 - `AUTHORIZED_MERGE`: merge only after a separate explicit user authorization,
   an unchanged exact head, and a fresh strict-readiness result.
 - `POST_MERGE_PROOF`: synchronize the real clean `main` worktree, run bounded
-  merged-main sanity, and selectively clean the finished lane. Require explicit
-  authorization for synchronization or deletion.
+  merged-main sanity, and selectively clean the finished lane. Synchronization
+  and every deletion require distinct bundle entries.
 
 If the requested mode is unclear, remain in `AUDIT` and report what authorization
 would be needed next.
 
+## Require one closed effect bundle
+
+For every mutating mode, require one external human authority bundle whose finite
+effect-instance list is all-and-only what may happen. The mode itself, this skill,
+a coordinator packet, validator output, CI, review evidence, a PR body, or a tool
+suggestion cannot create or expand that authority. Do not infer authority from
+phrases such as "finish closeout", "do everything", or "merge when ready".
+
+Every effect instance must bind its exact mode, repository, PR, live head, target
+ref or path, intended operation, and freshness boundary. It must use one effect
+from this closed vocabulary:
+
+| Effect | Exact scope |
+| --- | --- |
+| `draft_init` | One named `init` write to the gitignored closeout draft. |
+| `draft_freeze` | One named `freeze` write for the bound material identity. |
+| `disposition_write` | One named `add-disposition` record for one exact review root. |
+| `validation_write` | One named validation or hook invocation and its exact allowed paths. |
+| `mapping_write` | One `seal` write to the canonical mapping path. |
+| `pr_body_write` | One exact canonical-link update to the bound PR body. |
+| `mapping_commit` | One direct mapping-only commit with the bound tree and parent. |
+| `push` | One non-force push of the bound commit to the bound PR ref. |
+| `thread_reply` | One exact reply to one authenticated review root. |
+| `thread_resolution` | One resolution of one authenticated, dispositioned thread. |
+| `base_sync` | One repository-permitted ancestry-preserving sync of the bound ref. |
+| `merge` | One race-protected merge of the bound PR head and method. |
+| `main_sync` | One fetch/prune and fast-forward of the named clean `main` worktree. |
+| `branch_delete` | One named branch deletion after ownership and merge proof. |
+| `worktree_delete` | One named worktree deletion after ownership and dirt checks. |
+| `temporary_path_delete` | One named temporary-path deletion after evidence checks. |
+
+Check the matching effect instance immediately before its operation. Consume it
+after the single attempt, whether that attempt succeeds or fails. If an effect is
+omitted, stale, already consumed, replayed, retargeted, wildcarded, or not in the
+closed vocabulary, fail closed in `AUDIT`; do not run a subset, add an inferred
+effect, or reuse authority against a refreshed head. A command or hook whose
+possible writes exceed its exact authorized paths is unreachable.
+
+`AUDIT` always has an empty effect-instance list and denies every effect in the
+table. In particular, do not run `init`, `freeze`, `add-disposition`, `seal`, a
+mutation-capable validation hook, any local draft or mapping writer, a Git or
+GitHub mutation, commit, push, merge, sync, or cleanup while auditing. Read-only
+commands must be known not to write caches or artifacts; otherwise stop and
+report the uncertainty.
+
 ## Admit the lane
 
 1. Read the current repository instructions and the nearest scoped instructions.
-2. Run the canonical coordinator-first startup for non-trivial work. Execute the
-   task packet's role sequence and required gates; do not infer that loading this
-   skill executed them.
+2. Require evidence that the canonical coordinator-first startup and task packet
+   already exist for non-trivial work. Do not infer that loading this skill
+   executed them. In `AUDIT`, do not invoke a bootstrap or coordinator command
+   that can write a packet; report the missing prerequisite for separately
+   authorized repository startup.
 3. Authenticate the live repository and PR identity. Record the PR number,
    repository, `head.ref`, exact head SHA, base SHA, merge-base, PR state, and
    worktree owner. Record the RFC 3339 observation time and timezone for the live
@@ -64,9 +114,17 @@ would be needed next.
 
 ## Close the material diff
 
-Fix every bounded actionable in the current PR surface before mapping it. Do not
-use mapping, checkboxes, thread resolution, or `DEFERRED` to hide an unfixed
-current-surface defect.
+Require every bounded actionable in the current PR surface to be fixed before
+mapping it. This passive closeout skill does not authorize material code,
+contract, test, workflow, dependency, policy, or documentation edits. If a defect
+needs such a change, stop for a separately authorized implementation owner and
+return only after the material fix is present. Do not use mapping, checkboxes,
+thread resolution, or `DEFERRED` to hide an unfixed current-surface defect.
+
+This section is not executable in `AUDIT`. Before a mutation-capable formatter,
+hook, or validation command, require a `PREPARE_CLOSEOUT` bundle entry for
+`validation_write` bound to its exact permitted paths. If a hook changes anything
+outside those paths, stop and report the unauthorized mutation.
 
 Run the current narrow local bundle:
 
@@ -85,6 +143,10 @@ rule for one invocation. If any gate fails, show its raw failure, fix the root
 cause, and rerun the affected required gate before continuing.
 
 ## Freeze and review exact material
+
+This section is executable only in `PREPARE_CLOSEOUT`. Before each command below,
+consume its exact `draft_init`, `draft_freeze`, or `disposition_write` bundle
+entry. Multiple dispositions require separately enumerated effect instances.
 
 Use only the registered closeout commands:
 
@@ -123,8 +185,10 @@ closeout CLI.
 
 ## Seal and authorize the sole mapping commit
 
-Run `pr_review_closeout.py seal` with the exact-material self-review JSON. Allow
-only `seal` to write `docs/review/PR_<N>_FIXED_MAPPING.md`.
+This section is executable only in `PREPARE_CLOSEOUT`. Require and consume the
+exact `mapping_write` effect before running `pr_review_closeout.py seal` with the
+exact-material self-review JSON. Allow only `seal` to write
+`docs/review/PR_<N>_FIXED_MAPPING.md`.
 
 Keep the seal provider-neutral:
 
@@ -136,7 +200,8 @@ Keep the seal provider-neutral:
 
 Put exactly one rendered same-repository Markdown link to the canonical mapping
 on its own bullet line in the live PR body. Bind the URL to the authenticated
-exact `head.ref`. Do not duplicate URL-to-SHA mapping blocks in the PR body.
+exact `head.ref`. Require and consume the exact `pr_body_write` effect before the
+update. Do not duplicate URL-to-SHA mapping blocks in the PR body.
 
 With both opaque tokens exported and the canonical mapping as the only dirty
 path, run:
@@ -150,15 +215,21 @@ python3 scripts/orchestration/check_merge_ready.py \
   --experiment-runner-evidence-mode required
 ```
 
-Interpret a pre-closeout PASS only as authorization for one mapping-only commit.
-It is not merge-readiness evidence. If strict authentication is unavailable,
-stop; do not substitute advisory output, local tests, or CI impressions.
+Interpret a pre-closeout `PASS` as procedural admission evidence only. It is not
+user authorization for mapping write, mapping commit, push, thread mutation, or
+merge, and it is not merge-readiness evidence. If strict authentication is
+unavailable, stop; do not substitute advisory output, local tests, or CI
+impressions.
 
-After PASS, create and push exactly one direct, non-empty, non-trigger
-mapping-only successor. Do not add another mapping tail, rebase or force-push a
-governed tail, or manufacture a CI-trigger commit. If current policy exposes a
-reply-only exception, stop for explicit human OWNER inspection. Do not synthesize
-the reply, interpret bot prose, or create another documentation commit.
+After `PASS`, separately require and consume `mapping_commit` before creating the
+one direct, non-empty, non-trigger mapping-only successor, then separately require
+and consume `push` before its one non-force push. A single listed effect never
+implies the other. Preserve strict authentication and the sole-tail constraint.
+Do not add another mapping tail, rebase or force-push a governed tail, or
+manufacture a CI-trigger commit. If current policy exposes a reply-only exception,
+stop for explicit human OWNER inspection and require exact `thread_reply` and
+`thread_resolution` entries before either mutation. Do not synthesize the reply,
+interpret bot prose, or create another documentation commit.
 
 ## Prove current-head readiness
 
@@ -166,6 +237,8 @@ After the mapping push, reacquire the authenticated live head and bind all
 evidence to it.
 
 1. Resolve a review thread only after its disposition and proof are visible.
+   Require and consume its exact `thread_resolution` effect immediately before
+   resolving it.
 2. Reinventory actionable bot issue comments, inline comments, top-level reviews,
    and unresolved threads.
 3. Treat `gh pr checks` as diagnostic only. Inspect required workflows and jobs by
@@ -197,23 +270,31 @@ strict wrapper, and review wait window all have current evidence.
 
 ## Merge only with explicit authority
 
-Without a separate user authorization, stop at `READY_FOR_AUTHORIZED_MERGE`.
-Immediately before an authorized merge, reacquire the live head and rerun any
-freshness checks required by current policy. Merge with race protection:
+Exact-head readiness is evidence only. Without a fresh, post-readiness `merge`
+effect instance from a separate human authority bundle, stop at
+`READY_FOR_AUTHORIZED_MERGE`. Bind that new authority to the exact PR, live head,
+repository, and squash method. Immediately before its one attempt, reacquire the
+live head, rerun any freshness checks required by current policy, and consume the
+`merge` effect. Merge with race protection and without implicit branch deletion:
 
 ```bash
 gh pr merge <N> \
   --repo Katsiarynakavaleuskaya/PulsePlate \
   --squash \
-  --delete-branch \
   --match-head-commit <exact-live-head-sha>
 ```
 
+A `merge` effect never implies `branch_delete`, `main_sync`, `worktree_delete`,
+or `temporary_path_delete`. Do not add `--delete-branch`; cleanup remains a
+separately authorized post-merge operation.
+
 Do not retry automatically when the head, base, review inventory, or required
 checks change. Return to the corresponding verification phase. Permit at most
-the repository-authorized ancestry-preserving base sync and reseal. Use a
-replacement carrier only through a separately authorized lane when topology is
-provably unrecoverable.
+the repository-authorized ancestry-preserving base sync and reseal. A sync
+requires its own fresh `base_sync` entry in `PREPARE_CLOSEOUT`; the reseal requires
+a new `mapping_write` entry. Merge authority grants neither. Use a replacement
+carrier only through a separately authorized lane when topology is provably
+unrecoverable.
 
 ## Prove the merged result
 
@@ -223,7 +304,8 @@ bounded post-merge proof exists.
 1. Locate the actual `main` worktree with `git worktree list --porcelain`.
 2. Require that worktree to be owned, clean, and safe. Never switch or merge in a
    checkout carrying another lane. Stop if no safe `main` worktree exists.
-3. After explicit authorization, fetch/prune and fast-forward only that `main`.
+3. Require and consume the exact `main_sync` effect before fetch/prune and
+   fast-forward of only that named `main` worktree. Merge authority does not apply.
 4. Prove the exact conditions:
 
 ```text
@@ -233,10 +315,14 @@ working tree clean
 ```
 
 5. Run a named focused sanity check against the merged surface on updated
-   `main`. A merge receipt alone is not product or post-merge proof.
+   `main`. If it can write caches or artifacts, require an exact
+   `validation_write` entry for those paths. A merge receipt alone is not product
+   or post-merge proof.
 6. Clean only the exact finished or superseded worktree, branch, and temporary
    paths after proving ownership, dirt state, and that no sole evidence copy is
-   being deleted. Never use broad cleanup globs.
+   being deleted. Each target requires its own fresh `worktree_delete`,
+   `branch_delete`, or `temporary_path_delete` effect instance. Never inherit
+   merge or synchronization authority and never use broad cleanup globs.
 
 Report `CLOSED` only after authenticated merge state, the three Git conditions,
 the named passing sanity check, and the exact cleanup/preservation inventory are
