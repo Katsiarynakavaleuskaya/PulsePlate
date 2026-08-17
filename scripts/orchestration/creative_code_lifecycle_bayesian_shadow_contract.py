@@ -180,7 +180,7 @@ def _object(value: Any, *, label: str) -> Mapping[str, Any]:
 def _integer(value: Any, *, label: str, maximum: int = MAX_COUNT) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= maximum:
         raise CreativeCodeLifecycleBayesianShadowError(f"{label} must be a bounded integer")
-    return value
+    return cast(int, value)
 
 
 def _safe_id(value: Any, *, label: str, asset: bool = False) -> str:
@@ -301,7 +301,7 @@ def _target_from_gate(gate: Mapping[str, Any], *, gate_ref: str) -> dict[str, An
         ),
     }
     if not isinstance(fields["base_commit_sha"], str) or not SHA_RE.fullmatch(
-        cast(str, fields["base_commit_sha"])
+        fields["base_commit_sha"]
     ):
         raise CreativeCodeLifecycleBayesianShadowError("gate.base_commit_sha is invalid")
     fields["target_fingerprint"] = fingerprint_payload(cast(Any, fields))
@@ -1210,13 +1210,16 @@ def forecast_id_for_gate(gate: Mapping[str, Any], *, gate_ref: str) -> str:
         "target_fingerprint": target["target_fingerprint"],
     }
     slot_fingerprint = fingerprint_payload(cast(Any, skeleton))
-    return build_asset_id(
-        asset_type=FORECAST_ARTIFACT_TYPE,
-        rail="control_plane",
-        version=SCHEMA_VERSION,
-        policy_version=POLICY_VERSION,
-        fingerprint=slot_fingerprint,
-        upstream_ids=(target["generation_gate_id"], target["target_fingerprint"]),
+    return cast(
+        str,
+        build_asset_id(
+            asset_type=FORECAST_ARTIFACT_TYPE,
+            rail="control_plane",
+            version=SCHEMA_VERSION,
+            policy_version=POLICY_VERSION,
+            fingerprint=slot_fingerprint,
+            upstream_ids=(target["generation_gate_id"], target["target_fingerprint"]),
+        ),
     )
 
 

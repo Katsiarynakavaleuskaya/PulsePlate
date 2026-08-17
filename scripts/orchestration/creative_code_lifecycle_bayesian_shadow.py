@@ -106,7 +106,7 @@ def _candidate_ids(event: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _matches_target(event: Mapping[str, Any], target: Mapping[str, Any]) -> bool:
     ids = _candidate_ids(event)
-    return (
+    return bool(
         ids.get("source_bundle_id") == target["source_bundle_id"]
         and ids.get("selected_variant_id") == target["selected_variant_id"]
         and ids.get("request_id") == target["request_id"]
@@ -119,7 +119,10 @@ def _require_target_absent(events: Sequence[Mapping[str, Any]], target: Mapping[
 
 
 def _load_gate_before_generation(gate_path: Path) -> tuple[Path, dict[str, Any]]:
-    return generation_cli.load_validated_generation_gate_context(gate_path)
+    return cast(
+        tuple[Path, dict[str, Any]],
+        generation_cli.load_validated_generation_gate_context(gate_path),
+    )
 
 
 def _load_gate_for_readback(gate_path: Path) -> tuple[Path, dict[str, Any]]:
@@ -255,7 +258,7 @@ def validate_start_path(start_path: Path) -> dict[str, Any]:
     raw, seal = read_shadow_json(
         start_path, shadow_root=BAYESIAN_SHADOW_ROOT, label="shadow target start"
     )
-    start = validate_target_start(raw)
+    start = cast(dict[str, Any], validate_target_start(raw))
     forecast_path = _resolve_repo_ref(start["forecast_ref"], label="shadow forecast")
     forecast, forecast_seal, gate_path, gate, _snapshot = _load_forecast_sources(forecast_path)
     expected, expected_seal, canonical_path = _load_start(
@@ -273,7 +276,7 @@ def validate_start_path(start_path: Path) -> dict[str, Any]:
 
 
 def _event_fingerprint(event: Mapping[str, Any]) -> str:
-    return fingerprint_payload(cast(Any, dict(event)))
+    return cast(str, fingerprint_payload(cast(Any, dict(event))))
 
 
 def _require_baseline_subset(
@@ -463,9 +466,12 @@ def score_forecast(
     receipt_ref: str | None = None
     if len(patch_rows) == 1:
         receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
-        _receipt_gate, receipt = generation_cli.load_validated_generation_receipt_context(
-            gate_path=gate_path,
-            receipt_path=receipt_path,
+        _receipt_gate, receipt = cast(
+            tuple[dict[str, Any], dict[str, Any]],
+            generation_cli.load_validated_generation_receipt_context(
+                gate_path=gate_path,
+                receipt_path=receipt_path,
+            ),
         )
         receipt_ref = _repo_ref(receipt_path, label="generation receipt")
         patch_event = patch_rows[0]
@@ -563,7 +569,7 @@ def validate_score_path(score_path: Path) -> dict[str, Any]:
     raw, score_seal = read_shadow_json(
         score_path, shadow_root=BAYESIAN_SHADOW_ROOT, label="shadow score"
     )
-    score = validate_lifecycle_forecast_score(raw)
+    score = cast(dict[str, Any], validate_lifecycle_forecast_score(raw))
     forecast_path = _resolve_repo_ref(score["forecast_ref"], label="shadow forecast")
     forecast, forecast_seal, gate_path, gate, baseline = _load_forecast_sources(forecast_path)
     start, start_seal, start_path = _load_start(
