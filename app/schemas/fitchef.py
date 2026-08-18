@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
 
@@ -21,6 +21,10 @@ FitChefTaskType = Literal[
     "slip_support",
 ]
 FitChefQuotaState = Literal["not_consumed", "consumed"]
+FitChefWeeklyReflectionResponseState = Literal[
+    "generated",
+    "clarification_required",
+]
 
 
 class FitChefCoachInsightInput(BaseModel):
@@ -158,6 +162,18 @@ class FitChefSourceItem(BaseModel):
     score: float
 
 
+class FitChefClarificationV1(BaseModel):
+    """Fixed request-scoped clarification contract for FitChef."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal["fitchef_clarification.v1"] = "fitchef_clarification.v1"
+    kind: Literal["missing_required_context"] = "missing_required_context"
+    question_id: Literal["weekly_reflection.current_goal"] = "weekly_reflection.current_goal"
+    requested_fields: tuple[Literal["goal"]] = ("goal",)
+    question_count: Literal[1] = 1
+
+
 class FitChefCoachInsightResult(BaseModel):
     """Internal coach-insight result. / Внутренний результат coach-insight."""
 
@@ -247,6 +263,8 @@ class FitChefWeeklyReflectionResult(BaseModel):
     quota_state: FitChefQuotaState
     transparency_notice_id: str
     wellness_boundary: str
+    response_state: FitChefWeeklyReflectionResponseState = "generated"
+    clarification: FitChefClarificationV1 | None = None
 
 
 class FitChefSlipSupportResult(BaseModel):
