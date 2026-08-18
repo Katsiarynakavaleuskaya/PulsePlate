@@ -32,7 +32,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 ### AI-generated insight
 
 - Surface id: `ai_generated_insight`
-- Endpoints: `/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`, `/api/v1/insight/fitchef/weekly-reflection`
+- Endpoints: `/insight`, `/api/v1/insight`, `/api/v1/pro/cbt/insight`, `/api/v1/insight/fitchef/weekly-reflection` when `goal` is nonblank
 - Analysis type: automated AI-assisted analysis
 - Boundary: wellness coaching only, not therapy, diagnosis, or clinical decision support
 - Runtime tracing: prompt and completion payloads are fingerprinted with HMAC and exported without raw text in v1
@@ -44,7 +44,7 @@ PulsePlate treats health-adjacent AI features as **automated wellness analysis**
 - Endpoint: `/api/v1/insight/fitchef/weekly-reflection`
 - Analysis type: deterministic input-completeness guidance
 - Boundary: wellness planning only; no diagnosis, therapy, or plan change
-- Runtime behavior: asks one fixed question when the request-scoped goal is missing; it does not use retrieval, an AI provider, monthly LLM quota, persistence, or plan mutation
+- Runtime behavior: asks one fixed question when the request-scoped goal is missing or blank; it does not use retrieval, an AI provider, monthly LLM quota, persistence, planner execution, or plan mutation
 
 ### FitChef structured coaching
 
