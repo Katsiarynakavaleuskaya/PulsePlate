@@ -35,7 +35,7 @@ Different tools read skills from different directories:
 
 | Tool | Scanner path | Notes |
 |------|-------------|-------|
-| OpenCode (repo session) | `.agents/skills/` (working directory) | Auto-discovered; all 17 PulsePlate + 3 Vercel skills |
+| OpenCode (repo session) | `.agents/skills/` (working directory) | Auto-discovered; all 20 PulsePlate + 3 Vercel skills |
 | OpenCode (user global) | `~/.config/opencode/skills/` | User-installed skills only |
 | Codex CLI | `$CODEX_HOME/skills` or `~/.codex/skills` | Compat target; requires explicit install |
 | Official install | `$AGENTS_HOME/skills` or `~/.agents/skills` | Default installer target |
@@ -109,6 +109,7 @@ Not every name that appears in a task prompt is a loadable skill:
 | `pulseplate-workflow` | PulsePlate skill | Yes | Yes |
 | `pulseplate-gates` | PulsePlate skill | Yes | Yes |
 | `pulseplate-premortem-risk-review` | PulsePlate skill | Yes | Yes |
+| `pulseplate-pr-closeout` | PulsePlate skill | Yes | Yes |
 | `code-review-expert` | User-installed skill | Yes | Yes (from `~/.config/opencode/skills/`) |
 | `find-skills` | User-installed skill | Yes | Yes (from `~/.config/opencode/skills/`) |
 | `bug-triage` | External/plugin skill | Varies | Depends on host install |
