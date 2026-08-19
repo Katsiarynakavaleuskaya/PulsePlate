@@ -193,7 +193,13 @@ def _tarball_identity_matches(value: object, *, target: str) -> bool:
     if len(path_parts) < suffix_width:
         return False
     target_start = len(path_parts) - suffix_width
-    if len(target_parts) == 1 and target_start > 0 and path_parts[target_start - 1].startswith("@"):
+    is_canonical_registry = parsed.scheme == "https" and parsed.netloc == "registry.npmjs.org"
+    if (
+        is_canonical_registry
+        and len(target_parts) == 1
+        and target_start > 0
+        and path_parts[target_start - 1].startswith("@")
+    ):
         return False
     return (
         tuple(path_parts[-suffix_width:-2]) == target_parts
@@ -1373,6 +1379,27 @@ def test_nanoid_owner_allows_unrelated_scoped_package_with_same_basename(
     test_nanoid_occurrences_stay_outside_all_reconciled_affected_ranges()
     assert not _find_lock_occurrences(lock, target="nanoid")
     assert set(_find_lock_occurrences(lock, target="@acme/nanoid")) == {"node_modules/@acme/nanoid"}
+
+
+def test_opaque_scoped_path_tarball_cannot_hide_renamed_unscoped_package() -> None:
+    """Only the canonical npm registry may prove that a scoped path is unrelated."""
+    resolved = "https://evil.example/@carrier/image-size/-/image-size-1.2.1.tgz"
+    manifest = {"dependencies": {"renamed-carrier": resolved}}
+    lock = {
+        "lockfileVersion": 3,
+        "packages": {
+            "node_modules/renamed-carrier": {
+                "version": "1.2.1",
+                "resolved": resolved,
+                "integrity": "sha512-test",
+            }
+        },
+    }
+
+    assert _find_manifest_occurrences(manifest, target="image-size")
+    assert set(_find_lock_occurrences(lock, target="image-size")) == {
+        "node_modules/renamed-carrier"
+    }
 
 
 @pytest.mark.parametrize("field", ("bundleDependencies", "bundledDependencies"))
