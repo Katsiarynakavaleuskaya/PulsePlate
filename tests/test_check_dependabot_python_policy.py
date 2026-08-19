@@ -209,7 +209,7 @@ def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
 
 
-def test_frozen_upstream_marker_language_matches_raw_pattern() -> None:
+def test_hardened_marker_language_rejects_ambiguous_incomplete_expressions() -> None:
     raw_pattern = re.compile(
         carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
         flags=re.ASCII,
@@ -223,7 +223,24 @@ def test_frozen_upstream_marker_language_matches_raw_pattern() -> None:
 
     for marker_line in marker_lines:
         assert raw_pattern.fullmatch(marker_line) is not None
-        assert carriers._UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(marker_line) is not None
+        assert carriers._UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(marker_line) is None
+
+
+def test_hardened_marker_language_rejects_long_invalid_near_match() -> None:
+    probe = (
+        "from scripts.ci.dependabot_requirement_carriers import "
+        "is_dependabot_requirement_carrier_text\n"
+        "content = 'package; ' + '(  and ' * 500 + '!\\n'\n"
+        "assert not is_dependabot_requirement_carrier_text('extra.txt', content)\n"
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", probe],
+        check=True,
+        cwd=REPO_ROOT,
+        shell=False,
+        timeout=5,
+    )
 
 
 def test_frozen_upstream_requirement_grammar_rejects_long_invalid_near_matches() -> None:
