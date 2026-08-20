@@ -243,6 +243,7 @@ def test_hardened_classifier_matches_frozen_raw_marker_boundary_matrix() -> None
     )
     atoms = ("(", ")", "and", "or", 'python_version == "3"')
     whitespace_boundaries = ("", " ", "  ")
+    matrix_counter = 0
 
     for atom_count in (1, 2, 3):
         for selected_atoms in product(atoms, repeat=atom_count):
@@ -258,14 +259,101 @@ def test_hardened_classifier_matches_frozen_raw_marker_boundary_matrix() -> None
                 )
 
                 assert public_accepts is raw_accepts, candidate
+                matrix_counter += 1
+
+    assert matrix_counter == 10_845
 
 
-def test_hardening_transformations_fail_closed_on_same_count_location_drift() -> None:
-    pattern = carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN
+@pytest.mark.parametrize(
+    ("pattern", "expected_sha256", "expected_counts", "compiled_pattern"),
+    (
+        (
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_HARDENING_COUNTS,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_RE.pattern,
+        ),
+        (
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN_SHA256,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_HARDENING_COUNTS,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_RE.pattern,
+        ),
+    ),
+)
+def test_hardening_helper_output_is_the_compiled_pattern(
+    pattern: str,
+    expected_sha256: str,
+    expected_counts: tuple[int, int, int],
+    compiled_pattern: str,
+) -> None:
+    assert (
+        carriers._harden_upstream_requirement_pattern(
+            pattern,
+            expected_sha256=expected_sha256,
+            expected_counts=expected_counts,
+        )
+        == compiled_pattern
+    )
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected_sha256", "expected_counts"),
+    (
+        (
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_HARDENING_COUNTS,
+        ),
+        (
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN_SHA256,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_HARDENING_COUNTS,
+        ),
+    ),
+)
+def test_hardening_helper_rejects_wrong_counts_before_digest(
+    pattern: str,
+    expected_sha256: str,
+    expected_counts: tuple[int, int, int],
+) -> None:
+    wrong_counts = (expected_counts[0] + 1, *expected_counts[1:])
+    with pytest.raises(RuntimeError, match="hardening locations drifted"):
+        carriers._harden_upstream_requirement_pattern(
+            pattern,
+            expected_sha256="wrong-digest-must-not-be-reached",
+            expected_counts=wrong_counts,
+        )
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected_sha256", "expected_counts"),
+    (
+        (
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256,
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_HARDENING_COUNTS,
+        ),
+        (
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN_SHA256,
+            carriers._UPSTREAM_REQUIREMENT_BEFORE_MARKER_HARDENING_COUNTS,
+        ),
+    ),
+)
+def test_hardening_helper_rejects_same_count_relocated_identity(
+    pattern: str,
+    expected_sha256: str,
+    expected_counts: tuple[int, int, int],
+) -> None:
     relocated = pattern.replace(r"^\s*", "^", 1) + r"\s*"
     assert relocated.count(r"\s*") == pattern.count(r"\s*")
     with pytest.raises(RuntimeError, match="grammar identity drifted"):
-        carriers._harden_upstream_requirement_pattern(relocated)
+        carriers._harden_upstream_requirement_pattern(
+            relocated,
+            expected_sha256=expected_sha256,
+            expected_counts=expected_counts,
+        )
 
 
 def test_raw_positive_marker_ambiguity_is_forbidden_as_novel_carrier(

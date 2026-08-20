@@ -107,38 +107,56 @@ _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
 # Counts pin the exact frozen translation locations: grammar drift must fail
 # closed instead of silently hardening a different language.
 _HARDENING_TRANSFORMATIONS = (
-    (r"[0-9]+[A-Za-z0-9_.*-]*", r"[0-9]++[A-Za-z0-9_.*-]*", 2),
-    (r"\s*", r"\s*+", 34),
-    (r"\s+", r"\s++", 4),
+    (r"[0-9]+[A-Za-z0-9_.*-]*", r"[0-9]++[A-Za-z0-9_.*-]*"),
+    (r"\s*", r"\s*+"),
+    (r"\s+", r"\s++"),
 )
 _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256 = (
     "d6c2ad19356670da7befa66ae40913b500c811b748c8227f156ca69ac6ed90f6"  # pragma: allowlist secret
 )
+_UPSTREAM_VALID_REQUIREMENT_LINE_HARDENING_COUNTS = (2, 34, 4)
+_UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN_SHA256 = (
+    "ec2bb91014b6a206a143f5a81242c4a78effc5bac962e47e3517d43cfb124112"  # pragma: allowlist secret
+)
+_UPSTREAM_REQUIREMENT_BEFORE_MARKER_HARDENING_COUNTS = (2, 19, 0)
 
 
-def _harden_upstream_requirement_pattern(pattern: str) -> str:
+def _harden_upstream_requirement_pattern(
+    pattern: str,
+    *,
+    expected_sha256: str,
+    expected_counts: tuple[int, int, int],
+) -> str:
     """Apply the frozen bounded-time rewrites or reject grammar drift."""
 
+    observed_counts = tuple(
+        pattern.count(source) for source, _replacement in _HARDENING_TRANSFORMATIONS
+    )
+    if observed_counts != expected_counts:
+        raise RuntimeError("pinned requirement grammar hardening locations drifted")
     pattern_digest = hashlib.sha256(pattern.encode("ascii")).hexdigest()
-    if pattern_digest != _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256:
+    if pattern_digest != expected_sha256:
         raise RuntimeError("pinned requirement grammar identity drifted")
     hardened = pattern
-    for source, replacement, expected_count in _HARDENING_TRANSFORMATIONS:
-        if hardened.count(source) != expected_count:
-            raise RuntimeError("pinned requirement grammar hardening locations drifted")
+    for source, replacement in _HARDENING_TRANSFORMATIONS:
         hardened = hardened.replace(source, replacement)
     return hardened
 
 
 _UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
-    _harden_upstream_requirement_pattern(_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN),
+    _harden_upstream_requirement_pattern(
+        _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        expected_sha256=_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256,
+        expected_counts=_UPSTREAM_VALID_REQUIREMENT_LINE_HARDENING_COUNTS,
+    ),
     flags=re.ASCII,
 )
 _UPSTREAM_REQUIREMENT_BEFORE_MARKER_RE = re.compile(
-    _UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN.replace(
-        r"[0-9]+[A-Za-z0-9_.*-]*",
-        r"[0-9]++[A-Za-z0-9_.*-]*",
-    ).replace(r"\s*", r"\s*+"),
+    _harden_upstream_requirement_pattern(
+        _UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN,
+        expected_sha256=_UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN_SHA256,
+        expected_counts=_UPSTREAM_REQUIREMENT_BEFORE_MARKER_HARDENING_COUNTS,
+    ),
     flags=re.ASCII,
 )
 _MARKER_VARIABLE_LINEAR = rf"(?:{_UPSTREAM_MARKER_ENVIRONMENT_VARIABLE}|{_UPSTREAM_PYTHON_STRING})"
