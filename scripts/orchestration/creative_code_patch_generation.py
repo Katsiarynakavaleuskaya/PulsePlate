@@ -60,6 +60,12 @@ from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
     validate_creative_code_specification_bundle,
 )
+from scripts.orchestration.creative_code_lifecycle_bayesian_shadow_contract import (
+    CreativeCodeLifecycleBayesianShadowError,
+    assert_no_shadow_slot,
+    canonical_shadow_root,
+    publish_target_start_from_forecast,
+)
 from scripts.orchestration.experiment_contract import (
     DEFAULT_RUNNER_MODE,
     DEFAULT_STOP_CONDITION,
@@ -646,6 +652,17 @@ def _exclusive_finalize_lock(run_dir: Path) -> Iterator[None]:
 
     try:
         with exclusive_patch_run_lock(run_dir, label="trusted dispatch finalization"):
+            yield
+    except CreativeCodePatchWorkspaceError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
+
+
+@contextmanager
+def _exclusive_shadow_start_lock(run_dir: Path) -> Iterator[None]:
+    """Serialize target start plus generation without nesting evaluate's lock."""
+
+    try:
+        with exclusive_patch_run_lock(run_dir, label="creative-code shadow target start"):
             yield
     except CreativeCodePatchWorkspaceError as exc:
         raise CreativeCodePatchGenerationError(str(exc)) from exc
@@ -1307,6 +1324,19 @@ def _validate_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
     if expected_gate != gate:
         raise CreativeCodePatchGenerationError("generation gate is stale.")
     return resolved_gate, gate
+
+
+def load_validated_generation_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
+    """Expose the existing exact pre-generation context to bounded local consumers."""
+
+    return _validate_gate_context(gate_path)
+
+
+def load_stored_generation_gate(gate_path: Path) -> tuple[Path, dict[str, Any]]:
+    """Read one stored gate without claiming its run remains pre-generation clean."""
+
+    resolved = admission_cli._resolve_repo_json_file(gate_path, label="generation gate")
+    return resolved, _read_generation_gate(resolved)
 
 
 def _read_generation_gate(gate_path: Path) -> dict[str, Any]:
@@ -2280,6 +2310,29 @@ def validate_generation_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> 
     _validate_receipt_linked_artifacts(receipt)
 
 
+def load_validated_generation_receipt_context(
+    *, gate_path: Path, receipt_path: Path
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read and cross-bind a stored gate/receipt after candidate generation."""
+
+    resolved_gate = admission_cli._resolve_repo_json_file(gate_path, label="generation gate")
+    resolved_receipt = admission_cli._resolve_repo_json_file(
+        receipt_path, label="generation receipt"
+    )
+    gate = _read_generation_gate(resolved_gate)
+    receipt = validate_generation_receipt(
+        _read_pinned_json_object(
+            resolved_receipt,
+            trusted_root=resolved_receipt.parent,
+            label="generation receipt",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
+    )
+    _validate_receipt_matches_gate(receipt, gate, resolved_gate)
+    _validate_receipt_linked_artifacts(receipt)
+    return gate, receipt
+
+
 def _resolve_dispatch_result(path: Path) -> Path:
     """Resolve one trusted dispatcher result under the local experiment result rail."""
 
@@ -2367,6 +2420,12 @@ def _validate_stored_gate_sources_after_generation(
                 "generation gate coordinator advisory hints are stale."
             )
     return request, bundle
+
+
+def validate_stored_generation_gate_sources(gate: Mapping[str, Any]) -> None:
+    """Revalidate immutable stored-gate sources without a clean-run claim."""
+
+    _validate_stored_gate_sources_after_generation(gate)
 
 
 def _load_generated_dispatch_context(
@@ -3089,12 +3148,51 @@ def _validate_run_plan(args: argparse.Namespace) -> int:
 
 
 def _generate_candidate(args: argparse.Namespace) -> int:
-    gate_path, gate = _validate_gate_context(args.gate)
+    if bool(args.shadow_forecast) != bool(args.started_at):
+        raise CreativeCodePatchGenerationError(
+            "--shadow-forecast and --started-at must be supplied together."
+        )
+    gate_path, initial_gate = _validate_gate_context(args.gate)
     receipt_path = gate_path.parent / RECEIPT_FILENAME
     if receipt_path.exists() or receipt_path.is_symlink():
         raise CreativeCodePatchGenerationError("generation receipt already exists.")
-    _require_base_and_tree_for_step(gate["base_commit_sha"])
-    creative_code_patch_builder.generate(run_id=gate["run_id"])
+    run_dir = resolve_existing_run_dir(str(initial_gate["run_id"]))
+    gate_ref = _repo_ref(gate_path)
+    shadow_root = canonical_shadow_root(REPO_ROOT)
+    with _exclusive_shadow_start_lock(run_dir):
+        locked_gate_path, gate = _validate_gate_context(gate_path)
+        if locked_gate_path != gate_path or gate != initial_gate:
+            raise CreativeCodePatchGenerationError(
+                "generation gate changed before shadow target start."
+            )
+        if receipt_path.exists() or receipt_path.is_symlink():
+            raise CreativeCodePatchGenerationError("generation receipt already exists.")
+        if args.shadow_forecast is None:
+            assert_no_shadow_slot(gate, gate_ref=gate_ref, shadow_root=shadow_root)
+        else:
+
+            def recheck_gate_sources() -> None:
+                current_path, current_gate = _validate_gate_context(gate_path)
+                if current_path != gate_path or current_gate != gate:
+                    raise CreativeCodePatchGenerationError(
+                        "generation gate changed during shadow target start publication."
+                    )
+
+            publish_target_start_from_forecast(
+                args.shadow_forecast,
+                gate=gate,
+                gate_ref=gate_ref,
+                started_at=args.started_at,
+                shadow_root=shadow_root,
+                recheck_gate_sources=recheck_gate_sources,
+            )
+        rechecked_path, rechecked_gate = _validate_gate_context(gate_path)
+        if rechecked_path != gate_path or rechecked_gate != gate:
+            raise CreativeCodePatchGenerationError(
+                "generation gate changed after shadow target start."
+            )
+        _require_base_and_tree_for_step(gate["base_commit_sha"])
+        creative_code_patch_builder.generate(run_id=gate["run_id"])
     _require_base_and_tree_for_step(gate["base_commit_sha"])
     result = creative_code_patch_builder.evaluate(run_id=gate["run_id"])
     result_path = resolve_run_file(
@@ -3164,6 +3262,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     generate = subparsers.add_parser("generate-candidate")
     generate.add_argument("--gate", type=Path, required=True)
+    generate.add_argument("--shadow-forecast", type=Path)
+    generate.add_argument("--started-at")
     generate.set_defaults(func=_generate_candidate)
 
     finalize_dispatch = subparsers.add_parser("finalize-dispatched-result")
@@ -3189,6 +3289,7 @@ def main(argv: list[str] | None = None) -> int:
         return int(args.func(args))
     except (
         CreativeCodePatchGenerationError,
+        CreativeCodeLifecycleBayesianShadowError,
         CreativeCodePatchContractError,
         CreativeCodePatchWorkspaceError,
         CreativeSpecPatchAdmissionError,

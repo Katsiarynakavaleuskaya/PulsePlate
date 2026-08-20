@@ -249,6 +249,24 @@
   overwrite, deletion, or repair. This descriptive artifact grants no routing,
   retry, promotion, review, mapping, merge, learning, Evidence Graph,
   provider/network/DB, or product-runtime authority.
+- Forecasted creative-code PR-2 targets stay local under
+  `artifacts/orchestration/creative_code/bayesian_shadow/<forecast-id>/`.
+  `creative_code_lifecycle_bayesian_shadow.py` may build only from exact
+  validated lifecycle analytics plus its fixed telemetry snapshot and one clean
+  canonical generation gate. For a forecasted target, `generate-candidate`
+  must receive paired `--shadow-forecast` / `--started-at`, publish or read back
+  immutable canonical `start.json` under the existing cooperative run lock,
+  recheck forecast/gate sources, hold that same lock through generation to
+  serialize duplicate invocation, release it before evaluation takes the
+  existing lock, and otherwise preserve the unchanged builder path. It must
+  never pass forecast probabilities downstream.
+  An occupied exact shadow slot blocks unbound generation; identical replay is
+  zero-write and divergent replay preserves the first winner. Forecast/start/
+  score artifacts are mode-`0600` under mode-`0700` directories and remain
+  shadow-only with `calibration_state=not_assessed` and chronology claim
+  `local_dependency_order_only`. They grant no routing, retry, role, candidate,
+  promotion, review, PR, merge, provider, network, product-runtime, or
+  predictive-quality authority.
 - PR-5 creative-code review-disposition artifacts stay local under
   `artifacts/orchestration/creative_code/review_disposition/`. The
   `creative_code_review_disposition.py` CLI may only read sanitized
