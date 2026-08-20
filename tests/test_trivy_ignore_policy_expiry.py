@@ -846,12 +846,12 @@ def test_openssl_cve_2026_14456_suppression_requires_exact_two_tuple_scope() -> 
         match.group(0)
         for match in re.finditer(
             r"cve_2026_14456_pkgid_match if \{\n(?:\t[^\n]+\n)+\}",
-            helper_region,
+            policy,
         )
     )
 
     assert actual_helpers == expected_helpers
-    assert helper_region.count("cve_2026_14456_pkgid_match if {") == 2
+    assert policy.count("cve_2026_14456_pkgid_match if {") == 2
     assert "contains(" not in helper_region
     assert "startswith(" not in helper_region
     assert "*" not in helper_region
