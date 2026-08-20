@@ -95,6 +95,11 @@ python -m scripts.orchestration.creative_code_patch_generation validate-run-plan
 python -m scripts.orchestration.creative_code_patch_generation generate-candidate \
   --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json
 
+python -m scripts.orchestration.creative_code_patch_generation generate-candidate \
+  --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json \
+  --shadow-forecast artifacts/orchestration/creative_code/bayesian_shadow/<forecast-id>/forecast.json \
+  --started-at 2026-08-17T10:01:00Z
+
 python -m scripts.orchestration.creative_code_patch_generation finalize-dispatched-result \
   --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json \
   --dispatch-result artifacts/orchestration/experiments/results/<experiment-result>.json
@@ -132,6 +137,19 @@ The receipt stores named pass/fail checks and `passed_checks` /
 `CreativeCodePatchResult` may still produce a receipt, but `promotion_ready`
 remains `false`. Builder or wrapper failures exit non-zero and must not emit a
 success receipt.
+
+The optional shadow form requires `--shadow-forecast` and `--started-at`
+together. Under the existing cooperative run lock it validates the exact
+forecast/gate target and publishes immutable `start.json` before the first
+builder call, keeps that same lock through generation, and releases it before
+evaluation takes the existing lock. The builder receives no forecast
+probabilities. A shadow slot blocks an
+unbound invocation for that exact target; a clean retry after start publication
+must use identical forecast/start bytes. This is local dependency ordering
+only, not routing, admission, prediction-quality, promotion, review, PR, or
+merge authority. The legacy unforecasted behavior is unchanged when no exact
+shadow slot exists. See
+`CREATIVE_CODE_LIFECYCLE_BAYESIAN_SHADOW_CONTRACT.md`.
 
 On hosts where direct candidate evaluation raises the bounded Runner capability
 signal after generation, `finalize-dispatched-result` is the only supported

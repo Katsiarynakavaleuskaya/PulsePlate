@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_lifecycle_bayesian_score.v1.schema.json",
+  "title": "CreativeCodeLifecycleBayesianScoreV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "score_id", "idempotency_key", "forecast_id", "forecast_fingerprint", "forecast_ref", "target_fingerprint", "target_start_id", "target_start_fingerprint", "target_start_ref", "scored_at", "terminal_stop_observed", "observation", "families", "score_state", "calibration_state", "chronology_claim", "authority", "caveats", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "creative_code_lifecycle_bayesian_score"},
+    "policy_version": {"const": "creative-code-lifecycle-bayesian-shadow-v1"},
+    "score_id": {"$ref": "#/$defs/asset_id"},
+    "idempotency_key": {"$ref": "#/$defs/idempotency"},
+    "forecast_id": {"$ref": "#/$defs/asset_id"},
+    "forecast_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "forecast_ref": {"$ref": "#/$defs/json_file_ref"},
+    "target_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "target_start_id": {"$ref": "#/$defs/asset_id"},
+    "target_start_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "target_start_ref": {"$ref": "#/$defs/json_file_ref"},
+    "scored_at": {"$ref": "#/$defs/rfc3339_utc"},
+    "terminal_stop_observed": {"type": "boolean"},
+    "observation": {"$ref": "#/$defs/observation"},
+    "families": {"type": "array", "minItems": 3, "maxItems": 3, "prefixItems": [{"$ref": "#/$defs/patch_score"}, {"$ref": "#/$defs/open_score"}, {"$ref": "#/$defs/terminal_score"}], "items": false},
+    "score_state": {"enum": ["fully_scored", "partially_scored", "valid_but_unscored", "measurement_invalid"]},
+    "calibration_state": {"const": "not_assessed"},
+    "chronology_claim": {"const": "local_dependency_order_only"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "caveats": {"$ref": "#/$defs/caveats"},
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "asset_id": {"type": "string", "pattern": "^evidence:[A-Za-z0-9_.:-]+:control_plane:1\\.0:[a-f0-9]{24}$"},
+    "safe_id": {"type": "string", "minLength": 1, "maxLength": 192, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,191}$"},
+    "fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "idempotency": {"type": "string", "pattern": "^idem:[a-f0-9]{64}$"},
+    "json_file_ref": {"type": "string", "minLength": 1, "maxLength": 768, "pattern": "^artifacts/orchestration/creative_code/(?=.*\\.json$)(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+(?:/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+)*$"},
+    "directory_ref": {"type": "string", "minLength": 1, "maxLength": 768, "pattern": "^artifacts/orchestration/creative_code/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+(?:/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+)*$"},
+    "rfc3339_utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"},
+    "nullable_fingerprint": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+    "nullable_safe_id": {"anyOf": [{"$ref": "#/$defs/safe_id"}, {"type": "null"}]},
+    "nullable_json_file_ref": {"anyOf": [{"$ref": "#/$defs/json_file_ref"}, {"type": "null"}]},
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["analytics_id", "analytics_fingerprint", "analytics_ref", "telemetry_dir_ref", "events_fingerprint", "rollup_fingerprint", "event_count", "target_event_fingerprints", "generation_receipt_ref", "generation_receipt_fingerprint", "result_id", "result_fingerprint", "promotion_id"],
+      "properties": {
+        "analytics_id": {"$ref": "#/$defs/asset_id"},
+        "analytics_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "analytics_ref": {"$ref": "#/$defs/json_file_ref"},
+        "telemetry_dir_ref": {"$ref": "#/$defs/directory_ref"},
+        "events_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "rollup_fingerprint": {"$ref": "#/$defs/fingerprint"},
+        "event_count": {"type": "integer", "minimum": 0, "maximum": 1000000000000},
+        "target_event_fingerprints": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/fingerprint"}},
+        "generation_receipt_ref": {"$ref": "#/$defs/nullable_json_file_ref"},
+        "generation_receipt_fingerprint": {"$ref": "#/$defs/nullable_fingerprint"},
+        "result_id": {"anyOf": [{"$ref": "#/$defs/asset_id"}, {"type": "null"}]},
+        "result_fingerprint": {"$ref": "#/$defs/nullable_fingerprint"},
+        "promotion_id": {"$ref": "#/$defs/nullable_safe_id"}
+      }
+    },
+    "score_base": {
+      "type": "object", "additionalProperties": false,
+      "required": ["family_id", "outcome_state", "forecast_bps", "actual_bps", "realized_brier_loss_ppm"],
+      "properties": {
+        "family_id": {"type": "string"},
+        "outcome_state": {"enum": ["observed_positive", "observed_negative", "not_reached", "right_censored", "measurement_invalid"]},
+        "forecast_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "actual_bps": {"type": ["integer", "null"], "enum": [0, 10000, null]},
+        "realized_brier_loss_ppm": {"type": ["integer", "null"], "minimum": 0, "maximum": 1000000}
+      }
+    },
+    "patch_score": {"allOf": [{"$ref": "#/$defs/score_base"}, {"properties": {"family_id": {"const": "patch_evaluation_acceptance_v1"}}}]},
+    "open_score": {"allOf": [{"$ref": "#/$defs/score_base"}, {"properties": {"family_id": {"const": "pr_opening_v1"}}}]},
+    "terminal_score": {"allOf": [{"$ref": "#/$defs/score_base"}, {"properties": {"family_id": {"const": "pr_terminal_merge_v1"}}}]},
+    "authority": {"const": {"calls_network": false, "calls_product_runtime": false, "calls_provider": false, "changes_retry_budget": false, "changes_review_roles": false, "changes_routing": false, "claims_candidate_correctness": false, "claims_merge_readiness": false, "decision_authority": false, "merges_pr": false, "opens_pr": false, "shadow_only": true, "writes_local_artifacts": true, "writes_repo_tracked_state": false}},
+    "caveats": {"const": ["fixed_reference_prior_not_empirical_probability", "historical_transition_attempts_not_iid_pilots", "local_dependency_order_not_external_preregistration", "calibration_reliability_and_effectiveness_not_assessed", "no_routing_promotion_review_or_merge_authority"]}
+  }
+}

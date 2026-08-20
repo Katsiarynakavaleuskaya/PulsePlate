@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_lifecycle_bayesian_target_start.v1.schema.json",
+  "title": "CreativeCodeLifecycleBayesianTargetStartV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "target_start_id", "idempotency_key", "forecast_id", "forecast_fingerprint", "forecast_ref", "target_fingerprint", "generation_gate_id", "generation_gate_fingerprint", "generation_gate_ref", "started_at", "calibration_state", "chronology_claim", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "creative_code_lifecycle_bayesian_target_start"},
+    "policy_version": {"const": "creative-code-lifecycle-bayesian-shadow-v1"},
+    "target_start_id": {"$ref": "#/$defs/asset_id"},
+    "idempotency_key": {"$ref": "#/$defs/idempotency"},
+    "forecast_id": {"$ref": "#/$defs/asset_id"},
+    "forecast_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "forecast_ref": {"$ref": "#/$defs/json_file_ref"},
+    "target_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "generation_gate_id": {"$ref": "#/$defs/asset_id"},
+    "generation_gate_fingerprint": {"$ref": "#/$defs/fingerprint"},
+    "generation_gate_ref": {"$ref": "#/$defs/json_file_ref"},
+    "started_at": {"$ref": "#/$defs/rfc3339_utc"},
+    "calibration_state": {"const": "not_assessed"},
+    "chronology_claim": {"const": "local_dependency_order_only"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "asset_id": {"type": "string", "pattern": "^evidence:[A-Za-z0-9_.:-]+:control_plane:1\\.0:[a-f0-9]{24}$"},
+    "fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "idempotency": {"type": "string", "pattern": "^idem:[a-f0-9]{64}$"},
+    "json_file_ref": {"type": "string", "minLength": 1, "maxLength": 768, "pattern": "^artifacts/orchestration/creative_code/(?=.*\\.json$)(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+(?:/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+)*$"},
+    "directory_ref": {"type": "string", "minLength": 1, "maxLength": 768, "pattern": "^artifacts/orchestration/creative_code/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+(?:/(?!(?:\\.{1,2})(?:/|$))[A-Za-z0-9._:-]+)*$"},
+    "rfc3339_utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"},
+    "authority": {"const": {"calls_network": false, "calls_product_runtime": false, "calls_provider": false, "changes_retry_budget": false, "changes_review_roles": false, "changes_routing": false, "claims_candidate_correctness": false, "claims_merge_readiness": false, "decision_authority": false, "merges_pr": false, "opens_pr": false, "shadow_only": true, "writes_local_artifacts": true, "writes_repo_tracked_state": false}}
+  }
+}
