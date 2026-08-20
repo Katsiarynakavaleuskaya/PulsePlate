@@ -21,7 +21,7 @@ weekly-plan downstream error boundary documented below.
 remains `app.main:app`. `legacy_app.py` is a transitional compatibility facade
 that re-exports the same app, runtime environment, metadata, and lifespan.
 Normal imports therefore share one app. The finite package facade resolves
-`app.app` directly from `app.main.app` (`app/__init__.py:57`); a deliberate
+`app.app` directly from `app.main.app` (`app/__init__.py:64`); a deliberate
 test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 `app.main` authority. Plain `import app`, `dir(app)`, and unknown-name lookup do
 not import `legacy_app`. Resolving `app.app` imports `app.main`, which may still
@@ -52,9 +52,9 @@ Public OpenAPI visibility, component pruning, builder ownership, and cache
 reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
 validation/install/policy seams at `app/bootstrap/openapi.py:285`,
 `app/bootstrap/openapi.py:310`, and `app/bootstrap/openapi.py:343`.
-`app/main.py:1311` validates builder ownership before mutation, completes
+`app/main.py:1161` validates builder ownership before mutation, completes
 additive route registration, then applies policy and installs the builder at
-`app/main.py:1409`. This order prevents an early partial schema while preserving
+`app/main.py:1272-1273`. This order prevents an early partial schema while preserving
 an equal cached schema object on a no-op bootstrap.
 
 Admin scheduler access is canonically exposed by
