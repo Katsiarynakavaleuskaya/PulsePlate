@@ -86,6 +86,16 @@ _CANONICAL_RSC_RULE_BODY = "\n".join(
         '\tinput.FixedVersion == "8.3.0"',
     )
 )
+_UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS = (
+    ("bsdutils", "1:2.38.1-5+deb12u3"),
+    ("libblkid1", "2.38.1-5+deb12u3"),
+    ("libmount1", "2.38.1-5+deb12u3"),
+    ("libsmartcols1", "2.38.1-5+deb12u3"),
+    ("libuuid1", "2.38.1-5+deb12u3"),
+    ("mount", "2.38.1-5+deb12u3"),
+    ("util-linux", "2.38.1-5+deb12u3"),
+    ("util-linux-extra", "2.38.1-5+deb12u3"),
+)
 
 
 def _policy_text() -> str:
@@ -592,6 +602,24 @@ def _fixed_version_clause_treats_finding_as_unfixed(finding: dict[str, str]) -> 
     return finding.get("FixedVersion", "") == ""
 
 
+def _cve_2026_53613_rule_matches(finding: dict[str, str]) -> bool:
+    """Mirror the exact conjunction in the CVE-2026-53613 Rego rule."""
+
+    package_versions = {
+        package: version for package, version in _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS
+    }
+
+    package = finding.get("PkgName", "")
+    installed_version = finding.get("InstalledVersion", "")
+    return (
+        finding.get("VulnerabilityID") == "CVE-2026-53613"
+        and package in package_versions
+        and installed_version == package_versions[package]
+        and finding.get("PkgID") == f"{package}@{installed_version}"
+        and _fixed_version_clause_treats_finding_as_unfixed(finding)
+    )
+
+
 def test_util_linux_cve_2026_53615_fixed_version_predicate_semantics() -> None:
     assert _fixed_version_clause_treats_finding_as_unfixed({})
     assert _fixed_version_clause_treats_finding_as_unfixed({"FixedVersion": ""})
@@ -641,6 +669,124 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     # Negative mismatches: prefix/wildcard forms must not appear for this CVE.
     assert 'input.PkgID == "util-linux@2.38.1-5+deb12u30"' not in helper_region
     assert 'startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")' not in helper_region
+
+
+def test_util_linux_cve_2026_53613_suppression_requires_exact_eight_tuple_scope() -> None:
+    policy = _policy_text()
+
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-53613"')
+    next_ignore = policy.find("\nignore if {", start + 1)
+    ignore_rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
+    helper_start = policy.index("cve_2026_53613_pkgid_match if {")
+    helper_region = policy[helper_start:start]
+
+    assert "util_linux_bookworm_pkg_match" in ignore_rule
+    assert "util_linux_bookworm_version_match" in ignore_rule
+    assert "cve_2026_53613_pkgid_match" in ignore_rule
+    assert 'object.get(input, "FixedVersion", "") == ""' in ignore_rule
+    assert "contains(" not in helper_region
+    assert "startswith(" not in helper_region
+    assert "*" not in helper_region
+    assert helper_region.count("cve_2026_53613_pkgid_match if {") == len(
+        _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS
+    )
+
+    for package, version in _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS:
+        exact_rule = (
+            f'cve_2026_53613_pkgid_match if {{\n\tinput.PkgName == "{package}"'
+            f'\n\tinput.InstalledVersion == "{version}"'
+            f'\n\tinput.PkgID == "{package}@{version}"\n}}'
+        )
+        assert exact_rule in helper_region
+
+
+@pytest.mark.parametrize(("package", "version"), _UTIL_LINUX_BOOKWORM_PACKAGE_VERSIONS)
+@pytest.mark.parametrize("fixed_version", (None, ""))
+def test_util_linux_cve_2026_53613_accepts_only_observed_unfixed_tuples(
+    package: str,
+    version: str,
+    fixed_version: str | None,
+) -> None:
+    finding = {
+        "VulnerabilityID": "CVE-2026-53613",
+        "PkgName": package,
+        "InstalledVersion": version,
+        "PkgID": f"{package}@{version}",
+    }
+    if fixed_version is not None:
+        finding["FixedVersion"] = fixed_version
+
+    assert _cve_2026_53613_rule_matches(finding)
+
+
+@pytest.mark.parametrize(
+    "finding",
+    (
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "util-linux",
+            "InstalledVersion": "2.38.1-5+deb12u3",
+            "PkgID": "prefix-util-linux@2.38.1-5+deb12u3",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "util-linux",
+            "InstalledVersion": "2.38.1-5+deb12u3",
+            "PkgID": "util-linux@2.38.1-5+deb12u3-extra",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "util-linux",
+            "InstalledVersion": "2.38.1-5+deb12u30",
+            "PkgID": "util-linux@2.38.1-5+deb12u30",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "bsdutils",
+            "InstalledVersion": "2.38.1-5+deb12u3",
+            "PkgID": "bsdutils@1:2.38.1-5+deb12u3",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "util-linux",
+            "InstalledVersion": "1:2.38.1-5+deb12u3",
+            "PkgID": "util-linux@2.38.1-5+deb12u3",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53615",
+            "PkgName": "util-linux",
+            "InstalledVersion": "2.38.1-5+deb12u3",
+            "PkgID": "util-linux@2.38.1-5+deb12u3",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "login",
+            "InstalledVersion": "2.38.1-5+deb12u3",
+            "PkgID": "login@2.38.1-5+deb12u3",
+        },
+        {
+            "VulnerabilityID": "CVE-2026-53613",
+            "PkgName": "util-linux",
+            "InstalledVersion": "2.38.1-5+deb12u3",
+            "PkgID": "util-linux@2.38.1-5+deb12u3",
+            "FixedVersion": "2.41.5-0+deb13u1",
+        },
+    ),
+    ids=(
+        "pkgid-prefix",
+        "pkgid-suffix",
+        "wrong-version",
+        "bsdutils-non-epoch-installed-version",
+        "non-bsdutils-epoch-installed-version",
+        "wrong-cve",
+        "wrong-package",
+        "non-empty-fixed-version",
+    ),
+)
+def test_util_linux_cve_2026_53613_rejects_out_of_scope_findings(
+    finding: dict[str, str],
+) -> None:
+    assert not _cve_2026_53613_rule_matches(finding)
 
 
 def test_react_router_rsc_suppression_is_absent_and_guarded_against_reintroduction() -> None:

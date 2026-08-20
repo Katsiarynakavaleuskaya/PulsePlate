@@ -5610,6 +5610,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove `docs/security/CVE-2026-53615-util-linux.md` (or mark as resolved)
     - Trivy Code Scanning alerts #623-#630 remain closed on `main`
 
+<a id="ledger-p1-remove-trivy-suppression-util-linux-cve-2026-53613"></a>
+- [ ] P1: Remove Trivy suppression for util-linux CVE-2026-53613
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: PR-TBD-REMOVE-CVE-2026-53613-SUPPRESSION
+  - Status: Open; review Debian bookworm status by 2026-09-19 and remove no later
+    than the shared 2026-10-07 policy expiry unless a separately reviewed security
+    PR establishes a new bounded disposition
+  - Area: security / base-image / code-scanning
+  - Finding Type: temporary distro CVE risk acceptance
+  - Reason: Exact-main CD run `32355502655`, job `96383696240`, reports eight HIGH
+    CVE-2026-53613 findings for the Debian bookworm util-linux package family in
+    image digest
+    `sha256:5d147c66b4999210345f4e1895c6f0129f6b9e90dd25500f712c8e82f42577da`.
+    Debian marks bookworm `2.38.1-5+deb12u3` and ordinary trixie `2.41-5` as
+    vulnerable while trixie-security `2.41.5-0+deb13u1` is fixed. The current
+    suppression accepts bounded residual risk; it is not remediation.
+  - Links:
+    - `docs/security/CVE-2026-53613-util-linux.md`
+    - `trivy/ignore-policy.rego`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+    - <https://security-tracker.debian.org/tracker/CVE-2026-53613>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32355502655/job/96383696240>
+  - DoD:
+    - Debian bookworm publishes a fixed `util-linux` package, the production base
+      image moves to a fixed release, or the affected package family is removed
+    - Remove only the exact CVE-2026-53613 Rego rule and its header/document links
+    - Rebuild and scan the exact production image with no CVE-2026-53613 finding
+    - Keep deterministic negative tests proving that no broader package/version/CVE
+      suppression replaces the removed rule
+    - Close this item only after terminal exact-main CD image-scan evidence
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)

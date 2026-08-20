@@ -10,9 +10,9 @@ default ignore := false
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
 # Suppression expires: 2026-10-07 (manual removal)
-# Last reviewed: 2026-08-09
-# Residual Review-by dates were set to 2026-09-08 after 2026-08-09 re-review; zlib/ncurses rule bodies are unchanged, CVE-2026-3184 was narrowed to exact PkgID equality, and only CVE-2026-53615 uses the shared file expiry horizon.
-# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md
+# Last reviewed: 2026-08-20
+# CVE-2026-53613 was added with an exact eight-tuple util-linux scope and a 2026-09-19 Review-by date; the earlier rule bodies are unchanged, and the shared file expiry remains 2026-10-07.
+# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md, docs/security/CVE-2026-53613-util-linux.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
 # Review-by: 2026-09-08 (manual removal)
@@ -157,6 +157,71 @@ ignore if {
 	util_linux_bookworm_pkg_match
 	util_linux_bookworm_version_match
 	cve_2026_53615_pkgid_match
+	# Trivy omits empty FixedVersion (omitempty); missing/empty means unfixed.
+	object.get(input, "FixedVersion", "") == ""
+}
+
+# CVE-2026-53613 (util-linux family) - Debian bookworm has no fixed release at review time
+# Review-by: 2026-09-19 (manual removal)
+# Rationale: Exact-main CD run 32355502655 reports this util-linux TOCTOU issue as HIGH across eight Debian bookworm package tuples with no FixedVersion; Debian fixes trixie-security at 2.41.5-0+deb13u1 while bookworm 2.38.1-5+deb12u3 remains vulnerable at the 2026-08-20 review.
+# Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-53613
+# Documented in: docs/security/CVE-2026-53613-util-linux.md
+# Removal condition: Remove when Debian bookworm publishes a fixed util-linux package, the base image moves to a fixed release, or Trivy reports a non-empty FixedVersion
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "bsdutils"
+	input.InstalledVersion == "1:2.38.1-5+deb12u3"
+	input.PkgID == "bsdutils@1:2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "libblkid1"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "libblkid1@2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "libmount1"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "libmount1@2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "libsmartcols1"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "libsmartcols1@2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "libuuid1"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "libuuid1@2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "mount"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "mount@2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "util-linux"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "util-linux@2.38.1-5+deb12u3"
+}
+
+cve_2026_53613_pkgid_match if {
+	input.PkgName == "util-linux-extra"
+	input.InstalledVersion == "2.38.1-5+deb12u3"
+	input.PkgID == "util-linux-extra@2.38.1-5+deb12u3"
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-53613"
+	util_linux_bookworm_pkg_match
+	util_linux_bookworm_version_match
+	cve_2026_53613_pkgid_match
 	# Trivy omits empty FixedVersion (omitempty); missing/empty means unfixed.
 	object.get(input, "FixedVersion", "") == ""
 }
