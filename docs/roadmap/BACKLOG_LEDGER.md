@@ -5642,6 +5642,45 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       suppression replaces the removed rule
     - Close this item only after terminal exact-main CD image-scan evidence
 
+<a id="ledger-p1-remove-trivy-suppression-openssl-cve-2026-14456"></a>
+- [ ] P1: Remove Trivy scanner disposition for OpenSSL CVE-2026-14456
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: PR-TBD-REMOVE-CVE-2026-14456-SUPPRESSION
+  - Status: Open; review upstream, Debian, and Trivy metadata by 2026-09-19 and
+    remove no later than the shared 2026-10-07 policy expiry unless a separately
+    reviewed security PR establishes a new bounded disposition
+  - Area: security / base-image / code-scanning
+  - Finding Type: temporary scanner false-positive disposition
+  - Reason: Exact-main CD run `32368859081`, job `96424514194`, and Docker Build
+    and Push run `32368859126`, job `96424915657`, report two HIGH
+    CVE-2026-14456 findings for `libssl3` and `openssl` at
+    `3.0.20-1~deb12u2` in image digest
+    `sha256:bb92cf07ffbdb41bb3ec05dc5014dd5280798cf2a3c01f5119847277a8611298`.
+    The upstream OpenSSL advisory assigns Low severity and marks OpenSSL 3.0
+    unaffected because the vulnerable QUIC server implementation begins in 3.5,
+    while Debian still marks the Bookworm source-package line vulnerable with no
+    fixed package. The exact-tuple scanner disposition records that conflict; it
+    is not remediation or an OpenSSL upgrade.
+  - Links:
+    - `docs/security/CVE-2026-14456-openssl.md`
+    - `trivy/ignore-policy.rego`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+    - <https://openssl-library.org/news/secadv/20260813.txt>
+    - <https://security-tracker.debian.org/tracker/CVE-2026-14456>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32368859081/job/96424514194>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/32368859126/job/96424915657>
+  - DoD:
+    - Trivy or Debian corrects the affected-branch metadata, either installed
+      package tuple changes, the finding disappears, the packages leave the image,
+      or upstream evidence expands the affected set to include OpenSSL 3.0
+    - Remove only the exact CVE-2026-14456 Rego rule and delete its active security
+      document/header links
+    - Rebuild and scan the exact production image with no CVE-2026-14456 finding
+    - Keep deterministic negative tests proving that no broader CVE/package/version/
+      PkgID suppression replaces the removed rule
+    - Close this item only after terminal exact-main CD and Docker image-scan evidence
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)
