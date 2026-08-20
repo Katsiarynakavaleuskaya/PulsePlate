@@ -7084,21 +7084,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (maintainability)
-  - Target PR: TBD (post PR-628/629)
-  - Status: 📋 Ready to start
-  - Reason: `app/__init__.py` sets `sys.modules.setdefault("app_module", legacy_app)` for backward compatibility. This is intentional but must be tightly bounded to avoid “magic layer” imports/patches.
+  - Target PR: [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`)
+  - Status: 🛠 In progress; keep unchecked until the implementation PR merges
+  - Reason: The implicit module-table alias and legacy synchronous scheduler
+    resolver rail create patch-order ambiguity after canonical app and lifespan
+    ownership have already landed. This lane removes those compatibility paths
+    instead of documenting or extending them.
   - Evidence:
-    - `app/__init__.py:44-56` (sys.modules mapping)
+    - `app/__init__.py:57-68` (finite facade resolves canonical `app.main.app`)
+    - `tests/test_application_instance_ownership.py:92-144` (fresh-process retirement contract)
   - Risk:
     - Hard-to-debug patch behavior, hidden aliasing, accidental reliance by new code/tests.
   - Blocked-by:
     - None (small focused PR), but recommended after PR-628/629 to keep scopes clean
   - Exit criteria:
-    - Mapping is either removed OR explicitly documented + guarded (no new uses)
+    - `import app_module` fails in a fresh process and `app.app` remains the
+      exact canonical `app.main.app`
+    - Legacy synchronous scheduler wrappers and `app.scheduler_helpers` are absent
   - DoD:
-    - Add a short evidence-driven doc note describing why the mapping exists and what may rely on it
-    - Add a small guard test preventing expansion (no overwrites / no new module injection patterns)
-    - Define removal plan (conditions under which it can be deleted)
+    - Fresh-process import-order tests preserve app, route, middleware, lifespan,
+      scheduler-access, and OpenAPI identity
+    - The local narrow bundle and canonical current-head CI pass before merge
+    - A docs-only closeout PR checks this item only after the implementation PR merges
 
 
 - [ ] P2 Optional: Evaluate NVIDIA PersonaPlex for voice persona layer (assistant / coach)
@@ -7200,18 +7207,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR-TBD-APP-FACTORY (current bounded inversion) -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`, current bounded compatibility retirement) -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
     canonical. PR #2170 merged at `8b30b82f47c818dec5eb8aec5824e4627fc5d084`,
     completing direct-core Plate ownership. PR #2209 merged at
     `b611682cf4d09eac8b4a124aff07e91c57f83f59`, establishing canonical Insight
-    schema, adapter, and application-service ownership. The bounded successor moves
-    both hidden Insight routes off the legacy facade and onto the canonical adapter
-    seam. `PR-TBD-APP-FACTORY` is the current bounded construction-ownership
-    inversion. Product Owner sequencing keeps BMI/PRO/VIP alias retirement and
-    final legacy deletion as separate later lanes.
+    schema, adapter, and application-service ownership. PR #2294 merged canonical
+    FastAPI construction ownership. The current bounded successor removes the
+    `app_module` alias and legacy synchronous scheduler resolver rail without
+    changing canonical lifespan or scheduler behavior. Product Owner sequencing
+    keeps BMI/PRO/VIP alias retirement, retained paid/BMI mirrors, and final
+    legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)

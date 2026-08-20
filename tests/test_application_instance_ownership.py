@@ -17,9 +17,9 @@ from app.effective_routes import route_endpoint_for_path_method
 import legacy_app
 
 _MIRRORS = "VIP_MODULE_ENABLED vip_router pro_router premium_week_router FEATURE_BMI_PRO_ENABLED bmi_router bmi_pro_router bmi_pro_legacy_alias_router".split()
-_IMPORT_SCENARIOS = """from app.bootstrap import application as canonical; import app.main as main; import legacy_app; import app as package
-import legacy_app; from app.bootstrap import application as canonical; import app.main as main; import app as package
-import app as package; package.app; from app.bootstrap import application as canonical; import app.main as main; import legacy_app""".splitlines()
+_IMPORT_SCENARIOS = """import app as package; import app.main as main; import legacy_app; from app.bootstrap import application as canonical
+import app.main as main; import app as package; import legacy_app; from app.bootstrap import application as canonical
+import legacy_app; import app.main as main; import app as package; from app.bootstrap import application as canonical""".splitlines()
 _HTTP_CONTRACT_SPEC = "/:GET|/legacy/bmi-calculator:GET|/sitemap.xml:GET|/api/v1/feedback/rag:POST|/api/v1/pro/cbt/insight:POST|/api/v1/pro/fitchef/explain:POST|/api/v1/internal/creative-research/pilot:POST|/api/v1/internal/paywall/events:POST"
 _HTTP_CONTRACTS = tuple(x.rsplit(":", 1) for x in _HTTP_CONTRACT_SPEC.split("|"))
 _HTTP_SOURCES = "_FEEDBACK_ROUTE_PATH:feedback_router _CBT_INSIGHT_ROUTE_PATH:cbt_insight_router _FITCHEF_STRUCTURED_ROUTE_PATH:fitchef_structured_router _CREATIVE_RESEARCH_PILOT_ROUTE_PATH:creative_research_internal_router _PAYWALL_EVENTS_ROUTE_PATH:paywall_analytics_router".split()
@@ -75,7 +75,7 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
             from app.bootstrap.http_stack import _owned_middleware_projection; from app.bootstrap.lifespan import application_lifespan; from app.effective_routes import iter_effective_route_candidates, route_endpoint, route_include_in_schema, route_methods, route_path
             def routes(target): return [[route_path(route), sorted(route_methods(route)) or ["WEBSOCKET"], f"{{route_endpoint(route).__module__}}.{{route_endpoint(route).__qualname__}}", route_include_in_schema(route)] for route in iter_effective_route_candidates(target.routes)]
             def snapshot(): schema = json.dumps(canonical.app.openapi(), sort_keys=True, separators=(",", ":")); return [routes(canonical.app), list(_owned_middleware_projection(canonical.app)), hashlib.sha256(schema.encode()).hexdigest(), {{name: (value if value is None or isinstance(value, (bool, int, str)) else routes(value)) for name in {list(_MIRRORS)!r} for value in [getattr(main, name)]}}]
-            before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert canonical.app.router.lifespan_context is application_lifespan; assert all(getattr(main, name) is getattr(legacy_app, name) for name in {list(_MIRRORS)!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
+            before = snapshot(); assert canonical.app is main.app is legacy_app.app is package.app; assert "app_module" not in __import__("sys").modules; assert not hasattr(legacy_app, "start_background_updates"); assert not hasattr(legacy_app, "stop_background_updates"); assert canonical.app.router.lifespan_context is application_lifespan; assert all(getattr(main, name) is getattr(legacy_app, name) for name in {list(_MIRRORS)!r}); assert main.ensure_canonical_app_bootstrap(canonical.app) is canonical.app; assert snapshot() == before; print("OWNERSHIP_RESULT=" + json.dumps(before, sort_keys=True))
         """)
         env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
         for name in _OPTIONAL_ENV:
@@ -87,6 +87,59 @@ def test_fresh_import_orders_have_relative_runtime_parity() -> None:
 
     results = [run(imports) for imports in _IMPORT_SCENARIOS]
     assert results[1:] == results[:1] * (len(results) - 1)
+
+
+def test_fresh_package_facade_retires_legacy_module_alias_and_scheduler_wrappers() -> None:
+    scenario = textwrap.dedent("""
+        import importlib
+        import sys
+
+        import app
+
+        assert "legacy_app" not in sys.modules
+        assert "app.main" not in sys.modules
+        assert "app_module" not in sys.modules
+        dir(app)
+        try:
+            app.not_a_supported_export
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError("unknown facade export did not fail closed")
+        assert "legacy_app" not in sys.modules
+        assert "app.main" not in sys.modules
+        assert "app_module" not in sys.modules
+
+        for module_name in ("app_module", "app.scheduler_helpers"):
+            try:
+                importlib.import_module(module_name)
+            except ModuleNotFoundError as exc:
+                assert exc.name == module_name
+            else:
+                raise AssertionError(f"retired module still importable: {module_name}")
+
+        canonical = app.app
+        import app.main as main
+        import legacy_app
+
+        assert canonical is main.app is legacy_app.app
+        assert "app_module" not in sys.modules
+        for name in (
+            "start_background_updates",
+            "stop_background_updates",
+            "_scheduler_start_background_updates",
+            "_scheduler_stop_background_updates",
+        ):
+            assert not hasattr(legacy_app, name), name
+        """)
+    env = os.environ | {"APP_ENV": "test", "ENVIRONMENT": "test", "TESTING": "true"}
+    completed = subprocess.run(
+        [sys.executable, "-c", scenario],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 @pytest.mark.parametrize(("path", "method"), _HTTP_CONTRACTS)
@@ -162,4 +215,5 @@ def test_test_owned_app_does_not_rebind_canonical(monkeypatch: pytest.MonkeyPatc
     assert main.ensure_canonical_app_bootstrap(test_owned) is test_owned
     assert (tuple(test_owned.routes), tuple(test_owned.user_middleware)) == composed
     monkeypatch.setattr(legacy_app, "app", test_owned)
-    assert app.app is test_owned and application.app is main.app
+    assert app.app is application.app is main.app
+    assert legacy_app.app is test_owned

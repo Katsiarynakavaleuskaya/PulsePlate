@@ -4,7 +4,6 @@
 """
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -16,45 +15,6 @@ def setup_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set the test environment with function-scoped restoration."""
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-
-class TestImportErrorPaths:
-    """Test import error handling paths"""
-
-    def test_import_error_coverage_paths(self) -> None:
-        """Test various import error scenarios to cover lines 12-15, 86-89, etc"""
-        # Test import error handling directly
-        import sys
-
-        # Test environment variable handling
-        original_vip = os.environ.get("VIP_MODULE_ENABLED")
-
-        try:
-            # Test with VIP module disabled
-            os.environ["VIP_MODULE_ENABLED"] = "false"
-            # This should trigger certain code paths
-
-            # Test with VIP module enabled but module missing
-            os.environ["VIP_MODULE_ENABLED"] = "true"
-
-            # Test sys.modules manipulation for premium endpoints
-            if "app_module" in sys.modules:
-                app_mod = sys.modules["app_module"]
-
-                # Test missing premium functions
-                make_plate_exists = hasattr(app_mod, "make_plate")
-                calc_bmr_exists = hasattr(app_mod, "calculate_all_bmr")
-
-                # These should be None or missing, which covers error paths
-                assert make_plate_exists in [True, False]
-                assert calc_bmr_exists in [True, False]
-
-        finally:
-            # Restore environment
-            if original_vip is not None:
-                os.environ["VIP_MODULE_ENABLED"] = original_vip
-            elif "VIP_MODULE_ENABLED" in os.environ:
-                del os.environ["VIP_MODULE_ENABLED"]
 
 
 class TestPremiumEndpointErrorPaths:
