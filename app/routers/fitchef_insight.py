@@ -134,7 +134,7 @@ async def fitchef_mascot_insight(
     "/fitchef/weekly-reflection",
     response_model=FitChefWeeklyReflectionResponse,
     responses={
-        200: {"description": "FitChef weekly reflection generated"},
+        200: {"description": "FitChef weekly reflection generated or clarification required"},
         400: {"description": "Unsafe AI input blocked", "model": FitChefCoachingErrorResponse},
         403: {"description": "VIP tier required", "model": FitChefCoachingErrorResponse},
         429: {"description": "Rate limit exceeded or monthly quota exhausted"},
@@ -152,7 +152,7 @@ async def fitchef_weekly_reflection(
     request: Request,
     vip_key: str = Depends(require_vip_tier),
 ) -> FitChefWeeklyReflectionResponse:
-    """Generate VIP-only weekly reflection coaching via the FitChef runtime."""
+    """Generate a VIP reflection or return deterministic goal clarification."""
 
     if not _is_fitchef_mascot_enabled():
         raise HTTPException(status_code=503, detail="FEATURE_FITCHEF_MASCOT is disabled")
@@ -207,6 +207,8 @@ async def fitchef_weekly_reflection(
         quota_state=result.quota_state,
         transparency_notice_id=result.transparency_notice_id,
         wellness_boundary=result.wellness_boundary,
+        response_state=result.response_state,
+        clarification=result.clarification,
     )
     return response
 

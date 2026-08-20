@@ -18,6 +18,10 @@ def test_sync_skill_mirror_copies_source_and_writes_marker(tmp_path: Path) -> No
     source_skill.joinpath("SKILL.md").write_text(
         "---\nname: pulseplate-pr-review\n---\n", encoding="utf-8"
     )
+    source_skill.joinpath("agents").mkdir()
+    source_skill.joinpath("agents", "openai.yaml").write_text(
+        'interface:\n  display_name: "PulsePlate PR Review"\n', encoding="utf-8"
+    )
 
     mirror_root = tmp_path / ".agents" / "skills"
 
@@ -32,6 +36,9 @@ def test_sync_skill_mirror_copies_source_and_writes_marker(tmp_path: Path) -> No
     assert mirrored_skill.is_dir()
     assert not mirrored_skill.is_symlink()
     assert mirrored_skill.joinpath("SKILL.md").exists()
+    assert mirrored_skill.joinpath("agents", "openai.yaml").read_text(encoding="utf-8") == (
+        'interface:\n  display_name: "PulsePlate PR Review"\n'
+    )
     marker = mirrored_skill / ".pulseplate_codex_skill_source"
     assert marker.exists()
     assert marker.read_text(encoding="utf-8").strip() == "tools/codex_skills/pulseplate-pr-review"
