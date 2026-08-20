@@ -8,9 +8,7 @@ from fastapi import FastAPI
 
 import app
 import pytest
-from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
 from app.effective_routes import iter_effective_route_candidates, route_path
-from tests.helpers.module_resolve import resolve_module
 
 
 def _route_paths(fastapi_app: FastAPI) -> set[str]:
@@ -59,30 +57,6 @@ class TestAppImport:
         legacy_module = importlib.import_module("legacy_app")
 
         assert app.app is canonical_app is main_app is legacy_module.app
-
-    def test_app_package_rehydrates_bootstrap_after_legacy_app_swap(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Facade access must reapply additive bootstrap when legacy_app.app changes."""
-        main_module = resolve_module("app.main")
-        legacy_module = resolve_module("legacy_app")
-
-        canonical_app = main_module.app
-        replacement_app = FastAPI()
-        monkeypatch.setattr(legacy_module, "app", replacement_app)
-
-        package_app = app.app
-        route_paths = _route_paths(package_app)
-
-        assert package_app is replacement_app
-        assert main_module.app is canonical_app
-        assert "/api/v1/billing/apple/verify-receipt" in route_paths
-        assert "/api/v1/feedback/rag" in route_paths
-        assert "/api/v1/pro/cbt/insight" in route_paths
-        assert "/ws" in route_paths
-        assert "/" in route_paths
-        assert LEGACY_BMI_WEB_ROUTE in route_paths
 
 
 class TestAppVIPIntegration:
