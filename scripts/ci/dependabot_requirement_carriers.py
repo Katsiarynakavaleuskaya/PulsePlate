@@ -15,6 +15,7 @@ bump, not another carrier exception or fallback.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import os
 from pathlib import Path, PurePath, PurePosixPath
 import re
@@ -87,12 +88,15 @@ _UPSTREAM_MARKER_EXPRESSION_ONE = (
 _UPSTREAM_MARKER_EXPRESSION = (
     rf"(?:{_UPSTREAM_MARKER_EXPRESSION_ONE}|\(\s*|\s*\)|" rf"\s+and\s+|\s+or\s+)+"
 )
-_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
+_UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN = (
     rf"^\s*\\?\s*{_UPSTREAM_NAME}"
     rf"\s*\\?\s*(?:\[\s*{_UPSTREAM_EXTRA}"
     rf"(?:\s*,\s*{_UPSTREAM_EXTRA})*\s*\])?"
     rf"\s*\\?\s*\(?(?:{_UPSTREAM_REQUIREMENTS})?\)?"
-    rf"\s*\\?\s*(?:;\s*{_UPSTREAM_MARKER_EXPRESSION})?"
+    rf"\s*\\?\s*"
+)
+_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
+    _UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN + rf"(?:;\s*{_UPSTREAM_MARKER_EXPRESSION})?"
     rf"\s*\\?\s*(?:{_UPSTREAM_HASHES})?"
     r"\s*(?:#+\s*.*)?$"
 )
@@ -100,15 +104,135 @@ _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN = (
 # whitespace repetitions throughout the grammar overlap adjacent components.
 # Make every whitespace repetition possessive so an invalid candidate cannot
 # trigger exponential redistribution inside the repeated marker expression.
+# Counts pin the exact frozen translation locations: grammar drift must fail
+# closed instead of silently hardening a different language.
+_HARDENING_TRANSFORMATIONS = (
+    (r"[0-9]+[A-Za-z0-9_.*-]*", r"[0-9]++[A-Za-z0-9_.*-]*", 2),
+    (r"\s*", r"\s*+", 34),
+    (r"\s+", r"\s++", 4),
+)
+_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256 = (
+    "d6c2ad19356670da7befa66ae40913b500c811b748c8227f156ca69ac6ed90f6"  # pragma: allowlist secret
+)
+
+
+def _harden_upstream_requirement_pattern(pattern: str) -> str:
+    """Apply the frozen bounded-time rewrites or reject grammar drift."""
+
+    pattern_digest = hashlib.sha256(pattern.encode("ascii")).hexdigest()
+    if pattern_digest != _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN_SHA256:
+        raise RuntimeError("pinned requirement grammar identity drifted")
+    hardened = pattern
+    for source, replacement, expected_count in _HARDENING_TRANSFORMATIONS:
+        if hardened.count(source) != expected_count:
+            raise RuntimeError("pinned requirement grammar hardening locations drifted")
+        hardened = hardened.replace(source, replacement)
+    return hardened
+
+
 _UPSTREAM_VALID_REQUIREMENT_LINE_RE = re.compile(
-    _UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN.replace(
-        r"[0-9]+[A-Za-z0-9_.*-]*",
-        r"[0-9]++[A-Za-z0-9_.*-]*",
-    )
-    .replace(r"\s*", r"\s*+")
-    .replace(r"\s+", r"\s++"),
+    _harden_upstream_requirement_pattern(_UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN),
     flags=re.ASCII,
 )
+_UPSTREAM_REQUIREMENT_BEFORE_MARKER_RE = re.compile(
+    _UPSTREAM_REQUIREMENT_BEFORE_MARKER_PATTERN.replace(
+        r"[0-9]+[A-Za-z0-9_.*-]*",
+        r"[0-9]++[A-Za-z0-9_.*-]*",
+    ).replace(r"\s*", r"\s*+"),
+    flags=re.ASCII,
+)
+_MARKER_VARIABLE_LINEAR = rf"(?:{_UPSTREAM_MARKER_ENVIRONMENT_VARIABLE}|{_UPSTREAM_PYTHON_STRING})"
+_MARKER_EXPRESSION_ONE_LINEAR_RE = re.compile(
+    rf"{_MARKER_VARIABLE_LINEAR}\s*+"
+    rf"(?:{_UPSTREAM_COMPARISON}|in|not\s*+in)\s*+"
+    rf"{_MARKER_VARIABLE_LINEAR}",
+    flags=re.ASCII,
+)
+_ASCII_WHITESPACE = " \t\r\n\v\f"
+
+
+def _scan_pinned_marker_family(marker: str) -> int | None:
+    """Return the continuation offset for one bounded marker atom sequence."""
+
+    cursor = 0
+    atom_count = 0
+    preceding_atom: str | None = None
+    # The caller enforces the 4096-character line budget. Every accepted atom
+    # advances ``cursor`` and the first rejected atom breaks, so this scan is
+    # linear in the already-bounded marker length and never calls the raw regex.
+    while cursor < len(marker):
+        whitespace_start = cursor
+        while cursor < len(marker) and marker[cursor] in _ASCII_WHITESPACE:
+            cursor += 1
+        expression = _MARKER_EXPRESSION_ONE_LINEAR_RE.match(marker, cursor)
+        if expression is not None:
+            cursor = expression.end()
+            atom_count += 1
+            preceding_atom = "expression"
+            continue
+        if cursor < len(marker) and marker[cursor] in "()":
+            parenthesis = marker[cursor]
+            if (
+                parenthesis == "("
+                and whitespace_start < cursor
+                and preceding_atom not in (None, "open-parenthesis", "boolean")
+            ):
+                cursor = whitespace_start
+                break
+            cursor += 1
+            atom_count += 1
+            preceding_atom = "open-parenthesis" if parenthesis == "(" else "close-parenthesis"
+            continue
+        if preceding_atom == "boolean" and cursor - whitespace_start == 1:
+            for boolean_operator in ("and", "or"):
+                operator_end = cursor + len(boolean_operator)
+                if (
+                    marker.startswith(boolean_operator, cursor)
+                    and operator_end < len(marker)
+                    and marker[operator_end] in _ASCII_WHITESPACE
+                ):
+                    return None
+        for boolean_operator in ("and", "or"):
+            operator_end = cursor + len(boolean_operator)
+            if (
+                whitespace_start < cursor
+                and not (preceding_atom == "boolean" and cursor - whitespace_start < 2)
+                and marker.startswith(boolean_operator, cursor)
+                and operator_end < len(marker)
+                and marker[operator_end] in _ASCII_WHITESPACE
+            ):
+                cursor = operator_end
+                atom_count += 1
+                preceding_atom = "boolean"
+                break
+        else:
+            cursor = whitespace_start
+            break
+
+    if atom_count == 0:
+        return None
+    return cursor
+
+
+def _matches_pinned_marker_ambiguity(raw_line: str) -> bool:
+    """Recognize the bounded raw marker family without whitespace backtracking."""
+
+    marker_delimiter = raw_line.find(";")
+    if marker_delimiter < 0:
+        return False
+    if _UPSTREAM_REQUIREMENT_BEFORE_MARKER_RE.fullmatch(raw_line[:marker_delimiter]) is None:
+        return False
+
+    marker = raw_line[marker_delimiter + 1 :]
+    continuation_offset = _scan_pinned_marker_family(marker)
+    if continuation_offset is None:
+        return False
+    continuation_probe = (
+        raw_line[: marker_delimiter + 1] + ' python_version == "3"' + marker[continuation_offset:]
+    )
+    return _UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(continuation_probe) is not None
+
+
 RepoPath = str | PurePath
 
 
@@ -181,7 +305,9 @@ def is_dependabot_requirement_carrier_text(
             continue
         if stripped.startswith(DEPENDABOT_REQUIREMENT_DIRECTIVE_PREFIXES):
             continue
-        if _UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(raw_line):
+        if _UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(
+            raw_line
+        ) or _matches_pinned_marker_ambiguity(raw_line):
             continue
         return False
     return True

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import FrozenInstanceError, asdict
+from itertools import product
 import os
 from pathlib import Path
 import re
@@ -209,7 +210,7 @@ def test_frozen_upstream_requirement_grammar_accepts_valid_lines(content: str) -
     assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
 
 
-def test_hardened_marker_language_rejects_ambiguous_incomplete_expressions() -> None:
+def test_hardened_marker_language_preserves_raw_positive_ambiguities() -> None:
     raw_pattern = re.compile(
         carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
         flags=re.ASCII,
@@ -219,11 +220,156 @@ def test_hardened_marker_language_rejects_ambiguous_incomplete_expressions() -> 
         "package; (  or ",
         'package; python_version == "3" and  or ',
         'package; python_version == "3" or  and ',
+        "package; ((  and ",
+        'package; python_version == "3" and (  or python_version == "3"',
+        "package; and ",
+        'package; (  and python_version == "3"',
+        'package; python_version == "3" and  or python_version == "3"',
+        "package[extra]==1; ((  and --hash=sha256:abc # retained",
+        'package[extra]>=1,<2; python_version == "3" and  or '
+        'python_version == "3" --hash=sha256:abc # retained',
     )
 
     for marker_line in marker_lines:
         assert raw_pattern.fullmatch(marker_line) is not None
         assert carriers._UPSTREAM_VALID_REQUIREMENT_LINE_RE.fullmatch(marker_line) is None
+        assert carriers.is_dependabot_requirement_carrier_text("extra.txt", marker_line)
+
+
+def test_hardened_classifier_matches_frozen_raw_marker_boundary_matrix() -> None:
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    atoms = ("(", ")", "and", "or", 'python_version == "3"')
+    whitespace_boundaries = ("", " ", "  ")
+
+    for atom_count in (1, 2, 3):
+        for selected_atoms in product(atoms, repeat=atom_count):
+            for boundaries in product(whitespace_boundaries, repeat=atom_count + 1):
+                marker_parts = [boundaries[0]]
+                for index, atom in enumerate(selected_atoms):
+                    marker_parts.extend((atom, boundaries[index + 1]))
+                candidate = "package;" + "".join(marker_parts)
+
+                raw_accepts = raw_pattern.fullmatch(candidate) is not None
+                public_accepts = carriers.is_dependabot_requirement_carrier_text(
+                    "extra.txt", candidate
+                )
+
+                assert public_accepts is raw_accepts, candidate
+
+
+def test_hardening_transformations_fail_closed_on_same_count_location_drift() -> None:
+    pattern = carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN
+    relocated = pattern.replace(r"^\s*", "^", 1) + r"\s*"
+    assert relocated.count(r"\s*") == pattern.count(r"\s*")
+    with pytest.raises(RuntimeError, match="grammar identity drifted"):
+        carriers._harden_upstream_requirement_pattern(relocated)
+
+
+def test_raw_positive_marker_ambiguity_is_forbidden_as_novel_carrier(
+    tmp_path: Path,
+) -> None:
+    repo = _copy_policy_repo(tmp_path)
+    (repo / "ambiguous.txt").write_text("package; (  and \n", encoding="utf-8")
+    _stage_fixture_paths(repo, "ambiguous.txt")
+
+    errors = policy.validate_repo(repo)
+
+    assert (
+        "dependabot.requirement-carriers:$:"
+        "unregistered candidate carriers are forbidden: ['ambiguous.txt']"
+    ) in errors
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        "package; (and ",
+        "package and  or ",
+        'package; python_version == "3" andor ',
+        'package; python_version == "3" and  ! ',
+    ),
+)
+def test_malformed_marker_boundaries_remain_non_carriers(content: str) -> None:
+    assert not carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_frozen_hash_expansion_with_semicolon_remains_a_carrier() -> None:
+    content = "package --hash=sha256:abc; and  or "
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    assert raw_pattern.fullmatch(content) is not None
+    assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        "package; )  (",
+        'package; python_version == "3"  (',
+    ),
+)
+def test_whitespace_before_open_parenthesis_does_not_widen_raw_language(
+    content: str,
+) -> None:
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    assert raw_pattern.fullmatch(content) is None
+    assert not carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        "package; (  (",
+        "package; and  (",
+    ),
+)
+def test_frozen_atoms_that_own_trailing_whitespace_allow_open_parenthesis(
+    content: str,
+) -> None:
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    assert raw_pattern.fullmatch(content) is not None
+    assert carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_consecutive_boolean_atoms_cannot_reuse_one_whitespace_character() -> None:
+    content = "package; and or "
+    raw_pattern = re.compile(
+        carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+        flags=re.ASCII,
+    )
+    assert raw_pattern.fullmatch(content) is None
+    assert not carriers.is_dependabot_requirement_carrier_text("extra.txt", content)
+
+
+def test_raw_positive_marker_ambiguity_respects_exact_line_budget() -> None:
+    limit = carriers.DEPENDABOT_REQUIREMENT_MAX_LINE_CHARS
+    prefix = 'package[extra]>=1,<2; python_version == "3" and  or '
+    suffix = 'python_version == "3" --hash=sha256:abc # retained'
+    admitted = prefix + " " * (limit - len(prefix) - len(suffix)) + suffix
+    assert len(admitted) == limit
+    assert (
+        re.fullmatch(
+            carriers._UPSTREAM_VALID_REQUIREMENT_LINE_PATTERN,
+            admitted,
+            flags=re.ASCII,
+        )
+        is not None
+    )
+    assert carriers.is_dependabot_requirement_carrier_text("extra.txt", admitted)
+
+    with pytest.raises(carriers.DependabotRequirementDiscoveryError):
+        carriers.is_dependabot_requirement_carrier_text("extra.txt", admitted + " ")
 
 
 def test_hardened_marker_language_rejects_long_invalid_near_match() -> None:
