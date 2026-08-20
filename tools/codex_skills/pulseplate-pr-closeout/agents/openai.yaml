@@ -1,0 +1,4 @@
+interface:
+  display_name: "PulsePlate PR Closeout"
+  short_description: "Govern PulsePlate PR closeout evidence"
+  default_prompt: "Use $pulseplate-pr-closeout in audit-only mode by default. Treat every mutation and merge as blocked unless a mutating mode is explicitly selected and separate explicit human authorization binds each exact effect in a fresh closed bundle."

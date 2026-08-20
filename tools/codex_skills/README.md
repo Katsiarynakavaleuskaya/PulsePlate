@@ -21,23 +21,26 @@ Skills remain passive/discovery-only helpers and do not replace coordinator boot
 
 ## PulsePlate skills
 
-- `pulseplate-workflow`
-- `pulseplate-gates`
-- `pulseplate-openapi-sync`
-- `pulseplate-frontend-ui`
-- `pulseplate-ledger`
-- `pulseplate-guards`
-- `pulseplate-backend-endpoints`
 - `pulseplate-ai-reports`
-- `pulseplate-app-store-release`
-- `pulseplate-graphmap`
-- `pulseplate-playwright-e2e`
-- `pulseplate-monetization-gtm`
-- `pulseplate-design-launch-system`
-- `pulseplate-web-launch-site`
+- `pulseplate-agent-learning-loop`
 - `pulseplate-agent-product`
+- `pulseplate-app-store-release`
+- `pulseplate-backend-endpoints`
+- `pulseplate-design-launch-system`
+- `pulseplate-frontend-ui`
+- `pulseplate-gates`
+- `pulseplate-graphmap`
+- `pulseplate-guards`
+- `pulseplate-ledger`
+- `pulseplate-monetization-gtm`
+- `pulseplate-openapi-sync`
+- `pulseplate-playwright-e2e`
+- `pulseplate-pr-closeout`
 - `pulseplate-pr-review`
 - `pulseplate-premortem-risk-review`
+- `pulseplate-review-pattern-oracles`
+- `pulseplate-web-launch-site`
+- `pulseplate-workflow`
 
 ## Cybersecurity skills (submodule)
 

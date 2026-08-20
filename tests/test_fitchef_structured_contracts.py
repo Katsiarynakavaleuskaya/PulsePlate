@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.schemas.fitchef import (
+    FitChefClarificationV1,
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorResult,
     FitChefDistortionSimulatorTaskEnvelope,
@@ -13,6 +14,7 @@ from app.schemas.fitchef import (
     FitChefIdentityLoopMapperTaskEnvelope,
     FitChefIdentityLoopValue,
     FitChefSourceItem,
+    FitChefWeeklyReflectionResult,
 )
 from app.schemas.fitchef_coaching import (
     FitChefCoachingSourceItem,
@@ -22,7 +24,61 @@ from app.schemas.fitchef_coaching import (
     FitChefIdentityLoopMapperResponse,
     FitChefIdentityLoopView,
     FitChefVipCoachingErrorResponse,
+    FitChefWeeklyReflectionResponse,
 )
+
+
+def test_weekly_reflection_clarification_contract_is_fixed_and_immutable() -> None:
+    """Clarification accepts exactly one goal field and no mutable extras."""
+
+    clarification = FitChefClarificationV1()
+
+    assert clarification.model_dump(mode="json") == {
+        "schema_version": "fitchef_clarification.v1",
+        "kind": "missing_required_context",
+        "question_id": "weekly_reflection.current_goal",
+        "requested_fields": ["goal"],
+        "question_count": 1,
+    }
+    for invalid_fields in ([], ["goal", "goal"], ["goal", "summary"], ["summary"]):
+        with pytest.raises(ValueError):
+            FitChefClarificationV1.model_validate({"requested_fields": invalid_fields})
+    with pytest.raises(ValueError):
+        FitChefClarificationV1.model_validate({"unexpected": "field"})
+    with pytest.raises(ValueError):
+        clarification.question_count = 1
+
+
+def test_weekly_reflection_response_defaults_remain_additive() -> None:
+    """Existing constructors default to the generated response state."""
+
+    internal = FitChefWeeklyReflectionResult(
+        message="Keep one dinner pattern that worked.",
+        sources=[],
+        confidence=0.0,
+        warnings=[],
+        action_items=[],
+        mode="auto-safe",
+        quota_state="consumed",
+        transparency_notice_id="ai_generated_insight",
+        wellness_boundary="Wellness coaching only.",
+    )
+    public = FitChefWeeklyReflectionResponse(
+        message=internal.message,
+        scenario="weekly_reflection",
+        sources=[],
+        confidence=internal.confidence,
+        warnings=internal.warnings,
+        action_items=internal.action_items,
+        quota_state=internal.quota_state,
+        transparency_notice_id=internal.transparency_notice_id,
+        wellness_boundary=internal.wellness_boundary,
+    )
+
+    assert internal.response_state == "generated"
+    assert internal.clarification is None
+    assert public.response_state == "generated"
+    assert public.clarification is None
 
 
 def test_structured_fitchef_internal_task_envelopes_are_additive() -> None:

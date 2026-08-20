@@ -22,6 +22,7 @@ from app.middleware.api_tiers import (
     get_subscription_tier,
 )
 from app.schemas.fitchef import (
+    FitChefClarificationV1,
     FitChefCoachInsightResult,
     FitChefCoachInsightTaskEnvelope,
     FitChefDistortionSimulatorResult,
@@ -235,12 +236,10 @@ async def _generate_with_timeout(provider: Any, prompt: str) -> object:
     )
 
 
-def _build_fitchef_reflection_query(summary: str, goal: str | None) -> str:
+def _build_fitchef_reflection_query(summary: str, goal: str) -> str:
     """Build retrieval text for FitChef reflection flows."""
 
-    if goal:
-        return f"Weekly reflection summary: {summary}\nGoal: {goal}"
-    return f"Weekly reflection summary: {summary}"
+    return f"Weekly reflection summary: {summary}\nGoal: {goal}"
 
 
 def _build_fitchef_slip_support_query(event_text: str, goal: str | None) -> str:
@@ -1195,6 +1194,58 @@ async def run_weekly_reflection_task(
 
     safe_summary = task.input.safe_summary
     safe_goal = task.input.safe_goal
+    if safe_goal is None or not safe_goal.strip():
+        clarification_notice_id = "fitchef_weekly_reflection_clarification_v1"
+        clarification_notice = get_transparency_registry().get(clarification_notice_id)
+        if clarification_notice is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="transparency_registry_unavailable",
+            )
+        if not isinstance(clarification_notice, Mapping):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="transparency_registry_incomplete",
+            )
+        notice_surface_id = clarification_notice.get("surface_id")
+        notice_boundary = clarification_notice.get("boundary")
+        required_notice_values = (
+            clarification_notice.get("title"),
+            clarification_notice.get("analysis_kind"),
+            clarification_notice.get("notice"),
+            clarification_notice.get("emergency_use"),
+            clarification_notice.get("treatment_decision_use"),
+            clarification_notice.get("escalation"),
+        )
+        if (
+            notice_surface_id != clarification_notice_id
+            or not isinstance(notice_boundary, str)
+            or not notice_boundary.strip()
+            or any(
+                not isinstance(value, str) or not value.strip() for value in required_notice_values
+            )
+            or clarification_notice.get("endpoints")
+            != ("/api/v1/insight/fitchef/weekly-reflection",)
+            or clarification_notice.get("inputs_used") != ("presence of request-scoped goal",)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="transparency_registry_incomplete",
+            )
+        return FitChefWeeklyReflectionResult(
+            message="What goal should this weekly reflection support right now?",
+            sources=[],
+            confidence=0.0,
+            warnings=["clarification_required:weekly_reflection.current_goal"],
+            action_items=[],
+            mode=task.mode,
+            quota_state="not_consumed",
+            transparency_notice_id=clarification_notice_id,
+            wellness_boundary=notice_boundary,
+            response_state="clarification_required",
+            clarification=FitChefClarificationV1(),
+        )
+
     retrieval_text = _build_fitchef_reflection_query(safe_summary, safe_goal)
     shared_result = await _run_fitchef_vip_text_task(
         _FitChefVipTextTaskConfig(
@@ -1228,6 +1279,8 @@ async def run_weekly_reflection_task(
         quota_state=shared_result.quota_state,
         transparency_notice_id=shared_result.transparency_notice_id,
         wellness_boundary=shared_result.wellness_boundary,
+        response_state="generated",
+        clarification=None,
     )
     return result
 

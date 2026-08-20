@@ -178,3 +178,13 @@ Every other lifecycle state produces deterministic `no_intervention`:
 Prompt-safe projection exposes only lifecycle categories and a recomputed authority boolean. Goal/version/correction/supersession references, goal text, identity, events, and timestamps remain internal. The opaque-reference grammar `[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}` establishes bounded ASCII shape only; it gives a reference no semantics or authority and remains a trusted-producer contract.
 
 E1-02 does not load a live goal source. Until the separate canonical goal-source lane is implemented and validated, the builder deliberately returns `unavailable`, and claims of live active-goal integration are forbidden.
+
+## 10. Weekly-reflection goal clarification
+
+Each weekly-reflection request without a nonblank request-scoped `goal` returns one fixed clarification question: `What goal should this weekly reflection support right now?` The clarification requests exactly the `goal` field and does not infer or synthesize a goal from the weekly summary.
+
+The request-scoped goal is framing context for this one weekly reflection. It is not E1-02 goal authority, does not promote `UserCoachingStateV1`, and does not authorize persistence, planner execution, or plan mutation.
+
+The deterministic clarification branch performs only its transparency-registry lookup. It does not use retrieval, RAG audits, prompt or draft builders, an LLM/provider, monthly LLM quota reads or consumption, persistence, a planner, or plan mutation. The existing VIP gate, request rate limit, feature flag, execution-mode gate, and input guard still apply before runtime clarification.
+
+Clarification is stateless. Repeating the same request without a goal returns the same fixed response and creates no hidden clarification state. A request with a valid nonblank goal stays on the existing AI-assisted generated path, including its separate `ai_generated_insight` transparency notice, RAG/provider flow, and monthly quota semantics.
