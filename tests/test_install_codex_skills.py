@@ -8,6 +8,7 @@ import shutil
 import subprocess
 
 import pytest
+import yaml
 
 from scripts import verify_codex_skills_install
 
@@ -15,6 +16,55 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER_PATH = REPO_ROOT / "scripts" / "install_codex_skills.sh"
 BASH_PATH = shutil.which("bash")
 CYBERSEC_FIXTURE_SKILL = "implementing-diamond-model-analysis"
+PR_CLOSEOUT_SKILL_PATH = (
+    REPO_ROOT / "tools" / "codex_skills" / "pulseplate-pr-closeout" / "SKILL.md"
+)
+PR_CLOSEOUT_METADATA = {
+    "interface": {
+        "display_name": "PulsePlate PR Closeout",
+        "short_description": "Govern PulsePlate PR closeout evidence",
+        "default_prompt": (
+            "Use $pulseplate-pr-closeout in audit-only mode by default. Treat every "
+            "mutation and merge as blocked unless a mutating mode is explicitly "
+            "selected and separate explicit human authorization binds each exact "
+            "effect in a fresh closed bundle."
+        ),
+    }
+}
+PR_CLOSEOUT_EFFECTS = frozenset(
+    {
+        "draft_init",
+        "draft_freeze",
+        "disposition_write",
+        "validation_write",
+        "mapping_write",
+        "pr_body_write",
+        "mapping_commit",
+        "push",
+        "thread_reply",
+        "thread_resolution",
+        "base_sync",
+        "merge",
+        "main_sync",
+        "branch_delete",
+        "worktree_delete",
+        "temporary_path_delete",
+    }
+)
+
+
+def _mirrored_skill_files(mirrored_skill: Path) -> dict[Path, bytes]:
+    """Collect mirror bytes while excluding only the root source marker."""
+
+    root_marker = mirrored_skill / ".pulseplate_codex_skill_source"
+    inventory: dict[Path, bytes] = {}
+    for path in mirrored_skill.rglob("*"):
+        if path == root_marker:
+            continue
+        assert not path.is_symlink(), f"mirror inventory rejects symlink: {path}"
+        if path.is_file():
+            inventory[path.relative_to(mirrored_skill)] = path.read_bytes()
+    return inventory
 
 
 def _run_installer(
@@ -620,12 +670,26 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         "pulseplate-monetization-gtm",
         "pulseplate-openapi-sync",
         "pulseplate-playwright-e2e",
+        "pulseplate-pr-closeout",
         "pulseplate-pr-review",
         "pulseplate-premortem-risk-review",
         "pulseplate-review-pattern-oracles",
         "pulseplate-web-launch-site",
         "pulseplate-workflow",
     )
+    copied_skills = {
+        "pulseplate-agent-learning-loop",
+        "pulseplate-pr-closeout",
+        "pulseplate-pr-review",
+        "pulseplate-review-pattern-oracles",
+    }
+    discovered_skills = {
+        path.name
+        for path in (REPO_ROOT / "tools" / "codex_skills").iterdir()
+        if path.is_dir() and path.joinpath("SKILL.md").is_file()
+    }
+
+    assert discovered_skills == set(expected_skills)
 
     for skill_name in expected_skills:
         mirrored_skill = REPO_ROOT / ".agents" / "skills" / skill_name
@@ -633,11 +697,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
 
         assert source_skill.is_dir(), f"{skill_name} source directory must exist"
         assert (source_skill / "SKILL.md").exists(), f"{skill_name} source must include SKILL.md"
-        if skill_name in {
-            "pulseplate-agent-learning-loop",
-            "pulseplate-pr-review",
-            "pulseplate-review-pattern-oracles",
-        }:
+        if skill_name in copied_skills:
             assert (
                 mirrored_skill.is_dir()
             ), f"{skill_name} mirror is required for PR-review workflow"
@@ -647,7 +707,109 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
             marker_parts = tuple(Path(marker.read_text(encoding="utf-8").strip()).parts)
             expected_parts = source_skill.relative_to(REPO_ROOT).parts
             assert marker_parts[-len(expected_parts) :] == expected_parts
-            assert (mirrored_skill / "SKILL.md").exists()
+            source_files = {
+                path.relative_to(source_skill): path.read_bytes()
+                for path in source_skill.rglob("*")
+                if path.is_file()
+            }
+            mirrored_files = _mirrored_skill_files(mirrored_skill)
+            assert mirrored_files == source_files
+            if skill_name == "pulseplate-pr-closeout":
+                metadata = mirrored_skill / "agents" / "openai.yaml"
+                assert metadata.is_file()
+                assert yaml.safe_load(metadata.read_text(encoding="utf-8")) == (
+                    PR_CLOSEOUT_METADATA
+                )
         else:
             assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
             assert mirrored_skill.resolve() == source_skill
+
+
+def test_pr_closeout_skill_has_one_closed_effect_vocabulary() -> None:
+    """The passive closeout skill should enumerate one finite mutation vocabulary."""
+
+    skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
+    authority_section = skill_text.split("## Require one closed effect bundle", 1)[1].split(
+        "## Admit the lane", 1
+    )[0]
+    table_effects = {
+        line.split("`")[1] for line in authority_section.splitlines() if line.startswith("| `")
+    }
+
+    assert table_effects == PR_CLOSEOUT_EFFECTS
+
+
+def test_mirror_file_inventory_excludes_only_root_source_marker(tmp_path: Path) -> None:
+    """A nested marker-named file must remain visible to mirror comparison."""
+
+    mirrored_skill = tmp_path / "copied-skill"
+    nested = mirrored_skill / "nested"
+    nested.mkdir(parents=True)
+    (mirrored_skill / ".pulseplate_codex_skill_source").write_text(
+        "tools/codex_skills/copied-skill\n", encoding="utf-8"
+    )
+    (mirrored_skill / "SKILL.md").write_text("skill\n", encoding="utf-8")
+    (nested / ".pulseplate_codex_skill_source").write_text(
+        "unexpected nested marker\n", encoding="utf-8"
+    )
+
+    assert _mirrored_skill_files(mirrored_skill) == {
+        Path("SKILL.md"): b"skill\n",
+        Path("nested/.pulseplate_codex_skill_source"): b"unexpected nested marker\n",
+    }
+
+
+def test_mirror_file_inventory_rejects_nested_symlink(tmp_path: Path) -> None:
+    """Mirror comparison must reject symlinks instead of following their targets."""
+
+    mirrored_skill = tmp_path / "copied-skill"
+    nested = mirrored_skill / "nested"
+    nested.mkdir(parents=True)
+    target = nested / "target.md"
+    target.write_text("same bytes\n", encoding="utf-8")
+    (nested / "SKILL.md").symlink_to(target.name)
+
+    with pytest.raises(AssertionError, match="mirror inventory rejects symlink"):
+        _mirrored_skill_files(mirrored_skill)
+
+
+@pytest.mark.parametrize(
+    "required_clause",
+    (
+        pytest.param(
+            "`AUDIT` always has an empty effect-instance list and denies every "
+            "effect in the table.",
+            id="audit-denies-all-mutations",
+        ),
+        pytest.param(
+            "Interpret a pre-closeout `PASS` as procedural admission evidence only. "
+            "It is not user authorization for mapping write, mapping commit, push, "
+            "thread mutation, or merge",
+            id="pre-closeout-pass-is-not-authority",
+        ),
+        pytest.param(
+            "Without a fresh, post-readiness `merge` effect instance from a separate "
+            "human authority bundle, stop at `READY_FOR_AUTHORIZED_MERGE`.",
+            id="readiness-requires-fresh-merge-authority",
+        ),
+        pytest.param(
+            "A `merge` effect never implies `branch_delete`, `main_sync`, "
+            "`worktree_delete`, or `temporary_path_delete`.",
+            id="merge-does-not-authorize-deletion",
+        ),
+        pytest.param(
+            "If an effect is omitted, stale, already consumed, replayed, retargeted, "
+            "wildcarded, or not in the closed vocabulary, fail closed in every mode",
+            id="invalid-bundle-effects-fail-closed",
+        ),
+    ),
+)
+def test_pr_closeout_skill_authority_contract_is_fail_closed(required_clause: str) -> None:
+    """Static scenarios should retain the fail-closed human-authority boundary."""
+
+    skill_text = PR_CLOSEOUT_SKILL_PATH.read_text(encoding="utf-8")
+    normalized_skill = " ".join(skill_text.split())
+    merge_command = skill_text.split("gh pr merge <N>", 1)[1].split("```", 1)[0]
+
+    assert required_clause in normalized_skill
+    assert "--delete-branch" not in merge_command
