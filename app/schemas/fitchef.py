@@ -248,7 +248,7 @@ class FitChefFieldAssuranceRecordV1(BaseModel):
             if (
                 not ref.startswith(_OPAQUE_SHA256_PREFIX)
                 or len(ref) != len(_OPAQUE_SHA256_PREFIX) + 64
-                or any(char not in "0123456789abcdef" for char in ref[7:])
+                or any(char not in "0123456789abcdef" for char in ref[len(_OPAQUE_SHA256_PREFIX) :])
             ):
                 raise ValueError("candidate_source_refs must be opaque sha256 fingerprints")
         return refs
@@ -335,7 +335,7 @@ class FitChefDistortionFieldAssuranceAssessmentV1(BaseModel):
         if (
             not value.startswith(_OPAQUE_SHA256_PREFIX)
             or len(value) != len(_OPAQUE_SHA256_PREFIX) + 64
-            or any(char not in "0123456789abcdef" for char in value[7:])
+            or any(char not in "0123456789abcdef" for char in value[len(_OPAQUE_SHA256_PREFIX) :])
         ):
             raise ValueError("source_snapshot_fingerprint must be an opaque sha256 fingerprint")
         return value

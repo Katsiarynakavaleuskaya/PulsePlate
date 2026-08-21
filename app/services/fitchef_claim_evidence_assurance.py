@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal
 
 from app.schemas.fitchef import (
     FitChefDistortionFieldAssuranceAssessmentV1,
@@ -113,7 +114,7 @@ def _snapshot_fingerprint(
         "schema_version": _SNAPSHOT_SCHEMA_VERSION,
         "occurrences": manifest,
     }
-    return cast(str, fingerprint_payload(snapshot_payload))
+    return fingerprint_payload(snapshot_payload)
 
 
 def _try_snapshot_fingerprint(
@@ -292,8 +293,27 @@ def _occurrence_refs(
     return tuple(refs)
 
 
+def _result_source_projection(
+    result_sources: Sequence[FitChefSourceItem],
+) -> tuple[tuple[int, str, str, str, float], ...]:
+    """Project the ordered runtime result sources for exact snapshot comparison."""
+
+    return tuple(
+        (
+            ordinal,
+            source.chunk_id,
+            source.file,
+            source.preview,
+            source.score,
+        )
+        for ordinal, source in enumerate(result_sources)
+    )
+
+
 def build_distortion_field_assurance_assessment(
     snapshot: FitChefSourceSnapshotV1,
+    *,
+    result_sources: Sequence[FitChefSourceItem],
 ) -> FitChefDistortionFieldAssuranceAssessmentV1:
     """Assess candidate linkage without making support or conflict claims."""
 
@@ -313,6 +333,25 @@ def build_distortion_field_assurance_assessment(
         current_projection != snapshot.projection
         or current_fingerprint != source_snapshot_fingerprint
     ):
+        return _assessment(
+            source_snapshot_fingerprint=source_snapshot_fingerprint,
+            records=_ordinary_records(
+                balanced_state="source_snapshot_mismatch",
+                balanced_reason="source_snapshot_mismatch",
+            ),
+        )
+
+    expected_result_projection = tuple(
+        (
+            occurrence.ordinal,
+            occurrence.chunk_id,
+            occurrence.file,
+            occurrence.preview,
+            occurrence.score,
+        )
+        for occurrence in snapshot.occurrences
+    )
+    if _result_source_projection(result_sources) != expected_result_projection:
         return _assessment(
             source_snapshot_fingerprint=source_snapshot_fingerprint,
             records=_ordinary_records(

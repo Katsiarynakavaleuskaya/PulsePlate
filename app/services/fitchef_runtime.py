@@ -1075,7 +1075,8 @@ async def run_distortion_simulator_task(
     draft = shared_result.draft
     try:
         claim_evidence_assessment = build_distortion_field_assurance_assessment(
-            shared_result.source_snapshot
+            shared_result.source_snapshot,
+            result_sources=shared_result.sources,
         )
     except Exception:
         claim_evidence_assessment = build_distortion_field_assurance_unavailable(

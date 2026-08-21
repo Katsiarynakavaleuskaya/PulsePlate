@@ -1592,7 +1592,12 @@ class TestFitChefStructuredRuntimeCoverage:
             quota_calls.append("quota")
             return True
 
-        def _assessor(_snapshot: FitChefSourceSnapshotV1) -> object:
+        def _assessor(
+            _snapshot: FitChefSourceSnapshotV1,
+            *,
+            result_sources: list[FitChefSourceItem],
+        ) -> object:
+            assert result_sources
             assessor_calls.append("assess")
             raise RuntimeError("sensitive assessor failure text")
 
@@ -1661,9 +1666,11 @@ class TestFitChefStructuredRuntimeCoverage:
 
         def _assess(
             snapshot: FitChefSourceSnapshotV1,
+            *,
+            result_sources: list[FitChefSourceItem],
         ) -> FitChefDistortionFieldAssuranceAssessmentV1:
             events.append("assessment")
-            return real_assessor(snapshot)
+            return real_assessor(snapshot, result_sources=result_sources)
 
         self.monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",

@@ -15,6 +15,7 @@ from app.schemas.fitchef import (
 )
 from app.services.fitchef_claim_evidence_assurance import (
     FitChefSourceOccurrenceV1,
+    FitChefSourceSnapshotV1,
     build_distortion_field_assurance_assessment,
     build_distortion_field_assurance_unavailable,
     build_fitchef_source_items,
@@ -73,12 +74,21 @@ def _two_sources() -> tuple[FitChefSourceOccurrenceV1, ...]:
     )
 
 
+def _build_assessment(
+    snapshot: FitChefSourceSnapshotV1,
+) -> FitChefDistortionFieldAssuranceAssessmentV1:
+    return build_distortion_field_assurance_assessment(
+        snapshot,
+        result_sources=build_fitchef_source_items(snapshot),
+    )
+
+
 def test_unique_snapshot_has_exact_fingerprint_and_ordered_opaque_refs() -> None:
     """Unique admitted occurrences link only the reframe to ordered opaque candidates."""
 
     occurrences = _two_sources()
     snapshot = freeze_fitchef_source_snapshot(occurrences)
-    assessment = build_distortion_field_assurance_assessment(snapshot)
+    assessment = _build_assessment(snapshot)
 
     expected_manifest: list[JsonValue] = []
     for occurrence in occurrences:
@@ -137,9 +147,7 @@ def test_unique_snapshot_has_exact_fingerprint_and_ordered_opaque_refs() -> None
 def test_assessment_is_frozen_extra_forbid_and_serializes_no_raw_source_values() -> None:
     """Assurance output exposes only digests and fixed negative-authority metadata."""
 
-    assessment = build_distortion_field_assurance_assessment(
-        freeze_fitchef_source_snapshot(_two_sources())
-    )
+    assessment = _build_assessment(freeze_fitchef_source_snapshot(_two_sources()))
     serialized = assessment.model_dump_json()
 
     for raw_value in (
@@ -185,9 +193,7 @@ def test_assessment_rejects_count_and_authority_drift(
 ) -> None:
     """Caller-supplied counts and authority flags cannot widen the v1 contract."""
 
-    assessment = build_distortion_field_assurance_assessment(
-        freeze_fitchef_source_snapshot(_two_sources())
-    )
+    assessment = _build_assessment(freeze_fitchef_source_snapshot(_two_sources()))
     payload = assessment.model_dump(mode="python")
     payload[field_name] = invalid_value
 
@@ -198,9 +204,7 @@ def test_assessment_rejects_count_and_authority_drift(
 def test_record_rejects_support_conflict_order_and_non_reframe_refs() -> None:
     """Records remain null-only, conflict-negative, ordered, and surface-specific."""
 
-    assessment = build_distortion_field_assurance_assessment(
-        freeze_fitchef_source_snapshot(_two_sources())
-    )
+    assessment = _build_assessment(freeze_fitchef_source_snapshot(_two_sources()))
     first_payload = assessment.records[0].model_dump(mode="python")
 
     with pytest.raises(ValidationError):
@@ -245,7 +249,7 @@ def test_record_json_schema_is_structurally_null_only_for_support_status() -> No
     assert "oneOf" not in support_property
 
     first_payload = (
-        build_distortion_field_assurance_assessment(freeze_fitchef_source_snapshot(_two_sources()))
+        _build_assessment(freeze_fitchef_source_snapshot(_two_sources()))
         .records[0]
         .model_dump(mode="python")
     )
@@ -264,9 +268,7 @@ def test_record_json_schema_is_structurally_null_only_for_support_status() -> No
 def test_assessment_rejects_partial_or_mixed_unavailability() -> None:
     """Unavailable is one all-six deterministic state, never a per-field mixture."""
 
-    ordinary = build_distortion_field_assurance_assessment(
-        freeze_fitchef_source_snapshot(_two_sources())
-    )
+    ordinary = _build_assessment(freeze_fitchef_source_snapshot(_two_sources()))
     partial_payload = ordinary.model_dump(mode="python")
     first_record = ordinary.records[0].model_dump(mode="python")
     partial_payload["records"] = (
@@ -300,7 +302,7 @@ def test_assessment_rejects_partial_or_mixed_unavailability() -> None:
 def test_empty_snapshot_marks_only_balanced_reframe_as_missing() -> None:
     """An ordinary empty snapshot is a missing candidate link, not support adjudication."""
 
-    assessment = build_distortion_field_assurance_assessment(freeze_fitchef_source_snapshot(()))
+    assessment = _build_assessment(freeze_fitchef_source_snapshot(()))
 
     assert assessment.source_snapshot_fingerprint is not None
     assert assessment.records[4].assurance_state == "evidence_link_missing"
@@ -333,7 +335,7 @@ def test_duplicate_chunk_identity_preserves_occurrences_but_blocks_candidate_ref
             ),
         )
     )
-    assessment = build_distortion_field_assurance_assessment(duplicate_snapshot)
+    assessment = _build_assessment(duplicate_snapshot)
 
     assert len(duplicate_snapshot.occurrences) == 2
     assert build_fitchef_source_prompt_context(duplicate_snapshot).count("occurrence") == 2
@@ -355,13 +357,48 @@ def test_projection_or_fingerprint_drift_blocks_candidate_refs() -> None:
     )
 
     for drifted in (drifted_projection, drifted_fingerprint):
-        assessment = build_distortion_field_assurance_assessment(drifted)
+        assessment = _build_assessment(drifted)
         assert assessment.records[4].assurance_state == "source_snapshot_mismatch"
         assert assessment.records[4].reason_codes == ("source_snapshot_mismatch",)
         assert assessment.records[4].candidate_source_refs == ()
 
 
-def test_snapshot_fingerprint_changes_on_add_remove_reorder_content_and_score() -> None:
+def test_result_source_projection_drift_blocks_candidate_refs() -> None:
+    """The assessor binds the exact ordered result projection to the frozen snapshot."""
+
+    snapshot = freeze_fitchef_source_snapshot(_two_sources())
+    canonical_sources = tuple(build_fitchef_source_items(snapshot))
+    first, second = canonical_sources
+    drifted_source_sets = (
+        (first,),
+        (
+            first,
+            second,
+            second.model_copy(update={"chunk_id": "chunk-gamma"}),
+        ),
+        tuple(reversed(canonical_sources)),
+        (first.model_copy(update={"chunk_id": "changed-chunk"}), second),
+        (first.model_copy(update={"file": "docs/cbt/changed.md"}), second),
+        (first.model_copy(update={"preview": "Changed preview"}), second),
+        (first.model_copy(update={"score": 0.9100001}), second),
+    )
+
+    for drifted_sources in drifted_source_sets:
+        before = tuple(source.model_dump(mode="python") for source in drifted_sources)
+        assessment = build_distortion_field_assurance_assessment(
+            snapshot,
+            result_sources=drifted_sources,
+        )
+
+        assert assessment.records[4].assurance_state == "source_snapshot_mismatch"
+        assert assessment.records[4].reason_codes == ("source_snapshot_mismatch",)
+        assert assessment.records[4].candidate_source_refs == ()
+        assert assessment.source_snapshot_mismatch_count == 1
+        assert assessment.support_claimed_count == 0
+        assert tuple(source.model_dump(mode="python") for source in drifted_sources) == before
+
+
+def test_snapshot_fingerprint_changes_on_add_remove_reorder_content_preview_and_score() -> None:
     """The ordered exact-value manifest binds every admitted occurrence projection."""
 
     first, second = _two_sources()
@@ -373,6 +410,7 @@ def test_snapshot_fingerprint_changes_on_add_remove_reorder_content_and_score() 
             replace(first, ordinal=1),
         ),
         (replace(first, content="Changed sanitized content."), second),
+        (replace(first, preview="Changed preview"), second),
         (replace(first, score=0.9100001), second),
         (first, second, replace(second, ordinal=2, chunk_id="chunk-gamma")),
     )
@@ -399,7 +437,7 @@ def test_nonfinite_score_degrades_assurance_only() -> None:
             ),
         )
     )
-    assessment = build_distortion_field_assurance_assessment(snapshot)
+    assessment = _build_assessment(snapshot)
 
     assert snapshot.source_snapshot_fingerprint is None
     assert "Sanitized retained context." in build_fitchef_source_prompt_context(snapshot)
