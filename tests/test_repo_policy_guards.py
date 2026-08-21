@@ -192,30 +192,54 @@ def test_app_facade_does_not_restore_arbitrary_legacy_fallthrough() -> None:
     assert not offenders, f"Arbitrary legacy facade fallthrough restored: {offenders}"
 
 
-def test_canonical_bootstrap_has_eight_neutral_states_and_mirror_assignment_sites() -> None:
-    """Each registration state has one neutral declaration and one mirror assignment site."""
-    content = _read(REPO_ROOT / "app" / "main.py")
-    assert content is not None, "app/main.py unexpectedly missing during read"
-
-    neutral_declarations = {
-        "VIP_MODULE_ENABLED": "VIP_MODULE_ENABLED: bool = False",
-        "vip_router": "vip_router: APIRouter | None = None",
-        "pro_router": "pro_router: APIRouter | None = None",
-        "premium_week_router": "premium_week_router: APIRouter | None = None",
-        "FEATURE_BMI_PRO_ENABLED": "FEATURE_BMI_PRO_ENABLED: bool = False",
-        "bmi_router": "bmi_router: APIRouter | None = None",
-        "bmi_pro_router": "bmi_pro_router: APIRouter | None = None",
-        "bmi_pro_legacy_alias_router": "bmi_pro_legacy_alias_router: APIRouter | None = None",
+def test_paid_bmi_registration_mirrors_remain_retired() -> None:
+    """Canonical bootstrap and legacy facade must not restore retired mirror bindings."""
+    retired = {
+        "VIP_MODULE_ENABLED",
+        "vip_router",
+        "pro_router",
+        "premium_week_router",
+        "FEATURE_BMI_PRO_ENABLED",
+        "bmi_router",
+        "bmi_pro_router",
+        "bmi_pro_legacy_alias_router",
     }
-    lines = content.splitlines()
 
-    for name, declaration in neutral_declarations.items():
-        assert lines.count(declaration) == 1, f"Missing unique neutral state for {name}"
-        assert f'getattr(_legacy_module, "{name}"' not in content
-        mirror_write = f"_legacy_module.{name} ="
-        assert (
-            content.count(mirror_write) == 1
-        ), f"Expected one post-registration mirror assignment site for {name}"
+    for relative_path in ("app/main.py", "legacy_app.py"):
+        content = _read(REPO_ROOT / relative_path)
+        assert content is not None, f"{relative_path} unexpectedly missing during read"
+        tree = ast.parse(content, filename=relative_path)
+        bindings = {
+            target.id
+            for node in tree.body
+            for target in (
+                [node.target]
+                if isinstance(node, ast.AnnAssign)
+                else node.targets if isinstance(node, ast.Assign) else []
+            )
+            if isinstance(target, ast.Name)
+        }
+        assert retired.isdisjoint(bindings), (
+            f"Retired registration mirrors restored in {relative_path}: "
+            f"{sorted(retired & bindings)}"
+        )
+
+    main_content = _read(REPO_ROOT / "app" / "main.py")
+    assert main_content is not None, "app/main.py unexpectedly missing during read"
+    main_tree = ast.parse(main_content, filename="app/main.py")
+    assert not any(
+        isinstance(node, ast.Import)
+        and any(alias.name == "legacy_app" for alias in node.names)
+        or isinstance(node, ast.ImportFrom)
+        and node.module == "legacy_app"
+        for node in ast.walk(main_tree)
+    )
+    assert "_legacy_module" not in main_content
+    assert "_mirror_paid_tier_registration_attrs" not in main_content
+    assert "_mirror_bmi_registration_attrs" not in main_content
+    assert main_content.count("register_vip_routes(target_app)") == 1
+    assert main_content.count("register_pro_routes(target_app)") == 1
+    assert main_content.count("register_bmi_routes(target_app)") == 1
 
 
 def test_app_surface_has_required_legacy_symbols() -> None:

@@ -18,6 +18,14 @@ from app.bootstrap.route_family import (
 )
 from app.routers import legacy_premium_nutrition
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.schemas.premium_contracts import (
+    NutrientGapsRequest,
+    NutrientGapsResponse,
+    PlateRequest,
+    PlateResponse,
+    WHOTargetsRequest,
+    WHOTargetsResponse,
+)
 from tests.helpers.module_resolve import resolve_legacy_app
 
 
@@ -117,7 +125,7 @@ def _ensure(
     )
 
 
-def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
+def _who_targets_response() -> WHOTargetsResponse:
     legacy_module = resolve_legacy_app()
     return legacy_module.WHOTargetsResponse(
         kcal_daily=1900,
@@ -258,8 +266,8 @@ def test_legacy_premium_plate_wrapper_delegates_inside_route_family_ci_suite(
     captured: list[object] = []
 
     async def _fake_canonical_service(
-        received: app_main._legacy_module.PlateRequest,
-    ) -> app_main._legacy_module.PlateResponse:
+        received: PlateRequest,
+    ) -> PlateResponse:
         captured.append(received)
         return expected
 
@@ -379,10 +387,10 @@ def test_legacy_premium_targets_wrapper_uses_canonical_service_inside_route_fami
     captured: dict[str, object] = {}
 
     def _fake_service(
-        received: app_main._legacy_module.WHOTargetsRequest,
+        received: WHOTargetsRequest,
         *,
         allow_backend_fallback: bool,
-    ) -> app_main._legacy_module.WHOTargetsResponse:
+    ) -> WHOTargetsResponse:
         captured["request"] = received
         captured["allow_backend_fallback"] = allow_backend_fallback
         return expected
@@ -414,8 +422,8 @@ def test_legacy_premium_api_targets_wrapper_uses_canonical_service_inside_route_
     captured: dict[str, object] = {}
 
     def _fake_service(
-        received: app_main._legacy_module.WHOTargetsRequest,
-    ) -> app_main._legacy_module.WHOTargetsResponse:
+        received: WHOTargetsRequest,
+    ) -> WHOTargetsResponse:
         captured["request"] = received
         return expected
 
@@ -428,7 +436,7 @@ def test_legacy_premium_api_targets_wrapper_uses_canonical_service_inside_route_
     response = asyncio.run(legacy_premium_nutrition.api_who_targets(payload))
 
     assert response is expected
-    assert captured["request"] == app_main._legacy_module.WHOTargetsRequest.model_validate(payload)
+    assert captured["request"] == WHOTargetsRequest.model_validate(payload)
 
 
 def test_legacy_premium_gaps_wrapper_uses_canonical_service_inside_route_family_ci_suite(
@@ -453,8 +461,8 @@ def test_legacy_premium_gaps_wrapper_uses_canonical_service_inside_route_family_
     captured: dict[str, object] = {}
 
     def _fake_service(
-        received: app_main._legacy_module.NutrientGapsRequest,
-    ) -> app_main._legacy_module.NutrientGapsResponse:
+        received: NutrientGapsRequest,
+    ) -> NutrientGapsResponse:
         captured["request"] = received
         return expected
 

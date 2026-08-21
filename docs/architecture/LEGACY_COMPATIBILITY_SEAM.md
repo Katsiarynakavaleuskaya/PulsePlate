@@ -21,14 +21,15 @@ weekly-plan downstream error boundary documented below.
 remains `app.main:app`. `legacy_app.py` is a transitional compatibility facade
 that re-exports the same app, runtime environment, metadata, and lifespan.
 Normal imports therefore share one app. The finite package facade resolves
-`app.app` directly from `app.main.app` (`app/__init__.py:64`); a deliberate
+`app.app` directly from `app.main.app` (`app/__init__.py:58-59`); a deliberate
 test-only reassignment of `legacy_app.app` cannot rebind package, bootstrap, or
 `app.main` authority. Plain `import app`, `dir(app)`, and unknown-name lookup do
-not import `legacy_app`. Resolving `app.app` imports `app.main`, which may still
-load `legacy_app` transitively while the retained paid/BMI mirrors remain; only
-plain facade import and inspection are claimed to be legacy-free. This tracked
-retirement also does not prove that unknown external Python consumers of the
-removed compatibility symbols do not exist.
+not import `legacy_app`. Resolving `app.app` imports `app.main` without loading
+`legacy_app`; the canonical bootstrap no longer reverse-imports the compatibility
+facade. The eight former paid/BMI registration mirrors are absent from `app`,
+`app.main`, and `legacy_app.py`. This bounded retirement does not prove that
+unknown external Python consumers of the removed compatibility symbols do not
+exist.
 
 Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `app/bootstrap/application.py` passes that exact
@@ -52,9 +53,9 @@ Public OpenAPI visibility, component pruning, builder ownership, and cache
 reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
 validation/install/policy seams at `app/bootstrap/openapi.py:285`,
 `app/bootstrap/openapi.py:310`, and `app/bootstrap/openapi.py:343`.
-`app/main.py:1161` validates builder ownership before mutation, completes
+`app/main.py:1097` validates builder ownership before mutation, completes
 additive route registration, then applies policy and installs the builder at
-`app/main.py:1272-1273`. This order prevents an early partial schema while preserving
+`app/main.py:1208-1209`. This order prevents an early partial schema while preserving
 an equal cached schema object on a no-op bootstrap.
 
 Admin scheduler access is canonically exposed by
@@ -126,10 +127,11 @@ Freeze `legacy_app.py` as a compatibility seam. It may shrink or delegate more
 thinly over time, but it must not grow new product behavior.
 
 PR #2294 completed canonical FastAPI construction ownership. The bounded
-`codex/retire-legacy-scheduler-app-module-compat` successor removes only the
-package module alias and legacy synchronous scheduler compatibility rail.
-BMI/PRO/VIP alias retirement, retained paid/BMI mirrors, and final legacy
-deletion remain separate ordered lanes.
+`codex/retire-legacy-scheduler-app-module-compat` successor removed only the
+package module alias and legacy synchronous scheduler compatibility rail. The
+next bounded lane retired the eight paid/BMI registration mirrors and the
+canonical reverse import without changing route registration. HTTP alias
+retirement and final legacy deletion remain separate ordered lanes.
 
 Allowed in `legacy_app.py`:
 
@@ -152,7 +154,7 @@ Forbidden in `legacy_app.py`:
 
 | Surface | Owner | Rule |
 | --- | --- | --- |
-| Existing legacy compatibility aliases | `legacy_app.py` | Runtime compatibility only; no growth. |
+| Existing legacy compatibility aliases | `legacy_app.py` | Runtime compatibility only; no growth; paid/BMI registration mirrors are retired. |
 | FastAPI construction | `app/bootstrap/application.py` | Sole production constructor; no routes, middleware, OpenAPI, or resources. |
 | Canonical app composition | `app/main.py` | Additive, idempotent registration on the supplied app; never rebind the singleton. |
 | Package app facade | `app/__init__.py` | Finite lazy exports; `app.app` resolves only from `app.main.app`; no `app_module` alias. |
