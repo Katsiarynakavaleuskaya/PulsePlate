@@ -773,8 +773,11 @@ def test_vip_recipe_templates(client: TestClient, vip_headers: dict[str, str]) -
     assert data["total_templates"] > 0
 
 
-def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str]) -> None:
-    """Test VIP auto-repair weekly plan endpoint"""
+def test_vip_auto_repair_weekly_fails_without_nutrient_evidence(
+    client: TestClient,
+    vip_headers: dict[str, str],
+) -> None:
+    """Empty meal nutrients exhaust repair attempts and return the pinned failure envelope."""
     payload = {
         "week_plan": {
             "days": [
