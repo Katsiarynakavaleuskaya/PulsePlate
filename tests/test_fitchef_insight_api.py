@@ -2814,6 +2814,96 @@ def test_prepare_mascot_draft_sentence_fallback_filters_short_and_non_actionable
     ]
 
 
+def test_prepare_mascot_draft_deduplicates_action_items_across_passes() -> None:
+    """Exact bullet candidates should not be admitted again by the sentence pass."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "- Choose one simple breakfast.\n- Add fruit to it.",
+        query="Need breakfast help",
+    )
+
+    assert draft.action_items == [
+        "Choose one simple breakfast.",
+        "Add fruit to it.",
+    ]
+
+
+def test_prepare_mascot_draft_reclaims_action_item_capacity_for_repeated_bullets() -> None:
+    """Repeated bullets should not consume capacity needed by later unique bullets."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "- Choose one simple breakfast.\n"
+        "- Choose one simple breakfast.\n"
+        "- Add fruit to it.\n"
+        "- Start with a glass of water.",
+        query="Need breakfast help",
+    )
+
+    assert draft.action_items == [
+        "Choose one simple breakfast.",
+        "Add fruit to it.",
+        "Start with a glass of water.",
+    ]
+
+
+def test_prepare_mascot_draft_reclaims_action_item_capacity_for_repeated_sentences() -> None:
+    """Repeated sentences should not consume capacity needed by later unique sentences."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "Choose one simple breakfast. Choose one simple breakfast. "
+        "Add fruit to it. Start with a glass of water.",
+        query="Need breakfast help",
+    )
+
+    assert draft.action_items == [
+        "Choose one simple breakfast.",
+        "Add fruit to it.",
+        "Start with a glass of water.",
+    ]
+
+
+def test_prepare_mascot_draft_preserves_bullet_first_unique_order() -> None:
+    """Unique actions should retain the existing bullet-first traversal order."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "Choose one early sentence action.\n"
+        "- Add one bullet action.\n"
+        "Try one later sentence action.",
+        query="Need meal-planning help",
+    )
+
+    assert draft.action_items == [
+        "Add one bullet action.",
+        "Choose one early sentence action.",
+        "Try one later sentence action.",
+    ]
+
+
+def test_prepare_mascot_draft_keeps_case_and_punctuation_distinct() -> None:
+    """Exact equality should preserve case and punctuation variants as distinct actions."""
+
+    from core.insight.fitchef_companion import prepare_mascot_draft
+
+    draft = prepare_mascot_draft(
+        "Choose one simple snack. choose one simple snack. Choose one simple snack",
+        query="Need snack help",
+    )
+
+    assert draft.action_items == [
+        "Choose one simple snack.",
+        "choose one simple snack.",
+        "Choose one simple snack",
+    ]
+
+
 def test_prepare_weekly_reflection_draft_preserves_bulleted_action_items() -> None:
     """Weekly reflection should preserve bulleted action-item structure."""
 
