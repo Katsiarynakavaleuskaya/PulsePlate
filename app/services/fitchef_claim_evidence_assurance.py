@@ -114,7 +114,8 @@ def _snapshot_fingerprint(
         "schema_version": _SNAPSHOT_SCHEMA_VERSION,
         "occurrences": manifest,
     }
-    return fingerprint_payload(snapshot_payload)
+    snapshot_fingerprint: str = fingerprint_payload(snapshot_payload)
+    return snapshot_fingerprint
 
 
 def _try_snapshot_fingerprint(
