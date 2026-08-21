@@ -716,6 +716,28 @@ def test_canonical_pro_bmr_route_returns_exact_success_contract(client: TestClie
     assert response.json() == _EXPECTED_RESPONSE
 
 
+def test_canonical_pro_bmr_accepts_configured_pro_key_in_production_like_env(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured_pro_key = "production-configured-pro-key"
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("PRO_API_KEYS", configured_pro_key)
+
+    response = client.post(
+        "/api/v1/pro/nutrition/bmr",
+        json=_VALID_PAYLOAD,
+        headers={"X-API-Key": configured_pro_key},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == _EXPECTED_RESPONSE
+
+
 @pytest.mark.parametrize("api_key", [TEST_KEY_PRO, TEST_KEY_VIP])
 def test_canonical_pro_bmr_accepts_pro_and_vip_headers(
     client: TestClient,

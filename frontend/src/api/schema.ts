@@ -2258,8 +2258,11 @@ export interface components {
          * @description Request model for BMR calculation.
          */
         BMRRequest: {
-            /** Activity */
-            activity: string;
+            /**
+             * Activity
+             * @enum {string}
+             */
+            activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
             /** Age */
             age: number;
             /** Bodyfat */
@@ -2272,8 +2275,11 @@ export interface components {
              * @enum {string}
              */
             lang: "ru" | "en" | "es";
-            /** Sex */
-            sex: string;
+            /**
+             * Sex
+             * @enum {string}
+             */
+            sex: "male" | "female";
             /** Weight Kg */
             weight_kg: number;
         };

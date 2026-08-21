@@ -77,7 +77,7 @@
 | Weekly plan          | `/api/v1/pro/meal/weekly`     | ✅ canonical | PRO          | `app/routers/pro.py:245`              |
 | Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:35` |
 | Generated plate     | `/api/v1/pro/nutrition/plate` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:46` |
-| BMR and TDEE        | `/api/v1/pro/nutrition/bmr` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:56` |
+| BMR and TDEE        | `/api/v1/pro/nutrition/bmr` | ✅ canonical | PRO + `FEATURE_PREMIUM_NUTRITION` | `app/routers/pro_nutrition_contracts.py:56` |
 | Nutrient gaps       | `/api/v1/pro/nutrition/gaps` | ✅ canonical | PRO          | `app/routers/pro_nutrition_contracts.py:66` |
 | Daily plate          | `/api/v1/pro/nutrition/daily` | ✅ canonical | PRO          | `app/routers/pro.py:369`              |
 | Shopping list (PRO)  | `/api/v1/pro/meal/shopping-list` | ✅ canonical | PRO          | `app/routers/shopping_list_pro.py:19` |
@@ -107,7 +107,7 @@
 > exception.
 > `/premium_bmr` is a historical root alias and remains a route-shape compatibility
 > exception until a dedicated auth/contract migration PR owns that behavior change.
-> Both BMR routes share the same request-time feature gate and canonical service;
+> All three canonical/retained BMR routes share the same request-time feature gate and canonical service;
 > the public exception does not bypass feature availability.
 > The Web Nutrition Setup now consumes canonical `/api/v1/pro/nutrition/bmr`.
 > The four versioned aliases remain live until the separately tracked 30-day

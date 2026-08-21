@@ -1428,7 +1428,13 @@
         "description": "Request model for BMR calculation.",
         "properties": {
           "activity": {
-            "pattern": "^(sedentary|light|moderate|active|very_active)$",
+            "enum": [
+              "sedentary",
+              "light",
+              "moderate",
+              "active",
+              "very_active"
+            ],
             "title": "Activity",
             "type": "string"
           },
@@ -1467,7 +1473,10 @@
             "type": "string"
           },
           "sex": {
-            "pattern": "^(male|female)$",
+            "enum": [
+              "male",
+              "female"
+            ],
             "title": "Sex",
             "type": "string"
           },

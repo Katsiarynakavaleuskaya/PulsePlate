@@ -159,6 +159,17 @@ def test_canonical_pro_bmr_and_gaps_are_public_generated_contracts() -> None:
         "NutrientGapsRequest",
         "NutrientGapsResponse",
     } <= set(components)
+    bmr_request_properties = components["BMRRequest"]["properties"]
+    assert bmr_request_properties["sex"]["enum"] == ["male", "female"]
+    assert bmr_request_properties["activity"]["enum"] == [
+        "sedentary",
+        "light",
+        "moderate",
+        "active",
+        "very_active",
+    ]
+    assert "pattern" not in bmr_request_properties["sex"]
+    assert "pattern" not in bmr_request_properties["activity"]
     for legacy_path in (
         "/api/v1/premium/bmr",
         "/api/v1/premium/gaps",

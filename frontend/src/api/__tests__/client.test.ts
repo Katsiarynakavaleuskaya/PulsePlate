@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, beforeEach, afterEach } from 'vitest';
+import type { BmrApiResponse, BmrRequest } from '../premium/bmr';
 
 // Mock auth storage functions
 const testStorage = {
@@ -229,6 +230,57 @@ describe('API Client Auth', () => {
 
       await expect(api('/api/v1/pro/nutrition/bmr')).rejects.toThrow();
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('posts the generated finite BMR contract through the canonical wrapper', async () => {
+      const { getBmr } = await import('../premium/bmr');
+      const requestBody: BmrRequest = {
+        sex: 'female',
+        age: 34,
+        height_cm: 168,
+        weight_kg: 64,
+        activity: 'moderate',
+        lang: 'en',
+      };
+      const responseBody: BmrApiResponse = {
+        bmr: { mifflin: 1390, harris: 1420 },
+        tdee: { mifflin: 2154, harris: 2201 },
+        activity_level: 'Moderate activity',
+        recommended_intake: {
+          maintenance: 2154,
+          weight_loss: 1723.2,
+          weight_gain: 2584.8,
+        },
+        formulas_used: ['mifflin', 'harris'],
+        notes: [],
+      };
+      const abortController = new AbortController();
+      let capturedRequest: Request | null = null;
+      fetchMock.mockImplementationOnce(async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedRequest = input instanceof Request ? input : new Request(input, init);
+        return createMockResponse(responseBody, { ok: true, status: 200 });
+      });
+
+      await expect(
+        getBmr(requestBody, { signal: abortController.signal })
+      ).resolves.toEqual(responseBody);
+
+      expectTypeOf<BmrRequest['sex']>().toEqualTypeOf<'male' | 'female'>();
+      expectTypeOf<BmrRequest['activity']>().toEqualTypeOf<
+        'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+      >();
+      expect(capturedRequest).not.toBeNull();
+      const observedRequest = capturedRequest as unknown as Request;
+      expect(observedRequest.url).toBe(
+        'http://test-api.com/api/v1/pro/nutrition/bmr'
+      );
+      expect(observedRequest.method).toBe('POST');
+      expect(observedRequest.credentials).toBe('include');
+      expect(observedRequest.headers.get('Content-Type')).toBe('application/json');
+      await expect(observedRequest.clone().json()).resolves.toEqual(requestBody);
+      expect(observedRequest.signal.aborted).toBe(false);
+      abortController.abort();
+      expect(observedRequest.signal.aborted).toBe(true);
     });
 
     it('resolves successfully on authenticated request', async () => {

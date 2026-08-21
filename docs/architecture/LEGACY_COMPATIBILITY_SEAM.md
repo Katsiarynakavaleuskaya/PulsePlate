@@ -137,7 +137,9 @@ routes and moves the repository-owned Web Nutrition Setup BMR consumer to the
 canonical namespace. All four versioned nutrition aliases and both root aliases
 remain callable; HTTP alias retirement and final legacy deletion remain separate
 ordered lanes behind production traffic and consumer evidence (canonical route
-evidence: `app/routers/pro_nutrition_contracts.py:35`; Web consumer evidence:
+evidence: `app/routers/pro_nutrition_contracts.py:61` and
+`app/routers/pro_nutrition_contracts.py:71`; bounded registrar evidence:
+`app/bootstrap/pro_contracts.py:246`; Web consumer evidence:
 `frontend/src/api/premium/bmr.ts:4`).
 
 Allowed in `legacy_app.py`:

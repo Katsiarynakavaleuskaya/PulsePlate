@@ -234,6 +234,28 @@ def test_pro_gaps_real_profile_returns_exact_contract(client: TestClient) -> Non
     assert payload["adherence_score"] == 0.0
 
 
+def test_pro_gaps_accepts_configured_pro_key_in_production_like_env(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured_pro_key = "production-configured-pro-key"
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "false")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("PRO_API_KEYS", configured_pro_key)
+
+    response = client.post(
+        _PRO_GAPS_PATH,
+        headers={"X-API-Key": configured_pro_key},
+        json=_gaps_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["gaps"]
+
+
 @pytest.mark.parametrize("api_key", [TEST_KEY_PRO, TEST_KEY_VIP])
 def test_pro_gaps_accepts_pro_and_vip_headers(
     client: TestClient,
