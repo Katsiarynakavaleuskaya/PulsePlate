@@ -7227,7 +7227,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`, current bounded compatibility retirement) -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`) -> [PR #2309](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2309) (`codex/retire-paid-bmi-registration-mirrors`) -> this PR (`codex/pro-nutrition-canonical-cutover`) -> PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT -> PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7235,11 +7235,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     completing direct-core Plate ownership. PR #2209 merged at
     `b611682cf4d09eac8b4a124aff07e91c57f83f59`, establishing canonical Insight
     schema, adapter, and application-service ownership. PR #2294 merged canonical
-    FastAPI construction ownership. The current bounded successor removes the
-    `app_module` alias and legacy synchronous scheduler resolver rail without
-    changing canonical lifespan or scheduler behavior. Product Owner sequencing
-    keeps BMI/PRO/VIP alias retirement, retained paid/BMI mirrors, and final
-    legacy deletion as separate later lanes.
+    FastAPI construction ownership. PR #2304 merged at
+    `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`, removing the `app_module` alias
+    and legacy synchronous scheduler resolver rail. PR #2309 merged at
+    `f561d37b2f0ad70b9d5ada9251572b0c9e033aac`, retiring the paid/BMI
+    registration mirrors. The current bounded successor adds canonical PRO
+    BMR/gaps and migrates the repository-owned Web BMR consumer without deleting
+    aliases. Product Owner sequencing keeps telemetry-admitted alias retirement,
+    root-alias auth/sunset, and final legacy deletion as separate later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
@@ -7256,14 +7259,72 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
-    - ✅ All clients migrated to canonical endpoints
-    - ✅ Legacy endpoint traffic < 1%
+    - 🟡 Repository-owned Web BMR migration is implemented in the current PR; merge and staging verification remain
+    - 🟡 Versioned nutrition alias retirement requires the exact 30-day zero-hit production gate below
   - DoD:
     - All endpoints migrated to modular routers
     - All helpers moved to canonical modules
     - `legacy_app.py` deleted (or reduced to minimal compatibility shim)
     - Tests pass (no functionality broken)
-    - OpenAPI unchanged (all canonical endpoints present)
+    - Public OpenAPI contains all canonical endpoints while retained aliases stay hidden
+
+
+<a id="ledger-p1-pro-nutrition-canonical-cutover"></a>
+- [ ] P1: Canonical PRO nutrition cutover for BMR/gaps and Web Nutrition Setup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (product correctness / API contract / thin client)
+  - Target PR: this PR (`codex/pro-nutrition-canonical-cutover`)
+  - Status: 🛠 In implementation; keep unchecked until merge and deployment evidence exist
+  - Reason (EN): BMR and nutrient-gap services already have canonical backend ownership, but their public HTTP contracts remain available only through the deprecated premium family, and Web Nutrition Setup still consumes the BMR alias with a client-side error-to-mock and TDEE-calculation fallback. This lane adds the missing canonical PRO routes and cuts the repository-owned Web consumer over without deleting compatibility routes. (RU: Добавляем canonical PRO BMR/gaps и переводим Web consumer, сохраняя aliases на период наблюдения.)
+  - Links:
+    - `app/routers/pro_nutrition_contracts.py`
+    - `frontend/src/api/premium/bmr.ts`
+    - `frontend/src/pages/NutritionSetup/hooks.ts`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+  - DoD:
+    - Exact canonical family is `POST targets -> plate -> bmr -> gaps`, guarded by `require_pro_tier`
+    - Web Nutrition Setup uses `/api/v1/pro/nutrition/bmr` and generated `BMRRequest` / `BMRResponse` types
+    - Ordinary network, auth, server, and malformed-JSON failures cannot become fixture success
+    - Web BMR/TDEE display uses positive finite backend `mifflin` values without client-side TDEE calculation
+    - Four versioned and two root compatibility aliases remain callable with unchanged runtime contracts
+    - Generated OpenAPI adds only canonical BMR/gaps paths and their required schema closure
+    - Merge, staging smoke, and telemetry-window start timestamp are recorded before this item closes
+
+
+<a id="ledger-p2-premium-nutrition-alias-retirement"></a>
+- [ ] P2: Retire versioned premium nutrition aliases after exact-zero production evidence
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (legacy compatibility / telemetry-governed retirement)
+  - Target PR: PR-TBD-PREMIUM-NUTRITION-ALIAS-RETIREMENT
+  - Status: ⏳ Blocked by the merged/deployed canonical cutover and a complete 30-day observation window
+  - Reason (EN): Unknown external consumers must not be broken by inference. Removal of `/api/v1/premium/{bmr,targets,plate,gaps}` is admitted only by complete aggregated production evidence after the repository-owned Web cutover; missing or partial data fails closed. (RU: Удаление versioned aliases разрешается только после полного 30-дневного exact-zero production evidence.)
+  - Links:
+    - `app/middleware/metrics.py`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`
+  - DoD:
+    - Record the verified deployment timestamp of the canonical-cutover PR and observe 30 consecutive calendar days after it
+    - For each exact route `/api/v1/premium/bmr`, `/api/v1/premium/targets`, `/api/v1/premium/plate`, and `/api/v1/premium/gaps`, preserve the query/result evidence for `sum(increase(http_requests_total{method="POST", route="<exact-path>"}[30d])) == 0`
+    - Prove aggregation across every API replica/worker plus complete scrape coverage and retention for the whole window
+    - Confirm there is no known supported consumer; no-data, partial retention, per-process-only evidence, or any hit blocks removal
+    - Remove all and only the admitted versioned aliases in a separate PR with contract and rollback tests
+
+
+<a id="ledger-p2-root-nutrition-alias-sunset"></a>
+- [ ] P2: Decide auth and sunset policy for root nutrition aliases
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (legacy compatibility / auth boundary)
+  - Target PR: PR-TBD-ROOT-NUTRITION-ALIAS-SUNSET
+  - Status: 📋 Planned separately from versioned-alias retirement
+  - Reason (EN): `/premium_bmr` is a historical public exception while `/premium_targets` uses the legacy app-client credential. Their consumer and authorization boundaries differ from the versioned premium aliases, so the 30-day versioned-alias evidence cannot authorize their deletion or an auth redesign. (RU: Root aliases требуют отдельного consumer/auth решения.)
+  - Links:
+    - `app/routers/legacy_premium_nutrition.py`
+    - `tests/edges/test_legacy_premium_nutrition_registration_bootstrap.py`
+    - `docs/contracts/PRODUCT_TIER_MAP.md`
+  - DoD:
+    - Inventory supported consumers and document the intended auth contract for each root alias
+    - Select keep, migrate, or remove for each route with compatibility and rollback evidence
+    - Any runtime change lands in its own bounded PR and does not borrow authority from the versioned-alias traffic gate
 
 
 <a id="ledger-p1-background-scheduler-multi-worker-ownership"></a>

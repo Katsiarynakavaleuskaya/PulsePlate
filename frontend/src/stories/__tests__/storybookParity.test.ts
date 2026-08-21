@@ -5,6 +5,7 @@ import { createElement, useEffect } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '../../i18n';
 import {
+  NutritionSetupResultStorySurface,
   ProPaywallStorySurface,
   StorybookApiStub,
 } from '../storybookParitySupport';
@@ -129,6 +130,25 @@ describe('PR-8 Storybook parity surfaces', () => {
       render(createElement(ProPaywallStorySurface));
 
       expect(await screen.findByTestId('paywall-cta')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(liveFetch).not.toHaveBeenCalled();
+      });
+    } finally {
+      window.fetch = originalFetch;
+    }
+  });
+
+  it('renders canonical Nutrition Setup results without touching live fetch', async () => {
+    const originalFetch = window.fetch;
+    const liveFetch = vi.fn(async () => new Response('live backend should not be called'));
+    window.fetch = liveFetch as unknown as typeof window.fetch;
+
+    try {
+      render(createElement(NutritionSetupResultStorySurface));
+
+      expect(await screen.findAllByText('1390')).not.toHaveLength(0);
+      expect(await screen.findAllByText('2154')).not.toHaveLength(0);
+      expect(await screen.findByText('Mifflin-St Jeor')).toBeInTheDocument();
       await waitFor(() => {
         expect(liveFetch).not.toHaveBeenCalled();
       });

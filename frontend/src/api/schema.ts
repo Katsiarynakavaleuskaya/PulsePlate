@@ -367,6 +367,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pro/nutrition/bmr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * BMR and TDEE calculations (PRO)
+         * @description Canonical BMR/TDEE endpoint for PRO tier.
+         */
+        post: operations["pro_nutrition_bmr_api_v1_pro_nutrition_bmr_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pro/nutrition/coverage": {
         parameters: {
             query?: never;
@@ -475,6 +495,26 @@ export interface paths {
          *     EN: Generates food-first recommendations for nutrients below threshold.
          */
         post: operations["deficiency_recommendations_api_v1_pro_nutrition_deficiency_recommendations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nutrient gap analysis (PRO)
+         * @description Canonical nutrient-gap endpoint for PRO tier.
+         */
+        post: operations["pro_nutrition_gaps_api_v1_pro_nutrition_gaps_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2214,6 +2254,72 @@ export interface components {
             ranges: components["schemas"]["BMIRangeSpec"][];
         };
         /**
+         * BMRRequest
+         * @description Request model for BMR calculation.
+         */
+        BMRRequest: {
+            /** Activity */
+            activity: string;
+            /** Age */
+            age: number;
+            /** Bodyfat */
+            bodyfat?: number | null;
+            /** Height Cm */
+            height_cm: number;
+            /**
+             * Lang
+             * @default en
+             * @enum {string}
+             */
+            lang: "ru" | "en" | "es";
+            /** Sex */
+            sex: string;
+            /** Weight Kg */
+            weight_kg: number;
+        };
+        /**
+         * BMRResponse
+         * @description Response model for BMR calculation
+         */
+        BMRResponse: {
+            /**
+             * Activity Level
+             * @description Localized description of the activity level used in calculations (e.g., 'sedentary', 'light', 'moderate', 'active', 'very_active').
+             */
+            activity_level: string;
+            /**
+             * Bmr
+             * @description BMR values calculated by different formulas. Keys are formula names (e.g., 'mifflin', 'harris', 'katch'), values are BMR in kcal/day.
+             */
+            bmr: {
+                [key: string]: number;
+            };
+            /**
+             * Formulas Used
+             * @description List of BMR formula names that were used in the calculation (e.g., ['mifflin', 'harris', 'katch']).
+             */
+            formulas_used: string[];
+            /**
+             * Notes
+             * @description Informational messages about the calculation (e.g., notes about body fat usage, warnings, or fallback explanations).
+             */
+            notes: string[];
+            /**
+             * Recommended Intake
+             * @description Recommended daily calorie intake for different goals. Keys: 'maintenance', 'weight_loss' (20% deficit), 'weight_gain' (20% surplus); values are calories in kcal/day.
+             */
+            recommended_intake: {
+                [key: string]: number;
+            };
+            /**
+             * Tdee
+             * @description TDEE (Total Daily Energy Expenditure) values for different formulas and activity levels. Keys are formula names, values are TDEE in kcal/day.
+             */
+            tdee: {
+                [key: string]: number;
+            };
+        };
+        /**
          * CatalogInfoDTO
          * @description RU: Каталожная информация для enrichment слоя (adapter-only).
          *     EN: Catalog enrichment info (adapter-only).
@@ -3199,6 +3305,33 @@ export interface components {
              * @description Total nutrients scored
              */
             total_nutrients: number;
+        };
+        /**
+         * NutrientGapsRequest
+         * @description RU: Запрос на анализ дефицитов. EN: Nutrient-gap analysis request.
+         */
+        NutrientGapsRequest: {
+            /** Consumed Nutrients */
+            consumed_nutrients: {
+                [key: string]: number;
+            };
+            user_profile: components["schemas"]["WHOTargetsRequest"];
+        };
+        /**
+         * NutrientGapsResponse
+         * @description RU: Ответ анализа дефицитов. EN: Nutrient-gap analysis response.
+         */
+        NutrientGapsResponse: {
+            /** Adherence Score */
+            adherence_score: number;
+            /** Food Recommendations */
+            food_recommendations: string[];
+            /** Gaps */
+            gaps: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * NutritionSegmentData
@@ -5647,6 +5780,39 @@ export interface operations {
             };
         };
     };
+    pro_nutrition_bmr_api_v1_pro_nutrition_bmr_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BMRRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BMRResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     score_coverage_api_v1_pro_nutrition_coverage_post: {
         parameters: {
             query?: never;
@@ -5779,6 +5945,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeficiencyRecommendationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pro_nutrition_gaps_api_v1_pro_nutrition_gaps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NutrientGapsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutrientGapsResponse"];
                 };
             };
             /** @description Validation Error */

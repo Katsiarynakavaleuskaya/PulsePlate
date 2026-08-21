@@ -72,6 +72,10 @@ def test_privacy_payload_contains_additive_control_plane_fields() -> None:
     llm_processing = cast(dict[str, object], payload["llm_processing"])
     llm_processing_endpoints = cast(list[str], llm_processing["endpoints"])
     assert "/api/v1/pro/meal/weekly" in endpoints
+    assert "/api/v1/pro/nutrition/targets" in endpoints
+    assert "/api/v1/pro/nutrition/plate" in endpoints
+    assert "/api/v1/pro/nutrition/bmr" in endpoints
+    assert "/api/v1/pro/nutrition/gaps" in endpoints
     assert "/api/v1/premium/plate" in endpoints
     assert "/api/v1/pro/fitchef/explain" in llm_processing_endpoints
     assert "/api/v1/vip/fitchef/insight" in llm_processing_endpoints
@@ -170,6 +174,11 @@ def test_transparency_registry_covers_core_healthish_surfaces() -> None:
     nutrition_surface = registry["nutrition_targets_and_weekly_plan"]
     nutrition_endpoints = cast(list[str], nutrition_surface["endpoints"])
     assert "/api/v1/pro/meal/weekly" in nutrition_endpoints
+    assert "/api/v1/pro/nutrition/targets" in nutrition_endpoints
+    assert "/api/v1/pro/nutrition/plate" in nutrition_endpoints
+    assert "/api/v1/pro/nutrition/bmr" in nutrition_endpoints
+    assert "/api/v1/pro/nutrition/gaps" in nutrition_endpoints
+    assert "/api/v1/premium/plate" in nutrition_endpoints
     fitchef_surface = registry["fitchef_structured_v1"]
     fitchef_endpoints = cast(list[str], fitchef_surface["endpoints"])
     assert fitchef_surface["analysis_kind"] == "automated AI-assisted wellness coaching structure"

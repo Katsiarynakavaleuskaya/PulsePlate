@@ -30,7 +30,7 @@ PulsePlate is built for people who want structured nutrition planning without th
 | Tier | What you get |
 |------|-------------|
 | **FREE** | BMI check-ins, baseline wellness metrics |
-| **PRO** | Nutrition targets, daily plate, weekly planning |
+| **PRO** | BMR/TDEE, nutrient-gap analysis, nutrition targets, daily plate, weekly planning |
 | **VIP** | Higher-end planning, menu flows, recipes, shopping/export |
 
 **Client surfaces:** web interface and iOS client in development.

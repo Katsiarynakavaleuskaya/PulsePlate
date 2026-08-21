@@ -153,26 +153,82 @@ describe('API Client Auth', () => {
       await expect(api('/test-endpoint')).rejects.toThrow(UnauthorizedError);
     });
 
-    it('uses mock fallback on network failure', async () => {
+    it('propagates network failures without an automatic mock fallback', async () => {
       const { api } = await import('../client');
+      fetchMock.mockRejectedValueOnce(new Error('Network error'));
 
-      // Mock fetch to behave differently based on URL pattern
-      fetchMock.mockImplementation((input: any) => {
-        const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : 'unknown');
-        if (url.includes('/premium/bmr') && !url.includes('mock')) {
-          // Primary API call fails
-          return Promise.reject(new Error('Network error'));
-        } else if (url.includes('mock') && url.includes('bmr')) {
-          // Mock fallback succeeds
-          return Promise.resolve(createMockResponse({ mock: true }, { ok: true, status: 200 }));
-        }
-        return Promise.reject(new Error('Network error'));
-      });
+      await expect(api('/api/v1/pro/nutrition/bmr')).rejects.toThrow('Network error');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
 
-      const result = await api('/premium/bmr');
+    it('uses a fixture only when request forceMock is explicit', async () => {
+      const { api } = await import('../client');
+      fetchMock.mockResolvedValueOnce(
+        createMockResponse({ mock: true }, { ok: true, status: 200 })
+      );
+
+      const result = await api('/api/v1/pro/nutrition/bmr', { forceMock: true });
 
       expect(result).toEqual({ mock: true });
-      expect(fetchMock).toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const input = fetchMock.mock.calls[0]?.[0];
+      const requestUrl =
+        typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+      expect(requestUrl).toContain('/mock/bmr.json');
+      expect(fetchMock.mock.calls[0]?.[1]).toBeUndefined();
+    });
+
+    it('uses a fixture when the current URL explicitly requests mock=1', async () => {
+      const { api } = await import('../client');
+      const previousLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        value: { ...previousLocation, search: '?mock=1', replace: vi.fn() },
+        writable: true,
+      });
+      fetchMock.mockResolvedValueOnce(
+        createMockResponse({ mock: 'query' }, { ok: true, status: 200 })
+      );
+
+      try {
+        await expect(api('/api/v1/pro/nutrition/bmr')).resolves.toEqual({ mock: 'query' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const input = fetchMock.mock.calls[0]?.[0];
+        const requestUrl =
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+        expect(requestUrl).toContain('/mock/bmr.json');
+      } finally {
+        Object.defineProperty(window, 'location', {
+          value: previousLocation,
+          writable: true,
+        });
+      }
+    });
+
+    it.each([403, 500])('propagates HTTP %s without requesting a fixture', async (status) => {
+      const { api } = await import('../client');
+      const onAuthError = vi.fn();
+      fetchMock.mockResolvedValueOnce(
+        createMockResponse({ detail: `HTTP ${status}` }, { ok: false, status })
+      );
+
+      await expect(
+        api('/api/v1/pro/nutrition/bmr', undefined, { onAuthError })
+      ).rejects.toThrow(status === 403 ? 'Session invalid or expired (403).' : 'HTTP 500');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(onAuthError).toHaveBeenCalledTimes(status === 403 ? 1 : 0);
+    });
+
+    it('propagates malformed JSON without requesting a fixture', async () => {
+      const { api } = await import('../client');
+      fetchMock.mockResolvedValueOnce(
+        new Response('not-json', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+      await expect(api('/api/v1/pro/nutrition/bmr')).rejects.toThrow();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('resolves successfully on authenticated request', async () => {

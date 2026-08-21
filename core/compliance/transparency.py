@@ -54,6 +54,10 @@ _TRANSPARENCY_REGISTRY: tuple[TransparencyNotice, ...] = (
         endpoints=(
             "/api/v1/pro/nutrition/daily",
             "/api/v1/pro/meal/weekly",
+            "/api/v1/pro/nutrition/targets",
+            "/api/v1/pro/nutrition/plate",
+            "/api/v1/pro/nutrition/bmr",
+            "/api/v1/pro/nutrition/gaps",
             "/api/v1/premium/plate",
         ),
         inputs_used=("profile inputs", "goal", "activity", "nutrition formulas"),

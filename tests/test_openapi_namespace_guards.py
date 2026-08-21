@@ -132,3 +132,39 @@ def test_ws_routes_not_in_openapi_schema() -> None:
     ws_routes = {"/ws", "/api/v1/pro/ws"}
     leaked = ws_routes & paths
     assert not leaked, f"WS routes leaked into OpenAPI schema: {sorted(leaked)}"
+
+
+def test_canonical_pro_bmr_and_gaps_are_public_generated_contracts() -> None:
+    schema = app.openapi()
+    paths = schema["paths"]
+    components = schema["components"]["schemas"]
+
+    expected_contracts = {
+        "/api/v1/pro/nutrition/bmr": ("BMRRequest", "BMRResponse"),
+        "/api/v1/pro/nutrition/gaps": ("NutrientGapsRequest", "NutrientGapsResponse"),
+    }
+    for path, (request_schema, response_schema) in expected_contracts.items():
+        operation = paths[path]["post"]
+        assert operation["security"] == [{"APIKeyHeader": []}]
+        assert operation["requestBody"]["content"]["application/json"]["schema"] == {
+            "$ref": f"#/components/schemas/{request_schema}"
+        }
+        assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+            "$ref": f"#/components/schemas/{response_schema}"
+        }
+
+    assert {
+        "BMRRequest",
+        "BMRResponse",
+        "NutrientGapsRequest",
+        "NutrientGapsResponse",
+    } <= set(components)
+    for legacy_path in (
+        "/api/v1/premium/bmr",
+        "/api/v1/premium/gaps",
+        "/api/v1/premium/plate",
+        "/api/v1/premium/targets",
+        "/premium_bmr",
+        "/premium_targets",
+    ):
+        assert legacy_path not in paths
