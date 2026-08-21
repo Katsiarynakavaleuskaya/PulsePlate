@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import APIRouter, FastAPI
+from starlette.routing import Match
+from starlette.types import Scope
 
 from app.bootstrap.route_family import route_has_dependency_call
 from app.effective_routes import (
@@ -140,6 +142,69 @@ def _family_routes(routes: tuple[object, ...], expected_paths: frozenset[str]) -
     return [route for route in routes if route_path(route) in expected_paths]
 
 
+def _post_scope(app: FastAPI, path: str) -> Scope:
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("utf-8"),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [],
+        "client": ("127.0.0.1", 1),
+        "server": ("testserver", 80),
+        "app": app,
+    }
+
+
+def _first_full_match_owner(app: FastAPI, path: str) -> object | None:
+    scope = _post_scope(app, path)
+    raw_routes: tuple[object, ...] = tuple(getattr(app, "routes", None) or [])
+    for raw_route in raw_routes:
+        matches = getattr(raw_route, "matches", None)
+        if not callable(matches):
+            continue
+        match, _child_scope = matches(dict(scope))
+        if match is not Match.FULL:
+            continue
+
+        candidates: tuple[object, ...] = tuple(iter_effective_route_candidates((raw_route,)))
+        for candidate in candidates:
+            candidate_matches = getattr(candidate, "matches", None)
+            if not callable(candidate_matches):
+                continue
+            candidate_match, _candidate_scope = candidate_matches(dict(scope))
+            if candidate_match is Match.FULL:
+                return candidate
+        return raw_route
+    return None
+
+
+def _validate_first_full_match_owners(
+    app: FastAPI,
+    specs: tuple[_ProRouteSpec, ...],
+) -> tuple[bool, ...]:
+    matches: list[bool] = []
+    for spec in specs:
+        owner = _first_full_match_owner(app, spec.path)
+        if owner is None:
+            matches.append(False)
+            continue
+        if not is_api_route_candidate(owner):
+            raise RuntimeError(f"Non-API route shadows expected PRO contract path: {spec.path}.")
+        if route_path(owner) != spec.path:
+            raise RuntimeError(
+                f"First full match for {spec.path} is not the exact PRO contract path owner."
+            )
+        _require_exact_post_method(owner, spec.path)
+        _validate_route_metadata(owner, spec)
+        matches.append(True)
+    return tuple(matches)
+
+
 def _validate_destination_routes(
     routes: list[object],
     specs: tuple[_ProRouteSpec, ...],
@@ -185,12 +250,21 @@ def register_pro_contract_routes(app: FastAPI) -> None:
     specs = _source_route_specs()
     _validate_source_router(pro_contracts_router, specs)
     expected_paths = frozenset(spec.path for spec in specs)
+    first_full_matches = _validate_first_full_match_owners(app, specs)
     routes = tuple(iter_effective_route_candidates(getattr(app, "routes", None) or []))
     existing_family = _family_routes(routes, expected_paths)
     if existing_family:
         _validate_destination_routes(existing_family, specs)
+        if not all(first_full_matches):
+            raise RuntimeError("Partial PRO contract first-match ownership detected.")
         return
+    if any(first_full_matches):
+        raise RuntimeError("Partial PRO contract first-match ownership detected.")
 
     app.include_router(pro_contracts_router)
     registered_routes = tuple(iter_effective_route_candidates(getattr(app, "routes", None) or []))
     _validate_destination_routes(_family_routes(registered_routes, expected_paths), specs)
+    if not all(_validate_first_full_match_owners(app, specs)):
+        raise RuntimeError(
+            "Partial PRO contract first-match ownership detected after registration."
+        )

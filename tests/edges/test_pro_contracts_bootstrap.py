@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Route
+from starlette.routing import Mount, Route
 
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.route_family import route_has_dependency_call
@@ -204,6 +204,55 @@ def test_register_pro_contract_routes_rejects_plain_starlette_shadow_without_mut
         return JSONResponse({"status": "unguarded-shadow"})
 
     shadow_route = Route(path, _shadow, methods=["POST"])
+    target_app.router.routes.append(shadow_route)
+    routes_before = tuple(target_app.routes)
+
+    with pytest.raises(RuntimeError, match="Non-API route shadows expected PRO contract path"):
+        register_pro_contract_routes(target_app)
+
+    assert tuple(target_app.routes) == routes_before
+    assert shadow_route in target_app.routes
+    assert not any(
+        is_api_route_candidate(route) and route_path(route) in _EXPECTED_PATHS
+        for route in target_app.routes
+    )
+
+
+def test_register_pro_contract_routes_rejects_prefix_mount_before_mutation() -> None:
+    target_app = FastAPI()
+
+    async def _shadow(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "mounted-shadow"})
+
+    shadow_mount = Mount(
+        "/api/v1/pro/nutrition",
+        routes=[Route("/{rest:path}", _shadow, methods=["POST"])],
+    )
+    target_app.router.routes.append(shadow_mount)
+    routes_before = tuple(target_app.routes)
+
+    with pytest.raises(RuntimeError, match="Non-API route shadows expected PRO contract path"):
+        register_pro_contract_routes(target_app)
+
+    assert tuple(target_app.routes) == routes_before
+    assert shadow_mount in target_app.routes
+    assert not any(
+        is_api_route_candidate(route) and route_path(route) in _EXPECTED_PATHS
+        for route in target_app.routes
+    )
+
+
+def test_register_pro_contract_routes_rejects_dynamic_post_catchall_before_mutation() -> None:
+    target_app = FastAPI()
+
+    async def _shadow(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "dynamic-shadow"})
+
+    shadow_route = Route(
+        "/api/v1/pro/nutrition/{rest:path}",
+        _shadow,
+        methods=["POST"],
+    )
     target_app.router.routes.append(shadow_route)
     routes_before = tuple(target_app.routes)
 

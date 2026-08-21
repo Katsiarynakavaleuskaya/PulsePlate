@@ -361,6 +361,7 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const latestRequestIdRef = useRef(0);
 
   const handleAuthError = handleAuthErrorShared;
 
@@ -371,7 +372,12 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
   const enabled = !!values;
 
   useEffect(() => {
+    latestRequestIdRef.current += 1;
+    const requestId = latestRequestIdRef.current;
+
     if (!enabled) {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
       setBmrData(null);
       setPlateData(null);
       setError(null);
@@ -387,6 +393,8 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
     abortControllerRef.current = abortController;
 
     const fetchData = async () => {
+      if (requestId !== latestRequestIdRef.current) return;
+
       setLoading(true);
       setError(null);
       setBmrData(null);
@@ -442,23 +450,35 @@ export function useSetupCalc(values: SetupFormValues | null, lang?: SetupSupport
           throw new Error('Plate API returned empty response');
         }
 
-        setBmrData(normalizeBmrResponse(bmrResult));
-        setPlateData(normalizePlateResponse(plateResult));
+        if (requestId === latestRequestIdRef.current) {
+          setBmrData(normalizeBmrResponse(bmrResult));
+          setPlateData(normalizePlateResponse(plateResult));
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
-        console.error('Nutrition setup calculation error:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        if (requestId === latestRequestIdRef.current) {
+          console.error('Nutrition setup calculation error:', err);
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
       } finally {
-        setLoading(false);
+        if (requestId === latestRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
 
     return () => {
+      if (latestRequestIdRef.current === requestId) {
+        latestRequestIdRef.current += 1;
+      }
       abortController.abort();
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
     };
   }, [enabled, values, currentLang, retryKey]);
 
