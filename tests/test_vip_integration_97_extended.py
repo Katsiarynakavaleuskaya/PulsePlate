@@ -18,7 +18,7 @@ def _auto_repair_payload(week_plan: dict[str, Any]) -> dict[str, Any]:
         "targets": {
             "iron_mg": [6.0, 8.0, 45.0],
             "calcium_mg": [800.0, 1000.0, 2500.0],
-            "magnesium_mg": [300.0, 400.0, 350.0],
+            "magnesium_mg": [300.0, 400.0, 700.0],
             "zinc_mg": [8.0, 11.0, 40.0],
             "potassium_mg": [3500.0, 4700.0, 5000.0],
             "iodine_ug": [130.0, 150.0, 1100.0],
@@ -506,13 +506,13 @@ class TestVIPIntegration97Extended:
                 data = assert_json_response_payload(response)
                 assert data["status"] == "success"
 
-    def test_vip_environment_switching_integration_extended_scenarios(
+    def test_vip_weekly_menu_succeeds_in_test_environment(
         self,
         client: TestClient,
         test_environment: None,
         vip_headers: dict[str, str],
     ) -> None:
-        """Расширенные интеграционные тесты переключения окружений"""
+        """Verify authenticated weekly-menu success in the stable test environment."""
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json={
