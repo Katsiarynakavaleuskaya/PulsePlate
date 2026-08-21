@@ -1199,6 +1199,63 @@ class TestFitChefStructuredRuntimeCoverage:
         assert len(preview_calls) == 2
         assert "sensitive preview preprocessing failure" not in caplog.text
 
+    @pytest.mark.parametrize("surface", ["distortion", "identity"])
+    def test_source_freeze_failure_discards_candidate_state(
+        self,
+        surface: Literal["distortion", "identity"],
+    ) -> None:
+        """Malformed frozen-source scalars degrade both shared structured surfaces."""
+
+        from app.services import fitchef_runtime
+        from core.rag.contracts import RAGChunk
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = (
+            _distortion_provider_payload()
+            if surface == "distortion"
+            else _identity_provider_payload()
+        )
+        malformed_chunk = RAGChunk(
+            chunk_id="malformed-score",
+            file="docs/cbt/malformed.md",
+            content="This candidate must not reach the prompt.",
+            score=cast(float, "not-a-score"),
+        )
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(
+                chunks=[malformed_chunk],
+                confidence=0.9,
+            ),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
+            lambda *args, **kwargs: True,
+        )
+        self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
+
+        result: FitChefDistortionSimulatorResult | FitChefIdentityLoopMapperResult
+        if surface == "distortion":
+            result = asyncio.run(
+                fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            )
+            assert (
+                result.claim_evidence_assessment.records[4].assurance_state
+                == "evidence_link_missing"
+            )
+        else:
+            result = asyncio.run(
+                fitchef_runtime.run_identity_loop_mapper_task(self._identity_task())
+            )
+
+        prompt = cast(str, mock_provider.generate.call_args.args[0])
+        assert "This candidate must not reach the prompt." not in prompt
+        assert result.sources == []
+        assert result.confidence == 0.0
+        assert result.warnings == ["rag_retrieval_failed"]
+        assert result.quota_state == "consumed"
+        assert mock_provider.generate.call_count == 1
+
     def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
         """Structured runtime should fail when no transparency notice is available."""
 

@@ -657,7 +657,6 @@ async def _run_fitchef_structured_task(
 
     rag_context_str = ""
     sources: list[FitChefSourceItem] = []
-    admitted_occurrences: list[FitChefSourceOccurrenceV1] = []
     confidence = 0.0
     warnings: list[str] = []
     quota_state: FitChefQuotaState = "not_consumed"
@@ -721,18 +720,20 @@ async def _run_fitchef_structured_task(
                         score=chunk.score,
                     )
                 )
-        candidate_confidence = rag_ctx.confidence if candidate_occurrences else 0.0
-        admitted_occurrences = candidate_occurrences
-        confidence = candidate_confidence
+        candidate_snapshot = freeze_fitchef_source_snapshot(tuple(candidate_occurrences))
+        candidate_context = build_fitchef_source_prompt_context(candidate_snapshot)
+        candidate_sources = build_fitchef_source_items(candidate_snapshot)
+
+        source_snapshot = candidate_snapshot
+        rag_context_str = candidate_context
+        sources = candidate_sources
+        confidence = rag_ctx.confidence if candidate_occurrences else 0.0
         sanitization_applied = candidate_sanitization_applied
         redaction_applied = candidate_redaction_applied
     except Exception:
         logger.warning("%s RAG retrieval failed", config.log_label)
         warnings.append("rag_retrieval_failed")
-
-    source_snapshot = freeze_fitchef_source_snapshot(tuple(admitted_occurrences))
-    rag_context_str = build_fitchef_source_prompt_context(source_snapshot)
-    sources = build_fitchef_source_items(source_snapshot)
+        source_snapshot = freeze_fitchef_source_snapshot(())
 
     if sanitization_applied:
         warnings.append("source_content_sanitized")
