@@ -2,8 +2,9 @@
 
 ## Authority and bounded claim
 
-This document is the sole current evidence owner for one application-dependency
-remediation class:
+This document preserves the historical single-identity evidence owner and now
+serves as subordinate chronology for one application-dependency remediation
+class:
 
 - `D`: `npm:brace-expansion`;
 - ecosystem: `npm`;
@@ -400,3 +401,31 @@ Stop and rescope rather than widening this PR if:
 Rollback must revert both scoped override parameters and the complete generated
 lock closure together. It must not introduce a blanket override, suppress npm
 audit, weaken the guard, or rewrite the historical evidence owners.
+
+## 2026-08-21 successor current-truth note
+
+The immutable six-record receipt, its August 1 cutoff, its base/head hashes, and
+its `2.0.3`/`5.0.6 -> 2.1.3`/`5.0.8` transition above remain unchanged historical
+evidence. They are not rewritten as though the later batch produced them.
+
+The exact seven-identity frontend batch now owns the successor transition at
+`docs/security/FRONTEND_NPM_SECURITY_BATCH_REMEDIATION_CLASS.md`. Its exact base
+is `e2be23492a5266116109f4908f5ee33bd05711e0`, where the current frontend
+outputs were `2.1.3` and `5.0.8`. The newly reconciled advisory
+`GHSA-rgw5-rvv9-x895` / `CVE-2026-69152` affects `<1.1.18`,
+`>=2.0.0,<2.1.4`, `>=3.0.0,<3.0.6`, and `>=4.0.0,<5.0.9`.
+
+The successor uses the same two existing major-specific override carriers and
+changes their parameters to `2.1.4` and `5.0.9`. npm-generated lock witnesses
+are anchored at `frontend/package-lock.json:4720` and
+`frontend/package-lock.json:6355`; the manifest carriers remain at
+`frontend/package.json:87` and `frontend/package.json:90`. The permanent guard's
+current postcondition evaluates the six historical candidates plus the new
+seventh advisory, while the historical receipt parser continues to validate
+only its immutable six-record cutoff.
+
+This successor note does not claim that the historical receipt was refreshed,
+that exploitability was absent, that the frontend is secure, or that a provider
+graph has refreshed. The current batch owner carries the new scanner snapshot,
+registry admission, exact resolver replay, delta partition, and bounded final
+scan observations.

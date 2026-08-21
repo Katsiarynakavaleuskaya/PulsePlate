@@ -5847,6 +5847,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-45363-jwt-fastlane.md` resolved or update with remediation evidence
     - Trivy Code Scanning alert #594 remains closed on `main`
 
+<a id="ledger-p1-ruby-json-cve-2026-54696-release-tooling"></a>
+- [ ] P1: Remediate Ruby `json` CVE-2026-54696 in iOS release tooling
+  - Owner: `app-store-release-agent`
+  - Priority: P1 (release-tooling security)
+  - Target PR: separate `deps(ios)` PR
+  - Status: Planned; explicitly outside the frontend npm security batch
+  - Area: security / iOS release tooling / dependencies
+  - Finding Type: application dependency vulnerability
+  - Reason (EN): Authenticated Dependabot alert `#239` reports RubyGems `json`
+    from `ios/Gemfile.lock` for `GHSA-x2f5-4prf-w687` /
+    `CVE-2026-54696`, with patched floor `2.19.9`. The frontend npm batch must
+    not mix ecosystems or mutate Bundler material, so the Ruby dependency keeps
+    a separate resolver and compatibility lane.
+  - Links:
+    - `docs/security/DEPENDABOT_ALERT_INVENTORY.md`
+    - `ios/Gemfile`
+    - `ios/Gemfile.lock`
+    - <https://github.com/advisories/GHSA-x2f5-4prf-w687>
+  - DoD:
+    - Raise the resolved Ruby `json` version to `>=2.19.9`
+    - Regenerate the owning lock through the canonical Bundler workflow
+    - Prove a complete authored-action versus deterministic-closure partition
+    - Preserve Fastlane compatibility and the existing release-tooling runtime
+    - Run the applicable Bundler, Fastlane, release-tooling, and security gates
+    - Recheck authenticated Dependabot state separately from repository lock truth
+
 <a id="ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297"></a>
 - [x] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297
   - Owner: @katsiaryna_kavaleuskaya
@@ -7081,16 +7107,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Optional: add a script that emits a filtered import graph (`.dot`/`.svg`) for selected slices (app/core/providers) with stable filtering rules
 
 
-- [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
+- [x] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (maintainability)
   - Target PR: [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`)
-  - Status: 🛠 In progress; keep unchecked until the implementation PR merges
+  - Status: ✅ Completed. PR #2304 merged on 2026-08-20T21:26:06Z with merge
+    commit `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`; the bounded carryover in the
+    frontend npm security PR reconciles the required ledger closeout from
+    closed, unmerged PR #2306.
   - Reason: The implicit module-table alias and legacy synchronous scheduler
     resolver rail create patch-order ambiguity after canonical app and lifespan
     ownership have already landed. This lane removes those compatibility paths
     instead of documenting or extending them.
   - Evidence:
+    - PR #2304 merged on 2026-08-20T21:26:06Z with merge commit
+      `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`.
     - `app/__init__.py:57-68` (finite facade resolves canonical `app.main.app`)
     - `tests/test_application_instance_ownership.py:92-144` (fresh-process retirement contract)
   - Risk:
@@ -7105,7 +7136,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Fresh-process import-order tests preserve app, route, middleware, lifespan,
       scheduler-access, and OpenAPI identity
     - The local narrow bundle and canonical current-head CI pass before merge
-    - A docs-only closeout PR checks this item only after the implementation PR merges
+    - This bounded ledger carryover records the merged state without changing runtime behavior
 
 
 - [ ] P2 Optional: Evaluate NVIDIA PersonaPlex for voice persona layer (assistant / coach)
@@ -7207,7 +7238,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`, current bounded compatibility retirement) -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR #2140 -> PR #2145 -> PR #2163 (`codex/canonicalize-pro-targets-gaps-ownership`) -> PR #2170 (`codex/canonicalize-pro-plate-ownership-replacement`) -> PR #2180 (`codex/canonicalize-premium-bmr-ownership`) -> PR #2209 (`codex/legacy-insight-schema-adapter-extraction`) -> `codex/legacy-insight-ownership-cutover` -> PR #2294 (`codex/canonical-fastapi-ownership-replacement`) -> [PR #2304](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2304) (`codex/retire-legacy-scheduler-app-module-compat`, merged compatibility retirement) -> PR-TBD-PAID-BMI-MIRROR-RETIREMENT -> PR-TBD-BMI-PRO-RETIREMENT -> PR-TBD-LEGACY-EXPORT-RETIREMENT -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, lifespan, app-client API-key dependency,
     application metadata, OpenAPI policy, and admin scheduler-access ownership are
@@ -7215,11 +7246,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     completing direct-core Plate ownership. PR #2209 merged at
     `b611682cf4d09eac8b4a124aff07e91c57f83f59`, establishing canonical Insight
     schema, adapter, and application-service ownership. PR #2294 merged canonical
-    FastAPI construction ownership. The current bounded successor removes the
-    `app_module` alias and legacy synchronous scheduler resolver rail without
-    changing canonical lifespan or scheduler behavior. Product Owner sequencing
-    keeps BMI/PRO/VIP alias retirement, retained paid/BMI mirrors, and final
-    legacy deletion as separate later lanes.
+    FastAPI construction ownership. PR #2304 merged at
+    `9ce04bc9d54f3b0e8f5fd23bd34fad7654677e70`, removing the `app_module` alias
+    and legacy synchronous scheduler resolver rail without changing canonical
+    lifespan or scheduler behavior. The next bounded successor retires retained
+    paid/BMI registration mirrors. BMI/PRO/VIP HTTP alias retirement, remaining
+    legacy export retirement, and final `legacy_app.py` deletion stay separate
+    later lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)

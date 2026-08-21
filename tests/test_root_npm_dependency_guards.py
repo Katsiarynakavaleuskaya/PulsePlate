@@ -29,7 +29,7 @@ NPM_SURFACE_BASENAMES = frozenset({"package.json", "package-lock.json", "npm-shr
 NPM_LOCK_SURFACE_BASENAMES = frozenset({"package-lock.json", "npm-shrinkwrap.json"})
 SUPPORTED_NPM_JSON_LOCKFILE_VERSIONS = frozenset({2, 3})
 NANOID_AFFECTED_RANGES = (
-    SpecifierSet("<3.3.17"),
+    SpecifierSet("<3.3.18"),
     SpecifierSet(">=4,<5.1.16"),
 )
 REACT_ROUTER_AFFECTED_RANGES = (
@@ -992,7 +992,7 @@ def test_react_router_occurrences_stay_outside_all_reconciled_affected_ranges() 
             "https://registry.npmjs.org/pptxgenjs/-/pptxgenjs-4.0.1.tgz",
             "pptxgenjs",
         ),
-        ("dependencies", "nanoid", "3.3.17", "nanoid"),
+        ("dependencies", "nanoid", "3.3.18", "nanoid"),
     ),
 )
 def test_retired_graph_manifest_discovery_rejects_direct_and_alias_reintroduction(
@@ -1462,8 +1462,8 @@ def test_opaque_scoped_path_tarball_fails_generic_provenance() -> None:
         (
             "node_modules/nanoid",
             {
-                "version": "3.3.17",
-                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "version": "3.3.18",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
                 "integrity": "sha512-test",
             },
         ),
@@ -1506,23 +1506,23 @@ def test_generic_lock_provenance_accepts_exact_canonical_records(
 @pytest.mark.parametrize(
     "resolved",
     (
-        "https://evil.example/nanoid/-/nanoid-3.3.17.tgz",
-        "http://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org:443/nanoid/-/nanoid-3.3.17.tgz",
-        "https://user@registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz?download=1",
-        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz#fragment",
-        "https://registry.npmjs.org/%6eanoid/-/nanoid-3.3.17.tgz",
-        r"https://registry.npmjs.org\nanoid\-\nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/other/../nanoid/-/nanoid-3.3.17.tgz",
-        " https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz ",
-        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz\n",
-        "\thttps://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/na\nnoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/na\rnoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/na\tnoid/-/nanoid-3.3.17.tgz",
-        "https://registry.npmjs.org/na\u0000noid/-/nanoid-3.3.17.tgz",
+        "https://evil.example/nanoid/-/nanoid-3.3.18.tgz",
+        "http://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org:443/nanoid/-/nanoid-3.3.18.tgz",
+        "https://user@registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz?download=1",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz#fragment",
+        "https://registry.npmjs.org/%6eanoid/-/nanoid-3.3.18.tgz",
+        r"https://registry.npmjs.org\nanoid\-\nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/other/../nanoid/-/nanoid-3.3.18.tgz",
+        " https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz ",
+        "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz\n",
+        "\thttps://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/na\nnoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/na\rnoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/na\tnoid/-/nanoid-3.3.18.tgz",
+        "https://registry.npmjs.org/na\u0000noid/-/nanoid-3.3.18.tgz",
         "",
     ),
 )
@@ -1532,7 +1532,7 @@ def test_generic_lock_provenance_rejects_noncanonical_sources(resolved: str) -> 
         "lockfileVersion": 3,
         "packages": {
             "node_modules/nanoid": {
-                "version": "3.3.17",
+                "version": "3.3.18",
                 "resolved": resolved,
                 "integrity": "sha512-test",
             }
@@ -1549,8 +1549,8 @@ def test_generic_lock_provenance_rejects_noncanonical_sources(resolved: str) -> 
         (
             "node_modules/renamed-pkg",
             {
-                "version": "3.3.17",
-                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "version": "3.3.18",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
                 "integrity": "sha512-test",
             },
             "resolved identity must equal package path identity",
@@ -1559,8 +1559,8 @@ def test_generic_lock_provenance_rejects_noncanonical_sources(resolved: str) -> 
             "node_modules/renamed-pkg",
             {
                 "name": "other",
-                "version": "3.3.17",
-                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "version": "3.3.18",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
                 "integrity": "sha512-test",
             },
             "resolved identity must equal explicit package name",
@@ -1568,8 +1568,8 @@ def test_generic_lock_provenance_rejects_noncanonical_sources(resolved: str) -> 
         (
             "node_modules/nanoid",
             {
-                "version": "3.3.17",
-                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.16.tgz",
+                "version": "3.3.18",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
                 "integrity": "sha512-test",
             },
             "resolved tarball version must equal package version",
@@ -1577,8 +1577,8 @@ def test_generic_lock_provenance_rejects_noncanonical_sources(resolved: str) -> 
         (
             "node_modules/nanoid",
             {
-                "version": "3.3.17",
-                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz",
+                "version": "3.3.18",
+                "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz",
                 "integrity": "",
             },
             "integrity must be non-empty",
@@ -1945,7 +1945,7 @@ def test_target_postcondition_rejects_missing_integrity(integrity: str | None) -
 @pytest.mark.parametrize(
     ("target", "version", "affected_ranges"),
     (
-        ("nanoid", "3.3.17-0", NANOID_AFFECTED_RANGES),
+        ("nanoid", "3.3.18-0", NANOID_AFFECTED_RANGES),
         ("nanoid", "5.1.16-rc.1", NANOID_AFFECTED_RANGES),
         ("react-router", "7.18.2-0", REACT_ROUTER_AFFECTED_RANGES),
         ("react-router", "8.3.0-rc.1", REACT_ROUTER_AFFECTED_RANGES),
@@ -1976,7 +1976,8 @@ def test_target_postcondition_rejects_prerelease_versions(
 @pytest.mark.parametrize(
     ("target", "version", "affected_ranges"),
     (
-        ("nanoid", "3.3.17", NANOID_AFFECTED_RANGES),
+        ("nanoid", "3.3.18", NANOID_AFFECTED_RANGES),
+        ("nanoid", "3.3.18+build.1", NANOID_AFFECTED_RANGES),
         ("nanoid", "5.1.16+build.1", NANOID_AFFECTED_RANGES),
         ("react-router", "7.18.2+build.1", REACT_ROUTER_AFFECTED_RANGES),
         ("react-router", "8.3.0", REACT_ROUTER_AFFECTED_RANGES),
@@ -2242,7 +2243,10 @@ printf '%s\\n' "$@"
     ]
 
 
-@pytest.mark.parametrize("value", ("5.1.16", "npm:nanoid@5.1.16"))
+@pytest.mark.parametrize(
+    "value",
+    ("3.3.18", "npm:nanoid@3.3.18", "5.1.16", "npm:nanoid@5.1.16"),
+)
 def test_nanoid_guards_allow_safe_exact_manifest_carrier(
     monkeypatch: pytest.MonkeyPatch, value: str
 ) -> None:
@@ -2303,7 +2307,11 @@ def test_opaque_source_owner_rejects_renamed_safe_nanoid_alias(
 
 @pytest.mark.parametrize(
     ("key", "value"),
-    (("nanoid", "5.1.7"), ("renamed-nanoid", "npm:nanoid@3.3.12")),
+    (
+        ("nanoid", "3.3.17"),
+        ("nanoid", "5.1.7"),
+        ("renamed-nanoid", "npm:nanoid@3.3.12"),
+    ),
 )
 def test_nanoid_guard_rejects_affected_manifest_carrier(
     monkeypatch: pytest.MonkeyPatch, key: str, value: str
