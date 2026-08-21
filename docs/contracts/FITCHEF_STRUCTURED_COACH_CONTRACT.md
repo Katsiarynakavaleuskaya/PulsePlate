@@ -181,8 +181,11 @@ PII-redacted source snapshot without adding a public response key or changing
 the public OpenAPI/client contract. Only `balanced_reframe` may carry opaque
 candidate occurrence references.
 
-A candidate reference proves citation linkage to an exact retrieved occurrence;
-it does **not** prove semantic support, truth, entailment, contradiction review,
+A candidate reference proves only that the exact retrieved occurrence was
+present in the prompt snapshot available when provider generation was attempted.
+It does **not** prove that the final field originated from that occurrence:
+deterministic normalization or wellness fallback may replace provider text. It
+also does not prove semantic support, truth, entailment, contradiction review,
 or source quality. Therefore v1 keeps `adjudicated_support_status=null`,
 `conflict_adjudicated=false`, and `support_claimed_count=0`. Duplicate source
 identities, snapshot drift, missing links, and local fingerprint failure degrade

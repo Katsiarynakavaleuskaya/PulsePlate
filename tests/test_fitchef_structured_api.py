@@ -29,6 +29,7 @@ from app.schemas.fitchef import (
     FitChefSourceItem,
 )
 from app.services.fitchef_claim_evidence_assurance import (
+    FitChefSourceOccurrenceV1,
     FitChefSourceSnapshotV1,
     build_distortion_field_assurance_unavailable,
 )
@@ -1204,7 +1205,7 @@ class TestFitChefStructuredRuntimeCoverage:
         self,
         surface: Literal["distortion", "identity"],
     ) -> None:
-        """Malformed frozen-source scalars degrade both shared structured surfaces."""
+        """Snapshot-freeze errors degrade both shared structured surfaces atomically."""
 
         from app.services import fitchef_runtime
         from core.rag.contracts import RAGChunk
@@ -1215,18 +1216,33 @@ class TestFitChefStructuredRuntimeCoverage:
             if surface == "distortion"
             else _identity_provider_payload()
         )
-        malformed_chunk = RAGChunk(
-            chunk_id="malformed-score",
+        candidate_chunk = RAGChunk(
+            chunk_id="freeze-failure",
             file="docs/cbt/malformed.md",
             content="This candidate must not reach the prompt.",
-            score=cast(float, "not-a-score"),
+            score=0.5,
         )
+        freeze_calls: list[int] = []
+        real_freeze = fitchef_runtime.freeze_fitchef_source_snapshot
+
+        def _freeze_or_fail(
+            occurrences: tuple[FitChefSourceOccurrenceV1, ...],
+        ) -> FitChefSourceSnapshotV1:
+            freeze_calls.append(len(occurrences))
+            if occurrences:
+                raise ValueError("deterministic snapshot freeze failure")
+            return real_freeze(occurrences)
+
         self.monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
             lambda *args, **kwargs: _make_rag_context(
-                chunks=[malformed_chunk],
+                chunks=[candidate_chunk],
                 confidence=0.9,
             ),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.freeze_fitchef_source_snapshot",
+            _freeze_or_fail,
         )
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
@@ -1255,6 +1271,7 @@ class TestFitChefStructuredRuntimeCoverage:
         assert result.warnings == ["rag_retrieval_failed"]
         assert result.quota_state == "consumed"
         assert mock_provider.generate.call_count == 1
+        assert freeze_calls == [1, 0]
 
     def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
         """Structured runtime should fail when no transparency notice is available."""
@@ -1697,6 +1714,7 @@ class TestFitChefStructuredRuntimeCoverage:
         """The shadow assessment is constructed once after final draft normalization."""
 
         from app.services import fitchef_runtime
+        from core.rag.contracts import RAGChunk
 
         events: list[str] = []
         mock_provider = MagicMock()
@@ -1731,7 +1749,17 @@ class TestFitChefStructuredRuntimeCoverage:
 
         self.monkeypatch.setattr(
             "core.rag.vector_rag.retrieve_context_structured",
-            lambda *args, **kwargs: _make_rag_context(),
+            lambda *args, **kwargs: _make_rag_context(
+                chunks=[
+                    RAGChunk(
+                        chunk_id="fallback-prompt-source",
+                        file="docs/cbt/fallback.md",
+                        content="Prompt-only candidate context.",
+                        score=0.8,
+                    )
+                ],
+                confidence=0.8,
+            ),
         )
         self.monkeypatch.setattr(
             "app.services.fitchef_runtime.attempt_consume_llm_monthly_quota",
@@ -1752,8 +1780,10 @@ class TestFitChefStructuredRuntimeCoverage:
         assert events == ["draft", "assessment"]
         assert "structured_parse_fallback" in result.warnings
         assert (
-            result.claim_evidence_assessment.records[4].assurance_state == "evidence_link_missing"
+            result.claim_evidence_assessment.records[4].assurance_state
+            == "candidate_linked_unverified"
         )
+        assert len(result.claim_evidence_assessment.records[4].candidate_source_refs) == 1
 
     def test_identity_runtime_uses_vip_quota_and_cbt_retrieval_target(self) -> None:
         """Identity-loop runtime should stay VIP-only while retrieving CBT context."""
