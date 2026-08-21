@@ -377,10 +377,6 @@ class FitChefDistortionFieldAssuranceAssessmentV1(BaseModel):
     ) -> "FitChefDistortionFieldAssuranceAssessmentV1":
         if tuple(record.field_path for record in self.records) != _FITCHEF_DISTORTION_FIELD_ORDER:
             raise ValueError("records must contain the exact six-field order")
-        if self.assessed_field_count != len(self.records):
-            raise ValueError("assessed_field_count must equal the exact record count")
-        if self.evidence_sensitive_field_count != 1:
-            raise ValueError("evidence_sensitive_field_count must remain exactly one")
 
         expected_counts = {
             "request_context_only_count": sum(
@@ -402,12 +398,6 @@ class FitChefDistortionFieldAssuranceAssessmentV1(BaseModel):
         for field_name, expected_count in expected_counts.items():
             if getattr(self, field_name) != expected_count:
                 raise ValueError(f"{field_name} must equal the exact state count")
-        if self.support_claimed_count != 0:
-            raise ValueError("support_claimed_count must remain zero")
-        if any(record.adjudicated_support_status is not None for record in self.records):
-            raise ValueError("v1 records must not adjudicate support")
-        if any(record.conflict_adjudicated is not False for record in self.records):
-            raise ValueError("v1 records must not adjudicate conflicts")
 
         if self.assessment_unavailable_count not in {0, len(self.records)}:
             raise ValueError("assessment_unavailable must apply to all six records or none")
