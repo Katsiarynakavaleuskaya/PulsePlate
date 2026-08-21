@@ -30,7 +30,21 @@ class TestMissingCoverage:
         app_main = resolve_module("app.main")
         legacy_app = resolve_legacy_app()
         assert app is app_package.app is app_main.app is legacy_app.app
-        assert isinstance(legacy_app.VIP_MODULE_ENABLED, bool)
+        retired = (
+            "VIP_MODULE_ENABLED",
+            "vip_router",
+            "pro_router",
+            "premium_week_router",
+            "FEATURE_BMI_PRO_ENABLED",
+            "bmi_router",
+            "bmi_pro_router",
+            "bmi_pro_legacy_alias_router",
+        )
+        assert all(
+            not hasattr(module, name)
+            for module in (app_package, app_main, legacy_app)
+            for name in retired
+        )
 
     def test_middleware_paths(self, client: TestClient) -> None:
         """Тест путей middleware"""

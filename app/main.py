@@ -9,10 +9,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Any, Callable, cast
+from typing import Callable, cast
 
-import legacy_app as _legacy_module
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute, APIWebSocketRoute
 from settings import get_runtime_env_name
@@ -59,7 +58,7 @@ from app.routers.bayes_adherence import (
 from app.routers.bodyfat import BODYFAT_ROUTE_SPECS, router as bodyfat_router
 from app.routers.business import BUSINESS_ROUTE_SPECS, router as business_router
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
-from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
+from app.routers.bmi_registration import register_bmi_routes
 from app.routers.billing import register_billing_routes
 from app.routers.catalog import (
     CATALOG_ROUTE_SPECS,
@@ -130,18 +129,9 @@ from app.routers.users import (
 )
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
-from app.utils.feature_flags import is_business_module_enabled, is_vip_module_enabled
+from app.utils.feature_flags import is_business_module_enabled
 
 logger = logging.getLogger(__name__)
-
-VIP_MODULE_ENABLED: bool = False
-vip_router: APIRouter | None = None
-pro_router: APIRouter | None = None
-premium_week_router: APIRouter | None = None
-FEATURE_BMI_PRO_ENABLED: bool = False
-bmi_router: APIRouter | None = None
-bmi_pro_router: APIRouter | None = None
-bmi_pro_legacy_alias_router: APIRouter | None = None
 
 _WS_ROUTE_PATHS: tuple[str, str] = ("/api/v1/pro/ws", "/ws")
 _FEEDBACK_ROUTE_PATH: str = "/api/v1/feedback/rag"
@@ -1092,67 +1082,13 @@ def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None
     )
 
 
-def _import_vip_module_for_compat() -> Any:
-    from app.routers import vip as vip_module
-
-    return vip_module
-
-
-def _resolve_vip_router_for_compat() -> APIRouter | None:
-    if not is_vip_module_enabled():
-        return None
-
-    try:
-        vip_module = _import_vip_module_for_compat()
-    except ModuleNotFoundError as exc:
-        if exc.name == "app.routers.vip":
-            return None
-        raise
-    return getattr(vip_module, "router", None)
-
-
-def _mirror_paid_tier_registration_attrs(
-    registered_pro_router: APIRouter | None,
-    registered_premium_week_router: APIRouter | None,
-) -> None:
-    global VIP_MODULE_ENABLED, vip_router, pro_router, premium_week_router
-
-    resolved_vip_module_enabled = is_vip_module_enabled()
-    resolved_vip_router = _resolve_vip_router_for_compat()
-    resolved_pro_router = registered_pro_router
-    resolved_premium_week_router = registered_premium_week_router
-
-    VIP_MODULE_ENABLED = resolved_vip_module_enabled
-    vip_router = resolved_vip_router
-    pro_router = resolved_pro_router
-    premium_week_router = resolved_premium_week_router
-    _legacy_module.VIP_MODULE_ENABLED = resolved_vip_module_enabled
-    _legacy_module.vip_router = resolved_vip_router
-    _legacy_module.pro_router = resolved_pro_router
-    _legacy_module.premium_week_router = resolved_premium_week_router
-
-
 def _register_paid_tier_routes(target_app: FastAPI) -> None:
     register_vip_routes(target_app)
-    registered_pro_router, registered_premium_week_router = register_pro_routes(target_app)
-    _mirror_paid_tier_registration_attrs(registered_pro_router, registered_premium_week_router)
-
-
-def _mirror_bmi_registration_attrs(registration: BmiRouteRegistration) -> None:
-    global FEATURE_BMI_PRO_ENABLED, bmi_router, bmi_pro_router, bmi_pro_legacy_alias_router
-
-    FEATURE_BMI_PRO_ENABLED = registration.feature_bmi_pro_enabled
-    bmi_router = registration.bmi_router
-    bmi_pro_router = registration.bmi_pro_router
-    bmi_pro_legacy_alias_router = registration.bmi_pro_legacy_alias_router
-    _legacy_module.FEATURE_BMI_PRO_ENABLED = registration.feature_bmi_pro_enabled
-    _legacy_module.bmi_router = registration.bmi_router
-    _legacy_module.bmi_pro_router = registration.bmi_pro_router
-    _legacy_module.bmi_pro_legacy_alias_router = registration.bmi_pro_legacy_alias_router
+    register_pro_routes(target_app)
 
 
 def _register_bmi_routes(target_app: FastAPI) -> None:
-    _mirror_bmi_registration_attrs(register_bmi_routes(target_app))
+    register_bmi_routes(target_app)
 
 
 def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:

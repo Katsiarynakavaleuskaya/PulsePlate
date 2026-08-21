@@ -23,7 +23,8 @@ This is a **runtime truth** view (not a product wishlist).
 - `app/main.py` imports that singleton directly and applies the existing ordered
   route, middleware, and OpenAPI composition without rebinding it.
 - `legacy_app.py` re-exports the singleton and retains only bounded compatibility
-  values, including the eight paid/BMI mirrors written by `app/main.py`.
+  values. `app/main.py` does not import `legacy_app`, and the eight former
+  paid/BMI registration mirrors are retired from all three Python surfaces.
 
 ## Router registration: always-on vs conditional
 
@@ -243,9 +244,9 @@ OpenAPI effect:
 Anchor (stable): `app/main.py -> _register_paid_tier_routes(app)` delegates to `vip_registration.register_vip_routes()`
 
 Evidence:
-- `app/main.py:829-832` — `_register_paid_tier_routes(app)` calls VIP
+- `app/main.py:1085-1087` — `_register_paid_tier_routes(app)` calls VIP
   registration before PRO registration.
-- `app/routers/vip_registration.py:61-137` — central VIP registration function
+- `app/routers/vip_registration.py:82-165` — central VIP registration function
   applies the `is_vip_module_enabled()` gate and `api_key_header` dependency.
 
 Runtime effect:
@@ -256,10 +257,10 @@ Runtime effect:
 Anchor (stable): `app/main.py -> _register_paid_tier_routes(app)` delegates to centralized `pro_registration.register_pro_routes()`
 
 Evidence:
-- `app/main.py:808-832` — canonical bootstrap mirrors returned PRO routers to
-  `legacy_app.pro_router` / `legacy_app.premium_week_router` only after VIP and
-  PRO registration values are resolved.
-- `app/routers/pro_registration.py:26-104` — centralized registration +
+- `app/main.py -> _register_paid_tier_routes()` — canonical bootstrap calls VIP
+  registration before PRO registration and does not retain returned routers as
+  compatibility attributes.
+- `app/routers/pro_registration.py:55-161` — centralized registration +
   feature-flag gated `premium_week`.
 
 Runtime effect:
@@ -341,7 +342,7 @@ Evidence:
 
 ### Conditional routers: BMI Pro
 
-Anchor (stable): `app/main.py -> app/routers/bmi_registration.py` owns BMI route registration; `legacy_app.py` remains a compatibility seam for direct-call shims and mirrored attrs.
+Anchor (stable): `app/main.py -> app/routers/bmi_registration.py` owns BMI route registration; `legacy_app.py` remains a compatibility seam for unrelated direct-call shims only.
 
 Evidence:
 - `app/main.py -> ensure_canonical_app_bootstrap()`
