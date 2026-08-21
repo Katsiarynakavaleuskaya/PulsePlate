@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListPreferences
-from core.judgment import ClaimType, EvidenceMode, SupportStatus
+from core.judgment import ClaimType, EvidenceMode
 
 FitChefAgentId = Literal["fitchef-agent"]
 FitChefExecutionMode = Literal["auto-safe", "review-required", "blocked"]
@@ -219,7 +219,7 @@ class FitChefFieldAssuranceRecordV1(BaseModel):
     field_path: FitChefDistortionFieldPath
     claim_type: ClaimType
     evidence_mode: EvidenceMode
-    adjudicated_support_status: SupportStatus | None = None
+    adjudicated_support_status: None = None
     assurance_state: FitChefFieldAssuranceState
     candidate_source_refs: tuple[str, ...] = ()
     conflict_adjudicated: Literal[False] = False

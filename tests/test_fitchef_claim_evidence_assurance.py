@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import math
 
 import pytest
@@ -222,6 +223,42 @@ def test_record_rejects_support_conflict_order_and_non_reframe_refs() -> None:
     assessment_payload["records"] = tuple(reversed(assessment.records))
     with pytest.raises(ValidationError):
         FitChefDistortionFieldAssuranceAssessmentV1.model_validate(assessment_payload)
+
+
+def test_record_json_schema_is_structurally_null_only_for_support_status() -> None:
+    """The v1 schema must not advertise positive support statuses as valid input."""
+
+    schema = FitChefFieldAssuranceRecordV1.model_json_schema()
+    serialized_schema = json.dumps(schema, sort_keys=True)
+    for positive_status in (
+        "supported",
+        "partially_supported",
+        "unsupported",
+        "contradicted",
+    ):
+        assert positive_status not in serialized_schema
+
+    properties = schema["properties"]
+    support_property = properties["adjudicated_support_status"]
+    assert support_property.get("type") == "null"
+    assert "anyOf" not in support_property
+    assert "oneOf" not in support_property
+
+    first_payload = (
+        build_distortion_field_assurance_assessment(freeze_fitchef_source_snapshot(_two_sources()))
+        .records[0]
+        .model_dump(mode="python")
+    )
+    for positive_status in (
+        "supported",
+        "partially_supported",
+        "unsupported",
+        "contradicted",
+    ):
+        with pytest.raises(ValidationError):
+            FitChefFieldAssuranceRecordV1.model_validate(
+                {**first_payload, "adjudicated_support_status": positive_status}
+            )
 
 
 def test_assessment_rejects_partial_or_mixed_unavailability() -> None:

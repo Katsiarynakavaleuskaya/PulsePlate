@@ -195,6 +195,12 @@ state, or make the retrieved corpus canonical truth. A future positive semantic
 support verifier requires the separate backlog gate and a terminal human
 decision before implementation.
 
+E1-04 is in-process contract groundwork observed only by bounded local
+prospective evaluation. It supplies no continuous deployed-health signal and
+must not be used as evidence of production traffic health or terminal rollout
+success. The internal assessment therefore remains absent from public responses,
+telemetry, and privileged audit records.
+
 Implementation anchors:
 
 - `app.schemas.fitchef.FitChefDistortionFieldAssuranceAssessmentV1`
