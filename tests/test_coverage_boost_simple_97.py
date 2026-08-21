@@ -116,12 +116,6 @@ class TestCoverageBoostSimple:
         assert len(results) == 3
         assert all(status == 200 for status in results)
 
-    def test_missing_imports(self):
-        """Test missing imports handling."""
-        with patch("legacy_app.premium_week_router", None):
-            response = self.client.get("/")
-            assert response.status_code == 200
-
     def test_memory_error_handling(self):
         """Test memory error handling."""
         with patch("builtins.open", side_effect=MemoryError("Out of memory")):

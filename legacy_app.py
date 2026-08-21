@@ -16,7 +16,7 @@ from typing import (
     cast,
 )
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import Body, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import (
     BaseModel,
@@ -179,18 +179,6 @@ except ImportError:  # pragma: no cover - optional dependency in runtime
     RATE_LIMIT_429_RESPONSES = {429: {"description": "Rate limit exceeded"}}  # pragma: no cover
 
 
-# PRO router registration is owned by app.main canonical bootstrap.
-# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
-premium_week_router: Optional[APIRouter] = None
-pro_router: Optional[APIRouter] = None
-
-# BMI route registration is owned by app.main canonical bootstrap.
-# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
-FEATURE_BMI_PRO_ENABLED: bool = False
-bmi_router: Optional[APIRouter] = None
-bmi_pro_router: Optional[APIRouter] = None
-bmi_pro_legacy_alias_router: Optional[APIRouter] = None
-
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
 else:
@@ -205,25 +193,6 @@ except ImportError:
     Limiter = None
 
 slowapi_available = Limiter is not None
-
-vip_router: Optional[APIRouter] = None
-
-# VIP router registration is owned by app.main canonical bootstrap.
-try:
-    from app.utils.feature_flags import is_vip_module_enabled
-
-    VIP_MODULE_ENABLED = is_vip_module_enabled()  # Keep for backward compatibility
-except ImportError:
-    VIP_MODULE_ENABLED = False
-
-# Backward-compat: expose vip_router for tests/introspection.
-if VIP_MODULE_ENABLED:
-    try:
-        from app.routers import vip as _vip_mod
-
-        vip_router = getattr(_vip_mod, "router", None)
-    except ImportError:
-        vip_router = None
 
 # Canonical application bootstrap owns environment resolution, dotenv loading,
 # root logging configuration, metadata construction, and the FastAPI instance.
@@ -259,7 +228,6 @@ async def admin_status() -> Dict[str, str]:
 
 
 # PRO/VIP route registration is owned by app.main canonical bootstrap.
-# Compatibility attrs above are populated there after successful registration.
 # Shopping-list route registration is owned by app.main canonical bootstrap.
 
 # Premium week router registration is now handled in

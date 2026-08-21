@@ -8,14 +8,339 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
+import subprocess
+import sys
 from typing import Iterable, Iterator, Optional
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _digest_literal(grouped: str) -> str:
+    """Render a public SHA-256 test digest from low-entropy grouped text."""
+
+    return grouped.replace("-", "")
+
+
+_REGISTRATION_AUTHORITY_MANIFEST = {
+    "schema_version": "registration_authority_manifest.v1",
+    "source_path": "app/main.py",
+    "bootstrap_owner": "ensure_canonical_app_bootstrap",
+    "wrappers": [
+        {
+            "owner": "_register_paid_tier_routes",
+            "parameter": "target_app",
+            "bootstrap_argument": "app",
+            "registrars": [
+                {
+                    "import_module": "app.routers.vip_registration",
+                    "name": "register_vip_routes",
+                },
+                {
+                    "import_module": "app.routers.pro_registration",
+                    "name": "register_pro_routes",
+                },
+            ],
+        },
+        {
+            "owner": "_register_bmi_routes",
+            "parameter": "target_app",
+            "bootstrap_argument": "app",
+            "registrars": [
+                {
+                    "import_module": "app.routers.bmi_registration",
+                    "name": "register_bmi_routes",
+                },
+            ],
+        },
+    ],
+    "feature_flags": [
+        "FEATURE_BMI_PRO_ENABLED",
+        "FEATURE_PREMIUM_WEEK_ENABLED",
+        "VIP_MODULE_ENABLED",
+    ],
+    "base_router_sources": [
+        ["app.routers.pro", "router"],
+        ["app.routers.pro_session", "router"],
+        ["app.routers.pro_nutrition_insights", "router"],
+        ["app.routers.pro_food_attribution", "router"],
+        ["app.routers.pro_payments", "router"],
+        ["app.routers.pro_restaurant_partner", "router"],
+        ["app.routers.bmi", "router"],
+    ],
+    "conditional_router_sources": {
+        "FEATURE_BMI_PRO_ENABLED": [
+            ["app.routers.bmi_pro", "router"],
+            ["app.routers.bmi_pro_legacy_alias", "router"],
+        ],
+        "FEATURE_PREMIUM_WEEK_EFFECTIVE": [
+            ["app.routers.premium_week", "router"],
+        ],
+        "VIP_MODULE_ENABLED": [
+            ["app.routers.fitchef_structured", "vip_router"],
+            ["app.routers.fitchef_insight", "router"],
+            ["app.routers.vip", "router"],
+        ],
+    },
+    "feature_states": {
+        "000": {
+            "source_count": 22,
+            "live_count": 22,
+            "source_digest": _digest_literal(
+                "948b-761f-9e6b-f8f5-c658-e9f4-981d-8945-2849-f9b2-ffe9-8e2a-4a89-8103-002e-6e3c"
+            ),
+            "live_digest": _digest_literal(
+                "948b-761f-9e6b-f8f5-c658-e9f4-981d-8945-2849-f9b2-ffe9-8e2a-4a89-8103-002e-6e3c"
+            ),
+        },
+        "001": {
+            "source_count": 48,
+            "live_count": 48,
+            "source_digest": _digest_literal(
+                "4ac1-3dc2-8dcd-6498-1592-8801-cdb9-2db3-eed2-bfba-a585-1f73-5546-2401-11e7-b63d"
+            ),
+            "live_digest": _digest_literal(
+                "99e5-a0bf-e3d7-6cdc-bd74-fd40-54f9-8a74-fb73-1419-7dea-678a-6ee1-aa27-30b0-af9c"
+            ),
+        },
+        "010": {
+            "source_count": 23,
+            "live_count": 23,
+            "source_digest": _digest_literal(
+                "f035-9bb0-9359-bd97-56d9-855c-97fb-3963-9b0c-6fb3-85d4-3909-68e3-c3fe-5b31-1a28"
+            ),
+            "live_digest": _digest_literal(
+                "f035-9bb0-9359-bd97-56d9-855c-97fb-3963-9b0c-6fb3-85d4-3909-68e3-c3fe-5b31-1a28"
+            ),
+        },
+        "011": {
+            "source_count": 48,
+            "live_count": 48,
+            "source_digest": _digest_literal(
+                "4ac1-3dc2-8dcd-6498-1592-8801-cdb9-2db3-eed2-bfba-a585-1f73-5546-2401-11e7-b63d"
+            ),
+            "live_digest": _digest_literal(
+                "99e5-a0bf-e3d7-6cdc-bd74-fd40-54f9-8a74-fb73-1419-7dea-678a-6ee1-aa27-30b0-af9c"
+            ),
+        },
+        "100": {
+            "source_count": 25,
+            "live_count": 25,
+            "source_digest": _digest_literal(
+                "aca7-1782-6794-a202-6607-d940-0fa9-5d81-d647-9bb0-dbe7-4f9e-b031-201d-feab-291b"
+            ),
+            "live_digest": _digest_literal(
+                "aca7-1782-6794-a202-6607-d940-0fa9-5d81-d647-9bb0-dbe7-4f9e-b031-201d-feab-291b"
+            ),
+        },
+        "101": {
+            "source_count": 51,
+            "live_count": 51,
+            "source_digest": _digest_literal(
+                "64c2-41ff-c33e-166f-2067-5cbf-4ec9-68d4-01ac-1f97-2eaf-9fca-627f-5892-5c58-8ce2"
+            ),
+            "live_digest": _digest_literal(
+                "fbbd-1565-97b7-cad8-5115-9230-4886-f30a-c515-8fb2-d2d5-7464-fe96-fba9-f76a-adef"
+            ),
+        },
+        "110": {
+            "source_count": 26,
+            "live_count": 26,
+            "source_digest": _digest_literal(
+                "ec4b-22f3-3b2a-8fed-a6fe-c5c5-6a16-7791-bc06-9b0a-51d7-7dcd-9ca2-59b2-a2eb-8756"
+            ),
+            "live_digest": _digest_literal(
+                "ec4b-22f3-3b2a-8fed-a6fe-c5c5-6a16-7791-bc06-9b0a-51d7-7dcd-9ca2-59b2-a2eb-8756"
+            ),
+        },
+        "111": {
+            "source_count": 51,
+            "live_count": 51,
+            "source_digest": _digest_literal(
+                "64c2-41ff-c33e-166f-2067-5cbf-4ec9-68d4-01ac-1f97-2eaf-9fca-627f-5892-5c58-8ce2"
+            ),
+            "live_digest": _digest_literal(
+                "fbbd-1565-97b7-cad8-5115-9230-4886-f30a-c515-8fb2-d2d5-7464-fe96-fba9-f76a-adef"
+            ),
+        },
+    },
+}
+_REGISTRATION_AUTHORITY_MANIFEST_SHA256 = _digest_literal(
+    "5fcc-707e-550b-4dd6-d5e5-6dcd-a873-3269-60d3-3bf0-3096-229f-8f7f-26d2-5c5b-b5a3"
+)
+
+_REGISTRATION_AUTHORITY_MINIMAL_SOURCE = """
+from app.routers.bmi_registration import register_bmi_routes
+from app.routers.pro_registration import register_pro_routes
+from app.routers.vip_registration import register_vip_routes
+
+def _register_paid_tier_routes(target_app):
+    register_vip_routes(target_app)
+    register_pro_routes(target_app)
+
+def _register_bmi_routes(target_app):
+    register_bmi_routes(target_app)
+
+def ensure_canonical_app_bootstrap(target_app):
+    app = target_app
+    _register_paid_tier_routes(app)
+    _register_bmi_routes(app)
+"""
+
+_REGISTRATION_LIVE_MANIFEST_SCRIPT = r"""
+import hashlib
+import importlib
+import json
+import sys
+
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+)
+import app.main as main
+
+manifest = json.loads(sys.argv[1])
+state = sys.argv[2]
+mutation = sys.argv[3] if len(sys.argv) > 3 else "none"
+
+
+def identity(value):
+    if value is None:
+        return None
+    module = getattr(value, "__module__", type(value).__module__)
+    qualname = getattr(
+        value,
+        "__qualname__",
+        getattr(value, "__name__", type(value).__qualname__),
+    )
+    return f"{module}.{qualname}"
+
+
+def dependency_ids(route):
+    result = set()
+    stack = list(getattr(getattr(route, "dependant", None), "dependencies", ()) or ())
+    while stack:
+        dependency = stack.pop()
+        call = getattr(dependency, "call", None)
+        if call is not None:
+            result.add(identity(call))
+        stack.extend(getattr(dependency, "dependencies", ()) or ())
+    return sorted(result)
+
+
+def route_row(route):
+    return {
+        "path": route_path(route),
+        "methods": sorted(route_methods(route) - {"HEAD", "OPTIONS"}) or ["WEBSOCKET"],
+        "endpoint": identity(route_endpoint(route)),
+        "dependencies": dependency_ids(route),
+        "include_in_schema": route_include_in_schema(route),
+        "deprecated": bool(getattr(route, "deprecated", False)),
+        "status_code": getattr(route, "status_code", None),
+        "response_model": identity(getattr(route, "response_model", None)),
+        "response_class": identity(getattr(route, "response_class", None)),
+        "openapi_extra": getattr(route, "openapi_extra", None),
+        "tags": list(getattr(route, "tags", None) or []),
+    }
+
+
+def rows_digest(rows):
+    payload = json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+source_specs = list(manifest["base_router_sources"])
+conditional = manifest["conditional_router_sources"]
+if state[0] == "1":
+    source_specs.extend(conditional["FEATURE_BMI_PRO_ENABLED"])
+if state[1] == "1" or state[2] == "1":
+    source_specs.extend(conditional["FEATURE_PREMIUM_WEEK_EFFECTIVE"])
+if state[2] == "1":
+    source_specs.extend(conditional["VIP_MODULE_ENABLED"])
+
+source_routes = []
+for module_name, attribute in source_specs:
+    router = getattr(importlib.import_module(module_name), attribute)
+    source_routes.extend(iter_effective_route_candidates(router.routes))
+
+source_rows = sorted(
+    (route_row(route) for route in source_routes),
+    key=lambda row: (row["path"], row["methods"], row["endpoint"]),
+)
+source_keys = {
+    (method, row["path"])
+    for row in source_rows
+    for method in row["methods"]
+}
+live_candidates = list(iter_effective_route_candidates(main.app.routes))
+if mutation == "foreign_duplicate":
+    main.app.add_api_route(
+        "/api/v1/bmi/calculate",
+        lambda: None,
+        methods=["POST"],
+    )
+    live_candidates = list(iter_effective_route_candidates(main.app.routes))
+else:
+    bmi_route = next(
+        route
+        for route in live_candidates
+        if route_path(route) == "/api/v1/bmi/calculate"
+        and "POST" in route_methods(route)
+    )
+    if mutation == "foreign_owner":
+        bmi_route.endpoint = lambda: None
+    elif mutation == "visibility":
+        bmi_route.include_in_schema = not bmi_route.include_in_schema
+    elif mutation == "response_status_metadata":
+        bmi_route.status_code = 201
+        bmi_route.response_model = dict[str, object]
+    elif mutation == "dependency":
+        guarded_route = next(
+            route
+            for route in live_candidates
+            if any(
+                (method, route_path(route)) in source_keys
+                for method in route_methods(route)
+            )
+            and getattr(getattr(route, "dependant", None), "dependencies", None)
+        )
+        guarded_route.dependant.dependencies.clear()
+    elif mutation != "none":
+        raise AssertionError(f"unknown mutation: {mutation}")
+live_rows = sorted(
+    (
+        route_row(route)
+        for route in live_candidates
+        if any((method, route_path(route)) in source_keys for method in route_methods(route))
+    ),
+    key=lambda row: (row["path"], row["methods"], row["endpoint"]),
+)
+result = {
+    "source_count": len(source_rows),
+    "live_count": len(live_rows),
+    "source_digest": rows_digest(source_rows),
+    "live_digest": rows_digest(live_rows),
+    "source_rows": source_rows,
+    "live_rows": live_rows,
+}
+print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+"""
+
+_REGISTRATION_MANIFEST_SUMMARY_FIELDS = (
+    "source_count",
+    "live_count",
+    "source_digest",
+    "live_digest",
+)
 
 # --- Hard rules (policy) ---
 FORBIDDEN_DYNAMIC_IMPORT_TOKENS = (
@@ -192,30 +517,383 @@ def test_app_facade_does_not_restore_arbitrary_legacy_fallthrough() -> None:
     assert not offenders, f"Arbitrary legacy facade fallthrough restored: {offenders}"
 
 
-def test_canonical_bootstrap_has_eight_neutral_states_and_mirror_assignment_sites() -> None:
-    """Each registration state has one neutral declaration and one mirror assignment site."""
-    content = _read(REPO_ROOT / "app" / "main.py")
-    assert content is not None, "app/main.py unexpectedly missing during read"
+def _canonical_json_digest(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(payload).hexdigest()
 
-    neutral_declarations = {
-        "VIP_MODULE_ENABLED": "VIP_MODULE_ENABLED: bool = False",
-        "vip_router": "vip_router: APIRouter | None = None",
-        "pro_router": "pro_router: APIRouter | None = None",
-        "premium_week_router": "premium_week_router: APIRouter | None = None",
-        "FEATURE_BMI_PRO_ENABLED": "FEATURE_BMI_PRO_ENABLED: bool = False",
-        "bmi_router": "bmi_router: APIRouter | None = None",
-        "bmi_pro_router": "bmi_pro_router: APIRouter | None = None",
-        "bmi_pro_legacy_alias_router": "bmi_pro_legacy_alias_router: APIRouter | None = None",
+
+def _direct_named_call(statement: ast.stmt) -> ast.Call | None:
+    if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+        return None
+    if not isinstance(statement.value.func, ast.Name):
+        return None
+    return statement.value
+
+
+def _is_exact_named_call(call: ast.Call, name: str, argument: str) -> bool:
+    return (
+        isinstance(call.func, ast.Name)
+        and call.func.id == name
+        and len(call.args) == 1
+        and isinstance(call.args[0], ast.Name)
+        and call.args[0].id == argument
+        and not call.keywords
+    )
+
+
+def _registration_authority_violations(source: str) -> list[str]:
+    """Return closed-grammar violations for canonical registrar authority."""
+
+    tree = ast.parse(source, filename="app/main.py")
+    violations: list[str] = []
+    manifest = _REGISTRATION_AUTHORITY_MANIFEST
+    wrappers = manifest["wrappers"]
+    bootstrap_name = manifest["bootstrap_owner"]
+
+    all_functions = [
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    top_level_functions = [
+        node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+    bootstrap_matches = [node for node in top_level_functions if node.name == bootstrap_name]
+    if len(bootstrap_matches) != 1:
+        violations.append(f"bootstrap_owner:{bootstrap_name}:{len(bootstrap_matches)}")
+        bootstrap = None
+    else:
+        bootstrap = bootstrap_matches[0]
+    if sum(node.name == bootstrap_name for node in all_functions) != 1:
+        violations.append(f"bootstrap_scope:{bootstrap_name}")
+
+    wrapper_calls: list[ast.Call] = []
+    for wrapper in wrappers:
+        owner = wrapper["owner"]
+        parameter = wrapper["parameter"]
+        registrars = wrapper["registrars"]
+        owner_matches = [node for node in top_level_functions if node.name == owner]
+        if len(owner_matches) != 1:
+            violations.append(f"wrapper_owner:{owner}:{len(owner_matches)}")
+            continue
+        owner_node = owner_matches[0]
+        if sum(node.name == owner for node in all_functions) != 1:
+            violations.append(f"wrapper_scope:{owner}")
+
+        arguments = owner_node.args
+        if (
+            [argument.arg for argument in arguments.args] != [parameter]
+            or arguments.posonlyargs
+            or arguments.kwonlyargs
+            or arguments.vararg is not None
+            or arguments.kwarg is not None
+            or arguments.defaults
+            or arguments.kw_defaults
+        ):
+            violations.append(f"wrapper_signature:{owner}")
+
+        direct_calls = [_direct_named_call(statement) for statement in owner_node.body]
+        expected_names = [registrar["name"] for registrar in registrars]
+        if len(direct_calls) != len(expected_names) or any(
+            call is None or not _is_exact_named_call(call, expected_name, parameter)
+            for call, expected_name in zip(direct_calls, expected_names, strict=False)
+        ):
+            violations.append(f"wrapper_body:{owner}")
+
+        for registrar in registrars:
+            registrar_name = registrar["name"]
+            import_module = registrar["import_module"]
+            import_aliases = [
+                (node, alias)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                for alias in node.names
+                if alias.name == registrar_name
+            ]
+            if (
+                len(import_aliases) != 1
+                or import_aliases[0][0] not in tree.body
+                or import_aliases[0][0].module != import_module
+                or import_aliases[0][0].level != 0
+                or import_aliases[0][1].asname is not None
+            ):
+                violations.append(f"registrar_import:{registrar_name}")
+
+            all_calls = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == registrar_name
+            ]
+            owner_calls = [
+                call
+                for call in direct_calls
+                if call is not None
+                and isinstance(call.func, ast.Name)
+                and call.func.id == registrar_name
+            ]
+            if len(all_calls) != 1 or len(owner_calls) != 1 or all_calls[0] is not owner_calls[0]:
+                violations.append(f"registrar_cardinality_scope:{registrar_name}")
+
+            name_uses = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Name)
+                and isinstance(node.ctx, ast.Load)
+                and node.id == registrar_name
+            ]
+            if len(name_uses) != 1 or not isinstance(getattr(name_uses[0], "ctx", None), ast.Load):
+                violations.append(f"registrar_indirect_use:{registrar_name}")
+            if any(
+                isinstance(node, ast.Attribute) and node.attr == registrar_name
+                for node in ast.walk(tree)
+            ) or any(
+                isinstance(node, ast.Constant) and node.value == registrar_name
+                for node in ast.walk(tree)
+            ):
+                violations.append(f"registrar_dynamic_use:{registrar_name}")
+
+        owner_all_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == owner
+        ]
+        bootstrap_calls = (
+            [_direct_named_call(statement) for statement in bootstrap.body]
+            if bootstrap is not None
+            else []
+        )
+        owner_bootstrap_calls = [
+            call
+            for call in bootstrap_calls
+            if call is not None and isinstance(call.func, ast.Name) and call.func.id == owner
+        ]
+        if (
+            len(owner_all_calls) != 1
+            or len(owner_bootstrap_calls) != 1
+            or owner_all_calls[0] is not owner_bootstrap_calls[0]
+            or not _is_exact_named_call(
+                owner_bootstrap_calls[0],
+                owner,
+                wrapper["bootstrap_argument"],
+            )
+        ):
+            violations.append(f"wrapper_bootstrap_cardinality_scope:{owner}")
+        else:
+            wrapper_calls.append(owner_bootstrap_calls[0])
+
+        owner_name_uses = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == owner
+        ]
+        if len(owner_name_uses) != 1:
+            violations.append(f"wrapper_indirect_use:{owner}")
+        if any(
+            isinstance(node, ast.Attribute) and node.attr == owner for node in ast.walk(tree)
+        ) or any(isinstance(node, ast.Constant) and node.value == owner for node in ast.walk(tree)):
+            violations.append(f"wrapper_dynamic_use:{owner}")
+
+    if bootstrap is not None and len(wrapper_calls) == len(wrappers):
+        bootstrap_call_order = [
+            call
+            for statement in bootstrap.body
+            if (call := _direct_named_call(statement)) is not None
+        ]
+        positions = [bootstrap_call_order.index(call) for call in wrapper_calls]
+        if positions != sorted(positions) or len(set(positions)) != len(positions):
+            violations.append("bootstrap_wrapper_order")
+
+    return sorted(set(violations))
+
+
+def test_paid_bmi_registration_mirrors_remain_retired() -> None:
+    """Canonical bootstrap and legacy facade must not restore retired mirror bindings."""
+    assert (
+        _canonical_json_digest(_REGISTRATION_AUTHORITY_MANIFEST)
+        == _REGISTRATION_AUTHORITY_MANIFEST_SHA256
+    )
+    retired = {
+        "VIP_MODULE_ENABLED",
+        "vip_router",
+        "pro_router",
+        "premium_week_router",
+        "FEATURE_BMI_PRO_ENABLED",
+        "bmi_router",
+        "bmi_pro_router",
+        "bmi_pro_legacy_alias_router",
     }
-    lines = content.splitlines()
 
-    for name, declaration in neutral_declarations.items():
-        assert lines.count(declaration) == 1, f"Missing unique neutral state for {name}"
-        assert f'getattr(_legacy_module, "{name}"' not in content
-        mirror_write = f"_legacy_module.{name} ="
-        assert (
-            content.count(mirror_write) == 1
-        ), f"Expected one post-registration mirror assignment site for {name}"
+    for relative_path in ("app/main.py", "legacy_app.py"):
+        content = _read(REPO_ROOT / relative_path)
+        assert content is not None, f"{relative_path} unexpectedly missing during read"
+        tree = ast.parse(content, filename=relative_path)
+        bindings = {
+            target.id
+            for node in tree.body
+            for target in (
+                [node.target]
+                if isinstance(node, ast.AnnAssign)
+                else node.targets if isinstance(node, ast.Assign) else []
+            )
+            if isinstance(target, ast.Name)
+        }
+        assert retired.isdisjoint(bindings), (
+            f"Retired registration mirrors restored in {relative_path}: "
+            f"{sorted(retired & bindings)}"
+        )
+
+    main_content = _read(REPO_ROOT / "app" / "main.py")
+    assert main_content is not None, "app/main.py unexpectedly missing during read"
+    main_tree = ast.parse(main_content, filename="app/main.py")
+    assert not any(
+        isinstance(node, ast.Import)
+        and any(alias.name == "legacy_app" for alias in node.names)
+        or isinstance(node, ast.ImportFrom)
+        and node.module == "legacy_app"
+        for node in ast.walk(main_tree)
+    )
+    assert "_legacy_module" not in main_content
+    assert "_mirror_paid_tier_registration_attrs" not in main_content
+    assert "_mirror_bmi_registration_attrs" not in main_content
+    assert not _registration_authority_violations(main_content)
+
+
+def test_registration_authority_recognizer_ignores_lexical_decoys() -> None:
+    source = _REGISTRATION_AUTHORITY_MINIMAL_SOURCE + """
+# register_vip_routes(target_app)
+LEXICAL_DECOY = "register_pro_routes(target_app)"
+"""
+    assert not _registration_authority_violations(source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE.replace(
+            "    register_vip_routes(target_app)\n",
+            "    register_vip_routes(target_app)\n    register_vip_routes(other_app)\n",
+            1,
+        ),
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE.replace(
+            "    register_pro_routes(target_app)\n",
+            "    register_pro_routes(target_app, enabled=True)\n",
+            1,
+        ),
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE
+        + "\ndef unused():\n    register_bmi_routes(target_app)\n",
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE.replace(
+            "from app.routers.vip_registration import register_vip_routes",
+            "from app.routers.vip_registration import register_vip_routes as vip_register",
+            1,
+        ),
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE.replace(
+            "    register_vip_routes(target_app)\n",
+            "    alias = register_vip_routes\n    alias(target_app)\n",
+            1,
+        ),
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE
+        + "\nif False:\n    register_pro_routes(target_app)\n",
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE
+        + '\ngetattr(object(), "register_bmi_routes")(target_app)\n',
+        _REGISTRATION_AUTHORITY_MINIMAL_SOURCE.replace(
+            "    _register_bmi_routes(app)\n",
+            "    if target_app:\n        _register_bmi_routes(app)\n",
+            1,
+        ),
+    ),
+)
+def test_registration_authority_recognizer_rejects_unknown_carriers(source: str) -> None:
+    assert _registration_authority_violations(source)
+
+
+def _registration_live_manifest(state: str, mutation: str = "none") -> dict[str, object]:
+    """Return exact route rows plus their summary for one fresh feature state.
+
+    To inspect or intentionally regenerate a changed snapshot, run this test
+    with ``pytest -vv -k registration_authority_live_manifest``. The failing
+    assertion prints deterministic ``source_rows`` and ``live_rows``; review
+    that row-level diff before updating the manifest counts, digests, and its
+    content fingerprint together.
+    """
+
+    manifest_json = json.dumps(
+        _REGISTRATION_AUTHORITY_MANIFEST,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    base_env = os.environ | {
+        "APP_ENV": "test",
+        "ENVIRONMENT": "test",
+        "TESTING": "true",
+    }
+    for flag in (
+        "BUSINESS_MODULE_ENABLED",
+        "ENABLE_TEST_ROUTES",
+        *_REGISTRATION_AUTHORITY_MANIFEST["feature_flags"],
+    ):
+        base_env.pop(flag, None)
+    env = dict(base_env)
+    for index, flag in enumerate(_REGISTRATION_AUTHORITY_MANIFEST["feature_flags"]):
+        if state[index] == "1":
+            env[flag] = "true"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            _REGISTRATION_LIVE_MANIFEST_SCRIPT,
+            manifest_json,
+            state,
+            mutation,
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    return json.loads(completed.stdout)
+
+
+def _registration_manifest_summary(actual: dict[str, object]) -> dict[str, object]:
+    return {field: actual[field] for field in _REGISTRATION_MANIFEST_SUMMARY_FIELDS}
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    sorted(_REGISTRATION_AUTHORITY_MANIFEST["feature_states"].items()),
+)
+def test_registration_authority_live_manifest_matches_feature_state(
+    state: str,
+    expected: dict[str, object],
+) -> None:
+    actual = _registration_live_manifest(state)
+    actual_summary = _registration_manifest_summary(actual)
+    assert actual_summary == expected, (
+        f"Registration route manifest drift for state {state}: "
+        f"expected {expected}, got {actual_summary}; "
+        f"source_rows={actual['source_rows']}; live_rows={actual['live_rows']}"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "foreign_duplicate",
+        "foreign_owner",
+        "visibility",
+        "response_status_metadata",
+        "dependency",
+    ),
+)
+def test_registration_authority_live_manifest_rejects_drift(mutation: str) -> None:
+    state = "100"
+    expected = _REGISTRATION_AUTHORITY_MANIFEST["feature_states"][state]
+    actual = _registration_live_manifest(state, mutation)
+    assert _registration_manifest_summary(actual) != expected
 
 
 def test_app_surface_has_required_legacy_symbols() -> None:

@@ -509,7 +509,7 @@ If tests import symbols from `app`, update:
 
 ### Complete compatibility surface
 
-The facade-owned compatibility surface is exactly this 20-name set. Ordinary
+The facade-owned compatibility surface is exactly this 16-name set. Ordinary
 package globals and Python-created submodule bindings are outside this contract:
 
 - `app.app` (FastAPI instance)
@@ -522,10 +522,6 @@ package globals and Python-created submodule bindings are outside this contract:
 - `api_key_header`
 - `get_api_key`
 - `_get_api_key_dynamic`
-- `FEATURE_BMI_PRO_ENABLED`
-- `bmi_router`
-- `bmi_pro_router`
-- `bmi_pro_legacy_alias_router`
 - `get_bodyfat_router`
 - `MATPLOTLIB_AVAILABLE`
 - `generate_bmi_visualization`
@@ -546,10 +542,9 @@ import app
 need = [
     "app", "resolve_attr", "make_weekly_menu", "build_nutrition_targets",
     "metrics", "lifespan", "get_update_scheduler", "api_key_header",
-    "get_api_key", "_get_api_key_dynamic", "FEATURE_BMI_PRO_ENABLED",
-    "bmi_router", "bmi_pro_router", "bmi_pro_legacy_alias_router",
-    "get_bodyfat_router", "MATPLOTLIB_AVAILABLE", "generate_bmi_visualization",
-    "BMIRequest", "_is_truthy", "_macros_to_kcal",
+    "get_api_key", "_get_api_key_dynamic", "get_bodyfat_router",
+    "MATPLOTLIB_AVAILABLE", "generate_bmi_visualization", "BMIRequest",
+    "_is_truthy", "_macros_to_kcal",
 ]
 print("missing:", [n for n in need if not hasattr(app, n)])
 PY
