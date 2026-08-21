@@ -9757,12 +9757,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9774,12 +9777,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9791,12 +9797,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9808,12 +9817,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9825,12 +9837,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9842,12 +9857,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9859,12 +9877,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9876,12 +9897,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9893,12 +9917,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9910,12 +9937,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9927,12 +9957,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],
@@ -9944,12 +9977,15 @@
                         "minItems": 3,
                         "prefixItems": [
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           },
                           {
+                            "exclusiveMinimum": 0.0,
                             "type": "number"
                           }
                         ],

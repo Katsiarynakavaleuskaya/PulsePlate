@@ -839,6 +839,10 @@ def test_vip_auto_repair_weekly_openapi_contract(client: TestClient) -> None:
     assert len(target_schema["required"]) == 12
     assert target_schema["properties"]["iron_mg"]["minItems"] == 3
     assert target_schema["properties"]["iron_mg"]["maxItems"] == 3
+    assert all(
+        item["exclusiveMinimum"] == 0
+        for item in target_schema["properties"]["iron_mg"]["prefixItems"]
+    )
     assert request_schema["properties"]["strategy"]["enum"] == [
         "conservative",
         "balanced",

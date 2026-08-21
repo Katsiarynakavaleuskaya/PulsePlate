@@ -672,6 +672,18 @@ class TestVIPIntegration97Extended:
             "detail": "Invalid auto-repair request payload"
         }
 
+        negative_interval = _auto_repair_payload(payload_no_problems["week_plan"])
+        negative_interval["targets"]["iron_mg"] = [-1.0, 8.0, 45.0]
+        response = client.post(
+            "/api/v1/vip/auto-repair/weekly",
+            json=negative_interval,
+            headers=vip_headers,
+        )
+        assert response.status_code == 422
+        assert assert_json_response_payload(response) == {
+            "detail": "Invalid auto-repair request payload"
+        }
+
         malformed_interval = _auto_repair_payload(payload_no_problems["week_plan"])
         malformed_interval["targets"]["iron_mg"] = [8.0, 6.0, 45.0]
         response = client.post(

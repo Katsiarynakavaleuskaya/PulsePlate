@@ -12,7 +12,7 @@ import math
 from numbers import Real
 from typing import Any, List, Literal, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator, model_validator
 
 
 class MicronutrientType(str, Enum):
@@ -192,18 +192,18 @@ class AutoRepairWeekPlan(BaseModel):
 class AutoRepairTargetRanges(BaseModel):
     """Exact twelve positive monotonic micronutrient triplets."""
 
-    iron_mg: tuple[float, float, float]
-    calcium_mg: tuple[float, float, float]
-    magnesium_mg: tuple[float, float, float]
-    zinc_mg: tuple[float, float, float]
-    potassium_mg: tuple[float, float, float]
-    iodine_ug: tuple[float, float, float]
-    selenium_ug: tuple[float, float, float]
-    folate_ug: tuple[float, float, float]
-    b12_ug: tuple[float, float, float]
-    vitamin_d_iu: tuple[float, float, float]
-    vitamin_a_ug: tuple[float, float, float]
-    vitamin_c_mg: tuple[float, float, float]
+    iron_mg: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    calcium_mg: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    magnesium_mg: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    zinc_mg: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    potassium_mg: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    iodine_ug: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    selenium_ug: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    folate_ug: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    b12_ug: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    vitamin_d_iu: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    vitamin_a_ug: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
+    vitamin_c_mg: tuple[PositiveFloat, PositiveFloat, PositiveFloat]
 
     @model_validator(mode="before")
     @classmethod

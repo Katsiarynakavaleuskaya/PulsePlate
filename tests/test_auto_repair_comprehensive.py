@@ -445,7 +445,8 @@ class TestAutoRepairComprehensive:
             "client_metadata": {"trace": "trace-456"},
             "days": [
                 {
-                    "date": "monday",
+                    "day": "monday",
+                    "name": "Display label",
                     "day_id": "day-1",
                     "label": "Stable label",
                     "meals": [
@@ -495,6 +496,8 @@ class TestAutoRepairComprehensive:
         assert repaired_plan["plan_id"] == "plan-123"
         assert repaired_plan["client_metadata"] == {"trace": "trace-456"}
         assert repaired_plan["days"][0]["day_id"] == "day-1"
+        assert repaired_plan["days"][0]["day"] == "monday"
+        assert repaired_plan["days"][0]["name"] == "Display label"
         assert repaired_plan["days"][0]["label"] == "Stable label"
         assert repaired_meal["meal_id"] == "meal-1"
 

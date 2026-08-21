@@ -171,6 +171,8 @@ def _week_menu_to_wire(
         repaired_day = deepcopy(template) if isinstance(template, dict) else {}
         if "date" in repaired_day:
             repaired_day["date"] = day.date
+        elif "day" in repaired_day:
+            repaired_day["day"] = day.date
         elif "name" in repaired_day:
             repaired_day["name"] = day.date
         else:
